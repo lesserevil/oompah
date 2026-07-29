@@ -665,3 +665,385 @@ class TestEpicPlannerFocusSelection:
         focus = select_focus(epic)
         assert any("close" in rule.lower() and "epic" in rule.lower()
                     for rule in focus.must_not_do)
+
+
+# ---------------------------------------------------------------------------
+# Audit-repair dispatch tests (OOMPAH-482)
+# ---------------------------------------------------------------------------
+
+class TestShouldDispatchEpicAuditRepair:
+    """Tests for _should_dispatch_epic with audit:repair-needed label."""
+
+    def test_dispatches_repair_epic_with_children_when_unclaimed(self, tmp_path):
+        """An epic with audit:repair-needed and children should be dispatchable."""
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        epic = _make_epic(project_id=project.id)
+        epic.labels = ["audit:repair-needed"]
+
+        child = _make_issue("task-1")
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_children.return_value = [child]
+        mock_tracker.get_metadata.return_value = {}  # no claimed flag
+        orch._project_trackers[project.id] = mock_tracker
+
+        assert orch._should_dispatch_epic(epic) is True
+
+    def test_skips_repair_epic_when_already_claimed(self, tmp_path):
+        """A repair epic with claimed=True in metadata should not be dispatched."""
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        epic = _make_epic(project_id=project.id)
+        epic.labels = ["audit:repair-needed"]
+
+        from oompah.models import EPIC_AUDIT_REPAIR_METADATA_KEY, EPIC_AUDIT_REPAIR_METADATA_VERSION
+        mock_tracker = MagicMock()
+        mock_tracker.get_metadata.return_value = {
+            EPIC_AUDIT_REPAIR_METADATA_KEY: {
+                "version": EPIC_AUDIT_REPAIR_METADATA_VERSION,
+                "audit_id": "audit-abc123",
+                "claimed": True,
+            }
+        }
+        orch._project_trackers[project.id] = mock_tracker
+
+        assert orch._should_dispatch_epic(epic) is False
+
+    def test_skips_repair_epic_when_claimed_flag_missing_and_unclaimed(self, tmp_path):
+        """No claimed flag in metadata means unclaimed → dispatch allowed."""
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        epic = _make_epic(project_id=project.id)
+        epic.labels = ["audit:repair-needed"]
+
+        from oompah.models import EPIC_AUDIT_REPAIR_METADATA_KEY
+        mock_tracker = MagicMock()
+        mock_tracker.get_metadata.return_value = {
+            EPIC_AUDIT_REPAIR_METADATA_KEY: {
+                "version": 1,
+                "audit_id": "audit-abc123",
+                "claimed": False,
+            }
+        }
+        orch._project_trackers[project.id] = mock_tracker
+
+        assert orch._should_dispatch_epic(epic) is True
+
+    def test_normal_epic_with_children_remains_nondispatchable(self, tmp_path):
+        """An already-planned epic WITHOUT audit:repair-needed stays nondispatchable."""
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        epic = _make_epic(project_id=project.id)
+        epic.labels = []  # no repair label
+
+        child = _make_issue("task-1")
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_children.return_value = [child]
+        orch._project_trackers[project.id] = mock_tracker
+
+        assert orch._should_dispatch_epic(epic) is False
+
+    def test_metadata_read_error_treats_as_unclaimed(self, tmp_path):
+        """A tracker error reading repair metadata falls through to dispatchable."""
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        epic = _make_epic(project_id=project.id)
+        epic.labels = ["audit:repair-needed"]
+
+        from oompah.tracker import TrackerError
+        mock_tracker = MagicMock()
+        mock_tracker.get_metadata.side_effect = TrackerError("read failed")
+        orch._project_trackers[project.id] = mock_tracker
+
+        # Falls back to unclaimed, allowing dispatch
+        assert orch._should_dispatch_epic(epic) is True
+
+
+class TestClaimEpicAuditRepair:
+    """Tests for _claim_epic_audit_repair and _get_epic_audit_repair_context."""
+
+    def test_claim_sets_claimed_flag_and_returns_audit_id(self, tmp_path):
+        """_claim_epic_audit_repair sets claimed=True and returns the audit_id."""
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        epic = _make_epic(project_id=project.id)
+
+        from oompah.models import EPIC_AUDIT_REPAIR_METADATA_KEY, EPIC_AUDIT_REPAIR_METADATA_VERSION
+        doc = {
+            "version": EPIC_AUDIT_REPAIR_METADATA_VERSION,
+            "audit_id": "audit-xyz789",
+            "claimed": False,
+            "findings_summary": "Missing test coverage for edge case X.",
+        }
+        mock_tracker = MagicMock()
+        mock_tracker.get_metadata.return_value = {EPIC_AUDIT_REPAIR_METADATA_KEY: doc}
+        orch._project_trackers[project.id] = mock_tracker
+
+        audit_id = orch._claim_epic_audit_repair(epic)
+        assert audit_id == "audit-xyz789"
+        mock_tracker.set_metadata_field.assert_called_once()
+        call_args = mock_tracker.set_metadata_field.call_args
+        persisted_doc = call_args[0][2]
+        assert persisted_doc["claimed"] is True
+
+    def test_claim_returns_none_when_no_metadata(self, tmp_path):
+        """Returns None when no repair metadata exists."""
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        epic = _make_epic(project_id=project.id)
+
+        mock_tracker = MagicMock()
+        mock_tracker.get_metadata.return_value = {}
+        orch._project_trackers[project.id] = mock_tracker
+
+        result = orch._claim_epic_audit_repair(epic)
+        assert result is None
+
+    def test_get_repair_context_returns_doc(self, tmp_path):
+        """_get_epic_audit_repair_context returns the stored repair doc."""
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        epic = _make_epic(project_id=project.id)
+
+        from oompah.models import EPIC_AUDIT_REPAIR_METADATA_KEY
+        repair_doc = {
+            "version": 1,
+            "audit_id": "audit-aaa111",
+            "failure_classification": "incomplete",
+            "findings_summary": "Child TASK-5 did not cover requirement R3.",
+            "claimed": True,
+        }
+        mock_tracker = MagicMock()
+        mock_tracker.get_metadata.return_value = {EPIC_AUDIT_REPAIR_METADATA_KEY: repair_doc}
+        orch._project_trackers[project.id] = mock_tracker
+
+        result = orch._get_epic_audit_repair_context(epic)
+        assert result == repair_doc
+
+    def test_get_repair_context_returns_none_when_absent(self, tmp_path):
+        """Returns None when no repair metadata is stored."""
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        epic = _make_epic(project_id=project.id)
+
+        mock_tracker = MagicMock()
+        mock_tracker.get_metadata.return_value = {}
+        orch._project_trackers[project.id] = mock_tracker
+
+        result = orch._get_epic_audit_repair_context(epic)
+        assert result is None
+
+
+class TestPlanOpenEpicsRepair:
+    """Tests for _plan_open_epics handling of audit:repair-needed epics."""
+
+    def test_returns_repair_epic_with_children(self, tmp_path):
+        """A repair-needed epic with children is returned for dispatch."""
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+
+        epic = _make_epic(project_id=project.id)
+        epic.labels = ["audit:repair-needed"]
+
+        from oompah.models import EPIC_AUDIT_REPAIR_METADATA_KEY
+        child = _make_issue("task-1")
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_children.return_value = [child]
+        mock_tracker.get_metadata.return_value = {
+            EPIC_AUDIT_REPAIR_METADATA_KEY: {"version": 1, "audit_id": "audit-1", "claimed": False}
+        }
+        orch._project_trackers[project.id] = mock_tracker
+
+        result = orch._plan_open_epics([epic])
+        assert len(result) == 1
+        assert result[0].id == epic.id
+
+    def test_excludes_claimed_repair_epic(self, tmp_path):
+        """A repair epic with claimed=True is NOT returned for dispatch."""
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+
+        epic = _make_epic(project_id=project.id)
+        epic.labels = ["audit:repair-needed"]
+
+        from oompah.models import EPIC_AUDIT_REPAIR_METADATA_KEY
+        mock_tracker = MagicMock()
+        mock_tracker.get_metadata.return_value = {
+            EPIC_AUDIT_REPAIR_METADATA_KEY: {"version": 1, "audit_id": "audit-1", "claimed": True}
+        }
+        orch._project_trackers[project.id] = mock_tracker
+
+        result = orch._plan_open_epics([epic])
+        assert len(result) == 0
+
+    def test_mix_of_repair_and_normal_and_unplanned(self, tmp_path):
+        """Returns repair epic and unplanned epic, but not planned epic."""
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+
+        repair_epic = _make_epic(identifier="epic-repair", project_id=project.id)
+        repair_epic.labels = ["audit:repair-needed"]
+        planned_epic = _make_epic(identifier="epic-planned", project_id=project.id)
+        unplanned_epic = _make_epic(identifier="epic-new", project_id=project.id)
+
+        child = _make_issue("task-1")
+        from oompah.models import EPIC_AUDIT_REPAIR_METADATA_KEY
+
+        def side_effect_children(issue_id):
+            if issue_id == "epic-planned":
+                return [child]
+            return []
+
+        def side_effect_metadata(identifier):
+            if identifier == "epic-repair":
+                return {EPIC_AUDIT_REPAIR_METADATA_KEY: {"version": 1, "audit_id": "a", "claimed": False}}
+            return {}
+
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_children.side_effect = side_effect_children
+        mock_tracker.get_metadata.side_effect = side_effect_metadata
+        orch._project_trackers[project.id] = mock_tracker
+
+        result = orch._plan_open_epics([repair_epic, planned_epic, unplanned_epic])
+        ids = [r.id for r in result]
+        assert "epic-repair" in ids
+        assert "epic-new" in ids
+        assert "epic-planned" not in ids
+
+
+class TestEpicRepairPlannerFocus:
+    """Tests for epic_repair_planner focus selection."""
+
+    def test_repair_epic_gets_repair_planner_focus(self):
+        """An epic with audit:repair-needed gets epic_repair_planner focus."""
+        from oompah.focus import select_focus
+
+        epic = _make_epic()
+        epic.labels = ["audit:repair-needed"]
+        focus = select_focus(epic)
+        assert focus.name == "epic_repair_planner"
+
+    def test_repair_planner_must_do_includes_remove_label(self):
+        """The repair focus should instruct the agent to remove audit:repair-needed."""
+        from oompah.focus import select_focus
+
+        epic = _make_epic()
+        epic.labels = ["audit:repair-needed"]
+        focus = select_focus(epic)
+        combined = " ".join(focus.must_do)
+        assert "audit:repair-needed" in combined or "repair-needed" in combined
+
+    def test_repair_planner_must_not_do_includes_no_coding(self):
+        """The repair focus should tell the agent not to implement code."""
+        from oompah.focus import select_focus
+
+        epic = _make_epic()
+        epic.labels = ["audit:repair-needed"]
+        focus = select_focus(epic)
+        assert any("code" in rule.lower() or "implement" in rule.lower()
+                   for rule in focus.must_not_do)
+
+    def test_normal_epic_still_gets_epic_planner_focus(self):
+        """A normal epic without the repair label still gets epic_planner."""
+        from oompah.focus import select_focus
+
+        epic = _make_epic()
+        epic.labels = []
+        focus = select_focus(epic)
+        assert focus.name == "epic_planner"
+
+    def test_repair_planner_not_selected_for_non_epic(self):
+        """epic_repair_planner is never selected for non-epic issues."""
+        from oompah.focus import select_focus
+
+        task = _make_issue("task-1", issue_type="task", state="open")
+        task.labels = ["audit:repair-needed"]
+        focus = select_focus(task)
+        assert focus.name != "epic_repair_planner"
+
+
+class TestStampEpicAuditRepair:
+    """Tests for _stamp_epic_audit_repair in the terminal coordinator."""
+
+    def test_stamps_label_and_metadata_on_epic_fail(self):
+        """Coordinator stamps the label and metadata when an epic audit fails."""
+        from oompah.terminal_transition_coordinator import (
+            AuditResult,
+            _stamp_epic_audit_repair,
+        )
+        from oompah.terminal_audit import (
+            ContributorIdentity,
+            EvidenceFingerprint,
+            FailureClassification,
+            Verdict,
+        )
+        from oompah.models import (
+            EPIC_AUDIT_REPAIR_LABEL,
+            EPIC_AUDIT_REPAIR_METADATA_KEY,
+        )
+
+        tracker = MagicMock()
+        result = AuditResult(
+            audit_id="audit-test-001",
+            target_state="Done",
+            evidence_fingerprint=EvidenceFingerprint(digest="a" * 64),
+            verdict=Verdict.FAIL,
+            failure_classification=FailureClassification.INCOMPLETE,
+            message="Test coverage missing for module X.",
+            attempt_id="attempt-1",
+        )
+
+        _stamp_epic_audit_repair(tracker, "epic-1", result, "audit-test-001")
+
+        # Label added
+        tracker.add_label.assert_called_once_with("epic-1", EPIC_AUDIT_REPAIR_LABEL)
+        # Metadata set
+        tracker.set_metadata_field.assert_called_once()
+        call_args = tracker.set_metadata_field.call_args[0]
+        assert call_args[0] == "epic-1"
+        assert call_args[1] == EPIC_AUDIT_REPAIR_METADATA_KEY
+        doc = call_args[2]
+        assert doc["audit_id"] == "audit-test-001"
+        assert doc["claimed"] is False
+        assert "incomplete" in doc.get("failure_classification", "")
+        assert "Test coverage" in doc.get("findings_summary", "")
+
+    def test_swallows_tracker_label_error(self):
+        """A tracker error adding the label must not raise."""
+        from oompah.terminal_transition_coordinator import _stamp_epic_audit_repair
+        from oompah.terminal_audit import EvidenceFingerprint, FailureClassification, Verdict
+        from oompah.terminal_transition_coordinator import AuditResult
+
+        tracker = MagicMock()
+        tracker.add_label.side_effect = Exception("network failure")
+        result = AuditResult(
+            audit_id="audit-test-002",
+            target_state="Done",
+            evidence_fingerprint=EvidenceFingerprint(digest="b" * 64),
+            verdict=Verdict.FAIL,
+            failure_classification=FailureClassification.MISSING_TESTS,
+            message="Missing tests.",
+            attempt_id="attempt-2",
+        )
+        # Should not raise
+        _stamp_epic_audit_repair(tracker, "epic-2", result, "audit-test-002")
+
+    def test_swallows_tracker_metadata_error(self):
+        """A tracker error setting metadata must not raise."""
+        from oompah.terminal_transition_coordinator import _stamp_epic_audit_repair
+        from oompah.terminal_audit import EvidenceFingerprint, FailureClassification, Verdict
+        from oompah.terminal_transition_coordinator import AuditResult
+
+        tracker = MagicMock()
+        tracker.set_metadata_field.side_effect = Exception("storage failure")
+        result = AuditResult(
+            audit_id="audit-test-003",
+            target_state="Done",
+            evidence_fingerprint=EvidenceFingerprint(digest="c" * 64),
+            verdict=Verdict.FAIL,
+            failure_classification=FailureClassification.UNPUSHED,
+            message="Branch not pushed.",
+            attempt_id="attempt-3",
+        )
+        # Should not raise
+        _stamp_epic_audit_repair(tracker, "epic-3", result, "audit-test-003")

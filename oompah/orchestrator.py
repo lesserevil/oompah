@@ -81,6 +81,9 @@ from oompah.models import (
     AgentProfile,
     AgentTotals,
     BlockerRef,
+    EPIC_AUDIT_REPAIR_LABEL,
+    EPIC_AUDIT_REPAIR_METADATA_KEY,
+    EPIC_AUDIT_REPAIR_METADATA_VERSION,
     EPIC_INDEPENDENTLY_MERGED_LABEL,
     EpicRebaseState,
     EpicRebaseStateEntry,
@@ -4507,13 +4510,21 @@ class Orchestrator:
         timings["normal_dispatch"] = (time.monotonic() - _t_dispatch) * 1000
         metrics["dispatched_count"] = dispatched
 
-        # 7. Epic planning — plan open epics without children
+        # 7. Epic planning — plan open epics without children (or repair epics)
         _t_epic = time.monotonic()
         epics_to_plan = await _timed("plan_open_epics", self._plan_open_epics, candidates)
         planned = 0
         for epic in epics_to_plan:
             if self._available_slots() <= 0:
                 break
+            # For audit-repair epics, claim the repair in tracker metadata
+            # before dispatch so a restart cannot produce a duplicate run.
+            issue_labels = {str(lbl).lower() for lbl in (epic.labels or [])}
+            if EPIC_AUDIT_REPAIR_LABEL.lower() in issue_labels:
+                await asyncio.get_event_loop().run_in_executor(
+                    self._tick_pool,
+                    lambda _e=epic: self._claim_epic_audit_repair(_e),
+                )
             await self._dispatch(epic, attempt=None)
             planned += 1
         timings["epic_planning"] = (time.monotonic() - _t_epic) * 1000
@@ -6902,7 +6913,8 @@ class Orchestrator:
 
         An epic is dispatchable for planning when:
         - It is in an active state (open)
-        - It has no existing children (hasn't been planned yet)
+        - It has no existing children (hasn't been planned yet), OR it carries
+          the ``audit:repair-needed`` label and no repair run has been claimed
         - It is not already running, claimed, retrying, or completed
         - Standard guards (paused, budget, slots) pass
         """
@@ -6940,11 +6952,98 @@ class Orchestrator:
             return False
         if not self._check_budget():
             return False
-        # Check if epic already has children — if so, it's already been planned
+        # Check if the epic has the audit:repair-needed label.
+        # If so, dispatch is allowed even when children exist (exactly one
+        # repair-planner run), but only when no repair run has been claimed
+        # for the current audit_id.
+        issue_labels = {str(lbl).lower() for lbl in (issue.labels or [])}
+        if EPIC_AUDIT_REPAIR_LABEL.lower() in issue_labels:
+            return not self._epic_audit_repair_claimed(issue)
+        # Without the repair label, only dispatch when no children exist.
         children = self._fetch_epic_children(issue)
         if children:
             return False
         return True
+
+    def _epic_audit_repair_claimed(self, epic: Issue) -> bool:
+        """Return True when a repair run for this epic has already been claimed.
+
+        Reads the ``oompah.epic_audit_repair`` metadata field from the tracker
+        and checks whether the ``claimed`` flag is set.  Returns ``False`` on
+        any read error so the orchestrator can optimistically proceed.
+        """
+        try:
+            tracker = self._tracker_for_issue(epic)
+            raw_meta = tracker.get_metadata(epic.identifier)
+        except Exception as exc:
+            logger.debug(
+                "Could not read repair metadata for epic %s: %s",
+                epic.identifier,
+                exc,
+            )
+            return False
+        doc = (raw_meta or {}).get(EPIC_AUDIT_REPAIR_METADATA_KEY)
+        if not isinstance(doc, dict):
+            return False
+        return bool(doc.get("claimed"))
+
+    def _claim_epic_audit_repair(self, epic: Issue) -> str | None:
+        """Mark the epic's audit-repair metadata as claimed and return the audit ID.
+
+        Called just before dispatching a repair-planner run to prevent duplicate
+        dispatch on restart.  Returns the audit ID from the persisted context,
+        or ``None`` if the metadata is absent or unreadable.  Tracker write
+        failures are logged and swallowed — the repair dispatch must not be
+        blocked by a metadata write error.
+        """
+        try:
+            tracker = self._tracker_for_issue(epic)
+            raw_meta = tracker.get_metadata(epic.identifier)
+        except Exception as exc:
+            logger.debug(
+                "Could not read repair metadata before claiming epic %s: %s",
+                epic.identifier,
+                exc,
+            )
+            return None
+        doc = (raw_meta or {}).get(EPIC_AUDIT_REPAIR_METADATA_KEY)
+        if not isinstance(doc, dict):
+            return None
+        audit_id = doc.get("audit_id") or None
+        claimed_doc = dict(doc)
+        claimed_doc["claimed"] = True
+        try:
+            tracker.set_metadata_field(
+                epic.identifier, EPIC_AUDIT_REPAIR_METADATA_KEY, claimed_doc
+            )
+        except Exception as exc:
+            logger.warning(
+                "Failed to claim audit-repair metadata for epic %s: %s",
+                epic.identifier,
+                exc,
+            )
+        return audit_id if isinstance(audit_id, str) else None
+
+    def _get_epic_audit_repair_context(self, epic: Issue) -> dict | None:
+        """Return the persisted audit-repair context for *epic*, or ``None``.
+
+        Used by the prompt renderer to inject the failed-audit findings into
+        the repair-planner prompt.
+        """
+        try:
+            tracker = self._tracker_for_issue(epic)
+            raw_meta = tracker.get_metadata(epic.identifier)
+        except Exception as exc:
+            logger.debug(
+                "Could not read repair context for epic %s: %s",
+                epic.identifier,
+                exc,
+            )
+            return None
+        doc = (raw_meta or {}).get(EPIC_AUDIT_REPAIR_METADATA_KEY)
+        if not isinstance(doc, dict):
+            return None
+        return doc
 
     def _fetch_epic_children(self, epic: Issue) -> list[Issue]:
         """Fetch existing child issues for an epic.
@@ -8548,7 +8647,10 @@ class Orchestrator:
     def _plan_open_epics(self, candidates: list[Issue]) -> list[Issue]:
         """Identify open epics that need planning and return them for dispatch.
 
-        An epic needs planning if it's in an active state and has no children.
+        An epic needs planning if it is in an active state and either:
+        - Has no existing children (initial planning run), or
+        - Has the ``audit:repair-needed`` label and no repair run has been
+          claimed yet (audit-repair run).
         """
         epics_to_plan: list[Issue] = []
         for issue in candidates:

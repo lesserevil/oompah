@@ -69,7 +69,12 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from typing import Any
 
-from oompah.models import Issue
+from oompah.models import (
+    Issue,
+    EPIC_AUDIT_REPAIR_LABEL,
+    EPIC_AUDIT_REPAIR_METADATA_KEY,
+    EPIC_AUDIT_REPAIR_METADATA_VERSION,
+)
 from oompah.statuses import (
     ARCHIVED,
     DONE,
@@ -1100,6 +1105,19 @@ class TerminalTransitionCoordinator:
                 identifier,
             )
 
+        # --- Epic-audit-repair signalling ---
+        # When a failed audit reopens an epic as Open, mark it with the
+        # audit:repair-needed label and persist the repair context so the
+        # orchestrator can dispatch exactly one repair-planner run.
+        if (
+            applied_status == OPEN
+            and (current_issue.issue_type or "").strip().lower() == "epic"
+            and result.verdict == Verdict.FAIL
+        ):
+            _stamp_epic_audit_repair(
+                tracker, identifier, result, decision.audit_id
+            )
+
         return ResultOutcome(
             success=True,
             audit_id=decision.audit_id,
@@ -1706,6 +1724,74 @@ def _generate_audit_id() -> str:
     return f"audit-{uuid.uuid4().hex[:12]}"
 
 
+def _stamp_epic_audit_repair(
+    tracker: TrackerProtocol,
+    identifier: str,
+    result: AuditResult,
+    audit_id: str | None,
+) -> None:
+    """Add the audit:repair-needed label and persist repair context.
+
+    Called by :meth:`TerminalTransitionCoordinator._apply_result_locked`
+    immediately after the epic is moved back to ``Open``.  A tracker failure
+    is logged and swallowed — the repair label is advisory; the caller's
+    ``ResultOutcome`` has already been decided and must not be affected.
+
+    The repair context is a small, versioned document stored under
+    :data:`~oompah.models.EPIC_AUDIT_REPAIR_METADATA_KEY`::
+
+        {
+            "version": 1,
+            "audit_id": "<failed_audit_id>",
+            "failure_classification": "<classification or null>",
+            "findings_summary": "<brief human-readable audit message>",
+            "claimed": False,
+        }
+
+    The ``claimed`` flag is set to ``True`` by the orchestrator's
+    ``_should_dispatch_epic`` path when it claims the repair run, preventing
+    duplicate dispatch on restart.
+    """
+    effective_audit_id = audit_id or (result.audit_id if result else "")
+    # Summarise the failure for the repair-planner prompt.  Audit messages
+    # can contain sensitive or large text — limit to 512 chars and strip
+    # leading/trailing whitespace.  An empty message is stored as an empty
+    # string so the planner knows a summary was unavailable.
+    raw_message = (getattr(result, "message", None) or "").strip()
+    findings_summary = raw_message[:512]
+
+    classification_raw = getattr(result, "failure_classification", None)
+    classification_str = (
+        classification_raw.value
+        if isinstance(classification_raw, FailureClassification)
+        else (str(classification_raw) if classification_raw is not None else "")
+    )
+
+    repair_doc: dict[str, object] = {
+        "version": EPIC_AUDIT_REPAIR_METADATA_VERSION,
+        "audit_id": effective_audit_id,
+        "failure_classification": classification_str,
+        "findings_summary": findings_summary,
+        "claimed": False,
+    }
+    try:
+        tracker.set_metadata_field(
+            identifier, EPIC_AUDIT_REPAIR_METADATA_KEY, repair_doc
+        )
+    except Exception:
+        logger.exception(
+            "Failed to persist audit-repair metadata for epic %s", identifier
+        )
+    try:
+        tracker.add_label(identifier, EPIC_AUDIT_REPAIR_LABEL)
+    except Exception:
+        logger.exception(
+            "Failed to add %r label to epic %s after failed audit",
+            EPIC_AUDIT_REPAIR_LABEL,
+            identifier,
+        )
+
+
 def _generate_override_id() -> str:
     """Return a unique override record identifier."""
     return f"override-{uuid.uuid4().hex[:12]}"
@@ -1737,4 +1823,5 @@ __all__ = [
     "TransitionResult",
     "classify_failure_to_status",
     "route_failure_status",
+    "_stamp_epic_audit_repair",
 ]
