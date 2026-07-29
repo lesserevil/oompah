@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-541
 type: bug
-status: Backlog
+status: In Progress
 priority: 1
 title: Use resolved project identity in duplicate-screening task details
 parent: null
@@ -13,7 +13,7 @@ labels:
 - needs:test
 assignee: null
 created_at: '2026-07-29T01:23:36.484044Z'
-updated_at: '2026-07-29T01:23:36.484044Z'
+updated_at: '2026-07-29T01:23:49.026563Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -32,3 +32,11 @@ Production verification after OOMPAH-540 exposed a task-detail-only fingerprint 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-29 01:23
+---
+Claimed by the current interactive session for immediate implementation and live verification. The human-only label prevents scheduler dispatch while this branch is active.
+---
+<!-- COMMENTS:END -->
