@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-342
 type: task
-status: Merged
+status: Archived
 priority: null
 title: Wire GitLabHookManager into project lifecycle with hook health, polling fallback,
   and delivery dedup
@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T00:29:14.500742Z'
-updated_at: '2026-07-22T15:50:53.496920Z'
+updated_at: '2026-07-29T16:46:38.034986Z'
 work_branch: null
 target_branch: null
 review_url: null
