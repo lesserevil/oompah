@@ -6,12 +6,15 @@ priority: 0
 title: Expose finish-order lifecycle in UI, prompts, and operator documentation
 parent: OOMPAH-545
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-546
+- OOMPAH-547
+- OOMPAH-548
 labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T16:23:11.842687Z'
-updated_at: '2026-07-29T16:23:56.761276Z'
+updated_at: '2026-07-29T16:24:45.184974Z'
 work_branch: null
 target_branch: null
 review_url: null

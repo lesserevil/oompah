@@ -2,15 +2,16 @@
 id: OOMPAH-558
 type: feature
 status: Backlog
-priority: 1
+priority: 0
 title: Rebase, test, fast-forward, and audit queued task results
 parent: OOMPAH-555
 children: []
 blocked_by: []
-labels: []
+labels:
+- human-only
 assignee: null
 created_at: '2026-07-29T16:23:24.105345Z'
-updated_at: '2026-07-29T16:23:24.105345Z'
+updated_at: '2026-07-29T16:24:29.334177Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -31,3 +32,11 @@ Acceptance criteria: only tested combined code reaches the epic branch and Done 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-29 16:24
+---
+Claimed by the interactive Codex session for the owner-requested parallel-epic execution implementation. Keep human-only; do not dispatch another worker. Work will be completed, tested, pushed, and handed off through the parent epic.
+---
+<!-- COMMENTS:END -->

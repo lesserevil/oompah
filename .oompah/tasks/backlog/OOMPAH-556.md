@@ -2,15 +2,16 @@
 id: OOMPAH-556
 type: feature
 status: Backlog
-priority: 1
+priority: 0
 title: Allocate isolated private branches for epic children
 parent: OOMPAH-555
 children: []
 blocked_by: []
-labels: []
+labels:
+- human-only
 assignee: null
 created_at: '2026-07-29T16:23:21.738821Z'
-updated_at: '2026-07-29T16:23:21.738821Z'
+updated_at: '2026-07-29T16:24:22.348985Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -31,3 +32,11 @@ Acceptance criteria: concurrent children never share a worktree or checked-out b
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-29 16:24
+---
+Claimed by the interactive Codex session for the owner-requested parallel-epic execution implementation. Keep human-only; do not dispatch another worker. Work will be completed, tested, pushed, and handed off through the parent epic.
+---
+<!-- COMMENTS:END -->

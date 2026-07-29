@@ -6,12 +6,14 @@ priority: 0
 title: Add worker submission handoff and ordered terminal staging
 parent: OOMPAH-545
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-546
+- OOMPAH-547
 labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T16:23:10.331989Z'
-updated_at: '2026-07-29T16:23:52.217974Z'
+updated_at: '2026-07-29T16:24:41.537893Z'
 work_branch: null
 target_branch: null
 review_url: null

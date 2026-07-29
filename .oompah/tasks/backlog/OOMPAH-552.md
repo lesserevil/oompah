@@ -6,12 +6,13 @@ priority: 0
 title: Add worker-scoped coordination API, CLI, and tools
 parent: OOMPAH-550
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-551
 labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T16:23:15.200331Z'
-updated_at: '2026-07-29T16:24:07.294244Z'
+updated_at: '2026-07-29T16:24:46.296971Z'
 work_branch: null
 target_branch: null
 review_url: null

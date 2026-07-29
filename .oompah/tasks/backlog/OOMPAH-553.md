@@ -6,12 +6,13 @@ priority: 0
 title: Deliver coordination messages into live ACP sessions
 parent: OOMPAH-550
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-552
 labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T16:23:16.695169Z'
-updated_at: '2026-07-29T16:24:10.888551Z'
+updated_at: '2026-07-29T16:24:47.509178Z'
 work_branch: null
 target_branch: null
 review_url: null
