@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-470
 type: feature
-status: In Progress
+status: Needs Human
 priority: 1
 title: Seed the auditor role and select an independent provider-model candidate
 parent: OOMPAH-458
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:10.311921Z'
-updated_at: '2026-07-29T03:15:03.138242Z'
+updated_at: '2026-07-29T03:15:27.951053Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -55,13 +55,13 @@ oompah.duplicate_screening:
 oompah.agent_run_id: 3256f589-82be-468f-a24f-9e09fedffabf
 oompah.work_branch: epic-OOMPAH-458
 oompah.task_costs:
-  total_input_tokens: 47533074
-  total_output_tokens: 144953
+  total_input_tokens: 47584665
+  total_output_tokens: 145605
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 39200075
-      output_tokens: 113235
+      input_tokens: 39251666
+      output_tokens: 113887
       cost_usd: 0.0
     sonnet:
       input_tokens: 2359175
@@ -150,6 +150,12 @@ oompah.task_costs:
     output_tokens: 3162
     cost_usd: 0.0
     recorded_at: '2026-07-29T03:13:11.341102+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 51591
+    output_tokens: 652
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T03:15:23.611538+00:00'
 ---
 ## Summary
 
@@ -908,5 +914,25 @@ author: oompah
 created: 2026-07-29 03:15
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-29 03:15
+---
+Agent completed successfully in 22s (52243 tokens)
+---
+author: oompah
+created: 2026-07-29 03:15
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 1
+- Tokens: 51.6K in / 652 out [52.2K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 22s
+- Log: OOMPAH-470__20260729T031503Z.jsonl
+---
+author: oompah
+created: 2026-07-29 03:15
+---
+Agent completed 3 times without closing this issue. Human action required: review the agent run history and task state, then either close the task if the work is done or add specific guidance and move it back to Open.
 ---
 <!-- COMMENTS:END -->
