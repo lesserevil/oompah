@@ -5040,13 +5040,12 @@ class Orchestrator:
         return sum(1 for r in project_reviews if not r.draft)
 
     def _epic_in_flight_count(self, parent_id: str) -> int:
-        """Number of running OR claimed children that share ``parent_id``.
+        """Number of branch-writing children that share ``parent_id``.
 
         Used by the shared-mode dispatch gate to enforce serial child
-        dispatch within a single epic worktree. Counts any
-        running/claimed child whose ``parent_id`` matches the given
-        epic identifier — the orchestrator already keeps these in
-        ``state.running`` and ``state.claimed`` (the ID half).
+        dispatch within a single epic worktree. Read-only duplicate-preflight
+        workers deliberately do not count: they neither mutate nor own the
+        shared branch, and must not delay implementation work.
 
         Returns 0 when the parent_id is empty.
         """
@@ -5054,6 +5053,8 @@ class Orchestrator:
             return 0
         in_flight_ids: set[str] = set()
         for entry in self.state.running.values():
+            if getattr(entry, "duplicate_preflight", False):
+                continue
             other = entry.issue
             if other and (other.parent_id or "") == parent_id:
                 in_flight_ids.add(other.id)
@@ -5062,6 +5063,11 @@ class Orchestrator:
         # scheduling pass cannot start a second writer on the same branch.
         claimed_issues = getattr(self.state, "claimed_issues", {})
         for issue_id, claimed_issue in claimed_issues.items():
+            screening_record = DuplicateScreeningRecord.from_raw(
+                getattr(claimed_issue, "duplicate_screening", None)
+            )
+            if screening_record is not None and screening_record.claim_id:
+                continue
             if (
                 issue_id in self.state.claimed
                 and (claimed_issue.parent_id or "") == parent_id
@@ -8620,7 +8626,7 @@ class Orchestrator:
         # independent. The `human-only` and `asking_question` label
         # gates above still apply and remain the operator's escape
         # hatch when a P0 must wait for a human. (oompah-zlz_2-dyi)
-        if not is_p0 and state_norm in ("open", "todo"):
+        if not duplicate_preflight and not is_p0 and state_norm in ("open", "todo"):
             for blocker in issue.blocked_by:
                 blocker_state = blocker.state or ""
                 # If blocker state is unknown, look it up
@@ -8652,7 +8658,10 @@ class Orchestrator:
             # but epic rebase tasks do not: multiple rebase workers for
             # the same shared branch can race force-pushes and corrupt
             # each other's work.
-            if not is_p0 or self._is_epic_rebase_task(issue):
+            if (
+                not duplicate_preflight
+                and (not is_p0 or self._is_epic_rebase_task(issue))
+            ):
                 in_flight = self._epic_in_flight_count(issue.parent_id)
                 if in_flight >= 1:
                     return _reject(
