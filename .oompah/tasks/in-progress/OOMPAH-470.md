@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:10.311921Z'
-updated_at: '2026-07-29T08:33:27.609202Z'
+updated_at: '2026-07-29T08:34:04.566389Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -2369,5 +2369,33 @@ author: oompah
 created: 2026-07-29 08:33
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-29 08:34
+---
+Completion: All implementation for OOMPAH-470 is committed, pushed, and verified.
+
+**Implementation delivered:**
+- `oompah/auditor_candidate_selector.py` (662 lines): AuditorCandidateSelector class with full filtering pipeline
+  - Whitelist, credentials, health, budget, model validity filtering
+  - Contributor exclusion with independent provider preference
+  - Safe same-provider fallback for explicit model IDs different from contributed models
+  - SDK-managed unknown model exclusion
+  - NoCandidateReason normalized diagnostics
+  - Round-robin ordering seeded from deduplicated union of deep/standard/default role candidates
+- `oompah/auditor.py`: Reserved editable auditor role integrated into RoleStore
+- Bootstrap seeding via seed_auditor_role_from_config()
+
+**Tests:** 39 tests in test_auditor_candidate_selector.py + 89 in the audit contract/focus/result suites — all passing.
+
+**Commits on epic-OOMPAH-458:**
+- 4926230c1: Implement auditor role independent candidate selection
+- f220e5b2e: Integrate auditor role seeding into bootstrap
+- 094f60a5a: Seed independent auditor candidates
+- 3a2871400: Handle dataclass budget snapshots
+- 3e4b65d6a: Enforce independent auditor fallback policy
+- d4f5180f4: Enforce auditor eligibility order
+
+All acceptance criteria met.
 ---
 <!-- COMMENTS:END -->
