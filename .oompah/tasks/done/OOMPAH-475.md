@@ -21,7 +21,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:15.927352Z'
-updated_at: '2026-07-29T14:57:14.590957Z'
+updated_at: '2026-07-29T14:57:16.825912Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -611,5 +611,10 @@ created: 2026-07-29 14:57
 **Verification**: 97 focused auditor tests pass (auditor_candidate_selector, auditor_contract, terminal_audit, terminal_audit_metadata). Branch is clean and up to date with origin.
 
 All acceptance criteria met: documentation covers every dispatch, retry, recovery, and Needs Human routing scenario described in the task.
+---
+author: oompah
+created: 2026-07-29 14:57
+---
+Independent auditor dispatch documentation complete: design document (plans/independent-auditor-dispatch.md) and operator guide (docs/auditor-dispatch-operations.md) committed and pushed to epic-OOMPAH-458. All 97 focused tests pass.
 ---
 <!-- COMMENTS:END -->
