@@ -15,10 +15,11 @@ children:
 - OOMPAH-489
 blocked_by:
 - OOMPAH-459
-labels: []
+labels:
+- epic:stale
 assignee: null
 created_at: '2026-07-28T13:03:47.776498Z'
-updated_at: '2026-07-28T18:10:06.553659Z'
+updated_at: '2026-07-29T14:41:35.432617Z'
 work_branch: null
 target_branch: null
 review_url: null

@@ -21,7 +21,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:15.927352Z'
-updated_at: '2026-07-29T14:40:54.659698Z'
+updated_at: '2026-07-29T14:41:43.327802Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -45,7 +45,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: c1e2cd9c-2b0e-40d6-983c-1c654fd2b0a6
+oompah.agent_run_id: 452d2e1b-ee98-4ba5-aeb5-3efcfc436ff2
 oompah.work_branch: epic-OOMPAH-458
 oompah.task_costs:
   total_input_tokens: 493111
@@ -297,6 +297,16 @@ Agent dispatched (profile: standard)
 ---
 author: oompah
 created: 2026-07-29 14:40
+---
+Focus: Technical Writer
+---
+author: oompah
+created: 2026-07-29 14:41
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-29 14:41
 ---
 Focus: Technical Writer
 ---
