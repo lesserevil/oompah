@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:25.195304Z'
-updated_at: '2026-07-29T20:12:27.364200Z'
+updated_at: '2026-07-29T20:13:19.015405Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-486
 target_branch: null
 review_url: null
@@ -291,5 +291,25 @@ created: 2026-07-29 20:12
 3. State integration: Wired into handleStateUpdate() to receive state.terminal_audit from WebSocket broadcasts
 
 The stat is hidden when idle (both queued and running are 0), preventing routine-operation noise while making active validation throughput immediately visible to operators. Backend metrics (queued, running counts) are provided via orchestrator.get_snapshot()["terminal_audit"], alleviating the need for operators to dig through logs or metrics endpoints.
+---
+author: oompah
+created: 2026-07-29 20:13
+---
+**Verification**: All tests pass:
+
+✓ test_terminal_audit_observability.py — 9/9 passed
+  - Lifecycle metrics and oldest age deterministic
+  - Queue age and project isolation survive restart
+  - Threshold alerts deduplicate and clear on recovery
+  - Normal queue/running/passed states have no alerts
+  - No-candidate alert has actionable instructions
+  - Corrupt persistence is visible
+  - Orchestrator snapshot and alert recovery shapes
+  - Queue recovery alert survives snapshots
+  - Running audits don't emit queue-age alerts
+
+✓ test_dashboard_review_badge.py — 1/1 passed
+
+Frontend implementation complete: audit throughput stat displays queued/running counts in the agent-bar only during active validation, hidden when idle. Operators can now distinguish healthy throughput from actionable audit stalls without receiving routine-operation alerts.
 ---
 <!-- COMMENTS:END -->
