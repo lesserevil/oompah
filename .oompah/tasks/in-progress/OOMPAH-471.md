@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:12.016068Z'
-updated_at: '2026-07-29T00:46:07.833398Z'
+updated_at: '2026-07-29T00:46:42.295180Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -216,5 +216,32 @@ author: oompah
 created: 2026-07-29 00:46
 ---
 Focus: DevOps Engineer
+---
+author: oompah
+created: 2026-07-29 00:46
+---
+**Understanding & Plan:**
+
+I've investigated the codebase and the duplicate screening confirms this is NOT a duplicate. I'm ready to implement the DoneEvidenceCollector.
+
+**Key findings:**
+- OOMPAH-462-468 provide terminal-audit infrastructure (records, fingerprints, metadata persistence)
+- auditor.py defines contracts for auditors including required evidence fields
+- terminal_audit.py/terminal_audit_metadata.py provide serialization and evidence fingerprint computation
+- EvidenceFingerprint requires: requirements_text, project_id, task_id, source_branch, source_sha, target_branch, target_sha, review_id, review_state, child_audit_digests, contributors
+
+**Implementation scope (as DevOps Engineer):**
+1. Build read-only DoneEvidenceCollector class that gathers deterministic evidence snapshots
+2. Create comprehensive git fixture suite for testing (standalone tasks, epic children, nested epics, clean/dirty worktrees, unpushed commits, etc.)
+3. Implement stable, reproducible evidence collection with clear failure modes
+4. Add test suite covering all acceptance criteria
+5. Ensure rollback-safe implementation
+
+**Next steps:**
+1. Explore workspace/scm modules to understand git interaction patterns
+2. Design DoneEvidenceCollector data structure and interfaces
+3. Implement git fixture helpers for test infrastructure
+4. Build DoneEvidenceCollector with full evidence gathering
+5. Write comprehensive fixture-based tests
 ---
 <!-- COMMENTS:END -->
