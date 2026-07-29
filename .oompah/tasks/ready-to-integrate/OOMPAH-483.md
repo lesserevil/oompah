@@ -19,7 +19,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:31.119782Z'
-updated_at: '2026-07-29T18:44:39.847786Z'
+updated_at: '2026-07-29T23:42:33.178524Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-483
 target_branch: null
 review_url: null
@@ -93,9 +93,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: epic-OOMPAH-459--task-OOMPAH-483
-  head_sha: 9179e5890eb0d43d1ff004b2e2a396e6438c7a12
-  submitted_at: '2026-07-29T18:44:24.679348+00:00'
-  updated_at: '2026-07-29T18:44:24.679348+00:00'
+  head_sha: 96219a6812bf9246bb4fce7201591b679dfc8ce4
+  submitted_at: '2026-07-29T23:42:30.270277+00:00'
+  updated_at: '2026-07-29T23:42:30.270277+00:00'
 ---
 ## Summary
 
@@ -276,5 +276,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 10m 13s
 - Log: OOMPAH-483__20260729T183432Z.jsonl
+---
+author: oompah
+created: 2026-07-29 23:42
+---
+Rebased terminal-audit enforcement documentation onto the repaired epic base; verified clean diff and canonical attribution.
 ---
 <!-- COMMENTS:END -->
