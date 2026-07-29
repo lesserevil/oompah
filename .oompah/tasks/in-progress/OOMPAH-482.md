@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:30.191340Z'
-updated_at: '2026-07-29T18:46:04.248844Z'
+updated_at: '2026-07-29T19:00:42.314218Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-482
 target_branch: null
 review_url: null
@@ -160,5 +160,20 @@ author: oompah
 created: 2026-07-29 18:46
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-07-29 19:00
+---
+Understanding: This is attempt #6. No prior implementation code exists on this branch (we're at the epic-OOMPAH-459 base). I need to implement the full audit:repair-needed feature:
+
+1. **terminal_transition_coordinator.py**: When an epic audit fails and routes back to Open, add 'audit:repair-needed' label and persist repair metadata (audit_id, findings_summary, failure_classification) in a new tracker metadata key.
+
+2. **orchestrator.py**: Modify _should_dispatch_epic to allow dispatch for epics with 'audit:repair-needed' even when they already have children. Add deduplication via claimed audit_id in metadata. Add _claim_epic_audit_repair helper.
+
+3. **focus.py**: Add epic_repair_planner focus (selected when epic has 'audit:repair-needed' label) with repair-specific instructions: inspect children, reopen/create missing ones, add dependencies, remove audit:repair-needed, no code implementation.
+
+4. **Tests**: Cover existing child reopened, missing child created, no duplicate planning, label removal, normal epic unchanged.
+
+Starting implementation now.
 ---
 <!-- COMMENTS:END -->
