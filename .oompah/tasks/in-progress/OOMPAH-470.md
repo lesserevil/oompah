@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:10.311921Z'
-updated_at: '2026-07-29T00:51:32.020395Z'
+updated_at: '2026-07-29T01:14:18.902074Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -55,13 +55,13 @@ oompah.duplicate_screening:
 oompah.agent_run_id: 3752f828-f752-4cec-a627-6ea79e67e479
 oompah.work_branch: epic-OOMPAH-458
 oompah.task_costs:
-  total_input_tokens: 1121
-  total_output_tokens: 37501
+  total_input_tokens: 19473571
+  total_output_tokens: 76245
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 1121
-      output_tokens: 37501
+      input_tokens: 19473571
+      output_tokens: 76245
       cost_usd: 0.0
   runs:
   - profile: default
@@ -88,6 +88,12 @@ oompah.task_costs:
     output_tokens: 25940
     cost_usd: 0.0
     recorded_at: '2026-07-29T00:43:54.438140+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 19472450
+    output_tokens: 38744
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T01:14:16.370831+00:00'
 ---
 ## Summary
 
@@ -423,5 +429,25 @@ author: oompah
 created: 2026-07-29 00:51
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-29 01:14
+---
+Agent completed successfully in 1366s (19511194 tokens)
+---
+author: oompah
+created: 2026-07-29 01:14
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 124
+- Tokens: 19.5M in / 38.7K out [19.5M total]
+- Cost: $0.0000
+- Exit: normal, Duration: 22m 46s
+- Log: OOMPAH-470__20260729T005132Z.jsonl
+---
+author: oompah
+created: 2026-07-29 01:14
+---
+Agent completed without closing this issue (1366s (19511194 tokens)). Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
 ---
 <!-- COMMENTS:END -->
