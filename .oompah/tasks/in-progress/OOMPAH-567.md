@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T22:48:39.126282Z'
-updated_at: '2026-07-29T22:53:28.567116Z'
+updated_at: '2026-07-29T22:54:17.159552Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -126,5 +126,10 @@ author: oompah
 created: 2026-07-29 22:53
 ---
 Discovery: Issue is in Makefile structure. Current setup installs only .[server] (no test backends). Test targets (make test/test-serial) depend on setup but need .[dev] which includes claude-agent-sdk, openai-agents, and granian. Solution: Add idempotent test marker $(VENV)/.uv-test-setup (like existing .uv-setup) that installs .[dev] if missing, invalidated by pyproject.toml changes. Keep setup unchanged (production server-only). Add regression tests verifying: (1) test target pulls in dev extra, (2) start/setup remain server-only.
+---
+author: oompah
+created: 2026-07-29 22:54
+---
+Implementation: (1) Added test-setup target to Makefile that installs .[dev] with idempotent marker $(VENV)/.uv-test-setup invalidated by pyproject.toml. (2) Updated test and test-serial targets to depend on test-setup instead of setup. (3) Kept setup target unchanged (server-only). (4) Added comprehensive regression tests in tests/test_makefile_packaging.py that verify: dev extra with all backends is installed for tests, setup remains server-only, markers properly invalidated by pyproject changes.
 ---
 <!-- COMMENTS:END -->
