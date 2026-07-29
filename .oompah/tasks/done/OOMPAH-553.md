@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-553
 type: feature
-status: Backlog
+status: Done
 priority: 0
 title: Deliver coordination messages into live ACP sessions
 parent: OOMPAH-550
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T16:23:16.695169Z'
-updated_at: '2026-07-29T17:57:16.156419Z'
+updated_at: '2026-07-29T18:28:10.998413Z'
 work_branch: null
 target_branch: null
 review_url: null
