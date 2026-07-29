@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-472
 type: feature
-status: Done
+status: In Progress
 priority: 1
 title: Collect target-landing evidence for Merged audits
 parent: OOMPAH-458
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:12.977543Z'
-updated_at: '2026-07-29T02:18:40.296729Z'
+updated_at: '2026-07-29T02:18:42.952950Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -324,5 +324,23 @@ Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 14s
 - Log: OOMPAH-472__20260729T021728Z.jsonl
+---
+author: oompah
+created: 2026-07-29 02:18
+---
+Completion refused by orchestrator: unpushed work detected on branch `epic-OOMPAH-458` while task is in a terminal state.
+
+Diagnostic:
+  Worktree has uncommitted changes — file(s) created but never committed.
+
+Required: commit the work, push to origin, then close the task.
+
+Steps to resolve:
+  git checkout epic-OOMPAH-458
+  git add -A
+  git commit -m "Descriptive commit message"
+  git push origin epic-OOMPAH-458
+
+Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
 ---
 <!-- COMMENTS:END -->
