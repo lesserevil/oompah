@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-29T21:08:21.827812Z'
-updated_at: '2026-07-29T22:15:28.357479Z'
+updated_at: '2026-07-29T22:15:40.430531Z'
 work_branch: OOMPAH-562
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/580
@@ -39,13 +39,17 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 8ad68c4c-a51b-46e0-bc3c-e01954042d94
 oompah.task_costs:
-  total_input_tokens: 911935
-  total_output_tokens: 4619
+  total_input_tokens: 912015
+  total_output_tokens: 6893
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 911935
       output_tokens: 4619
+      cost_usd: 0.0
+    opus:
+      input_tokens: 80
+      output_tokens: 2274
       cost_usd: 0.0
   runs:
   - profile: default
@@ -60,6 +64,12 @@ oompah.task_costs:
     output_tokens: 322
     cost_usd: 0.0
     recorded_at: '2026-07-29T21:32:06.889499+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 80
+    output_tokens: 2274
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T22:15:38.935729+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-562__20260729T211610Z
@@ -296,5 +306,15 @@ author: oompah
 created: 2026-07-29 22:15
 ---
 CI fix: change default for _epic_rebase_filed_at cooldown from 0 to float('-inf') so fresh-VM monotonic clocks (< 600s) do not gate the first stale-queue repair. Added regression test test_stale_queue_repair_survives_low_monotonic_clock that pins time.monotonic to 42.0 to deterministically reproduce the CI condition. All 50 focused tests (test_parallel_epic_children.py + test_integration_queue.py + test_epic_rebase_state.py) pass. Pushed to OOMPAH-562 as 555a3d421 (rebased on top of parallel-agent commit 9a54a83ca which had made the identical orchestrator fix independently).
+---
+author: oompah
+created: 2026-07-29 22:15
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Claude/opus]
+- Turns: 0, Tool calls: 48
+- Tokens: 80 in / 2.3K out [2.4K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 6m 40s
+- Log: OOMPAH-562__20260729T220901Z.jsonl
 ---
 <!-- COMMENTS:END -->
