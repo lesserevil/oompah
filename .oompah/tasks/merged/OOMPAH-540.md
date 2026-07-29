@@ -8,11 +8,10 @@ title: Let read-only duplicate preflight bypass dependency and epic serializatio
 parent: null
 children: []
 blocked_by: []
-labels:
-- human-only
+labels: []
 assignee: null
 created_at: '2026-07-29T00:46:32.053029Z'
-updated_at: '2026-07-29T00:59:56.331030Z'
+updated_at: '2026-07-29T01:19:43.763866Z'
 work_branch: OOMPAH-540
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/572
@@ -167,5 +166,10 @@ Run #2 [attempt=2, profile=standard, role=standard -> Codex/gpt-5.6-terra]
 - Cost: $0.0000
 - Exit: terminated, Duration: 50s
 - Log: OOMPAH-540__20260729T005317Z.jsonl
+---
+author: oompah
+created: 2026-07-29 01:19
+---
+Merged in PR #572 (main merge 676ef95ba) and deployed in service instance bb8dc074-1652-491f-b4a8-188fd113fd9d. Live verification: OOMPAH-472 remained Open while duplicate_screening ran concurrently with sibling OOMPAH-471 implementation. OOMPAH-472 has parent OOMPAH-458 and blocked_by OOMPAH-471 plus OOMPAH-457, proving both shared-epic serialization and unresolved-dependency gates are bypassed for read-only screening. Scheduler metrics reported selected_count=1 and started_count=1; normal implementation gates remain unchanged. Full local suite: 13,092 passed, 7 skipped; PR CI passed on Python 3.11, 3.12, and 3.13.
 ---
 <!-- COMMENTS:END -->
