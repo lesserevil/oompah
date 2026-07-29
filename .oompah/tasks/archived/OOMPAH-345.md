@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-345
 type: bug
-status: Merged
+status: Archived
 priority: 0
 title: '[backend:server] Update issue API error: Cannot sync state branch ''oompah/state/proj-14849f1b'':
   git fetch origin ''oompah/state/proj-14849f1b'' failed: . Remediation: verify network
@@ -15,7 +15,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-22T00:38:50.948182Z'
-updated_at: '2026-07-22T03:06:21.692972Z'
+updated_at: '2026-07-29T03:16:11.335820Z'
 work_branch: OOMPAH-345
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/491
