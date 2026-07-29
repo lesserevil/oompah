@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T22:02:08.142762Z'
-updated_at: '2026-07-29T22:43:42.237095Z'
+updated_at: '2026-07-29T22:43:45.162963Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-564
 target_branch: null
 review_url: null
@@ -449,5 +449,10 @@ author: oompah
 created: 2026-07-29 22:43
 ---
 Superseded by OOMPAH-565. This task's head (e01949e4d) was the earlier epic rebase made before PR #581 landed; OOMPAH-565 subsequently rebased the same five epic commits onto final main and force-pushed the canonical epic head (a50a9a645, verified 0 behind). The old snapshot's combined-tree gate is not actionable and must not be repaired independently.
+---
+author: oompah
+created: 2026-07-29 22:43
+---
+Archived as superseded by final epic repair OOMPAH-565; no unique implementation remains on this stale snapshot.
 ---
 <!-- COMMENTS:END -->
