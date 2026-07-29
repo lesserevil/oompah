@@ -2,7 +2,7 @@
 id: OOMPAH-470
 type: feature
 status: Needs Human
-priority: 1
+priority: 3
 title: Seed the auditor role and select an independent provider-model candidate
 parent: OOMPAH-458
 children: []
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:10.311921Z'
-updated_at: '2026-07-29T11:12:07.738500Z'
+updated_at: '2026-07-29T11:12:21.578960Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
