@@ -1,16 +1,17 @@
 ---
 id: OOMPAH-539
 type: task
-status: Done
+status: Needs CI Fix
 priority: null
 title: Keep Open-task duplicate-screening board state synchronized with live workers
 parent: null
 children: []
 blocked_by: []
-labels: []
+labels:
+- ci-fix
 assignee: null
 created_at: '2026-07-29T00:43:25.964028Z'
-updated_at: '2026-07-29T02:21:22.348013Z'
+updated_at: '2026-07-29T02:21:39.391715Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -57,13 +58,17 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: d1a8f463-984a-47d1-84c4-749087137b34
 oompah.task_costs:
-  total_input_tokens: 12
-  total_output_tokens: 2833
+  total_input_tokens: 1546
+  total_output_tokens: 3187
   total_cost_usd: 0.0
   by_model:
     sonnet:
       input_tokens: 12
       output_tokens: 2833
+      cost_usd: 0.0
+    haiku:
+      input_tokens: 1534
+      output_tokens: 354
       cost_usd: 0.0
   runs:
   - profile: standard
@@ -72,6 +77,12 @@ oompah.task_costs:
     output_tokens: 2833
     cost_usd: 0.0
     recorded_at: '2026-07-29T02:14:02.259014+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 1534
+    output_tokens: 354
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T02:21:33.577150+00:00'
 ---
 ## Summary
 
@@ -242,5 +253,33 @@ author: oompah
 created: 2026-07-29 02:21
 ---
 Fixed duplicate-screening board state synchronization race condition. Refactored _do_broadcast_issues to refresh issues snapshot BEFORE broadcasting (not after), preventing stale payloads from overwriting newer screening state. Added _wait_for_issues_snapshot_refresh return value to detect timeout vs completion. All 46 focused tests pass. Deployed: server.py snapshot ordering, synchronization tests.
+---
+author: oompah
+created: 2026-07-29 02:21
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 95
+- Tokens: 1.5K in / 354 out [1.9K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 7m 23s
+- Log: OOMPAH-539__20260729T021412Z.jsonl
+---
+author: oompah
+created: 2026-07-29 02:21
+---
+Branch quality gate blocked review creation.
+
+Branch: `OOMPAH-539`
+Target: `main`
+Head: `unknown`
+Command: `make test`
+Result: `error`
+
+Required: run the command in the task worktree, fix the failure, commit and push the repair, then leave the task in Done. Oompah will rerun the gate for the new head before creating the PR/MR.
+
+Output tail:
+```text
+No existing worktree matched the review branch tip. Recreate the task worktree before retrying.
+```
 ---
 <!-- COMMENTS:END -->
