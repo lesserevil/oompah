@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:26.170630Z'
-updated_at: '2026-07-29T18:58:36.833758Z'
+updated_at: '2026-07-29T18:58:50.022465Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-487
 target_branch: null
 review_url: null
@@ -58,13 +58,17 @@ oompah.duplicate_screening:
 oompah.agent_run_id: 233a6da2-e5ae-4865-bf79-b2b14f99c25d
 oompah.work_branch: epic-OOMPAH-460--task-OOMPAH-487
 oompah.task_costs:
-  total_input_tokens: 73425
-  total_output_tokens: 6715
+  total_input_tokens: 73595
+  total_output_tokens: 11305
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 73425
       output_tokens: 6715
+      cost_usd: 0.0
+    sonnet:
+      input_tokens: 170
+      output_tokens: 4590
       cost_usd: 0.0
   runs:
   - profile: default
@@ -79,6 +83,12 @@ oompah.task_costs:
     output_tokens: 892
     cost_usd: 0.0
     recorded_at: '2026-07-29T18:29:32.304640+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 170
+    output_tokens: 4590
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T18:58:48.181057+00:00'
 oompah.integration:
   version: 1
   state: ready
@@ -246,5 +256,15 @@ author: oompah
 created: 2026-07-29 18:58
 ---
 Delivered docs/auditor-dispatch-operations.md (new) with Mermaid lifecycle, auditor role/independence rules/target audits/In Validation/failure routing/owner override/no-candidate recovery/upgrade grandfathering/restart behavior/migration; updated docs/task-epic-workflow.md (In Validation status), docs/operator-runbook.md (migration notes §10.1); added OOMPAH_AUDIT_MAX_ATTEMPTS + 3 related audit env vars to .env.example and ServiceConfig; deprecated OOMPAH_VERIFY_COMPLETION/LLM with startup warnings; 19 new tests in TestAuditDispatchConfiguration covering config parsing, env overrides, deprecation warnings, and doc content checks. All 13126 tests pass.
+---
+author: oompah
+created: 2026-07-29 18:58
+---
+Run #2 [attempt=2, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 0, Tool calls: 118
+- Tokens: 170 in / 4.6K out [4.8K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 28m 59s
+- Log: OOMPAH-487__20260729T182956Z.jsonl
 ---
 <!-- COMMENTS:END -->
