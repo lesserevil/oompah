@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-487
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Document auditor configuration, overrides, migration, and recovery
 parent: OOMPAH-460
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:26.170630Z'
-updated_at: '2026-07-29T18:57:28.345283Z'
+updated_at: '2026-07-29T18:58:34.686382Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-487
 target_branch: null
 review_url: null
@@ -81,12 +81,12 @@ oompah.task_costs:
     recorded_at: '2026-07-29T18:29:32.304640+00:00'
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-460--task-OOMPAH-487
-  base_branch: epic-OOMPAH-460
-  base_sha: b0ceda2643cbc37c166ac58bed9a9b6f3898b681
-  updated_at: '2026-07-29T18:29:53.129296+00:00'
+  head_sha: 3c6e5a899fbf7d513fd11883b9819a74d05c1db9
+  submitted_at: '2026-07-29T18:58:32.046066+00:00'
+  updated_at: '2026-07-29T18:58:32.046066+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-487__20260729T182909Z
@@ -224,5 +224,22 @@ Implementation complete. Changes made:
 5. **docs/operator-runbook.md**: Added .oompah/roles.json to key files table; added Migration Notes section (§10.1) with deprecation migration steps.
 
 6. **tests/test_config.py**: Added TestAuditDispatchConfiguration class with 19 tests covering config parsing, env var overrides, env.example coverage, doc existence/content checks, deprecation warnings, and task-epic-workflow doc content.
+---
+author: oompah
+created: 2026-07-29 18:58
+---
+Verification: Ran focused tests:
+- tests/test_config.py::TestAuditDispatchConfiguration — 19 tests, all PASSED
+- tests/test_config.py (full) — 107 tests, all PASSED
+- Full suite (tests/) — 13126 passed, 7 skipped, 0 failures
+
+Acceptance criteria verified:
+✅ Junior operator can configure two independent auditor candidates — docs/auditor-dispatch-operations.md §Minimal and §Two Independent Providers examples
+✅ Diagnose Needs Human due to no candidate — §Troubleshooting: Task Stuck in 'Needs Human' — Reason: no_auditor
+✅ Execute an owner override — §Explicit Owner Override with API example
+✅ Understand upgrade behavior — §Upgrade Grandfathering and Restart Behavior
+✅ Migration from OOMPAH_VERIFY_COMPLETION — §Migration Notes in operator-runbook.md and §Migration from Completion Verifier in auditor doc
+✅ OOMPAH_AUDIT_MAX_ATTEMPTS in .env.example and ServiceConfig — confirmed by tests
+✅ In Validation in task-epic-workflow.md lifecycle — confirmed by test
 ---
 <!-- COMMENTS:END -->

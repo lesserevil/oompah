@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:29.211296Z'
-updated_at: '2026-07-29T18:58:13.347481Z'
+updated_at: '2026-07-29T18:58:27.757613Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-481
 target_branch: null
 review_url: null
@@ -60,13 +60,13 @@ oompah.duplicate_screening:
 oompah.agent_run_id: 66f1310f-3902-4a4f-b83c-0de81a16a8cc
 oompah.work_branch: epic-OOMPAH-459--task-OOMPAH-481
 oompah.task_costs:
-  total_input_tokens: 218
-  total_output_tokens: 5606
+  total_input_tokens: 2384
+  total_output_tokens: 6172
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 218
-      output_tokens: 5606
+      input_tokens: 2384
+      output_tokens: 6172
       cost_usd: 0.0
   runs:
   - profile: default
@@ -75,6 +75,12 @@ oompah.task_costs:
     output_tokens: 5606
     cost_usd: 0.0
     recorded_at: '2026-07-29T01:59:19.448217+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 2166
+    output_tokens: 566
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T18:58:26.294553+00:00'
 oompah.integration:
   version: 1
   state: ready
@@ -215,5 +221,15 @@ author: oompah
 created: 2026-07-29 18:58
 ---
 Routed automatic archive operations through Archived audits with disposition reasons and pre-archive state capture
+---
+author: oompah
+created: 2026-07-29 18:58
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 129
+- Tokens: 2.2K in / 566 out [2.7K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 28m 31s
+- Log: OOMPAH-481__20260729T183010Z.jsonl
 ---
 <!-- COMMENTS:END -->
