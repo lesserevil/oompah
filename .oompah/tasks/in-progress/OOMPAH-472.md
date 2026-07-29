@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-472
 type: feature
-status: Done
+status: In Progress
 priority: 1
 title: Collect target-landing evidence for Merged audits
 parent: OOMPAH-458
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:12.977543Z'
-updated_at: '2026-07-29T03:30:50.615998Z'
+updated_at: '2026-07-29T03:31:01.488239Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -58,13 +58,13 @@ oompah.duplicate_screening:
 oompah.agent_run_id: 9a548d74-13b1-47c0-ad61-6de6e9f20775
 oompah.work_branch: epic-OOMPAH-458
 oompah.task_costs:
-  total_input_tokens: 2050744
-  total_output_tokens: 57777
+  total_input_tokens: 2050756
+  total_output_tokens: 59734
   total_cost_usd: 0.0
   by_model:
     sonnet:
-      input_tokens: 685411
-      output_tokens: 51135
+      input_tokens: 685423
+      output_tokens: 53092
       cost_usd: 0.0
     opus:
       input_tokens: 1365333
@@ -119,6 +119,12 @@ oompah.task_costs:
     output_tokens: 2863
     cost_usd: 0.0
     recorded_at: '2026-07-29T03:14:49.657228+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 12
+    output_tokens: 1957
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T03:30:57.529509+00:00'
 ---
 ## Summary
 
@@ -539,5 +545,38 @@ author: oompah
 created: 2026-07-29 03:30
 ---
 MergedEvidenceCollector implemented in oompah/merged_evidence_collector.py. 61 tests cover all specified failure modes. Full test suite passes (13,340 tests). Distinguishes correct-target landing from tracker labels or stale review history alone.
+---
+author: oompah
+created: 2026-07-29 03:30
+---
+Agent completed successfully in 459s (1969 tokens)
+---
+author: oompah
+created: 2026-07-29 03:30
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 20, Tool calls: 13
+- Tokens: 12 in / 2.0K out [2.0K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 7m 39s
+- Log: OOMPAH-472__20260729T032321Z.jsonl
+---
+author: oompah
+created: 2026-07-29 03:31
+---
+Completion refused by orchestrator: unpushed work detected on branch `epic-OOMPAH-458` while task is in a terminal state.
+
+Diagnostic:
+  Worktree has uncommitted changes — file(s) created but never committed.
+
+Required: commit the work, push to origin, then close the task.
+
+Steps to resolve:
+  git checkout epic-OOMPAH-458
+  git add -A
+  git commit -m "Descriptive commit message"
+  git push origin epic-OOMPAH-458
+
+Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
 ---
 <!-- COMMENTS:END -->
