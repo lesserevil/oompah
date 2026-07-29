@@ -6,12 +6,15 @@ priority: 0
 title: Automate coordination checkpoints, conflict warnings, and observability
 parent: OOMPAH-550
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-551
+- OOMPAH-552
+- OOMPAH-553
 labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T16:23:19.226686Z'
-updated_at: '2026-07-29T16:24:14.431420Z'
+updated_at: '2026-07-29T16:24:52.768700Z'
 work_branch: null
 target_branch: null
 review_url: null

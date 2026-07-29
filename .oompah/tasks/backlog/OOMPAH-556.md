@@ -6,12 +6,14 @@ priority: 0
 title: Allocate isolated private branches for epic children
 parent: OOMPAH-555
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-546
+- OOMPAH-548
 labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T16:23:21.738821Z'
-updated_at: '2026-07-29T16:24:22.348985Z'
+updated_at: '2026-07-29T16:24:57.631903Z'
 work_branch: null
 target_branch: null
 review_url: null

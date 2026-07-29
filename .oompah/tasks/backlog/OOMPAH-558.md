@@ -6,12 +6,14 @@ priority: 0
 title: Rebase, test, fast-forward, and audit queued task results
 parent: OOMPAH-555
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-548
+- OOMPAH-557
 labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T16:23:24.105345Z'
-updated_at: '2026-07-29T16:24:29.334177Z'
+updated_at: '2026-07-29T16:25:03.703443Z'
 work_branch: null
 target_branch: null
 review_url: null

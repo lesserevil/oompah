@@ -6,12 +6,15 @@ priority: 0
 title: Implement durable topological epic integration queues
 parent: OOMPAH-555
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-546
+- OOMPAH-547
+- OOMPAH-556
 labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T16:23:22.859407Z'
-updated_at: '2026-07-29T16:24:25.910778Z'
+updated_at: '2026-07-29T16:25:01.213031Z'
 work_branch: null
 target_branch: null
 review_url: null

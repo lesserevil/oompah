@@ -6,12 +6,13 @@ priority: 0
 title: Expose, document, and pilot parallel epic integration
 parent: OOMPAH-555
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-559
 labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T16:23:29.405626Z'
-updated_at: '2026-07-29T16:24:39.323994Z'
+updated_at: '2026-07-29T16:25:07.280176Z'
 work_branch: null
 target_branch: null
 review_url: null

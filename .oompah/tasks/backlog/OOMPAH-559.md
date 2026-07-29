@@ -6,12 +6,14 @@ priority: 0
 title: Recover integration failures and clean private workspaces safely
 parent: OOMPAH-555
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-554
+- OOMPAH-558
 labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T16:23:27.458733Z'
-updated_at: '2026-07-29T16:24:33.819710Z'
+updated_at: '2026-07-29T16:25:06.095228Z'
 work_branch: null
 target_branch: null
 review_url: null
