@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-299
 type: task
-status: Merged
+status: Archived
 priority: 2
 title: Add repository-map configuration, bootstrap defaults, and operator documentation
 parent: OOMPAH-293
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T15:14:09.575764Z'
-updated_at: '2026-07-22T00:38:39.757615Z'
+updated_at: '2026-07-29T01:18:32.879231Z'
 work_branch: null
 target_branch: null
 review_url: null
