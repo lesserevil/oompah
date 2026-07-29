@@ -19,6 +19,7 @@ typed rather than guessed, ensuring auditors receive clear failure signals.
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Optional
@@ -80,6 +81,7 @@ class SafetyFailureMode(str, Enum):
     DONE_AUDIT_FAILED = "done_audit_failed"
     NO_MERGED_AUDIT = "no_merged_audit"
     MERGED_AUDIT_FAILED = "merged_audit_failed"
+    INVALID_PRE_ARCHIVE_STATE = "invalid_pre_archive_state"
 
     NO_DISPOSITION_REASON = "no_disposition_reason"
     INVALID_DISPOSITION_TYPE = "invalid_disposition_type"
@@ -143,17 +145,23 @@ class TaskStateSnapshot:
     current_state: str
     """Current tracker state (e.g. 'Done', 'Merged', 'Archived')."""
 
-    has_active_worker: bool | EvidenceUnavailable
+    has_active_worker: bool | EvidenceUnavailable | EvidenceInvalid
     """Whether task has an active assigned worker/agent."""
 
-    has_open_review: bool | EvidenceUnavailable
+    has_open_review: bool | EvidenceUnavailable | EvidenceInvalid
     """Whether task has any open pull/merge request."""
 
-    has_active_child: bool | EvidenceUnavailable
+    has_active_child: bool | EvidenceUnavailable | EvidenceInvalid
     """Whether task has any child task not in terminal state."""
 
-    has_unresolved_dependency: bool | EvidenceUnavailable
+    has_unresolved_dependency: bool | EvidenceUnavailable | EvidenceInvalid
     """Whether task has any blocking dependency not complete."""
+
+    has_active_claim: bool | EvidenceUnavailable | EvidenceInvalid = False
+    """Whether task has an active claim/ownership lease."""
+
+    has_active_retry: bool | EvidenceUnavailable | EvidenceInvalid = False
+    """Whether task has a scheduled retry."""
 
     def __post_init__(self) -> None:
         if not isinstance(self.task_id, str) or not self.task_id.strip():
@@ -213,7 +221,7 @@ class ArchivedEvidenceSnapshot:
     task_state: TaskStateSnapshot | EvidenceUnavailable | EvidenceInvalid
 
     # Prior audit
-    prior_audit: AuditReferenceEvidence | EvidenceUnavailable | EvidenceInvalid
+    prior_audit: AuditReferenceEvidence | EvidenceUnavailable | EvidenceInvalid | None
 
     # Disposition reason
     disposition: DispositionReason | EvidenceUnavailable | EvidenceInvalid
@@ -230,16 +238,54 @@ class ArchivedEvidenceSnapshot:
     audit_id: str = ""
     collected_at: str = ""
 
+    @property
+    def pre_archive_state(self) -> str | None:
+        """Return the status captured immediately before archival."""
+        if isinstance(self.task_state, TaskStateSnapshot):
+            return self.task_state.current_state
+        return None
+
     def passed(self) -> bool:
         """True when archive is safe (no failure modes, all checks pass)."""
         if self.failure_modes:
-            return False
-        if isinstance(self.prior_audit, (EvidenceUnavailable, EvidenceInvalid)):
             return False
         if isinstance(self.task_state, (EvidenceUnavailable, EvidenceInvalid)):
             return False
         if isinstance(self.disposition, (EvidenceUnavailable, EvidenceInvalid)):
             return False
+
+        disposition_type = (
+            self.disposition.type
+            if isinstance(self.disposition, DispositionReason)
+            else None
+        )
+        direct_disposition = disposition_type in {
+            DispositionType.DUPLICATE,
+            DispositionType.OBSOLETE,
+            DispositionType.BLOCKED,
+            DispositionType.SUPERSEDED,
+        }
+        if not direct_disposition and not isinstance(self.prior_audit, AuditReferenceEvidence):
+            return False
+        if direct_disposition and isinstance(
+            self.prior_audit, (EvidenceUnavailable, EvidenceInvalid)
+        ):
+            return False
+
+        def _has_bad_evidence(value: Any) -> bool:
+            if isinstance(value, (EvidenceUnavailable, EvidenceInvalid)):
+                return True
+            if isinstance(value, dict):
+                return any(_has_bad_evidence(item) for item in value.values())
+            if isinstance(value, (list, tuple)):
+                return any(_has_bad_evidence(item) for item in value)
+            return False
+
+        if _has_bad_evidence(self.task_state):
+            return False
+        if not direct_disposition and _has_bad_evidence(self.prior_audit):
+            return False
+
         # Check audit verdict
         if isinstance(self.prior_audit, AuditReferenceEvidence):
             if isinstance(self.prior_audit.verdict, str):
@@ -247,9 +293,24 @@ class ArchivedEvidenceSnapshot:
                     return False
             else:
                 return False
+            if not isinstance(self.prior_audit.fingerprint, EvidenceFingerprint):
+                return False
         # Check no active state
         if isinstance(self.task_state, TaskStateSnapshot):
+            normalized_state = self.task_state.current_state.strip().casefold()
+            if not normalized_state or normalized_state == "archived":
+                return False
+            if (
+                isinstance(self.disposition, DispositionReason)
+                and self.disposition.type == DispositionType.RETENTION
+                and normalized_state not in {"done", "merged"}
+            ):
+                return False
             if self.task_state.has_active_worker is True:
+                return False
+            if self.task_state.has_active_claim is True:
+                return False
+            if self.task_state.has_active_retry is True:
                 return False
             if self.task_state.has_open_review is True:
                 return False
@@ -320,15 +381,15 @@ class ArchivedEvidenceCollector:
         prior_merged_audit_id: str = "",
         prior_merged_verdict: str = "",
         prior_merged_fingerprint: EvidenceFingerprint | None = None,
-        has_active_worker: bool | EvidenceUnavailable = False,
-        has_active_claim: bool | EvidenceUnavailable = False,
-        has_active_retry: bool | EvidenceUnavailable = False,
-        has_open_review: bool | EvidenceUnavailable = False,
-        has_active_child: bool | EvidenceUnavailable = False,
-        has_unresolved_dependency: bool | EvidenceUnavailable = False,
-        requirement_changed_after_prior_audit: bool | EvidenceUnavailable = False,
-        sha_changed_after_prior_audit: bool | EvidenceUnavailable = False,
-        days_since_completion: float | EvidenceUnavailable = 0,
+        has_active_worker: bool | EvidenceUnavailable | EvidenceInvalid = False,
+        has_active_claim: bool | EvidenceUnavailable | EvidenceInvalid = False,
+        has_active_retry: bool | EvidenceUnavailable | EvidenceInvalid = False,
+        has_open_review: bool | EvidenceUnavailable | EvidenceInvalid = False,
+        has_active_child: bool | EvidenceUnavailable | EvidenceInvalid = False,
+        has_unresolved_dependency: bool | EvidenceUnavailable | EvidenceInvalid = False,
+        requirement_changed_after_prior_audit: bool | EvidenceUnavailable | EvidenceInvalid = False,
+        sha_changed_after_prior_audit: bool | EvidenceUnavailable | EvidenceInvalid = False,
+        days_since_completion: float | EvidenceUnavailable | EvidenceInvalid = 0,
         retention_days_required: float = 30,
         current_fingerprint: EvidenceFingerprint | None = None,
         audit_id: str = "",
@@ -386,8 +447,20 @@ class ArchivedEvidenceCollector:
             failure_modes,
         )
 
-        # 3. Collect prior audit evidence
+        self._validate_pre_archive_state(current_state, disposition, failure_modes)
+
+        direct_disposition = isinstance(disposition, DispositionReason) and disposition.type in {
+            DispositionType.DUPLICATE,
+            DispositionType.OBSOLETE,
+            DispositionType.BLOCKED,
+            DispositionType.SUPERSEDED,
+        }
+
+        # A normal retention archive must be backed by a matching completion
+        # audit. Direct dispositions use their structured reason/source
+        # evidence and must not invent a Done or Merged audit.
         prior_audit = self._select_and_validate_prior_audit(
+            current_state,
             prior_done_audit_id,
             prior_done_verdict,
             prior_done_fingerprint,
@@ -395,6 +468,7 @@ class ArchivedEvidenceCollector:
             prior_merged_verdict,
             prior_merged_fingerprint,
             failure_modes,
+            require_completion_audit=not direct_disposition,
         )
 
         # 4. Check for evidence changes after prior audit
@@ -410,6 +484,7 @@ class ArchivedEvidenceCollector:
         self._check_retention_period(
             days_since_completion,
             retention_days_required,
+            disposition,
             failure_modes,
         )
 
@@ -438,50 +513,67 @@ class ArchivedEvidenceCollector:
     # Private evidence collection methods
     # ------------------------------------------------------------------
 
+    def _validate_pre_archive_state(
+        self,
+        current_state: str,
+        disposition: DispositionReason | EvidenceUnavailable | EvidenceInvalid,
+        failure_modes: list[str],
+    ) -> None:
+        """Ensure the captured state can be restored and matches the reason."""
+        if not isinstance(current_state, str) or not current_state.strip():
+            return  # _collect_task_state already recorded the exact failure.
+
+        normalized_state = current_state.strip().casefold()
+        if normalized_state == "archived":
+            return  # Already recorded by _collect_task_state.
+
+        if isinstance(disposition, DispositionReason) and disposition.type == DispositionType.RETENTION:
+            if normalized_state not in {"done", "merged"}:
+                failure_modes.append(SafetyFailureMode.INVALID_PRE_ARCHIVE_STATE.value)
+
     def _collect_task_state(
         self,
         current_state: str,
-        has_active_worker: bool | EvidenceUnavailable,
-        has_active_claim: bool | EvidenceUnavailable,
-        has_active_retry: bool | EvidenceUnavailable,
-        has_open_review: bool | EvidenceUnavailable,
-        has_active_child: bool | EvidenceUnavailable,
-        has_unresolved_dependency: bool | EvidenceUnavailable,
+        has_active_worker: bool | EvidenceUnavailable | EvidenceInvalid,
+        has_active_claim: bool | EvidenceUnavailable | EvidenceInvalid,
+        has_active_retry: bool | EvidenceUnavailable | EvidenceInvalid,
+        has_open_review: bool | EvidenceUnavailable | EvidenceInvalid,
+        has_active_child: bool | EvidenceUnavailable | EvidenceInvalid,
+        has_unresolved_dependency: bool | EvidenceUnavailable | EvidenceInvalid,
         failure_modes: list[str],
     ) -> TaskStateSnapshot | EvidenceUnavailable | EvidenceInvalid:
         """Build task state snapshot and record failures."""
         try:
-            # Check for active worker/claim/retry
-            if has_active_worker is True:
-                failure_modes.append(SafetyFailureMode.ACTIVE_WORKER.value)
-            elif isinstance(has_active_worker, EvidenceUnavailable):
-                pass  # Will be marked unavailable
+            if not isinstance(current_state, str) or not current_state.strip():
+                failure_modes.append(SafetyFailureMode.INVALID_PRE_ARCHIVE_STATE.value)
 
-            if has_active_claim is True:
-                failure_modes.append(SafetyFailureMode.ACTIVE_CLAIM.value)
+            checks = (
+                (has_active_worker, SafetyFailureMode.ACTIVE_WORKER),
+                (has_active_claim, SafetyFailureMode.ACTIVE_CLAIM),
+                (has_active_retry, SafetyFailureMode.ACTIVE_RETRY),
+                (has_open_review, SafetyFailureMode.OPEN_REVIEW),
+                (has_active_child, SafetyFailureMode.ACTIVE_CHILD),
+                (has_unresolved_dependency, SafetyFailureMode.UNRESOLVED_DEPENDENCY),
+            )
+            for value, active_mode in checks:
+                if value is True:
+                    failure_modes.append(active_mode.value)
+                elif not isinstance(value, bool):
+                    failure_modes.append(SafetyFailureMode.MISSING_EVIDENCE.value)
 
-            if has_active_retry is True:
-                failure_modes.append(SafetyFailureMode.ACTIVE_RETRY.value)
-
-            # Check for open review
-            if has_open_review is True:
-                failure_modes.append(SafetyFailureMode.OPEN_REVIEW.value)
-
-            # Check for active children
-            if has_active_child is True:
-                failure_modes.append(SafetyFailureMode.ACTIVE_CHILD.value)
-
-            # Check for unresolved dependencies
-            if has_unresolved_dependency is True:
-                failure_modes.append(SafetyFailureMode.UNRESOLVED_DEPENDENCY.value)
+            captured_state = current_state.strip() if isinstance(current_state, str) else "unknown"
+            if captured_state.casefold() == "archived":
+                failure_modes.append(SafetyFailureMode.INVALID_PRE_ARCHIVE_STATE.value)
 
             return TaskStateSnapshot(
                 task_id=self.task_id,
-                current_state=current_state or "unknown",
+                current_state=captured_state,
                 has_active_worker=has_active_worker,
                 has_open_review=has_open_review,
                 has_active_child=has_active_child,
                 has_unresolved_dependency=has_unresolved_dependency,
+                has_active_claim=has_active_claim,
+                has_active_retry=has_active_retry,
             )
         except Exception as exc:
             logger.exception("Failed to collect task state")
@@ -500,7 +592,10 @@ class ArchivedEvidenceCollector:
                 failure_modes.append(SafetyFailureMode.NO_DISPOSITION_REASON.value)
                 return EvidenceUnavailable("No disposition type provided")
 
-            if not disposition_explanation or not disposition_explanation.strip():
+            if (
+                not isinstance(disposition_explanation, str)
+                or not disposition_explanation.strip()
+            ):
                 failure_modes.append(SafetyFailureMode.NO_DISPOSITION_REASON.value)
                 return EvidenceUnavailable("No disposition explanation provided")
 
@@ -515,15 +610,24 @@ class ArchivedEvidenceCollector:
                 return EvidenceInvalid(f"Invalid disposition type: {exc}")
 
             # Check source link requirements
-            if dt.value == DispositionType.DUPLICATE.value and not disposition_source_link:
+            if dt == DispositionType.DUPLICATE and (
+                not isinstance(disposition_source_link, str)
+                or not disposition_source_link.strip()
+            ):
                 failure_modes.append(SafetyFailureMode.DUPLICATE_NO_SOURCE.value)
                 return EvidenceInvalid("Duplicate disposition requires source_link")
 
-            if dt.value == DispositionType.OBSOLETE.value and not disposition_source_link:
+            if dt == DispositionType.OBSOLETE and (
+                not isinstance(disposition_source_link, str)
+                or not disposition_source_link.strip()
+            ):
                 failure_modes.append(SafetyFailureMode.OBSOLETE_NO_SOURCE.value)
                 return EvidenceInvalid("Obsolete disposition requires source_link")
 
-            if dt.value == DispositionType.SUPERSEDED.value and not disposition_source_link:
+            if dt == DispositionType.SUPERSEDED and (
+                not isinstance(disposition_source_link, str)
+                or not disposition_source_link.strip()
+            ):
                 failure_modes.append(SafetyFailureMode.SUPERSEDED_NO_SOURCE.value)
                 return EvidenceInvalid("Superseded disposition requires source_link")
 
@@ -542,6 +646,7 @@ class ArchivedEvidenceCollector:
 
     def _select_and_validate_prior_audit(
         self,
+        current_state: str,
         prior_done_audit_id: str,
         prior_done_verdict: str,
         prior_done_fingerprint: EvidenceFingerprint | None,
@@ -549,59 +654,76 @@ class ArchivedEvidenceCollector:
         prior_merged_verdict: str,
         prior_merged_fingerprint: EvidenceFingerprint | None,
         failure_modes: list[str],
-    ) -> AuditReferenceEvidence | EvidenceUnavailable | EvidenceInvalid:
+        *,
+        require_completion_audit: bool,
+    ) -> AuditReferenceEvidence | EvidenceUnavailable | EvidenceInvalid | None:
         """Select and validate a prior Done or Merged audit.
 
-        Prefers Merged if available, falls back to Done.
+        A completion audit must match the captured Done/Merged status when
+        that status is known. Direct dispositions may omit completion audits;
+        their source evidence is validated separately.
         """
         try:
-            # Try Merged audit first
-            if prior_merged_audit_id and prior_merged_audit_id.strip():
-                merged_evidence = self._validate_audit_reference(
+            normalized_state = (
+                current_state.strip().casefold()
+                if isinstance(current_state, str)
+                else ""
+            )
+            if normalized_state == "merged":
+                expected_type = "Merged"
+            elif normalized_state == "done":
+                expected_type = "Done"
+            elif prior_merged_audit_id and prior_merged_audit_id.strip():
+                expected_type = "Merged"
+            elif prior_done_audit_id and prior_done_audit_id.strip():
+                expected_type = "Done"
+            else:
+                expected_type = "Done"
+
+            if expected_type == "Merged":
+                audit_id, verdict, fingerprint = (
                     prior_merged_audit_id,
-                    "Merged",
                     prior_merged_verdict,
                     prior_merged_fingerprint,
-                    SafetyFailureMode.MERGED_AUDIT_FAILED,
                 )
-                if isinstance(merged_evidence, AuditReferenceEvidence):
-                    # Check if verdict is passing
-                    if isinstance(merged_evidence.verdict, str):
-                        if merged_evidence.verdict.lower() in ("pass", "passed"):
-                            return merged_evidence
-                        else:
-                            # Non-passing verdict
-                            failure_modes.append(SafetyFailureMode.MERGED_AUDIT_FAILED.value)
-                            return merged_evidence
-                    # Verdict is unavailable/invalid
-                    failure_modes.append(SafetyFailureMode.MERGED_AUDIT_FAILED.value)
-                    return merged_evidence
-
-            # Fall back to Done audit
-            if prior_done_audit_id and prior_done_audit_id.strip():
-                done_evidence = self._validate_audit_reference(
+                missing_mode = SafetyFailureMode.NO_MERGED_AUDIT
+                failed_mode = SafetyFailureMode.MERGED_AUDIT_FAILED
+            else:
+                audit_id, verdict, fingerprint = (
                     prior_done_audit_id,
-                    "Done",
                     prior_done_verdict,
                     prior_done_fingerprint,
-                    SafetyFailureMode.DONE_AUDIT_FAILED,
                 )
-                if isinstance(done_evidence, AuditReferenceEvidence):
-                    # Check if verdict is passing
-                    if isinstance(done_evidence.verdict, str):
-                        if done_evidence.verdict.lower() in ("pass", "passed"):
-                            return done_evidence
-                        else:
-                            # Non-passing verdict
-                            failure_modes.append(SafetyFailureMode.DONE_AUDIT_FAILED.value)
-                            return done_evidence
-                    # Verdict is unavailable/invalid
-                    failure_modes.append(SafetyFailureMode.DONE_AUDIT_FAILED.value)
-                    return done_evidence
+                missing_mode = SafetyFailureMode.NO_DONE_AUDIT
+                failed_mode = SafetyFailureMode.DONE_AUDIT_FAILED
 
-            # Neither available or both failed
-            failure_modes.append(SafetyFailureMode.NO_DONE_AUDIT.value)
-            return EvidenceUnavailable("No prior Done or Merged audit provided")
+            if not require_completion_audit and not (audit_id and audit_id.strip()):
+                return None
+
+            if not audit_id or not audit_id.strip():
+                failure_modes.append(missing_mode.value)
+                return EvidenceUnavailable(f"No prior {expected_type} audit provided")
+
+            evidence = self._validate_audit_reference(
+                audit_id,
+                expected_type,
+                verdict,
+                fingerprint,
+                failed_mode,
+            )
+            if not isinstance(evidence, AuditReferenceEvidence):
+                failure_modes.append(failed_mode.value)
+                return evidence
+
+            if not isinstance(evidence.verdict, str):
+                failure_modes.append(failed_mode.value)
+            elif evidence.verdict.casefold() not in {"pass", "passed"}:
+                failure_modes.append(failed_mode.value)
+
+            if not isinstance(evidence.fingerprint, EvidenceFingerprint):
+                failure_modes.append(failed_mode.value)
+                failure_modes.append(SafetyFailureMode.MISSING_EVIDENCE.value)
+            return evidence
         except Exception as exc:
             logger.exception("Failed to validate prior audit")
             return EvidenceUnavailable(f"Failed to validate prior audit: {exc}")
@@ -610,18 +732,18 @@ class ArchivedEvidenceCollector:
         self,
         audit_id: str,
         audit_type: str,
-        verdict: str,
+        verdict: str | Verdict | None,
         fingerprint: EvidenceFingerprint | None,
         failure_mode: SafetyFailureMode,
     ) -> AuditReferenceEvidence | EvidenceUnavailable | EvidenceInvalid:
         """Validate a single audit reference (Done or Merged)."""
-        if not audit_id or not audit_id.strip():
+        if not isinstance(audit_id, str) or not audit_id.strip():
             return EvidenceUnavailable(f"No {audit_type} audit ID provided")
 
         verdict_evidence: str | EvidenceUnavailable | EvidenceInvalid
-        if not verdict or not verdict.strip():
+        if not isinstance(verdict, str) or not verdict.strip():
             verdict_evidence = EvidenceUnavailable(f"{audit_type} audit verdict not provided")
-        elif verdict.lower() not in ("pass", "passed"):
+        elif verdict.casefold() not in ("pass", "passed"):
             # Store the actual verdict (fail, error, etc.) for validation
             verdict_evidence = verdict
         else:
@@ -647,38 +769,67 @@ class ArchivedEvidenceCollector:
     def _check_evidence_changes(
         self,
         current_fingerprint: EvidenceFingerprint | None,
-        prior_audit: AuditReferenceEvidence | EvidenceUnavailable | EvidenceInvalid,
-        requirement_changed: bool | EvidenceUnavailable,
-        sha_changed: bool | EvidenceUnavailable,
+        prior_audit: AuditReferenceEvidence | EvidenceUnavailable | EvidenceInvalid | None,
+        requirement_changed: bool | EvidenceUnavailable | EvidenceInvalid,
+        sha_changed: bool | EvidenceUnavailable | EvidenceInvalid,
         failure_modes: list[str],
     ) -> None:
         """Check for evidence/requirement changes after prior audit."""
         # Check if requirements changed
         if requirement_changed is True:
             failure_modes.append(SafetyFailureMode.REQUIREMENT_CHANGED.value)
+        elif not isinstance(requirement_changed, bool) and prior_audit is not None:
+            failure_modes.append(SafetyFailureMode.MISSING_EVIDENCE.value)
 
         # Check if SHA changed
         if sha_changed is True:
             failure_modes.append(SafetyFailureMode.SHA_CHANGED.value)
+        elif not isinstance(sha_changed, bool) and prior_audit is not None:
+            failure_modes.append(SafetyFailureMode.MISSING_EVIDENCE.value)
 
         # Check fingerprint match
         if (
             isinstance(prior_audit, AuditReferenceEvidence)
-            and isinstance(prior_audit.fingerprint, EvidenceFingerprint)
             and current_fingerprint is not None
         ):
-            if prior_audit.fingerprint.digest != current_fingerprint.digest:
+            if not isinstance(current_fingerprint, EvidenceFingerprint):
+                failure_modes.append(SafetyFailureMode.MISSING_EVIDENCE.value)
+            elif not isinstance(prior_audit.fingerprint, EvidenceFingerprint):
+                failure_modes.append(SafetyFailureMode.MISSING_EVIDENCE.value)
+            elif prior_audit.fingerprint.digest != current_fingerprint.digest:
                 failure_modes.append(SafetyFailureMode.FINGERPRINT_MISMATCH.value)
 
     def _check_retention_period(
         self,
         days_since_completion: float | EvidenceUnavailable,
         retention_days_required: float,
+        disposition: DispositionReason | EvidenceUnavailable | EvidenceInvalid,
         failure_modes: list[str],
     ) -> None:
         """Check if task has been retained long enough."""
+        if not isinstance(disposition, DispositionReason):
+            return
+        if disposition.type != DispositionType.RETENTION:
+            return
+
         if isinstance(days_since_completion, EvidenceUnavailable):
-            return  # Can't check, not a failure
+            failure_modes.append(SafetyFailureMode.MISSING_EVIDENCE.value)
+            return
+        if isinstance(days_since_completion, bool) or not isinstance(
+            days_since_completion, (int, float)
+        ):
+            failure_modes.append(SafetyFailureMode.MISSING_EVIDENCE.value)
+            return
+        if isinstance(retention_days_required, bool) or not isinstance(
+            retention_days_required, (int, float)
+        ):
+            failure_modes.append(SafetyFailureMode.MISSING_EVIDENCE.value)
+            return
+        if not math.isfinite(float(days_since_completion)) or not math.isfinite(
+            float(retention_days_required)
+        ):
+            failure_modes.append(SafetyFailureMode.MISSING_EVIDENCE.value)
+            return
 
         if days_since_completion < retention_days_required:
             failure_modes.append(SafetyFailureMode.RECENT_COMPLETION.value)
@@ -687,11 +838,15 @@ class ArchivedEvidenceCollector:
         self,
         failure_modes: list[str],
         task_state: TaskStateSnapshot | EvidenceUnavailable | EvidenceInvalid,
-        prior_audit: AuditReferenceEvidence | EvidenceUnavailable | EvidenceInvalid,
+        prior_audit: AuditReferenceEvidence | EvidenceUnavailable | EvidenceInvalid | None,
     ) -> RestorationGuidance:
         """Build restoration guidance based on failure modes."""
-        restored_state = "Done"
-        if isinstance(prior_audit, AuditReferenceEvidence):
+        restored_state = "Needs Human"
+        if isinstance(task_state, TaskStateSnapshot):
+            captured_state = task_state.current_state.strip()
+            if captured_state and captured_state.casefold() != "archived":
+                restored_state = captured_state
+        if restored_state == "Needs Human" and isinstance(prior_audit, AuditReferenceEvidence):
             restored_state = prior_audit.audit_type
 
         required_actions: list[str] = []
@@ -731,14 +886,24 @@ class ArchivedEvidenceCollector:
                 unsafe_conditions.append("Task not retained long enough")
                 required_actions.append("Wait for retention period to pass before archiving")
             elif mode == SafetyFailureMode.NO_DONE_AUDIT.value:
-                unsafe_conditions.append("No prior Done/Merged audit available")
+                unsafe_conditions.append("No prior Done audit available")
                 required_actions.append("Run Done audit before attempting archive")
+            elif mode == SafetyFailureMode.NO_MERGED_AUDIT.value:
+                unsafe_conditions.append("No prior Merged audit available")
+                required_actions.append("Run Merged audit before attempting archive")
             elif mode == SafetyFailureMode.DONE_AUDIT_FAILED.value:
                 unsafe_conditions.append("Prior Done audit failed")
                 required_actions.append("Fix issues from Done audit before archiving")
             elif mode == SafetyFailureMode.MERGED_AUDIT_FAILED.value:
                 unsafe_conditions.append("Prior Merged audit failed")
                 required_actions.append("Fix issues from Merged audit before archiving")
+            elif mode == SafetyFailureMode.INVALID_PRE_ARCHIVE_STATE.value:
+                unsafe_conditions.append(
+                    "Pre-archive state is missing, Archived, or incompatible with retention"
+                )
+                required_actions.append(
+                    "Restore the recorded non-Archived state or route to Needs Human"
+                )
             elif mode == SafetyFailureMode.NO_DISPOSITION_REASON.value:
                 unsafe_conditions.append("No disposition reason configured")
                 required_actions.append("Provide structured reason for archival")
@@ -751,6 +916,15 @@ class ArchivedEvidenceCollector:
             elif mode == SafetyFailureMode.SUPERSEDED_NO_SOURCE.value:
                 unsafe_conditions.append("Superseded without replacement link")
                 required_actions.append("Provide link to superseding work")
+            elif mode == SafetyFailureMode.INVALID_DISPOSITION_TYPE.value:
+                unsafe_conditions.append("Disposition type is invalid")
+                required_actions.append("Provide a supported structured disposition reason")
+            elif mode == SafetyFailureMode.BLOCKED_NO_EXPLANATION.value:
+                unsafe_conditions.append("Blocked disposition has no explanation")
+                required_actions.append("Provide an explanation for the blocked disposition")
+            elif mode == SafetyFailureMode.MISSING_EVIDENCE.value:
+                unsafe_conditions.append("Required archive evidence is unavailable or invalid")
+                required_actions.append("Collect the missing evidence and re-run the archive audit")
 
         return RestorationGuidance(
             restored_state=restored_state,

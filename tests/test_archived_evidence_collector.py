@@ -876,3 +876,111 @@ class TestArchivedEvidenceCollector:
 
         assert snapshot.passed() is False
         assert SafetyFailureMode.DONE_AUDIT_FAILED.value in snapshot.failure_modes
+
+    def test_direct_duplicate_uses_source_evidence_without_completion_audit(self) -> None:
+        """A duplicate is safe only from structured source evidence, not a fake audit."""
+        collector = ArchivedEvidenceCollector(task_id="TASK-123", project_id="proj-1")
+
+        snapshot = collector.collect(
+            current_state="Open",
+            disposition_type=DispositionType.DUPLICATE,
+            disposition_explanation="Duplicate of the canonical task",
+            disposition_source_link="OOMPAH-456",
+            days_since_completion=0,
+            retention_days_required=30,
+        )
+
+        assert snapshot.passed() is True
+        assert snapshot.prior_audit is None
+        assert snapshot.pre_archive_state == "Open"
+
+    def test_direct_obsolete_does_not_require_retention_age(self) -> None:
+        collector = ArchivedEvidenceCollector(task_id="TASK-123", project_id="proj-1")
+
+        snapshot = collector.collect(
+            current_state="Backlog",
+            disposition_type=DispositionType.OBSOLETE,
+            disposition_explanation="The requested work is no longer needed",
+            disposition_source_link="https://example.test/replacement",
+            days_since_completion=0,
+            retention_days_required=30,
+        )
+
+        assert snapshot.passed() is True
+        assert SafetyFailureMode.RECENT_COMPLETION.value not in snapshot.failure_modes
+
+    def test_active_claim_and_retry_are_recorded_in_snapshot(self) -> None:
+        fp = EvidenceFingerprint(digest="a" * 64)
+        collector = ArchivedEvidenceCollector(task_id="TASK-123", project_id="proj-1")
+
+        snapshot = collector.collect(
+            current_state="Done",
+            disposition_type=DispositionType.RETENTION,
+            disposition_explanation="Retained per policy",
+            prior_done_audit_id="audit-123",
+            prior_done_verdict="pass",
+            prior_done_fingerprint=fp,
+            has_active_claim=True,
+            has_active_retry=True,
+            days_since_completion=31,
+        )
+
+        assert snapshot.passed() is False
+        assert isinstance(snapshot.task_state, TaskStateSnapshot)
+        assert snapshot.task_state.has_active_claim is True
+        assert snapshot.task_state.has_active_retry is True
+        assert SafetyFailureMode.ACTIVE_CLAIM.value in snapshot.failure_modes
+        assert SafetyFailureMode.ACTIVE_RETRY.value in snapshot.failure_modes
+
+    def test_unavailable_claim_evidence_fails_closed(self) -> None:
+        fp = EvidenceFingerprint(digest="a" * 64)
+        collector = ArchivedEvidenceCollector(task_id="TASK-123", project_id="proj-1")
+
+        snapshot = collector.collect(
+            current_state="Done",
+            disposition_type=DispositionType.RETENTION,
+            disposition_explanation="Retained per policy",
+            prior_done_audit_id="audit-123",
+            prior_done_verdict="pass",
+            prior_done_fingerprint=fp,
+            has_active_claim=EvidenceUnavailable("claim store unavailable"),
+            days_since_completion=31,
+        )
+
+        assert snapshot.passed() is False
+        assert SafetyFailureMode.MISSING_EVIDENCE.value in snapshot.failure_modes
+
+    def test_retention_requires_done_or_merged_pre_archive_state(self) -> None:
+        fp = EvidenceFingerprint(digest="a" * 64)
+        collector = ArchivedEvidenceCollector(task_id="TASK-123", project_id="proj-1")
+
+        snapshot = collector.collect(
+            current_state="Open",
+            disposition_type=DispositionType.RETENTION,
+            disposition_explanation="Retained per policy",
+            prior_done_audit_id="audit-123",
+            prior_done_verdict="pass",
+            prior_done_fingerprint=fp,
+            days_since_completion=31,
+        )
+
+        assert snapshot.passed() is False
+        assert SafetyFailureMode.INVALID_PRE_ARCHIVE_STATE.value in snapshot.failure_modes
+        assert snapshot.restoration_guidance is not None
+        assert snapshot.restoration_guidance.restored_state == "Open"
+
+    def test_missing_audit_fingerprint_is_unsafe(self) -> None:
+        collector = ArchivedEvidenceCollector(task_id="TASK-123", project_id="proj-1")
+
+        snapshot = collector.collect(
+            current_state="Done",
+            disposition_type=DispositionType.RETENTION,
+            disposition_explanation="Retained per policy",
+            prior_done_audit_id="audit-123",
+            prior_done_verdict="pass",
+            days_since_completion=31,
+        )
+
+        assert snapshot.passed() is False
+        assert SafetyFailureMode.DONE_AUDIT_FAILED.value in snapshot.failure_modes
+        assert SafetyFailureMode.MISSING_EVIDENCE.value in snapshot.failure_modes
