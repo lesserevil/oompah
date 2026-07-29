@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:25.383734Z'
-updated_at: '2026-07-29T18:26:02.700003Z'
+updated_at: '2026-07-29T18:29:02.634922Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-477
 target_branch: null
 review_url: null
@@ -188,5 +188,27 @@ author: oompah
 created: 2026-07-29 18:26
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-07-29 18:29
+---
+Verification: Implementation complete and all tests pass.
+
+✓ Replaced _run_completion_verifier() with terminal_transition_coordinator.request_transition() in worker-exit path
+✓ Removed max 3 retry ceiling (_verifier_reject_counts tracking eliminated)
+✓ Preserved close gate and unpushed gate as deterministic prechecks
+✓ Captured contributor provenance (orchestrator identity) for Done audit requests
+✓ Compute EvidenceFingerprint from issue description, project_id, task_id, and branch
+✓ Deprecated old verifier method with clear notice (OOMPAH-477)
+✓ Updated close_gate test to reflect new coordinator flow
+✓ Review creation deferred until auditor processes Done audit
+
+Test Results:
+- All focused and full tests pass (make test: ✓)
+- Test suites verified: test_dispatch_close_race, test_close_gate, test_unpushed_gate
+- No fail-open ceiling - auditor determines Done result independently
+- Deterministic safeguards remain intact
+
+Ready for submission.
 ---
 <!-- COMMENTS:END -->

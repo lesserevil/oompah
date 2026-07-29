@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-549
 type: feature
-status: Done
+status: Merged
 priority: 0
 title: Expose finish-order lifecycle in UI, prompts, and operator documentation
 parent: OOMPAH-545
@@ -14,7 +14,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T16:23:11.842687Z'
-updated_at: '2026-07-29T18:27:54.777436Z'
+updated_at: '2026-07-29T18:29:16.785798Z'
 work_branch: null
 target_branch: null
 review_url: null

@@ -13,8 +13,8 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:26.170630Z'
-updated_at: '2026-07-29T18:28:54.077801Z'
-work_branch: epic-OOMPAH-460
+updated_at: '2026-07-29T18:29:08.318899Z'
+work_branch: epic-OOMPAH-460--task-OOMPAH-487
 target_branch: null
 review_url: null
 review_number: null
@@ -56,7 +56,7 @@ oompah.duplicate_screening:
   retry_count: 0
   retry_after: null
 oompah.agent_run_id: 2eeecd8d-67c6-4744-9ad6-c5841e6eb4cb
-oompah.work_branch: epic-OOMPAH-460
+oompah.work_branch: epic-OOMPAH-460--task-OOMPAH-487
 oompah.task_costs:
   total_input_tokens: 186
   total_output_tokens: 5823
@@ -73,6 +73,14 @@ oompah.task_costs:
     output_tokens: 5823
     cost_usd: 0.0
     recorded_at: '2026-07-29T02:09:31.868575+00:00'
+oompah.integration:
+  version: 1
+  state: working
+  attempts: 0
+  task_branch: epic-OOMPAH-460--task-OOMPAH-487
+  base_branch: epic-OOMPAH-460
+  base_sha: b0ceda2643cbc37c166ac58bed9a9b6f3898b681
+  updated_at: '2026-07-29T18:29:03.459424+00:00'
 ---
 ## Summary
 
@@ -120,5 +128,10 @@ author: oompah
 created: 2026-07-29 18:28
 ---
 Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-29 18:29
+---
+Focus: Technical Writer
 ---
 <!-- COMMENTS:END -->

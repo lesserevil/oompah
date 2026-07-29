@@ -12,8 +12,8 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:28.235708Z'
-updated_at: '2026-07-29T18:28:57.911564Z'
-work_branch: epic-OOMPAH-459
+updated_at: '2026-07-29T18:29:11.114382Z'
+work_branch: epic-OOMPAH-459--task-OOMPAH-480
 target_branch: null
 review_url: null
 review_number: null
@@ -38,8 +38,8 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 6804962d-b98d-4e0c-9308-6ce1b97230b5
-oompah.work_branch: epic-OOMPAH-459
+oompah.agent_run_id: 84a2164f-5f0f-4709-a974-3fe468782345
+oompah.work_branch: epic-OOMPAH-459--task-OOMPAH-480
 oompah.task_costs:
   total_input_tokens: 224708
   total_output_tokens: 1742
@@ -56,6 +56,14 @@ oompah.task_costs:
     output_tokens: 1742
     cost_usd: 0.0
     recorded_at: '2026-07-29T01:44:58.776601+00:00'
+oompah.integration:
+  version: 1
+  state: working
+  attempts: 0
+  task_branch: epic-OOMPAH-459--task-OOMPAH-480
+  base_branch: epic-OOMPAH-459
+  base_sha: 65c8e4725fe931bf0fa9c3357d153ba003ad03c4
+  updated_at: '2026-07-29T18:29:09.032645+00:00'
 ---
 ## Summary
 
@@ -98,5 +106,15 @@ Run #1 [attempt=1, profile=standard, role=standard -> Codex/gpt-5.6-terra]
 - Cost: $0.0000
 - Exit: normal, Duration: 55s
 - Log: OOMPAH-480__20260729T014409Z.jsonl
+---
+author: oompah
+created: 2026-07-29 18:29
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-29 18:29
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
