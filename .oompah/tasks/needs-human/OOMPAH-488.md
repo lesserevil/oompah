@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-488
 type: task
-status: In Progress
+status: Needs Human
 priority: 1
 title: Validate the complete task Done-Merged-Archived audit lifecycle
 parent: OOMPAH-460
@@ -19,7 +19,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:27.238658Z'
-updated_at: '2026-07-29T18:44:53.615783Z'
+updated_at: '2026-07-29T18:45:54.002246Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-488
 target_branch: null
 review_url: null
@@ -48,13 +48,13 @@ oompah.duplicate_screening:
 oompah.agent_run_id: 0d67827f-9a98-4bc9-8710-2ae9c36caed4
 oompah.work_branch: epic-OOMPAH-460--task-OOMPAH-488
 oompah.task_costs:
-  total_input_tokens: 763127
-  total_output_tokens: 8252
+  total_input_tokens: 979159
+  total_output_tokens: 9542
   total_cost_usd: 0.0
   by_model:
     sonnet:
-      input_tokens: 677000
-      output_tokens: 7292
+      input_tokens: 893032
+      output_tokens: 8582
       cost_usd: 0.0
     opus:
       input_tokens: 86127
@@ -79,6 +79,12 @@ oompah.task_costs:
     output_tokens: 960
     cost_usd: 0.0
     recorded_at: '2026-07-29T18:34:14.579105+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 216032
+    output_tokens: 1290
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T18:45:49.622121+00:00'
 oompah.integration:
   version: 1
   state: working
@@ -105,6 +111,14 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-460--task-OOMPAH-488
     source_sha: b0ceda2643cbc37c166ac58bed9a9b6f3898b681
     completed_at: '2026-07-29T18:34:14.583336+00:00'
+  - run_id: OOMPAH-488__20260729T184455Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-terra
+    focus: ci_fix
+    source_branch: epic-OOMPAH-460--task-OOMPAH-488
+    source_sha: b0ceda2643cbc37c166ac58bed9a9b6f3898b681
+    completed_at: '2026-07-29T18:45:49.626900+00:00'
 ---
 ## Summary
 
@@ -212,5 +226,25 @@ author: oompah
 created: 2026-07-29 18:44
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-29 18:45
+---
+Agent completed successfully in 67s (217322 tokens)
+---
+author: oompah
+created: 2026-07-29 18:45
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Codex/gpt-5.6-terra]
+- Turns: 1, Tool calls: 5
+- Tokens: 216.0K in / 1.3K out [217.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 7s
+- Log: OOMPAH-488__20260729T184455Z.jsonl
+---
+author: oompah
+created: 2026-07-29 18:45
+---
+Agent completed 3 times without closing this issue. Human action required: review the agent run history and task state, then either close the task if the work is done or add specific guidance and move it back to Open.
 ---
 <!-- COMMENTS:END -->

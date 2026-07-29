@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-482
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Dispatch one repair-planner run for an epic that fails audit
 parent: OOMPAH-459
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:30.191340Z'
-updated_at: '2026-07-29T18:36:57.431242Z'
+updated_at: '2026-07-29T18:46:04.248844Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-482
 target_branch: null
 review_url: null
@@ -36,7 +36,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 7be8778b-9663-4db8-8135-ef23067bee34
+oompah.agent_run_id: 524da379-2dfe-4079-978e-1f855f327aee
 oompah.work_branch: epic-OOMPAH-459--task-OOMPAH-482
 oompah.task_costs:
   total_input_tokens: 406406
@@ -67,7 +67,7 @@ oompah.integration:
   task_branch: epic-OOMPAH-459--task-OOMPAH-482
   base_branch: epic-OOMPAH-459
   base_sha: 65c8e4725fe931bf0fa9c3357d153ba003ad03c4
-  updated_at: '2026-07-29T18:33:35.425775+00:00'
+  updated_at: '2026-07-29T18:46:02.129943+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-482__20260729T183344Z
@@ -150,5 +150,15 @@ author: oompah
 created: 2026-07-29 18:34
 ---
 Agent completed without closing this issue (49s (122101 tokens)). Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-29 18:46
+---
+Retrying (attempt #6, agent: standard)
+---
+author: oompah
+created: 2026-07-29 18:46
+---
+Focus: Maintenance Engineer
 ---
 <!-- COMMENTS:END -->
