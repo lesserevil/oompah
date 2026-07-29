@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-567
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Install complete test dependencies in fresh Makefile worktrees
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T22:48:39.126282Z'
-updated_at: '2026-07-29T22:54:17.159552Z'
+updated_at: '2026-07-29T23:00:00.000373Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -69,6 +69,14 @@ oompah.task_costs:
     output_tokens: 2360
     cost_usd: 0.0
     recorded_at: '2026-07-29T22:51:59.900737+00:00'
+oompah.integration:
+  version: 1
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-567
+  head_sha: 98c4cd0fe44ee8ba55f0a88ab52693cc53af31bf
+  submitted_at: '2026-07-29T22:59:57.952992+00:00'
+  updated_at: '2026-07-29T22:59:57.952992+00:00'
 ---
 ## Summary
 
@@ -131,5 +139,10 @@ author: oompah
 created: 2026-07-29 22:54
 ---
 Implementation: (1) Added test-setup target to Makefile that installs .[dev] with idempotent marker $(VENV)/.uv-test-setup invalidated by pyproject.toml. (2) Updated test and test-serial targets to depend on test-setup instead of setup. (3) Kept setup target unchanged (server-only). (4) Added comprehensive regression tests in tests/test_makefile_packaging.py that verify: dev extra with all backends is installed for tests, setup remains server-only, markers properly invalidated by pyproject changes.
+---
+author: oompah
+created: 2026-07-29 23:00
+---
+Added an idempotent Makefile test-setup marker that installs .[dev] for test/test-serial while leaving production setup on .[server]. Added Makefile regression coverage. Verification: 23 focused tests passed; clean temporary venv imported claude_agent_sdk, agents, and granian; full make test passed with 13,600 passed and 7 skipped.
 ---
 <!-- COMMENTS:END -->
