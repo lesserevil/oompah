@@ -11,11 +11,11 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-29T00:37:23.786577Z'
-updated_at: '2026-07-29T01:30:19.979690Z'
-work_branch: null
-target_branch: null
-review_url: null
-review_number: null
+updated_at: '2026-07-29T01:30:27.207433Z'
+work_branch: OOMPAH-538
+target_branch: main
+review_url: https://github.com/lesserevil/oompah/pull/574
+review_number: '574'
 merged_at: null
 oompah.duplicate_screening:
   schema_version: 1
@@ -92,6 +92,10 @@ oompah.task_costs:
     output_tokens: 3491
     cost_usd: 0.0
     recorded_at: '2026-07-29T01:28:54.671092+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/574
+oompah.review_number: '574'
+oompah.work_branch: OOMPAH-538
+oompah.target_branch: main
 ---
 ## Summary
 
