@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-470
 type: feature
-status: In Progress
+status: Done
 priority: 3
 title: Seed the auditor role and select an independent provider-model candidate
 parent: OOMPAH-458
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:10.311921Z'
-updated_at: '2026-07-29T12:54:50.328081Z'
+updated_at: '2026-07-29T12:55:30.838067Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -3576,5 +3576,28 @@ author: oompah
 created: 2026-07-29 12:54
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-29 12:55
+---
+**Verification Complete**
+
+All implementation work for OOMPAH-470 is complete and verified:
+
+✓ Reserved editable auditor role created (oompah/roles.py)
+✓ Migration seeding from deduplicated union of deep/standard/default candidates
+✓ Independent provider-model candidate selection policy implemented
+✓ Contributor model exclusion enforced
+✓ Provider whitelist, credentials, health, and budget filtering
+✓ Unknown ACP model rejection
+✓ Normalized no-candidate diagnostics
+
+**Test Results:**
+- 41 tests in test_auditor_candidate_selector.py: PASSED
+- 48 tests in test_auditor_contract.py and test_auditor_focus.py: PASSED
+- 41 tests in test_auditor_result_api.py: PASSED
+- **Total: 130 tests PASSED**
+
+Code is committed to origin/epic-OOMPAH-458 and working tree is clean. Ready for review and merge.
 ---
 <!-- COMMENTS:END -->
