@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-539
 type: task
-status: In Review
+status: Done
 priority: null
 title: Keep Open-task duplicate-screening board state synchronized with live workers
 parent: null
@@ -11,11 +11,11 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-29T00:43:25.964028Z'
-updated_at: '2026-07-29T02:29:58.801327Z'
-work_branch: null
-target_branch: null
-review_url: null
-review_number: null
+updated_at: '2026-07-29T02:30:10.240685Z'
+work_branch: OOMPAH-539
+target_branch: main
+review_url: https://github.com/lesserevil/oompah/pull/575
+review_number: '575'
 merged_at: null
 oompah.duplicate_screening:
   schema_version: 1
@@ -99,6 +99,10 @@ oompah.task_costs:
     output_tokens: 4470
     cost_usd: 0.0
     recorded_at: '2026-07-29T02:29:08.749127+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/575
+oompah.review_number: '575'
+oompah.work_branch: OOMPAH-539
+oompah.target_branch: main
 ---
 ## Summary
 
@@ -393,5 +397,10 @@ author: oompah
 created: 2026-07-29 02:29
 ---
 Understanding & current state: The implementation (server.py snapshot refresh ordering fix + test_server_duplicate_screening_sync.py with 4 tests) was already committed and pushed in a previous agent run. make test passes (12,890 passed). The only remaining step is to open a PR from OOMPAH-539 to main (which was missing) and then close the task. Creating PR now.
+---
+author: oompah
+created: 2026-07-29 02:30
+---
+Completion: PR #575 opened at https://github.com/lesserevil/oompah/pull/575. The implementation was already complete from the previous agent run — the only missing step was the PR itself. Changes: server.py snapshot refresh-before-broadcast ordering fix + test_server_duplicate_screening_sync.py (4 new tests). All 46 focused tests pass; make test passes (12,890/12,890). Closing task.
 ---
 <!-- COMMENTS:END -->
