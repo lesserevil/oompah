@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:27.240594Z'
-updated_at: '2026-07-29T19:03:21.363128Z'
+updated_at: '2026-07-29T23:44:20.866604Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-479
 target_branch: null
 review_url: null
@@ -66,9 +66,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: epic-OOMPAH-459--task-OOMPAH-479
-  head_sha: a537d947d9aa7d7a262ddba6f8f53ea047c74ca4
-  submitted_at: '2026-07-29T19:02:53.548528+00:00'
-  updated_at: '2026-07-29T19:02:53.548528+00:00'
+  head_sha: a5110bc5970068b002a791ffce5db3dc6c303627
+  submitted_at: '2026-07-29T23:44:15.674565+00:00'
+  updated_at: '2026-07-29T23:44:15.674565+00:00'
 ---
 ## Summary
 
@@ -156,5 +156,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 34m 32s
 - Log: OOMPAH-479__20260729T182902Z.jsonl
+---
+author: oompah
+created: 2026-07-29 23:44
+---
+Rebased Merged-audit routing onto the repaired epic base while retaining private child-branch cleanup; focused gate passed (494 tests).
 ---
 <!-- COMMENTS:END -->
