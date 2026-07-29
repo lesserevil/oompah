@@ -19,7 +19,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:27.238658Z'
-updated_at: '2026-07-29T19:39:54.582393Z'
+updated_at: '2026-07-29T19:40:11.256555Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-488
 target_branch: null
 review_url: null
@@ -48,13 +48,13 @@ oompah.duplicate_screening:
 oompah.agent_run_id: e6f8f304-f318-4755-9b98-065c34332cf2
 oompah.work_branch: epic-OOMPAH-460--task-OOMPAH-488
 oompah.task_costs:
-  total_input_tokens: 979159
-  total_output_tokens: 9542
+  total_input_tokens: 979391
+  total_output_tokens: 16859
   total_cost_usd: 0.0
   by_model:
     sonnet:
-      input_tokens: 893032
-      output_tokens: 8582
+      input_tokens: 893264
+      output_tokens: 15899
       cost_usd: 0.0
     opus:
       input_tokens: 86127
@@ -85,6 +85,12 @@ oompah.task_costs:
     output_tokens: 1290
     cost_usd: 0.0
     recorded_at: '2026-07-29T18:45:49.622121+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 232
+    output_tokens: 7317
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T19:40:09.819848+00:00'
 oompah.integration:
   version: 1
   state: ready
@@ -298,5 +304,15 @@ author: oompah
 created: 2026-07-29 19:39
 ---
 Implemented tests/test_done_merged_archived_lifecycle.py with 52 comprehensive lifecycle tests. Validates complete Done→Merged→Archived audit chain with three distinct auditors, worker self-certification prevention, failure variants (incomplete/CI/wrong-target/unsafe-archive), and restart recovery. Merged from origin/main to get sibling task infrastructure. All 13,627 tests pass.
+---
+author: oompah
+created: 2026-07-29 19:40
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 0, Tool calls: 162
+- Tokens: 232 in / 7.3K out [7.5K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 49m 6s
+- Log: OOMPAH-488__20260729T185110Z.jsonl
 ---
 <!-- COMMENTS:END -->
