@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-338
 type: task
-status: Merged
+status: Archived
 priority: null
 title: Add GitLab tracker lifecycle relationships and metadata persistence
 parent: OOMPAH-323
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T23:24:39.407769Z'
-updated_at: '2026-07-22T16:04:34.461403Z'
+updated_at: '2026-07-29T16:46:31.549027Z'
 work_branch: null
 target_branch: null
 review_url: null
