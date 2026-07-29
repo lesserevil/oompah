@@ -621,6 +621,24 @@ class TestOompahTaskCommandExternalTask:
         assert result is not None
         assert "Error: action denied" not in (result or "")
 
+    def test_remove_dependency_allowed_for_external_task(self):
+        """remove-dependency is metadata correction and is not policy-gated."""
+        policy = _external_policy()
+        tracker = _make_tracker()
+        result = self._exec(
+            "oompah task remove-dependency OOMPAH-290 "
+            "--depends-on OOMPAH-289",
+            tracker=tracker,
+            policy=policy,
+        )
+
+        assert result == (
+            "Dependency removed: OOMPAH-290 no longer depends on OOMPAH-289"
+        )
+        tracker.remove_dependency.assert_called_once_with(
+            "OOMPAH-290", "OOMPAH-289"
+        )
+
 
 # ---------------------------------------------------------------------------
 # 9. _exec_oompah_task_command — operator task (no restriction)

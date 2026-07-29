@@ -1,4 +1,4 @@
-"""Tests for the POST /api/v1/issues/{identifier}/dependencies endpoint.
+"""Tests for the task dependency mutation endpoints.
 
 Covers:
   (1) Successful add_dependency call returns 201 ok:True
@@ -39,6 +39,7 @@ def _make_mock_orchestrator(project_id: str = "proj-1") -> tuple[MagicMock, Magi
     """Build a minimal mock Orchestrator with a stub tracker."""
     mock_tracker = MagicMock()
     mock_tracker.add_dependency = MagicMock()
+    mock_tracker.remove_dependency = MagicMock()
     mock_tracker.fetch_issue_detail = MagicMock(
         return_value=Issue(
             id="TASK-1",
@@ -357,3 +358,130 @@ class TestAddDependencyEndpoint:
 
         assert resp.status_code == 201
         assert any("issues:all" in k for k in invalidated)
+
+
+class TestRemoveDependencyEndpoint:
+    """Tests for DELETE /api/v1/issues/{identifier}/dependencies."""
+
+    def test_remove_dependency_success_wakes_dispatch(self, client):
+        mock_orch, mock_tracker = _make_mock_orchestrator()
+        broadcast = AsyncMock()
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+            patch.object(server_module, "broadcast_issues", broadcast),
+        ):
+            resp = client.delete(
+                "/api/v1/issues/TASK-2/dependencies",
+                params={
+                    "depends_on": "TASK-1",
+                    "project_id": "proj-1",
+                },
+            )
+
+        assert resp.status_code == 200
+        assert resp.json() == {"ok": True}
+        mock_tracker.remove_dependency.assert_called_once_with("TASK-2", "TASK-1")
+        mock_orch.request_refresh.assert_called_once_with()
+        broadcast.assert_awaited_once()
+
+    def test_remove_dependency_requires_depends_on(self, client):
+        mock_orch, mock_tracker = _make_mock_orchestrator()
+
+        with patch.object(server_module, "_get_orchestrator", return_value=mock_orch):
+            resp = client.delete(
+                "/api/v1/issues/TASK-2/dependencies",
+                params={"project_id": "proj-1"},
+            )
+
+        assert resp.status_code == 400
+        assert resp.json()["error"]["code"] == "validation"
+        mock_tracker.remove_dependency.assert_not_called()
+
+    def test_remove_dependency_honors_issue_key_and_project(self, client):
+        mock_orch, mock_tracker = _make_mock_orchestrator()
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+        ):
+            resp = client.delete(
+                "/api/v1/issues/placeholder/dependencies",
+                params={
+                    "issue_key": "owner/repo#42",
+                    "depends_on": "owner/repo#7",
+                    "project_id": "proj-1",
+                },
+            )
+
+        assert resp.status_code == 200
+        mock_tracker.remove_dependency.assert_called_once_with(
+            "owner/repo#42", "owner/repo#7"
+        )
+        mock_orch._tracker_for_project.assert_called_with("proj-1")
+
+    def test_remove_dependency_unknown_unscoped_issue_returns_404(self, client):
+        mock_orch, _ = _make_mock_orchestrator()
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+            patch.object(
+                server_module,
+                "_find_tracker_for_issue",
+                return_value=(None, None, None),
+            ),
+        ):
+            resp = client.delete(
+                "/api/v1/issues/TASK-999/dependencies",
+                params={"depends_on": "TASK-1"},
+            )
+
+        assert resp.status_code == 404
+        assert resp.json()["error"]["code"] == "issue_not_found"
+
+    def test_remove_dependency_invalidates_list_and_detail_caches(self, client):
+        mock_orch, _ = _make_mock_orchestrator()
+        invalidate = MagicMock()
+        invalidate_prefix = MagicMock()
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+            patch.object(server_module._api_cache, "invalidate", invalidate),
+            patch.object(
+                server_module._api_cache,
+                "invalidate_prefix",
+                invalidate_prefix,
+            ),
+        ):
+            resp = client.delete(
+                "/api/v1/issues/TASK-2/dependencies",
+                params={
+                    "depends_on": "TASK-1",
+                    "project_id": "proj-1",
+                },
+            )
+
+        assert resp.status_code == 200
+        invalidate.assert_called_once_with("issues:all")
+        invalidate_prefix.assert_called_once_with("detail:proj-1:TASK-2")
+
+    def test_remove_dependency_tracker_error_returns_500(self, client):
+        mock_orch, mock_tracker = _make_mock_orchestrator()
+        mock_tracker.remove_dependency.side_effect = RuntimeError("write failed")
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+        ):
+            resp = client.delete(
+                "/api/v1/issues/TASK-2/dependencies",
+                params={
+                    "depends_on": "TASK-1",
+                    "project_id": "proj-1",
+                },
+            )
+
+        assert resp.status_code == 500
+        assert resp.json()["error"]["code"] == "dependency_failed"
+        mock_orch.request_refresh.assert_not_called()

@@ -26,6 +26,7 @@ from __future__ import annotations
 import json
 import re
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import httpx
 import pytest
@@ -863,6 +864,23 @@ class TestDependencies:
         instance, _ = tracker
         with pytest.raises(TrackerError):
             instance.add_dependency("group/sub/project#2", "bad-id")
+
+    def test_remove_dependency_removes_exact_blocked_by_label(self, tracker):
+        instance, _ = tracker
+        with patch.object(instance, "remove_label") as remove_label:
+            instance.remove_dependency(
+                "group/sub/project#2", "group/sub/project#1"
+            )
+
+        remove_label.assert_called_once_with(
+            "group/sub/project#2",
+            "blocked-by:group/sub/project#1",
+        )
+
+    def test_remove_dependency_raises_for_invalid_blocker(self, tracker):
+        instance, _ = tracker
+        with pytest.raises(TrackerError):
+            instance.remove_dependency("group/sub/project#2", "bad-id")
 
 
 # ===========================================================================

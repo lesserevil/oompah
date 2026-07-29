@@ -260,6 +260,10 @@ class TrackerProtocol(Protocol):
         """Record that blocked_id depends on blocker_id."""
         ...
 
+    def remove_dependency(self, blocked_id: str, blocker_id: str) -> None:
+        """Remove the dependency from blocked_id to blocker_id, if present."""
+        ...
+
     def fetch_attachments(self, identifier: str) -> list[dict]:
         """Return rich attachment records for an issue."""
         ...

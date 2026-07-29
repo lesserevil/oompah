@@ -68,6 +68,7 @@ oompah task comment <task-id> --project <project-id> --message "Progress update"
 oompah task create --project <project-id> --title "Follow-up title" --description "Details"
 oompah task child-create <task-id> --project <project-id> --title "Child task title" --description "Details"
 oompah task set-dependency <task-id> --project <project-id> --depends-on <other-task-id>
+oompah task remove-dependency <task-id> --project <project-id> --depends-on <other-task-id>
 oompah task add-label <task-id> needs:frontend --project <project-id>
 oompah task set-status <task-id> Open --project <project-id>
 oompah task set-status <task-id> Done --project <project-id> --summary "Completed"
@@ -110,6 +111,8 @@ comments.
   hand-write parent metadata.
 - Record blockers with `oompah task set-dependency`; do not hand-write
   dependency metadata.
+- Remove obsolete blockers with `oompah task remove-dependency`; do not
+  hand-write dependency metadata.
 - Always pass `--author oompah` when posting progress comments through the CLI.
 - Use `$TMPDIR` or `mktemp` for scratch files. Never hard-code `/tmp`; Oompah
   redirects the standard temp environment to its private, quota-safe root.

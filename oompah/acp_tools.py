@@ -380,7 +380,7 @@ def _exec_oompah_task_command(
     :attr:`ProtectedAction.TASK_STATUS_TRANSITION`.  Task-creation subcommands
     (``create``, ``child-create``) require
     :attr:`ProtectedAction.TASK_CREATE_DECOMPOSE`.  ``view``, ``comment``, and
-    ``set-dependency`` are not gated.
+    ``set-dependency`` and ``remove-dependency`` are not gated.
     """
     argv, parse_error = _oompah_task_argv(command)
     if parse_error is not None:
@@ -479,6 +479,13 @@ def _exec_oompah_task_command(
         if args.subcommand == "set-dependency":
             task_tracker.add_dependency(args.identifier, args.depends_on)
             return f"Dependency set: {args.identifier} depends on {args.depends_on}"
+
+        if args.subcommand == "remove-dependency":
+            task_tracker.remove_dependency(args.identifier, args.depends_on)
+            return (
+                f"Dependency removed: {args.identifier} no longer depends on "
+                f"{args.depends_on}"
+            )
 
         if args.subcommand == "create":
             denial = check_action(

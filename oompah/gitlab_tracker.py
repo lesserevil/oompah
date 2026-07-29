@@ -695,6 +695,11 @@ class GitLabIssueTracker:
             blocked_id, f"blocked-by:{self.parse_identifier(blocker_id).canonical}"
         )
 
+    def remove_dependency(self, blocked_id: str, blocker_id: str) -> None:
+        self.remove_label(
+            blocked_id, f"blocked-by:{self.parse_identifier(blocker_id).canonical}"
+        )
+
     def fetch_attachments(self, identifier: str) -> list[dict]:
         """Return rich attachment records stored in the issue description metadata.
 

@@ -8449,6 +8449,91 @@ async def api_add_dependency(identifier: str, request: Request):
         )
 
 
+@app.delete("/api/v1/issues/{identifier}/dependencies")
+async def api_remove_dependency(identifier: str, request: Request):
+    """Remove one exact blocker relationship from an issue.
+
+    Query parameters:
+        depends_on   – identifier of the blocker task to remove (required)
+        issue_key    – full identifier when the path param is URL-encoded
+        project_id   – optional; used to resolve the tracker directly
+        managed_repo – optional ``owner/repo`` alternative to project_id
+    """
+    try:
+        orch = _get_orchestrator()
+        depends_on = (request.query_params.get("depends_on") or "").strip()
+        if not depends_on:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": "depends_on is required",
+                    }
+                },
+                status_code=400,
+            )
+
+        resolved_identifier = _resolve_identifier(
+            identifier, {}, request.query_params
+        )
+        project_id = request.query_params.get("project_id")
+        managed_repo_req = (
+            request.query_params.get("managed_repo") or ""
+        ).strip() or None
+
+        if project_id:
+            tracker, project_id = _get_tracker_for_issue_or_project(
+                orch, resolved_identifier, project_id
+            )
+        elif managed_repo_req:
+            if "/" not in managed_repo_req:
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "validation",
+                            "message": "managed_repo must be in 'owner/repo' format",
+                        }
+                    },
+                    status_code=400,
+                )
+            try:
+                tracker, project_id = _get_tracker_for_managed_repo(
+                    orch, managed_repo_req
+                )
+            except ValueError as exc:
+                return JSONResponse(
+                    {"error": {"code": "not_found", "message": str(exc)}},
+                    status_code=404,
+                )
+        else:
+            tracker, project_id, _ = _find_tracker_for_issue(
+                orch, resolved_identifier
+            )
+            if tracker is None:
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "issue_not_found",
+                            "message": f"Issue {resolved_identifier!r} not found",
+                        }
+                    },
+                    status_code=404,
+                )
+
+        tracker.remove_dependency(resolved_identifier, depends_on)
+        _api_cache.invalidate("issues:all")
+        _api_cache.invalidate_prefix(f"detail:{project_id}:{resolved_identifier}")
+        orch.request_refresh()
+        await broadcast_issues()
+        return JSONResponse({"ok": True})
+    except Exception as exc:
+        logger.error("Remove dependency API error: %s", exc)
+        return JSONResponse(
+            {"error": {"code": "dependency_failed", "message": str(exc)}},
+            status_code=500,
+        )
+
+
 @app.get("/api/v1/issues/{identifier}/comments")
 async def api_get_comments(identifier: str, request: Request):
     """Return comments for an issue.

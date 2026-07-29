@@ -262,6 +262,32 @@ class TestOompahMarkdownTrackerMutations:
         assert child.identifier in _frontmatter(parent_path)["children"]
         assert parent_refreshed.issue_type == "epic"
 
+    def test_remove_dependency_preserves_other_edges_and_is_idempotent(
+        self, tmp_path
+    ):
+        tracker = _tracker(tmp_path)
+        issue = tracker.create_issue("Blocked task")
+        tracker.add_dependency(issue.identifier, "REPO-90")
+        tracker.add_dependency(issue.identifier, "REPO-91")
+
+        tracker.remove_dependency(issue.identifier, "repo-90")
+        refreshed = tracker.fetch_issue_detail(issue.identifier)
+        assert [blocker.identifier for blocker in refreshed.blocked_by] == [
+            "REPO-91"
+        ]
+
+        tracker.remove_dependency(issue.identifier, "REPO-90")
+        refreshed = tracker.fetch_issue_detail(issue.identifier)
+        assert [blocker.identifier for blocker in refreshed.blocked_by] == [
+            "REPO-91"
+        ]
+
+    def test_remove_dependency_rejects_unknown_task(self, tmp_path):
+        tracker = _tracker(tmp_path)
+
+        with pytest.raises(TrackerError, match="not found"):
+            tracker.remove_dependency("REPO-999", "REPO-90")
+
     def test_external_github_metadata_normalizes_provider_fields(self, tmp_path):
         tracker = _tracker(tmp_path)
         issue = tracker.create_issue("Imported issue")

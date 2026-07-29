@@ -306,6 +306,7 @@ class TestClassifyRouteTaskMutation:
             ("POST", "/api/v1/issues/{identifier}/labels"),
             ("DELETE", "/api/v1/issues/{identifier}/labels/{label}"),
             ("POST", "/api/v1/issues/{identifier}/dependencies"),
+            ("DELETE", "/api/v1/issues/{identifier}/dependencies"),
             ("POST", "/api/v1/issues/{identifier}/comments"),
         ],
     )
@@ -648,6 +649,11 @@ class TestIsRouteExposed:
             ("POST", "/api/v1/issues/{identifier}/labels", "add label"),
             ("DELETE", "/api/v1/issues/{identifier}/labels/{label}", "remove label"),
             ("POST", "/api/v1/issues/{identifier}/dependencies", "add dependency"),
+            (
+                "DELETE",
+                "/api/v1/issues/{identifier}/dependencies",
+                "remove dependency",
+            ),
         ],
     )
     def test_allowed_operations(self, method: str, path: str, description: str):
