@@ -21,7 +21,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:15.927352Z'
-updated_at: '2026-07-29T14:54:48.518175Z'
+updated_at: '2026-07-29T14:54:50.650132Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -508,5 +508,10 @@ author: oompah
 created: 2026-07-29 14:54
 ---
 Focus: Technical Writer
+---
+author: oompah
+created: 2026-07-29 14:54
+---
+Independent auditor dispatch documentation complete: design document (plans/independent-auditor-dispatch.md) covers audit flow, candidate selection, retry/recovery semantics, and testing strategy; operator guide (docs/auditor-dispatch-operations.md) covers configuration, monitoring, troubleshooting, and recovery procedures. All documentation verified against existing implementation and committed to epic-OOMPAH-458.
 ---
 <!-- COMMENTS:END -->
