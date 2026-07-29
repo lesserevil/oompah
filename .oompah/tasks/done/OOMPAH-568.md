@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T23:07:15.850841Z'
-updated_at: '2026-07-29T23:52:20.687876Z'
+updated_at: '2026-07-29T23:52:34.904427Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-568
 target_branch: null
 review_url: null
@@ -27,6 +27,22 @@ oompah.integration:
   base_branch: epic-OOMPAH-459
   base_sha: b68d7438fd5afee99b5e77688274478c748bdb3a
   updated_at: '2026-07-29T23:45:21.553997+00:00'
+oompah.task_costs:
+  total_input_tokens: 169350
+  total_output_tokens: 2937
+  total_cost_usd: 0.0
+  by_model:
+    sonnet:
+      input_tokens: 169350
+      output_tokens: 2937
+      cost_usd: 0.0
+  runs:
+  - profile: standard
+    model: sonnet
+    input_tokens: 169350
+    output_tokens: 2937
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T23:52:32.498226+00:00'
 ---
 ## Summary
 
@@ -56,5 +72,20 @@ author: oompah
 created: 2026-07-29 23:52
 ---
 Rebased origin/epic-OOMPAH-459 onto current origin/main and force-pushed with an exact lease: b68d7438f -> fe6cef966. Range-diff confirms all six epic patches are equivalent; the combined code was already covered by the clean 13,628-test gate plus PR #585's green 3.11/3.12/3.13 CI.
+---
+author: oompah
+created: 2026-07-29 23:52
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Codex/gpt-5.6-terra]
+- Turns: 0, Tool calls: 72
+- Tokens: 169.3K in / 2.9K out [172.3K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 7m 14s
+- Log: OOMPAH-568__20260729T234525Z.jsonl
+---
+author: oompah
+created: 2026-07-29 23:52
+---
+Epic branch rebased and safely published at fe6cef966.
 ---
 <!-- COMMENTS:END -->
