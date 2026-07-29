@@ -1509,6 +1509,43 @@ class TestTerminalWorktreeCleanup:
             self.cleanup_calls.append((project_id, limit))
             return self.cleanup_result
 
+    class AggressiveCleanupStore(StaleCleanupStore):
+        def __init__(
+            self,
+            projects,
+            terminal_results,
+            stale_branch_result=(0, False),
+        ):
+            super().__init__(projects)
+            self.terminal_results = iter(terminal_results)
+            self.terminal_calls = []
+            self.stale_branch_result = stale_branch_result
+            self.stale_branch_calls = []
+
+        def cleanup_terminal_issue(
+            self,
+            project_id,
+            issue_identifier,
+            *,
+            branch_name=None,
+            is_epic=False,
+            issue_number=None,
+        ):
+            self.terminal_calls.append(
+                (
+                    project_id,
+                    issue_identifier,
+                    branch_name,
+                    is_epic,
+                    issue_number,
+                )
+            )
+            return next(self.terminal_results)
+
+        def cleanup_stale_local_branches(self, project_id, limit=None):
+            self.stale_branch_calls.append((project_id, limit))
+            return self.stale_branch_result
+
     def test_cleanup_terminal_worktrees_removes_only_merged_and_archived_project_worktrees(
         self, tmp_path
     ):
@@ -1552,6 +1589,66 @@ class TestTerminalWorktreeCleanup:
         assert cleaned == 3
         store.remove_worktree.assert_called_once_with(project.id, "TASK-1")
         assert store.cleanup_calls == [(project.id, 2)]
+
+    def test_cleanup_noop_does_not_consume_removal_budget(self, tmp_path):
+        project = _make_project()
+        store = self.AggressiveCleanupStore(
+            [project],
+            terminal_results=[False, True],
+        )
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        orch.project_store = store
+        orch.config.worktree_cleanup_batch_size = 1
+        first = _make_issue(
+            "TASK-1",
+            state="Merged",
+            project_id=project.id,
+        )
+        first.work_branch = "TASK-1"
+        second = _make_issue(
+            "owner/repo#2",
+            state="Archived",
+            project_id=project.id,
+        )
+        second.work_branch = "oompah/test-project/gh-2"
+        second.issue_number = "2"
+        tracker = MagicMock()
+        tracker.fetch_issues_by_states.return_value = [first, second]
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+
+        cleaned = orch._cleanup_terminal_worktrees()
+
+        assert cleaned == 1
+        assert store.terminal_calls == [
+            (project.id, "TASK-1", "TASK-1", False, None),
+            (
+                project.id,
+                "owner/repo#2",
+                "oompah/test-project/gh-2",
+                False,
+                "2",
+            ),
+        ]
+
+    def test_cleanup_sweeps_gone_branches_after_stale_directories(self, tmp_path):
+        project = _make_project()
+        store = self.AggressiveCleanupStore(
+            [project],
+            terminal_results=[],
+            stale_branch_result=(2, False),
+        )
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        orch.project_store = store
+        orch.config.worktree_cleanup_batch_size = 3
+        tracker = MagicMock()
+        tracker.fetch_issues_by_states.return_value = []
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+
+        cleaned = orch._cleanup_terminal_worktrees()
+
+        assert cleaned == 2
+        assert store.cleanup_calls == [(project.id, 3)]
+        assert store.stale_branch_calls == [(project.id, 3)]
 
     def test_cleanup_terminal_worktrees_reports_deferred_stale_dir_sweep(
         self, tmp_path
@@ -1716,6 +1813,20 @@ class TestTerminalWorktreeCleanup:
         orch._maybe_cleanup_worktrees()
 
         orch._cleanup_terminal_worktrees.assert_called_once_with([project])
+
+    def test_maybe_cleanup_worktrees_uses_independent_interval(self, tmp_path):
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        orch.config.full_sync_interval_ms = 900_000
+        orch.config.worktree_cleanup_interval_seconds = 17
+        orch._run_maintenance_job = MagicMock()
+
+        orch._maybe_cleanup_worktrees()
+
+        assert (
+            orch._run_maintenance_job.call_args.kwargs["min_interval_s"]
+            == 17
+        )
 
     def test_maybe_heal_repos_skips_when_interval_not_reached(self, tmp_path):
         """_maybe_heal_repos() skips when the minimum interval has not elapsed."""

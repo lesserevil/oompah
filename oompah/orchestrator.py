@@ -2621,8 +2621,76 @@ class Orchestrator:
             )
             return 0, False
 
+    def _cleanup_stale_project_branches(
+        self, project: Any, limit: int
+    ) -> tuple[int, bool]:
+        """Prune safe gone-upstream branches when ProjectStore supports it."""
+
+        if limit <= 0:
+            return 0, True
+        cleanup = getattr(
+            type(self.project_store),
+            "cleanup_stale_local_branches",
+            None,
+        )
+        if cleanup is None:
+            return 0, False
+        try:
+            return self.project_store.cleanup_stale_local_branches(
+                project.id,
+                limit=limit,
+            )
+        except ProjectError as exc:
+            logger.warning(
+                "Stale local branch cleanup failed for project %s: %s",
+                project.name,
+                exc,
+            )
+            return 0, False
+
+    def _cleanup_terminal_project_issue(
+        self,
+        project: Any,
+        issue: Issue,
+    ) -> bool:
+        """Remove one terminal issue's owned worktree/branch when supported."""
+
+        cleanup = getattr(type(self.project_store), "cleanup_terminal_issue", None)
+        if cleanup is not None:
+            return bool(
+                self.project_store.cleanup_terminal_issue(
+                    project.id,
+                    issue.identifier,
+                    branch_name=str(issue.work_branch or "").strip() or None,
+                    is_epic=_is_epic_issue(issue),
+                    issue_number=(
+                        str(issue.issue_number).strip()
+                        if issue.issue_number
+                        else None
+                    ),
+                )
+            )
+
+        # Compatibility for third-party/custom stores that only implement the
+        # older worktree API. A successful call retains its historical
+        # count-as-cleaned behavior because those methods have no result.
+        if _is_epic_issue(issue) and hasattr(
+            self.project_store,
+            "remove_epic_worktree",
+        ):
+            self.project_store.remove_epic_worktree(
+                project.id,
+                issue.identifier,
+            )
+        else:
+            self.project_store.remove_worktree(
+                project.id,
+                issue.identifier,
+            )
+        return True
+
     def _cleanup_terminal_worktrees(self, projects: list | None = None) -> int:
-        """Remove workspaces/worktrees for issues safe to discard.
+        """Remove worktrees and branches for issues safe to discard.
 
         Done worktrees are intentionally preserved because they may still hold
         conflict state or other context needed for follow-up. Only Merged and
@@ -2633,7 +2701,7 @@ class Orchestrator:
         cleanup for other projects.
         """
         cleaned = 0
-        limit = getattr(self.config, "worktree_cleanup_batch_size", 25)
+        limit = getattr(self.config, "worktree_cleanup_batch_size", 100)
         if limit <= 0:
             self._maintenance_status["worktree_cleanup"] = {
                 "last_run_at": datetime.now(timezone.utc).isoformat(),
@@ -2674,25 +2742,22 @@ class Orchestrator:
                             }
                             return cleaned
                         try:
-                            if _is_epic_issue(issue) and hasattr(
-                                self.project_store, "remove_epic_worktree"
-                            ):
-                                self.project_store.remove_epic_worktree(
-                                    project.id, issue.identifier
-                                )
-                            else:
-                                self.project_store.remove_worktree(
-                                    project.id, issue.identifier
-                                )
-                            cleaned += 1
-                            logger.info(
-                                "Cleaned terminal worktree project=%s issue=%s",
-                                project.name,
-                                issue.identifier,
+                            changed = self._cleanup_terminal_project_issue(
+                                project,
+                                issue,
                             )
+                            if changed:
+                                cleaned += 1
+                                logger.info(
+                                    "Cleaned terminal worktree/branch "
+                                    "project=%s issue=%s",
+                                    project.name,
+                                    issue.identifier,
+                                )
                         except Exception as exc:
                             logger.warning(
-                                "Failed to clean worktree project=%s issue=%s error=%s",
+                                "Failed to clean worktree/branch "
+                                "project=%s issue=%s error=%s",
                                 project.name,
                                 issue.identifier,
                                 exc,
@@ -2707,6 +2772,27 @@ class Orchestrator:
                         )
                         cleaned += stale_cleaned
                         if stale_deferred:
+                            self._set_maintenance_cursor(
+                                "worktree_cleanup", last_processed_key
+                            )
+                            self._maintenance_status["worktree_cleanup"] = {
+                                "last_run_at": datetime.now(timezone.utc).isoformat(),
+                                "cleaned": cleaned,
+                                "limit": limit,
+                                "deferred": True,
+                                "cursor": last_processed_key,
+                            }
+                            return cleaned
+                    remaining = limit - cleaned
+                    if remaining > 0:
+                        branch_cleaned, branch_deferred = (
+                            self._cleanup_stale_project_branches(
+                                project,
+                                remaining,
+                            )
+                        )
+                        cleaned += branch_cleaned
+                        if branch_deferred:
                             self._set_maintenance_cursor(
                                 "worktree_cleanup", last_processed_key
                             )
@@ -3077,7 +3163,11 @@ class Orchestrator:
 
         The actual work is in :meth:`_do_cleanup_worktrees`.
         """
-        interval_s = self.config.full_sync_interval_ms / 1000.0
+        interval_s = getattr(
+            self.config,
+            "worktree_cleanup_interval_seconds",
+            60,
+        )
         self._run_maintenance_job(
             "worktree_cleanup",
             self._do_cleanup_worktrees,

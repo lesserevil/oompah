@@ -81,7 +81,10 @@ def ensure_repo_sound(
         _run_git(["rebase", "--abort"], repo_path)
         actions.append("rebase-abort")
 
-    _run_git(["fetch", remote], repo_path)
+    # Agent scheduling creates and retires branches continuously.  Prune
+    # remote-tracking refs during the existing fetch so deleted task branches
+    # do not accumulate indefinitely in the managed checkout.
+    _run_git(["fetch", "--prune", remote], repo_path)
 
     if _current_branch(repo_path) != default_branch:
         if _run_git(["checkout", default_branch], repo_path)[0] == 0:

@@ -920,9 +920,10 @@ class TestRemoveWorktreeCleanup:
             return MagicMock(returncode=0, stdout="", stderr="")
 
         with patch("oompah.projects.subprocess.run", side_effect=fake_run):
-            store.remove_worktree(project.id, "TASK-1")
+            removed = store.remove_worktree(project.id, "TASK-1")
 
         assert calls == [["git", "worktree", "prune"]]
+        assert removed is False
 
     def test_remove_epic_worktree_falls_back_for_stale_dir(self, tmp_path):
         store, project = self._store_and_project(tmp_path)
@@ -1006,6 +1007,261 @@ class TestRemoveWorktreeCleanup:
         assert os.path.isdir(active)
         assert os.path.isdir(valid_other)
         assert not os.path.exists(stale)
+
+    def test_terminal_cleanup_deletes_owned_local_and_remote_branch(self, tmp_path):
+        store, project = self._store_and_project(tmp_path)
+        calls = []
+
+        def fake_run(args, **kwargs):
+            calls.append(list(args))
+            if args[:3] == ["git", "worktree", "list"]:
+                return MagicMock(returncode=0, stdout="", stderr="")
+            if args[:4] == ["git", "show-ref", "--verify", "--quiet"]:
+                return MagicMock(returncode=0, stdout="", stderr="")
+            return MagicMock(returncode=0, stdout="", stderr="")
+
+        with patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            changed = store.cleanup_terminal_issue(
+                project.id,
+                "TASK-42",
+                branch_name="TASK-42",
+            )
+
+        assert changed is True
+        assert ["git", "push", "origin", "--delete", "TASK-42"] in calls
+        assert ["git", "branch", "-D", "--", "TASK-42"] in calls
+
+    def test_terminal_cleanup_deletes_real_local_and_remote_refs(self, tmp_path):
+        remote = tmp_path / "origin.git"
+        repo = tmp_path / "checkout"
+        subprocess.run(
+            ["git", "init", "--bare", str(remote)],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            ["git", "init", "-b", "main", str(repo)],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        for args in (
+            ["config", "user.name", "Oompah Test"],
+            ["config", "user.email", "oompah@example.test"],
+            ["remote", "add", "origin", str(remote)],
+        ):
+            subprocess.run(
+                ["git", *args],
+                cwd=repo,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        (repo / "README.md").write_text("test\n", encoding="utf-8")
+        subprocess.run(
+            ["git", "add", "README.md"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "initial"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            ["git", "push", "-u", "origin", "main"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            ["git", "branch", "TASK-42"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            ["git", "push", "-u", "origin", "TASK-42"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        store = _store(tmp_path)
+        project = Project(
+            id="proj-real-clean",
+            name="real-clean",
+            repo_url=str(remote),
+            repo_path=str(repo),
+            branch="main",
+            default_branch="main",
+        )
+        store._projects[project.id] = project
+
+        changed = store.cleanup_terminal_issue(
+            project.id,
+            "TASK-42",
+            branch_name="TASK-42",
+        )
+
+        assert changed is True
+        assert (
+            subprocess.run(
+                ["git", "show-ref", "--verify", "--quiet", "refs/heads/TASK-42"],
+                cwd=repo,
+                check=False,
+            ).returncode
+            == 1
+        )
+        assert (
+            subprocess.run(
+                ["git", "ls-remote", "--heads", "origin", "refs/heads/TASK-42"],
+                cwd=repo,
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout
+            == ""
+        )
+
+    def test_terminal_child_cleanup_preserves_shared_epic_branch(self, tmp_path):
+        store, project = self._store_and_project(tmp_path)
+        calls = []
+
+        def fake_run(args, **kwargs):
+            calls.append(list(args))
+            return MagicMock(returncode=0, stdout="", stderr="")
+
+        with patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            changed = store.cleanup_terminal_issue(
+                project.id,
+                "TASK-42",
+                branch_name="epic-TASK-EPIC",
+            )
+
+        assert changed is False
+        assert not any(call[:2] == ["git", "push"] for call in calls)
+        assert not any(call[:3] == ["git", "branch", "-D"] for call in calls)
+
+    def test_terminal_cleanup_requires_exact_github_issue_branch(self, tmp_path):
+        store, project = self._store_and_project(tmp_path)
+
+        assert store._is_owned_issue_branch(
+            project,
+            "owner/repo#42",
+            "oompah/cleanrepo/gh-42",
+            is_epic=False,
+            issue_number="42",
+        )
+        assert not store._is_owned_issue_branch(
+            project,
+            "owner/repo#42",
+            "oompah/cleanrepo/gh-43",
+            is_epic=False,
+            issue_number="42",
+        )
+
+    def test_terminal_cleanup_preserves_local_branch_when_remote_delete_fails(
+        self, tmp_path
+    ):
+        store, project = self._store_and_project(tmp_path)
+        calls = []
+
+        def fake_run(args, **kwargs):
+            calls.append(list(args))
+            if args[:3] == ["git", "worktree", "list"]:
+                return MagicMock(returncode=0, stdout="", stderr="")
+            if args[:4] == ["git", "show-ref", "--verify", "--quiet"]:
+                return MagicMock(returncode=0, stdout="", stderr="")
+            if args[:2] == ["git", "push"]:
+                return MagicMock(returncode=1, stdout="", stderr="denied")
+            return MagicMock(returncode=0, stdout="", stderr="")
+
+        with (
+            patch("oompah.projects.subprocess.run", side_effect=fake_run),
+            pytest.raises(ProjectError, match="remote branch delete failed"),
+        ):
+            store.cleanup_terminal_issue(
+                project.id,
+                "TASK-42",
+                branch_name="TASK-42",
+            )
+
+        assert not any(call[:3] == ["git", "branch", "-D"] for call in calls)
+
+    def test_stale_branch_cleanup_deletes_only_merged_unchecked_branches(
+        self, tmp_path
+    ):
+        store, project = self._store_and_project(tmp_path)
+        project.branches = ["main", "release/*"]
+        calls = []
+
+        def fake_run(args, **kwargs):
+            calls.append(list(args))
+            if args[:3] == ["git", "worktree", "list"]:
+                return MagicMock(
+                    returncode=0,
+                    stdout="branch refs/heads/TASK-CHECKED\n",
+                    stderr="",
+                )
+            if args[:3] == ["git", "for-each-ref", "--format=%(refname:short)%09%(upstream:track)"]:
+                return MagicMock(
+                    returncode=0,
+                    stdout=(
+                        "TASK-MERGED\t[gone]\n"
+                        "TASK-UNMERGED\t[gone]\n"
+                        "TASK-CHECKED\t[gone]\n"
+                        "release/1.x\t[gone]\n"
+                        "TASK-ACTIVE\t[ahead 1]\n"
+                    ),
+                    stderr="",
+                )
+            if args[:3] == ["git", "merge-base", "--is-ancestor"]:
+                return MagicMock(
+                    returncode=0 if args[3] == "TASK-MERGED" else 1,
+                    stdout="",
+                    stderr="",
+                )
+            return MagicMock(returncode=0, stdout="", stderr="")
+
+        with patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            removed, deferred = store.cleanup_stale_local_branches(project.id)
+
+        assert (removed, deferred) == (1, False)
+        assert ["git", "branch", "-D", "--", "TASK-MERGED"] in calls
+        assert ["git", "branch", "-D", "--", "TASK-UNMERGED"] not in calls
+        assert ["git", "branch", "-D", "--", "TASK-CHECKED"] not in calls
+        assert ["git", "branch", "-D", "--", "release/1.x"] not in calls
+
+    def test_stale_branch_cleanup_reports_deferred_at_removal_limit(self, tmp_path):
+        store, project = self._store_and_project(tmp_path)
+
+        def fake_run(args, **kwargs):
+            if args[:3] == ["git", "worktree", "list"]:
+                return MagicMock(returncode=0, stdout="", stderr="")
+            if args[:3] == ["git", "for-each-ref", "--format=%(refname:short)%09%(upstream:track)"]:
+                return MagicMock(
+                    returncode=0,
+                    stdout="TASK-1\t[gone]\nTASK-2\t[gone]\n",
+                    stderr="",
+                )
+            return MagicMock(returncode=0, stdout="", stderr="")
+
+        with patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            removed, deferred = store.cleanup_stale_local_branches(
+                project.id,
+                limit=1,
+            )
+
+        assert (removed, deferred) == (1, True)
 
 
 # ---------------------------------------------------------------------------
