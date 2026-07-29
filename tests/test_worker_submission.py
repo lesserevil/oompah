@@ -35,6 +35,8 @@ def test_submit_cli_sends_git_evidence_and_summary():
             return_value={
                 "task_branch": "oompah/task/TASK-2",
                 "head_sha": "a" * 40,
+                "remote_head_sha": "a" * 40,
+                "worktree_clean": True,
             },
         ),
         patch.object(task_cli, "_http", return_value={"ok": True}) as request,
@@ -73,6 +75,8 @@ def test_submit_endpoint_persists_evidence_before_ready_state():
                 "project_id": "proj-1",
                 "task_branch": "oompah/task/TASK-2",
                 "head_sha": "a" * 40,
+                "remote_head_sha": "a" * 40,
+                "worktree_clean": True,
                 "summary": "Done",
             },
         )

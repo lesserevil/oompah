@@ -36,6 +36,8 @@ from oompah.authority_boundary import (
     operator_policy,
 )
 from oompah.completion_verifier import VerifierResult, verify_completion
+from oompah.coordination import CoordinationStore, derive_peer_suggestions
+from oompah.dependency_graph import effective_dependencies, issue_index
 from oompah.duplicate_screening import (
     DEFAULT_CLAIM_TTL_SECONDS,
     DETECTOR_VERSION as DUPLICATE_DETECTOR_VERSION,
@@ -52,6 +54,11 @@ from oompah.duplicate_screening import (
     save_record as save_duplicate_screening_record,
 )
 from oompah.integration import IntegrationRecord
+from oompah.integration_executor import (
+    IntegrationExecutionResult,
+    execute_integration,
+)
+from oompah.integration_queue import IntegrationQueueItem, IntegrationQueueStore
 from oompah.config import (
     ServiceConfig,
     WorkflowError,
@@ -773,6 +780,12 @@ class Orchestrator:
             os.path.join(_state_dir, "quality_gates.json"),
             timeout_seconds=config.quality_gate_timeout_seconds,
         )
+        self.coordination_store = CoordinationStore(
+            os.path.join(_state_dir, "coordination.sqlite3")
+        )
+        self.integration_queue = IntegrationQueueStore(
+            os.path.join(_state_dir, "integration_queue.sqlite3")
+        )
         self._state_path = state_path or DEFAULT_SERVICE_STATE_PATH
         # Terminal-audit enforcement is initialized at the start of ``run``
         # once all project trackers are available.  Its state lives inside the
@@ -908,6 +921,10 @@ class Orchestrator:
         # jobs.  Fire-and-forget: a new run starts only when the previous one
         # has finished.
         self._epic_maintenance_future: "asyncio.Future[None] | None" = None
+        # Ordered private-child integration is an async maintenance task:
+        # git/test work runs in the tick pool, then terminal-audit staging
+        # resumes on the scheduler loop.
+        self._integration_future: "asyncio.Future[None] | None" = None
         # Per-project threading locks for epic maintenance jobs (TASK-466.3).
         # Serialises epic close/PR/staleness/rebase/orphan-reset on the same
         # project so two concurrent maintenance sweeps (e.g. from a tick burst)
@@ -3152,6 +3169,16 @@ class Orchestrator:
         worktrees_cleaned = self._cleanup_terminal_worktrees(
             self.project_store.list_all()
         )
+        coordination_messages_cleaned = 0
+        coordination_store = getattr(self, "coordination_store", None)
+        if isinstance(coordination_store, CoordinationStore):
+            cutoff = datetime.now(timezone.utc) - timedelta(
+                seconds=self.config.coordination_retention_seconds
+            )
+            coordination_messages_cleaned = coordination_store.prune_before(
+                cutoff.isoformat(),
+                limit=max(1, self.config.storage_cleanup_batch_size),
+            )
         pressure_before = getattr(
             self,
             "_storage_cleanup_pressure",
@@ -3171,6 +3198,7 @@ class Orchestrator:
             "pressure_after": pressure_after.__dict__,
             "cleaned_count": result.cleaned_count,
             "worktrees_cleaned": worktrees_cleaned,
+            "coordination_messages_cleaned": coordination_messages_cleaned,
             "reclaimed_bytes": result.reclaimed_bytes,
             "scanned_count": result.scanned_count,
             "skipped_count": result.skipped_count,
@@ -3443,6 +3471,7 @@ class Orchestrator:
             for future in (
                 self._maintenance_future,
                 self._epic_maintenance_future,
+                self._integration_future,
             )
             if future is not None
         ]
@@ -3635,6 +3664,21 @@ class Orchestrator:
             self._tick_pool, self._maybe_run_watchdog
         )
         watchdog_ms = (time.monotonic() - _t_watchdog) * 1000
+
+        # Ready private task heads are integrated outside the dispatch lane.
+        # Only one queue driver is live per service instance; SQLite leases
+        # protect restart and multi-tick races.
+        if (
+            self.config.parallel_epic_children_enabled
+            and (
+                self._integration_future is None
+                or self._integration_future.done()
+            )
+        ):
+            self._integration_future = asyncio.create_task(
+                self._process_integration_queues(),
+                name="epic-integration-queues",
+            )
 
         # 5b. MAINTENANCE LANE — periodic managed-checkout self-heal, terminal
         # worktree cleanup, auto-archive, and merged-label sweeps (TASK-466.2).
@@ -4412,6 +4456,559 @@ class Orchestrator:
         if project_id not in self._epic_maintenance_project_locks:
             self._epic_maintenance_project_locks[project_id] = threading.Lock()
         return self._epic_maintenance_project_locks[project_id]
+
+    def _sync_ready_integration_submissions(self) -> None:
+        """Recover tracker-ready submissions into the SQLite queue."""
+
+        for project in self.project_store.list_all():
+            tracker = self._tracker_for_project(project.id)
+            try:
+                ready = tracker.fetch_issues_by_states([READY_TO_INTEGRATE])
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "Could not scan Ready submissions for %s: %s",
+                    project.name,
+                    exc,
+                )
+                continue
+            for issue in ready:
+                issue.project_id = project.id
+                record = getattr(issue, "integration", None)
+                epic_id = str(issue.parent_id or "").strip()
+                if (
+                    not epic_id
+                    or record is None
+                    or not record.task_branch
+                    or not record.head_sha
+                ):
+                    continue
+                self.integration_queue.enqueue(
+                    project_id=project.id,
+                    epic_id=epic_id,
+                    task_id=issue.identifier,
+                    task_branch=record.task_branch,
+                    head_sha=record.head_sha,
+                    base_sha=record.base_sha,
+                    priority=issue.priority,
+                    submitted_at=record.submitted_at,
+                )
+
+    def _integration_satisfied_dependencies(
+        self,
+        issues: list[Issue],
+        queue_items: list[IntegrationQueueItem],
+        *,
+        project_id: str | None = None,
+        epic_id: str | None = None,
+    ) -> set[str]:
+        """Return finish dependencies safe to integrate after.
+
+        A queue row becoming ``integrated`` is not enough: its terminal audit
+        must also have completed. Same-epic terminal tasks are therefore
+        satisfied directly. Cross-epic terminal work is satisfied only when
+        its integrated commit (or the current default branch for a squashed
+        merge) is already reachable from this epic branch.
+        """
+
+        issues_by_alias: dict[str, Issue] = {}
+        for issue in issues:
+            for alias in (issue.id, issue.identifier):
+                clean_alias = str(alias or "").strip()
+                if clean_alias:
+                    issues_by_alias[clean_alias] = issue
+
+        _ = queue_items  # queue state alone never satisfies finish order
+        epic = issues_by_alias.get(str(epic_id or "").strip())
+        epic_aliases = {
+            str(value).strip()
+            for value in (
+                epic_id,
+                getattr(epic, "id", None),
+                getattr(epic, "identifier", None),
+            )
+            if str(value or "").strip()
+        }
+
+        repo_path: str | None = None
+        epic_ref: str | None = None
+        default_ref: str | None = None
+        if project_id and epic_id:
+            project = self.project_store.get(project_id)
+            if project is not None and project.repo_path:
+                repo_path = project.repo_path
+                epic_ref = (
+                    f"origin/{self.project_store.epic_branch_name(epic_id)}"
+                )
+                default_ref = f"origin/{project.default_branch}"
+                try:
+                    with self.project_store.project_write_lock(project_id):
+                        refreshed = subprocess.run(
+                            ["git", "-C", repo_path, "fetch", "origin"],
+                            check=False,
+                            capture_output=True,
+                            text=True,
+                            timeout=60,
+                        )
+                except (OSError, subprocess.TimeoutExpired):
+                    repo_path = None
+                else:
+                    if refreshed.returncode != 0:
+                        repo_path = None
+
+        def _reachable(commit: str) -> bool:
+            if not repo_path or not epic_ref or not commit:
+                return False
+            try:
+                return (
+                    subprocess.run(
+                        [
+                            "git",
+                            "-C",
+                            repo_path,
+                            "merge-base",
+                            "--is-ancestor",
+                            commit,
+                            epic_ref,
+                        ],
+                        check=False,
+                        capture_output=True,
+                        text=True,
+                        timeout=10,
+                    ).returncode
+                    == 0
+                )
+            except (OSError, subprocess.TimeoutExpired):
+                return False
+
+        satisfied: set[str] = set()
+        for issue in issues:
+            status = canonicalize_status(issue.state)
+            if status not in {DONE, MERGED, ARCHIVED}:
+                continue
+            aliases = {
+                str(value).strip()
+                for value in (issue.id, issue.identifier)
+                if str(value or "").strip()
+            }
+            if not epic_aliases:
+                satisfied.update(aliases)
+                continue
+            parent = issues_by_alias.get(str(issue.parent_id or "").strip())
+            parent_aliases = {
+                str(value).strip()
+                for value in (
+                    issue.parent_id,
+                    getattr(parent, "id", None),
+                    getattr(parent, "identifier", None),
+                )
+                if str(value or "").strip()
+            }
+            same_epic = bool(parent_aliases & epic_aliases)
+            if same_epic:
+                satisfied.update(aliases)
+                continue
+            record = getattr(issue, "integration", None)
+            integrated_sha = str(
+                getattr(record, "integrated_sha", "") or ""
+            ).strip()
+            if _reachable(integrated_sha) or (
+                status in {MERGED, ARCHIVED}
+                and default_ref is not None
+                and _reachable(default_ref)
+            ):
+                satisfied.update(aliases)
+        return satisfied
+
+    def _integration_dependency_map(
+        self,
+        issues: list[Issue],
+        queue_items: list[IntegrationQueueItem],
+    ) -> dict[str, tuple[str, ...]]:
+        index = issue_index(issues)
+        tasks_by_alias: dict[str, Issue] = {}
+        for issue in issues:
+            for alias in (
+                str(issue.id or "").strip(),
+                str(issue.identifier or "").strip(),
+            ):
+                if alias:
+                    tasks_by_alias[alias] = issue
+        result: dict[str, tuple[str, ...]] = {}
+        for item in queue_items:
+            issue = tasks_by_alias.get(item.task_id)
+            result[item.task_id] = (
+                effective_dependencies(issue, index)
+                if issue is not None
+                else ()
+            )
+        return result
+
+    def _execute_integration_item(
+        self,
+        item: IntegrationQueueItem,
+    ) -> IntegrationExecutionResult:
+        project = self.project_store.get(item.project_id)
+        if project is None:
+            return IntegrationExecutionResult(
+                status="error",
+                message=f"managed project {item.project_id} no longer exists",
+            )
+        try:
+            epic_worktree = self.project_store.create_epic_worktree(
+                item.project_id,
+                item.epic_id,
+            )
+            task_worktree = self.project_store.create_worktree(
+                item.project_id,
+                item.task_id,
+                base_branch=self.project_store.epic_branch_name(item.epic_id),
+                branch_name=item.task_branch,
+            )
+        except Exception as exc:  # noqa: BLE001
+            return IntegrationExecutionResult(
+                status="error",
+                message=f"could not recover integration worktrees: {exc}",
+            )
+        return execute_integration(
+            project_lock=self.project_store.project_write_lock(
+                item.project_id
+            ),
+            epic_worktree=epic_worktree,
+            task_worktree=task_worktree,
+            epic_branch=self.project_store.epic_branch_name(item.epic_id),
+            task_branch=item.task_branch,
+            submitted_head_sha=item.head_sha,
+            quality_gate=self._branch_quality_gate,
+            quality_command=self._quality_gate_command(project),
+            repo_identity=project.repo_url or project.repo_path or project.id,
+        )
+
+    def _route_integration_failure(
+        self,
+        item: IntegrationQueueItem,
+        result: IntegrationExecutionResult,
+    ) -> None:
+        """Persist a recoverable repair state without deleting any branch."""
+
+        # An epic-head race is safe to retry from the rebased private head
+        # that this executor already pushed. A task-branch push race means a
+        # worker or operator changed the private branch concurrently; require
+        # a fresh explicit submission instead of guessing which head wins.
+        retryable = result.status == "epic_head_race"
+        self.integration_queue.fail(
+            item.project_id,
+            item.task_id,
+            lease_owner=item.lease_owner or "",
+            error=result.message,
+            retryable=retryable,
+        )
+        tracker = self._tracker_for_project(item.project_id)
+        issue = tracker.fetch_issue_detail(item.task_id)
+        existing = getattr(issue, "integration", None) if issue else None
+        head_sha = result.rebased_task_sha or item.head_sha
+        state = "ready" if retryable else "blocked"
+        tracker.set_metadata_field(
+            item.task_id,
+            "oompah.integration",
+            IntegrationRecord(
+                state=state,
+                task_branch=item.task_branch,
+                base_branch=self.project_store.epic_branch_name(item.epic_id),
+                base_sha=result.expected_epic_sha or item.base_sha,
+                head_sha=head_sha,
+                attempts=item.attempts,
+                submitted_at=(
+                    existing.submitted_at if existing is not None else item.submitted_at
+                ),
+                updated_at=datetime.now(timezone.utc).isoformat(),
+                last_error=result.message,
+            ).to_dict(),
+        )
+        if retryable:
+            if result.rebased_task_sha:
+                self.integration_queue.enqueue(
+                    project_id=item.project_id,
+                    epic_id=item.epic_id,
+                    task_id=item.task_id,
+                    task_branch=item.task_branch,
+                    head_sha=result.rebased_task_sha,
+                    base_sha=result.expected_epic_sha or item.base_sha,
+                    priority=item.priority,
+                    submitted_at=item.submitted_at,
+                )
+            logger.info(
+                "Integration race for %s will retry automatically: %s",
+                item.task_id,
+                result.message,
+            )
+            return
+        repair_status = {
+            "conflict": NEEDS_REBASE,
+            "ci_failure": NEEDS_CI_FIX,
+            "task_push_race": OPEN,
+            "stale_head": OPEN,
+            "missing_head": OPEN,
+            "missing_epic": OPEN,
+            "error": OPEN,
+        }.get(result.status, OPEN)
+        tracker.update_issue(item.task_id, status=repair_status)
+        instruction = {
+            "conflict": (
+                f"Integration found a rebase conflict on `{item.task_branch}`. "
+                f"Resolve it against `{self.project_store.epic_branch_name(item.epic_id)}`, "
+                "run the required tests, push the same private branch, and "
+                "`oompah task submit` it again."
+            ),
+            "ci_failure": (
+                f"The combined-tree quality gate failed on `{item.task_branch}`. "
+                "Fix the failure on that private branch, run the full configured "
+                "quality gate, push, and `oompah task submit` it again.\n\n"
+                f"Gate output:\n```\n{result.message[-4000:]}\n```"
+            ),
+        }.get(
+            result.status,
+            (
+                f"Integration could not verify `{item.task_branch}`: "
+                f"{result.message}\n\nFetch the private branch, preserve its "
+                "commits, push a clean current head, and submit it again."
+            ),
+        )
+        tracker.add_comment(item.task_id, instruction, author="oompah")
+        self.state.completed.discard(item.task_id)
+        self.request_refresh()
+
+    async def _stage_integrated_task_audit(
+        self,
+        item: IntegrationQueueItem,
+    ) -> None:
+        tracker = self._tracker_for_project(item.project_id)
+        issue = await asyncio.get_running_loop().run_in_executor(
+            self._tick_pool,
+            tracker.fetch_issue_detail,
+            item.task_id,
+        )
+        if issue is None:
+            return
+        if canonicalize_status(issue.state) in {
+            IN_VALIDATION,
+            DONE,
+            MERGED,
+            ARCHIVED,
+        }:
+            return
+        record = getattr(issue, "integration", None)
+        if record is None or record.state != "integrated" or not record.integrated_sha:
+            return
+        fingerprint = compute_evidence_fingerprint(
+            requirements_text=str(issue.description or ""),
+            project_id=item.project_id,
+            task_id=issue.identifier,
+            source_branch=self.project_store.epic_branch_name(item.epic_id),
+            source_sha=record.integrated_sha,
+            target_branch=self.project_store.epic_branch_name(item.epic_id),
+            target_sha=record.integrated_sha,
+            contributors=(
+                ContributorIdentity(
+                    identity=item.task_branch,
+                    source="git-branch",
+                ),
+            ),
+        )
+        transition = await self.request_terminal_transition(
+            current_issue=issue,
+            requested_target=TargetState.DONE,
+            trigger_identity=ContributorIdentity(
+                identity="oompah-integration",
+                source="service",
+            ),
+            project_id=item.project_id,
+            evidence_fingerprint=fingerprint,
+        )
+        if not transition.success:
+            logger.warning(
+                "Integrated task %s could not enter terminal audit: %s",
+                item.task_id,
+                transition.reason,
+            )
+            return
+        try:
+            await asyncio.get_running_loop().run_in_executor(
+                self._tick_pool,
+                self.project_store.remove_worktree,
+                item.project_id,
+                item.task_id,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.debug(
+                "Private worktree cleanup deferred for %s: %s",
+                item.task_id,
+                exc,
+            )
+
+    async def _process_integration_queues(self) -> None:
+        """Recover, claim, integrate, and audit private epic child heads."""
+
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(
+            self._tick_pool,
+            self._sync_ready_integration_submissions,
+        )
+        self.integration_queue.recover_expired()
+        all_items = self.integration_queue.items()
+
+        # Crash recovery: a git integration can finish just before audit
+        # staging. Re-stage every durable integrated row idempotently.
+        for integrated in (
+            item for item in all_items if item.state == "integrated"
+        ):
+            await self._stage_integrated_task_audit(integrated)
+
+        groups = sorted(
+            {
+                (item.project_id, item.epic_id)
+                for item in all_items
+                if item.state in {"ready", "integrating"}
+            }
+        )
+        for project_id, epic_id in groups:
+            # Never integrate while an epic repair agent owns the delivery
+            # branch. Private child agents do not touch it and are safe.
+            if any(
+                entry.identifier == epic_id
+                for entry in self.state.running.values()
+            ):
+                continue
+            tracker = self._tracker_for_project(project_id)
+            issues = await loop.run_in_executor(
+                self._tick_pool,
+                tracker.fetch_all_issues,
+            )
+            queue_items = self.integration_queue.items(
+                project_id=project_id,
+                epic_id=epic_id,
+            )
+            dependency_map = self._integration_dependency_map(
+                issues,
+                queue_items,
+            )
+            satisfied = self._integration_satisfied_dependencies(
+                issues,
+                queue_items,
+                project_id=project_id,
+                epic_id=epic_id,
+            )
+            lease_owner = f"{self._service_instance_id}:{uuid.uuid4().hex}"
+            item = self.integration_queue.claim_next(
+                project_id=project_id,
+                epic_id=epic_id,
+                lease_owner=lease_owner,
+                dependency_map=dependency_map,
+                satisfied=satisfied,
+                lease_seconds=self.config.quality_gate_timeout_seconds + 900,
+            )
+            if item is None:
+                continue
+            result = await loop.run_in_executor(
+                self._tick_pool,
+                self._execute_integration_item,
+                item,
+            )
+            if not result.integrated:
+                await loop.run_in_executor(
+                    self._tick_pool,
+                    self._route_integration_failure,
+                    item,
+                    result,
+                )
+                continue
+            issue_aliases: dict[str, Issue] = {}
+            for issue in issues:
+                for alias in (issue.id, issue.identifier):
+                    if str(alias or "").strip():
+                        issue_aliases[str(alias).strip()] = issue
+            dependency_aliases = set(
+                dependency_map.get(item.task_id, ())
+            )
+            dependency_heads: dict[str, str] = {}
+            for dependency in queue_items:
+                dependency_issue = issue_aliases.get(dependency.task_id)
+                aliases = {dependency.task_id}
+                if dependency_issue is not None:
+                    aliases.update(
+                        str(value).strip()
+                        for value in (
+                            dependency_issue.id,
+                            dependency_issue.identifier,
+                        )
+                        if str(value or "").strip()
+                    )
+                if (
+                    dependency.state == "integrated"
+                    and aliases & dependency_aliases
+                ):
+                    dependency_heads[dependency.task_id] = str(
+                        dependency.head_sha
+                    )
+            tracker.set_metadata_field(
+                item.task_id,
+                "oompah.integration",
+                IntegrationRecord(
+                    state="integrated",
+                    task_branch=item.task_branch,
+                    base_branch=self.project_store.epic_branch_name(epic_id),
+                    base_sha=result.expected_epic_sha,
+                    head_sha=result.rebased_task_sha,
+                    integrated_sha=result.integrated_sha,
+                    attempts=item.attempts,
+                    submitted_at=item.submitted_at,
+                    updated_at=datetime.now(timezone.utc).isoformat(),
+                    dependency_heads=dependency_heads,
+                ).to_dict(),
+            )
+            self.integration_queue.complete(
+                project_id,
+                item.task_id,
+                lease_owner=lease_owner,
+            )
+            try:
+                peers = self.coordination_peers(project_id, item.task_id)
+                for peer in peers:
+                    self.coordination_send(
+                        project_id=project_id,
+                        sender=item.task_id,
+                        recipient=str(peer["identifier"]),
+                        kind="dependency-integrated",
+                        text=(
+                            f"{item.task_id} was integrated into {epic_id} at "
+                            f"{result.integrated_sha}. Rebase or reconcile your "
+                            "private branch before submission if needed."
+                        ),
+                        commit_sha=result.integrated_sha,
+                        idempotency_key=(
+                            f"integrated:{result.integrated_sha}:"
+                            f"{peer['identifier']}"
+                        ),
+                        system=True,
+                    )
+            except Exception as exc:  # noqa: BLE001
+                logger.debug(
+                    "Integration coordination notice deferred for %s: %s",
+                    item.task_id,
+                    exc,
+                )
+            integrated_item = next(
+                (
+                    current
+                    for current in self.integration_queue.items(
+                        project_id=project_id,
+                        epic_id=epic_id,
+                    )
+                    if current.task_id == item.task_id
+                ),
+                item,
+            )
+            await self._stage_integrated_task_audit(integrated_item)
+        self.request_refresh()
 
     def _run_step5c_epic_maintenance(self) -> None:
         """Sync fire-and-forget wrapper for tick step 5c (epic maintenance).
@@ -6721,17 +7318,10 @@ class Orchestrator:
     ) -> tuple[str, Issue | None]:
         """Resolve and create the workspace path used to dispatch ``issue``.
 
-        Returns ``(workspace_path, epic_for_shared_mode)``. The second
-        element is non-None when the issue is a child of an epic, in which
-        case callers know to commit/push on the shared epic branch instead
-        of a per-task branch.
-
-        Children of an epic share the epic's worktree; non-children fall
-        back to a per-task worktree.
-
-        The shared-mode epic worktree is created via
-        ``project_store.create_epic_worktree``, which is idempotent
-        (does NOT hard-reset existing in-flight work).
+        Returns ``(workspace_path, epic_for_shared_mode)``. Parallel epic
+        children receive private branches cut from the newest clean published
+        epic head and return None as the second element. Legacy shared mode
+        returns the parent epic as the second element.
         """
         if not issue.project_id:
             workspace = self.workspace_mgr.create_for_issue(issue.identifier)
@@ -6765,6 +7355,54 @@ class Orchestrator:
 
         parent_epic = self._resolve_parent_epic(issue)
         if parent_epic is not None:
+            if self.config.parallel_epic_children_enabled:
+                epic_branch = self._epic_branch_for_issue(parent_epic)
+                private_branch = self.project_store.epic_child_branch_name(
+                    parent_epic.identifier,
+                    issue.identifier,
+                )
+                issue.work_branch = private_branch
+                issue.branch_name = private_branch
+                # Integration and dispatch share this lock, so the epic head
+                # cannot move between synchronization and private branching.
+                with self.project_store.project_write_lock(issue.project_id):
+                    _, base_sha = (
+                        self.project_store.prepare_epic_branch_for_private_dispatch(
+                            issue.project_id,
+                            parent_epic.identifier,
+                        )
+                    )
+                    try:
+                        tracker = self._tracker_for_issue(issue)
+                        tracker.set_metadata_field(
+                            issue.identifier,
+                            "oompah.work_branch",
+                            private_branch,
+                        )
+                        tracker.set_metadata_field(
+                            issue.identifier,
+                            "oompah.integration",
+                            IntegrationRecord(
+                                state="working",
+                                task_branch=private_branch,
+                                base_branch=epic_branch,
+                                base_sha=base_sha,
+                                updated_at=datetime.now(timezone.utc).isoformat(),
+                            ).to_dict(),
+                        )
+                    except Exception as exc:  # noqa: BLE001
+                        raise ProjectError(
+                            f"Could not persist private branch for "
+                            f"{issue.identifier}: {exc}"
+                        ) from exc
+                    wp = self.project_store.create_worktree(
+                        issue.project_id,
+                        issue.identifier,
+                        base_branch=epic_branch,
+                        branch_name=private_branch,
+                    )
+                return wp, None
+
             # Correct stale work_branch metadata on the child before
             # dispatching to the epic worktree.  A child may carry a
             # per-task branch name (e.g. "OOMPAH-286") from an earlier
@@ -9014,7 +9652,25 @@ class Orchestrator:
         # dispatch order. Only explicit hard-start edges delay a worker.
         # Duplicate preflight remains read-only and bypasses both forms.
         if not duplicate_preflight and state_norm in ("open", "todo"):
-            for blocker in issue.start_blocked_by:
+            dependency_index = getattr(self, "_dependency_issue_index", None)
+            if not isinstance(dependency_index, dict):
+                dependency_index = issue_index(
+                    getattr(self, "_last_candidates", ()) or ()
+                )
+            hard_start_ids = effective_dependencies(
+                issue,
+                dependency_index,
+                hard_start=True,
+            )
+            own_refs = {
+                str(ref.identifier or ref.id or "").strip(): ref
+                for ref in issue.start_blocked_by
+            }
+            for blocker_id in hard_start_ids:
+                blocker = own_refs.get(blocker_id) or BlockerRef(
+                    id=blocker_id,
+                    identifier=blocker_id,
+                )
                 blocker_state = blocker.state or ""
                 if not blocker_state and blocker.id:
                     blocker_state = self._resolve_blocker_state(blocker, issue)
@@ -9045,7 +9701,10 @@ class Orchestrator:
             # reads only catches up when the epic→main PR lands. Without
             # this, an already-Done child looks Open in main and gets
             # re-dispatched forever. Applies even to P0.
-            if self._shared_epic_child_done(issue):
+            if (
+                not self.config.parallel_epic_children_enabled
+                and self._shared_epic_child_done(issue)
+            ):
                 return _reject(f"epic_branch_done={issue.parent_id}")
             # Serialize child dispatch within an epic — children share
             # one worktree/branch and we have no in-worktree
@@ -9055,6 +9714,10 @@ class Orchestrator:
             # each other's work.
             if (
                 not duplicate_preflight
+                and (
+                    not self.config.parallel_epic_children_enabled
+                    or self._is_epic_rebase_task(issue)
+                )
                 and (not is_p0 or self._is_epic_rebase_task(issue))
             ):
                 in_flight = self._epic_in_flight_count(issue.parent_id)
@@ -9241,10 +9904,26 @@ class Orchestrator:
 
         Batches all unknown blockers into parallel tracker detail calls.
         """
+        # Build once per tick so child dispatch can inherit hard-start edges
+        # from parent and ancestor epics without N+1 tracker reads.
+        self._dependency_issue_index = issue_index(candidates)
+
         # Collect all unique blocker IDs that need resolution
         to_resolve: dict[str, list[tuple[BlockerRef, Issue]]] = {}
         for issue in candidates:
-            for blocker in issue.start_blocked_by:
+            own_refs = {
+                str(ref.identifier or ref.id or "").strip(): ref
+                for ref in issue.start_blocked_by
+            }
+            for blocker_id in effective_dependencies(
+                issue,
+                self._dependency_issue_index,
+                hard_start=True,
+            ):
+                blocker = own_refs.get(blocker_id) or BlockerRef(
+                    id=blocker_id,
+                    identifier=blocker_id,
+                )
                 blocker_state = (blocker.state or "").strip().lower()
                 if not blocker_state and blocker.id:
                     to_resolve.setdefault(blocker.id, []).append((blocker, issue))
@@ -12896,6 +13575,7 @@ class Orchestrator:
             if self._job_deadline_exceeded("merged_labels"):
                 return
             if canonicalize_status(child.state) in (MERGED, ARCHIVED):
+                self._cleanup_landed_private_child_branch(epic, child)
                 continue
             child_status = canonicalize_status(child.state)
             child_branch = (child.work_branch or "").strip()
@@ -12976,6 +13656,7 @@ class Orchestrator:
                 continue
             try:
                 tracker.update_issue(child.identifier, status=MERGED)
+                self._cleanup_landed_private_child_branch(epic, child)
                 logger.info(
                     "Marked epic child %s Merged (epic %s landed)",
                     child.identifier,
@@ -12985,6 +13666,46 @@ class Orchestrator:
                 logger.debug(
                     "Failed to mark child %s merged: %s", child.identifier, exc
                 )
+
+    def _cleanup_landed_private_child_branch(
+        self,
+        epic: Issue,
+        child: Issue,
+    ) -> None:
+        """Best-effort cleanup after the parent branch has landed."""
+
+        project_id = str(epic.project_id or child.project_id or "").strip()
+        if not project_id:
+            return
+        expected = self.project_store.epic_child_branch_name(
+            epic.identifier,
+            child.identifier,
+        )
+        record = getattr(child, "integration", None)
+        recorded_branch = str(
+            (
+                record.task_branch
+                if record is not None
+                else None
+            )
+            or child.work_branch
+            or ""
+        ).strip()
+        if recorded_branch != expected:
+            return
+        try:
+            self.project_store.delete_epic_child_branch(
+                project_id,
+                epic.identifier,
+                child.identifier,
+            )
+        except Exception as exc:  # noqa: BLE001 - maintenance retries later
+            logger.warning(
+                "Private branch cleanup deferred for %s after epic %s landed: %s",
+                child.identifier,
+                epic.identifier,
+                exc,
+            )
 
     def _open_review_branch_for_issue_in_cache(
         self, issue: Issue, parent: Issue | None = None
@@ -16658,6 +17379,327 @@ class Orchestrator:
         )
         return True
 
+    def _coordination_changed_paths(self, identifier: str) -> list[str]:
+        """Return a bounded changed-path snapshot for a running task."""
+
+        entry = next(
+            (
+                current
+                for current in self.state.running.values()
+                if current.identifier == identifier
+            ),
+            None,
+        )
+        workspace = entry.workspace_path if entry is not None else None
+        if not workspace:
+            return []
+        try:
+            result = subprocess.run(
+                ["git", "-C", workspace, "status", "--porcelain=v1"],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return []
+        if result.returncode != 0:
+            return []
+        paths: set[str] = set()
+        for line in result.stdout.splitlines():
+            payload = line[3:].strip() if len(line) > 3 else ""
+            if " -> " in payload:
+                payload = payload.rsplit(" -> ", 1)[1]
+            if payload:
+                paths.add(payload)
+        return sorted(paths)[:256]
+
+    def coordination_peers(
+        self,
+        project_id: str,
+        identifier: str,
+    ) -> list[dict[str, object]]:
+        """Return the server-authorized advisory peers for one task."""
+
+        tracker = self._tracker_for_project(project_id)
+        issue = tracker.fetch_issue_detail(identifier)
+        if issue is None:
+            raise TrackerError(f"Task not found: {identifier}")
+        issues = tracker.fetch_all_issues()
+        checkpoints = self.coordination_store.checkpoints(project_id)
+        changed_paths = {
+            task: checkpoint.get("changed_paths") or []
+            for task, checkpoint in checkpoints.items()
+        }
+        for entry in self.state.running.values():
+            if entry.issue.project_id == project_id:
+                live_paths = self._coordination_changed_paths(entry.identifier)
+                if live_paths:
+                    changed_paths[entry.identifier] = live_paths
+        return [
+            peer.to_dict()
+            for peer in derive_peer_suggestions(
+                issue,
+                issues,
+                changed_paths=changed_paths,
+            )
+        ]
+
+    def coordination_inbox(
+        self,
+        project_id: str,
+        identifier: str,
+        *,
+        unread_only: bool = False,
+        after_id: str | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, object]]:
+        """Return durable messages for one worker without requiring injection."""
+
+        messages = self.coordination_store.inbox(
+            project_id,
+            identifier,
+            unread_only=unread_only,
+            after_id=after_id,
+            limit=limit,
+        )
+        for message in messages:
+            self.coordination_store.mark_delivered(message.id)
+            self.coordination_store.mark_read(message.id)
+        return [message.to_dict() for message in messages]
+
+    def coordination_timeline(
+        self,
+        project_id: str,
+        identifier: str,
+        *,
+        limit: int = 100,
+    ) -> list[dict[str, object]]:
+        return [
+            message.to_dict()
+            for message in self.coordination_store.timeline(
+                project_id,
+                identifier,
+                limit=limit,
+            )
+        ]
+
+    def coordination_send(
+        self,
+        *,
+        project_id: str,
+        sender: str,
+        recipient: str,
+        text: str,
+        kind: str = "message",
+        changed_paths: list[str] | None = None,
+        commit_sha: str | None = None,
+        idempotency_key: str | None = None,
+        system: bool = False,
+    ) -> dict[str, object]:
+        """Persist and best-effort inject one authorized peer message."""
+
+        if sender == recipient:
+            raise ValueError("coordination messages cannot target the sender")
+        if not system:
+            allowed = {
+                str(peer["identifier"])
+                for peer in self.coordination_peers(project_id, sender)
+            }
+            if recipient not in allowed:
+                raise PermissionError(
+                    f"{recipient} is not a suggested peer for {sender}"
+                )
+
+        def _run_id(identifier: str) -> str | None:
+            entry = next(
+                (
+                    current
+                    for current in self.state.running.values()
+                    if current.identifier == identifier
+                    and current.issue.project_id == project_id
+                ),
+                None,
+            )
+            if entry is None:
+                return None
+            session_id = (
+                entry.session.session_id if entry.session is not None else "run"
+            )
+            return f"{session_id}:{entry.started_at.isoformat()}"
+
+        message = self.coordination_store.append(
+            project_id=project_id,
+            sender_task=sender,
+            recipient_task=recipient,
+            kind=kind,
+            text=text,
+            changed_paths=changed_paths,
+            commit_sha=commit_sha,
+            idempotency_key=idempotency_key,
+            sender_run_id=_run_id(sender),
+            recipient_run_id=_run_id(recipient),
+        )
+        delivered = self.deliver_comment_to_running_agent(
+            recipient,
+            (
+                f"Coordination message from {sender} "
+                f"({message.kind}):\n\n{message.text}"
+            ),
+            comment_id=f"coordination:{message.id}",
+        )
+        if delivered:
+            self.coordination_store.mark_delivered(message.id)
+        return {
+            **message.to_dict(),
+            "live_delivery": "queued" if delivered else "durable_fallback",
+        }
+
+    def coordination_checkpoint(
+        self,
+        *,
+        project_id: str,
+        identifier: str,
+        changed_paths: list[str] | None = None,
+        commit_sha: str | None = None,
+        summary: str | None = None,
+    ) -> dict[str, object]:
+        """Record task progress and notify newly overlapping peers once."""
+
+        paths = (
+            changed_paths
+            if changed_paths is not None
+            else self._coordination_changed_paths(identifier)
+        )
+        checkpoint = self.coordination_store.checkpoint(
+            project_id=project_id,
+            task_identifier=identifier,
+            changed_paths=paths,
+            commit_sha=commit_sha,
+            summary=summary,
+        )
+        peers = self.coordination_peers(project_id, identifier)
+        path_peers = [
+            str(peer["identifier"])
+            for peer in peers
+            if "changed-path-overlap" in peer.get("reasons", [])
+        ]
+        signature = uuid.uuid5(
+            uuid.NAMESPACE_URL,
+            f"{project_id}:{identifier}:{','.join(sorted(paths))}",
+        ).hex
+        for peer in path_peers:
+            self.coordination_send(
+                project_id=project_id,
+                sender=identifier,
+                recipient=peer,
+                kind="conflict-risk",
+                text=(
+                    "Our current changed paths overlap. Coordinate interfaces "
+                    "before submission. Overlap checkpoint: "
+                    + ", ".join(sorted(paths))
+                ),
+                changed_paths=paths,
+                commit_sha=commit_sha,
+                idempotency_key=f"overlap:{signature}:{peer}",
+                system=True,
+            )
+        return {
+            **checkpoint,
+            "peers": peers,
+            "conflict_peers": path_peers,
+        }
+
+    def _comments_with_coordination(
+        self,
+        issue: Issue,
+        comments: list[dict] | None,
+    ) -> list[dict]:
+        """Add broker context to a prompt without writing tracker comments."""
+
+        result = list(comments or [])
+        if not issue.project_id:
+            return result
+        try:
+            peers = self.coordination_peers(
+                issue.project_id,
+                issue.identifier,
+            )
+            if peers:
+                peer_text = "; ".join(
+                    f"{peer['identifier']} ({', '.join(peer['reasons'])})"
+                    for peer in peers
+                )
+                result.append(
+                    {
+                        "author": "oompah-coordination",
+                        "text": (
+                            "Advisory coordination peers: "
+                            f"{peer_text}. Use `oompah coordinate send "
+                            f"{issue.identifier} --to <peer> -m <message>` "
+                            "when interfaces or changed paths may overlap. "
+                            "Coordination is advisory and never blocks completion."
+                        ),
+                    }
+                )
+            inbox = self.coordination_store.inbox(
+                issue.project_id,
+                issue.identifier,
+                unread_only=True,
+                limit=100,
+            )
+            for message in inbox:
+                result.append(
+                    {
+                        "author": "oompah-coordination",
+                        "text": (
+                            f"Coordination from {message.sender_task} "
+                            f"({message.kind}): {message.text}"
+                        ),
+                    }
+                )
+                self.coordination_store.mark_delivered(message.id)
+                self.coordination_store.mark_read(message.id)
+        except Exception as exc:  # noqa: BLE001 - durable inbox remains fallback
+            logger.debug(
+                "Could not inject startup coordination for %s: %s",
+                issue.identifier,
+                exc,
+            )
+        return result
+
+    def _announce_coordination_start(self, issue: Issue) -> None:
+        if not issue.project_id:
+            return
+        try:
+            peers = self.coordination_peers(
+                issue.project_id,
+                issue.identifier,
+            )
+            for peer in peers:
+                recipient = str(peer["identifier"])
+                self.coordination_send(
+                    project_id=issue.project_id,
+                    sender=issue.identifier,
+                    recipient=recipient,
+                    kind="peer-started",
+                    text=(
+                        f"{issue.identifier} started implementation. Suggested "
+                        f"coordination reasons: {', '.join(peer['reasons'])}."
+                    ),
+                    idempotency_key=(
+                        f"started:{issue.identifier}:{recipient}:"
+                        f"{getattr(issue, 'agent_run_id', '')}"
+                    ),
+                    system=True,
+                )
+        except Exception as exc:  # noqa: BLE001 - advisory only
+            logger.debug(
+                "Could not publish peer-started notices for %s: %s",
+                issue.identifier,
+                exc,
+            )
+
     def _mark_needs_human(
         self,
         tracker,
@@ -18093,6 +19135,12 @@ class Orchestrator:
                 issue.identifier, comment, project_id=issue.project_id
             ),
         )  # fire-and-forget, don't await
+        if not duplicate_preflight:
+            loop.run_in_executor(
+                self._tick_pool,
+                self._announce_coordination_start,
+                running_issue,
+            )
 
         # Emit agent dispatched event on EventBus
         self.event_bus.emit(
@@ -18151,6 +19199,10 @@ class Orchestrator:
                     "comment",
                     "set-status",
                     "submit",
+                    "coordination-peers",
+                    "coordination-inbox",
+                    "coordination-send",
+                    "coordination-checkpoint",
                     "add-label",
                     "remove-label",
                 },
@@ -18667,7 +19719,10 @@ class Orchestrator:
                     self._prompt_template,
                     issue,
                     attempt,
-                    comments=self._comments_for_prompt(issue, comments),
+                    comments=self._comments_for_prompt(
+                        issue,
+                        self._comments_with_coordination(issue, comments),
+                    ),
                     focus_text=focus.render(project_obj),
                     workspace_path=wp,
                     memories=memories,
@@ -19165,7 +20220,10 @@ class Orchestrator:
                     self._prompt_template,
                     issue,
                     attempt,
-                    comments=self._comments_for_prompt(issue, comments),
+                    comments=self._comments_for_prompt(
+                        issue,
+                        self._comments_with_coordination(issue, comments),
+                    ),
                     focus_text=focus.render(project_obj),
                     workspace_path=wp,
                     memories=memories,
@@ -19284,6 +20342,7 @@ class Orchestrator:
                 project_store=self.project_store,
                 project_id=issue.project_id or None,
                 task_tracker=task_tracker,
+                coordination_service=self,
                 task_identifier=issue.identifier,
                 read_only=read_only_preflight,
                 focus=focus,
@@ -19506,6 +20565,7 @@ class Orchestrator:
                 project_store=self.project_store,
                 project_id=issue.project_id or None,
                 task_tracker=task_tracker,
+                coordination_service=self,
                 task_identifier=issue.identifier,
                 action_policy=(
                     auditor_policy(
@@ -19828,7 +20888,11 @@ class Orchestrator:
                             current_issue,
                             attempt,
                             comments=self._comments_for_prompt(
-                                current_issue, cli_comments
+                                current_issue,
+                                self._comments_with_coordination(
+                                    current_issue,
+                                    cli_comments,
+                                ),
                             ),
                             focus_text=cli_focus.render(cli_project_obj),
                             workspace_path=workspace_path,
@@ -23228,7 +24292,13 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             "paused": self._paused,
             "config": {
                 "default_first_dispatch": self.config.default_first_dispatch,
+                "parallel_epic_children_enabled": (
+                    self.config.parallel_epic_children_enabled
+                ),
             },
+            "integration_queue": [
+                item.to_dict() for item in self.integration_queue.items()
+            ],
             "concurrency": {
                 "mode": "auto" if self.config.max_concurrent_agents == 0 else "fixed",
                 "configured_max": self.config.max_concurrent_agents,

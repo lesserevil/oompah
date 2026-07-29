@@ -97,8 +97,10 @@ class TestServiceConfig:
         assert cfg.storage_cleanup_batch_size == 50
         assert cfg.storage_cleanup_max_bytes == 50 * 1024**3
         assert cfg.storage_cleanup_log_retention_seconds == 604800
+        assert cfg.coordination_retention_seconds == 2592000
         assert cfg.restart_drain_timeout_seconds == 3600
         assert cfg.quality_gate_timeout_seconds == 3600
+        assert cfg.parallel_epic_children_enabled is False
         assert cfg.prompt_max_comments == 20
         assert cfg.prompt_max_comment_bytes == 32 * 1024
         assert cfg.release_pick_max_runtime_seconds == 15
@@ -110,6 +112,11 @@ class TestServiceConfig:
     def test_direct_construction_keeps_duplicate_preflight_inert(self):
         cfg = ServiceConfig()
         assert cfg.duplicate_preflight_max_agents == 0
+
+    def test_parallel_epic_children_comes_from_environment(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_PARALLEL_EPIC_CHILDREN_ENABLED", "true")
+        wf = WorkflowDefinition(config={}, prompt_template="test")
+        assert ServiceConfig.from_workflow(wf).parallel_epic_children_enabled
 
     def test_gitlab_webhook_public_url_comes_from_environment(self, monkeypatch):
         monkeypatch.setenv(
@@ -168,6 +175,7 @@ class TestServiceConfig:
             "OOMPAH_STORAGE_CLEANUP_BATCH_SIZE": "9",
             "OOMPAH_STORAGE_CLEANUP_MAX_BYTES": "987654",
             "OOMPAH_STORAGE_CLEANUP_LOG_RETENTION_SECONDS": "172800",
+            "OOMPAH_COORDINATION_RETENTION_SECONDS": "345600",
         }
         for name, value in values.items():
             monkeypatch.setenv(name, value)
@@ -183,6 +191,7 @@ class TestServiceConfig:
         assert cfg.storage_cleanup_batch_size == 9
         assert cfg.storage_cleanup_max_bytes == 987654
         assert cfg.storage_cleanup_log_retention_seconds == 172800
+        assert cfg.coordination_retention_seconds == 345600
 
     def test_storage_cleanup_settings_are_documented_in_env_example(self):
         env_example = Path(__file__).parents[1] / ".env.example"
@@ -195,6 +204,7 @@ class TestServiceConfig:
             "OOMPAH_STORAGE_CLEANUP_BATCH_SIZE",
             "OOMPAH_STORAGE_CLEANUP_MAX_BYTES",
             "OOMPAH_STORAGE_CLEANUP_LOG_RETENTION_SECONDS",
+            "OOMPAH_COORDINATION_RETENTION_SECONDS",
         ):
             assert f"{name}=" in content
 

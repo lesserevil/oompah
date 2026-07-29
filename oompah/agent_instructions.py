@@ -36,9 +36,9 @@ oompah task --server http://127.0.0.1:<port> view <owner/repo#number>
 When oompah starts this repository as a spawned worker, the service supplies
 an expiring capability scoped to this task and project. Use the documented
 oompah task view, comment, add-label, remove-label, and set-status commands
-for the session handoff; ACP and API sessions route these commands through the
-server-owned tracker, while subprocess sessions route them through the same
-short-lived capability.
+and coordinate commands for the session handoff; ACP and API sessions route
+these commands through the server-owned tracker, while subprocess sessions
+route them through the same short-lived capability.
 
 Never set, read, copy, or print OOMPAH_SERVER_USERNAME,
 OOMPAH_SERVER_PASSWORD, or OOMPAH_SERVER_PASSWORD_FILE from a worker. Never
@@ -64,6 +64,10 @@ oompah task remove-dependency <owner/repo#number> --depends-on <owner/repo#other
 oompah task add-label <owner/repo#number> needs:frontend
 oompah task set-status <owner/repo#number> Open
 oompah task submit <owner/repo#number> --summary "Completed"
+oompah coordinate peers <owner/repo#number>
+oompah coordinate inbox <owner/repo#number> --unread
+oompah coordinate send <owner/repo#number> --to <peer-task> --message "Interface update"
+oompah coordinate checkpoint <owner/repo#number> --summary "Checkpoint" --path <changed-path>
 ```
 
 ### GitHub Fallback
@@ -220,6 +224,10 @@ oompah task remove-dependency <task-id> --project <project-id> --depends-on <oth
 oompah task add-label <task-id> needs:frontend --project <project-id>
 oompah task set-status <task-id> Open --project <project-id>
 oompah task submit <task-id> --project <project-id> --summary "Completed"
+oompah coordinate peers <task-id> --project <project-id>
+oompah coordinate inbox <task-id> --project <project-id> --unread
+oompah coordinate send <task-id> --project <project-id> --to <peer-task-id> --message "Interface update"
+oompah coordinate checkpoint <task-id> --project <project-id> --summary "Checkpoint" --path <changed-path>
 ```
 
 ### Spawned Worker Handoff Security
@@ -227,9 +235,9 @@ oompah task submit <task-id> --project <project-id> --summary "Completed"
 When oompah starts this repository as a spawned worker, the service supplies
 an expiring capability scoped to this task and project. Use the documented
 oompah task view, comment, add-label, remove-label, and set-status commands
-for the session handoff; ACP and API sessions route these commands through the
-server-owned tracker, while subprocess sessions route them through the same
-short-lived capability.
+and coordinate commands for the session handoff; ACP and API sessions route
+these commands through the server-owned tracker, while subprocess sessions
+route them through the same short-lived capability.
 
 Never set, read, copy, or print OOMPAH_SERVER_USERNAME,
 OOMPAH_SERVER_PASSWORD, or OOMPAH_SERVER_PASSWORD_FILE from a worker. Never
@@ -270,8 +278,9 @@ comments.
   GitHub Issues.
 - Create decomposition children with `oompah task child-create`; do not
   hand-write parent metadata.
-- Record finish-order constraints with `oompah task set-dependency`; they do
-  not block parallel starts. Add `--hard-start` only when implementation
+- Normal dependencies constrain integration order and are recorded with
+  `oompah task set-dependency`; they do not block parallel starts. Add
+  `--hard-start` only when implementation
   cannot begin before the prerequisite finishes. Do not hand-write dependency
   metadata.
 - Remove obsolete blockers with `oompah task remove-dependency`; do not

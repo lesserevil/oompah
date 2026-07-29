@@ -176,15 +176,14 @@ class TestTaskScopeDirectPath:
             )
             == "Comment posted."
         )
-        assert (
-            _exec_oompah_task_command(
-                "oompah task set-status TASK-1 Done --summary 'Completed'",
-                tracker,
-                "proj-a",
-                task_identifier="TASK-1",
-            )
-            == "Status set to: Done"
+        terminal_result = _exec_oompah_task_command(
+            "oompah task set-status TASK-1 Done --summary 'Completed'",
+            tracker,
+            "proj-a",
+            task_identifier="TASK-1",
         )
+        assert terminal_result.startswith("Error:")
+        assert "oompah task submit" in terminal_result
         assert (
             _exec_oompah_task_command(
                 "oompah task view TASK-2",
@@ -204,8 +203,83 @@ class TestTaskScopeDirectPath:
         tracker.add_comment.assert_any_call(
             "TASK-1", "progress", author="oompah"
         )
-        assert tracker.add_comment.call_count == 2
-        tracker.update_issue.assert_called_once_with("TASK-1", status="Done")
+        assert tracker.add_comment.call_count == 1
+        tracker.update_issue.assert_not_called()
+
+    def test_direct_acp_submit_requires_and_persists_pushed_git_evidence(
+        self,
+        tmp_path,
+    ):
+        from oompah.acp_tools import _exec_oompah_task_command
+
+        tracker = MagicMock()
+        coordination = MagicMock()
+        with patch(
+            "oompah.task_cli._git_submission_evidence",
+            return_value={
+                "task_branch": "epic-TASK-0--task-TASK-1",
+                "head_sha": "a" * 40,
+                "remote_head_sha": "a" * 40,
+                "worktree_clean": True,
+                "base_sha": "b" * 40,
+                "changed_paths": ["oompah/example.py"],
+            },
+        ):
+            result = _exec_oompah_task_command(
+                "oompah task submit TASK-1 --summary 'Completed and tested'",
+                tracker,
+                "proj-a",
+                task_identifier="TASK-1",
+                coordination_service=coordination,
+                workspace_path=tmp_path,
+            )
+
+        assert result == "Submitted for integration: TASK-1"
+        record = tracker.set_metadata_field.call_args.args[2]
+        assert record["task_branch"] == "epic-TASK-0--task-TASK-1"
+        assert record["head_sha"] == "a" * 40
+        tracker.update_issue.assert_called_once_with(
+            "TASK-1",
+            status="Ready to Integrate",
+        )
+        coordination.coordination_checkpoint.assert_called_once()
+
+    def test_direct_acp_submission_survives_coordination_outage(
+        self,
+        tmp_path,
+    ):
+        from oompah.acp_tools import _exec_oompah_task_command
+
+        tracker = MagicMock()
+        coordination = MagicMock()
+        coordination.coordination_checkpoint.side_effect = RuntimeError(
+            "coordination database temporarily unavailable"
+        )
+        with patch(
+            "oompah.task_cli._git_submission_evidence",
+            return_value={
+                "task_branch": "epic-TASK-0--task-TASK-1",
+                "head_sha": "a" * 40,
+                "remote_head_sha": "a" * 40,
+                "worktree_clean": True,
+                "base_sha": "b" * 40,
+                "changed_paths": ["oompah/example.py"],
+            },
+        ):
+            result = _exec_oompah_task_command(
+                "oompah task submit TASK-1 --summary 'Completed and tested'",
+                tracker,
+                "proj-a",
+                task_identifier="TASK-1",
+                coordination_service=coordination,
+                workspace_path=tmp_path,
+            )
+
+        assert result == "Submitted for integration: TASK-1"
+        tracker.update_issue.assert_called_once_with(
+            "TASK-1",
+            status="Ready to Integrate",
+        )
 
     def test_api_session_routes_handoff_without_http_self_call(self):
         from oompah.api_agent import _execute_tool
@@ -283,6 +357,11 @@ class TestTaskHandoffEndpoint:
                         "project_id": "proj-a",
                         "identifier": "TASK-1",
                         "status": "Done",
+                        "summary": "Completed and tested",
+                        "task_branch": "oompah/task/TASK-1",
+                        "head_sha": "a" * 40,
+                        "remote_head_sha": "a" * 40,
+                        "worktree_clean": True,
                     },
                 )
                 cross_scope = client.post(

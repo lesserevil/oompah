@@ -538,8 +538,12 @@ class ServiceConfig:
     storage_cleanup_batch_size: int = 50
     storage_cleanup_max_bytes: int = 50 * 1024 * 1024 * 1024
     storage_cleanup_log_retention_seconds: int = 7 * 24 * 60 * 60
+    coordination_retention_seconds: int = 30 * 24 * 60 * 60
     restart_drain_timeout_seconds: int = 60 * 60
     quality_gate_timeout_seconds: int = 60 * 60
+    # Give epic children isolated branches and integrate submitted heads in
+    # finish-dependency order. Environment-only rollout switch.
+    parallel_epic_children_enabled: bool = False
     maintenance_startup_delay_seconds: int = 60
     release_pick_max_runtime_seconds: int = 15
     merged_labels_max_runtime_seconds: int = 15
@@ -696,6 +700,9 @@ class ServiceConfig:
         )
         self.storage_cleanup_log_retention_seconds = max(
             int(self.storage_cleanup_log_retention_seconds), 60
+        )
+        self.coordination_retention_seconds = max(
+            int(self.coordination_retention_seconds), 60
         )
         self.restart_drain_timeout_seconds = max(
             int(self.restart_drain_timeout_seconds), 0
@@ -1036,11 +1043,19 @@ class ServiceConfig:
                 None,
                 7 * 24 * 60 * 60,
             ),
+            coordination_retention_seconds=_env_int(
+                "OOMPAH_COORDINATION_RETENTION_SECONDS",
+                None,
+                30 * 24 * 60 * 60,
+            ),
             restart_drain_timeout_seconds=_env_int(
                 "OOMPAH_RESTART_DRAIN_TIMEOUT_SECONDS", None, 60 * 60
             ),
             quality_gate_timeout_seconds=_env_int(
                 "OOMPAH_QUALITY_GATE_TIMEOUT_SECONDS", None, 60 * 60
+            ),
+            parallel_epic_children_enabled=_env_bool(
+                "OOMPAH_PARALLEL_EPIC_CHILDREN_ENABLED", None, False
             ),
             maintenance_startup_delay_seconds=_env_int(
                 "OOMPAH_MAINTENANCE_STARTUP_DELAY_SECONDS", None, 60

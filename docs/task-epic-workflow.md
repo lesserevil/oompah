@@ -89,7 +89,10 @@ flowchart TD
     InProgress --> Review[In Review]
     InProgress --> NeedsAnswer[Needs Answer]
     InProgress --> Decomposed[Decomposed]
-    InProgress --> Done[Done]
+    InProgress --> Ready[Ready to Integrate]
+    Ready --> Integrated[Integrated on epic branch]
+    Integrated --> Validation[Independent validation]
+    Validation --> Done[Done]
 
     NeedsAnswer --> Open
     Waiting --> Open
@@ -120,10 +123,11 @@ The main dispatch gates are:
 | `Merged` | No | Review branch has landed |
 | `Archived` | No | Permanently closed |
 
-Dispatch also requires clear task content, no unresolved dependencies, available
-agent capacity, project/global pause gates to be open, and valid branch
-metadata. Non-epic tasks with empty descriptions are rejected because agents
-need enough context to act.
+Dispatch also requires clear task content, no unresolved hard-start
+dependencies, available agent capacity, project/global pause gates to be open,
+and valid branch metadata. Normal dependencies constrain finish/integration
+order and do not block worker start. Non-epic tasks with empty descriptions are
+rejected because agents need enough context to act.
 
 ## Epic Planning
 
@@ -152,15 +156,18 @@ The parent epic acts as a rollup. In `shared` projects, a parent with children
 is rejected from ordinary dispatch with `epic_rollup_parent` unless the epic
 branch itself needs CI or rebase repair during final review.
 
-## Shared Epic Branch
+## Epic Branch Integration
 
-All managed projects use the shared epic workflow:
+All managed projects use a shared epic delivery branch. The child workspace
+strategy depends on `OOMPAH_PARALLEL_EPIC_CHILDREN_ENABLED`:
 
-| Aspect | Shared behavior |
-|---|---|
-| Child worktrees | Shared epic worktree and branch |
-| Child PR target | Epic branch only; child PRs are suppressed |
-| Epic rollup PR/MR | Created only when the entire epic branch is ready to merge |
+| Aspect | Legacy mode (`false`) | Parallel mode (`true`) |
+|---|---|---|
+| Child worktrees | Shared epic worktree and branch | Private child worktree and branch |
+| Same-epic dispatch | Serialized | Concurrent, subject to capacity and hard-start edges |
+| Normal dependencies | Recorded as blockers | Order queue integration, not worker start |
+| Child PR/MR | Suppressed | Suppressed |
+| Epic rollup PR/MR | Created only when the entire epic branch is ready | Created only when the entire epic branch is ready |
 
 The generated epic branch name (`epic-<epic-id>`) is owned by oompah. If a
 child task has `target_branch: epic-<parent-id>`, dispatch treats that as an
@@ -169,9 +176,13 @@ patterns only list branches such as `main` or `release/*`.
 
 ```mermaid
 flowchart TD
-    ChildOpen[Open child task] --> SharedWork[Use shared epic worktree]
-    SharedWork --> SharedBranch[Commit child work to epic branch]
-    SharedBranch --> EpicBranch[Epic branch accumulates child work]
+    ChildOpen[Open child task] --> Mode{Parallel mode?}
+    Mode -- no --> SharedWork[Use shared epic worktree]
+    Mode -- yes --> PrivateWork[Use private child branch and worktree]
+    PrivateWork --> Ready[Submit pushed head: Ready to Integrate]
+    Ready --> Ordered[Dependency-ordered rebase and quality gate]
+    Ordered --> EpicBranch[Epic branch accumulates verified child work]
+    SharedWork --> EpicBranch
     EpicBranch --> ChildrenDone{All normal children Done, nested epics Merged, and landing evidence verified?}
     ChildrenDone -- no --> ChildOpen
     ChildrenDone -- yes --> RollupPR[Open epic rollup PR]
@@ -179,9 +190,12 @@ flowchart TD
     EpicReview --> EpicMerged[Epic Merged]
 ```
 
-Oompah serializes normal child dispatch within the same epic so two agents do
-not write to the same shared worktree at the same time. High priority repair
-work may still be selected according to the orchestrator's repair rules.
+In legacy mode, oompah serializes normal child dispatch within the same epic so
+two agents do not write to one shared worktree. In parallel mode, each child
+gets an isolated branch. The durable per-epic queue serializes only integration:
+it rebases a submitted head onto the current epic branch, runs the configured
+full quality gate, verifies the epic head has not changed, then fast-forwards
+and pushes. An independent terminal audit runs after integration.
 
 For nested epics, a child epic rollup PR targets the parent epic branch. The
 top-level epic targets the project default branch.
@@ -191,6 +205,9 @@ Oompah creates the single rollup review only after every actionable normal
 child is `Done`, every nested epic is `Merged` into the branch, and recorded
 child work has positive landing evidence. Readiness is refreshed immediately
 before review creation so a newly added or reopened child cancels creation.
+
+See [Parallel Epic Integration](parallel-epic-integration.md) for activation,
+submission, coordination, queue recovery, and rollback procedures.
 
 ## Review And Repair
 
@@ -245,6 +262,10 @@ oompah task set-dependency <task-id> --project <project-id> --depends-on <other-
 oompah task set-dependency <task-id> --project <project-id> --depends-on <other-task-id> --hard-start
 oompah task set-status <task-id> Open --project <project-id>
 oompah task submit <task-id> --project <project-id> --summary "Completed"
+oompah coordinate peers <task-id> --project <project-id>
+oompah coordinate inbox <task-id> --project <project-id> --unread
+oompah coordinate send <task-id> --project <project-id> --to <peer-task-id> --message "Interface update"
+oompah coordinate checkpoint <task-id> --project <project-id> --summary "Checkpoint" --path <changed-path>
 oompah task comment <task-id> --project <project-id> --message "Progress update" --author oompah
 ```
 

@@ -195,6 +195,11 @@ def main() -> None:
         _task_main(raw_args[1:])
         return
 
+    if raw_args and raw_args[0] == "coordinate":
+        from oompah.task_cli import main as _task_main
+        _task_main(["coordinate", *raw_args[1:]])
+        return
+
     if raw_args and raw_args[0] == "project-bootstrap":
         from oompah.project_bootstrap_cli import main as _project_bootstrap_main
         _project_bootstrap_main(raw_args[1:])

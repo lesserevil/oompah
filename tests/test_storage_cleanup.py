@@ -3,10 +3,12 @@
 import os
 import time
 from collections import namedtuple
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
 
 from oompah.config import ServiceConfig
+from oompah.coordination import CoordinationStore
 from oompah.orchestrator import Orchestrator
 from oompah.storage_cleanup import (
     StoragePressure,
@@ -252,3 +254,40 @@ def test_pressure_overrides_daily_next_run_and_repeats_batches():
 
     assert calls == ["run", "run"]
     assert orchestrator._storage_cleanup_trigger == "storage_pressure"
+
+
+def test_storage_cleanup_prunes_old_read_coordination_messages(tmp_path):
+    orchestrator = _scheduler(
+        ServiceConfig(
+            temp_root=str(tmp_path / "temp"),
+            coordination_retention_seconds=60,
+        )
+    )
+    (tmp_path / "temp").mkdir()
+    log_root = tmp_path / "logs"
+    log_root.mkdir()
+    orchestrator._storage_cleanup_paths = lambda: (
+        str(tmp_path / "temp"),
+        str(log_root),
+        [str(tmp_path)],
+    )
+    orchestrator.state = type("State", (), {"running": {}})()
+    orchestrator.project_store = type(
+        "Projects",
+        (),
+        {"list_all": lambda self: []},
+    )()
+    orchestrator._cleanup_terminal_worktrees = lambda projects: 0
+    coordination = CoordinationStore(str(tmp_path / "coordination.sqlite3"))
+    orchestrator.coordination_store = coordination
+
+    with patch.object(coordination, "prune_before", return_value=3) as prune:
+        orchestrator._do_cleanup_storage()
+
+    assert prune.call_count == 1
+    cutoff = datetime.fromisoformat(prune.call_args.args[0])
+    assert 55 <= (datetime.now(timezone.utc) - cutoff).total_seconds() <= 65
+    assert orchestrator._maintenance_status["storage_cleanup"][
+        "coordination_messages_cleaned"
+    ] == 3
+    coordination.close()

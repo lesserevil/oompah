@@ -120,6 +120,8 @@ class AcpBackendOptions:
     # execute ``oompah task ...`` commands directly instead of spawning the
     # HTTP-backed CLI, which would self-call the local server process.
     task_tracker: Any = None
+    # Provider-neutral coordination broker owned by the orchestrator.
+    coordination_service: Any = None
     # Exact task grant for this worker.  ACP/API catalogs use this to reject
     # mutations of another task in the same project.
     task_identifier: str | None = None

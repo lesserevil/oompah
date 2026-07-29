@@ -305,6 +305,7 @@ class CodexAcpBackendSession(AcpBackendSession):
         #   * "subscription" -> Codex CLI subprocess (OAuth via auth.json)
         # surfacing ``cost_usd=None`` for subscription tier.
         self._billing_model: str = self._resolve_billing_model()
+        self._comment_queue: asyncio.Queue[str] | None = options.comment_queue
 
     def _resolve_billing_model(self) -> str:
         """Resolve the billing model that selects the execution path.
@@ -384,6 +385,23 @@ class CodexAcpBackendSession(AcpBackendSession):
                     if hasattr(res, "__await__"):
                         await res
 
+    async def inject_message(self, text: str) -> None:
+        """Queue a durable coordination follow-up for the next turn boundary."""
+
+        if self._comment_queue is not None:
+            await self._comment_queue.put(text)
+
+    def _drain_injected_messages(self) -> list[str]:
+        if self._comment_queue is None:
+            return []
+        messages: list[str] = []
+        while len(messages) < 100:
+            try:
+                messages.append(self._comment_queue.get_nowait())
+            except asyncio.QueueEmpty:
+                break
+        return messages
+
     # ---- Internal: event emission ----
 
     def _emit_agent_event(self, kind: str, *, payload: dict[str, Any] | None = None) -> None:
@@ -461,6 +479,7 @@ class CodexAcpBackendSession(AcpBackendSession):
             project_store=self._options.project_store,
             project_id=self._options.project_id,
             task_tracker=self._options.task_tracker,
+            coordination_service=self._options.coordination_service,
             read_only=self._options.read_only,
             task_identifier=self._options.task_identifier,
             action_policy=self._options.action_policy,
@@ -495,13 +514,39 @@ class CodexAcpBackendSession(AcpBackendSession):
             self._status = "interrupted"
             return
 
-        if self._billing_model == "subscription":
-            async for be in self._run_turn_via_cli():
-                yield be
-            return
-
-        async for be in self._run_turn_via_api():
-            yield be
+        initial_prompt = self._options.prompt
+        followup_count = 0
+        try:
+            while True:
+                if self._billing_model == "subscription":
+                    async for be in self._run_turn_via_cli():
+                        yield be
+                else:
+                    async for be in self._run_turn_via_api():
+                        yield be
+                if self._status != "succeeded" or self._stop_requested:
+                    return
+                pending = self._drain_injected_messages()
+                if not pending:
+                    return
+                followup_count += 1
+                if followup_count > 20:
+                    # Leave excess messages in the durable broker inbox; an
+                    # unbounded peer-message stream must not keep a worker alive.
+                    logger.warning(
+                        "Codex coordination follow-up limit reached; "
+                        "remaining messages stay in the durable inbox"
+                    )
+                    return
+                self._options.prompt = (
+                    "Coordination messages arrived while you were working. "
+                    "Review the existing workspace and task state, then act on "
+                    "these advisory messages before completing:\n\n"
+                    + "\n\n---\n\n".join(pending)
+                )
+                self._status = "pending"
+        finally:
+            self._options.prompt = initial_prompt
 
     async def _run_turn_via_api(self) -> AsyncIterator[BackendEvent]:
         """In-process OpenAI-Agents SDK path (per-token / API-key tier)."""

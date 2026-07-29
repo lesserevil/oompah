@@ -26,7 +26,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import oompah.server as server_module
-from oompah.models import Issue
+from oompah.models import BlockerRef, Issue
 from oompah.server import app
 
 
@@ -127,6 +127,49 @@ class TestAddDependencyEndpoint:
                 json={"depends_on": "TASK-1", "dependency_type": "start-ish"},
             )
         assert resp.status_code == 400
+
+    def test_dependency_cycle_is_rejected_with_actionable_path(self, client):
+        mock_orch, mock_tracker = _make_mock_orchestrator()
+        task_1 = Issue(
+            id="issue-1",
+            identifier="TASK-1",
+            title="First",
+            state="open",
+            blocked_by=[BlockerRef(identifier="TASK-2")],
+        )
+        task_2 = Issue(
+            id="issue-2",
+            identifier="TASK-2",
+            title="Second",
+            state="open",
+        )
+        issues = {"TASK-1": task_1, "TASK-2": task_2}
+        mock_tracker.fetch_issue_detail.side_effect = issues.get
+        mock_tracker.fetch_all_issues.return_value = [task_1, task_2]
+
+        with patch.object(
+            server_module,
+            "_get_orchestrator",
+            return_value=mock_orch,
+        ):
+            resp = client.post(
+                "/api/v1/issues/TASK-2/dependencies",
+                json={
+                    "depends_on": "TASK-1",
+                    "project_id": "proj-1",
+                },
+            )
+
+        assert resp.status_code == 409
+        assert resp.json()["error"] == {
+            "code": "dependency_cycle",
+            "message": (
+                "Dependency would create a cycle: "
+                "TASK-2 -> TASK-1 -> TASK-2"
+            ),
+            "path": ["TASK-2", "TASK-1", "TASK-2"],
+        }
+        mock_tracker.add_dependency.assert_not_called()
 
     def test_missing_depends_on_returns_400(self, client):
         """POST without depends_on returns 400 validation error."""
