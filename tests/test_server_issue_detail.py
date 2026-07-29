@@ -22,6 +22,11 @@ from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 
 import oompah.server as server_module
+from oompah.duplicate_screening import (
+    ScreeningVerdict,
+    complete_claim_record,
+    new_claim_record,
+)
 from oompah.server import app, _find_tracker_for_issue
 from oompah.models import Issue
 
@@ -109,6 +114,71 @@ async def test_run_api_io_uses_shared_api_thread_pool(monkeypatch):
 
 class TestIssueDetailWithProjectId:
     """Tests for the detail endpoint when project_id is provided."""
+
+    @pytest.mark.parametrize("supply_project_id", [True, False])
+    def test_duplicate_screening_uses_resolved_project_identity(
+        self,
+        client,
+        supply_project_id,
+    ):
+        """A current project-aware fingerprint is checked, not falsely stale."""
+        mock_orch, mock_tracker = _make_mock_orchestrator(project_id="proj-1")
+        mock_orch.config.duplicate_preflight_max_agents = 1
+        issue = _make_mock_issue()
+        issue.labels = []
+        issue.project_id = "proj-1"
+        issue.duplicate_screening = complete_claim_record(
+            new_claim_record(issue, owner="scheduler"),
+            verdict=ScreeningVerdict.NO_DUPLICATE,
+        ).to_dict()
+        # Native Markdown tracker reads omit this managed-project context.
+        issue.project_id = None
+        mock_tracker.fetch_issue_detail.return_value = issue
+
+        params = {"project_id": "proj-1"} if supply_project_id else None
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+            patch.object(server_module._api_cache, "get", return_value=None),
+            patch.object(server_module._api_cache, "set"),
+        ):
+            resp = client.get(
+                "/api/v1/issues/my-issue/detail",
+                params=params,
+            )
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["project_id"] == "proj-1"
+        assert data["duplicate_screening"]["state"] == "checked"
+        assert data["duplicate_screening"]["required"] is True
+
+    def test_duplicate_screening_material_change_remains_stale(self, client):
+        """Resolved project context must not hide a real content change."""
+        mock_orch, mock_tracker = _make_mock_orchestrator(project_id="proj-1")
+        mock_orch.config.duplicate_preflight_max_agents = 1
+        issue = _make_mock_issue()
+        issue.labels = []
+        issue.project_id = "proj-1"
+        issue.duplicate_screening = complete_claim_record(
+            new_claim_record(issue, owner="scheduler"),
+            verdict=ScreeningVerdict.NO_DUPLICATE,
+        ).to_dict()
+        issue.project_id = None
+        issue.description = "Materially changed after screening"
+        mock_tracker.fetch_issue_detail.return_value = issue
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+            patch.object(server_module._api_cache, "get", return_value=None),
+            patch.object(server_module._api_cache, "set"),
+        ):
+            resp = client.get(
+                "/api/v1/issues/my-issue/detail",
+                params={"project_id": "proj-1"},
+            )
+
+        assert resp.status_code == 200
+        assert resp.json()["duplicate_screening"]["state"] == "stale"
 
     def test_returns_200_with_valid_project_id(self, client):
         """GET with project_id returns 200 and issue data."""
