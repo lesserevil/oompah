@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:10.311921Z'
-updated_at: '2026-07-29T08:35:45.709158Z'
+updated_at: '2026-07-29T08:35:48.087785Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -2493,5 +2493,10 @@ All implementation for OOMPAH-470 is committed, pushed, and verified.
 ✅ No hardcoded local provider IDs
 
 **Status:** Ready for merge
+---
+author: oompah
+created: 2026-07-29 08:35
+---
+Auditor role seeding and independent provider-model candidate selection fully implemented, tested, integrated, and verified. AuditorCandidateSelector filters by whitelist/credentials/health/budget/model-validity, excludes contributor models, prefers independent providers, safely falls back to same-provider with explicit different model, and excludes SDK-managed unknowns. Seeded from deduplicated union of deep/standard/default role candidates. Operators can edit via RoleStore API. 39 focused tests + 89 audit suite tests all passing. 6 commits on epic-OOMPAH-458.
 ---
 <!-- COMMENTS:END -->
