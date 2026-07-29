@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-570
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Recover interrupted integration leases and explicit blocked-head retries
 parent: null
@@ -11,12 +11,27 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T23:53:31.874608Z'
-updated_at: '2026-07-29T23:53:31.874608Z'
+updated_at: '2026-07-29T23:53:53.624372Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 70211f087949bc92d36b39a24ee18fe20444239fd436a12269a096e08f38a265
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 036e621e-1ce7-4d02-a09b-db482cbe58b2
+  claim_owner: 7e0ec335-e793-4bc9-8be7-8876913419b0
+  claimed_at: '2026-07-29T23:53:49.910005+00:00'
+  claim_expires_at: '2026-07-30T00:23:49.910005+00:00'
+  retry_count: 0
+  retry_after: null
+oompah.agent_run_id: c5e8cfe2-bd7d-48c1-8c97-1cd456726881
 ---
 ## Summary
 
@@ -30,3 +45,21 @@ Implementation scope: make durable epic-child integration recover promptly after
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-29 23:53
+---
+Accepted for implementation after live queue recovery exposed the restart-lease and same-head retry gaps.
+---
+author: oompah
+created: 2026-07-29 23:53
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-07-29 23:53
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
