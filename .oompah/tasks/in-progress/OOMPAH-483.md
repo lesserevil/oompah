@@ -19,7 +19,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:31.119782Z'
-updated_at: '2026-07-29T18:34:29.716997Z'
+updated_at: '2026-07-29T18:35:37.760105Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-483
 target_branch: null
 review_url: null
@@ -142,5 +142,24 @@ author: oompah
 created: 2026-07-29 18:34
 ---
 Focus: Technical Writer
+---
+author: oompah
+created: 2026-07-29 18:35
+---
+**Understanding & Plan**: Role is Technical Writer. OOMPAH-483 implements a periodic reconciliation pass that detects terminal-state writes bypassing the coordinator. The feature includes:
+
+**What exists:**
+- Terminal audit data structures (terminal_audit.py)
+- TerminalAuditEnforcement class that reconciles terminal states with a 'grandfather baseline' 
+- Comprehensive tests covering direct tracker writes, GitHub/GitLab events, stale processes, fingerprint changes, etc.
+- Integration with server startup (initialize on boot)
+
+**Documentation plan:**
+1. Create design doc in plans/ explaining the reconciliation algorithm & grandfather baseline concept
+2. Create operator runbook entry in docs/ with setup, monitoring, troubleshooting
+3. Document the static analysis/CI enforcement (AST scanner for unauthorized terminal mutations)
+4. Add examples of properly-audited terminal-state changes
+
+**Next:** Explore codebase for static analysis/AST enforcement parts and what CI integration exists.
 ---
 <!-- COMMENTS:END -->
