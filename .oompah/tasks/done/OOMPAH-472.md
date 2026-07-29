@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-472
 type: feature
-status: In Progress
+status: Done
 priority: 1
 title: Collect target-landing evidence for Merged audits
 parent: OOMPAH-458
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:12.977543Z'
-updated_at: '2026-07-29T02:18:18.150725Z'
+updated_at: '2026-07-29T02:18:31.257629Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -288,5 +288,15 @@ author: oompah
 created: 2026-07-29 02:18
 ---
 Discovery: The git working tree is completely clean (git status --porcelain produces no output). Commit ede290441 is on both local branch and origin/epic-OOMPAH-458. Files oompah/merged_evidence_collector.py (989 lines) and tests/test_merged_evidence_collector.py (1366 lines) are committed and pushed. The 'uncommitted changes' diagnostic the orchestrator fired was stale/incorrect — possibly a timing artifact during state verification in prior runs.
+---
+author: oompah
+created: 2026-07-29 02:18
+---
+Verification: 61 tests pass in tests/test_merged_evidence_collector.py. Related suites (done_evidence_collector, terminal_audit, landing_gate, independently_merged) all pass — 89 tests total, zero regressions. Branch epic-OOMPAH-458 is fully committed and pushed to origin.
+---
+author: oompah
+created: 2026-07-29 02:18
+---
+Completion: MergedEvidenceCollector is fully delivered. The implementation (oompah/merged_evidence_collector.py, 989 lines) with 61 tests (tests/test_merged_evidence_collector.py, 1366 lines) is committed as ede290441 on origin/epic-OOMPAH-458. Working tree is clean. All acceptance criteria met: the collector distinguishes correct-target landing from tracker labels alone via SCM review state, CI status, and git commit containment; detects 10+ precise failure modes; supports epic/nested-epic rollups with child Done audit chains.
 ---
 <!-- COMMENTS:END -->
