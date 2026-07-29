@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-557
 type: feature
-status: Backlog
+status: Done
 priority: 0
 title: Implement durable topological epic integration queues
 parent: OOMPAH-555
@@ -14,7 +14,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T16:23:22.859407Z'
-updated_at: '2026-07-29T17:57:20.311507Z'
+updated_at: '2026-07-29T18:28:23.330088Z'
 work_branch: null
 target_branch: null
 review_url: null
