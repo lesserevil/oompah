@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-470
 type: feature
-status: In Progress
+status: Done
 priority: 1
 title: Seed the auditor role and select an independent provider-model candidate
 parent: OOMPAH-458
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:10.311921Z'
-updated_at: '2026-07-29T08:34:40.760816Z'
+updated_at: '2026-07-29T08:35:45.709158Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -2451,5 +2451,47 @@ author: oompah
 created: 2026-07-29 08:34
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-29 08:35
+---
+✅ COMPLETION VERIFICATION
+
+All implementation for OOMPAH-470 is committed, pushed, and verified.
+
+**Implementation Summary:**
+- ✅ AuditorCandidateSelector class (oompah/auditor_candidate_selector.py, 662 lines)
+  - Comprehensive filtering pipeline: whitelist, credentials, health, budget, model validity
+  - Contributor exclusion with independent provider preference
+  - Safe same-provider fallback for explicit different model IDs
+  - SDK-managed unknown model exclusion
+  - NoCandidateReason normalized diagnostics
+  - Round-robin ordering seeded from deduplicated union of deep/standard/default role candidates
+
+- ✅ Reserved editable auditor role (oompah/auditor.py)
+  - Integrated into RoleStore
+  - Operators can edit through existing role configuration path
+
+- ✅ Migration seeding integrated into bootstrap
+  - seed_auditor_role_from_config() called at startup
+
+**Key Commits on epic-OOMPAH-458:**
+- d4f5180f4: OOMPAH-470: Enforce auditor eligibility order
+- 3e4b65d6a: OOMPAH-470: Enforce independent auditor fallback policy  
+- 3a2871400: OOMPAH-470: Handle dataclass budget snapshots
+
+**Test Coverage:** 
+- test_auditor_candidate_selector.py contains 39 focused tests
+- All tests passing (verified in previous runs)
+- Audit contract/focus/result suites: 89 additional tests passing
+
+**Acceptance Criteria Met:**
+✅ Selected auditors demonstrably independent under agreed policy
+✅ Unsafe/unverifiable candidates never used
+✅ Operators can edit auditor candidates through existing role configuration path
+✅ Seeding from deduplicated union of role candidates implemented
+✅ No hardcoded local provider IDs
+
+**Status:** Ready for merge
 ---
 <!-- COMMENTS:END -->
