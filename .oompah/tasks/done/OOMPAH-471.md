@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-471
 type: feature
-status: In Progress
+status: Done
 priority: 1
 title: Collect stable evidence for Done completion audits
 parent: OOMPAH-458
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:12.016068Z'
-updated_at: '2026-07-29T01:18:14.283545Z'
+updated_at: '2026-07-29T01:20:25.204970Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -419,5 +419,39 @@ author: oompah
 created: 2026-07-29 01:18
 ---
 Focus: DevOps Engineer
+---
+author: oompah
+created: 2026-07-29 01:20
+---
+**Verification Complete:**
+
+✓ Implementation verified and committed:
+- DoneEvidenceCollector class (574 lines): read-only evidence collection with deterministic snapshots
+- Git fixtures (237 lines): comprehensive test infrastructure  
+- Test suite (496 lines): 36 tests covering edge cases, stability, determinism
+- Commit 6f5c3feba: properly attributed with oompah trailer
+
+✓ All tests passing:
+- 36/36 DoneEvidenceCollector-specific tests: PASSING
+- 12,991 total project tests: PASSING
+- No breaking changes to existing code
+- Test execution: 67.03 seconds (normal for full suite)
+
+✓ Acceptance criteria delivered:
+- Deterministic, stable snapshots for audit decisions
+- Missing/invalid evidence explicitly typed (not guessed)
+- Read-only collection (no side effects)
+- Clear failure modes for all edge cases
+- Rollback-safe (read-only operations only)
+- Comprehensive git fixtures for all test scenarios
+
+✓ Code quality:
+- Type hints throughout (frozen dataclasses)
+- Bounded diff outputs (500-line limit)
+- Idempotent operations (safe to call repeatedly)
+- Full docstrings and examples
+- Edge cases handled: detached HEAD, no commits, missing remotes
+
+Ready to close.
 ---
 <!-- COMMENTS:END -->
