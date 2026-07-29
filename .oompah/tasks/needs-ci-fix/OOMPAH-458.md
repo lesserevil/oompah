@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-458
 type: epic
-status: In Progress
+status: Needs CI Fix
 priority: 0
 title: Dispatch independent auditor agents and evaluate target-specific evidence
 parent: null
@@ -21,7 +21,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:46.047976Z'
-updated_at: '2026-07-29T17:42:09.690927Z'
+updated_at: '2026-07-29T17:42:16.644026Z'
 work_branch: epic-OOMPAH-458
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/578
@@ -31,7 +31,7 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/578
 oompah.review_number: '578'
 oompah.work_branch: epic-OOMPAH-458
 oompah.target_branch: main
-oompah.agent_run_id: 1b419d05-be18-4b25-9822-3d17eb54309c
+oompah.agent_run_id: 1563cbff-136b-43bc-bf80-dc4c160ad62c
 oompah.task_costs:
   total_input_tokens: 58356
   total_output_tokens: 51120
@@ -251,5 +251,15 @@ author: oompah
 created: 2026-07-29 17:42
 ---
 YOLO: CI tests failed on MR #578. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
+---
+author: oompah
+created: 2026-07-29 17:42
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-29 17:42
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
