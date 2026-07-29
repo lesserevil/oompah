@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-321
 type: task
-status: Merged
+status: Archived
 priority: 1
 title: Complete GitLab Merge Request provider parity
 parent: OOMPAH-318
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-21T20:33:51.110283Z'
-updated_at: '2026-07-22T08:20:58.235708Z'
+updated_at: '2026-07-29T08:28:57.400627Z'
 work_branch: null
 target_branch: null
 review_url: null
