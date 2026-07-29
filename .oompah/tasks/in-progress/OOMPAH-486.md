@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:25.195304Z'
-updated_at: '2026-07-29T20:03:02.495742Z'
+updated_at: '2026-07-29T20:06:55.387488Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-486
 target_branch: null
 review_url: null
@@ -275,5 +275,10 @@ author: oompah
 created: 2026-07-29 20:03
 ---
 **Understanding**: OOMPAH-486 implements terminal-audit observability. Backend (TerminalAuditMetrics, TerminalAuditAlertRegistry, orchestrator integration) is complete with 3 commits and passing tests. The frontend task is to add visible audit throughput stats to the dashboard UI showing queued/running audit counts during healthy operation, hidden when idle. The snapshot exposes metrics via orchestrator.get_snapshot()["terminal_audit"] and alerts via orchestrator.get_snapshot()["alerts"]. Will explore the frontend structure and implement the UI component to render this data.
+---
+author: oompah
+created: 2026-07-29 20:06
+---
+**Discovery**: Found terminal-audit metrics are exposed via orchestrator.get_snapshot()["terminal_audit"] and broadcast to dashboard via WebSocket state updates. The agent-bar component in oompah/templates/dashboard.html currently shows Agents, Tokens, Cost, Budget, Reviews, Proposed foci, and Questions. Will add an audit throughput stat to display queued/running audit counts during active audit validation, hidden when idle. This satisfies the requirement to help operators distinguish healthy throughput from audit stalls without routine-operation noise.
 ---
 <!-- COMMENTS:END -->
