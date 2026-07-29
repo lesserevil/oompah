@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:10.311921Z'
-updated_at: '2026-07-29T02:12:30.889758Z'
+updated_at: '2026-07-29T02:12:36.518943Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -52,7 +52,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 1
   retry_after: null
-oompah.agent_run_id: 855077fc-a4c0-4add-a897-a2e0b44fb700
+oompah.agent_run_id: cf17581e-6d62-430b-947d-c4a4f6b08024
 oompah.work_branch: epic-OOMPAH-458
 oompah.task_costs:
   total_input_tokens: 45495030
@@ -613,5 +613,15 @@ author: oompah
 created: 2026-07-29 02:12
 ---
 Agent completed without closing this issue (869s (11607263 tokens)). Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-29 02:12
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-29 02:12
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
