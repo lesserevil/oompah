@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-472
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Collect target-landing evidence for Merged audits
 parent: OOMPAH-458
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:12.977543Z'
-updated_at: '2026-07-29T04:57:52.892073Z'
+updated_at: '2026-07-29T05:06:02.952368Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -55,7 +55,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 118410f4-f013-40af-8688-5a27a3ef8cd7
+oompah.agent_run_id: fffc0540-8383-44bd-81e0-c7babe9e3a5a
 oompah.work_branch: epic-OOMPAH-458
 oompah.task_costs:
   total_input_tokens: 3752737
@@ -996,5 +996,15 @@ Steps to resolve:
   git push origin epic-OOMPAH-458
 
 Task re-opened. Re-dispatch will push a fresh agent to complete the landing.
+---
+author: oompah
+created: 2026-07-29 05:06
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-29 05:06
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
