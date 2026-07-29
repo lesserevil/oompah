@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-485
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Add In Validation and terminal-audit details to the dashboard
 parent: OOMPAH-460
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:24.220262Z'
-updated_at: '2026-07-29T19:02:43.068420Z'
+updated_at: '2026-07-29T19:02:58.900674Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-485
 target_branch: null
 review_url: null
@@ -125,12 +125,12 @@ oompah.task_costs:
     recorded_at: '2026-07-29T18:58:19.083086+00:00'
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-460--task-OOMPAH-485
-  base_branch: epic-OOMPAH-460
-  base_sha: b0ceda2643cbc37c166ac58bed9a9b6f3898b681
-  updated_at: '2026-07-29T18:58:55.710248+00:00'
+  head_sha: 290e834981114b9ad547a766920ec9165e96cb82
+  submitted_at: '2026-07-29T19:02:56.771150+00:00'
+  updated_at: '2026-07-29T19:02:56.771150+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-485__20260729T182724Z
@@ -266,5 +266,10 @@ author: oompah
 created: 2026-07-29 19:02
 ---
 Continuation review: prior run committed 2 changes (dcf6b5339, 290e83498) adding the In Validation board column and full terminal-audit detail UI to the dashboard, plus a template/JS static-contract test file. Verified today: (1) tests/test_dashboard_terminal_audit.py — all 12 tests pass (column rendering, task placement/filters, phase/attempt/revision/models/result rendering, safe escaping, safe API projection consumption, pending-as-status not alert, fail-closed override visibility, target+confirmation+reason validation, PATCH+audit_override request shape, loading/error paths, card+detail integration, responsive @720px + overflow-wrap hooks). (2) Neighboring suites still green: test_dashboard_conditional_columns, test_dashboard_board_reconciliation, test_dashboard_hide_merged, test_dashboard_detail_panel_width — 108 passed. Working tree clean; branch up to date with origin. Submitting.
+---
+author: oompah
+created: 2026-07-29 19:02
+---
+Added the In Validation board column/count (using existing responsive board patterns) and the full terminal-audit detail block in the task detail panel — requested target, queued/running phase, attempt, evidence revision, contributor models, auditor provider/model, latest result, and actionable failure instructions. Added an owner-override control gated by explicit can_override/override_authorized/owner_override_allowed permission that requires target selection, an explicit confirmation checkbox, and a reason before PATCHing the issue API with audit_override/audit_override_target/audit_override_confirmed/audit_override_reason. Pending audits are rendered as role=status (not global alerts); long model names use overflow-wrap:anywhere and unknown fields display 'Unknown' via terminalAuditText/Identity helpers. Added tests/test_dashboard_terminal_audit.py (12 template/JS static-contract tests covering column rendering, task placement, every audit phase, safe escaping, safe API projection consumption, authorized/unauthorized override visibility, required target+confirmation+reason validation, PATCH request shape, loading/error paths, and responsive @720px + overflow-wrap hooks). Focused UI tests and neighboring dashboard suites all pass.
 ---
 <!-- COMMENTS:END -->

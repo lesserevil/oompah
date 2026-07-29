@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-479
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Route webhook, YOLO, and merged-branch reconciliation through Merged audits
 parent: OOMPAH-459
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:27.240594Z'
-updated_at: '2026-07-29T19:02:42.184964Z'
+updated_at: '2026-07-29T19:02:55.596750Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-479
 target_branch: null
 review_url: null
@@ -57,12 +57,12 @@ oompah.task_costs:
     recorded_at: '2026-07-29T01:35:11.352925+00:00'
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-459--task-OOMPAH-479
-  base_branch: epic-OOMPAH-459
-  base_sha: 65c8e4725fe931bf0fa9c3357d153ba003ad03c4
-  updated_at: '2026-07-29T18:28:53.352395+00:00'
+  head_sha: a537d947d9aa7d7a262ddba6f8f53ea047c74ca4
+  submitted_at: '2026-07-29T19:02:53.548528+00:00'
+  updated_at: '2026-07-29T19:02:53.548528+00:00'
 ---
 ## Summary
 
@@ -135,5 +135,10 @@ author: oompah
 created: 2026-07-29 19:02
 ---
 **Verification**: All 494 tests pass. Implemented routing of Merged transitions through TerminalTransitionCoordinator: (1) Created _request_merged_via_coordinator() helper for sync-context async calls, (2) Updated 6 direct tracker.update_issue(MERGED) calls to use coordinator with evidence fingerprints, (3) Updated test suite to mock coordinator instead of direct tracker calls, ensuring idempotent webhook/YOLO/reconciliation handling. Acceptance criteria met: every merge observation validated before task says Merged, duplicate observations remain idempotent.
+---
+author: oompah
+created: 2026-07-29 19:02
+---
+Routed all Merged writes (webhook, YOLO, reconciliation) through TerminalTransitionCoordinator with evidence-based validation and idempotent duplicate handling
 ---
 <!-- COMMENTS:END -->
