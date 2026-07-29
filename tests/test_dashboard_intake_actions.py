@@ -220,6 +220,20 @@ class TestDashboardIntakeActions:
         assert "Queued ' + result.requested_target" in body
         assert "delete optimisticUpdates[optimisticKey]" in body
         assert "moveIssueInBoard(apiIdentifier, result.status, projectId)" in body
+        assert "showBoardNotice(message)" in body
+
+    def test_terminal_validation_notice_uses_a_polite_status_region(self):
+        html = (
+            Path(__file__).resolve().parents[1]
+            / "oompah"
+            / "templates"
+            / "dashboard.html"
+        ).read_text(encoding="utf-8")
+
+        assert 'id="board-notice"' in html
+        assert 'class="board-notice"' in html
+        assert 'role="status"' in html
+        assert 'aria-live="polite"' in html
 
     def test_board_error_region_exists(self):
         html = (

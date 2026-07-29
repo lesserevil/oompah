@@ -1220,6 +1220,20 @@
       flex-shrink: 0;
     }
     .board-error[hidden] { display: none; }
+    .board-notice {
+      margin: 0.6rem 1.5rem 0;
+      padding: 0.65rem 0.8rem;
+      border: 1px solid rgba(210, 153, 34, 0.55);
+      border-radius: 6px;
+      background: rgba(210, 153, 34, 0.08);
+      color: var(--text);
+      font-size: 0.82rem;
+      line-height: 1.35;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      flex-shrink: 0;
+    }
+    .board-notice[hidden] { display: none; }
     .running-agents {
       display: flex;
       gap: 0.4rem;
@@ -2065,6 +2079,7 @@
     </div>
   </div>
   <div class="board-error" id="board-error" hidden role="alert" aria-live="assertive"></div>
+  <div class="board-notice" id="board-notice" hidden role="status" aria-live="polite"></div>
   <div class="main-area">
     <div class="board" id="board">
       <div id="board-spinner" style="display:flex;align-items:center;justify-content:center;width:100%;padding:3rem;color:var(--text-muted);font-size:0.9rem;gap:0.75rem;">
@@ -2277,6 +2292,20 @@ function showBoardError(message) {
 
 function clearBoardError() {
   const el = document.getElementById('board-error');
+  if (!el) return;
+  el.textContent = '';
+  el.hidden = true;
+}
+
+function showBoardNotice(message) {
+  const el = document.getElementById('board-notice');
+  if (!el) return;
+  el.textContent = message;
+  el.hidden = false;
+}
+
+function clearBoardNotice() {
+  const el = document.getElementById('board-notice');
   if (!el) return;
   el.textContent = '';
   el.hidden = true;
@@ -3041,6 +3070,7 @@ async function updateIssue(identifier, fields) {
     }
   }
   clearBoardError();
+  clearBoardNotice();
   const optimisticKey = optimisticIssueKey(apiIdentifier, projectId);
   const hasBoardOptimistic = outgoing.status !== undefined || outgoing.priority !== undefined;
   if (hasBoardOptimistic) {
@@ -3103,12 +3133,7 @@ async function updateIssue(identifier, fields) {
         renderBoard(boardData);
       }
       document.getElementById('status-text').textContent = message;
-      const boardError = document.getElementById('board-error');
-      if (boardError) {
-        boardError.textContent = message;
-        boardError.hidden = false;
-        boardError.setAttribute('role', 'status');
-      }
+      showBoardNotice(message);
     }
   }
   return true;
