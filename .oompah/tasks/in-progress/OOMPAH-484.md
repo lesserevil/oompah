@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:23.210919Z'
-updated_at: '2026-07-29T19:15:18.800271Z'
+updated_at: '2026-07-29T19:15:26.983559Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-484
 target_branch: null
 review_url: null
@@ -184,5 +184,24 @@ Implementation: Added safe terminal-audit state exposure across all API surfaces
 - Verifies ACP unknown model has no provider/model in summary
 - Verifies no credentials, secrets, prompts, diffs in output
 - Verifies all dashboard CSS classes, JS functions, accessibility attributes exist
+---
+author: oompah
+created: 2026-07-29 19:15
+---
+Verification: All tests pass.
+
+- tests/test_terminal_status_interfaces.py: 38/38 passed (new tests)
+- tests/test_terminal_audit.py: all passed (no regressions)
+- tests/test_terminal_audit_metadata.py: all passed
+- tests/test_terminal_audit_enforcement.py: all passed
+- tests/test_dashboard_duplicate_screening.py: 4/4 passed (no regressions)
+- tests/test_server_issue_snapshot.py: 25/25 passed (no regressions)
+- tests/test_terminal_override.py: all passed
+- tests/test_terminal_transition_coordinator.py: all passed
+- tests/test_server_issue_detail.py: all passed
+- tests/test_dashboard_intake_actions.py: all passed
+- tests/test_activity_panel_collapsible.py + verbose_toggle.py: all passed
+
+Total: 82+ tests across adjacent suites, all green.
 ---
 <!-- COMMENTS:END -->
