@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-540
 type: task
-status: In Progress
+status: In Review
 priority: null
 title: Let read-only duplicate preflight bypass dependency and epic serialization
   gates
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T00:46:32.053029Z'
-updated_at: '2026-07-29T00:53:21.664512Z'
+updated_at: '2026-07-29T00:53:46.329226Z'
 work_branch: null
 target_branch: null
 review_url: null
