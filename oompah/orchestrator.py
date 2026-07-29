@@ -18321,6 +18321,43 @@ class Orchestrator:
                 if focus.name.lower() == AUDITOR_FOCUS_NAME
                 else None
             )
+
+            # Wire the coordinator's apply_audit_result as the
+            # audit_result_handler so the auditor's submit_audit_result
+            # tool call forwards its verdict to the coordinator rather
+            # than validating but discarding the result.  The handler is a
+            # synchronous closure that schedules the async coordinator
+            # method on the running dispatch loop via
+            # asyncio.run_coroutine_threadsafe — safe because _execute_tool
+            # is always run in a thread-pool thread (asyncio.to_thread).
+            _api_audit_handler = None
+            if focus.name.lower() == AUDITOR_FOCUS_NAME and audit_target is not None:
+                _api_coord = self.terminal_transition_coordinator
+                _api_issue = issue
+                _api_project_id = issue.project_id or ""
+                _api_dispatch_loop = asyncio.get_running_loop()
+
+                def _api_audit_handler(
+                    result,
+                    *,
+                    _coord=_api_coord,
+                    _issue=_api_issue,
+                    _pid=_api_project_id,
+                    _loop=_api_dispatch_loop,
+                ):
+                    future = asyncio.run_coroutine_threadsafe(
+                        _coord.apply_audit_result(_issue, result, _pid),
+                        _loop,
+                    )
+                    outcome = future.result(timeout=60)
+                    return {
+                        "accepted": outcome.success,
+                        "audit_id": outcome.audit_id,
+                        "applied_status": outcome.applied_status,
+                        "idempotent": outcome.idempotent,
+                        "reason": outcome.reason,
+                    }
+
             session = ApiAgentSession(
                 base_url=provider.base_url,
                 api_key=provider.api_key,
@@ -18359,6 +18396,7 @@ class Orchestrator:
                 enabled_tools=base_tools,
                 read_only=read_only_preflight,
                 audit_target=audit_target,
+                audit_result_handler=_api_audit_handler,
                 model_max_context=provider.get_model_context(model),
                 log_path=agent_log_path,
                 task_tracker=task_tracker,
@@ -18774,6 +18812,38 @@ class Orchestrator:
                 running_entry
                 and getattr(running_entry, "duplicate_preflight", False)
             )
+
+            # Wire the same coordinator handler for ACP sessions that use
+            # the Claude Agent SDK.  The handler shape and threading model
+            # are identical to the API worker above.
+            _acp_audit_handler = None
+            if focus.name.lower() == AUDITOR_FOCUS_NAME and audit_target is not None:
+                _acp_coord = self.terminal_transition_coordinator
+                _acp_issue = issue
+                _acp_project_id = issue.project_id or ""
+                _acp_dispatch_loop = asyncio.get_running_loop()
+
+                def _acp_audit_handler(
+                    result,
+                    *,
+                    _coord=_acp_coord,
+                    _issue=_acp_issue,
+                    _pid=_acp_project_id,
+                    _loop=_acp_dispatch_loop,
+                ):
+                    future = asyncio.run_coroutine_threadsafe(
+                        _coord.apply_audit_result(_issue, result, _pid),
+                        _loop,
+                    )
+                    outcome = future.result(timeout=60)
+                    return {
+                        "accepted": outcome.success,
+                        "audit_id": outcome.audit_id,
+                        "applied_status": outcome.applied_status,
+                        "idempotent": outcome.idempotent,
+                        "reason": outcome.reason,
+                    }
+
             tool_catalog = build_tool_catalog(
                 workspace_path,
                 project_store=self.project_store,
@@ -18784,6 +18854,7 @@ class Orchestrator:
                 focus=focus,
                 auditor=focus.name.lower() == AUDITOR_FOCUS_NAME,
                 audit_target=audit_target,
+                audit_result_handler=_acp_audit_handler,
                 action_policy=(
                     auditor_policy(task_identifier=issue.identifier)
                     if focus.name.lower() == AUDITOR_FOCUS_NAME

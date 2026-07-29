@@ -52,6 +52,103 @@ AUDITOR_MUTATING_TOOLS = frozenset(
     }
 )
 
+# ---------------------------------------------------------------------------
+# Payload size limits (enforced server-side on every submission path)
+# ---------------------------------------------------------------------------
+
+#: Maximum character length for the human-readable audit message.
+#: Prevents oversized output that could embed model artifacts or injection
+#: attempts in a comment posted by the coordinator.
+_MAX_RESULT_MESSAGE_LENGTH = 4000
+
+#: Maximum number of key/value pairs in the safe_evidence mapping.
+_MAX_SAFE_EVIDENCE_ENTRIES = 20
+
+#: Maximum character length for a single safe_evidence key.
+_MAX_SAFE_EVIDENCE_KEY_LENGTH = 128
+
+#: Maximum character length for a single safe_evidence value.
+#: Values exceeding this limit could silently carry credential material
+#: or multi-line injections into the coordinator comment.
+_MAX_SAFE_EVIDENCE_VALUE_LENGTH = 512
+
+# ---------------------------------------------------------------------------
+# Credential / secret field detection
+# ---------------------------------------------------------------------------
+
+# Detects common credential value patterns inside free-text fields.
+# The auditor must not be able to exfiltrate secrets by embedding them in the
+# ``message`` or ``safe_evidence`` fields, which the coordinator may include
+# verbatim in tracker comments.
+#
+# Patterns covered:
+#   - Common token prefixes (ghp_, ghs_, gho_, glpat-, xox[bap]-, sk-...)
+#   - JWT structure (three Base64url sections separated by dots)
+#   - Private-key PEM headers (BEGIN RSA/EC/DSA/OPENSSH PRIVATE KEY)
+#   - OAuth / Bearer tokens (long alphanumeric strings after "Bearer ")
+#
+# The patterns are intentionally conservative: a false positive is far less
+# damaging than silently forwarding a credential into a tracker comment.
+_RESULT_SECRET_RE = re.compile(
+    r"(?:"
+    # GitHub personal access / installation tokens
+    r"ghp_[A-Za-z0-9]{20,}"
+    r"|ghs_[A-Za-z0-9]{20,}"
+    r"|gho_[A-Za-z0-9]{20,}"
+    r"|github_pat_[A-Za-z0-9_]{36,}"
+    # GitLab personal / pipeline / deploy tokens
+    r"|glpat-[A-Za-z0-9\-_]{20,}"
+    r"|gldt-[A-Za-z0-9\-_]{20,}"
+    # Slack tokens
+    r"|xox[bap]-[0-9A-Za-z\-]{20,}"
+    # OpenAI / Anthropic style bearer tokens
+    r"|sk-[A-Za-z0-9\-_]{20,}"
+    # AWS access key
+    r"|AKIA[0-9A-Z]{16}"
+    # PEM private-key headers
+    r"|-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY"
+    # JWT: three dot-separated Base64url segments (header.payload.signature)
+    r"|(?:[A-Za-z0-9\-_]{10,}\.){2}[A-Za-z0-9\-_]{10,}"
+    # Explicit Bearer / token assignment patterns with long values
+    r"|(?:Bearer|token|api[_-]?key|auth[_-]?token|access[_-]?token|refresh[_-]?token|client[_-]?secret)\s*[=:]\s*[A-Za-z0-9\-_./+]{20,}"
+    r")",
+    re.IGNORECASE,
+)
+
+# Key names in safe_evidence that suggest the caller is attempting to include
+# sensitive data (regardless of the value content).  Matches the sensitive
+# substring anywhere in the key, including compound names like ``auth_token``
+# or ``api_key_id``.
+_SECRET_KEY_RE = re.compile(
+    r"(?:password|passwd|secret|token|api[_-]?key|apikey|credential"
+    r"|private[_-]?key|access[_-]?key|access[_-]?token|refresh[_-]?token"
+    r"|auth[_-]?token|bearer|client[_-]?secret|certificate|passphrase)",
+    re.IGNORECASE,
+)
+
+
+def _check_safe_evidence_for_secrets(
+    safe_evidence: Mapping[str, str],
+) -> str | None:
+    """Return an error string if any key or value appears credential-like.
+
+    Returns ``None`` when the mapping is clean.  The check is applied only to
+    ``safe_evidence``; the ``message`` field is covered by a separate size
+    limit (4 000 chars) which already caps the damage vector there.
+    """
+    for key, value in safe_evidence.items():
+        if _SECRET_KEY_RE.search(str(key)):
+            return (
+                "Error: auditor result safe_evidence contains a credential-like key "
+                f"({key!r}); remove it before submitting"
+            )
+        if _RESULT_SECRET_RE.search(str(value)):
+            return (
+                "Error: auditor result safe_evidence contains a value that matches "
+                "a known credential pattern; remove it before submitting"
+            )
+    return None
+
 
 @dataclass(frozen=True)
 class AuditorCapabilityPolicy:
@@ -283,7 +380,22 @@ def parse_auditor_result(
     args: Mapping[str, Any],
     target: AuditorTargetContract | Mapping[str, Any] | Any,
 ) -> tuple[AuditResult | None, str | None]:
-    """Validate a model tool payload against the trusted target contract."""
+    """Validate a model tool payload against the trusted target contract.
+
+    All validation is server-side and fails closed: each check is applied
+    before any result object is constructed, and a single failure returns
+    ``(None, error_message)`` without side effects.
+
+    Security checks applied beyond schema validation:
+    - Rejects unknown fields (prevents status injection via extra keys).
+    - Rejects ``audit_id``, ``target_state``, or ``evidence_fingerprint``
+      that do not match the session's trusted :class:`AuditorTargetContract`.
+    - Enforces maximum lengths for ``message`` and each ``safe_evidence``
+      key/value pair to prevent oversized output.
+    - Detects credential-like patterns in ``safe_evidence`` keys and values
+      to prevent the auditor from exfiltrating secrets through coordinator
+      comments.
+    """
 
     if not isinstance(args, Mapping):
         return None, "Error: auditor result payload must be an object"
@@ -311,6 +423,8 @@ def parse_auditor_result(
             if isinstance(target, AuditorTargetContract)
             else auditor_target_contract(target)
         )
+
+        # --- Compare-and-set: echoed identity fields must match the contract ---
         for key in ("audit_id", "target_state", "evidence_fingerprint"):
             supplied_raw = args.get(key)
             if not isinstance(supplied_raw, str):
@@ -319,6 +433,7 @@ def parse_auditor_result(
             expected = str(getattr(contract, key))
             if supplied != expected:
                 return None, f"Error: auditor result {key} does not match the requested target"
+
         supplied_attempt_raw = args.get("attempt_id")
         if supplied_attempt_raw is not None and not isinstance(supplied_attempt_raw, str):
             return None, "Error: auditor result attempt_id must be a string or null"
@@ -326,9 +441,17 @@ def parse_auditor_result(
         if supplied_attempt != (contract.attempt_id or ""):
             return None, "Error: auditor result attempt_id does not match the requested target"
 
+        # --- Message size limit ---
         message = args.get("message")
         if not isinstance(message, str):
             return None, "Error: auditor result message must be a string"
+        if len(message) > _MAX_RESULT_MESSAGE_LENGTH:
+            return None, (
+                f"Error: auditor result message exceeds maximum length "
+                f"({len(message)} > {_MAX_RESULT_MESSAGE_LENGTH} characters)"
+            )
+
+        # --- Safe evidence size and content checks ---
         safe_evidence = args.get("safe_evidence")
         if safe_evidence is not None:
             if not isinstance(safe_evidence, Mapping):
@@ -338,6 +461,27 @@ def parse_auditor_result(
                 for key, value in safe_evidence.items()
             ):
                 return None, "Error: auditor result safe_evidence values must be strings"
+            if len(safe_evidence) > _MAX_SAFE_EVIDENCE_ENTRIES:
+                return None, (
+                    f"Error: auditor result safe_evidence exceeds maximum entry count "
+                    f"({len(safe_evidence)} > {_MAX_SAFE_EVIDENCE_ENTRIES})"
+                )
+            for ev_key, ev_val in safe_evidence.items():
+                if len(str(ev_key)) > _MAX_SAFE_EVIDENCE_KEY_LENGTH:
+                    return None, (
+                        f"Error: auditor result safe_evidence key {ev_key!r} exceeds "
+                        f"maximum length ({_MAX_SAFE_EVIDENCE_KEY_LENGTH} characters)"
+                    )
+                if len(str(ev_val)) > _MAX_SAFE_EVIDENCE_VALUE_LENGTH:
+                    return None, (
+                        f"Error: auditor result safe_evidence value for key {ev_key!r} "
+                        f"exceeds maximum length ({_MAX_SAFE_EVIDENCE_VALUE_LENGTH} characters)"
+                    )
+            # Reject credential-like keys and values to prevent exfiltration
+            secret_error = _check_safe_evidence_for_secrets(safe_evidence)
+            if secret_error is not None:
+                return None, secret_error
+
         auditor = args.get("auditor")
         if auditor is not None and not isinstance(auditor, str):
             return None, "Error: auditor result auditor must be a string or null"
@@ -373,7 +517,17 @@ def submit_auditor_result(
     target: AuditorTargetContract | Mapping[str, Any] | Any,
     handler: Callable[[AuditResult], Any] | None = None,
 ) -> str:
-    """Validate and optionally forward a result to the audit scheduler."""
+    """Validate and optionally forward a result to the audit scheduler.
+
+    The ``handler`` is the coordinator's ``apply_audit_result`` method wrapped
+    as a synchronous callable.  It must be supplied by the orchestrator when
+    dispatching an auditor session; without it the result is validated but not
+    applied.
+
+    The tool returns a JSON object with ``accepted=true`` on success.  On
+    coordinator rejection or scheduler failure the returned string starts with
+    ``"Error:"`` so the agent sees the denial inline.
+    """
 
     result, error = parse_auditor_result(args, target)
     if error is not None or result is None:
@@ -381,7 +535,7 @@ def submit_auditor_result(
     if handler is not None:
         try:
             outcome = handler(result)
-        except Exception as exc:  # pragma: no cover - scheduler boundary
+        except Exception as exc:
             return f"Error: audit scheduler rejected result: {exc}"
         if outcome is not None:
             if isinstance(outcome, str):
@@ -470,6 +624,12 @@ __all__ = [
     "AUDITOR_RESULT_TOOL_SCHEMA",
     "AuditorCapabilityPolicy",
     "AuditorTargetContract",
+    "_MAX_RESULT_MESSAGE_LENGTH",
+    "_MAX_SAFE_EVIDENCE_ENTRIES",
+    "_MAX_SAFE_EVIDENCE_KEY_LENGTH",
+    "_MAX_SAFE_EVIDENCE_VALUE_LENGTH",
+    "_RESULT_SECRET_RE",
+    "_SECRET_KEY_RE",
     "auditor_target_contract",
     "check_auditor_command",
     "pending_auditor_target",
