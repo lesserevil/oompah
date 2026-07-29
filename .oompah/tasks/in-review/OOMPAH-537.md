@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-537
 type: task
-status: In Progress
+status: In Review
 priority: null
 title: Wake event-driven scheduler when a project resumes
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T00:05:46.463901Z'
-updated_at: '2026-07-29T00:09:36.173647Z'
+updated_at: '2026-07-29T00:10:16.633834Z'
 work_branch: null
 target_branch: null
 review_url: null
