@@ -7,10 +7,12 @@ title: Make spawned-agent task handoffs authenticate without exposing service cr
 parent: null
 children: []
 blocked_by: []
-labels: []
+labels:
+- needs:backend
+- needs:test
 assignee: null
 created_at: '2026-07-29T00:37:23.786577Z'
-updated_at: '2026-07-29T00:37:23.786577Z'
+updated_at: '2026-07-29T00:37:46.580348Z'
 work_branch: null
 target_branch: null
 review_url: null
