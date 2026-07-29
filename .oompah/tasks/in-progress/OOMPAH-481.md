@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:29.211296Z'
-updated_at: '2026-07-29T18:34:55.737907Z'
+updated_at: '2026-07-29T18:57:58.213453Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-481
 target_branch: null
 review_url: null
@@ -182,5 +182,33 @@ Task: Route all three auto-archive paths through request_transition() instead of
 - Add tests for repeated maintenance ticks, failed writes, unsafe restoration
 
 Next: Implement archive-through-audit wrapper.
+---
+author: oompah
+created: 2026-07-29 18:57
+---
+## Implementation Complete
+
+Successfully routed all automatic archive operations through Archived audits:
+
+**Changes made:**
+1. Created oompah/archived_audit_requests.py module with request_archived_audit() helper function
+2. Updated orchestrator._do_auto_archive() to queue audits instead of direct archive
+3. Updated stalled_task_watchdog._run() to queue audits for error-task cleanup  
+4. Updated release_pick_migration._archive_child_task() to queue audits for duplicate retirement
+
+**Key features:**
+- All audit requests include disposition reason (e.g. 'Aged Done/Merged auto-archive')
+- Pre-archive state captured in audit record
+- Prevents duplicate audits by checking for pending Archived audits with same fingerprint
+- Issues transition to 'In Validation' state while audit is pending
+- All operations properly handle failures and log issues
+
+**Tests updated and passing:**
+- test_archived_audit_requests.py (5 new tests)
+- test_orchestrator_handlers.py auto_archive tests
+- test_error_watcher.py (117 tests)
+- test_release_pick_migration.py (updated 6 archive-related tests)
+
+Total: 133 tests passing, no failures. Ready for review and integration.
 ---
 <!-- COMMENTS:END -->
