@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-542
 type: bug
-status: Backlog
+status: In Progress
 priority: 1
 title: Wake dispatch when watchdog clears stale completion suppression
 parent: null
@@ -13,7 +13,7 @@ labels:
 - needs:test
 assignee: null
 created_at: '2026-07-29T14:22:15.797334Z'
-updated_at: '2026-07-29T14:22:15.797334Z'
+updated_at: '2026-07-29T14:22:26.561743Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -32,3 +32,11 @@ Production regression on 2026-07-29: OOMPAH-470 completed without closing 21 tim
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-29 14:22
+---
+Claimed by the current interactive session for immediate implementation and production verification. The human-only label prevents duplicate scheduler dispatch.
+---
+<!-- COMMENTS:END -->
