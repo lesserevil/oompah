@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-569
 type: task
-status: Open
+status: In Review
 priority: null
 title: Sanitize credentials from branch quality-gate subprocesses
 parent: null
@@ -11,12 +11,20 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T23:26:15.028867Z'
-updated_at: '2026-07-29T23:29:34.468937Z'
+updated_at: '2026-07-29T23:34:23.846302Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.integration:
+  version: 1
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-569
+  head_sha: 52619c962f88860534bdc858e79728e6f12db606
+  submitted_at: '2026-07-29T23:34:16.246990+00:00'
+  updated_at: '2026-07-29T23:34:16.246990+00:00'
 ---
 ## Summary
 
@@ -28,3 +36,11 @@ Implementation scope: update BranchQualityGate so configured review and integrat
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-29 23:34
+---
+Sanitized branch quality-gate subprocess environments and versioned cached evidence so pre-fix failures rerun. Complete gate: 13,602 passed, 7 skipped.
+---
+<!-- COMMENTS:END -->
