@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-474
 type: feature
-status: In Progress
+status: Done
 priority: 1
 title: Add the auditor-only structured result submission API and tool
 parent: OOMPAH-458
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:14.992374Z'
-updated_at: '2026-07-29T03:11:25.296878Z'
+updated_at: '2026-07-29T03:13:17.360680Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -291,5 +291,17 @@ author: oompah
 created: 2026-07-29 03:11
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-07-29 03:13
+---
+Verification: All tests pass. 68 tests in test_auditor_result_api.py and 177 tests across auditor + coordinator suites all pass. Implementation is committed and pushed on epic-OOMPAH-458.
+
+Summary of delivered work:
+- oompah/auditor.py: Enhanced parse_auditor_result with message length cap (4000), safe_evidence entry count cap (20), per-key/value length caps (128/512), credential/secret regex pattern rejection.
+- oompah/orchestrator.py: Wired audit_result_handler in both _run_api_worker and _run_acp_worker paths so verdicts reach TerminalTransitionCoordinator.apply_audit_result.
+- tests/test_auditor_result_api.py: 68 tests covering owner session, wrong session/task/project, expired/stale audit, malformed enum, oversized output, status injection, secret-like fields, duplicate/conflicting submissions, coordinator failure, and tool policy enforcement.
+
+Security properties verified: PASS/FAIL/NEEDS_HUMAN-only verdicts enforced, no arbitrary status injection, no credential leakage via safe_evidence, session ownership enforced via AuditorTargetContract fields, conflicting submissions rejected.
 ---
 <!-- COMMENTS:END -->
