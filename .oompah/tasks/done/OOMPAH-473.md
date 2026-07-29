@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:13.914904Z'
-updated_at: '2026-07-29T07:02:42.373400Z'
+updated_at: '2026-07-29T07:02:59.074688Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -47,8 +47,8 @@ oompah.duplicate_screening:
 oompah.agent_run_id: 23b60eb7-1bf2-4723-a836-b0ff39d80695
 oompah.work_branch: epic-OOMPAH-458
 oompah.task_costs:
-  total_input_tokens: 14343148
-  total_output_tokens: 68292
+  total_input_tokens: 14343173
+  total_output_tokens: 68789
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -58,6 +58,10 @@ oompah.task_costs:
     sonnet:
       input_tokens: 689823
       output_tokens: 4092
+      cost_usd: 0.0
+    opus:
+      input_tokens: 25
+      output_tokens: 497
       cost_usd: 0.0
   runs:
   - profile: default
@@ -84,6 +88,12 @@ oompah.task_costs:
     output_tokens: 4092
     cost_usd: 0.0
     recorded_at: '2026-07-29T06:59:08.600045+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 25
+    output_tokens: 497
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T07:02:57.722461+00:00'
 ---
 ## Summary
 
@@ -341,5 +351,15 @@ author: oompah
 created: 2026-07-29 07:02
 ---
 ArchivedEvidenceCollector shipped: read-only safe-retirement validator with 20 SafetyFailureMode diagnostics, structured DispositionType (retention/duplicate/obsolete/blocked/superseded), source-link enforcement for direct dispositions, restoration guidance, and 53 unit tests (208 tests total across adjacent audit suites).
+---
+author: oompah
+created: 2026-07-29 07:02
+---
+Run #3 [attempt=3, profile=deep, role=deep -> Claude/opus]
+- Turns: 0, Tool calls: 11
+- Tokens: 25 in / 497 out [522 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 2m 11s
+- Log: OOMPAH-473__20260729T070158Z.jsonl
 ---
 <!-- COMMENTS:END -->
