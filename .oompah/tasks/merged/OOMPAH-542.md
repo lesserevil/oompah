@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-542
 type: bug
-status: In Review
+status: Merged
 priority: 1
 title: Wake dispatch when watchdog clears stale completion suppression
 parent: null
@@ -13,7 +13,7 @@ labels:
 - needs:test
 assignee: null
 created_at: '2026-07-29T14:22:15.797334Z'
-updated_at: '2026-07-29T14:35:25.512919Z'
+updated_at: '2026-07-29T14:40:49.027099Z'
 work_branch: OOMPAH-542
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/576
@@ -52,5 +52,10 @@ author: oompah
 created: 2026-07-29 14:35
 ---
 Follow-up per owner: aligned the stalled-task Needs Human audit default and this server configuration to 300 seconds, matching the internal scheduler watchdog. Commit 75b2f4ba7 pushed to PR #576. Re-ran make test: 13,116 passed, 7 skipped. Operationally verified the watchdog reopened false Needs Human OOMPAH-470; after confirming its branch clean/pushed and work complete, closed it Done and OOMPAH-475 dispatched.
+---
+author: oompah
+created: 2026-07-29 14:40
+---
+YOLO: merged PR #576.
 ---
 <!-- COMMENTS:END -->
