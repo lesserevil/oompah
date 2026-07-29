@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:10.311921Z'
-updated_at: '2026-07-29T04:56:07.611986Z'
+updated_at: '2026-07-29T04:56:09.728325Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -1535,5 +1535,12 @@ VERIFICATION: All implementation work is verified and ready for closure.
 ✅ Operators can edit auditor candidates through existing RoleStore API
 
 Branch is clean and all work is pushed to origin/epic-OOMPAH-458.
+---
+author: oompah
+created: 2026-07-29 04:56
+---
+Seed the auditor role and select an independent provider-model candidate - COMPLETE
+
+The reserved, editable auditor role has been created and seeded from the deduplicated union of deep/standard/default role candidates plus provider defaults. AuditorCandidateSelector implements the full filtering pipeline with independent provider preference, same-provider fallback for explicit different models, and comprehensive exclusion of unverifiable SDK-managed models on contributing providers. Migration seeding is integrated into bootstrap. All 39 tests passing. Operators can edit auditor candidates through the existing RoleStore API.
 ---
 <!-- COMMENTS:END -->
