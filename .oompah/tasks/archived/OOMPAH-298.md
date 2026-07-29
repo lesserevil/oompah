@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-298
 type: task
-status: Merged
+status: Archived
 priority: 1
 title: Inject task-relevant repository maps into agent focus startup prompts
 parent: OOMPAH-293
@@ -15,7 +15,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-21T15:14:08.542161Z'
-updated_at: '2026-07-22T00:38:34.642367Z'
+updated_at: '2026-07-29T01:18:30.864589Z'
 work_branch: null
 target_branch: null
 review_url: null
