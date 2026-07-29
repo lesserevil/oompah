@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:14.992374Z'
-updated_at: '2026-07-29T02:21:12.467873Z'
+updated_at: '2026-07-29T02:21:26.108259Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -56,7 +56,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: c7ad031f-e753-4c30-918b-224f0f5545cd
+oompah.agent_run_id: 63217c42-7bd5-43b3-9408-c4b72ac96ef1
 oompah.work_branch: epic-OOMPAH-458
 oompah.task_costs:
   total_input_tokens: 108185
@@ -152,5 +152,15 @@ author: oompah
 created: 2026-07-29 02:21
 ---
 Agent completed without closing this issue (38s (109033 tokens)). Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-29 02:21
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-29 02:21
+---
+Focus: Security Auditor
 ---
 <!-- COMMENTS:END -->

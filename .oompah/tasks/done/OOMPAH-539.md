@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T00:43:25.964028Z'
-updated_at: '2026-07-29T02:21:20.332280Z'
+updated_at: '2026-07-29T02:21:22.348013Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -237,5 +237,10 @@ Ran focused tests for duplicate-screening related behavior and neighboring suite
 ✅ All snapshot serialization and filtering intact
 
 **Ready for merge.** Changes committed and pushed to origin/OOMPAH-539.
+---
+author: oompah
+created: 2026-07-29 02:21
+---
+Fixed duplicate-screening board state synchronization race condition. Refactored _do_broadcast_issues to refresh issues snapshot BEFORE broadcasting (not after), preventing stale payloads from overwriting newer screening state. Added _wait_for_issues_snapshot_refresh return value to detect timeout vs completion. All 46 focused tests pass. Deployed: server.py snapshot ordering, synchronization tests.
 ---
 <!-- COMMENTS:END -->
