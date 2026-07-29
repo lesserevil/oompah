@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-473
 type: feature
-status: In Progress
+status: Done
 priority: 1
 title: Collect safe-retirement evidence for Archived audits
 parent: OOMPAH-458
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:13.914904Z'
-updated_at: '2026-07-29T07:00:48.364633Z'
+updated_at: '2026-07-29T07:02:40.112556Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -312,5 +312,29 @@ author: oompah
 created: 2026-07-29 07:00
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-07-29 07:02
+---
+VERIFICATION (attempt #2): Work already fully committed and pushed to origin/epic-OOMPAH-458. Re-ran focused tests to confirm.
+
+Commits:
+- 0a37b642c: Implement ArchivedEvidenceCollector for safe task retirement audits
+- ba3cfe66b: Harden archived retirement evidence (source-backed dispositions, fail-closed on unavailable evidence)
+
+Files:
+- oompah/archived_evidence_collector.py (947 lines)
+- tests/test_archived_evidence_collector.py (986 lines, 53 tests)
+
+Test results:
+- test_archived_evidence_collector.py: 53 passed
+- Adjacent audit suites (done/merged/terminal audit): 208 total passed (no regressions)
+
+Acceptance criteria met:
+✓ Read-only ArchivedEvidenceCollector records pre-archive status and verifies Done/Merged audit
+✓ Structured retention/disposition reason required (retention, duplicate, obsolete, blocked, superseded)
+✓ Rejects active worker/claim/retry/review, active child/dependency, changed requirements/SHA
+✓ Direct dispositions (duplicate/obsolete) require source link, not synthetic audit
+✓ Returns exact SafetyFailureMode plus RestorationGuidance with recommended state
 ---
 <!-- COMMENTS:END -->
