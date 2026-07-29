@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-472
 type: feature
-status: In Progress
+status: Open
 priority: 1
 title: Collect target-landing evidence for Merged audits
 parent: OOMPAH-458
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:12.977543Z'
-updated_at: '2026-07-29T03:40:03.497944Z'
+updated_at: '2026-07-29T03:40:29.164618Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -58,8 +58,8 @@ oompah.duplicate_screening:
 oompah.agent_run_id: 77cf9e56-869e-4509-9d45-94227f9775f8
 oompah.work_branch: epic-OOMPAH-458
 oompah.task_costs:
-  total_input_tokens: 2643508
-  total_output_tokens: 64828
+  total_input_tokens: 2701334
+  total_output_tokens: 65686
   total_cost_usd: 0.0
   by_model:
     sonnet:
@@ -67,8 +67,8 @@ oompah.task_costs:
       output_tokens: 58186
       cost_usd: 0.0
     opus:
-      input_tokens: 1365333
-      output_tokens: 6642
+      input_tokens: 1423159
+      output_tokens: 7500
       cost_usd: 0.0
   runs:
   - profile: standard
@@ -131,6 +131,12 @@ oompah.task_costs:
     output_tokens: 5094
     cost_usd: 0.0
     recorded_at: '2026-07-29T03:39:44.579530+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 57826
+    output_tokens: 858
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T03:40:26.115072+00:00'
 ---
 ## Summary
 
@@ -624,5 +630,20 @@ author: oompah
 created: 2026-07-29 03:40
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-29 03:40
+---
+Agent completed successfully in 24s (58684 tokens)
+---
+author: oompah
+created: 2026-07-29 03:40
+---
+Run #2 [attempt=2, profile=deep, role=deep -> Codex/gpt-5.6-sol]
+- Turns: 1, Tool calls: 1
+- Tokens: 57.8K in / 858 out [58.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 24s
+- Log: OOMPAH-472__20260729T034003Z.jsonl
 ---
 <!-- COMMENTS:END -->
