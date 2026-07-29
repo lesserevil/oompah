@@ -286,6 +286,77 @@ def test_stale_queue_reuses_active_rebase_and_obeys_cooldown(tmp_path):
     orchestrator._set_epic_rebase_state.assert_called_once()
 
 
+def test_stale_queue_repair_survives_low_monotonic_clock(tmp_path):
+    """Regression: cooldown default must not gate the first repair.
+
+    On a freshly booted VM (e.g. a GitHub Actions runner), ``time.monotonic()``
+    can return a value smaller than the 600s cooldown window. The default for
+    the per-epic ``_epic_rebase_filed_at`` timestamp must therefore be
+    ``float("-inf")`` (matching the other cooldown site in the orchestrator),
+    otherwise ``now - 0 < 600`` erroneously blocks the very first repair.
+    """
+    project = _make_project_record(epic_strategy="shared")
+    project.repo_path = str(tmp_path)
+    orchestrator = _make_orch(tmp_path, projects=[project])
+    epic = _make_issue(
+        identifier="EPIC-2",
+        issue_type="epic",
+        project_id=project.id,
+    )
+    upstream = _make_issue(
+        identifier="TASK-1",
+        parent_id="EPIC-1",
+        project_id=project.id,
+        state="Merged",
+    )
+    queued = IntegrationQueueItem(
+        project_id=project.id,
+        epic_id=epic.identifier,
+        task_id="TASK-2",
+        task_branch="epic-EPIC-2--task-TASK-2",
+        head_sha="a" * 40,
+        base_sha="b" * 40,
+        priority=1,
+        submitted_at="2026-07-29T00:00:00+00:00",
+        state="ready",
+        attempts=0,
+        lease_owner=None,
+        lease_expires_at=None,
+        updated_at="2026-07-29T00:00:00+00:00",
+    )
+    tracker = MagicMock()
+    orchestrator._tracker_for_project = MagicMock(return_value=tracker)
+    orchestrator._resolve_epic_target_branch = MagicMock(return_value="main")
+    orchestrator._find_active_epic_rebase_sibling = MagicMock(
+        return_value=None
+    )
+    orchestrator._file_rebase_task = MagicMock()
+    orchestrator._set_epic_rebase_state = MagicMock()
+
+    # Simulate a fresh VM whose monotonic clock is well under the 600s cooldown.
+    with patch(
+        "oompah.orchestrator.subprocess.run",
+        return_value=subprocess.CompletedProcess([], 0, stdout="", stderr=""),
+    ), patch(
+        "oompah.orchestrator.time.monotonic",
+        return_value=42.0,
+    ):
+        repaired = (
+            orchestrator._detect_and_repair_integration_queue_staleness_block(
+                project_id=project.id,
+                epic_id=epic.identifier,
+                issues=[epic, upstream],
+                queue_items=[queued],
+                dependency_map={"TASK-2": ("TASK-1",)},
+                satisfied=set(),
+            )
+        )
+
+    assert repaired is True
+    orchestrator._file_rebase_task.assert_called_once()
+    orchestrator._set_epic_rebase_state.assert_called_once()
+
+
 def test_done_dependency_not_on_target_does_not_schedule_useless_rebase(
     tmp_path,
 ):
