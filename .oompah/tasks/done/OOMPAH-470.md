@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-470
 type: feature
-status: In Progress
+status: Done
 priority: 3
 title: Seed the auditor role and select an independent provider-model candidate
 parent: OOMPAH-458
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:10.311921Z'
-updated_at: '2026-07-29T13:29:51.180987Z'
+updated_at: '2026-07-29T13:31:20.392336Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
