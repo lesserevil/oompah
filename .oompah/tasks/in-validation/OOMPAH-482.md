@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-482
 type: feature
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Dispatch one repair-planner run for an epic that fails audit
 parent: OOMPAH-459
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:30.191340Z'
-updated_at: '2026-07-29T23:35:05.336605Z'
+updated_at: '2026-07-29T23:55:43.224463Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-482
 target_branch: null
 review_url: null
@@ -78,12 +78,15 @@ oompah.task_costs:
     recorded_at: '2026-07-29T23:09:01.729870+00:00'
 oompah.integration:
   version: 1
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-459--task-OOMPAH-482
-  head_sha: d84ec54ce0173e8a41a93c180aa2b84dab299c88
+  base_branch: epic-OOMPAH-459
+  base_sha: fe6cef96685126c1e67cb2585d5e43de5d689cf3
+  head_sha: 101dcbb3a7d0f0b219c0f8ec224e8e9dc830c359
+  integrated_sha: 101dcbb3a7d0f0b219c0f8ec224e8e9dc830c359
   submitted_at: '2026-07-29T23:35:02.676532+00:00'
-  updated_at: '2026-07-29T23:35:02.676532+00:00'
+  updated_at: '2026-07-29T23:55:40.050109+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-482__20260729T183344Z
@@ -102,6 +105,28 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-459--task-OOMPAH-482
     source_sha: 8ac2e0fffcd70cd366e05155213dcd14b76adffb
     completed_at: '2026-07-29T23:09:01.733563+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-c8aa97e82202
+    project_id: proj-14849f1b
+    task_id: OOMPAH-482
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 70b00d77942529a95d1fa3c4e82b69aa237221a38f536e46f9ab57639a3ecd2b
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-29T23:55:41.204680+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -395,5 +420,10 @@ author: oompah
 created: 2026-07-29 23:35
 ---
 Rebased audit repair-planner work cleanly onto repaired epic head cfa5ca64f.
+---
+author: oompah
+created: 2026-07-29 23:55
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
