@@ -8,12 +8,11 @@ parent: null
 children: []
 blocked_by: []
 labels:
-- human-only
 - needs:backend
 - needs:test
 assignee: null
 created_at: '2026-07-29T01:23:36.484044Z'
-updated_at: '2026-07-29T01:36:20.100810Z'
+updated_at: '2026-07-29T01:44:40.258209Z'
 work_branch: OOMPAH-541
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/573
@@ -47,5 +46,10 @@ author: oompah
 created: 2026-07-29 01:29
 ---
 Implemented the resolved-project identity fix and regression coverage for explicit and cross-project detail lookup plus genuine stale-content preservation. Focused API/dashboard suite: 48 passed. Full suite: 13,095 passed, 7 skipped. Secret and diff checks pass.
+---
+author: oompah
+created: 2026-07-29 01:44
+---
+Merged in PR #573 (main merge c6c445ccb) and deployed in service instance 0ccb73ac-e871-43d0-8c1e-d23827e4dd27. Live verification: both board and GET issue detail report OOMPAH-472 duplicate_screening state=checked, verdict=no_duplicate, checked_at=2026-07-29T01:21:00.553916Z. OOMPAH-480 remains Open and is currently running duplicate_screening, confirming the queue continues to drain. Focused suite: 48 passed; full suite: 13,095 passed, 7 skipped; CI passed on Python 3.11/3.12/3.13.
 ---
 <!-- COMMENTS:END -->
