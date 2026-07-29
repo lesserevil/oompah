@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T21:36:54.712161Z'
-updated_at: '2026-07-29T21:46:37.321164Z'
+updated_at: '2026-07-29T21:46:51.468300Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -45,13 +45,17 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 59690314-eeef-4556-96b5-f384b761404a
 oompah.task_costs:
-  total_input_tokens: 493971
-  total_output_tokens: 2706
+  total_input_tokens: 494016
+  total_output_tokens: 3764
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 493971
       output_tokens: 2706
+      cost_usd: 0.0
+    opus:
+      input_tokens: 45
+      output_tokens: 1058
       cost_usd: 0.0
   runs:
   - profile: default
@@ -66,6 +70,12 @@ oompah.task_costs:
     output_tokens: 106
     cost_usd: 0.0
     recorded_at: '2026-07-29T21:43:05.376900+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 45
+    output_tokens: 1058
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T21:46:50.075594+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-563__20260729T213757Z
@@ -188,5 +198,15 @@ author: oompah
 created: 2026-07-29 21:46
 ---
 Fixed live service-state corruption race with a re-entrant lock covering each read/modify/write, fsynced same-directory temporary files and atomic replace, sticky fail-closed corruption preservation, and post-load corruption detection for terminal-audit startup. Added deterministic concurrent-writer, corrupt-document, serialization-failure, state-merge, and graceful-restart recovery tests. Focused state consumers: 301 passed. Full gate: 13,581 passed, 7 skipped.
+---
+author: oompah
+created: 2026-07-29 21:46
+---
+Run #2 [attempt=2, profile=deep, role=deep -> Claude/opus]
+- Turns: 0, Tool calls: 24
+- Tokens: 45 in / 1.1K out [1.1K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 3m 24s
+- Log: OOMPAH-563__20260729T214332Z.jsonl
 ---
 <!-- COMMENTS:END -->
