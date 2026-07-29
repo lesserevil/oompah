@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-486
 type: feature
-status: In Progress
+status: Open
 priority: 1
 title: Add terminal-audit metrics, maintenance health, and actionable alerts
 parent: OOMPAH-460
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:25.195304Z'
-updated_at: '2026-07-29T19:56:56.075447Z'
+updated_at: '2026-07-29T19:57:27.635949Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-486
 target_branch: null
 review_url: null
@@ -40,8 +40,8 @@ oompah.duplicate_screening:
 oompah.agent_run_id: 6824f9c2-ef19-42cb-ad5a-ab2b23c0efef
 oompah.work_branch: epic-OOMPAH-460--task-OOMPAH-486
 oompah.task_costs:
-  total_input_tokens: 16537080
-  total_output_tokens: 46443
+  total_input_tokens: 16621853
+  total_output_tokens: 47032
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -51,6 +51,10 @@ oompah.task_costs:
     sonnet:
       input_tokens: 119736
       output_tokens: 17845
+      cost_usd: 0.0
+    opus:
+      input_tokens: 84773
+      output_tokens: 589
       cost_usd: 0.0
   runs:
   - profile: default
@@ -77,6 +81,12 @@ oompah.task_costs:
     output_tokens: 933
     cost_usd: 0.0
     recorded_at: '2026-07-29T19:56:16.686338+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 84773
+    output_tokens: 589
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T19:57:22.672903+00:00'
 oompah.integration:
   version: 1
   state: working
@@ -95,6 +105,14 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-460--task-OOMPAH-486
     source_sha: 160b41761328dfad56d30cef0f572f9e4747338c
     completed_at: '2026-07-29T19:56:16.690744+00:00'
+  - run_id: OOMPAH-486__20260729T195658Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-sol
+    focus: frontend
+    source_branch: epic-OOMPAH-460--task-OOMPAH-486
+    source_sha: 160b41761328dfad56d30cef0f572f9e4747338c
+    completed_at: '2026-07-29T19:57:22.682164+00:00'
 ---
 ## Summary
 
@@ -227,5 +245,20 @@ author: oompah
 created: 2026-07-29 19:56
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-07-29 19:57
+---
+Agent completed successfully in 34s (85362 tokens)
+---
+author: oompah
+created: 2026-07-29 19:57
+---
+Run #2 [attempt=2, profile=deep, role=deep -> Codex/gpt-5.6-sol]
+- Turns: 1, Tool calls: 1
+- Tokens: 84.8K in / 589 out [85.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 34s
+- Log: OOMPAH-486__20260729T195658Z.jsonl
 ---
 <!-- COMMENTS:END -->
