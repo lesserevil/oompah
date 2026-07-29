@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:23.210919Z'
-updated_at: '2026-07-29T19:01:16.133551Z'
+updated_at: '2026-07-29T19:15:18.800271Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-484
 target_branch: null
 review_url: null
@@ -151,5 +151,38 @@ author: oompah
 created: 2026-07-29 19:01
 ---
 Discovery: Terminal audit metadata is stored in tracker metadata under key 'oompah.terminal_audit' (TerminalAuditMetadataStore). Override records are stored in unknown_fields['oompah.terminal_override_records']. The TerminalAuditMetadata has pending_chain (list of TerminalAuditRecord) and attempt_history. The Issue model currently lacks a terminal_audit field (unlike duplicate_screening). Implementation plan: (1) Add _issue_terminal_audit_summary() to server.py reading from tracker metadata; (2) Include in _fetch_and_serialize_issues (from issue.terminal_audit if set) and api_issue_full_detail (from tracker.get_metadata); (3) Add renderTerminalAuditSummary() to dashboard.html with CSS; (4) Add terminal_audit_summary to issueFingerprint(); (5) Add tests in test_terminal_status_interfaces.py.
+---
+author: oompah
+created: 2026-07-29 19:15
+---
+Implementation: Added safe terminal-audit state exposure across all API surfaces.
+
+**server.py:**
+- Added imports: OverrideRecord, TerminalAuditMetadata, TerminalAuditMetadataError, METADATA_KEY
+- Added _terminal_audit_phase(document, record, attempt): maps request_state+verdict to queued/running/passed/failed/cancelled/error
+- Added _issue_terminal_audit_summary(issue, tracker=None): reads from issue.terminal_audit (list endpoint) or tracker.get_metadata() (detail endpoint). Returns safe dict with phase, target_state, request_state, attempt_count, fingerprint_prefix (12 chars), verdict, failure_classification, requested_by identity (no secrets), timestamps, quarantined flag, is_overridden flag. Returns None for never-audited/grandfathered tasks.
+- Included terminal_audit_summary in _fetch_and_serialize_issues() (list API)
+- Included terminal_audit_summary in api_issue_full_detail() (detail API)
+- Included terminal_audit_summary in api_agent_activity() (activity API)
+
+**dashboard.html:**
+- Added CSS for terminal-audit-summary, terminal-audit-pill, and phase-specific color classes
+- Added renderTerminalAuditSummary(summary): card-level badge showing audit phase + target state
+- Added renderTerminalAuditDetail(summary): detail panel field with all safe audit fields
+- Included terminal_audit_summary in issueFingerprint() for reactive card updates
+- Included renderTerminalAuditSummary in createCard() output
+- Included renderTerminalAuditDetail in detail panel render path
+
+**tests/test_terminal_status_interfaces.py (new, 38 tests):**
+- Covers all phases: queued, running, passed, failed, cancelled, error
+- Covers overridden (OverrideRecord in unknown_fields)
+- Covers grandfathered (empty document = None)
+- Covers malformed metadata (returns error phase)
+- Covers quarantined document
+- Covers tracker fallback path and tracker read failure
+- Verifies list/detail agree on field names
+- Verifies ACP unknown model has no provider/model in summary
+- Verifies no credentials, secrets, prompts, diffs in output
+- Verifies all dashboard CSS classes, JS functions, accessibility attributes exist
 ---
 <!-- COMMENTS:END -->
