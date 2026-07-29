@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-481
 type: feature
-status: Open
+status: Ready to Integrate
 priority: 1
 title: Route automatic archive and intake retirement through Archived audits
 parent: OOMPAH-459
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:29.211296Z'
-updated_at: '2026-07-29T23:20:45.531869Z'
+updated_at: '2026-07-29T23:41:16.204084Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-481
 target_branch: null
 review_url: null
@@ -83,12 +83,12 @@ oompah.task_costs:
     recorded_at: '2026-07-29T18:58:26.294553+00:00'
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-459--task-OOMPAH-481
-  base_branch: epic-OOMPAH-459
-  base_sha: a50a9a6451f8a2222a5688bea2f2690b7cfc170a
-  updated_at: '2026-07-29T23:07:06.631580+00:00'
+  head_sha: 0a7e06f144285b8d3309a9ae0aab1330aa54985f
+  submitted_at: '2026-07-29T23:41:14.036173+00:00'
+  updated_at: '2026-07-29T23:41:14.036173+00:00'
 ---
 ## Summary
 
@@ -351,5 +351,10 @@ Run #6 [attempt=6, profile=standard, role=standard -> Codex/gpt-5.6-terra]
 - Cost: $0.0000
 - Exit: terminated, Duration: 13m 6s
 - Log: OOMPAH-481__20260729T230714Z.jsonl
+---
+author: oompah
+created: 2026-07-29 23:41
+---
+Rebased automatic Archived-audit routing onto the repaired epic base; preserved and hardened retry/coalescing behavior; full gate passed (13628 passed, 7 skipped).
 ---
 <!-- COMMENTS:END -->
