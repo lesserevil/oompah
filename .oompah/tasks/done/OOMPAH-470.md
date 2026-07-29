@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-470
 type: feature
-status: In Progress
+status: Done
 priority: 1
 title: Seed the auditor role and select an independent provider-model candidate
 parent: OOMPAH-458
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:10.311921Z'
-updated_at: '2026-07-29T07:23:50.223922Z'
+updated_at: '2026-07-29T07:26:17.615946Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -2019,5 +2019,26 @@ author: oompah
 created: 2026-07-29 07:23
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-29 07:26
+---
+COMPLETION: Auditor role seeding and independent provider-model candidate selection is fully implemented, tested, and verified.
+
+**Implementation Summary:**
+- AuditorCandidateSelector class with complete filtering pipeline (whitelist, credentials, health, budget, model validity)
+- Contributor exclusion logic with independent provider preference and safe same-provider fallback
+- Migration seeding from deduplicated union of deep/standard/default role candidates + provider defaults
+- Comprehensive handling of unknown SDK-managed models (empty, 'default', 'cli', 'cli-managed', etc.)
+- seed_auditor_role_from_config() public API integrated into bootstrap setup_services()
+- Reserved editable 'auditor' role that operators can edit through existing RoleStore API
+
+**Acceptance Criteria Met:**
+✅ Selected auditors demonstrably independent under agreed policy
+✅ Unsafe/unverifiable candidates never used
+✅ Operators can edit auditor candidates through existing role configuration path
+✅ Full test coverage: 39 comprehensive tests covering different provider/model, same-provider fallback, multi-contributor exclusion, unknown models, round-robin ordering, whitelist, credentials, health, budget, empty role, migration seeding, and diagnostics
+✅ All 13,176 tests passing, 40 skipped (no regressions)
+✅ All changes committed and pushed to origin/epic-OOMPAH-458
 ---
 <!-- COMMENTS:END -->
