@@ -1745,15 +1745,24 @@ async def _ensure_issues_snapshot_refresh(
         )
 
 
-async def _wait_for_issues_snapshot_refresh(timeout_ms: int = 250) -> None:
+async def _wait_for_issues_snapshot_refresh(timeout_ms: int = 250) -> bool:
+    """Wait for the issues snapshot refresh to complete.
+    
+    Args:
+        timeout_ms: Maximum time to wait in milliseconds.
+    
+    Returns:
+        True if the refresh completed before timeout, False if timeout expired.
+    """
     with _issues_snapshot_lock:
         task = _issues_refresh_task
     if task is None or task.done():
-        return
+        return True
     try:
         await asyncio.wait_for(asyncio.shield(task), timeout=timeout_ms / 1000.0)
+        return True
     except asyncio.TimeoutError:
-        return
+        return False
 
 
 # Workflow rank for each canonical status (Backlog < Open < In Progress <
@@ -2098,16 +2107,29 @@ def _fetch_and_serialize_issues(orch) -> dict[str, list]:
 
 
 async def _do_broadcast_issues() -> None:
-    """Broadcast the current board snapshot and refresh it in the background."""
+    """Refresh the board snapshot, then broadcast it to WebSocket clients.
+    
+    Critical for duplicate-screening state sync: the snapshot MUST be refreshed
+    before any broadcast to prevent stale payloads from overwriting newer state.
+    """
     global _last_issues_broadcast, _issues_broadcast_pending
     _issues_broadcast_pending = False
     try:
         orch = _get_orchestrator()
         _last_issues_broadcast = time.monotonic() * 1000
-        payload = _issues_snapshot_payload(allow_empty=False, orch=orch)
-        if payload is not None and _ws_clients:
-            await _broadcast({"type": "issues", "data": payload})
-        await _ensure_issues_snapshot_refresh(orch, force=True, broadcast=True)
+        # Force refresh the snapshot BEFORE broadcasting (not after).
+        # This ensures clients receive fresh data reflecting recent state changes
+        # (e.g., duplicate-screening claim/completion updates).
+        await _ensure_issues_snapshot_refresh(orch, force=True, broadcast=False)
+        # Wait for refresh to complete before broadcasting. Use a generous timeout
+        # to allow for slow issue corpuses, but don't block indefinitely.
+        refresh_completed = await _wait_for_issues_snapshot_refresh(timeout_ms=2000)
+        # Only broadcast if refresh completed — this prevents stale payloads from
+        # overwriting newer state (critical for duplicate-screening sync).
+        if refresh_completed and _ws_clients:
+            payload = _issues_snapshot_payload(allow_empty=False, orch=orch)
+            if payload is not None:
+                await _broadcast({"type": "issues", "data": payload})
     except Exception as exc:
         logger.debug("broadcast_issues failed: %s", exc)
 
