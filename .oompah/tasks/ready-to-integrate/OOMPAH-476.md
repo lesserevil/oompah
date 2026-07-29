@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-476
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Stage API, dashboard, and CLI terminal requests through the coordinator
 parent: OOMPAH-459
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:24.379848Z'
-updated_at: '2026-07-29T23:07:46.523032Z'
+updated_at: '2026-07-29T23:16:07.803578Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-476
 target_branch: null
 review_url: null
@@ -140,12 +140,12 @@ oompah.task_costs:
     recorded_at: '2026-07-29T23:07:19.699792+00:00'
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-459--task-OOMPAH-476
-  base_branch: epic-OOMPAH-459
-  base_sha: a50a9a6451f8a2222a5688bea2f2690b7cfc170a
-  updated_at: '2026-07-29T23:07:43.301634+00:00'
+  head_sha: cfa5ca64f43aaa846f4ce7c153291390c5e0648c
+  submitted_at: '2026-07-29T23:16:05.901895+00:00'
+  updated_at: '2026-07-29T23:16:05.901895+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-476__20260729T230652Z
@@ -696,5 +696,10 @@ author: oompah
 created: 2026-07-29 23:07
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-07-29 23:16
+---
+Rebased the terminal-interface work onto current main, resolved the corrupted conflict, and verified the complete combined tree: 13,615 passed, 7 skipped. Canonical epic and private branch now point to cfa5ca64f.
 ---
 <!-- COMMENTS:END -->

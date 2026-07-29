@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-477
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Replace the post-worker completion verifier with Done audit staging
 parent: OOMPAH-459
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:25.383734Z'
-updated_at: '2026-07-29T23:06:27.888243Z'
+updated_at: '2026-07-29T23:16:11.273209Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-477
 target_branch: null
 review_url: null
@@ -68,45 +68,12 @@ oompah.task_costs:
     recorded_at: '2026-07-29T18:29:40.147105+00:00'
 oompah.integration:
   version: 1
-  state: blocked
-  attempts: 1
-  task_branch: epic-OOMPAH-459--task-OOMPAH-477
-  base_branch: epic-OOMPAH-459
-  base_sha: a50a9a6451f8a2222a5688bea2f2690b7cfc170a
-  head_sha: 65c8e4725fe931bf0fa9c3357d153ba003ad03c4
-  submitted_at: '2026-07-29T18:29:18.634766+00:00'
-  updated_at: '2026-07-29T22:47:08.992790+00:00'
-  last_error: 'Rebase onto the latest epic head conflicted: warning: skipped previously
-    applied commit d36868f03
-
-    warning: skipped previously applied commit 192e07161
-
-    warning: skipped previously applied commit 8d830a512
-
-    warning: skipped previously applied commit 65c8e4725
-
-    hint: use --reapply-cherry-picks to include skipped commits
-
-    hint: Disable this message with "git config set advice.skippedCherryPicks false"
-
-    Rebasing (1/1)
-
-    error: could not apply 7b12cf8cc... OOMPAH-476: Stage terminal status requests
-    through coordinator
-
-    hint: Resolve all conflicts manually, mark them as resolved with
-
-    hint: "git add/rm <conflicted_files>", then run "git rebase --continue".
-
-    hint: You can instead skip this commit: run "git rebase --skip".
-
-    hint: To abort and get back to the state before "git rebase", run "git rebase
-    --abort".
-
-    hint: Disable this message with "git config set advice.mergeConflict false"
-
-    Could not apply 7b12cf8cc... # OOMPAH-476: Stage terminal status requests through
-    coordinator'
+  state: ready
+  attempts: 0
+  task_branch: epic-OOMPAH-459--task-OOMPAH-476
+  head_sha: cfa5ca64f43aaa846f4ce7c153291390c5e0648c
+  submitted_at: '2026-07-29T23:16:09.337938+00:00'
+  updated_at: '2026-07-29T23:16:09.337938+00:00'
 ---
 ## Summary
 
@@ -383,5 +350,10 @@ Run #6 [attempt=6, profile=standard, role=— -> Claude/sonnet]
 - Tokens: 0 in / 0 out [0 total]
 - Cost: $0.0000
 - Exit: error, Duration: 12m 3s
+---
+author: oompah
+created: 2026-07-29 23:16
+---
+Rebased the completion-audit work onto current main as part of the verified five-commit epic history. Complete combined-tree gate: 13,615 passed, 7 skipped. Canonical epic and private branch now point to cfa5ca64f.
 ---
 <!-- COMMENTS:END -->

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-565
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 0
 title: Rebase epic-OOMPAH-459 onto main
 parent: OOMPAH-459
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T22:12:18.295069Z'
-updated_at: '2026-07-29T23:09:10.621890Z'
+updated_at: '2026-07-29T23:16:14.689144Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-565
 target_branch: null
 review_url: null
@@ -21,12 +21,12 @@ oompah.agent_run_id: 747afabb-d31d-4683-b816-fefde8814701
 oompah.work_branch: epic-OOMPAH-459--task-OOMPAH-565
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
-  task_branch: epic-OOMPAH-459--task-OOMPAH-565
-  base_branch: epic-OOMPAH-459
-  base_sha: a50a9a6451f8a2222a5688bea2f2690b7cfc170a
-  updated_at: '2026-07-29T23:07:10.313894+00:00'
+  task_branch: epic-OOMPAH-459--task-OOMPAH-476
+  head_sha: cfa5ca64f43aaa846f4ce7c153291390c5e0648c
+  submitted_at: '2026-07-29T23:16:12.686878+00:00'
+  updated_at: '2026-07-29T23:16:12.686878+00:00'
 oompah.task_costs:
   total_input_tokens: 1678656
   total_output_tokens: 14884
@@ -557,5 +557,10 @@ author: oompah
 created: 2026-07-29 23:09
 ---
 Understanding: epic-OOMPAH-459 is at a50a9a645, same as origin/epic-OOMPAH-459 (branches are in sync now). origin/main is 2 commits ahead at 441c09132 (OOMPAH-567 changes). The merge base is 9fab41077. I need to rebase the 5 epic commits onto origin/main. The epic branch is checked out in its own worktree at /home/shedwards/.oompah/worktrees/oompah/epic-OOMPAH-459. Approach: use git -C to run rebase from the epic worktree directory.
+---
+author: oompah
+created: 2026-07-29 23:16
+---
+Rebase repair completed on current main, including manual correction of the previously corrupted first commit. Canonical epic and repair branch point to cfa5ca64f; complete gate passed with 13,615 tests.
 ---
 <!-- COMMENTS:END -->
