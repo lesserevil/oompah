@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:29.211296Z'
-updated_at: '2026-07-29T18:30:03.005037Z'
+updated_at: '2026-07-29T18:30:27.425420Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-481
 target_branch: null
 review_url: null
@@ -135,5 +135,28 @@ author: oompah
 created: 2026-07-29 18:30
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-07-29 18:30
+---
+## Understanding and Plan
+
+This task requires routing automatic archive operations (auto-archive maintenance, external issue close/archive reconciliation, duplicate retirement, error-task cleanup) through Archived audits instead of direct archive_issue calls.
+
+**Key requirements:**
+- All automatic archive_issue/status=Archived calls must request an Archived audit
+- Include retention/disposition reason and pre-archive state in audit requests
+- Prevent repeated archive requests while an audit is pending
+- On unsafe retirement, restore prior state or use failure classification
+- Grandfather existing archived records
+
+**Planned approach:**
+1. Discover auto-archive code paths (likely in maintenance, intake, archive, and error-watcher modules)
+2. Identify archive_issue calls that bypass audit logging
+3. Implement audit request wrapper that checks pending state
+4. Add disposition reason and pre-archive state capture
+5. Add tests for aged archives, pending audits, failed writes, unsafe restoration
+
+Starting discovery phase now.
 ---
 <!-- COMMENTS:END -->

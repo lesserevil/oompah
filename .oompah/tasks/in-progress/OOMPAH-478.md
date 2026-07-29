@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:26.329329Z'
-updated_at: '2026-07-29T18:28:45.694802Z'
+updated_at: '2026-07-29T18:30:28.164291Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-478
 target_branch: null
 review_url: null
@@ -173,5 +173,17 @@ Understanding: Epic rollup transitions need to route through coordinator audits 
 5. Preserve existing branch/landing-evidence gates
 
 Starting discovery phase to locate rollup, audit, and coordinator code.
+---
+author: oompah
+created: 2026-07-29 18:30
+---
+Discovery: Located relevant code:
+- orchestrator.py _reconcile_epic_rollup_statuses (line 5172): Currently uses tracker.update_issue() directly for all states
+- terminal_audit.py: Defines audit record types and terminal states
+- terminal_transition_coordinator.py: Coordinator for staging terminal transitions
+- orchestrator.py request_terminal_transition (line 2320): Existing method to route through coordinator
+- statuses.py epic_rollup_state: Returns rolled state (DONE, MERGED, or nonterminal)
+
+Key insight: Need to replace direct tracker.update_issue() calls with coordinator.request_transition() for terminal states (DONE, MERGED, ARCHIVED) while keeping nonterminal state updates direct. Must skip reconciliation when epic is In Validation or has audit:repair-needed label.
 ---
 <!-- COMMENTS:END -->
