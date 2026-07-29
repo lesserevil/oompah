@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-563
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Make service-state persistence atomic and recover terminal-audit quarantine
 parent: null
@@ -12,7 +12,7 @@ labels:
 - needs:refactor
 assignee: null
 created_at: '2026-07-29T21:36:54.712161Z'
-updated_at: '2026-07-29T21:43:06.939942Z'
+updated_at: '2026-07-29T21:43:29.542158Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,7 +44,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: e71a81d4-84d5-4fcf-bada-29f92e9bf4df
+oompah.agent_run_id: 59690314-eeef-4556-96b5-f384b761404a
 oompah.task_costs:
   total_input_tokens: 493971
   total_output_tokens: 2706
@@ -156,5 +156,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 3m 48s
 - Log: OOMPAH-563__20260729T213923Z.jsonl
+---
+author: oompah
+created: 2026-07-29 21:43
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-29 21:43
+---
+Focus: Refactoring Specialist
 ---
 <!-- COMMENTS:END -->
