@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:13.914904Z'
-updated_at: '2026-07-29T06:40:14.434374Z'
+updated_at: '2026-07-29T06:40:16.554752Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -182,5 +182,10 @@ Acceptance criteria met:
 ✓ Automatic archive passes only when retirement is safe and justified
 ✓ Archival never hides active, changed, or unresolved work
 ✓ Returns exact unsafe conditions and restoration state
+---
+author: oompah
+created: 2026-07-29 06:40
+---
+Implemented ArchivedEvidenceCollector for safe task retirement audits. Read-only validator with 20 safety failure modes, structured disposition reasons, and restoration guidance. 47 comprehensive tests covering all scenarios.
 ---
 <!-- COMMENTS:END -->
