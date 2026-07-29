@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-562
 type: bug
-status: Needs CI Fix
+status: In Progress
 priority: 0
 title: Recover integration queues blocked by stale epic ancestry
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-29T21:08:21.827812Z'
-updated_at: '2026-07-29T22:08:40.076046Z'
+updated_at: '2026-07-29T22:09:01.543468Z'
 work_branch: OOMPAH-562
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/580
@@ -37,7 +37,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 00021a4c-ff96-47d6-b846-ffece2d2f18a
+oompah.agent_run_id: 8ad68c4c-a51b-46e0-bc3c-e01954042d94
 oompah.task_costs:
   total_input_tokens: 911935
   total_output_tokens: 4619
@@ -263,5 +263,15 @@ author: oompah
 created: 2026-07-29 22:08
 ---
 YOLO: CI tests failed on MR #581. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
+---
+author: oompah
+created: 2026-07-29 22:09
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-29 22:09
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
