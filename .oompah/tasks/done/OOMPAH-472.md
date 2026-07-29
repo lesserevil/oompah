@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:12.977543Z'
-updated_at: '2026-07-29T02:13:21.793230Z'
+updated_at: '2026-07-29T02:13:23.902095Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -224,5 +224,10 @@ author: oompah
 created: 2026-07-29 02:13
 ---
 Completion: MergedEvidenceCollector delivered in oompah/merged_evidence_collector.py with 61 tests. The collector verifies actual target-branch landing via: (1) requiring a passing Done audit, (2) resolving PR/MR review state and CI status via SCM protocol, (3) git-based commit containment checks, (4) 10+ precise failure-mode detections (wrong target, open/unmerged review, failed/pending CI, stale branch tip, stranded commits, deleted branches), (5) epic and nested-epic rollup with child Done audit ID chains. FakeSCMProvider enables hermetic testing. All acceptance criteria met. Branch committed and pushed.
+---
+author: oompah
+created: 2026-07-29 02:13
+---
+Delivered MergedEvidenceCollector (oompah/merged_evidence_collector.py) with 61 passing tests covering all specified failure modes. Distinguishes correct-target landing from tracker labels alone via SCM review state, CI status, and git commit containment. Supports epic/nested-epic rollups with child Done audit chains. Branch epic-OOMPAH-458 committed and pushed to origin.
 ---
 <!-- COMMENTS:END -->
