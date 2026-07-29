@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:10.311921Z'
-updated_at: '2026-07-29T03:13:01.106522Z'
+updated_at: '2026-07-29T03:13:03.199796Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -854,5 +854,10 @@ Commits on epic-OOMPAH-458:
 - 3e4b65d6a Enforce independent auditor fallback policy
 
 Branch is up to date with origin. Ready to close.
+---
+author: oompah
+created: 2026-07-29 03:13
+---
+Seed the auditor role and select an independent provider-model candidate: Complete. Auditor role seeding implemented from deduplicated union of deep/standard/default candidates plus provider defaults. Independent candidate selection enforces whitelist, credentials, health, budget, model validity, and contributor exclusion with safe same-provider explicit-model fallback and rejection of unknown SDK models. Normalized no-candidate diagnostics. Bootstrap seeding idempotent; operators edit via RoleStore API. All 13,121 tests passing.
 ---
 <!-- COMMENTS:END -->
