@@ -102,6 +102,11 @@ from oompah.issue_validator import validate_issue
 from oompah.models import AgentProfile
 from oompah.mcp_gateway import build_mcp_gateway, discovery_document
 from oompah.mcp_exposure_policy import MCP_DISCOVERY_PATH, MCP_ENDPOINT_PATH
+from oompah.task_handoff import (
+    TASK_HANDOFF_HEADER,
+    record_task_handoff_failure,
+    validate_task_handoff_token,
+)
 from oompah.projects import ProjectError, ProjectStore
 from oompah.tracker import normalize_priority_int
 from oompah.providers import ProviderStore
@@ -438,6 +443,8 @@ async def _lifespan(app: "FastAPI"):
 # reproduce either by sending headers, selecting a Host, or choosing a path.
 _MCP_AUTHENTICATED_SCOPE_CAPABILITY = object()
 _MCP_INTERNAL_DISPATCH_CAPABILITY = object()
+_TASK_HANDOFF_SCOPE_CAPABILITY = object()
+_TASK_HANDOFF_PATH = "/api/v1/task-handoff"
 
 
 def _mcp_authentication_enabled() -> bool:
@@ -489,10 +496,30 @@ class _BasicAuthMiddleware:
             await self._app(scope, receive, send)
             return
 
-        # Auth disabled → transparent pass-through.
+        def scoped_handoff_scope():
+            """Attach the capability privately and remove it from headers."""
+            values = [
+                value.decode("ascii", errors="ignore")
+                for key, value in scope.get("headers", [])
+                if key.lower() == TASK_HANDOFF_HEADER.encode("ascii")
+            ]
+            # Multiple bearer headers are ambiguous; fail closed just as the
+            # Authorization middleware does for duplicate Basic headers.
+            token = values[0] if len(values) == 1 else ""
+            forwarded = self._redact_scope(scope, extra_headers={TASK_HANDOFF_HEADER.encode("ascii")})
+            forwarded = dict(forwarded)
+            forwarded[_TASK_HANDOFF_SCOPE_CAPABILITY] = token
+            return forwarded
+
+        # Auth disabled → transparent pass-through, except that a capability
+        # header still gets removed before application code sees the request.
+        # The endpoint validates the capability even when Basic auth is off.
         creds = _http_credentials
         if creds is None or not creds.enabled:
-            await self._app(scope, receive, send)
+            if scope.get("type") == "http" and scope.get("path") == _TASK_HANDOFF_PATH:
+                await self._app(scoped_handoff_scope(), receive, send)
+            else:
+                await self._app(scope, receive, send)
             return
 
         if scope_type == "http":
@@ -527,6 +554,15 @@ class _BasicAuthMiddleware:
             if (method, path) in self._AUTH_EXEMPT:
                 await self._app(self._redact_scope(scope), receive, send)
                 return
+
+            # A spawned worker's capability is accepted only on the dedicated
+            # endpoint.  The endpoint performs the task/project/action check;
+            # no capability header is accepted by the general API.
+            if method == "POST" and path == _TASK_HANDOFF_PATH:
+                capability_scope = scoped_handoff_scope()
+                if capability_scope.get(_TASK_HANDOFF_SCOPE_CAPABILITY):
+                    await self._app(capability_scope, receive, send)
+                    return
 
             # Check Authorization header.
             if self._verify_scope(scope, creds):
@@ -583,7 +619,7 @@ class _BasicAuthMiddleware:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _redact_scope(scope):  # noqa: ANN001
+    def _redact_scope(scope, extra_headers: set[bytes] | None = None):  # noqa: ANN001
         """Remove Basic credentials before forwarding to application code.
 
         This keeps request logging and exception handling in downstream ASGI
@@ -596,6 +632,7 @@ class _BasicAuthMiddleware:
             (key, value)
             for key, value in headers
             if key.lower() != b"authorization"
+            and key.lower() not in (extra_headers or set())
         ]
         if len(redacted_headers) == len(headers):
             return scope
@@ -2590,6 +2627,185 @@ async def api_state():
         return JSONResponse(
             {"error": {"code": "unavailable", "message": str(exc)}},
             status_code=503,
+        )
+
+
+@app.post("/api/v1/task-handoff")
+async def api_task_handoff(request: Request):
+    """Apply one server-issued, task-scoped worker handoff operation.
+
+    This endpoint is deliberately separate from the general issue API.  The
+    middleware strips the capability header and stores it in a private ASGI
+    scope slot; callers cannot move the same token to a generic issue route.
+    Every operation validates the exact project and task before resolving a
+    tracker, so a worker cannot use its handoff credential as a project-wide
+    service account.
+    """
+    token = request.scope.get(_TASK_HANDOFF_SCOPE_CAPABILITY)
+    if not isinstance(token, str) or not token:
+        return JSONResponse(
+            {"error": {"code": "handoff_unauthorized", "message": "task handoff capability required"}},
+            status_code=401,
+        )
+    try:
+        body = await request.json()
+    except (json.JSONDecodeError, ValueError):
+        record_task_handoff_failure(token, "task handoff request validation failed")
+        return JSONResponse(
+            {"error": {"code": "validation", "message": "request body must be a JSON object"}},
+            status_code=400,
+        )
+    if not isinstance(body, dict):
+        record_task_handoff_failure(token, "task handoff request validation failed")
+        return JSONResponse(
+            {"error": {"code": "validation", "message": "request body must be a JSON object"}},
+            status_code=400,
+        )
+
+    action = str(body.get("action") or "").strip()
+    project_id = str(body.get("project_id") or "").strip()
+    identifier = str(body.get("identifier") or "").strip()
+    if action not in {"view", "comment", "set-status", "add-label", "remove-label"}:
+        return JSONResponse(
+            {"error": {"code": "handoff_forbidden", "message": "task handoff action is not granted"}},
+            status_code=403,
+        )
+    if not project_id or not identifier:
+        record_task_handoff_failure(token, "task handoff request validation failed")
+        return JSONResponse(
+            {"error": {"code": "validation", "message": "project_id and identifier are required"}},
+            status_code=400,
+        )
+    allowed, reason = validate_task_handoff_token(
+        token,
+        project_id=project_id,
+        task_identifier=identifier,
+        action=action,
+    )
+    if not allowed:
+        # Do not expose whether a token exists for another task/project.
+        record_task_handoff_failure(token, "task handoff scope validation failed")
+        status_code = 401 if "invalid" in reason or "missing" in reason else 403
+        return JSONResponse(
+            {"error": {"code": "handoff_forbidden", "message": reason}},
+            status_code=status_code,
+        )
+
+    try:
+        orch = _get_orchestrator()
+        tracker = _get_tracker(orch, project_id)
+        issue = await _run_api_io(tracker.fetch_issue_detail, identifier)
+        if issue is None:
+            record_task_handoff_failure(token, "task handoff task not found")
+            return JSONResponse(
+                {"error": {"code": "issue_not_found", "message": "task is not in the granted project"}},
+                status_code=404,
+            )
+
+        if action == "view":
+            comments = await _run_api_io(tracker.fetch_comments, identifier)
+            return JSONResponse(
+                {
+                    "detail": {
+                        "id": getattr(issue, "id", identifier),
+                        "identifier": identifier,
+                        "display_identifier": getattr(issue, "display_identifier", None) or identifier,
+                        "title": getattr(issue, "title", ""),
+                        "description": getattr(issue, "description", ""),
+                        "priority": getattr(issue, "priority", None),
+                        "state": getattr(issue, "state", ""),
+                        "issue_type": getattr(issue, "issue_type", "task"),
+                        "project_id": project_id,
+                        "labels": list(getattr(issue, "labels", None) or []),
+                        "comments": comments,
+                    }
+                }
+            )
+
+        if action == "comment":
+            text = str(body.get("message") or body.get("text") or "").strip()
+            if not text:
+                record_task_handoff_failure(token, "task handoff comment validation failed")
+                return JSONResponse(
+                    {"error": {"code": "validation", "message": "comment message is required"}},
+                    status_code=400,
+                )
+            # A spawned worker cannot impersonate a human/operator author.
+            await _run_api_io(tracker.add_comment, identifier, text, author="oompah")
+            return JSONResponse({"ok": True})
+
+        if action == "set-status":
+            status = body.get("status")
+            if not isinstance(status, str) or not status.strip():
+                record_task_handoff_failure(token, "task handoff status validation failed")
+                return JSONResponse(
+                    {"error": {"code": "validation", "message": "status is required"}},
+                    status_code=400,
+                )
+            # Preserve the existing intake/transition gate for forge-backed
+            # trackers instead of turning a scoped capability into a bypass.
+            (
+                transition_result,
+                transition_actor,
+                transition_from_status,
+                transition_to_status,
+                rejection,
+            ) = _evaluate_api_intake_transition(
+                orch=orch,
+                tracker=tracker,
+                project_id=project_id,
+                identifier=identifier,
+                existing_issue=issue,
+                target_status=status,
+                body={"actor_login": "oompah", "project_id": project_id},
+                request=request,
+            )
+            if rejection is not None:
+                record_task_handoff_failure(token, "task handoff status transition rejected")
+                return rejection
+            await _run_api_io(tracker.update_issue, identifier, status=status)
+            summary = str(body.get("summary") or "").strip()
+            if summary:
+                await _run_api_io(tracker.add_comment, identifier, summary, author="oompah")
+            _record_owner_override_if_needed(
+                tracker,
+                identifier,
+                transition_result,
+                transition_actor,
+                issue,
+                transition_from_status,
+                transition_to_status,
+            )
+            _api_cache.invalidate("issues:all")
+            _api_cache.invalidate_prefix(f"detail:{project_id}:{identifier}")
+            await broadcast_issues()
+            return JSONResponse({"ok": True})
+
+        label = str(body.get("label") or "").strip()
+        if not label:
+            record_task_handoff_failure(token, "task handoff label validation failed")
+            return JSONResponse(
+                {"error": {"code": "validation", "message": "label is required"}},
+                status_code=400,
+            )
+        if action == "add-label":
+            await _run_api_io(tracker.add_label, identifier, label)
+        else:
+            await _run_api_io(tracker.remove_label, identifier, label)
+        _api_cache.invalidate("issues:all")
+        _api_cache.invalidate_prefix(f"detail:{project_id}:{identifier}")
+        await broadcast_issues()
+        return JSONResponse({"ok": True})
+    except Exception:
+        record_task_handoff_failure(token, "task handoff operation failed")
+        logger.warning(
+            "Task handoff operation failed for project=%s task=%s",
+            project_id,
+            identifier,
+        )
+        return JSONResponse(
+            {"error": {"code": "handoff_failed", "message": "task handoff operation failed"}},
+            status_code=500,
         )
 
 

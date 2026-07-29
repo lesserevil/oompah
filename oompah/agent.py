@@ -213,11 +213,13 @@ class AgentSession:
         workspace_path: str,
         read_timeout_ms: int = 5000,
         turn_timeout_ms: int = 3_600_000,
+        env: dict[str, str] | None = None,
     ):
         self.command = command
         self.workspace_path = workspace_path
         self.read_timeout_ms = read_timeout_ms
         self.turn_timeout_ms = turn_timeout_ms
+        self.env = dict(env or {})
         self._process: asyncio.subprocess.Process | None = None
         self._thread_id: str | None = None
         self._turn_id: str | None = None
@@ -263,7 +265,7 @@ class AgentSession:
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                env=agent_environment(),
+                env=agent_environment({**os.environ, **self.env}),
                 start_new_session=(os.name == "posix"),
             )
         except FileNotFoundError:

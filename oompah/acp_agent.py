@@ -107,6 +107,9 @@ class AcpAgentSession:
         project_store: Any = None,
         project_id: str | None = None,
         task_tracker: Any = None,
+        task_identifier: str | None = None,
+        action_policy: Any = None,
+        task_handoff_token: str | None = None,
         comment_queue: Any = None,
     ):
         self.workspace_path = workspace_path
@@ -128,6 +131,9 @@ class AcpAgentSession:
         self.project_store = project_store
         self.project_id = project_id
         self.task_tracker = task_tracker
+        self.task_identifier = task_identifier
+        self.action_policy = action_policy
+        self.task_handoff_token = task_handoff_token
         # Mid-run comment injection queue (OOMPAH-211).
         self.comment_queue = comment_queue
 
@@ -242,6 +248,9 @@ class AcpAgentSession:
             project_store=self.project_store,
             project_id=self.project_id,
             task_tracker=self.task_tracker,
+            task_identifier=self.task_identifier,
+            action_policy=self.action_policy,
+            task_handoff_token=self.task_handoff_token,
             comment_queue=self.comment_queue,
         )
 

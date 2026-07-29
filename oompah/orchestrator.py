@@ -29,6 +29,12 @@ from oompah.agent import (
 )
 from oompah.agent_profile_store import AgentProfileStore
 from oompah.api_agent import AgentActivity, ApiAgentSession
+from oompah.authority_boundary import (
+    AgentActionPolicy,
+    ProtectedAction,
+    external_task_policy,
+    operator_policy,
+)
 from oompah.completion_verifier import VerifierResult, verify_completion
 from oompah.duplicate_screening import (
     DEFAULT_CLAIM_TTL_SECONDS,
@@ -114,6 +120,13 @@ from oompah.terminal_audit_enforcement import TerminalAuditEnforcement
 from oompah.terminal_transition_coordinator import (
     TerminalTransitionCoordinator,
     TransitionResult,
+)
+from oompah.task_handoff import (
+    TASK_HANDOFF_PROJECT_ENV,
+    TASK_HANDOFF_TOKEN_ENV,
+    consume_task_handoff_failure,
+    issue_task_handoff_token,
+    revoke_task_handoff_token,
 )
 from oompah.focus import (
     _MIN_SCORE_TO_FLAG,
@@ -17461,6 +17474,125 @@ class Orchestrator:
         )
         self._notify_observers()
 
+    def _agent_action_policy(self, issue: Issue) -> AgentActionPolicy:
+        """Build immutable authority for one dispatched worker.
+
+        External intake tasks may push their assigned branch and complete the
+        assigned task, but the existing authority boundary still denies
+        credential access, arbitrary task creation, and unrelated provider
+        mutations.  The exact task scope is enforced separately by the
+        tracker handoff capability/catalog.
+        """
+        task_identifier = issue.identifier
+        session_id = f"worker:{issue.id}"
+        externally_sourced = bool(
+            (issue.tracker_kind or "").strip().lower()
+            in {"github_issues", "gitlab_issues"}
+            or issue.intake
+        )
+        if not externally_sourced:
+            return operator_policy(task_identifier=task_identifier, session_id=session_id)
+        return external_task_policy(
+            allowed_actions=frozenset(
+                {
+                    ProtectedAction.GIT_PUSH,
+                    ProtectedAction.TASK_STATUS_TRANSITION,
+                }
+            ),
+            task_identifier=task_identifier,
+            session_id=session_id,
+        )
+
+    def _issue_task_handoff_token(self, issue: Issue) -> str | None:
+        """Mint a subprocess-only capability scoped to this issue/project."""
+        if not issue.project_id:
+            return None
+        try:
+            return issue_task_handoff_token(
+                project_id=issue.project_id,
+                task_identifier=issue.identifier,
+                allowed_actions={
+                    "view",
+                    "comment",
+                    "set-status",
+                    "add-label",
+                    "remove-label",
+                },
+            )
+        except Exception as exc:
+            logger.warning(
+                "Unable to mint task handoff capability for %s: %s",
+                issue.identifier,
+                exc,
+            )
+            return None
+
+    @staticmethod
+    def _is_task_handoff_failure(error: str | None) -> bool:
+        """Recognize a worker-reported tracker handoff/authentication failure."""
+        text = str(error or "").lower()
+        if "task handoff" in text:
+            return True
+        if "oompah task" in text and (
+            "401" in text or "unauthorized" in text or "authentication" in text
+        ):
+            return True
+        return "authentication required" in text and "server_password" in text
+
+    def _hold_after_task_handoff_failure(
+        self,
+        entry: RunningEntry,
+        issue_id: str,
+        project_id: str | None,
+    ) -> None:
+        """Make a failed handoff visible and prevent duplicate redispatch."""
+        message = (
+            "Task handoff failed after the worker ran: the server-owned, "
+            "task-scoped tracker capability could not update this task. "
+            "The task is held in Needs Human and will not be redispatched "
+            "automatically; verify the handoff service and reconcile the "
+            "worker's branch before resuming it."
+        )
+        self.state.claimed.discard(issue_id)
+        self.state.claimed_issues.pop(issue_id, None)
+        self.state.stall_counts.pop(issue_id, None)
+        self._clear_reopen_count(issue_id)
+        self._verifier_reject_counts.pop(issue_id, None)
+        try:
+            tracker = (
+                self._tracker_for_project(project_id)
+                if project_id
+                else self.tracker
+            )
+            self._mark_needs_human(tracker, entry.identifier, message)
+        except Exception as exc:
+            # The in-memory completed marker still prevents the dispatcher
+            # from immediately repeating a run while the tracker is down.
+            self._post_comment(entry.identifier, message, project_id=project_id)
+            logger.error(
+                "Failed to persist Needs Human after task handoff failure for %s: %s",
+                entry.identifier,
+                exc,
+            )
+        self.state.completed.add(issue_id)
+        self.event_bus.emit(
+            EventType.AGENT_FAILED,
+            {
+                "issue_id": issue_id,
+                "identifier": entry.identifier,
+                "reason": "task_handoff_failed",
+                "error": "task handoff capability failed",
+            },
+        )
+        self._notify_observers()
+        self._post_event(
+            DispatchEvent(
+                event_type=DispatchEventType.WORKER_EXIT,
+                issue_id=issue_id,
+                payload={"reason": "task_handoff_failed"},
+            )
+        )
+
     async def _run_worker(
         self, issue: Issue, attempt: int | None, profile: AgentProfile | None = None
     ) -> None:
@@ -17876,6 +18008,8 @@ class Orchestrator:
                 running_entry
                 and getattr(running_entry, "duplicate_preflight", False)
             )
+            task_tracker = self._tracker_for_issue(issue)
+            action_policy = self._agent_action_policy(issue)
 
             # Decide which opt-in tools to expose. Currently this is
             # just attach_image, gated on (a) the active focus opting in
@@ -17936,6 +18070,10 @@ class Orchestrator:
                 read_only=read_only_preflight,
                 model_max_context=provider.get_model_context(model),
                 log_path=agent_log_path,
+                task_tracker=task_tracker,
+                project_id=issue.project_id or None,
+                task_identifier=issue.identifier,
+                action_policy=action_policy,
             )
             logger.info(
                 "Agent log for %s -> %s",
@@ -18297,6 +18435,10 @@ class Orchestrator:
                 )
 
             task_tracker = self._tracker_for_issue(issue)
+            action_policy = self._agent_action_policy(issue)
+            handoff_token = self._issue_task_handoff_token(issue)
+            if issue.id in self.state.running:
+                self.state.running[issue.id].task_handoff_token = handoff_token
             read_only_preflight = bool(
                 running_entry
                 and getattr(running_entry, "duplicate_preflight", False)
@@ -18306,6 +18448,8 @@ class Orchestrator:
                 project_store=self.project_store,
                 project_id=issue.project_id or None,
                 task_tracker=task_tracker,
+                action_policy=action_policy,
+                task_identifier=issue.identifier,
                 read_only=read_only_preflight,
             )
 
@@ -18515,6 +18659,9 @@ class Orchestrator:
                 project_store=self.project_store,
                 project_id=issue.project_id or None,
                 task_tracker=task_tracker,
+                task_identifier=issue.identifier,
+                action_policy=action_policy,
+                task_handoff_token=handoff_token,
                 comment_queue=_comment_queue,
             )
             self._acp_agent_sessions[issue.id] = session
@@ -18666,8 +18813,17 @@ class Orchestrator:
                     pass
             # On startup failover the candidate loop will retry (or finally
             # call _on_worker_exit once all candidates are exhausted), so
-            # skip the terminal exit here.
-            if not startup_failover:
+            # skip the terminal exit here. Revoke the candidate's capability
+            # immediately; it must not remain usable while another provider
+            # attempt owns the task.
+            if startup_failover:
+                failed_entry = self.state.running.get(issue.id)
+                revoke_task_handoff_token(
+                    getattr(failed_entry, "task_handoff_token", None)
+                )
+                if failed_entry is not None:
+                    failed_entry.task_handoff_token = None
+            else:
                 await self._on_worker_exit(issue.id, exit_reason, error_msg)
 
     async def _run_cli_worker(
@@ -18691,12 +18847,24 @@ class Orchestrator:
             if issue.id in self.state.running:
                 self.state.running[issue.id].workspace_path = workspace_path
 
+            handoff_token = self._issue_task_handoff_token(issue)
+            if issue.id in self.state.running:
+                self.state.running[issue.id].task_handoff_token = handoff_token
+
             # Start agent session
             session = AgentSession(
                 command=agent_command,
                 workspace_path=workspace_path,
                 read_timeout_ms=self.config.read_timeout_ms,
                 turn_timeout_ms=self.config.turn_timeout_ms,
+                env=(
+                    {
+                        TASK_HANDOFF_TOKEN_ENV: handoff_token,
+                        TASK_HANDOFF_PROJECT_ENV: issue.project_id,
+                    }
+                    if handoff_token and issue.project_id
+                    else None
+                ),
             )
             await session.start()
             self._cli_agent_sessions[issue.id] = session
@@ -19782,6 +19950,10 @@ class Orchestrator:
         entry = self.state.running.pop(issue_id, None)
         if not entry:
             return
+        handoff_failure = consume_task_handoff_failure(
+            getattr(entry, "task_handoff_token", None)
+        )
+        revoke_task_handoff_token(getattr(entry, "task_handoff_token", None))
 
         # Add runtime seconds to totals
         elapsed = (datetime.now(timezone.utc) - entry.started_at).total_seconds()
@@ -19841,6 +20013,10 @@ class Orchestrator:
 
         if getattr(entry, "duplicate_preflight", False):
             await self._handle_duplicate_preflight_exit(entry, reason, error)
+            return
+
+        if handoff_failure or self._is_task_handoff_failure(error):
+            self._hold_after_task_handoff_failure(entry, issue_id, project_id)
             return
 
         if reason == "ask_question":

@@ -31,6 +31,23 @@ OOMPAH_SERVER_URL=http://127.0.0.1:<port> oompah task view <owner/repo#number>
 oompah task --server http://127.0.0.1:<port> view <owner/repo#number>
 ```
 
+### Spawned Worker Handoff Security
+
+When oompah starts this repository as a spawned worker, the service supplies
+an expiring capability scoped to this task and project. Use the documented
+oompah task view, comment, add-label, remove-label, and set-status commands
+for the session handoff; ACP and API sessions route these commands through the
+server-owned tracker, while subprocess sessions route them through the same
+short-lived capability.
+
+Never set, read, copy, or print OOMPAH_SERVER_USERNAME,
+OOMPAH_SERVER_PASSWORD, or OOMPAH_SERVER_PASSWORD_FILE from a worker. Never
+put credentials in prompts, repository files, commit messages, or logs. The
+task capability is not a general service credential: do not use it for other
+tasks, projects, or API endpoints. If a handoff command reports an
+authentication or task-handoff failure, stop the implementation handoff and
+leave the task for operator reconciliation; do not retry the implementation.
+
 ### CLI Quick Reference
 
 Use these commands only after the CLI is installed and configured for the
@@ -194,6 +211,23 @@ oompah task add-label <task-id> needs:frontend --project <project-id>
 oompah task set-status <task-id> Open --project <project-id>
 oompah task set-status <task-id> Done --project <project-id> --summary "Completed"
 ```
+
+### Spawned Worker Handoff Security
+
+When oompah starts this repository as a spawned worker, the service supplies
+an expiring capability scoped to this task and project. Use the documented
+oompah task view, comment, add-label, remove-label, and set-status commands
+for the session handoff; ACP and API sessions route these commands through the
+server-owned tracker, while subprocess sessions route them through the same
+short-lived capability.
+
+Never set, read, copy, or print OOMPAH_SERVER_USERNAME,
+OOMPAH_SERVER_PASSWORD, or OOMPAH_SERVER_PASSWORD_FILE from a worker. Never
+put credentials in prompts, repository files, commit messages, or logs. The
+task capability is not a general service credential: do not use it for other
+tasks, projects, or API endpoints. If a handoff command reports an
+authentication or task-handoff failure, stop the implementation handoff and
+leave the task for operator reconciliation; do not retry the implementation.
 
 ### GitHub Issue Intake
 

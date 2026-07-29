@@ -94,6 +94,7 @@ from oompah.acp_backends.base import (
 )
 from oompah.acp_backends.registry import register_backend
 from oompah.client_auth import agent_environment
+from oompah.task_handoff import TASK_HANDOFF_PROJECT_ENV, TASK_HANDOFF_TOKEN_ENV
 from oompah.agent import AgentEvent
 
 if TYPE_CHECKING:
@@ -461,6 +462,8 @@ class CodexAcpBackendSession(AcpBackendSession):
             project_id=self._options.project_id,
             task_tracker=self._options.task_tracker,
             read_only=self._options.read_only,
+            task_identifier=self._options.task_identifier,
+            action_policy=self._options.action_policy,
         )
 
     # ---- run_turn: drive the openai-agents Runner ----
@@ -716,6 +719,10 @@ class CodexAcpBackendSession(AcpBackendSession):
         cli_env = agent_environment(
             {**os.environ, **(self._options.env or {})}
         )
+        if self._options.task_handoff_token:
+            cli_env[TASK_HANDOFF_TOKEN_ENV] = self._options.task_handoff_token
+            if self._options.project_id:
+                cli_env[TASK_HANDOFF_PROJECT_ENV] = self._options.project_id
         cli_env.pop("CODEX_API_KEY", None)
 
         # Detect git worktrees: the Codex ``workspace-write`` sandbox only

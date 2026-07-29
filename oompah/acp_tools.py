@@ -366,6 +366,7 @@ def _exec_oompah_task_command(
     task_tracker: Any,
     project_id: str | None = None,
     action_policy: AgentActionPolicy | None = None,
+    task_identifier: str | None = None,
 ) -> str | None:
     """Execute a simple ``oompah task ...`` command without local HTTP.
 
@@ -404,6 +405,25 @@ def _exec_oompah_task_command(
             f"but this ACP session is scoped to {project_id!r}"
         )
 
+    # The tracker object is project-scoped, but that alone is not sufficient:
+    # a compromised task prompt must not turn the worker into a project-wide
+    # task service account.  Worker sessions receive an exact task grant.
+    if task_identifier:
+        if args.subcommand not in {
+            "view", "comment", "set-status", "add-label", "remove-label"
+        }:
+            return (
+                "Error: this agent session is granted only the assigned task "
+                "handoff operations"
+            )
+        if args.identifier != task_identifier:
+            return (
+                f"Error: task handoff is scoped to {task_identifier!r}; "
+                f"requested {args.identifier!r}"
+            )
+        if args.subcommand == "comment" and args.author != "oompah":
+            return "Error: task handoff comments must use author='oompah'"
+
     try:
         if args.subcommand == "view":
             issue = task_tracker.fetch_issue_detail(args.identifier)
@@ -414,7 +434,7 @@ def _exec_oompah_task_command(
             )
 
         if args.subcommand == "comment":
-            task_tracker.add_comment(args.identifier, args.message, author=args.author)
+            task_tracker.add_comment(args.identifier, args.message, author="oompah" if task_identifier else args.author)
             return "Comment posted."
 
         if args.subcommand == "set-status":
@@ -517,6 +537,7 @@ def build_tool_catalog(
     project_id: str | None = None,
     task_tracker: Any = None,
     action_policy: AgentActionPolicy | None = None,
+    task_identifier: str | None = None,
     read_only: bool = False,
 ) -> list[Any]:
     """Build the SDK-flavored tool list for one ACP session.
@@ -639,6 +660,7 @@ def build_tool_catalog(
             task_tracker,
             current_project_id,
             action_policy,
+            task_identifier,
         )
         if direct is not None:
             return _wrap_text(direct)
@@ -779,6 +801,7 @@ def build_codex_tool_catalog(
     project_id: str | None = None,
     task_tracker: Any = None,
     action_policy: AgentActionPolicy | None = None,
+    task_identifier: str | None = None,
     read_only: bool = False,
 ) -> list[Any]:
     """Build the OpenAI-Agents-SDK-flavored tool list for a Codex session.
@@ -893,7 +916,7 @@ def build_codex_tool_catalog(
         if shell_denial is not None:
             return shell_denial
         direct = _exec_oompah_task_command(
-            command, task_tracker, current_project_id, action_policy
+            command, task_tracker, current_project_id, action_policy, task_identifier
         )
         if direct is not None:
             return direct
@@ -987,6 +1010,7 @@ def build_opencode_tool_catalog(
     project_id: str | None = None,
     task_tracker: Any = None,
     action_policy: AgentActionPolicy | None = None,
+    task_identifier: str | None = None,
     read_only: bool = False,
 ) -> list[Any]:
     """Build the OpenCode-SDK-flavored tool list for an OpenCode session.
@@ -1112,6 +1136,7 @@ def build_opencode_tool_catalog(
             task_tracker,
             project_id,
             action_policy,
+            task_identifier,
         )
         if direct is not None:
             return _wrap_text(direct)
