@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-545
 type: epic
-status: In Review
+status: Open
 priority: 0
 title: Make task dependencies finish-order constraints
 parent: null
@@ -15,12 +15,16 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T16:21:51.688684Z'
-updated_at: '2026-07-29T18:08:28.898192Z'
-work_branch: null
-target_branch: null
-review_url: null
-review_number: null
+updated_at: '2026-07-29T18:08:34.800206Z'
+work_branch: epic-OOMPAH-545
+target_branch: main
+review_url: https://github.com/lesserevil/oompah/pull/579
+review_number: '579'
 merged_at: null
+oompah.review_url: https://github.com/lesserevil/oompah/pull/579
+oompah.review_number: '579'
+oompah.work_branch: epic-OOMPAH-545
+oompah.target_branch: main
 ---
 ## Summary
 
