@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-475
 type: feature
-status: Needs Human
+status: In Progress
 priority: 1
 title: Dispatch, retry, and recover independent auditor agents
 parent: OOMPAH-458
@@ -21,7 +21,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:15.927352Z'
-updated_at: '2026-07-29T15:35:16.007487Z'
+updated_at: '2026-07-29T15:36:21.888305Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -45,7 +45,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 9eda7a0a-7b61-4ab4-a277-c8b01c9e9dd7
+oompah.agent_run_id: 8a7a1374-e6c2-4772-8936-d4555a7f0fb7
 oompah.work_branch: epic-OOMPAH-458
 oompah.task_costs:
   total_input_tokens: 33767902
@@ -782,5 +782,27 @@ author: oompah
 created: 2026-07-29 15:35
 ---
 Agent completed 3 times without closing this issue. Human action required: review the agent run history and task state, then either close the task if the work is done or add specific guidance and move it back to Open.
+---
+author: oompah
+created: 2026-07-29 15:36
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #1)
+
+**State audited:** `Needs Human`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** Last agent comment signals completion without a human question; the Needs Human transition appears accidental.
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-07-29 15:36
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-29 15:36
+---
+Focus: Technical Writer
 ---
 <!-- COMMENTS:END -->
