@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T23:53:31.874608Z'
-updated_at: '2026-07-29T23:55:55.010049Z'
+updated_at: '2026-07-29T23:57:12.901785Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,14 +24,14 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: Duplicate-screening worker exited with reason normal.
-  claim_id: null
-  claim_owner: null
-  claimed_at: null
-  claim_expires_at: null
+  evidence: ''
+  claim_id: 79dbb804-e7ed-4172-ac83-b1d5dce5760c
+  claim_owner: 7e0ec335-e793-4bc9-8be7-8876913419b0
+  claimed_at: '2026-07-29T23:57:09.308529+00:00'
+  claim_expires_at: '2026-07-30T00:27:09.308529+00:00'
   retry_count: 1
-  retry_after: '2026-07-29T23:56:49.587719+00:00'
-oompah.agent_run_id: c5e8cfe2-bd7d-48c1-8c97-1cd456726881
+  retry_after: null
+oompah.agent_run_id: ba460f97-f483-4908-8565-88b1e24d693b
 oompah.task_costs:
   total_input_tokens: 162
   total_output_tokens: 6639
@@ -97,5 +97,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 58s
 - Log: OOMPAH-570__20260729T235353Z.jsonl
+---
+author: oompah
+created: 2026-07-29 23:57
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-07-29 23:57
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
