@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-472
 type: feature
-status: In Progress
+status: Done
 priority: 1
 title: Collect target-landing evidence for Merged audits
 parent: OOMPAH-458
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:12.977543Z'
-updated_at: '2026-07-29T01:56:38.154773Z'
+updated_at: '2026-07-29T01:56:49.437970Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -145,5 +145,10 @@ author: oompah
 created: 2026-07-29 01:56
 ---
 Verification: 61 tests pass in tests/test_merged_evidence_collector.py. Related suites (done_evidence_collector, terminal_audit, landing_gate, independently_merged, auditor_contract, terminal_audit_enforcement, terminal_audit_metadata) all pass — 89 tests total, no regressions.
+---
+author: oompah
+created: 2026-07-29 01:56
+---
+Completion: Delivered MergedEvidenceCollector (oompah/merged_evidence_collector.py) with 61 passing tests. The collector distinguishes actual correct-target landing from tracker labels alone by: (1) requiring a passing Done audit, (2) resolving the PR/MR and its CI status, (3) checking commit containment via git, (4) detecting 10+ precise failure modes. Epic rollups validate child branch chains. FakeSCMProvider enables hermetic testing of all failure modes without network access. Branch pushed to epic-OOMPAH-458.
 ---
 <!-- COMMENTS:END -->
