@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-478
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Route epic rollup, child Done, and epic close transitions through audits
 parent: OOMPAH-459
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:26.329329Z'
-updated_at: '2026-07-29T18:50:28.073348Z'
+updated_at: '2026-07-29T18:50:42.569063Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-478
 target_branch: null
 review_url: null
@@ -83,12 +83,12 @@ oompah.task_costs:
     recorded_at: '2026-07-29T01:37:17.161698+00:00'
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-459--task-OOMPAH-478
-  base_branch: epic-OOMPAH-459
-  base_sha: 65c8e4725fe931bf0fa9c3357d153ba003ad03c4
-  updated_at: '2026-07-29T18:26:12.657814+00:00'
+  head_sha: 9a2ae937ec3a48908685c96953afa382656951a5
+  submitted_at: '2026-07-29T18:50:37.722887+00:00'
+  updated_at: '2026-07-29T18:50:37.722887+00:00'
 ---
 ## Summary
 
@@ -210,5 +210,10 @@ Verification: All tests pass (12932 passed, 41 skipped). Changes implement:
 4. Non-terminal state updates continue direct tracker updates
 
 Tests updated to verify coordinator requests instead of direct tracker writes. Branch containment and landing-evidence gates preserved.
+---
+author: oompah
+created: 2026-07-29 18:50
+---
+Route epic rollup, child Done, and epic close transitions through audits - implemented terminal state routing through coordinator for proper audit chains
 ---
 <!-- COMMENTS:END -->
