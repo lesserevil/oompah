@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:23.210919Z'
-updated_at: '2026-07-29T19:15:26.983559Z'
+updated_at: '2026-07-29T19:15:39.176257Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-484
 target_branch: null
 review_url: null
@@ -203,5 +203,18 @@ Verification: All tests pass.
 - tests/test_activity_panel_collapsible.py + verbose_toggle.py: all passed
 
 Total: 82+ tests across adjacent suites, all green.
+---
+author: oompah
+created: 2026-07-29 19:15
+---
+Completion: OOMPAH-484 is complete.
+
+Delivered:
+1. Safe terminal-audit summary API (server.py): _issue_terminal_audit_summary() and _terminal_audit_phase() — zero exposure of credentials, prompts, or model output. Returns None for grandfathered/never-audited tasks. Reads from issue.terminal_audit (list) or tracker.get_metadata() (detail/activity).
+2. API integration: terminal_audit_summary added to task list, task detail, and agent activity endpoints. Legacy fields unchanged.
+3. Dashboard UI (dashboard.html): renderTerminalAuditSummary() for card badges, renderTerminalAuditDetail() for detail panel. CSS with per-phase color coding. Accessible via role=status + aria-label. Participates in issueFingerprint() for reactive updates.
+4. Tests (test_terminal_status_interfaces.py): 38 tests covering all audit states, redaction contract, list/detail agreement, and dashboard contracts.
+
+Acceptance criteria met: UI and operators can understand audit state from stable safe APIs without parsing comments or tracker metadata, and no sensitive content is exposed.
 ---
 <!-- COMMENTS:END -->
