@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-403
 type: bug
-status: Merged
+status: Archived
 priority: 0
 title: '[backend:orchestrator] Worker did not stop within 10000ms; continuing shutdown
   issue_identifier=OOMPAH-339'
@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-22T05:35:11.758325Z'
-updated_at: '2026-07-22T06:32:42.529711Z'
+updated_at: '2026-07-29T07:26:42.390404Z'
 work_branch: OOMPAH-403
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/532
