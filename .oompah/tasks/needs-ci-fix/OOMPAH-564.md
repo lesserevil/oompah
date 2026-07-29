@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T22:02:08.142762Z'
-updated_at: '2026-07-29T22:42:17.929400Z'
+updated_at: '2026-07-29T22:42:20.309984Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-564
 target_branch: null
 review_url: null
@@ -289,5 +289,103 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 16m 33s
 - Log: OOMPAH-564__20260729T221051Z.jsonl
+---
+author: oompah
+created: 2026-07-29 22:42
+---
+The combined-tree quality gate failed on `epic-OOMPAH-459--task-OOMPAH-564`. Fix the failure on that private branch, run the full configured quality gate, push, and `oompah task submit` it again.
+
+Gate output:
+```
+nted
+FAILED tests/test_authority_boundary.py::TestNoPolicyBackwardCompat::test_update_project_no_policy_passes
+FAILED tests/test_prompt_injection_e2e.py::TestFullPipelineIntegration::test_external_task_cannot_create_child_tasks
+FAILED tests/test_prompt_injection_e2e.py::TestFullPipelineIntegration::test_external_task_cannot_close_its_own_issue
+FAILED tests/test_sdk_install_guards.py::TestBuildToolCatalogClaudeGuard::test_missing_sdk_raises_import_error
+FAILED tests/test_sdk_install_guards.py::TestBuildCodexToolCatalogCodexGuard::test_missing_sdk_raises_import_error
+FAILED tests/test_sdk_install_guards.py::TestBuildToolCatalogClaudeGuard::test_error_message_includes_uv_command
+FAILED tests/test_sdk_install_guards.py::TestBuildCodexToolCatalogCodexGuard::test_error_message_includes_uv_command
+FAILED tests/test_sdk_install_guards.py::TestInstallHintStrings::test_build_tool_catalog_error_oompah_extra
+FAILED tests/test_sdk_install_guards.py::TestInstallHintStrings::test_build_codex_tool_catalog_error_oompah_extra
+FAILED tests/test_task_handoff.py::TestTaskScopeDirectPath::test_direct_acp_submit_requires_and_persists_pushed_git_evidence
+FAILED tests/test_task_handoff.py::TestTaskScopeDirectPath::test_direct_acp_submission_survives_coordination_outage
+FAILED tests/test_task_handoff.py::TestTaskScopeDirectPath::test_api_session_routes_handoff_without_http_self_call
+FAILED tests/test_task_handoff.py::TestTaskScopeDirectPath::test_direct_acp_command_allows_only_assigned_task_and_actions
+FAILED tests/test_terminal_status_interfaces.py::test_acp_terminal_router_stages_and_supports_override
+FAILED tests/test_terminal_status_interfaces.py::test_acp_terminal_router_hides_tracker_fetch_errors
+FAILED tests/test_terminal_status_interfaces.py::test_acp_terminal_router_hides_tracker_error_details
+ERROR tests/test_console.py::TestConsoleSession::test_resolve_backend_consulted_per_turn
+ERROR tests/test_console.py::TestConsoleSession::test_concurrent_inputs_serialize
+ERROR tests/test_console.py::TestConsoleSession::test_submit_persists_and_broadcasts
+ERROR tests/test_console.py::TestConsoleSession::test_restart_replays_transcript
+= 112 failed, 13275 passed, 42 skipped, 40 warnings, 4 errors in 238.29s (0:03:58) =
+make[1]: Leaving directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-564'
+
+Using CPython 3.12.12
+Creating virtual environment at: .venv
+Activate with: source .venv/bin/activate
+Resolved 53 packages in 367ms
+   Building oompah @ file:///home/shedwards/.oompah/worktrees/oompah/OOMPAH-564
+      Built oompah @ file:///home/shedwards/.oompah/worktrees/oompah/OOMPAH-564
+Prepared 1 package in 275ms
+Installed 53 packages in 78ms
+ + annotated-doc==0.0.5
+ + annotated-types==0.8.0
+ + anyio==4.14.2
+ + attrs==26.1.0
+ + babel==2.18.0
+ + bcrypt==4.3.0
+ + certifi==2026.7.22
+ + cffi==2.1.0
+ + click==8.4.2
+ + cryptography==49.0.0
+ + fastapi==0.141.1
+ + h11==0.16.0
+ + httpcore==1.0.9
+ + httptools==0.8.0
+ + httpx==0.28.1
+ + httpx-sse==0.4.3
+ + idna==3.18
+ + jinja2==3.1.6
+ + jsonschema==4.26.0
+ + jsonschema-specifications==2025.9.1
+ + markupsafe==3.0.3
+ + mcp==1.29.0
+ + oompah==0.1.0 (from file:///home/shedwards/.oompah/worktrees/oompah/OOMPAH-564)
+ + passlib==1.7.4
+ + pycparser==3.0
+ + pydantic==2.13.4
+ + pydantic-core==2.46.4
+ + pydantic-settings==2.14.2
+ + pyjwt==2.13.0
+ + python-dateutil==2.9.0.post0
+ + python-dotenv==1.2.2
+ + python-liquid==2.3.0
+ + python-multipart==0.0.32
+ + pytz==2026.3.post1
+ + pyyaml==6.0.3
+ + referencing==0.37.0
+ + rpds-py==2026.6.3
+ + six==1.17.0
+ + sse-starlette==3.4.6
+ + starlette==1.3.1
+ + tree-sitter==0.26.0
+ + tree-sitter-javascript==0.25.0
+ + tree-sitter-markdown==0.5.1
+ + tree-sitter-python==0.25.0
+ + tree-sitter-rust==0.24.2
+ + tree-sitter-typescript==0.23.2
+ + tree-sitter-yaml==0.7.2
+ + typing-extensions==4.16.0
+ + typing-inspection==0.4.2
+ + uvicorn==0.52.0
+ + uvloop==0.22.1
+ + watchfiles==1.2.0
+ + websockets==17.0
+Uninstalled 4 packages in 2ms
+Installed 13 packages in 15ms
+make[1]: *** [Makefile:217: test] Error 1
+
+```
 ---
 <!-- COMMENTS:END -->
