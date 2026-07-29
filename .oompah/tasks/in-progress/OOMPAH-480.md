@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:28.235708Z'
-updated_at: '2026-07-29T19:12:19.931866Z'
+updated_at: '2026-07-29T19:12:30.251250Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-480
 target_branch: null
 review_url: null
@@ -215,5 +215,10 @@ author: oompah
 created: 2026-07-29 19:12
 ---
 Discovery: All 13158 tests pass locally. No PR is open yet for this branch. The implementation (commit f2812fda7) routes merged release-pick observations through the terminal transition coordinator. Key changes: release_pick_reconciler.py now accepts a terminal_transition_requester callback and stages Merged audits with target-specific landing evidence instead of writing tracker status directly. orchestrator.py wires the callback. Test coverage added in test_release_pick_reconciler.py (108 tests passing). Release delivery and addendum pollers are delivery-record-only — they do not alter canonical task state, which satisfies the acceptance criteria.
+---
+author: oompah
+created: 2026-07-29 19:12
+---
+Verification: Focused test run passed — 454 tests (release pick reconciler + terminal audit + landing gate + close gate + cherry pick PR creator + release delivery + release addendum). Full suite: 13158 passed, 7 skipped. Implementation complete. Submitting.
 ---
 <!-- COMMENTS:END -->
