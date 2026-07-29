@@ -2,7 +2,7 @@
 id: OOMPAH-550
 type: epic
 status: Backlog
-priority: 1
+priority: 0
 title: Broker durable coordination between concurrent agents
 parent: null
 children:
@@ -11,10 +11,11 @@ children:
 - OOMPAH-553
 - OOMPAH-554
 blocked_by: []
-labels: []
+labels:
+- human-only
 assignee: null
 created_at: '2026-07-29T16:23:13.053468Z'
-updated_at: '2026-07-29T16:23:19.403925Z'
+updated_at: '2026-07-29T16:24:00.402339Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,3 +42,11 @@ Agents can communicate while running, messages survive restarts, only authorized
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-29 16:23
+---
+Claimed by the interactive Codex session for the owner-requested parallel-epic execution implementation. Keep human-only; do not dispatch another worker. Work will be completed, tested, pushed, and handed off through the parent epic.
+---
+<!-- COMMENTS:END -->

@@ -2,7 +2,7 @@
 id: OOMPAH-555
 type: epic
 status: Backlog
-priority: 1
+priority: 0
 title: Execute epic children in parallel with ordered integration
 parent: null
 children:
@@ -12,10 +12,11 @@ children:
 - OOMPAH-559
 - OOMPAH-560
 blocked_by: []
-labels: []
+labels:
+- human-only
 assignee: null
 created_at: '2026-07-29T16:23:20.776850Z'
-updated_at: '2026-07-29T16:23:29.604356Z'
+updated_at: '2026-07-29T16:24:17.870906Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,3 +43,11 @@ Multiple epic children run concurrently without sharing a filesystem, dependent 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-29 16:24
+---
+Claimed by the interactive Codex session for the owner-requested parallel-epic execution implementation. Keep human-only; do not dispatch another worker. Work will be completed, tested, pushed, and handed off through the parent epic.
+---
+<!-- COMMENTS:END -->

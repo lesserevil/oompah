@@ -2,15 +2,16 @@
 id: OOMPAH-548
 type: feature
 status: Backlog
-priority: 1
+priority: 0
 title: Add worker submission handoff and ordered terminal staging
 parent: OOMPAH-545
 children: []
 blocked_by: []
-labels: []
+labels:
+- human-only
 assignee: null
 created_at: '2026-07-29T16:23:10.331989Z'
-updated_at: '2026-07-29T16:23:10.331989Z'
+updated_at: '2026-07-29T16:23:52.217974Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -31,3 +32,11 @@ Acceptance criteria: workers cannot mark unintegrated child code Done, successfu
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-29 16:23
+---
+Claimed by the interactive Codex session for the owner-requested parallel-epic execution implementation. Keep human-only; do not dispatch another worker. Work will be completed, tested, pushed, and handed off through the parent epic.
+---
+<!-- COMMENTS:END -->
