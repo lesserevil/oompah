@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:26.170630Z'
-updated_at: '2026-07-29T18:37:28.582709Z'
+updated_at: '2026-07-29T18:57:28.345283Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-487
 target_branch: null
 review_url: null
@@ -207,5 +207,22 @@ Implementation plan:
 - Update docs/task-epic-workflow.md to include In Validation status
 - Add deprecation logging for OOMPAH_VERIFY_COMPLETION / OOMPAH_VERIFY_COMPLETION_LLM
 - Add tests: config parsing, deprecation warnings, doc content checks
+---
+author: oompah
+created: 2026-07-29 18:57
+---
+Implementation complete. Changes made:
+
+1. **oompah/config.py**: Added audit_max_attempts, audit_attempt_ttl, audit_priority, audit_lane_scan_limit fields to ServiceConfig, with env var parsing (OOMPAH_AUDIT_MAX_ATTEMPTS etc.). Added warn_deprecated_verify_completion_vars() function that emits startup warnings when OOMPAH_VERIFY_COMPLETION or OOMPAH_VERIFY_COMPLETION_LLM are set. Called from from_workflow(). Added DEPRECATED comments to verify_completion/verify_completion_llm fields.
+
+2. **.env.example**: Added independent completion-auditor dispatch section with OOMPAH_AUDIT_MAX_ATTEMPTS, OOMPAH_AUDIT_ATTEMPT_TTL, OOMPAH_AUDIT_PRIORITY, OOMPAH_AUDIT_LANE_SCAN_LIMIT. Updated OOMPAH_VERIFY_COMPLETION/LLM entries with DEPRECATED notices.
+
+3. **docs/auditor-dispatch-operations.md**: New operator guide covering auditor role, independence rules, lifecycle Mermaid diagram, target-specific audit chains, failure routing table, configuration examples, owner override API, upgrade grandfathering, restart recovery, migration from completion verifier.
+
+4. **docs/task-epic-workflow.md**: Updated status lifecycle table and flowchart to include 'In Validation' status with auditor verdict paths.
+
+5. **docs/operator-runbook.md**: Added .oompah/roles.json to key files table; added Migration Notes section (§10.1) with deprecation migration steps.
+
+6. **tests/test_config.py**: Added TestAuditDispatchConfiguration class with 19 tests covering config parsing, env var overrides, env.example coverage, doc existence/content checks, deprecation warnings, and task-epic-workflow doc content.
 ---
 <!-- COMMENTS:END -->
