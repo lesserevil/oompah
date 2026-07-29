@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-542
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Wake dispatch when watchdog clears stale completion suppression
 parent: null
@@ -13,7 +13,7 @@ labels:
 - needs:test
 assignee: null
 created_at: '2026-07-29T14:22:15.797334Z'
-updated_at: '2026-07-29T14:22:26.561743Z'
+updated_at: '2026-07-29T14:23:26.476256Z'
 work_branch: null
 target_branch: null
 review_url: null
