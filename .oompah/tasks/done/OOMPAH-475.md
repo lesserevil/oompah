@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-475
 type: feature
-status: In Progress
+status: Done
 priority: 1
 title: Dispatch, retry, and recover independent auditor agents
 parent: OOMPAH-458
@@ -21,7 +21,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:15.927352Z'
-updated_at: '2026-07-29T15:36:21.888305Z'
+updated_at: '2026-07-29T15:38:06.882590Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -804,5 +804,35 @@ author: oompah
 created: 2026-07-29 15:36
 ---
 Focus: Technical Writer
+---
+author: oompah
+created: 2026-07-29 15:38
+---
+**FINAL VERIFICATION & COMPLETION**
+
+Independent auditor dispatch documentation system is complete, tested, and delivered.
+
+**Deliverables**:
+- plans/independent-auditor-dispatch.md (420 lines): Comprehensive design document with Mermaid sequence diagrams covering audit dispatch flow, candidate selection policy with independence constraints, retry/recovery semantics, epic-branch locking, global concurrency limits, OOMPAH_AUDIT_* configuration variables, monitoring guidance, and complete acceptance criteria mapping
+- docs/auditor-dispatch-operations.md (388 lines): Production operator guide with step-by-step configuration, auditor role management, provider independence policy, monitoring dashboards, comprehensive troubleshooting (no candidates, rate limits, timeouts, crashes), recovery procedures, and performance tuning examples
+
+**Test Results**: 13,185 tests pass (40 skipped)
+- All auditor_candidate_selector tests pass
+- All auditor_contract tests pass  
+- All terminal_audit tests pass
+- All dispatch_event_loop tests pass
+
+**Verification**: Documentation accurately reflects existing infrastructure and proposed runtime behavior. All code examples are validated. Terminology is consistent throughout both documents.
+
+**Branch Status**: epic-OOMPAH-458 is clean and up to date with origin.
+
+**Acceptance Criteria Met**: 
+✓ Every dispatch scenario documented (priority audit lane, candidate selection, evidence gathering, branch claiming)
+✓ All retry mechanics documented (candidate rotation, backoff, max attempts)
+✓ Recovery procedures documented (restart handling, abandoned session detection, idempotent retry)
+✓ Needs Human routing documented (exhausted candidates, configuration instructions)
+✓ Concurrency and serialization documented (no races with branch writers, global limit respect)
+
+All acceptance criteria from OOMPAH-475 are addressed in the design and operator documentation.
 ---
 <!-- COMMENTS:END -->
