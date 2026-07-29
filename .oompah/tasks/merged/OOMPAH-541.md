@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-541
 type: bug
-status: In Review
+status: Merged
 priority: 1
 title: Use resolved project identity in duplicate-screening task details
 parent: null
@@ -13,7 +13,7 @@ labels:
 - needs:test
 assignee: null
 created_at: '2026-07-29T01:23:36.484044Z'
-updated_at: '2026-07-29T01:30:15.421254Z'
+updated_at: '2026-07-29T01:36:20.100810Z'
 work_branch: OOMPAH-541
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/573
