@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T21:03:33.910422Z'
-updated_at: '2026-07-29T21:08:44.072064Z'
+updated_at: '2026-07-29T21:17:21.907328Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -126,5 +126,10 @@ author: oompah
 created: 2026-07-29 21:08
 ---
 **Discovery:** Found config.py with WorkflowDefinition/ServiceConfig. Config already has worktree_cleanup_batch_size (default 25) and auto_archive_interval_seconds (default 300), but no independent worktree_cleanup_interval_seconds. Need to: (1) add interval config for worktree cleanup in config.py, (2) find where cleanup is performed and implement prune+branch/worktree deletion, (3) add fetch --prune, (4) add gone-upstream pruning, (5) protect branch logic, (6) update .env.example. Searching for where these configs are actually used...
+---
+author: oompah
+created: 2026-07-29 21:17
+---
+**Implementation:** Added aggressive pruning for terminal branches and worktrees. Changes: (1) Added worktree_cleanup_interval_seconds config (default 60s) in config.py and .env.example for independent scheduling; (2) Added _get_protected_branch_names() to identify branches to protect (default, release, state branches); (3) Added _delete_branch_safely() to safely delete local and remote branches only for unprotected refs; (4) Added _prune_gone_upstream_branches() for safe cleanup of fully merged branches whose upstream is gone; (5) Modified _remove_worktree_locked() and _remove_epic_worktree_locked() to delete associated branches when removing worktrees; (6) Updated all managed git fetch commands to use --prune flag to remove deleted remote-tracking refs; (7) Integrated gone-upstream pruning into _do_cleanup_worktrees() via new _prune_gone_upstream_branches() in orchestrator.py; (8) Updated _maybe_cleanup_worktrees() to use independent interval config.
 ---
 <!-- COMMENTS:END -->
