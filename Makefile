@@ -61,7 +61,7 @@ define port_in_use
 	[ $$? -eq 0 ] || (command -v lsof >/dev/null 2>&1 && lsof -ti:"$1" -sTCP:LISTEN 2>/dev/null | grep -q .)
 endef
 
-.PHONY: help setup start stop restart graceful force-restart status logs test test-serial clean install-hooks check-secrets install-gh-extensions run-granian runner-setup runner-start runner-stop runner-status
+.PHONY: help setup test-setup start stop restart graceful force-restart status logs test test-serial clean install-hooks check-secrets install-gh-extensions run-granian runner-setup runner-start runner-stop runner-status
 
 help:
 	@echo "oompah — make targets:"
@@ -92,6 +92,13 @@ $(VENV)/.uv-setup: pyproject.toml
 	uv pip install -e '.[server]'
 	@touch $@
 	@echo "Setup complete. Run 'make start' to launch oompah."
+
+test-setup: $(VENV)/.uv-test-setup
+
+$(VENV)/.uv-test-setup: pyproject.toml $(VENV)/.uv-setup
+	uv pip install -e '.[dev]'
+	@touch $@
+	@echo "Test dependencies installed."
 
 start: setup
 	@if [ -f $(PID_FILE) ] && kill -0 $$(cat $(PID_FILE)) 2>/dev/null; then \
@@ -213,12 +220,12 @@ status:
 		echo "oompah is not running"; \
 	fi
 
-test: setup
+test: test-setup
 	@OOMPAH_PYTEST_WORKERS="$(PYTEST_WORKERS)" \
 		OOMPAH_PYTEST_TEMP_ROOT="$(PYTEST_TEMP_ROOT)" \
 		scripts/run-tests.sh parallel
 
-test-serial: setup
+test-serial: test-setup
 	@OOMPAH_PYTEST_TEMP_ROOT="$(PYTEST_TEMP_ROOT)" \
 		scripts/run-tests.sh serial
 

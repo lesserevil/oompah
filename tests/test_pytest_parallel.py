@@ -36,7 +36,7 @@ def test_make_test_uses_bounded_configured_workers():
 def test_make_exposes_serial_diagnostic_target():
     text = MAKEFILE.read_text(encoding="utf-8")
 
-    assert "test-serial: setup" in text
+    assert "test-serial: test-setup" in text
     assert "scripts/run-tests.sh serial" in text
     assert "test-serial" in text[text.index("help:") : text.index("setup:")]
 
