@@ -19,7 +19,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:27.238658Z'
-updated_at: '2026-07-29T19:38:32.747185Z'
+updated_at: '2026-07-29T19:39:27.575875Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-488
 target_branch: null
 review_url: null
@@ -283,5 +283,10 @@ author: oompah
 created: 2026-07-29 19:38
 ---
 Implementation: Created tests/test_done_merged_archived_lifecycle.py with 52 tests covering the complete Done→Merged→Archived audit lifecycle. Key coverage: (1) three-stage happy path with distinct auditors B/C/D, (2) worker self-certification prevention via AuditorCandidateSelector, (3) failure variants: incomplete work→Open, CI failure→Needs CI Fix, wrong merge target→In Review, unsafe archive→Needs Human, (4) restart recovery tests between Done→Merged and Merged→Archived stages, (5) fake SCM/git fixtures (real git ops, offline, deterministic), (6) durable metadata assertions. All 13,627 tests pass.
+---
+author: oompah
+created: 2026-07-29 19:39
+---
+Verification: All tests pass. tests/test_done_merged_archived_lifecycle.py: 52/52 passed. Broader test suite: 13,627 passed, 7 skipped. Key acceptance criteria met: (1) Three different auditors/contracts occur in order (providers B→C→D for Done/Merged/Archived), (2) Worker (provider A) never self-certifies - excluded by AuditorCandidateSelector, (3) Each failure returns to documented repair state (incomplete→Open, ci_failure→Needs CI Fix, wrong target→In Review, unsafe_archive→Needs Human), (4) State correct across restart (tested between Done→Merged and Merged→Archived stages).
 ---
 <!-- COMMENTS:END -->
