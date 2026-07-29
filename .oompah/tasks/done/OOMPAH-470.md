@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:10.311921Z'
-updated_at: '2026-07-29T08:30:33.093952Z'
+updated_at: '2026-07-29T08:30:35.368200Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -2290,5 +2290,10 @@ VERIFICATION COMPLETE: All implementation for auditor role seeding and independe
 ✅ No hardcoded local provider IDs
 
 Ready for merge.
+---
+author: oompah
+created: 2026-07-29 08:30
+---
+Auditor role seeding and independent provider-model candidate selection fully implemented, tested, and integrated. Implementation meets all acceptance criteria: operators can edit through RoleStore API, unsafe candidates are excluded, independent provider preference is enforced with safe fallback, and migration seeding from deduplicated union of role candidates is complete.
 ---
 <!-- COMMENTS:END -->
