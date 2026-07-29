@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:23.210919Z'
-updated_at: '2026-07-29T18:48:14.026440Z'
+updated_at: '2026-07-29T19:01:16.133551Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-484
 target_branch: null
 review_url: null
@@ -146,5 +146,10 @@ author: oompah
 created: 2026-07-29 18:48
 ---
 Understanding: This task adds a safe terminal-audit summary to the task list/detail, project status, running agent snapshots, and activity APIs. As a Frontend Developer, I will: (1) add _issue_terminal_audit_summary() to server.py to read TerminalAuditMetadata and return a safe JSON summary (no credentials/prompts/full diffs), (2) include that summary in _fetch_and_serialize_issues and api_issue_full_detail, (3) add renderTerminalAuditSummary() to dashboard.html to display audit phase/verdict/classification in the detail panel and card, and (4) add tests/test_terminal_status_interfaces.py covering queued, running, passed, failed, overridden, grandfathered, malformed metadata, and ACP unknown model records.
+---
+author: oompah
+created: 2026-07-29 19:01
+---
+Discovery: Terminal audit metadata is stored in tracker metadata under key 'oompah.terminal_audit' (TerminalAuditMetadataStore). Override records are stored in unknown_fields['oompah.terminal_override_records']. The TerminalAuditMetadata has pending_chain (list of TerminalAuditRecord) and attempt_history. The Issue model currently lacks a terminal_audit field (unlike duplicate_screening). Implementation plan: (1) Add _issue_terminal_audit_summary() to server.py reading from tracker metadata; (2) Include in _fetch_and_serialize_issues (from issue.terminal_audit if set) and api_issue_full_detail (from tracker.get_metadata); (3) Add renderTerminalAuditSummary() to dashboard.html with CSS; (4) Add terminal_audit_summary to issueFingerprint(); (5) Add tests in test_terminal_status_interfaces.py.
 ---
 <!-- COMMENTS:END -->
