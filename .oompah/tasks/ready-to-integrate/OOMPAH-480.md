@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-480
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Route release-delivery and release-pick terminal updates through audits
 parent: OOMPAH-459
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:28.235708Z'
-updated_at: '2026-07-29T19:12:30.251250Z'
+updated_at: '2026-07-29T19:12:42.924969Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-480
 target_branch: null
 review_url: null
@@ -74,12 +74,12 @@ oompah.task_costs:
     recorded_at: '2026-07-29T19:02:59.317246+00:00'
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-459--task-OOMPAH-480
-  base_branch: epic-OOMPAH-459
-  base_sha: 65c8e4725fe931bf0fa9c3357d153ba003ad03c4
-  updated_at: '2026-07-29T19:03:29.412883+00:00'
+  head_sha: f2812fda7d0bf4511612a8219723297802ec2e71
+  submitted_at: '2026-07-29T19:12:40.787976+00:00'
+  updated_at: '2026-07-29T19:12:40.787976+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-480__20260729T182912Z
@@ -220,5 +220,10 @@ author: oompah
 created: 2026-07-29 19:12
 ---
 Verification: Focused test run passed — 454 tests (release pick reconciler + terminal audit + landing gate + close gate + cherry pick PR creator + release delivery + release addendum). Full suite: 13158 passed, 7 skipped. Implementation complete. Submitting.
+---
+author: oompah
+created: 2026-07-29 19:12
+---
+Routed release-pick terminal transitions through the terminal audit coordinator. release_pick_reconciler.py now stages target-specific Merged audits (with evidence fingerprint including target branch, selected commits, review identity, target SHA, CI state) instead of writing tracker status directly. orchestrator.py wires the terminal_transition_requester callback. Release delivery and addendum pollers remain delivery-record-only. All 13158 tests pass.
 ---
 <!-- COMMENTS:END -->
