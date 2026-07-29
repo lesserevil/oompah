@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T00:43:25.964028Z'
-updated_at: '2026-07-29T02:14:28.526064Z'
+updated_at: '2026-07-29T02:16:56.003378Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -134,5 +134,36 @@ As a Frontend agent, I need to:
 6. Add tests for state sync through start/renewal/completion/failure scenarios
 
 Starting investigation into codebase structure.
+---
+author: oompah
+created: 2026-07-29 02:16
+---
+**Discovery: Root Cause Identified**
+
+Found the synchronization bug between /api/v1/state and /api/v1/issues endpoints:
+
+1. **State Updates**: When duplicate preflight claims are acquired/completed:
+   - Orchestrator updates issue.duplicate_screening in memory
+   - Calls _notify_observers() which emits EventType.ORCHESTRATOR_TICK
+   - Calls _on_orchestrator_change() callback in server.py
+
+2. **Issues Snapshot Problem**: 
+   - _on_orchestrator_change() invalidates _api_cache but NOT _issues_snapshot global
+   - Schedules _throttled_broadcast_issues() which might throttle or execute
+   - _do_broadcast_issues() broadcasts CURRENT snapshot, THEN refreshes (wrong order)
+   - Old snapshot gets broadcast before new data is fetched, creating race condition
+
+3. **Bug Manifestation**:
+   - /api/v1/state shows correct running state (from orchestrator.get_snapshot())
+   - /api/v1/issues broadcasts stale snapshot with unchecked/old state
+   - New refresh eventually happens but is broadcast in separate update
+   - No ordering guarantee that prevents stale data from overwriting newer state
+
+**Implementation needed**:
+- Force invalidate/refresh _issues_snapshot in _on_orchestrator_change() 
+- Ensure snapshot is fully refreshed BEFORE first broadcast (not after)
+- Add snapshot version/timestamp to prevent stale payloads from overwriting newer ones
+
+Exploring server.py around lines 1631-1750 and _do_broadcast_issues flow.
 ---
 <!-- COMMENTS:END -->
