@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T21:08:21.827812Z'
-updated_at: '2026-07-29T22:01:07.769112Z'
+updated_at: '2026-07-29T22:03:35.158883Z'
 work_branch: OOMPAH-562
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/580
@@ -252,5 +252,10 @@ author: oompah
 created: 2026-07-29 22:01
 ---
 YOLO: merged PR #580.
+---
+author: oompah
+created: 2026-07-29 22:03
+---
+Manual recovery landing: original implementation merged in PR #580. During landing review, the new recovery method was found to lack required regression coverage and had stale in-memory authorization/duplicate-dispatch edge cases. Follow-up commit 750007ae adds focused coverage (45 related tests passing) and hardens authorization, repository locking, active-rebase reuse, cooldown, and unrepairable Done dependencies; PR #581 is waiting on the required CI matrix.
 ---
 <!-- COMMENTS:END -->
