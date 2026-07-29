@@ -1,8 +1,15 @@
 # Independent Auditor Dispatch Lane
 
-**Status:** Design (OOMPAH-475)  
-**Epic:** OOMPAH-457  
+**Status:** Design proposal (OOMPAH-475)
+**Epic:** OOMPAH-457
 **Related:** OOMPAH-464 (Candidate Selector), OOMPAH-465 (Staging), OOMPAH-466 (Result Routing)
+
+This is the dispatch-integration design. The branch already provides the
+durable terminal-audit records and metadata store, independent candidate
+policy, and reserved read-only auditor contract. The priority scheduler lane
+described here is the remaining integration surface; the `OOMPAH_AUDIT_*`
+settings below are proposed names until that lane is wired into the
+orchestrator and `.env.example`.
 
 ## Overview
 
@@ -24,103 +31,64 @@ This document complements the terminal-transition coordinator design (`plans/ter
 
 6. **Abandoned session detection**: If an auditor session crashes or hangs, the attempt is marked abandoned; the next scheduler tick re-checks it and rotates candidates if the session's TTL has expired.
 
-7. **Exhaustion handling**: When all independent candidates fail, the audit is marked with a `no_independent_auditor` failure classification so the coordinator routes it to `Needs Human` with actionable configuration instructions.
+7. **Exhaustion handling**: When all independent candidates fail, the audit is marked with the existing `no_auditor` failure classification so the coordinator routes it to `Needs Human` with actionable configuration instructions.
 
 ## Architecture
 
 ### Audit Dispatch Flow
 
-```
-┌──────────────────────────────────────────────────────────┐
-│ Orchestrator Scheduler Tick                              │
-└──────────────────────────────────────────────────────────┘
-             ↓
-┌──────────────────────────────────────────────────────────┐
-│ 1. Load all tasks in "In Validation" state               │
-│    (priority over Open issues)                           │
-└──────────────────────────────────────────────────────────┘
-             ↓
-┌──────────────────────────────────────────────────────────┐
-│ 2. For each task: extract pending audit from metadata    │
-│    (oompah.terminal_audit.pending_chain)                 │
-└──────────────────────────────────────────────────────────┘
-             ↓
-┌──────────────────────────────────────────────────────────┐
-│ 3. Check epic-branch lock (serialize against writers)    │
-│    Skip if another auditor/worker holds the lock         │
-└──────────────────────────────────────────────────────────┘
-             ↓
-┌──────────────────────────────────────────────────────────┐
-│ 4. Gather target-specific evidence (for fingerprint)     │
-│    (task state, SHAs, review metadata, child audits)     │
-└──────────────────────────────────────────────────────────┘
-             ↓
-┌──────────────────────────────────────────────────────────┐
-│ 5. Collect task contributors' providers/models           │
-│    (from task metadata or work_contributors)             │
-└──────────────────────────────────────────────────────────┘
-             ↓
-┌──────────────────────────────────────────────────────────┐
-│ 6. Select next eligible independent candidate            │
-│    (call AuditorCandidateSelector.select_candidate)      │
-└──────────────────────────────────────────────────────────┘
-             ↓
-┌──────────────────────────────────────────────────────────┐
-│ 7. If all candidates exhausted:                          │
-│    Submit NO_AUDITOR failure → coordinator routes        │
-│    to Needs Human with configuration instructions        │
-└──────────────────────────────────────────────────────────┘
-             ↓
-┌──────────────────────────────────────────────────────────┐
-│ 8. Run provider/budget/health preflight for candidate    │
-│    (same logic as normal dispatch)                       │
-└──────────────────────────────────────────────────────────┘
-             ↓
-┌──────────────────────────────────────────────────────────┐
-│ 9. Persist running attempt (attempt_id, provider, model, │
-│    started_at, candidate_rotation_count) before launch   │
-└──────────────────────────────────────────────────────────┘
-             ↓
-┌──────────────────────────────────────────────────────────┐
-│ 10. Launch auditor agent in reserved focus               │
-│    (auditor_focus_name="auditor")                        │
-└──────────────────────────────────────────────────────────┘
-             ↓
-┌──────────────────────────────────────────────────────────┐
-│ 11. Auditor runs with task, audit_id, provider, model    │
-│     in initial prompt + AuditorTargetContract            │
-└──────────────────────────────────────────────────────────┘
-             ↓
-┌──────────────────────────────────────────────────────────┐
-│ 12. Auditor produces result via submit_audit_result      │
-│    → TerminalTransitionCoordinator.apply_audit_result    │
-└──────────────────────────────────────────────────────────┘
-             ↓
-┌──────────────────────────────────────────────────────────┐
-│ 13. Coordinator updates attempt with verdict, marks      │
-│    audit COMPLETED, applies terminal status if PASS      │
-└──────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    tick[Orchestrator scheduler tick]
+    load[Load persisted tasks in In Validation]
+    target[Extract the next pending target from terminal-audit metadata]
+    lock{Epic/task branch claim available?}
+    evidence[Collect target evidence and contributor provenance]
+    candidate[Select the next independent auditor candidate]
+    available{Candidate available?}
+    human[Submit no_auditor failure; coordinator routes to Needs Human]
+    preflight[Run provider, budget, and health preflight]
+    persist[Persist attempt identity and candidate before launch]
+    launch[Launch the reserved read-only auditor focus]
+    result[Auditor submits submit_audit_result]
+    apply[Coordinator validates the contract and applies the verdict]
+
+    tick --> load --> target --> lock
+    lock -- no; defer --> tick
+    lock -- yes --> evidence --> candidate --> available
+    available -- no --> human
+    available -- yes --> preflight --> persist --> launch --> result --> apply
 ```
 
 ### Data Structures
 
-#### Running Attempt Record
+#### Proposed dispatch attempt fields
 
-Persisted in task metadata (oompah.terminal_audit.running_attempts):
+The existing `AuditAttempt` is persisted inside each
+`TerminalAuditRecord.attempts` list and in the bounded top-level
+`attempt_history`. It already carries the stable `attempt_id`, target,
+fingerprint, request state, verdict, classification, and timestamps. The
+dispatch lane must extend that versioned record (or add a versioned adjacent
+dispatch record) with its provider/model, launch timestamp, completion
+timestamp, and rotation number. Do not invent a second top-level running-
+attempt field: `oompah.terminal_audit` currently has only `pending_chain`,
+`attempt_history`, and optional quarantine data.
 
 ```python
 @dataclass
 class AuditAttempt:
-    attempt_id: str              # UUID; idempotency key for result submission
-    audit_id: str                # Audit identifier from pending chain
-    provider_id: str             # Provider ID for candidate that was selected
-    model: str                   # Model on the selected provider
-    candidate_rotation_count: int # 0 for first attempt, 1 for rotated, ...
-    started_at: str              # ISO 8601 timestamp
-    ended_at: str | None         # ISO 8601 timestamp; set when auditor exits
-    verdict: Verdict | None      # Only set after result submission
-    failure_classification: FailureClassification | None
-    message: str                 # Auditor's free-text result
+    attempt_id: str
+    target_state: TargetState
+    evidence_fingerprint: EvidenceFingerprint
+    request_state: RequestState = RequestState.PENDING
+    verdict: Verdict | None = None
+    failure_classification: FailureClassification | None = None
+    requested_by: ContributorIdentity | None = None
+    created_at: str | None = None
+    completed_at: str | None = None
+
+# Dispatch-only fields to add through a versioned schema migration:
+# provider_id, model, started_at, ended_at, candidate_rotation_count.
 ```
 
 #### Audit Metadata (Task Storage)
@@ -129,30 +97,23 @@ Stored in task metadata under `oompah.terminal_audit`:
 
 ```json
 {
+  "version": 1,
   "pending_chain": [
     {
       "audit_id": "audit-1",
       "target_state": "Done",
       "request_state": "pending",
-      "evidence_fingerprint": "sha256:...",
+      "evidence_fingerprint": {
+        "version": 1,
+        "algorithm": "sha256",
+        "digest": "<64 lowercase hex characters>"
+      },
       "created_at": "2026-01-01T12:00:00Z",
-      "previous_state": "Open"
+      "previous_state": "Open",
+      "attempts": []
     }
   ],
-  "running_attempts": [
-    {
-      "attempt_id": "attempt-uuid-1",
-      "audit_id": "audit-1",
-      "provider_id": "prov-abc",
-      "model": "gpt-4",
-      "candidate_rotation_count": 0,
-      "started_at": "2026-01-01T12:00:30Z",
-      "ended_at": null,
-      "verdict": null,
-      "failure_classification": null,
-      "message": null
-    }
-  ]
+  "attempt_history": []
 }
 ```
 
@@ -164,7 +125,7 @@ The independent auditor candidate selection process mirrors the seeded auditor r
 
 1. Load the auditor role from the project's role store (`.oompah/roles.json`).
 2. Call `AuditorCandidateSelector.select_candidate(contributors=task_contributors)` to get the next eligible independent candidate.
-3. If `select_candidate` returns `None` with a reason (e.g., "all_are_contributors"), mark the audit with `NO_AUDITOR` failure.
+3. Exclude provider/model pairs already attempted for this audit. If no candidate remains, use the selector's reason (for example, `all_are_contributors`) and mark the audit with `NO_AUDITOR` failure.
 4. Apply provider health, budget, and rate-limit preflight checks.
 5. Persist the attempt and launch.
 
@@ -182,7 +143,7 @@ When a candidate fails (provider error, timeout, auditor crash), the system:
 1. Marks the attempt `ended_at` and records the failure reason (from provider logs or auditor exit code).
 2. Increments `candidate_rotation_count`.
 3. On the next scheduler tick, calls `select_candidate` again to get the next independent candidate.
-4. If `select_candidate` returns `None`, submits the `NO_AUDITOR` failure.
+4. If `select_candidate` returns `None`, submit a `NO_AUDITOR` failure.
 
 ### Retry and Recovery Semantics
 
@@ -194,8 +155,10 @@ When a candidate fails (provider error, timeout, auditor crash), the system:
 4. Coordinator marks the audit COMPLETED and applies the verdict:
    - **PASS**: applies the terminal status (Done/Merged/Archived), keeps task in In Validation if later targets are pending
    - **FAIL**: routes to repair state based on failure_classification
-   - **NEEDS_HUMAN**: keeps task in In Validation with actionable comment
-5. Attempt record is updated with verdict and message; auditor worker exits normally.
+   - **NEEDS_HUMAN**: routes the task to `Needs Human` with an actionable comment
+5. The attempt record is updated with its verdict, classification, and
+   completion timestamp; the coordinator posts the human-readable result
+   message as the tracker comment. The auditor worker exits normally.
 
 #### On Transient Failure (Provider/Tool Error)
 
@@ -219,10 +182,11 @@ When a candidate fails (provider error, timeout, auditor crash), the system:
 #### On Graceful Restart
 
 1. Service receives shutdown signal; active workers are drained gracefully.
-2. Orchestrator persists all in-flight dispatch state (including running_attempts).
+2. Orchestrator persists all in-flight dispatch state in the in-progress
+   `AuditAttempt` record.
 3. Service restarts and loads all persisted tasks.
 4. Dispatcher scans all tasks in In Validation state.
-5. For each task with a running attempt:
+5. For each task with an in-progress `AuditAttempt`:
    - If `ended_at` is set, process as if the auditor exited (transient failure path above).
    - If `ended_at` is null and `started_at` is recent (< TTL), assume still running and skip.
    - If `ended_at` is null and `started_at` is old (>= TTL), mark abandoned and rotate.
@@ -231,13 +195,13 @@ When a candidate fails (provider error, timeout, auditor crash), the system:
 
 Retry backoff follows the normal dispatch retry backoff:
 
-- Initial delay: OOMPAH_BACKOFF_INITIAL_MS (default: 1000 ms)
-- Exponential multiplier: OOMPAH_BACKOFF_MULTIPLIER (default: 2.0)
-- Maximum delay: OOMPAH_MAX_RETRY_BACKOFF_MS (default: 300000 ms)
+- Reuse the normal scheduler's exponential backoff. Its current initial delay
+  is 10 seconds and its ceiling is `OOMPAH_MAX_RETRY_BACKOFF_MS` (default
+  300000 ms).
 
 Rate-limit responses (HTTP 429) trigger an immediate candidate rotation (no backoff) to unblock the audit by switching to a different provider.
 
-### Configuration Variables
+### Proposed Configuration Variables
 
 New environment variables for independent auditor dispatch:
 
@@ -250,22 +214,25 @@ New environment variables for independent auditor dispatch:
 
 ### Concurrency and Serialization
 
-#### Epic-Branch Lock
+#### Epic-Branch Claim
 
-Auditor tasks and worker tasks contend for an exclusive lock on the epic/task branch:
+Auditor tasks and worker tasks contend for an exclusive claim on the
+epic/task branch:
 
 ```python
 _epic_branch_locks: dict[str, asyncio.Lock] = {}
 
-async def claim_branch(epic_id: str) -> bool:
+async def claim_branch(epic_id: str, attempt_id: str) -> bool:
     async with _epic_branch_locks.setdefault(epic_id, asyncio.Lock()):
-        # Check if another worker/auditor holds the lock
-        # If free, acquire it and launch
+        # Atomically inspect and persist the durable claim for this session.
+        # The in-process lock protects this transaction only.
 ```
 
 - If an auditor holds the lock, incoming worker tasks are blocked and will be retried on the next scheduler tick.
 - If a worker holds the lock, incoming audits are blocked and will be retried on the next scheduler tick.
-- Locks are held only for the duration of the dispatch operation (milliseconds), not the entire agent session.
+- The in-process lock is held only for the claim transaction. The durable
+  claim remains until the auditor or worker exits, so a branch writer cannot
+  race an active auditor after launch.
 
 #### Global Concurrency Limit
 
@@ -413,8 +380,11 @@ class TestAuditDispatchIntegration:
 ### Scheduler Focused Tests
 
 ```bash
-make test tests/test_audit_dispatch_lane.py
-make test tests/test_orchestrator_audit.py
+.venv/bin/python -m pytest \
+  tests/test_auditor_candidate_selector.py \
+  tests/test_auditor_focus.py \
+  tests/test_terminal_audit_metadata.py -q
+make test
 ```
 
 ## Acceptance Criteria
