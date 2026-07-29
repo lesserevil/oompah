@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-407
 type: bug
-status: Merged
+status: Archived
 priority: 2
 title: '[backend:orchestrator] Dispatch loop stale: no tick completed in 900s (threshold=900s).
   Alert armed, recovery queued.'
@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-22T08:36:37.862938Z'
-updated_at: '2026-07-22T16:22:26.485444Z'
+updated_at: '2026-07-29T16:46:42.300313Z'
 work_branch: OOMPAH-407
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/539
