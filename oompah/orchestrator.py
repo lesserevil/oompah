@@ -1026,8 +1026,6 @@ class Orchestrator:
         # bad verifier prompt or pathological case can't pin an issue
         # forever. Keyed by issue.id (not identifier — id is the stable
         # primary key across reopen).
-        self._verifier_reject_counts: dict[str, int] = {}
-
         # Pending agent-profile swap (oompah-zlz_2-mif). When the API-path
         # AgentProfileStore writes a profile, it queues a fresh list here
         # via :meth:`replace_agent_profiles`. The next ``_tick()`` applies
@@ -19608,7 +19606,6 @@ class Orchestrator:
         self.state.claimed_issues.pop(issue_id, None)
         self.state.stall_counts.pop(issue_id, None)
         self._clear_reopen_count(issue_id)
-        self._verifier_reject_counts.pop(issue_id, None)
         try:
             tracker = (
                 self._tracker_for_project(project_id)
@@ -21723,7 +21720,14 @@ class Orchestrator:
         current_issue: Issue,
         project_id: str | None,
     ) -> VerifierResult:
-        """Run the post-close verification pass (oompah-zlz_2-y0ns).
+        """DEPRECATED: Run the post-close verification pass (oompah-zlz_2-y0ns).
+
+        .. deprecated:: OOMPAH-477
+            Replaced by ``TerminalTransitionCoordinator.request_transition()`` which
+            stages Done audits independently via the auditor.  This method is
+            retained for reference and backward compatibility but is no longer
+            called in the normal worker-exit path.  Deterministic acceptance-reference
+            extraction is reused by the auditor as Done evidence.
 
         Called from ``_on_worker_exit`` when the worker exited
         ``normal`` AND the task has moved to a terminal state — i.e.
@@ -22703,7 +22707,6 @@ class Orchestrator:
                         if repair_finished:
                             self.state.completed.add(issue_id)
                             self._clear_reopen_count(issue_id)
-                            self._verifier_reject_counts.pop(issue_id, None)
                         else:
                             self.state.completed.discard(issue_id)
                     elif (
@@ -22997,126 +23000,64 @@ class Orchestrator:
                             # Gate refused; task re-opened, skip verifier.
                             pass
                         else:
-                            # Step 2: Completion verifier (oompah-zlz_2-y0ns).
-                            # Run the two-stage check (regex + LLM) against the
-                            # task's "# Acceptance criteria" section to catch
-                            # false-success closures where the agent's diff
-                            # doesn't actually satisfy the AC.
-                            verifier_result = self._run_completion_verifier(
-                                entry,
-                                current,
-                                project_id,
-                            )
-                            max_verifier_rejects = 3
-                            reject_count = self._verifier_reject_counts.get(
-                                issue_id, 0
-                            )
-                            if (
-                                not verifier_result.passed
-                                and reject_count < max_verifier_rejects
-                            ):
-                                # Reject the close: reopen, post diagnostics,
-                                # schedule a retry. Increment reject count so
-                                # we eventually give up if the agent keeps
-                                # shipping the same gap.
-                                self._verifier_reject_counts[issue_id] = (
-                                    reject_count + 1
+                            # Step 2: Terminal transition (OOMPAH-477).
+                            # Stage a Done audit request with the
+                            # terminal-transition-coordinator. The orchestrator
+                            # captures contributor provenance and calls
+                            # request_transition() instead of running
+                            # _run_completion_verifier() directly. The auditor
+                            # will independently verify the closure and apply
+                            # the Done status. Review creation is deferred
+                            # until the audit passes.
+                            if not project_id or not current.id:
+                                logger.warning(
+                                    "Cannot stage Done audit for %s: missing project_id or task id",
+                                    entry.identifier,
                                 )
+                            else:
                                 try:
-                                    tracker.reopen_issue(entry.identifier)
+                                    evidence_fp = compute_evidence_fingerprint(
+                                        requirements_text=current.description or "",
+                                        project_id=project_id,
+                                        task_id=current.id,
+                                        source_branch=entry.issue.branch_name or "",
+                                        target_branch="main",
+                                    )
+                                    orchestrator_trigger = ContributorIdentity(
+                                        identity="orchestrator",
+                                        source="oompah",
+                                    )
+                                    result = await self.terminal_transition_coordinator.request_transition(
+                                        current_issue=current,
+                                        requested_target=TargetState.DONE,
+                                        trigger_identity=orchestrator_trigger,
+                                        project_id=project_id,
+                                        evidence_fingerprint=evidence_fp,
+                                    )
+                                    if result.success:
+                                        # Transition request staged successfully.
+                                        # The task is now in In Validation status.
+                                        # The auditor will process the audit and
+                                        # handle review creation and completion.
+                                        logger.info(
+                                            "Staged Done audit for %s (audit_id=%s)",
+                                            entry.identifier,
+                                            result.audit_id,
+                                        )
+                                    else:
+                                        # Transition request failed (e.g., already
+                                        # completed). Log and continue.
+                                        logger.warning(
+                                            "Failed to stage Done audit for %s: %s",
+                                            entry.identifier,
+                                            result.reason,
+                                        )
                                 except Exception as exc:
                                     logger.warning(
-                                        "Failed to reopen %s after verifier rejection: %s",
+                                        "Error staging Done audit for %s: %s",
                                         entry.identifier,
                                         exc,
                                     )
-                                    self.state.completed.add(issue_id)
-                                    self._clear_reopen_count(issue_id)
-                                    if not self._defer_review_gate_to_maintenance(
-                                        entry,
-                                        project_id,
-                                    ):
-                                        self._ensure_review_exists(entry, project_id)
-                                else:
-                                    try:
-                                        self._post_comment(
-                                            entry.identifier,
-                                            verifier_result.render_rejection_comment(),
-                                            project_id=project_id,
-                                        )
-                                    except Exception as exc:
-                                        logger.warning(
-                                            "Failed to post verifier-rejection comment "
-                                            "to %s: %s",
-                                            entry.identifier,
-                                            exc,
-                                        )
-                                    # Schedule a retry — try a higher profile if
-                                    # available so the next attempt has more
-                                    # capacity to satisfy the AC.
-                                    next_attempt = (entry.retry_attempt or 0) + 1
-                                    escalated, escalated_name = (
-                                        self._next_profile_for_retry(entry)
-                                    )
-                                    delay = self._backoff_delay(next_attempt)
-                                    self._schedule_retry(
-                                        issue_id,
-                                        attempt=next_attempt,
-                                        identifier=entry.identifier,
-                                        delay_ms=delay,
-                                        error="completion_verifier_rejected",
-                                        escalated_profile=escalated_name
-                                        if escalated
-                                        else None,
-                                        project_id=project_id,
-                                        context_entry=entry,
-                                    )
-                                    logger.info(
-                                        "Completion verifier rejected close for %s — "
-                                        "reopened, retrying in %ds (reject %d/%d)",
-                                        entry.identifier,
-                                        delay // 1000,
-                                        reject_count + 1,
-                                        max_verifier_rejects,
-                                    )
-                            else:
-                                if not verifier_result.passed:
-                                    # We've hit the verifier reject ceiling —
-                                    # fail open and let the close stick, but
-                                    # log a WARNING so the operator can
-                                    # investigate.
-                                    logger.warning(
-                                        "Completion verifier rejected %s for the %dth "
-                                        "time — failing open and honoring the close",
-                                        entry.identifier,
-                                        reject_count + 1,
-                                    )
-                                # Auto-create review if agent pushed a branch.
-                                # If review handoff fails for unmerged work,
-                                # the task is reopened and should not be
-                                # recorded as cleanly completed.
-                                if self._defer_review_gate_to_maintenance(
-                                    entry,
-                                    project_id,
-                                ):
-                                    review_ready = True
-                                else:
-                                    review_ready = self._ensure_review_exists(
-                                        entry,
-                                        project_id,
-                                    )
-                                if review_ready:
-                                    self.state.completed.add(issue_id)
-                                    self._clear_reopen_count(issue_id)
-                                    self._verifier_reject_counts.pop(issue_id, None)
-                                    # Reactive epic auto-close: if the just-closed
-                                    # task is a child of an epic, evaluate the
-                                    # parent for auto-close immediately rather
-                                    # than waiting for the next full-sync tick.
-                                    # See oompah-zlz_2-lvcd.
-                                    self._maybe_auto_close_parent_epic(current)
-                                else:
-                                    self.state.completed.discard(issue_id)
             except Exception:
                 self.state.completed.add(issue_id)
             # Analyze completed work against foci library

@@ -20,7 +20,7 @@ import json
 import logging
 import subprocess
 from datetime import datetime, timezone
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch, call, AsyncMock
 
 import pytest
 
@@ -94,12 +94,13 @@ def _make_orch(tmp_path, *, close_gate_enabled: bool = True) -> Orchestrator:
 
 
 def _closed_issue(identifier: str = "test-001") -> Issue:
+    from oompah.statuses import DONE
     return Issue(
         id=identifier,
         identifier=identifier,
         title="x",
         description="",
-        state="closed",
+        state=DONE,
         labels=[],
         priority=2,
         issue_type="feature",
@@ -705,20 +706,32 @@ class TestOrchestratorCloseGateWiring:
         orch.tracker = mock_tracker
 
         # Gate returns True (allowed)
-        with patch.object(orch, "_run_close_gate", return_value=True):
-            with patch.object(
-                orch,
-                "_run_completion_verifier",
-                return_value=MagicMock(
-                    passed=True, skipped=True, skip_reason="disabled"
-                ),
-            ):
-                event_loop.run_until_complete(
-                    orch._on_worker_exit(issue.id, "normal", None)
-                )
+        # Mock terminal_transition_coordinator to stage the Done audit
+        from oompah.terminal_transition_coordinator import TransitionResult
+        from oompah.terminal_audit import TargetState
+        
+        mock_coordinator = MagicMock()
+        mock_coordinator.request_transition = AsyncMock(
+            return_value=TransitionResult(
+                success=True,
+                audit_id="audit-123",
+                queued_targets=[TargetState.DONE],
+            )
+        )
+        orch.terminal_transition_coordinator = mock_coordinator
+        
+        with (
+            patch.object(orch, "_run_close_gate", return_value=True),
+            patch.object(orch, "_run_unpushed_gate", return_value=True),
+        ):
+            event_loop.run_until_complete(
+                orch._on_worker_exit(issue.id, "normal", None)
+            )
 
-        # Close went through
-        assert issue.id in orch.state.completed
+        # Coordinator was called to stage Done audit
+        # Note: The task is no longer marked as completed immediately;
+        # instead it's staged for audit. The auditor processes it later.
+        assert mock_coordinator.request_transition.called
 
     def test_operator_close_bypasses_gate(self, tmp_path, event_loop):
         """Operator-style close (gate disabled) → always allowed."""
