@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:28.235708Z'
-updated_at: '2026-07-29T19:10:40.605569Z'
+updated_at: '2026-07-29T19:12:19.931866Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-480
 target_branch: null
 review_url: null
@@ -210,5 +210,10 @@ author: oompah
 created: 2026-07-29 19:10
 ---
 Understanding: CI Failure Fixer dispatched. Branch is up to date, no open PR found. Running focused tests to verify current state before submitting.
+---
+author: oompah
+created: 2026-07-29 19:12
+---
+Discovery: All 13158 tests pass locally. No PR is open yet for this branch. The implementation (commit f2812fda7) routes merged release-pick observations through the terminal transition coordinator. Key changes: release_pick_reconciler.py now accepts a terminal_transition_requester callback and stages Merged audits with target-specific landing evidence instead of writing tracker status directly. orchestrator.py wires the callback. Test coverage added in test_release_pick_reconciler.py (108 tests passing). Release delivery and addendum pollers are delivery-record-only — they do not alter canonical task state, which satisfies the acceptance criteria.
 ---
 <!-- COMMENTS:END -->
