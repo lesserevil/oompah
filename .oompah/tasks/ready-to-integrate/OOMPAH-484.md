@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:23.210919Z'
-updated_at: '2026-07-29T19:15:52.031308Z'
+updated_at: '2026-07-29T19:16:20.624289Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-484
 target_branch: null
 review_url: null
@@ -46,13 +46,17 @@ oompah.duplicate_screening:
 oompah.agent_run_id: 4bdf2e89-7b62-4e4a-90a6-d6bb2f186cc5
 oompah.work_branch: epic-OOMPAH-460--task-OOMPAH-484
 oompah.task_costs:
-  total_input_tokens: 391727
-  total_output_tokens: 1848
+  total_input_tokens: 391905
+  total_output_tokens: 7753
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 391727
       output_tokens: 1848
+      cost_usd: 0.0
+    sonnet:
+      input_tokens: 178
+      output_tokens: 5905
       cost_usd: 0.0
   runs:
   - profile: default
@@ -61,6 +65,12 @@ oompah.task_costs:
     output_tokens: 1848
     cost_usd: 0.0
     recorded_at: '2026-07-29T02:02:37.416064+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 178
+    output_tokens: 5905
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T19:16:19.367536+00:00'
 oompah.integration:
   version: 1
   state: ready
@@ -221,5 +231,15 @@ author: oompah
 created: 2026-07-29 19:15
 ---
 Exposed safe terminal-audit state across task list, detail, and activity APIs. Added _issue_terminal_audit_summary() and _terminal_audit_phase() to server.py, rendered in dashboard.html via renderTerminalAuditSummary/renderTerminalAuditDetail with per-phase CSS. 38 new API serialization/redaction tests in test_terminal_status_interfaces.py covering all audit states (queued/running/passed/failed/overridden/grandfathered/malformed/ACP-unknown). No sensitive content exposed; legacy fields unchanged.
+---
+author: oompah
+created: 2026-07-29 19:16
+---
+Run #2 [attempt=2, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 0, Tool calls: 127
+- Tokens: 178 in / 5.9K out [6.1K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 31m 39s
+- Log: OOMPAH-484__20260729T184455Z.jsonl
 ---
 <!-- COMMENTS:END -->
