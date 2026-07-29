@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:09.346734Z'
-updated_at: '2026-07-29T00:07:21.941883Z'
+updated_at: '2026-07-29T00:33:10.655710Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -47,8 +47,8 @@ oompah.duplicate_screening:
   retry_count: 1
   retry_after: null
 oompah.task_costs:
-  total_input_tokens: 1513554
-  total_output_tokens: 10481
+  total_input_tokens: 29193869
+  total_output_tokens: 64860
   total_cost_usd: 0.0
   by_model:
     sonnet:
@@ -56,8 +56,8 @@ oompah.task_costs:
       output_tokens: 1511
       cost_usd: 0.0
     haiku:
-      input_tokens: 1513498
-      output_tokens: 8970
+      input_tokens: 29193813
+      output_tokens: 63349
       cost_usd: 0.0
   runs:
   - profile: standard
@@ -84,6 +84,12 @@ oompah.task_costs:
     output_tokens: 74
     cost_usd: 0.0
     recorded_at: '2026-07-28T23:51:06.469457+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 27680315
+    output_tokens: 54379
+    cost_usd: 0.0
+    recorded_at: '2026-07-29T00:33:07.856480+00:00'
 ---
 ## Summary
 
@@ -261,5 +267,25 @@ author: oompah
 created: 2026-07-29 00:07
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-07-29 00:33
+---
+Agent completed successfully in 1548s (27734694 tokens)
+---
+author: oompah
+created: 2026-07-29 00:33
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 168
+- Tokens: 27.7M in / 54.4K out [27.7M total]
+- Cost: $0.0000
+- Exit: normal, Duration: 25m 48s
+- Log: OOMPAH-469__20260729T000722Z.jsonl
+---
+author: oompah
+created: 2026-07-29 00:33
+---
+Agent completed without closing this issue (1548s (27734694 tokens)). Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
 ---
 <!-- COMMENTS:END -->
