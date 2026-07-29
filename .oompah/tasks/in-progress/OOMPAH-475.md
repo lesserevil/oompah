@@ -21,7 +21,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:15.927352Z'
-updated_at: '2026-07-29T14:37:25.730494Z'
+updated_at: '2026-07-29T14:38:21.965116Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -159,5 +159,35 @@ created: 2026-07-29 14:37
 - Documents attempt persistence for idempotent recovery
 
 Next phase: Documentation for operators and configuration guidance.
+---
+author: oompah
+created: 2026-07-29 14:38
+---
+**Implementation**: Created comprehensive documentation for independent auditor dispatch:
+
+**plans/independent-auditor-dispatch.md** (Design/Architecture):
+- Complete audit dispatch flow with sequence diagrams (Mermaid)
+- Data structures for running attempts and audit metadata
+- Candidate selection policy with independence constraints
+- Retry/recovery semantics (normal exit, transient failure, crash, restart)
+- Backoff and rate-limiting behavior
+- Epic-branch locking and global concurrency limits
+- Configuration variables (OOMPAH_AUDIT_MAX_ATTEMPTS, TTL, priority, scan limit)
+- Monitoring, metrics, and logging guidelines
+- Comprehensive unit and integration test strategy
+- Acceptance criteria (all 11 items covered)
+
+**docs/auditor-dispatch-operations.md** (Operator Guide):
+- Quick overview of audit dispatch workflow
+- Step-by-step configuration guide with .env examples
+- Auditor role management (.oompah/roles.json)
+- Provider independence policy explanation
+- Dashboard metrics and log monitoring
+- Troubleshooting guide (no candidates, rate limits, timeouts, crashes, queue backup)
+- Recovery procedures (graceful restart, emergency restart, manual skip)
+- Configuration examples for different deployment sizes
+- Performance tuning recommendations
+
+All documentation includes practical examples and references between design/ops docs.
 ---
 <!-- COMMENTS:END -->
