@@ -13,7 +13,7 @@ labels:
 - needs:test
 assignee: null
 created_at: '2026-07-29T14:22:15.797334Z'
-updated_at: '2026-07-29T14:31:41.288282Z'
+updated_at: '2026-07-29T14:35:25.512919Z'
 work_branch: OOMPAH-542
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/576
@@ -47,5 +47,10 @@ author: oompah
 created: 2026-07-29 14:31
 ---
 Implemented and committed as 05380e6fe. Verified watchdog reopens now clear completed/claimed/retry-budget suppression only after tracker state confirms Open, then emit one coalescible dispatch refresh for the entire batch. The internal scheduler watchdog likewise wakes dispatch once after clearing one or more stale completed entries. Full quality gate: make test — 13,116 passed, 7 skipped.
+---
+author: oompah
+created: 2026-07-29 14:35
+---
+Follow-up per owner: aligned the stalled-task Needs Human audit default and this server configuration to 300 seconds, matching the internal scheduler watchdog. Commit 75b2f4ba7 pushed to PR #576. Re-ran make test: 13,116 passed, 7 skipped. Operationally verified the watchdog reopened false Needs Human OOMPAH-470; after confirming its branch clean/pushed and work complete, closed it Done and OOMPAH-475 dispatched.
 ---
 <!-- COMMENTS:END -->
