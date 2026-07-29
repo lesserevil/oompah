@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-563
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Make service-state persistence atomic and recover terminal-audit quarantine
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T21:36:54.712161Z'
-updated_at: '2026-07-29T21:39:09.328048Z'
+updated_at: '2026-07-29T21:39:21.243289Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -43,7 +43,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: cfb10b58-eddd-4b60-8fc0-76274d98ace6
+oompah.agent_run_id: e71a81d4-84d5-4fcf-bada-29f92e9bf4df
 oompah.task_costs:
   total_input_tokens: 493525
   total_output_tokens: 2600
@@ -104,5 +104,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 16s
 - Log: OOMPAH-563__20260729T213757Z.jsonl
+---
+author: oompah
+created: 2026-07-29 21:39
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-29 21:39
+---
+Focus: Frontend Developer
 ---
 <!-- COMMENTS:END -->
