@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-563
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Make service-state persistence atomic and recover terminal-audit quarantine
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T21:36:54.712161Z'
-updated_at: '2026-07-29T21:45:58.215869Z'
+updated_at: '2026-07-29T21:46:37.321164Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -76,6 +76,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-563
     source_sha: 31f8938b8f669a316a830690aaedcc1e0d3834bf
     completed_at: '2026-07-29T21:39:05.324442+00:00'
+oompah.integration:
+  version: 1
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-563
+  head_sha: f47d09a7bc7812f5c881a0a1356d559202276c85
+  submitted_at: '2026-07-29T21:46:35.201256+00:00'
+  updated_at: '2026-07-29T21:46:35.201256+00:00'
 ---
 ## Summary
 
@@ -175,5 +183,10 @@ author: oompah
 created: 2026-07-29 21:45
 ---
 Understanding & plan: worktree is currently clean (previous run's work was not committed). Restarting from main. Root cause: \`Orchestrator._save_state\` (oompah/orchestrator.py:1863) does an unlocked read-modify-write, opening \`service_state.json\` for write directly (no temp+atomic-replace). Multiple caller sites (pause, maintenance cursor, epic_rebase_states, shared_absorption_evidence, restart_issues, budget window, terminal-audit) can interleave and produce malformed JSON. On corruption \`_load_state\` swallows the error and returns \`{}\`, so the next \`_save_state\` overwrites the corrupt file, destroying evidence. Plan: (1) add a process-local reentrant lock covering \`_load_state\` + \`_save_state\`; (2) in \`_save_state\`, refuse to write when \`_state_load_failed\` is set (fail-closed preservation); (3) write via same-directory tempfile with fsync and \`os.replace\`; (4) add deterministic tests for concurrent writers, corrupt-state preservation, terminal-audit merge, and post-restart recovery. Terminal-audit path already uses \`_save_state_for_terminal_audit\` → \`_save_state\`, so it stays merge-compatible for free.
+---
+author: oompah
+created: 2026-07-29 21:46
+---
+Fixed live service-state corruption race with a re-entrant lock covering each read/modify/write, fsynced same-directory temporary files and atomic replace, sticky fail-closed corruption preservation, and post-load corruption detection for terminal-audit startup. Added deterministic concurrent-writer, corrupt-document, serialization-failure, state-merge, and graceful-restart recovery tests. Focused state consumers: 301 passed. Full gate: 13,581 passed, 7 skipped.
 ---
 <!-- COMMENTS:END -->
