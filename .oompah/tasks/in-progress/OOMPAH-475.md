@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-475
 type: feature
-status: Needs Human
+status: In Progress
 priority: 1
 title: Dispatch, retry, and recover independent auditor agents
 parent: OOMPAH-458
@@ -21,7 +21,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:06:15.927352Z'
-updated_at: '2026-07-29T14:53:32.485166Z'
+updated_at: '2026-07-29T14:54:03.913147Z'
 work_branch: epic-OOMPAH-458
 target_branch: null
 review_url: null
@@ -486,5 +486,17 @@ author: oompah
 created: 2026-07-29 14:53
 ---
 Agent completed 3 times without closing this issue. Human action required: review the agent run history and task state, then either close the task if the work is done or add specific guidance and move it back to Open.
+---
+author: oompah
+created: 2026-07-29 14:53
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #3)
+
+**State audited:** `Needs Human`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** Last agent comment signals completion without a human question; the Needs Human transition appears accidental.
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
 ---
 <!-- COMMENTS:END -->
