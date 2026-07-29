@@ -13,7 +13,7 @@ labels:
 - needs:ci
 assignee: null
 created_at: '2026-07-29T15:11:56.176459Z'
-updated_at: '2026-07-29T15:30:01.607334Z'
+updated_at: '2026-07-29T15:30:04.457744Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,5 +41,10 @@ author: oompah
 created: 2026-07-29 15:24
 ---
 Implemented and pushed commit 3d72d2e69 to PR #577. Added pytest-timeout with a global per-test timeout of 5 seconds using the thread method, plus a regression test for the configuration. The timeout exposed two tests that left executor threads sleeping for 10 seconds and one test that awaited a deliberately non-completing task; those tests now clean up promptly. Full local make test passes: 13,138 passed, 7 skipped in 75.43s. Replacement CI run 30465625633 is in progress; superseded hung run 30462624713 was canceled.
+---
+author: oompah
+created: 2026-07-29 15:30
+---
+Added pytest-timeout and a global five-second per-test timeout, corrected three tests that leaked intentionally delayed background work, added configuration regression coverage, and verified make test locally (13,138 passed, 7 skipped) plus GitHub CI on Python 3.11, 3.12, and 3.13 (run 30465625633). Changes are committed and pushed as 3d72d2e69 on PR #577.
 ---
 <!-- COMMENTS:END -->
