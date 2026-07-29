@@ -21,7 +21,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:46.047976Z'
-updated_at: '2026-07-29T17:43:58.983312Z'
+updated_at: '2026-07-29T17:44:13.291678Z'
 work_branch: epic-OOMPAH-458
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/578
@@ -261,5 +261,10 @@ author: oompah
 created: 2026-07-29 17:42
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-29 17:44
+---
+Understanding: CI failure on Python 3.12 (test_poll_does_not_create_duplicate_when_task_is_corrupt). Root cause: the test calls poll_github_issue_intake_project without monkeypatching _github_tracker_for_project, so it makes a real HTTP request to https://api.github.com/repos/example-org/app/issues. Locally that request errors with a generic exception (returned as 0), but in CI GitHub returns 403 rate-limited, which raises TrackerAuthError — which poll re-raises. Fix: add monkeypatch to the failing test to inject the FakeGitHubTracker, matching the pattern used by every other poll-based test in this file.
 ---
 <!-- COMMENTS:END -->
