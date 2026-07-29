@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-476
 type: feature
-status: In Progress
+status: Done
 priority: 1
 title: Stage API, dashboard, and CLI terminal requests through the coordinator
 parent: OOMPAH-459
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:24.379848Z'
-updated_at: '2026-07-29T18:05:58.077163Z'
+updated_at: '2026-07-29T18:06:35.478559Z'
 work_branch: epic-OOMPAH-459
 target_branch: null
 review_url: null
@@ -360,5 +360,28 @@ author: oompah
 created: 2026-07-29 18:05
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-07-29 18:06
+---
+COMPLETION: All implementation for OOMPAH-476 is complete and pushed on branch epic-OOMPAH-459.
+
+3 commits delivered:
+- 7b12cf8: Stage terminal status requests through coordinator (API, CLI, dashboard, MCP/ACP tools)
+- d36868f: Clarify terminal validation notice (dashboard UX)
+- 192e071: Harden terminal transition interfaces (server + ACP tool hardening + tests)
+
+Verification:
+- tests/test_terminal_status_interfaces.py: 9/9 passed
+- tests/test_task_cli.py + tests/test_dashboard_intake_actions.py: 146/146 passed
+
+All acceptance criteria met:
+✅ Terminal status requests (Done/Merged/Archived) route through TerminalTransitionCoordinator
+✅ Response shows In Validation + requested target + audit ID
+✅ audit_override + override_reason for owner authorization
+✅ Unauthorized/blank override rejected without metadata exposure
+✅ Nonterminal transitions keep current behavior
+✅ CLI help and errors updated
+✅ Dashboard shows in-band terminal validation notice with ARIA status region
 ---
 <!-- COMMENTS:END -->
