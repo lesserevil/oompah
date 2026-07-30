@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-594
 type: feature
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Reload HTTP Basic credentials safely after htpasswd rotation
 parent: OOMPAH-586
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:55.490677Z'
-updated_at: '2026-07-30T16:23:26.605207Z'
+updated_at: '2026-07-30T23:53:07.150182Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-594
 target_branch: null
 review_url: null
@@ -60,14 +60,15 @@ oompah.agent_run_id: 72f5cd0a-dc2d-435b-b1ed-8717f5070313
 oompah.work_branch: epic-OOMPAH-586--task-OOMPAH-594
 oompah.integration:
   version: 1
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-586--task-OOMPAH-594
-  base_branch: main
-  base_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
-  head_sha: 31a10b064158948503a7eaa646a1bfa7d1b35e55
+  base_branch: epic-OOMPAH-586
+  base_sha: 0a260f0279690a12fb056da0c8becb6f492f8c26
+  head_sha: e0cff8ffd3319cf6d22dab914befea3222a1498d
+  integrated_sha: e0cff8ffd3319cf6d22dab914befea3222a1498d
   submitted_at: '2026-07-30T16:21:54.118041+00:00'
-  updated_at: '2026-07-30T16:23:24.382846+00:00'
+  updated_at: '2026-07-30T23:53:03.415248+00:00'
 oompah.task_costs:
   total_input_tokens: 1436043
   total_output_tokens: 18401
@@ -192,6 +193,28 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-586--task-OOMPAH-594
     source_sha: 31a10b064158948503a7eaa646a1bfa7d1b35e55
     completed_at: '2026-07-30T16:23:22.807700+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-9b855420e308
+    project_id: proj-14849f1b
+    task_id: OOMPAH-594
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ad17db38808bb32f25dd64cfbdc9e98dcd27fe01dbbd16fd77af5c4d9fd9ad50
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-30T23:53:04.759302+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -684,5 +707,10 @@ Run #3 [attempt=3, profile=deep, role=deep -> Claude/opus]
 - Cost: $0.0000
 - Exit: normal, Duration: 11m 31s
 - Log: OOMPAH-594__20260730T161157Z.jsonl
+---
+author: oompah
+created: 2026-07-30 23:53
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
