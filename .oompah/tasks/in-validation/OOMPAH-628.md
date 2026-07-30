@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T22:37:04.318940Z'
-updated_at: '2026-07-30T22:51:56.205790Z'
+updated_at: '2026-07-30T22:58:53.333505Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,7 +37,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-628
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -60,13 +60,27 @@ oompah.terminal_audit:
       ended_at: '2026-07-30T22:51:52.412521+00:00'
       failure_reason: normal
       next_retry_at: '2026-07-30T22:52:02.412491+00:00'
+    - version: 1
+      attempt_id: attempt-0aef35cc12c3
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 87eacfec78bca7a0b9e1ded75ba2ff0de471743246c18e3bd452045c916b811d
+      created_at: '2026-07-30T22:58:47.547933+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-07-30T22:58:47.547933+00:00'
+      branch_key: OOMPAH-628
+      candidate_rotation_count: 1
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-30T22:46:51.130292+00:00'
-    updated_at: '2026-07-30T22:51:52.412521+00:00'
+    updated_at: '2026-07-30T22:58:47.547933+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-62700fcd7450
@@ -85,6 +99,20 @@ oompah.terminal_audit:
     ended_at: '2026-07-30T22:51:52.412521+00:00'
     failure_reason: normal
     next_retry_at: '2026-07-30T22:52:02.412491+00:00'
+  - version: 1
+    attempt_id: attempt-0aef35cc12c3
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 87eacfec78bca7a0b9e1ded75ba2ff0de471743246c18e3bd452045c916b811d
+    created_at: '2026-07-30T22:58:47.547933+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-07-30T22:58:47.547933+00:00'
+    branch_key: OOMPAH-628
+    candidate_rotation_count: 1
 oompah.task_costs:
   total_input_tokens: 6
   total_output_tokens: 451
@@ -168,5 +196,15 @@ author: oompah
 created: 2026-07-30 22:51
 ---
 Auditor attempt ended: auditor exited (normal) without a result. A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-07-30 22:58
+---
+Auditor dispatched (attempt #2, candidate: prov-651d553c/sonnet)
+---
+author: oompah
+created: 2026-07-30 22:58
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
