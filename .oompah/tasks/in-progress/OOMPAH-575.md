@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T02:15:25.255613Z'
-updated_at: '2026-07-30T13:52:04.825838Z'
+updated_at: '2026-07-30T13:52:07.183817Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -128,5 +128,10 @@ author: oompah
 created: 2026-07-30 13:52
 ---
 Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-30 13:52
+---
+Focus: Security Auditor
 ---
 <!-- COMMENTS:END -->
