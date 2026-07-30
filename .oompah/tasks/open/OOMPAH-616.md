@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-616
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Integrate terminal-audit retry ownership fencing
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T20:47:41.612111Z'
-updated_at: '2026-07-30T20:47:54.102860Z'
+updated_at: '2026-07-30T20:48:13.356784Z'
 work_branch: null
 target_branch: null
 review_url: null
