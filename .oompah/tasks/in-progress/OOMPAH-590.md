@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:22.194798Z'
-updated_at: '2026-07-30T14:32:05.238839Z'
+updated_at: '2026-07-30T14:32:40.043677Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-590
 target_branch: null
 review_url: null
@@ -137,5 +137,28 @@ author: oompah
 created: 2026-07-30 14:32
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-30 14:32
+---
+**Understanding & Plan:**
+
+Issue: Transient auditor-session failures (launch, malformed endpoint, transport, timeout, provider-session) can leave requests silently Pending forever.
+
+Solution: Treat these as recoverable failures, classify them safely, release candidate claims, retry with bounded backoff, and prevent duplicate concurrent attempts.
+
+Key components to implement:
+1. **Failure classification**: Add new classifications for recoverable auditor errors (AUDITOR_LAUNCH_FAILURE, TRANSPORT_ERROR, TIMEOUT, PROVIDER_SESSION_ERROR)
+2. **Retry mechanism**: Implement bounded exponential backoff with next_retry_at timestamp
+3. **Candidate rotation**: Release claimed candidate on transient failure, try next eligible independent candidate
+4. **Deduplication**: Prevent concurrent attempts for same audit/evidence fingerprint
+5. **Terminal state**: Reach explicit exhausted/needs-human state when all candidates exhausted
+
+Relevant code to modify:
+- oompah/auditor_dispatch.py: AuditorDispatchLane for retry/backoff/candidate rotation
+- oompah/terminal_audit.py: Add new FailureClassification values
+- Tests: Cover launch exception, transport exception, timeout, next-candidate, exhausted, restart, duplicate tick, successful retry
+
+Status: Exploring codebase to understand current failure handling.
 ---
 <!-- COMMENTS:END -->
