@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Any, Mapping
 
@@ -22,6 +23,40 @@ INTEGRATION_STATES = frozenset(
 def _optional_text(value: object) -> str | None:
     text = str(value or "").strip()
     return text or None
+
+
+def expected_submission_branch(issue: object) -> str:
+    """Return the branch a task is allowed to submit from.
+
+    Dispatch persists ``work_branch`` before handing a task its worktree.
+    Older tracker records may only have ``branch_name``; native tasks created
+    before that metadata existed use their sanitized identifier, which is also
+    ProjectStore's default branch name.
+    """
+
+    for attribute in ("work_branch", "branch_name"):
+        value = str(getattr(issue, attribute, "") or "").strip()
+        if value:
+            return value
+    identifier = str(getattr(issue, "identifier", "") or "").strip()
+    if not identifier:
+        raise ValueError("task identifier is required to validate task_branch")
+    return re.sub(r"[^A-Za-z0-9._-]+", "_", identifier).strip("._-") or "unnamed"
+
+
+def validate_submission_branch(issue: object, task_branch: object) -> str:
+    """Reject evidence captured from a checkout other than the task's branch."""
+
+    submitted = str(task_branch or "").strip()
+    if not submitted:
+        raise ValueError("task_branch is required for task submission")
+    expected = expected_submission_branch(issue)
+    if submitted != expected:
+        raise ValueError(
+            f"submitted branch {submitted!r} does not match the task's expected "
+            f"work branch {expected!r}; submit from the assigned task checkout"
+        )
+    return submitted
 
 
 @dataclass(frozen=True)
