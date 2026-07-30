@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T23:53:31.874608Z'
-updated_at: '2026-07-29T23:59:42.607601Z'
+updated_at: '2026-07-30T00:01:17.856591Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -164,5 +164,26 @@ created: 2026-07-29 23:59
 4. Add tests for: blocked explicit resubmit, restart with durable integrating row, shutdown cleanup, no duplicate claims
 
 Will proceed with discovery of server submission wiring next.
+---
+author: oompah
+created: 2026-07-30 00:01
+---
+**Discovery:** Found the key code patterns:
+
+1. **Two sync paths:** 
+   - Background sync at line 4627: Periodically enqueues Ready submissions
+   - Retryable recovery at line 4871: Re-enqueues with rebased head_sha on transient failure
+
+2. **Idempotency issue:** Both paths call enqueue() which returns early if (project_id, task_id, head_sha, task_branch) are identical. This blocks explicit retries of blocked rows.
+
+3. **Lease recovery:** orchestrator.py line 5192 calls recover_expired() during processing loop, but only recovers leases with expired timestamps. No startup-time recovery for abandoned integrating rows.
+
+4. **Process cleanup:** quality_gate.py creates subprocesses with start_new_session=True (line 207), but no mechanism to terminate active process groups on orchestrator shutdown. TimeoutExpired handler catches them (line 234) but graceful shutdown has no equivalent.
+
+5. **Server submission wiring:** server.py line 2886 (_enqueue_worker_submission) is the entry point for explicit API submissions.
+
+All existing tests pass (4 integration_queue + 9 quality_gate tests).
+
+Next: Implement explicit_retry flag, startup lease recovery, and shutdown process cleanup.
 ---
 <!-- COMMENTS:END -->
