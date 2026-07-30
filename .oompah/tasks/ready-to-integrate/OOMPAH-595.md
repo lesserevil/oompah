@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:56.897824Z'
-updated_at: '2026-07-30T15:50:18.053588Z'
+updated_at: '2026-07-30T15:50:40.827737Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-595
 target_branch: null
 review_url: null
@@ -59,13 +59,17 @@ oompah.integration:
   submitted_at: '2026-07-30T15:50:15.824542+00:00'
   updated_at: '2026-07-30T15:50:15.824542+00:00'
 oompah.task_costs:
-  total_input_tokens: 46973
-  total_output_tokens: 1360
+  total_input_tokens: 47075
+  total_output_tokens: 33449
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 46973
       output_tokens: 1360
+      cost_usd: 0.0
+    sonnet:
+      input_tokens: 102
+      output_tokens: 32089
       cost_usd: 0.0
   runs:
   - profile: default
@@ -80,6 +84,12 @@ oompah.task_costs:
     output_tokens: 501
     cost_usd: 0.0
     recorded_at: '2026-07-30T15:31:04.223935+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 102
+    output_tokens: 32089
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T15:50:39.236216+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-595__20260730T152855Z
@@ -240,5 +250,15 @@ author: oompah
 created: 2026-07-30 15:50
 ---
 Add separate operator and worker task-auth health signals with dashboard UI. New oompah/auth_health.py module tracks HTTP Basic 401s (operator plane) and task-handoff token minting/acceptance/401/403-scope/403-action (worker plane) in thread-safe sliding windows. Instrumented server middleware and task-handoff endpoint. Orchestrator get_snapshot() exposes auth_health dict and auth_health_alerts() in alerts. Dashboard shows two plane badges with actionable recovery guidance when degraded; intentional action denials never alert. 34 new tests; 159 related tests pass.
+---
+author: oompah
+created: 2026-07-30 15:50
+---
+Run #2 [attempt=2, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 0, Tool calls: 117
+- Tokens: 102 in / 32.1K out [32.2K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 19m 13s
+- Log: OOMPAH-595__20260730T153130Z.jsonl
 ---
 <!-- COMMENTS:END -->

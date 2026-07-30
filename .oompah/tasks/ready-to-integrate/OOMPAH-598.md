@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-598
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Detect and deliver standalone Ready to Integrate tasks without PRs
 parent: OOMPAH-587
@@ -12,7 +12,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:29.695490Z'
-updated_at: '2026-07-30T15:50:13.457346Z'
+updated_at: '2026-07-30T15:50:57.148765Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-598
 target_branch: null
 review_url: null
@@ -42,12 +42,12 @@ oompah.agent_run_id: 254adbea-a1a2-47d2-9313-917b08a98287
 oompah.work_branch: epic-OOMPAH-587--task-OOMPAH-598
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-587--task-OOMPAH-598
-  base_branch: epic-OOMPAH-587
-  base_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
-  updated_at: '2026-07-30T15:41:10.283180+00:00'
+  head_sha: 131913c09676d9585a15835acf1483c1c9e183f8
+  submitted_at: '2026-07-30T15:50:53.733141+00:00'
+  updated_at: '2026-07-30T15:50:53.733141+00:00'
 oompah.task_costs:
   total_input_tokens: 1164277
   total_output_tokens: 6308
@@ -210,5 +210,31 @@ All tests passing. Execution flow:
     → _sync_ready_integration_submissions() (epic children)
     → _reconcile_standalone_ready_to_integrate_tasks() (standalone)
     → Integration queue claiming/execution loop
+---
+author: oompah
+created: 2026-07-30 15:50
+---
+**VERIFICATION**
+
+Focused test results: All passing (36 tests)
+- New reconciliation tests (8/8 pass): Pushed branch, missing branch, existing PR, duplicates, SCM failures, epic filtering, status filtering
+- Integration queue tests (7/7 pass): Existing functionality unchanged
+- Parallel epic children tests (21/21 pass): Epic workflow unaffected
+
+Implementation details:
+- Scans Ready to Integrate tasks each reconciliation tick
+- Filters to standalone (parent_id empty) automatically
+- Creates PRs idempotently via provider.create_review()
+- Marks tasks In Review, updates review metadata
+- Graceful failure handling: logs errors, continues for next tasks
+- Branch validation via SCM.get_branch_head_sha()
+- PR existence check via SCM.find_pr_for_branch()
+
+Deployment ready. No configuration changes needed.
+---
+author: oompah
+created: 2026-07-30 15:50
+---
+Implemented reconciliation for standalone Ready to Integrate tasks without PRs. Added _reconcile_standalone_ready_to_integrate_tasks() to detect and deliver standalone tasks via PR creation. Ensures idempotent PR delivery with graceful error handling. All 36 focused tests passing (8 new + 28 existing).
 ---
 <!-- COMMENTS:END -->
