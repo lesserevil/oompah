@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:31.072278Z'
-updated_at: '2026-07-30T15:46:18.963470Z'
+updated_at: '2026-07-30T15:46:35.165941Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,6 +35,7 @@ oompah.duplicate_screening:
   claim_expires_at: '2026-07-30T16:16:17.859716+00:00'
   retry_count: 0
   retry_after: null
+oompah.agent_run_id: 94c03fd9-f4c9-487a-af0f-8015cecdb1a3
 ---
 ## Summary
 

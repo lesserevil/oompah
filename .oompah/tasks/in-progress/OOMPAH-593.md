@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-30T14:14:54.281403Z'
-updated_at: '2026-07-30T15:46:08.166767Z'
+updated_at: '2026-07-30T15:46:40.347796Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-593
 target_branch: null
 review_url: null
@@ -380,5 +380,15 @@ author: oompah
 created: 2026-07-30 15:46
 ---
 Discovery: The existing OOMPAH-575 tests + prior handoff coverage do not exercise Orchestrator._issue_task_handoff_token directly. That method is the single point where the live worker's scope and action set are decided — if it drifts away from the CLI's dispatch set or from the endpoint allowlist, a real worker returns 401/403 on its own task (the failure mode explicitly named in the OOMPAH-593 acceptance criteria). The rest of the pipeline (env injection, endpoint validation) is now covered by TestCodexHandoffAuth (5) and TestHandoffTokenFailClosed (6). The remaining gap is the orchestrator's mint step itself. That's the live-path reproducer to add.
+---
+author: oompah
+created: 2026-07-30 15:46
+---
+Implementation (test): (1) Cherry-picked OOMPAH-575's regression suites (e404d6eb7) onto this branch — 5 TestCodexHandoffAuth cases + 6 TestHandoffTokenFailClosed cases; both suites run green against the shipped OOMPAH-538 mechanism. (2) Added a new TestOrchestratorHandoffTokenMint class (6 cases) in tests/test_task_handoff.py that exercises Orchestrator._issue_task_handoff_token directly. It verifies: (a) non-empty scoped token for a valid issue, (b) None for an unscoped issue (fails closed at mint), (c) drift-guard — every action the CLI dispatches must be in the mint's grant set, (d) least-privilege — actions outside the CLI dispatch set must be denied, (e) cross-task and cross-project isolation, (f) exception in the underlying grant store returns None (fails closed on infra failure). Verified the drift-guard and least-priv guard actually fail when I mutated Orchestrator._issue_task_handoff_token — one caught a removed 'submit' action, the other caught an over-granted 'delete'. Reverted the mutation.
+---
+author: oompah
+created: 2026-07-30 15:46
+---
+Verification: uv run pytest tests/test_task_handoff.py tests/test_acp_codex_backend.py -q → 91 passed, 1 warning (unrelated starlette deprecation notice). Breakdown: 28 in test_task_handoff.py (16 pre-existing + 6 OOMPAH-575 TestHandoffTokenFailClosed + 6 new TestOrchestratorHandoffTokenMint), 63 in test_acp_codex_backend.py (58 pre-existing + 5 OOMPAH-575 TestCodexHandoffAuth). Drift-guard mutation-testing performed and confirmed both fail-modes are actually caught.
 ---
 <!-- COMMENTS:END -->
