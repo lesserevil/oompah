@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-424
 type: task
-status: Merged
+status: In Validation
 priority: 0
 title: 'fix CI on PR #543 (epic-OOMPAH-414)'
 parent: null
@@ -11,7 +11,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-23T20:43:29.346291Z'
-updated_at: '2026-07-23T21:16:29.607545Z'
+updated_at: '2026-07-30T21:55:26.654608Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -34,6 +34,28 @@ oompah.task_costs:
     output_tokens: 13693
     cost_usd: 0.0
     recorded_at: '2026-07-23T21:12:50.293208+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-bfcc548c121e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-424
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 25efbea1c559d039d0a5aad4470694a52717eb55e2c86bb374acb9708a8cbb11
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-07-30T21:55:24.040585+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -141,5 +163,10 @@ author: oompah
 created: 2026-07-23 21:15
 ---
 PR #543 merged after CI rerun passed on Python 3.11, 3.12, and 3.13; all four originally failing tests also pass locally.
+---
+author: oompah
+created: 2026-07-30 21:55
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
