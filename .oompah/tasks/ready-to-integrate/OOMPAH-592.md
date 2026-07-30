@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:28.755226Z'
-updated_at: '2026-07-30T15:51:31.116056Z'
+updated_at: '2026-07-30T15:52:23.878548Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-592
 target_branch: null
 review_url: null
@@ -56,13 +56,17 @@ oompah.integration:
   submitted_at: '2026-07-30T15:51:27.812789+00:00'
   updated_at: '2026-07-30T15:51:27.812789+00:00'
 oompah.task_costs:
-  total_input_tokens: 3151103
-  total_output_tokens: 25005
+  total_input_tokens: 3151115
+  total_output_tokens: 25551
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 3151103
       output_tokens: 25005
+      cost_usd: 0.0
+    sonnet:
+      input_tokens: 12
+      output_tokens: 546
       cost_usd: 0.0
   runs:
   - profile: default
@@ -71,6 +75,12 @@ oompah.task_costs:
     output_tokens: 25005
     cost_usd: 0.0
     recorded_at: '2026-07-30T14:47:44.844076+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 12
+    output_tokens: 546
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T15:52:22.322471+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-592__20260730T143353Z
@@ -216,5 +226,15 @@ author: oompah
 created: 2026-07-30 15:51
 ---
 Add terminal-audit health alert surface: launch/transport failure counts, oldest pending age, retry exhaustion, stale In Validation records. New terminal_audit_health.py module + orchestrator integration + accessible dashboard banner + 50 tests. All acceptance criteria met.
+---
+author: oompah
+created: 2026-07-30 15:52
+---
+Run #2 [attempt=2, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 0, Tool calls: 149
+- Tokens: 12 in / 546 out [558 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 26m 52s
+- Log: OOMPAH-592__20260730T152536Z.jsonl
 ---
 <!-- COMMENTS:END -->
