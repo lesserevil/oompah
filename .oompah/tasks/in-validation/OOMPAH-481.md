@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-481
 type: feature
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Route automatic archive and intake retirement through Archived audits
 parent: OOMPAH-459
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:29.211296Z'
-updated_at: '2026-07-29T23:41:16.204084Z'
+updated_at: '2026-07-30T00:00:19.223519Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-481
 target_branch: null
 review_url: null
@@ -83,12 +83,37 @@ oompah.task_costs:
     recorded_at: '2026-07-29T18:58:26.294553+00:00'
 oompah.integration:
   version: 1
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-459--task-OOMPAH-481
-  head_sha: 0a7e06f144285b8d3309a9ae0aab1330aa54985f
+  base_branch: epic-OOMPAH-459
+  base_sha: 101dcbb3a7d0f0b219c0f8ec224e8e9dc830c359
+  head_sha: 2e2005cba5b9106029e706db699ca7cfdaa6e3bd
+  integrated_sha: 2e2005cba5b9106029e706db699ca7cfdaa6e3bd
   submitted_at: '2026-07-29T23:41:14.036173+00:00'
-  updated_at: '2026-07-29T23:41:14.036173+00:00'
+  updated_at: '2026-07-30T00:00:16.274544+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-73cb5cd3cf84
+    project_id: proj-14849f1b
+    task_id: OOMPAH-481
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a77b2088442c4e04cbdfceefaa2357d2e3d61c7ee20a204f057af3e92707a5e9
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-30T00:00:17.284993+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -356,5 +381,10 @@ author: oompah
 created: 2026-07-29 23:41
 ---
 Rebased automatic Archived-audit routing onto the repaired epic base; preserved and hardened retry/coalescing behavior; full gate passed (13628 passed, 7 skipped).
+---
+author: oompah
+created: 2026-07-30 00:00
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
