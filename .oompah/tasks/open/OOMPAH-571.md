@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T23:57:40.926693Z'
-updated_at: '2026-07-29T23:58:49.371254Z'
+updated_at: '2026-07-30T00:01:06.482906Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -21,17 +21,48 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 67690d03e2c474f5851485e0d398ebc37696b6a30e2956c23d75e75144c8ab89
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-07-30T00:01:03.604991+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: a3723b22-2a7a-4dd1-b8ee-a840709b4642
-  claim_owner: 7e0ec335-e793-4bc9-8be7-8876913419b0
-  claimed_at: '2026-07-29T23:58:45.868975+00:00'
-  claim_expires_at: '2026-07-30T00:28:45.868975+00:00'
+  evidence: "Focus handoff: duplicate_detector\n\nDuplicate preflight verdict: no_duplicate\n\
+    \nMatches: none\n\nEvidence: Reviewed active OOMPAH-476, OOMPAH-478, and OOMPAH-482.\
+    \ Their scopes are terminal-status interfaces, epic rollup routing, and audit-repair\
+    \ planning\u2014not auditor lifetime reconciliation. OOMPAH-475 covers auditor\
+    \ dispatch/recovery but is Merged and excluded. No files or tracker state were\
+    \ modified."
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
 oompah.agent_run_id: 5235a9b7-bff9-4a7c-aa62-99d633e92ad4
+oompah.task_costs:
+  total_input_tokens: 1370079
+  total_output_tokens: 5697
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 1370079
+      output_tokens: 5697
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 1370079
+    output_tokens: 5697
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T00:01:03.603876+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-571__20260729T235849Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: OOMPAH-571
+    source_sha: 8483db2e3e718c1f5f6476018d954574ce5d42f9
+    completed_at: '2026-07-30T00:01:03.611530+00:00'
 ---
 ## Summary
 
@@ -61,5 +92,15 @@ author: oompah
 created: 2026-07-29 23:58
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-30 00:01
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 24
+- Tokens: 1.4M in / 5.7K out [1.4M total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 16s
+- Log: OOMPAH-571__20260729T235849Z.jsonl
 ---
 <!-- COMMENTS:END -->
