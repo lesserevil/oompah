@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T22:09:32.117751Z'
-updated_at: '2026-07-30T22:29:38.040446Z'
+updated_at: '2026-07-30T22:30:06.461124Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-627
 target_branch: null
 review_url: null
@@ -80,6 +80,22 @@ oompah.terminal_audit:
     started_at: '2026-07-30T22:25:54.625821+00:00'
     branch_key: OOMPAH-627
 oompah.work_branch: epic-OOMPAH-585--task-OOMPAH-627
+oompah.task_costs:
+  total_input_tokens: 37
+  total_output_tokens: 5626
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 37
+      output_tokens: 5626
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 37
+    output_tokens: 5626
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T22:30:04.788596+00:00'
 ---
 ## Summary
 
@@ -143,5 +159,15 @@ Safe evidence:
 - focused_acp_agent: 71 passed (8 TestAcpWorkerModelHandoff)
 - adjacent_orchestrator_auditor: 302 passed (orchestrator_handlers + auditor_dispatch + auditor_contract)
 - boundary_call_sites: oompah/orchestrator.py:20768 and 21288 pass persist_dispatch_metadata=not forced_auditor
+---
+author: oompah
+created: 2026-07-30 22:30
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 25
+- Tokens: 37 in / 5.6K out [5.7K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 4m 9s
+- Log: OOMPAH-627__20260730T222602Z.jsonl
 ---
 <!-- COMMENTS:END -->

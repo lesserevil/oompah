@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:25:29.809048Z'
-updated_at: '2026-07-30T22:29:52.934318Z'
+updated_at: '2026-07-30T22:30:09.248456Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-621
 target_branch: null
 review_url: null
@@ -45,13 +45,14 @@ oompah.work_branch: epic-OOMPAH-619--task-OOMPAH-621
 oompah.integration:
   version: 1
   state: ready
-  attempts: 0
+  attempts: 1
   task_branch: epic-OOMPAH-619--task-OOMPAH-621
-  base_branch: main
-  base_sha: c048ba706cbe9b1342b80a67576a49b82887e84a
+  base_branch: epic-OOMPAH-619
+  base_sha: 11dc483f0c80b9adb33fb5f55ca3946bbe31ec72
   head_sha: 9d11014204d3a8a07b339c9e3627ae500064638d
   submitted_at: '2026-07-30T22:29:17.965399+00:00'
-  updated_at: '2026-07-30T22:29:50.568496+00:00'
+  updated_at: '2026-07-30T22:30:08.079817+00:00'
+  last_error: Combined-tree quality gate interrupted by service shutdown
 oompah.task_costs:
   total_input_tokens: 871464
   total_output_tokens: 20410
