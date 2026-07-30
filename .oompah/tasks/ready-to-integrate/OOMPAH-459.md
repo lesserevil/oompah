@@ -28,7 +28,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:46.877390Z'
-updated_at: '2026-07-30T03:52:05.852027Z'
+updated_at: '2026-07-30T03:52:21.529682Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -43,6 +43,22 @@ oompah.integration:
   head_sha: 95581aca5772d59c8c23d5b7288b92836f1abbf6
   submitted_at: '2026-07-30T03:52:03.745703+00:00'
   updated_at: '2026-07-30T03:52:03.745703+00:00'
+oompah.task_costs:
+  total_input_tokens: 109
+  total_output_tokens: 3555
+  total_cost_usd: 0.0
+  by_model:
+    opus:
+      input_tokens: 109
+      output_tokens: 3555
+      cost_usd: 0.0
+  runs:
+  - profile: deep
+    model: opus
+    input_tokens: 109
+    output_tokens: 3555
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T03:52:20.117075+00:00'
 ---
 ## Summary
 
@@ -229,5 +245,15 @@ author: oompah
 created: 2026-07-30 03:52
 ---
 CI fix: made TestMaintenanceLaneNonBlocking::test_tick_does_not_await_maintenance_heal deterministic under 4-worker xdist load. Extended maintenance-block window to 60s and tick wait_for to 15s (structural assertion unchanged: _maintenance_future must still be pending after _tick returns). Full parallel gate now clean at 13684 passed on origin/epic-OOMPAH-459 head 95581aca5.
+---
+author: oompah
+created: 2026-07-30 03:52
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Claude/opus]
+- Turns: 0, Tool calls: 70
+- Tokens: 109 in / 3.6K out [3.7K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 20m 14s
+- Log: OOMPAH-459__20260730T033209Z.jsonl
 ---
 <!-- COMMENTS:END -->
