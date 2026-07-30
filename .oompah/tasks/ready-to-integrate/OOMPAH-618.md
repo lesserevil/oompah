@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T21:03:01.411786Z'
-updated_at: '2026-07-30T21:08:28.606848Z'
+updated_at: '2026-07-30T21:21:01.737633Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -52,5 +52,10 @@ author: oompah
 created: 2026-07-30 21:08
 ---
 Moved subprocess-backed ACP run_command execution off the scheduler event loop for Claude, Codex, and OpenCode, with deterministic thread-boundary regressions and focused ACP verification.
+---
+author: oompah
+created: 2026-07-30 21:21
+---
+Completion-auditor handoff: focused verification already passed (53 project-tool tests, 367 ACP-related tests, terminal mutation scan). The integration executor is now running the exact combined-tree full gate; once this task is marked In Validation/integrated, that queue transition is evidence that the full gate passed. Inspect the three asyncio.to_thread boundaries and deterministic thread-identity regressions; do not redundantly rerun the full suite on the old server, whose inline run_command behavior is the bug this task fixes.
 ---
 <!-- COMMENTS:END -->
