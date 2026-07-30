@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-621
 type: task
-status: Backlog
+status: Open
 priority: 1
 title: Document and integration-test CLI credential precedence
 parent: OOMPAH-619
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:25:29.809048Z'
-updated_at: '2026-07-30T21:32:43.544199Z'
+updated_at: '2026-07-30T21:34:00.635667Z'
 work_branch: null
 target_branch: null
 review_url: null

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-623
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Keep the canonical user CLI synchronized with the running server
 parent: OOMPAH-619
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:32:18.734139Z'
-updated_at: '2026-07-30T21:32:50.020052Z'
+updated_at: '2026-07-30T21:34:02.923530Z'
 work_branch: null
 target_branch: null
 review_url: null
