@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T22:37:04.318940Z'
-updated_at: '2026-07-30T22:50:10.471966Z'
+updated_at: '2026-07-30T22:51:56.205790Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,7 +37,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-628
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -46,7 +46,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-62700fcd7450
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -56,18 +56,22 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-30T22:50:02.911008+00:00'
       branch_key: OOMPAH-628
+      failure_classification: infrastructure_error
+      ended_at: '2026-07-30T22:51:52.412521+00:00'
+      failure_reason: normal
+      next_retry_at: '2026-07-30T22:52:02.412491+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-30T22:46:51.130292+00:00'
-    updated_at: '2026-07-30T22:50:02.911008+00:00'
+    updated_at: '2026-07-30T22:51:52.412521+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-62700fcd7450
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -77,6 +81,26 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-07-30T22:50:02.911008+00:00'
     branch_key: OOMPAH-628
+    failure_classification: infrastructure_error
+    ended_at: '2026-07-30T22:51:52.412521+00:00'
+    failure_reason: normal
+    next_retry_at: '2026-07-30T22:52:02.412491+00:00'
+oompah.task_costs:
+  total_input_tokens: 6
+  total_output_tokens: 451
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 6
+      output_tokens: 451
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 6
+    output_tokens: 451
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T22:51:52.228719+00:00'
 ---
 ## Summary
 
@@ -129,5 +153,20 @@ author: oompah
 created: 2026-07-30 22:50
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 22:51
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 3, Tool calls: 0
+- Tokens: 6 in / 451 out [457 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 46s
+- Log: OOMPAH-628__20260730T225012Z.jsonl
+---
+author: oompah
+created: 2026-07-30 22:51
+---
+Auditor attempt ended: auditor exited (normal) without a result. A different independent auditor will be tried on the next scheduler tick.
 ---
 <!-- COMMENTS:END -->
