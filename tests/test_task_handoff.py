@@ -1063,3 +1063,237 @@ class TestHandoffTokenFailClosed:
         assert cross_proj_resp.status_code == 403, (
             f"cross-project should be 403, got {cross_proj_resp.status_code}"
         )
+
+
+class TestOrchestratorHandoffTokenMint:
+    """OOMPAH-593 live-path reproducer: verify Orchestrator._issue_task_handoff_token
+    mints a capability whose scope and action set are exactly what a
+    service-launched Codex worker needs to complete its own task CLI workflow.
+
+    If any of these tests fail, the live path returns 401/403 for a real worker
+    against its own assigned task — the failure mode explicitly called out in
+    the OOMPAH-593 acceptance criteria ("If the live path still returns 401,
+    fix the actual launch/environment propagation gap with tests before
+    resubmission.").  The rest of the handoff pipeline (env injection,
+    endpoint validation) is covered by TestCodexHandoffAuth and
+    TestHandoffTokenFailClosed; this suite closes the remaining gap between
+    those two by exercising the orchestrator's mint step directly.
+    """
+
+    # Actions the task CLI ever dispatches through /api/v1/task-handoff.
+    # Keep in sync with oompah/task_cli.py and oompah/server.py.
+    _CLI_DISPATCHED_ACTIONS = frozenset(
+        {
+            "view",
+            "comment",
+            "set-status",
+            "submit",
+            "add-label",
+            "remove-label",
+            "coordination-peers",
+            "coordination-inbox",
+            "coordination-send",
+            "coordination-checkpoint",
+        }
+    )
+
+    def _make_orch(self, tmp_path):
+        from oompah.config import ServiceConfig
+        from oompah.orchestrator import Orchestrator
+
+        return Orchestrator(
+            config=ServiceConfig(),
+            workflow_path="WORKFLOW.md",
+            state_path=str(tmp_path / "state.json"),
+        )
+
+    def test_orchestrator_mints_scoped_token_for_valid_issue(self, tmp_path):
+        """The orchestrator's mint returns a non-empty token that is
+        scoped to the exact issue.identifier and issue.project_id.  This is
+        the smoke test for the live-path — if this returns None the worker
+        would launch without any tracker credential and fail closed on its
+        first CLI call."""
+        from oompah.task_handoff import validate_task_handoff_token
+
+        orch = self._make_orch(tmp_path)
+        issue = Issue(
+            id="issue-live-1",
+            identifier="OOMPAH-999",
+            title="Live probe",
+            description="body",
+            state="In Progress",
+            project_id="proj-live",
+        )
+
+        token = orch._issue_task_handoff_token(issue)
+
+        assert token, "orchestrator must mint a non-empty capability for scoped issues"
+        allowed, reason = validate_task_handoff_token(
+            token,
+            project_id="proj-live",
+            task_identifier="OOMPAH-999",
+            action="view",
+        )
+        assert allowed, f"minted token should validate for its own scope: {reason}"
+
+    def test_orchestrator_mint_returns_none_when_issue_has_no_project(
+        self, tmp_path
+    ):
+        """When issue.project_id is None the orchestrator must fail closed at
+        mint time.  Returning a token here would grant an unscoped capability
+        because task_handoff.issue() requires project_id."""
+        orch = self._make_orch(tmp_path)
+        issue = Issue(
+            id="issue-unscoped",
+            identifier="ORPHAN-1",
+            title="No project",
+            description="body",
+            state="In Progress",
+            project_id=None,
+        )
+
+        token = orch._issue_task_handoff_token(issue)
+
+        assert token is None
+
+    def test_orchestrator_grants_every_action_the_cli_dispatches(self, tmp_path):
+        """Drift guard: every action the task CLI can dispatch must be in the
+        orchestrator's granted set.  If someone widens the CLI without
+        updating the mint, a live worker gets 403 when it tries the missing
+        action.  This is the "live path still returns 401/403" scenario
+        called out in the OOMPAH-593 acceptance criteria."""
+        from oompah.task_handoff import validate_task_handoff_token
+
+        orch = self._make_orch(tmp_path)
+        issue = Issue(
+            id="issue-drift",
+            identifier="OOMPAH-1000",
+            title="Drift probe",
+            description="body",
+            state="In Progress",
+            project_id="proj-drift",
+        )
+
+        token = orch._issue_task_handoff_token(issue)
+        assert token
+
+        missing_actions = []
+        for action in self._CLI_DISPATCHED_ACTIONS:
+            allowed, _reason = validate_task_handoff_token(
+                token,
+                project_id="proj-drift",
+                task_identifier="OOMPAH-1000",
+                action=action,
+            )
+            if not allowed:
+                missing_actions.append(action)
+
+        assert not missing_actions, (
+            f"orchestrator mint is missing CLI-dispatched actions: "
+            f"{sorted(missing_actions)} — a live worker will get 403 when it "
+            f"invokes any of these operations. Add them to "
+            f"Orchestrator._issue_task_handoff_token.allowed_actions."
+        )
+
+    def test_orchestrator_token_denies_actions_outside_grant_set(self, tmp_path):
+        """Least-privilege guard: the minted token must NOT grant actions the
+        orchestrator did not explicitly list.  A future action the CLI hasn't
+        opted into (e.g. "delete", "archive") must fail closed unless it is
+        also added to the grant set."""
+        from oompah.task_handoff import validate_task_handoff_token
+
+        orch = self._make_orch(tmp_path)
+        issue = Issue(
+            id="issue-least-priv",
+            identifier="OOMPAH-1001",
+            title="Least priv probe",
+            description="body",
+            state="In Progress",
+            project_id="proj-lp",
+        )
+
+        token = orch._issue_task_handoff_token(issue)
+        assert token
+
+        # These actions are not in the CLI dispatch set and must be refused.
+        for action in ("delete", "archive", "reassign", "close", "admin"):
+            allowed, _reason = validate_task_handoff_token(
+                token,
+                project_id="proj-lp",
+                task_identifier="OOMPAH-1001",
+                action=action,
+            )
+            assert not allowed, (
+                f"orchestrator minted a token that grants '{action}' — this "
+                f"widens least-privilege. Remove it from allowed_actions."
+            )
+
+    def test_orchestrator_token_denies_cross_task_and_cross_project_access(
+        self, tmp_path
+    ):
+        """A token minted for issue A/project P must not authorise operations
+        on a different task or a different project.  This is the live-path
+        equivalent of TestHandoffTokenFailClosed.test_wrong_task_scope_returns_403
+        and test_wrong_project_scope_returns_403 — verified through the actual
+        orchestrator mint rather than a hand-built issue_task_handoff_token
+        call, so drift in the orchestrator's scope arguments is caught here."""
+        from oompah.task_handoff import validate_task_handoff_token
+
+        orch = self._make_orch(tmp_path)
+        issue = Issue(
+            id="issue-scope-a",
+            identifier="OOMPAH-2001",
+            title="Scope-A",
+            description="body",
+            state="In Progress",
+            project_id="proj-a",
+        )
+
+        token = orch._issue_task_handoff_token(issue)
+        assert token
+
+        # Same project, different task — must be denied
+        wrong_task_ok, _reason = validate_task_handoff_token(
+            token,
+            project_id="proj-a",
+            task_identifier="OOMPAH-9999",
+            action="view",
+        )
+        assert not wrong_task_ok
+
+        # Different project, same task identifier — must be denied
+        wrong_proj_ok, _reason = validate_task_handoff_token(
+            token,
+            project_id="proj-other",
+            task_identifier="OOMPAH-2001",
+            action="view",
+        )
+        assert not wrong_proj_ok
+
+    def test_orchestrator_mint_survives_issue_task_handoff_token_exception(
+        self, monkeypatch, tmp_path
+    ):
+        """If the underlying task_handoff module raises (e.g. the grant store
+        is unavailable), the orchestrator must return None rather than raising
+        — a dispatch failure is preferable to letting the worker launch
+        without a scoped capability and then falling back to operator creds."""
+        orch = self._make_orch(tmp_path)
+        issue = Issue(
+            id="issue-broken",
+            identifier="OOMPAH-3001",
+            title="Broken grant store",
+            description="body",
+            state="In Progress",
+            project_id="proj-broken",
+        )
+
+        def _boom(**_kwargs):
+            raise RuntimeError("grant store unavailable")
+
+        import oompah.orchestrator as orch_mod
+
+        monkeypatch.setattr(orch_mod, "issue_task_handoff_token", _boom)
+
+        token = orch._issue_task_handoff_token(issue)
+
+        assert token is None
