@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T00:10:44.905550Z'
-updated_at: '2026-07-30T00:17:57.345281Z'
+updated_at: '2026-07-30T00:19:15.764481Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-572
 target_branch: null
 review_url: null
@@ -179,5 +179,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 2m 40s
 - Log: OOMPAH-572__20260730T001519Z.jsonl
+---
+author: oompah
+created: 2026-07-30 00:19
+---
+Operator handoff: rebase only refs/heads/epic-OOMPAH-459. Verified pre-rebase epic tip is 2e2005cba and current origin/main is bd5f23f53 (PR #586 auditor reconciliation). Replay the nine epic-only commits onto origin/main, verify the rewritten commit series with range-diff, and force-push epic-OOMPAH-459 with an exact force-with-lease. Do not modify or append the OOMPAH-483, OOMPAH-479, or OOMPAH-480 task branches; they remain separate Ready queue inputs. Report the new epic tip.
 ---
 <!-- COMMENTS:END -->
