@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import base64
 import contextlib
+import os
 from typing import Generator
 from unittest.mock import AsyncMock, MagicMock
 
@@ -26,7 +27,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import oompah.server as server_module
-from oompah.http_auth import HtpasswdCredentials, VerificationError
+from oompah.http_auth import HtpasswdCredentials, VerificationError, load_credentials
 from oompah.server import app
 
 
@@ -180,6 +181,63 @@ class TestAuthEnabled_ValidCredentials:
         resp = auth_client.get("/api/v1/state", headers=valid_auth_header)
         # May be 503 (no orchestrator) but NOT 401
         assert resp.status_code != 401
+
+    def test_state_exposes_only_redacted_auth_reload_status(
+        self, auth_client, valid_auth_header
+    ):
+        previous_snapshot = server_module._state_snapshot
+        previous_snapshot_at = server_module._state_snapshot_at
+        try:
+            server_module._update_state_snapshot({"paused": False})
+            resp = auth_client.get("/api/v1/state", headers=valid_auth_header)
+        finally:
+            server_module._state_snapshot = previous_snapshot
+            server_module._state_snapshot_at = previous_snapshot_at
+
+        assert resp.status_code == 200
+        status = resp.json()["http_auth"]
+        assert status == {
+            "enabled": True,
+            "reload": {
+                "state": "static",
+                "generation": 0,
+                "retaining_last_known_good": False,
+            },
+        }
+        rendered = repr(status)
+        assert ".htpasswd" not in rendered
+        assert "admin" not in rendered
+        assert "secret" not in rendered
+
+    def test_running_middleware_uses_rotated_htpasswd_without_restart(
+        self, client, tmp_path
+    ):
+        from passlib.context import CryptContext
+
+        context = CryptContext(schemes=["bcrypt"])
+        path = tmp_path / ".htpasswd"
+        path.write_text(f"operator:{context.hash('old-password')}\n", encoding="utf-8")
+        creds = load_credentials(str(path), str(tmp_path))
+        replacement = tmp_path / ".htpasswd.next"
+        replacement.write_text(
+            f"operator:{context.hash('new-password')}\n", encoding="utf-8"
+        )
+
+        previous = server_module._http_credentials
+        server_module._http_credentials = creds
+        try:
+            assert client.get(
+                "/api/v1/state", headers={"Authorization": _basic("operator", "old-password")}
+            ).status_code != 401
+            os.replace(replacement, path)
+            assert client.get(
+                "/api/v1/state", headers={"Authorization": _basic("operator", "old-password")}
+            ).status_code == 401
+            assert client.get(
+                "/api/v1/state", headers={"Authorization": _basic("operator", "new-password")}
+            ).status_code != 401
+        finally:
+            server_module._http_credentials = previous
 
     def test_valid_credentials_on_issues_api(self, auth_client, valid_auth_header):
         resp = auth_client.get("/api/v1/issues", headers=valid_auth_header)
