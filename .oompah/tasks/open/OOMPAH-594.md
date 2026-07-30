@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:55.490677Z'
-updated_at: '2026-07-30T15:19:59.829585Z'
+updated_at: '2026-07-30T15:22:36.893313Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-594
 target_branch: null
 review_url: null
@@ -24,13 +24,13 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: 9bf2369b-6008-413f-bcc4-5cdfeeefe9a6
-  claim_owner: 9e3a680b-e68a-4d5a-ba2e-f9091834f9ec
-  claimed_at: '2026-07-30T15:19:49.001607+00:00'
-  claim_expires_at: '2026-07-30T15:49:49.001607+00:00'
-  retry_count: 0
-  retry_after: null
+  evidence: Conflicting duplicate preflight verdicts.
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
+  retry_count: 1
+  retry_after: '2026-07-30T15:23:31.001723+00:00'
 oompah.agent_run_id: 09d41e4d-2221-4cb1-82a4-7b4144af64da
 oompah.work_branch: epic-OOMPAH-586--task-OOMPAH-594
 oompah.integration:
@@ -41,6 +41,32 @@ oompah.integration:
   base_branch: epic-OOMPAH-586
   base_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
   updated_at: '2026-07-30T15:19:57.587599+00:00'
+oompah.task_costs:
+  total_input_tokens: 10
+  total_output_tokens: 972
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 10
+      output_tokens: 972
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 10
+    output_tokens: 972
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T15:22:31.000460+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-594__20260730T152001Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: duplicate_detector
+    source_branch: epic-OOMPAH-586--task-OOMPAH-594
+    source_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
+    completed_at: '2026-07-30T15:22:31.011857+00:00'
 ---
 ## Summary
 
@@ -78,5 +104,15 @@ author: oompah
 created: 2026-07-30 15:19
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-30 15:22
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 58, Tool calls: 25
+- Tokens: 10 in / 972 out [982 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 40s
+- Log: OOMPAH-594__20260730T152001Z.jsonl
 ---
 <!-- COMMENTS:END -->
