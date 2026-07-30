@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T19:33:15.081209Z'
-updated_at: '2026-07-30T20:00:06.088165Z'
+updated_at: '2026-07-30T20:00:18.990536Z'
 work_branch: OOMPAH-612
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/595
@@ -132,13 +132,13 @@ oompah.terminal_audit:
     started_at: '2026-07-30T19:56:07.467799+00:00'
     branch_key: OOMPAH-612
 oompah.task_costs:
-  total_input_tokens: 44
-  total_output_tokens: 6990
+  total_input_tokens: 109
+  total_output_tokens: 17434
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 44
-      output_tokens: 6990
+      input_tokens: 109
+      output_tokens: 17434
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -147,6 +147,12 @@ oompah.task_costs:
     output_tokens: 6990
     cost_usd: 0.0
     recorded_at: '2026-07-30T19:56:02.157151+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 65
+    output_tokens: 10444
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T20:00:15.639176+00:00'
 ---
 ## Summary
 
@@ -251,5 +257,15 @@ Safe evidence:
 - regression_tests: tests/test_acp_auditor_result_bridge.py::test_claude_acp_submission_does_not_block_its_dispatch_loop, ::test_opencode_acp_submission_does_not_block_its_dispatch_loop, ::test_claude_acp_submission_surfaces_coordinator_rejection
 - focused_suite_result: 187 passed (test_auditor_contract=13, test_auditor_result_api=68, test_terminal_transition_coordinator=103, test_acp_auditor_result_bridge=3)
 - worktree_status: clean; OOMPAH-612 tracks origin/main
+---
+author: oompah
+created: 2026-07-30 20:00
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 71, Tool calls: 59
+- Tokens: 65 in / 10.4K out [10.5K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 4m 7s
+- Log: OOMPAH-612__20260730T195612Z.jsonl
 ---
 <!-- COMMENTS:END -->
