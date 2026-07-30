@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T02:15:25.255613Z'
-updated_at: '2026-07-30T14:04:55.953581Z'
+updated_at: '2026-07-30T14:10:42.336722Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -169,5 +169,30 @@ Code gaps found:
 - test_task_handoff.py lacks tests for missing/expired token failures on the handoff endpoint
 
 Note: OOMPAH-576 is modifying test_task_handoff.py (adding submit branch validation tests). Adding new test class at end to minimize conflicts.
+---
+author: oompah
+created: 2026-07-30 14:10
+---
+Implementation: Added regression tests for scoped task-CLI auth in Codex sessions.
+
+Changes made:
+1. tests/test_acp_codex_backend.py: Added TestCodexHandoffAuth class (5 tests)
+   - test_cli_session_injects_task_handoff_token_and_project_id: Verifies OOMPAH_TASK_HANDOFF_TOKEN and OOMPAH_TASK_HANDOFF_PROJECT_ID are in Codex CLI subprocess env
+   - test_cli_session_strips_operator_creds_when_token_is_present: Verifies operator creds are stripped even when token is present
+   - test_cli_session_without_token_has_no_auth_credentials_in_env: Verifies missing token -> no credentials in env (fails closed)
+   - test_cli_session_token_without_project_id_omits_project_env_var: Edge case where project_id is None
+   - test_api_path_does_not_carry_operator_creds_into_subprocesses: Verifies in-process SDK path doesn't leak operator creds
+
+2. tests/test_task_handoff.py: Added TestHandoffTokenFailClosed class (6 tests)
+   - test_missing_capability_header_returns_401: Missing token -> 401
+   - test_invalid_token_returns_401: Invalid/garbage token -> 401 (fails closed)
+   - test_wrong_project_scope_returns_403: Cross-project -> 403
+   - test_wrong_task_scope_returns_403: Cross-task -> 403
+   - test_ungranted_action_returns_403: Token without required action -> 403
+   - test_codex_assigned_session_can_view_and_comment_its_task: Full end-to-end regression for Codex repair session
+
+No code changes needed - the fix was already implemented in OOMPAH-538.
+
+All 22 test_task_handoff tests and 85 test_acp_codex_backend tests pass.
 ---
 <!-- COMMENTS:END -->
