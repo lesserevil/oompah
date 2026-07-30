@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T02:15:25.255613Z'
-updated_at: '2026-07-30T14:10:42.336722Z'
+updated_at: '2026-07-30T14:11:32.835779Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -194,5 +194,30 @@ Changes made:
 No code changes needed - the fix was already implemented in OOMPAH-538.
 
 All 22 test_task_handoff tests and 85 test_acp_codex_backend tests pass.
+---
+author: oompah
+created: 2026-07-30 14:11
+---
+Verification: All focused tests pass.
+
+Tests run:
+- tests/test_task_handoff.py: 22/22 passed (6 new TestHandoffTokenFailClosed tests)
+- tests/test_acp_codex_backend.py: 85/85 passed (5 new TestCodexHandoffAuth tests)
+- tests/test_acp_backends.py: 25/25 passed (no regressions)
+- tests/test_acp_opencode_backend.py: 52/52 passed (no regressions)
+- tests/test_sdk_install_guards.py: 31/31 passed (no regressions)
+- tests/test_acp_project_tools.py: 16/16 passed (no regressions)
+
+Total: 231 tests, 0 failures
+
+Branch: OOMPAH-575 (commit e404d6eb7), pushed and up to date.
+
+Security review summary:
+- The credential propagation chain is sound: orchestrator mints token → AcpAgentSession → AcpBackendOptions → CLI subprocess env
+- Operator credentials are always stripped from subprocess env (agent_environment)
+- Token is scope-limited to view/comment/submit/set-status/coordinate/add-label/remove-label for exactly one project+task
+- Missing/invalid/cross-scope tokens fail closed (401/403)
+- No operator credentials are ever leaked to agent subprocesses
+- The token is not logged, not stored beyond the service's lifetime, and is revoked on worker exit
 ---
 <!-- COMMENTS:END -->
