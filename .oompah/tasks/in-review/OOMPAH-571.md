@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-571
 type: bug
-status: In Progress
+status: In Review
 priority: 1
 title: Keep active terminal auditors alive in In Validation
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T23:57:40.926693Z'
-updated_at: '2026-07-30T00:01:43.615364Z'
+updated_at: '2026-07-30T00:02:32.692023Z'
 work_branch: null
 target_branch: null
 review_url: null
