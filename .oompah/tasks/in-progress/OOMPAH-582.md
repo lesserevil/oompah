@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:39:46.196812Z'
-updated_at: '2026-07-30T04:43:55.363436Z'
+updated_at: '2026-07-30T04:45:10.290432Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -222,5 +222,10 @@ author: oompah
 created: 2026-07-30 04:43
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-07-30 04:45
+---
+Understanding: extend the terminal cross-epic dependency satisfaction rule in two places so a legacy Done child no longer blocks the sibling epic queue once its parent epic has landed on default. Plan: (1) in oompah/orchestrator.py _integration_satisfied_dependencies, allow the default-branch reachability witness for a Done cross-epic dep when its parent (resolved via issues_by_alias, and whose identifier != epic_aliases) is Merged or Archived; keep same-epic semantics unchanged and require unreachable/missing integrated_sha before the fallback. (2) mirror in oompah/server.py _integration_queue_summary so that a Done child of a Merged/Archived parent is not reported as an unreachable upstream-code blocker. Add scheduler + summary tests for Done+Merged-parent positive case and negatives (parent Done/In Progress/missing, default ref unreachable). Focus: chore.
 ---
 <!-- COMMENTS:END -->
