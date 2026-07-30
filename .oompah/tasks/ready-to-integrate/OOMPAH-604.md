@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T17:07:44.032640Z'
-updated_at: '2026-07-30T17:18:56.863075Z'
+updated_at: '2026-07-30T17:19:12.269609Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-604
 target_branch: null
 review_url: null
@@ -54,13 +54,13 @@ oompah.integration:
   submitted_at: '2026-07-30T17:18:47.380173+00:00'
   updated_at: '2026-07-30T17:18:47.380173+00:00'
 oompah.task_costs:
-  total_input_tokens: 1839603
-  total_output_tokens: 11956
+  total_input_tokens: 1840201
+  total_output_tokens: 12108
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 1839603
-      output_tokens: 11956
+      input_tokens: 1840201
+      output_tokens: 12108
       cost_usd: 0.0
   runs:
   - profile: default
@@ -75,6 +75,12 @@ oompah.task_costs:
     output_tokens: 5556
     cost_usd: 0.0
     recorded_at: '2026-07-30T17:14:34.913452+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 598
+    output_tokens: 152
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T17:19:10.743451+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-604__20260730T170845Z
@@ -200,5 +206,15 @@ author: oompah
 created: 2026-07-30 17:18
 ---
 COMPLETION: Fixed the terminal-audit evidence supersession bug (OOMPAH-604). A project owner can now apply an auditable override to a terminal request even when historical superseded records use older fingerprints, provided the current active record matches. The fix preserves all safety guarantees: authorization is re-checked at the owner layer, metadata is atomically persisted before status changes, secrets are redacted, and stale overrides (where the current record doesn't match) are still rejected. Task is ready for integration.
+---
+author: oompah
+created: 2026-07-30 17:19
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 36
+- Tokens: 598 in / 152 out [750 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 4m 17s
+- Log: OOMPAH-604__20260730T171500Z.jsonl
 ---
 <!-- COMMENTS:END -->
