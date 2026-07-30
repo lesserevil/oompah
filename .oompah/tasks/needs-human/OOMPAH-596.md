@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-596
 type: bug
-status: In Validation
+status: Needs Human
 priority: 1
 title: Rearm conflict repairs after recoverable agent infrastructure failure
 parent: OOMPAH-587
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:26.248587Z'
-updated_at: '2026-07-30T16:17:20.578882Z'
+updated_at: '2026-07-30T18:13:33.566305Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-596
 target_branch: null
 review_url: null
@@ -198,6 +198,8 @@ oompah.work_contributors:
     completed_at: '2026-07-30T15:36:03.195888+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    no-auditor-audit-2367df3b033e-1: '2026-07-30T18:13:31.482377+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -205,7 +207,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-596
     target_state: Done
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -227,13 +229,25 @@ oompah.terminal_audit:
       ended_at: '2026-07-30T16:16:56.877536+00:00'
       failure_reason: 'unknown url type: ''/chat/completions'''
       next_retry_at: '2026-07-30T16:17:06.877507+00:00'
+    - version: 1
+      attempt_id: no-auditor-audit-2367df3b033e-1
+      target_state: Done
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 18c433ed652f762ac134f57dd24ea91747e6b340ba0309e1f3be00f3e774b447
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-07-30T18:13:31.482294+00:00'
+      completed_at: '2026-07-30T18:13:31.482294+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-30T16:16:34.861687+00:00'
-    updated_at: '2026-07-30T16:16:56.877536+00:00'
+    updated_at: '2026-07-30T18:13:31.482294+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-938f90fe8e83
@@ -819,5 +833,12 @@ author: oompah
 created: 2026-07-30 16:17
 ---
 Auditor attempt ended: unknown url type: '/chat/completions'. A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-07-30 18:13
+---
+Needs Human — Done audit requires operator input.
+
+No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then move the task back to Open to retry.
 ---
 <!-- COMMENTS:END -->

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-602
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Repair project scope propagation in merged-label maintenance
 parent: OOMPAH-588
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:01.749200Z'
-updated_at: '2026-07-30T16:43:32.357965Z'
+updated_at: '2026-07-30T18:13:45.952818Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-602
 target_branch: null
 review_url: null
@@ -57,7 +57,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 1
   retry_after: null
-oompah.agent_run_id: 9f8d5bff-fe6c-4d68-ac75-075ebd82e110
+oompah.agent_run_id: 4eeea2a6-cac7-4100-9af7-edd146fc04d3
 oompah.work_branch: epic-OOMPAH-588--task-OOMPAH-602
 oompah.integration:
   version: 1
@@ -66,7 +66,7 @@ oompah.integration:
   task_branch: epic-OOMPAH-588--task-OOMPAH-602
   base_branch: epic-OOMPAH-588
   base_sha: a6fbb7f03b8a9aea5790cfc9bc6b6355490d6a97
-  updated_at: '2026-07-30T16:43:02.783318+00:00'
+  updated_at: '2026-07-30T18:13:43.902078+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-602__20260730T160131Z
@@ -376,5 +376,15 @@ Run #2 [attempt=2, profile=deep, role=deep -> Codex/gpt-5.6-sol]
 - Cost: $0.0000
 - Exit: normal, Duration: 29s
 - Log: OOMPAH-602__20260730T164307Z.jsonl
+---
+author: oompah
+created: 2026-07-30 18:13
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-30 18:13
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->

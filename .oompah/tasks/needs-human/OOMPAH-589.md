@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-589
 type: bug
-status: In Validation
+status: Needs Human
 priority: 1
 title: Validate auditor provider endpoints before candidate dispatch
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:20.256845Z'
-updated_at: '2026-07-30T17:08:07.746571Z'
+updated_at: '2026-07-30T18:13:28.718845Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-589
 target_branch: null
 review_url: null
@@ -156,6 +156,8 @@ oompah.work_contributors:
     completed_at: '2026-07-30T15:33:14.338176+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    no-auditor-audit-aa20d9640624-1: '2026-07-30T18:13:26.422940+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -197,7 +199,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-589
     target_state: Done
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -219,13 +221,25 @@ oompah.terminal_audit:
       ended_at: '2026-07-30T17:04:27.420579+00:00'
       failure_reason: 'unknown url type: ''/chat/completions'''
       next_retry_at: '2026-07-30T17:04:37.420556+00:00'
+    - version: 1
+      attempt_id: no-auditor-audit-aa20d9640624-1
+      target_state: Done
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 3f0665135cea26b25da04d2ed8735fa950a380f004e8e55b7204fcf3eff91e99
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-07-30T18:13:26.422782+00:00'
+      completed_at: '2026-07-30T18:13:26.422782+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-30T17:04:01.831731+00:00'
-    updated_at: '2026-07-30T17:04:27.420579+00:00'
+    updated_at: '2026-07-30T18:13:26.422782+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-ec9f9aa129f8
@@ -954,5 +968,12 @@ author: oompah
 created: 2026-07-30 17:08
 ---
 Ordered integration succeeded at 17:04 UTC and commit b252293d3 is now on origin/epic-OOMPAH-585. The old running service reproduced the fixed /chat/completions failure during terminal validation. Project-owner override was attempted twice but failed closed because multiple historical Done audit records with superseded evidence fingerprints make every current fingerprint stale under the existing any-mismatch rule. Filed OOMPAH-604 with regression scope; no task metadata was hand-edited and OOMPAH-589 remains In Validation until the repaired runtime can audit it or the tracked override defect is resolved.
+---
+author: oompah
+created: 2026-07-30 18:13
+---
+Needs Human — Done audit requires operator input.
+
+No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then move the task back to Open to retry.
 ---
 <!-- COMMENTS:END -->
