@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:26.170630Z'
-updated_at: '2026-07-30T05:29:32.861663Z'
+updated_at: '2026-07-30T05:29:41.469657Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-487
 target_branch: null
 review_url: null
@@ -308,5 +308,19 @@ Implementation: The single commit on this branch (3c6e5a8) delivers all required
 5. oompah/config.py — audit_max_attempts, audit_attempt_ttl, audit_priority, audit_lane_scan_limit in ServiceConfig with env var parsing; warn_deprecated_verify_completion_vars() called at from_workflow startup.
 
 6. tests/test_config.py — TestAuditDispatchConfiguration class with 19 tests.
+---
+author: oompah
+created: 2026-07-30 05:29
+---
+Verification: Ran focused tests. All 167 tests pass across the two directly affected suites:
+- tests/test_config.py: 107 passed (incl. 19 TestAuditDispatchConfiguration tests covering env parsing, deprecation warnings, .env.example coverage, doc content checks)
+- tests/test_completion_verifier.py: 60 passed
+
+Key acceptance criteria verified:
+- Junior operator can configure two independent auditor candidates (docs + JSON examples)
+- 'Needs Human: no_auditor' is diagnosable from the doc's troubleshooting section
+- Owner override procedure is documented with API request shape and rejection codes
+- Upgrade/grandfathering behavior is explained with clear upgrade path instructions
+- All per-doc requirement tests pass (doc existence, content keywords, env example coverage)
 ---
 <!-- COMMENTS:END -->
