@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-590
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Retry terminal audits after auditor launch or transport failure
 parent: OOMPAH-585
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:22.194798Z'
-updated_at: '2026-07-30T14:41:55.683876Z'
+updated_at: '2026-07-30T18:35:07.851680Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-590
 target_branch: null
 review_url: null
@@ -48,12 +48,17 @@ oompah.agent_run_id: 945de5f9-9701-40f0-b89c-eef1dbd0ec57
 oompah.work_branch: epic-OOMPAH-585--task-OOMPAH-590
 oompah.integration:
   version: 1
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-585--task-OOMPAH-590
-  head_sha: 196653392d78b3bcbcae58c6f8c52aa4be161d4c
+  base_branch: epic-OOMPAH-585
+  base_sha: 4cd5ddfae7384bbb7022d2562149468f0127a35e
+  head_sha: cc261493377c48796574c954e4ca89b65ff7afc1
+  integrated_sha: cc261493377c48796574c954e4ca89b65ff7afc1
   submitted_at: '2026-07-30T14:41:39.513289+00:00'
-  updated_at: '2026-07-30T14:41:39.513289+00:00'
+  updated_at: '2026-07-30T18:35:03.425782+00:00'
+  dependency_heads:
+    OOMPAH-589: b252293d3fc950f79a342c74b51d3285f62ecf4c
 oompah.task_costs:
   total_input_tokens: 3977496
   total_output_tokens: 13826
@@ -86,6 +91,28 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-585--task-OOMPAH-590
     source_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
     completed_at: '2026-07-30T14:31:23.771017+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-d7c99d3e4414
+    project_id: proj-14849f1b
+    task_id: OOMPAH-590
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b7384a7e2665192264b94f4a4e0518351a2eb30d7401d394b5d250894a810830
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-30T18:35:04.619172+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -268,5 +295,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 9m 55s
 - Log: OOMPAH-590__20260730T143206Z.jsonl
+---
+author: oompah
+created: 2026-07-30 18:35
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
