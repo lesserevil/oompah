@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-596
 type: bug
-status: Ready to Integrate
+status: Needs CI Fix
 priority: 1
 title: Rearm conflict repairs after recoverable agent infrastructure failure
 parent: OOMPAH-587
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:26.248587Z'
-updated_at: '2026-07-30T15:53:52.925433Z'
+updated_at: '2026-07-30T16:00:53.098923Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-596
 target_branch: null
 review_url: null
@@ -106,12 +106,61 @@ oompah.agent_run_id: 01e8b0b6-f4ed-4161-930e-1da63a291a43
 oompah.work_branch: epic-OOMPAH-587--task-OOMPAH-596
 oompah.integration:
   version: 1
-  state: ready
-  attempts: 0
+  state: blocked
+  attempts: 1
   task_branch: epic-OOMPAH-587--task-OOMPAH-596
+  base_branch: epic-OOMPAH-587
+  base_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
   head_sha: db9a68c11ff9a83799ca06a54b23a17673adc5b2
   submitted_at: '2026-07-30T15:53:03.959830+00:00'
-  updated_at: '2026-07-30T15:53:03.959830+00:00'
+  updated_at: '2026-07-30T16:00:50.646455+00:00'
+  last_error: "Combined-tree quality gate failed: mpah/OOMPAH-596/.venv/lib/python3.12/site-packages/xdist/dsession.py\"\
+    , line 138, in pytest_runtestloop\nINTERNALERROR>     self.loop_once()\nINTERNALERROR>\
+    \   File \"/home/shedwards/.oompah/worktrees/oompah/OOMPAH-596/.venv/lib/python3.12/site-packages/xdist/dsession.py\"\
+    , line 163, in loop_once\nINTERNALERROR>     call(**kwargs)\nINTERNALERROR>  \
+    \ File \"/home/shedwards/.oompah/worktrees/oompah/OOMPAH-596/.venv/lib/python3.12/site-packages/xdist/dsession.py\"\
+    , line 306, in worker_collectionfinish\nINTERNALERROR>     self.sched.schedule()\n\
+    INTERNALERROR>   File \"/home/shedwards/.oompah/worktrees/oompah/OOMPAH-596/.venv/lib/python3.12/site-packages/xdist/scheduler/loadscope.py\"\
+    , line 354, in schedule\nINTERNALERROR>     self._reschedule(node)\nINTERNALERROR>\
+    \   File \"/home/shedwards/.oompah/worktrees/oompah/OOMPAH-596/.venv/lib/python3.12/site-packages/xdist/scheduler/loadscope.py\"\
+    , line 336, in _reschedule\nINTERNALERROR>     self._assign_work_unit(node)\n\
+    INTERNALERROR>   File \"/home/shedwards/.oompah/worktrees/oompah/OOMPAH-596/.venv/lib/python3.12/site-packages/xdist/scheduler/loadscope.py\"\
+    , line 275, in _assign_work_unit\nINTERNALERROR>     worker_collection = self.registered_collections[node]\n\
+    INTERNALERROR>                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^\nINTERNALERROR>\
+    \ KeyError: <WorkerController gw5>\n\n====== 1 failed, 6659 passed, 7 skipped,\
+    \ 35 warnings in 167.39s (0:02:47) ======\nmake[1]: Leaving directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-596'\n\
+    \nUsing CPython 3.12.12\nCreating virtual environment at: .venv\nActivate with:\
+    \ source .venv/bin/activate\nResolved 53 packages in 67ms\n   Building oompah\
+    \ @ file:///home/shedwards/.oompah/worktrees/oompah/OOMPAH-596\n      Built oompah\
+    \ @ file:///home/shedwards/.oompah/worktrees/oompah/OOMPAH-596\nPrepared 1 package\
+    \ in 297ms\nInstalled 53 packages in 51ms\n + annotated-doc==0.0.5\n + annotated-types==0.8.0\n\
+    \ + anyio==4.14.2\n + attrs==26.1.0\n + babel==2.18.0\n + bcrypt==4.3.0\n + certifi==2026.7.22\n\
+    \ + cffi==2.1.0\n + click==8.4.2\n + cryptography==49.0.0\n + fastapi==0.141.1\n\
+    \ + h11==0.16.0\n + httpcore==1.0.9\n + httptools==0.8.0\n + httpx==0.28.1\n +\
+    \ httpx-sse==0.4.3\n + idna==3.18\n + jinja2==3.1.6\n + jsonschema==4.26.0\n +\
+    \ jsonschema-specifications==2025.9.1\n + markupsafe==3.0.3\n + mcp==1.29.0\n\
+    \ + oompah==0.1.0 (from file:///home/shedwards/.oompah/worktrees/oompah/OOMPAH-596)\n\
+    \ + passlib==1.7.4\n + pycparser==3.0\n + pydantic==2.13.4\n + pydantic-core==2.46.4\n\
+    \ + pydantic-settings==2.14.2\n + pyjwt==2.13.0\n + python-dateutil==2.9.0.post0\n\
+    \ + python-dotenv==1.2.2\n + python-liquid==2.3.0\n + python-multipart==0.0.32\n\
+    \ + pytz==2026.3.post1\n + pyyaml==6.0.3\n + referencing==0.37.0\n + rpds-py==2026.6.3\n\
+    \ + six==1.17.0\n + sse-starlette==3.4.6\n + starlette==1.3.1\n + tree-sitter==0.26.0\n\
+    \ + tree-sitter-javascript==0.25.0\n + tree-sitter-markdown==0.5.1\n + tree-sitter-python==0.25.0\n\
+    \ + tree-sitter-rust==0.24.2\n + tree-sitter-typescript==0.23.2\n + tree-sitter-yaml==0.7.2\n\
+    \ + typing-extensions==4.16.0\n + typing-inspection==0.4.2\n + uvicorn==0.52.0\n\
+    \ + uvloop==0.22.1\n + watchfiles==1.2.0\n + websockets==17.0\nResolved 74 packages\
+    \ in 35ms\n   Building oompah @ file:///home/shedwards/.oompah/worktrees/oompah/OOMPAH-596\n\
+    \      Built oompah @ file:///home/shedwards/.oompah/worktrees/oompah/OOMPAH-596\n\
+    Prepared 1 package in 248ms\nUninstalled 2 packages in 1ms\nInstalled 23 packages\
+    \ in 55ms\n + charset-normalizer==3.4.9\n + claude-agent-sdk==0.2.128\n + distro==1.9.0\n\
+    \ + execnet==2.1.2\n + granian==2.7.9\n + griffelib==2.1.0\n + iniconfig==2.3.0\n\
+    \ + jiter==0.16.0\n ~ oompah==0.1.0 (from file:///home/shedwards/.oompah/worktrees/oompah/OOMPAH-596)\n\
+    \ + openai==2.50.0\n + openai-agents==0.17.8\n + packaging==26.2\n + pluggy==1.6.0\n\
+    \ + pygments==2.20.0\n + pytest==9.1.1\n + pytest-asyncio==1.4.0\n + pytest-timeout==2.4.0\n\
+    \ + pytest-xdist==3.8.0\n + requests==2.34.2\n + sniffio==1.3.1\n + tqdm==4.70.0\n\
+    \ + urllib3==2.7.0\n - websockets==17.0\n + websockets==16.1.1\nUninstalled 8\
+    \ packages in 8ms\nInstalled 8 packages in 23ms\nmake[1]: *** [Makefile:225: test]\
+    \ Error 3\n"
 oompah.task_costs:
   total_input_tokens: 160808
   total_output_tokens: 39795
@@ -543,5 +592,127 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 13m 18s
 - Log: OOMPAH-596__20260730T154044Z.jsonl
+---
+author: oompah
+created: 2026-07-30 16:00
+---
+The combined-tree quality gate failed on `epic-OOMPAH-587--task-OOMPAH-596`. Fix the failure on that private branch, run the full configured quality gate, push, and `oompah task submit` it again.
+
+Gate output:
+```
+mpah/OOMPAH-596/.venv/lib/python3.12/site-packages/xdist/dsession.py", line 138, in pytest_runtestloop
+INTERNALERROR>     self.loop_once()
+INTERNALERROR>   File "/home/shedwards/.oompah/worktrees/oompah/OOMPAH-596/.venv/lib/python3.12/site-packages/xdist/dsession.py", line 163, in loop_once
+INTERNALERROR>     call(**kwargs)
+INTERNALERROR>   File "/home/shedwards/.oompah/worktrees/oompah/OOMPAH-596/.venv/lib/python3.12/site-packages/xdist/dsession.py", line 306, in worker_collectionfinish
+INTERNALERROR>     self.sched.schedule()
+INTERNALERROR>   File "/home/shedwards/.oompah/worktrees/oompah/OOMPAH-596/.venv/lib/python3.12/site-packages/xdist/scheduler/loadscope.py", line 354, in schedule
+INTERNALERROR>     self._reschedule(node)
+INTERNALERROR>   File "/home/shedwards/.oompah/worktrees/oompah/OOMPAH-596/.venv/lib/python3.12/site-packages/xdist/scheduler/loadscope.py", line 336, in _reschedule
+INTERNALERROR>     self._assign_work_unit(node)
+INTERNALERROR>   File "/home/shedwards/.oompah/worktrees/oompah/OOMPAH-596/.venv/lib/python3.12/site-packages/xdist/scheduler/loadscope.py", line 275, in _assign_work_unit
+INTERNALERROR>     worker_collection = self.registered_collections[node]
+INTERNALERROR>                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+INTERNALERROR> KeyError: <WorkerController gw5>
+
+====== 1 failed, 6659 passed, 7 skipped, 35 warnings in 167.39s (0:02:47) ======
+make[1]: Leaving directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-596'
+
+Using CPython 3.12.12
+Creating virtual environment at: .venv
+Activate with: source .venv/bin/activate
+Resolved 53 packages in 67ms
+   Building oompah @ file:///home/shedwards/.oompah/worktrees/oompah/OOMPAH-596
+      Built oompah @ file:///home/shedwards/.oompah/worktrees/oompah/OOMPAH-596
+Prepared 1 package in 297ms
+Installed 53 packages in 51ms
+ + annotated-doc==0.0.5
+ + annotated-types==0.8.0
+ + anyio==4.14.2
+ + attrs==26.1.0
+ + babel==2.18.0
+ + bcrypt==4.3.0
+ + certifi==2026.7.22
+ + cffi==2.1.0
+ + click==8.4.2
+ + cryptography==49.0.0
+ + fastapi==0.141.1
+ + h11==0.16.0
+ + httpcore==1.0.9
+ + httptools==0.8.0
+ + httpx==0.28.1
+ + httpx-sse==0.4.3
+ + idna==3.18
+ + jinja2==3.1.6
+ + jsonschema==4.26.0
+ + jsonschema-specifications==2025.9.1
+ + markupsafe==3.0.3
+ + mcp==1.29.0
+ + oompah==0.1.0 (from file:///home/shedwards/.oompah/worktrees/oompah/OOMPAH-596)
+ + passlib==1.7.4
+ + pycparser==3.0
+ + pydantic==2.13.4
+ + pydantic-core==2.46.4
+ + pydantic-settings==2.14.2
+ + pyjwt==2.13.0
+ + python-dateutil==2.9.0.post0
+ + python-dotenv==1.2.2
+ + python-liquid==2.3.0
+ + python-multipart==0.0.32
+ + pytz==2026.3.post1
+ + pyyaml==6.0.3
+ + referencing==0.37.0
+ + rpds-py==2026.6.3
+ + six==1.17.0
+ + sse-starlette==3.4.6
+ + starlette==1.3.1
+ + tree-sitter==0.26.0
+ + tree-sitter-javascript==0.25.0
+ + tree-sitter-markdown==0.5.1
+ + tree-sitter-python==0.25.0
+ + tree-sitter-rust==0.24.2
+ + tree-sitter-typescript==0.23.2
+ + tree-sitter-yaml==0.7.2
+ + typing-extensions==4.16.0
+ + typing-inspection==0.4.2
+ + uvicorn==0.52.0
+ + uvloop==0.22.1
+ + watchfiles==1.2.0
+ + websockets==17.0
+Resolved 74 packages in 35ms
+   Building oompah @ file:///home/shedwards/.oompah/worktrees/oompah/OOMPAH-596
+      Built oompah @ file:///home/shedwards/.oompah/worktrees/oompah/OOMPAH-596
+Prepared 1 package in 248ms
+Uninstalled 2 packages in 1ms
+Installed 23 packages in 55ms
+ + charset-normalizer==3.4.9
+ + claude-agent-sdk==0.2.128
+ + distro==1.9.0
+ + execnet==2.1.2
+ + granian==2.7.9
+ + griffelib==2.1.0
+ + iniconfig==2.3.0
+ + jiter==0.16.0
+ ~ oompah==0.1.0 (from file:///home/shedwards/.oompah/worktrees/oompah/OOMPAH-596)
+ + openai==2.50.0
+ + openai-agents==0.17.8
+ + packaging==26.2
+ + pluggy==1.6.0
+ + pygments==2.20.0
+ + pytest==9.1.1
+ + pytest-asyncio==1.4.0
+ + pytest-timeout==2.4.0
+ + pytest-xdist==3.8.0
+ + requests==2.34.2
+ + sniffio==1.3.1
+ + tqdm==4.70.0
+ + urllib3==2.7.0
+ - websockets==17.0
+ + websockets==16.1.1
+Uninstalled 8 packages in 8ms
+Installed 8 packages in 23ms
+make[1]: *** [Makefile:225: test] Error 3
+
+```
 ---
 <!-- COMMENTS:END -->
