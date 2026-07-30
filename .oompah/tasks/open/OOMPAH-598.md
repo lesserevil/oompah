@@ -6,13 +6,13 @@ priority: 1
 title: Detect and deliver standalone Ready to Integrate tasks without PRs
 parent: OOMPAH-587
 children: []
-blocked_by: []
-start_blocked_by: &id001
+blocked_by:
 - OOMPAH-593
+start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:29.695490Z'
-updated_at: '2026-07-30T14:19:04.348181Z'
+updated_at: '2026-07-30T14:27:18.357381Z'
 work_branch: null
 target_branch: null
 review_url: null

@@ -8,12 +8,12 @@ parent: OOMPAH-587
 children: []
 blocked_by:
 - OOMPAH-596
-start_blocked_by: &id001
 - OOMPAH-593
+start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:28.342383Z'
-updated_at: '2026-07-30T14:19:01.243424Z'
+updated_at: '2026-07-30T14:27:15.626667Z'
 work_branch: null
 target_branch: null
 review_url: null

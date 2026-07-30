@@ -15,7 +15,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:13:01.872040Z'
-updated_at: '2026-07-30T14:22:35.545001Z'
+updated_at: '2026-07-30T14:27:19.708923Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -53,5 +53,10 @@ author: oompah
 created: 2026-07-30 14:18
 ---
 Project-owner-approved green recovery work; dispatch under recorded dependencies and acceptance criteria.
+---
+author: oompah
+created: 2026-07-30 14:27
+---
+Recovery graph created and accepted: child epics OOMPAH-585 through OOMPAH-588; implementation children OOMPAH-589 through OOMPAH-603. Finish-order and true hard-start edges are recorded. The live scheduler claimed OOMPAH-589 and OOMPAH-590 first; direct operator implementation is deferred while service workers are making progress. If the current broken terminal-audit runtime prevents the audit-fix epic from delivering, bootstrap those exact reviewed heads to main through the normal PR/full-gate path, then resume scheduler ownership.
 ---
 <!-- COMMENTS:END -->
