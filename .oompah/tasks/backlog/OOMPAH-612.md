@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T19:33:15.081209Z'
-updated_at: '2026-07-30T19:33:15.081209Z'
+updated_at: '2026-07-30T19:35:16.153394Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -30,3 +30,11 @@ Implementation scope: Fix the ACP Completion Auditor submit_audit_result bridge 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-30 19:35
+---
+Claimed by the interactive operator session. Keeping the task non-dispatchable while repairing the ACP submit bridge because the running service cannot safely self-audit this event-loop defect without reproducing the 60-second loop block. Root cause was live-reproduced by OOMPAH-610 audit attempt attempt-9ad0fa99a03f.
+---
+<!-- COMMENTS:END -->
