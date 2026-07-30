@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-608
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Let auditors submit redacted verdicts for credential-safety tasks
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:28:42.855708Z'
-updated_at: '2026-07-30T18:38:05.267655Z'
+updated_at: '2026-07-30T18:38:40.038700Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -69,6 +69,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-608
     source_sha: b4fa5db81322ae24b90a5c80689d94d1a49a1f30
     completed_at: '2026-07-30T18:34:08.951247+00:00'
+oompah.integration:
+  version: 1
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-608
+  head_sha: 6d0cda5660632aaed34c722198fff17a913a66af
+  submitted_at: '2026-07-30T18:38:36.717123+00:00'
+  updated_at: '2026-07-30T18:38:36.717123+00:00'
 ---
 ## Summary
 
@@ -217,5 +225,27 @@ Tests updated (71 tests in test_auditor_result_api.py all passing):
 - Added tests for idempotent redaction
 - Added OOMPAH-589 scenario test (PASS with credential-pattern examples)
 - Added triple-submission idempotency test
+---
+author: oompah
+created: 2026-07-30 18:38
+---
+**Verification**:
+
+Test Results:
+✅ 71 tests in test_auditor_result_api.py (all passing)
+✅ 78 tests in auditor-related suites (all passing) 
+✅ 131 tests in terminal_audit and coordinator (all passing)
+
+Key test coverage:
+- Inert credential-pattern examples are redacted and accepted
+- GitHub PAT, AWS key, JWT, Bearer, PEM patterns all redacted properly
+- Credential-like keys are replaced with generic redaction marker
+- Redaction is deterministic (idempotent)
+- OOMPAH-589 scenario: PASS verdict with credential-pattern examples ✓
+- Triple identical submission succeeds with same redaction ✓
+- Size limits enforced after redaction
+- Real credentials stay fail-closed (security maintained)
+
+All changes are committed and pushed to OOMPAH-608 branch.
 ---
 <!-- COMMENTS:END -->
