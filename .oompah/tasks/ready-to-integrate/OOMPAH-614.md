@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-614
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 0
 title: Rebase epic-OOMPAH-460 onto main
 parent: OOMPAH-460
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T19:51:07.651359Z'
-updated_at: '2026-07-30T20:12:24.790669Z'
+updated_at: '2026-07-30T20:12:41.144241Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-614
 target_branch: null
 review_url: null
@@ -21,12 +21,12 @@ oompah.agent_run_id: 912935df-1d3c-44c3-a8aa-711ce846b932
 oompah.work_branch: epic-OOMPAH-460--task-OOMPAH-614
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-460--task-OOMPAH-614
-  base_branch: epic-OOMPAH-460
-  base_sha: 868f1e391361f315198995b0569688f0142e1062
-  updated_at: '2026-07-30T20:08:38.688178+00:00'
+  head_sha: 868f1e391361f315198995b0569688f0142e1062
+  submitted_at: '2026-07-30T20:12:39.089818+00:00'
+  updated_at: '2026-07-30T20:12:39.089818+00:00'
 oompah.task_costs:
   total_input_tokens: 2379071
   total_output_tokens: 17403
@@ -323,5 +323,10 @@ author: oompah
 created: 2026-07-30 20:12
 ---
 Completion: Rebased epic-OOMPAH-460 onto origin/main. The rebase was a no-op because epic-OOMPAH-460 (868f1e391) is already based on origin/main (c048ba706) with 4 independent OOMPAH-486 commits on top. Verified all branches are in sync (local and remote epic-OOMPAH-460 both at 868f1e391). No conflicts encountered. Working tree is clean and up to date. Task complete.
+---
+author: oompah
+created: 2026-07-30 20:12
+---
+Rebased epic-OOMPAH-460 onto origin/main. Branch is now properly based on latest main with 4 independent OOMPAH-486 commits. No conflicts. All branches in sync.
 ---
 <!-- COMMENTS:END -->
