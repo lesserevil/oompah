@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-621
 type: task
-status: In Validation
+status: Open
 priority: 1
 title: Document and integration-test CLI credential precedence
 parent: OOMPAH-619
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:25:29.809048Z'
-updated_at: '2026-07-30T22:36:26.068799Z'
+updated_at: '2026-07-30T22:43:22.106898Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-621
 target_branch: null
 review_url: null
@@ -95,6 +95,8 @@ oompah.work_contributors:
     completed_at: '2026-07-30T22:29:48.996637+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-8a79c55ddcf1: '2026-07-30T22:43:19.718125+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -102,7 +104,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-621
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -111,7 +113,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-8a79c55ddcf1
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -121,13 +123,17 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-30T22:36:16.083460+00:00'
       branch_key: epic-OOMPAH-619--task-OOMPAH-621
+      verdict: fail
+      failure_classification: incomplete
+      completed_at: '2026-07-30T22:43:19.717931+00:00'
+      ended_at: '2026-07-30T22:43:19.717931+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-30T22:35:56.651693+00:00'
-    updated_at: '2026-07-30T22:36:16.083460+00:00'
+    updated_at: '2026-07-30T22:43:19.717931+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-8a79c55ddcf1
@@ -371,5 +377,19 @@ author: oompah
 created: 2026-07-30 22:36
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 22:43
+---
+Audit FAIL — incomplete. Routing task to Open.
+
+[REDACTED]
+
+Instructions:
+- Update docs/authentication.md and docs/cli-install.md precedence sections to list ~/.netrc as tier 3 for both username and password, matching oompah/client_auth.py and the task/admin CLI help.
+- Document hostname selection behavior (URL → hostname, IPv6/IPv4, port stripping, netrc-lookup case handling) in the operator docs.
+- Add a netrc-source example under 'Environment credentials' in .env.example and cross-link authentication.md.
+- Extend tests/test_docs_authentication_contract.py to require ~/.netrc to appear in the documented CLI precedence (both docs) so the docs/help mismatch cannot recur.
+- Deliver the end-to-end compatibility check advertised by test_cli_install_revision_compatibility.py: install oompah from an exact git revision into an isolated venv, run a live matching-revision server with htpasswd auth, and assert both `oompah task view` and a safe admin read succeed.
 ---
 <!-- COMMENTS:END -->
