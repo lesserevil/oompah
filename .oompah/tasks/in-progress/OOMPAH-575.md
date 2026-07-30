@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T02:15:25.255613Z'
-updated_at: '2026-07-30T13:52:07.183817Z'
+updated_at: '2026-07-30T13:58:43.839414Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -75,7 +75,6 @@ Add a Codex-session regression proving an assigned agent can view, comment on, a
 Acceptance criteria
 
 A service-launched Codex agent can execute the documented `oompah task` workflow for its own assigned task without operator credentials, receives no broader tracker authority, and no 401 occurs in the normal launch path.
-
 ## Acceptance Criteria
 
 - [ ] Define acceptance criteria.
