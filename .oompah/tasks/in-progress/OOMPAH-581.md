@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:35:07.041991Z'
-updated_at: '2026-07-30T04:44:02.555567Z'
+updated_at: '2026-07-30T04:46:52.645217Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -184,5 +184,10 @@ author: oompah
 created: 2026-07-30 04:44
 ---
 Discovery: Found the key code. In projects.py, cleanup_terminal_issue() removes the epic-<id> worktree (epic_worktree_path_for) and branch. But it does NOT handle an auxiliary task-style repair workspace at <worktree_root>/<project>/<id> on branch <id> left by epic repair/planner runs. The fix: add _cleanup_epic_repair_workspace_locked() method to projects.py that, when called for terminal epics, finds and removes the exact managed task-style path/branch with guards: registered worktree, exact same-identifier branch, clean (git status --porcelain empty), ancestor-safe (git merge-base --is-ancestor). Tests will use a real bare-remote git repo with: (1) terminal epic having canonical epic work_branch + auxiliary <id> repair worktree/branch; (2) dirty worktree preserved; (3) unmerged head preserved; (4) shared branch (checked out elsewhere) preserved; (5) different-identifier branch preserved.
+---
+author: oompah
+created: 2026-07-30 04:46
+---
+Implementation: Added _cleanup_epic_repair_workspace_locked() to ProjectStore in oompah/projects.py (line 2624). This method is called only for terminal epic records from cleanup_terminal_issue() when is_epic=True. It enforces four sequential guards before removing: (1) repair path is exact managed registered worktree via worktree_path_for(); (2) exact same-identifier branch <id> (not epic-<id>) is checked out via git symbolic-ref; (3) worktree is clean via git status --porcelain; (4) branch head is ancestor of origin/<default_branch> via git merge-base --is-ancestor. All four guards must pass or the method returns False and leaves everything intact. Added 7 tests in TestEpicRepairWorkspaceCleanup: happy path (real bare-remote with both epic worktree and repair worktree), dirty preserved, unmerged preserved, shared-branch preserved, different-identifier preserved, unregistered-directory skipped, non-epic call skips repair path.
 ---
 <!-- COMMENTS:END -->
