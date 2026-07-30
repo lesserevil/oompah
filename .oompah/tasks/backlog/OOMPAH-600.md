@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:58.634342Z'
-updated_at: '2026-07-30T14:17:18.477539Z'
+updated_at: '2026-07-30T14:17:34.729739Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -21,6 +21,8 @@ merged_at: null
 oompah.start_blocked_by: *id001
 ---
 ## Summary
+
+Triggered by: OOMPAH-581
 
 Implementation scope
 
@@ -33,10 +35,17 @@ Retain OOMPAH-581 tests, add any live-shape reproducer needed, run make test, an
 Acceptance criteria
 
 OOMPAH-581 reaches Merged; safe terminal epic repair artifacts are gone; dirty/unmerged work remains byte-for-byte intact and registered; cleanup reports no error.
-
 ## Acceptance Criteria
 
 - [ ] Define acceptance criteria.
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-30 14:17
+---
+Coordination: OOMPAH-598 owns delivery of OOMPAH-581. This task hard-starts after OOMPAH-598 and owns only deployment verification plus live safe cleanup/pruning; do not independently open or merge a second OOMPAH-581 delivery path.
+---
+<!-- COMMENTS:END -->

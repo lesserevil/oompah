@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:54.281403Z'
-updated_at: '2026-07-30T14:14:54.281403Z'
+updated_at: '2026-07-30T14:17:28.285381Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -19,6 +19,8 @@ review_number: null
 merged_at: null
 ---
 ## Summary
+
+Triggered by: OOMPAH-575
 
 Implementation scope
 
@@ -31,10 +33,8 @@ Retain OOMPAH-575 focused suites, add any live-path reproducer required, and run
 Acceptance criteria
 
 OOMPAH-575 reaches Merged; a newly launched Codex worker completes the documented task CLI workflow with no operator credentials and no broader task authority.
-
 ## Acceptance Criteria
 
 - [ ] Define acceptance criteria.
 
 ## Notes
-
