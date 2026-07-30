@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:35:07.041991Z'
-updated_at: '2026-07-30T04:47:45.126733Z'
+updated_at: '2026-07-30T04:47:57.054934Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -58,13 +58,17 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 6a4de8a6-701b-4c8a-b916-6798acc68b91
 oompah.task_costs:
-  total_input_tokens: 46037
-  total_output_tokens: 5042
+  total_input_tokens: 46127
+  total_output_tokens: 7383
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 46037
       output_tokens: 5042
+      cost_usd: 0.0
+    sonnet:
+      input_tokens: 90
+      output_tokens: 2341
       cost_usd: 0.0
   runs:
   - profile: default
@@ -79,6 +83,12 @@ oompah.task_costs:
     output_tokens: 998
     cost_usd: 0.0
     recorded_at: '2026-07-30T04:38:26.022994+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 90
+    output_tokens: 2341
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T04:47:55.550438+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-581__20260730T043610Z
@@ -212,5 +222,15 @@ author: oompah
 created: 2026-07-30 04:47
 ---
 Added _cleanup_epic_repair_workspace_locked() to ProjectStore in oompah/projects.py. For terminal epics, cleanup_terminal_issue(is_epic=True) now also removes the auxiliary task-style repair workspace at <worktree_root>/<project>/<id> on branch <id> left by epic repair/planner runs. Four strict guards (registered path, exact same-identifier branch, clean worktree, merged head) must all pass before removal. 7 new focused tests in TestEpicRepairWorkspaceCleanup cover the happy-path real bare-remote scenario plus dirty/unmerged/shared/different-identifier/unregistered preservation cases. All 94 test_projects.py tests pass.
+---
+author: oompah
+created: 2026-07-30 04:47
+---
+Run #2 [attempt=2, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 0, Tool calls: 60
+- Tokens: 90 in / 2.3K out [2.4K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 9m 6s
+- Log: OOMPAH-581__20260730T043854Z.jsonl
 ---
 <!-- COMMENTS:END -->
