@@ -53,6 +53,7 @@ def execute_integration(
     quality_gate: BranchQualityGate,
     quality_command: str,
     repo_identity: str,
+    retry_forced: bool = False,
 ) -> IntegrationExecutionResult:
     """Rebase, test, and compare-and-swap one task onto an epic branch."""
 
@@ -152,6 +153,7 @@ def execute_integration(
         target_branch=epic_branch,
         work_branch=task_branch,
         command=quality_command,
+        retry_forced=retry_forced,
     )
     if not quality.passed:
         if quality.status == "interrupted":

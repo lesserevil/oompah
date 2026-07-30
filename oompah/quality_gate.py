@@ -227,8 +227,13 @@ class BranchQualityGate:
         target_branch: str,
         work_branch: str,
         command: str,
+        retry_forced: bool = False,
     ) -> QualityGateResult:
-        """Return passing evidence or execute the configured full check."""
+        """Return passing evidence or execute the configured full check.
+        
+        When retry_forced=True, bypasses cache for failed/timed_out/error
+        results and re-executes. Passed results remain cached and reusable.
+        """
         command = str(command or "").strip()
         if not command:
             return QualityGateResult(
@@ -260,14 +265,21 @@ class BranchQualityGate:
             entries = self._load()
             cached = entries.get(key)
             if isinstance(cached, dict) and cached.get("status"):
-                return QualityGateResult(
-                    status=str(cached["status"]),
-                    head_sha=head_sha,
-                    command=command,
-                    duration_seconds=float(cached.get("duration_seconds", 0) or 0),
-                    output_tail=str(cached.get("output_tail", "") or ""),
-                    cached=True,
-                )
+                cached_status = str(cached["status"])
+                # On forced retry, skip cache for failed/timed_out/error.
+                # Reuse passed results regardless of retry_forced flag.
+                if retry_forced and cached_status in {"failed", "timed_out", "error"}:
+                    # Fall through to re-execute instead of returning cached result
+                    pass
+                else:
+                    return QualityGateResult(
+                        status=cached_status,
+                        head_sha=head_sha,
+                        command=command,
+                        duration_seconds=float(cached.get("duration_seconds", 0) or 0),
+                        output_tail=str(cached.get("output_tail", "") or ""),
+                        cached=True,
+                    )
 
             started = time.monotonic()
             process: subprocess.Popen[str] | None = None
