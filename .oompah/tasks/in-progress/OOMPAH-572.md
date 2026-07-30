@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-572
 type: task
-status: Done
+status: In Progress
 priority: 0
 title: Rebase epic-OOMPAH-459 onto main
 parent: OOMPAH-459
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T00:10:44.905550Z'
-updated_at: '2026-07-30T00:21:36.784130Z'
+updated_at: '2026-07-30T00:22:11.491089Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-572
 target_branch: null
 review_url: null
@@ -189,5 +189,10 @@ author: oompah
 created: 2026-07-30 00:21
 ---
 Rebased epic-OOMPAH-459 directly from 2e2005cba5b9106029e706db699ca7cfdaa6e3bd onto origin/main bd5f23f53161c8b2722f445d9c62c7f39cf61d98. Range-diff preserved all nine commits; force-pushed with an exact lease. New epic tip: bd5f23f53161c8b2722f445d9c62c7f39cf61d98. The Ready task branches were not modified.
+---
+author: oompah
+created: 2026-07-30 00:22
+---
+Correction completed: an unset temp-directory variable made the initial direct push point the epic ref at main without replaying its commits. Restored from recorded tip 2e2005cba, rebased its exact nine-commit range from old base 8483db2e3 onto bd5f23f53, verified all nine as equivalent with range-diff, and force-pushed using an exact lease against bd5f23f53. Correct new epic tip: 65df7489f845e7def17ee6612060a0bc6130ba82. No task branch was changed.
 ---
 <!-- COMMENTS:END -->
