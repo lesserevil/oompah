@@ -8,10 +8,12 @@ parent: OOMPAH-586
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- focus-complete:docs
+- needs:devops
 assignee: null
 created_at: '2026-07-30T14:14:54.281403Z'
-updated_at: '2026-07-30T15:31:19.258007Z'
+updated_at: '2026-07-30T15:32:14.381786Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-593
 target_branch: null
 review_url: null
@@ -243,5 +245,34 @@ author: oompah
 created: 2026-07-30 15:31
 ---
 Verification: uv run pytest tests/test_task_handoff.py → 16 passed, 1 warning (the deprecation warning is unrelated to this doc). tests/test_acp_codex_backend.py has 0 handoff-named tests on the current head — expected; those land with OOMPAH-575. Doc claims cross-checked against source: TASK_HANDOFF_HEADER='x-oompah-task-capability', TASK_HANDOFF_TOKEN_ENV='OOMPAH_TASK_HANDOFF_TOKEN', TASK_HANDOFF_PROJECT_ENV='OOMPAH_TASK_HANDOFF_PROJECT_ID', endpoint path '/api/v1/task-handoff', allowed actions {view, comment, set-status, submit, add-label, remove-label, coordination-peers, coordination-inbox, coordination-send, coordination-checkpoint} — all consistent between orchestrator grant, endpoint allowlist, and CLI dispatch.
+---
+author: oompah
+created: 2026-07-30 15:32
+---
+Focus handoff: docs
+
+1. Outcome
+Docs-only contribution shipped on branch epic-OOMPAH-586--task-OOMPAH-593 (commit fe52c187f). Added docs/scoped-task-cli-authentication.md as the operator-facing reference for the shipped scoped task capability mechanism, cross-linked from docs/authentication.md and indexed in docs/README.md. All identifier and endpoint semantics verified against source; tests/test_task_handoff.py runs 16/16 green on the current head. This closes the documentation half of the acceptance criteria ('documented task CLI workflow') and gives the operator running the live probe an unambiguous procedure and safe-evidence checklist.
+
+2. Relevant files / commands / evidence
+- docs/scoped-task-cli-authentication.md (new)
+- docs/README.md (index entry)
+- docs/authentication.md (See also cross-link)
+- Verified against: oompah/task_handoff.py, oompah/task_cli.py, oompah/server.py (POST /api/v1/task-handoff at line 3247), oompah/orchestrator.py::_issue_task_handoff_token, oompah/acp_backends/codex.py (env injection at line ~775), oompah/acp_backends/opencode.py (env injection at line ~330), oompah/client_auth.py::agent_environment
+- OOMPAH-575 tests live on origin/OOMPAH-575 (commit e404d6eb7): tests/test_acp_codex_backend.py::TestCodexHandoffAuth (5 cases), tests/test_task_handoff.py::TestHandoffTokenFailClosed (6 cases). Not merged yet.
+- Focused suite: uv run pytest tests/test_task_handoff.py → 16 passed
+
+3. Remaining work / risks
+The acceptance criteria requires (a) OOMPAH-575 reaches Merged and (b) a newly launched Codex worker completes the documented workflow with no operator credentials. My docs-only work does not integrate OOMPAH-575 and does not perform the live probe. Remaining steps for the next focus:
+
+a. Land OOMPAH-575: merge origin/OOMPAH-575 (fast-forward or normal submit path) so TestCodexHandoffAuth and TestHandoffTokenFailClosed run in CI on the epic branch. Because the tests are additive and cover behavior already implemented by OOMPAH-538, this is a low-risk integration.
+
+b. Dispatch a Codex worker to a real task in a real project through the standard orchestrator path. Verify from the worker log that: (i) OOMPAH_TASK_HANDOFF_TOKEN was injected non-empty, (ii) 'oompah task view/comment/set-status/submit' on the assigned task succeed, (iii) 'oompah task view' against a different task in the same project rejects with 403 (server-side) or 'not granted' (CLI-side), (iv) after grant expiry (15 min default), any further operation returns 401. Record only the codes and identifiers per the probe procedure — never the token.
+
+c. If step (b) yields a 401 on the worker's own task, DO NOT paper over it with operator credentials. The docs/scoped-task-cli-authentication.md 'Troubleshooting → 401' section names the two likely causes (subprocess env not receiving the token; orchestrator _issue_task_handoff_token returning None). Add a targeted regression to tests/test_task_handoff.py or tests/test_acp_codex_backend.py before shipping the fix.
+
+Risk: the live probe requires operator access to a running service and the ability to launch a real worker. This is outside a docs specialist's scope.
+
+4. Recommended next focus: devops (or test if the launch path is already exercised in a working test harness). The next agent needs operator-shell access to dispatch a worker and observe its log; the docs I shipped give them the exact fail-closed matrix to compare against.
 ---
 <!-- COMMENTS:END -->

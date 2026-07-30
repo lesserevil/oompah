@@ -13,13 +13,28 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:28.342383Z'
-updated_at: '2026-07-30T14:27:15.626667Z'
+updated_at: '2026-07-30T15:32:35.692629Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
 oompah.start_blocked_by: *id001
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: ced605c3c18d1e2b0c1aa7a9f3f11c892c63ac4c63ee64582ba26731621a0b47
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 6fda61a9-7109-4ef3-83b7-11b5688a7e74
+  claim_owner: 9e3a680b-e68a-4d5a-ba2e-f9091834f9ec
+  claimed_at: '2026-07-30T15:32:28.310247+00:00'
+  claim_expires_at: '2026-07-30T16:02:28.310247+00:00'
+  retry_count: 0
+  retry_after: null
+oompah.agent_run_id: e91a28e1-41c1-4f5b-ab25-19dd441a07ad
 ---
 ## Summary
 
@@ -47,5 +62,10 @@ author: oompah
 created: 2026-07-30 14:19
 ---
 Project-owner-approved green recovery work; dispatch under recorded dependencies and acceptance criteria.
+---
+author: oompah
+created: 2026-07-30 15:32
+---
+Duplicate screening dispatched (profile: default, task remains Open)
 ---
 <!-- COMMENTS:END -->
