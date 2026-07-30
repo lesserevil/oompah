@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-602
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Repair project scope propagation in merged-label maintenance
 parent: OOMPAH-588
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:01.749200Z'
-updated_at: '2026-07-30T16:26:44.107317Z'
+updated_at: '2026-07-30T16:29:31.953811Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-602
 target_branch: null
 review_url: null
@@ -61,12 +61,12 @@ oompah.agent_run_id: 4708ddd2-7dde-4ed8-a44a-808c2c2afbcf
 oompah.work_branch: epic-OOMPAH-588--task-OOMPAH-602
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-588--task-OOMPAH-602
-  base_branch: epic-OOMPAH-588
-  base_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
-  updated_at: '2026-07-30T16:16:10.994641+00:00'
+  head_sha: a6fbb7f03b8a9aea5790cfc9bc6b6355490d6a97
+  submitted_at: '2026-07-30T16:29:29.568210+00:00'
+  updated_at: '2026-07-30T16:29:29.568210+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-602__20260730T160131Z
@@ -199,5 +199,15 @@ author: oompah
 created: 2026-07-30 16:26
 ---
 IMPLEMENTATION: Added _resolve_issue_project_id() helper method to safely resolve project ownership for issues missing project_id. Updated merged-labels maintenance methods to use this helper: _label_merged_issues, _open_deferred_done_reviews, _label_merged_epics (_all_merged_epics), _reconcile_in_review_pr_outcomes, _reconcile_terminal_open_reviews, _reconcile_stale_in_review_tasks. Each now: (1) resolves actual project ownership by searching all projects, (2) handles conflicts by logging and skipping, (3) uses project fallback when issue belongs to current project, (4) never falls back to unscoped legacy tracker.
+---
+author: oompah
+created: 2026-07-30 16:29
+---
+VERIFICATION: All tests pass. Ran focused tests (test_merged_labels_scope.py) covering scope resolution scenarios. Also verified all 160 tests in test_orchestrator_merged.py pass, confirming backward compatibility. The implementation now: (1) resolves project ownership safely for issues missing project_id, (2) handles ambiguity by logging and skipping, (3) never falls back to unscoped legacy tracker, (4) integrates across all merged-labels maintenance methods.
+---
+author: oompah
+created: 2026-07-30 16:29
+---
+Fixed project scope propagation in merged-label maintenance by adding _resolve_issue_project_id() helper and updating all merged-labels methods to resolve ownership from canonical project index instead of blindly assigning to current project. Handles ambiguous identifiers safely and never falls back to unscoped legacy tracker.
 ---
 <!-- COMMENTS:END -->
