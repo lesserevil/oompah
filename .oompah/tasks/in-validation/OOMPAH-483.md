@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-483
 type: feature
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Detect and block terminal-state writes that bypass the coordinator
 parent: OOMPAH-459
@@ -19,7 +19,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:31.119782Z'
-updated_at: '2026-07-30T03:05:55.522453Z'
+updated_at: '2026-07-30T03:21:22.596385Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-483
 target_branch: null
 review_url: null
@@ -138,7 +138,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-483
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -168,6 +168,23 @@ oompah.terminal_audit:
     previous_state: Ready to Integrate
     created_at: '2026-07-30T02:23:33.044363+00:00'
     updated_at: '2026-07-30T02:31:09.238250+00:00'
+  - version: 1
+    audit_id: audit-9524f0c2bd87
+    project_id: proj-14849f1b
+    task_id: OOMPAH-483
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f1e5c0df897c367bf9bf61fb3fd5fe22f91eb1b85a53dfd81645ff31d28bdc6a
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-30T03:21:21.096407+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-6ce2bc425063
