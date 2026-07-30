@@ -5,13 +5,17 @@ status: Backlog
 priority: 1
 title: Restore terminal-audit execution and truthful health reporting
 parent: OOMPAH-584
-children: []
+children:
+- OOMPAH-589
+- OOMPAH-590
+- OOMPAH-591
+- OOMPAH-592
 blocked_by: []
 start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:13:32.577860Z'
-updated_at: '2026-07-30T14:13:32.577860Z'
+updated_at: '2026-07-30T14:14:29.072880Z'
 work_branch: null
 target_branch: null
 review_url: null
