@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-607
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Canonicalize project aliases before terminal owner authorization
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:17:13.371379Z'
-updated_at: '2026-07-30T18:59:58.229988Z'
+updated_at: '2026-07-30T19:00:15.864141Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -115,6 +115,14 @@ oompah.task_costs:
     output_tokens: 974
     cost_usd: 0.0
     recorded_at: '2026-07-30T18:52:32.588272+00:00'
+oompah.integration:
+  version: 1
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-607
+  head_sha: b10b328ed7779cd3c72e7097a77f8ab4e69c1c90
+  submitted_at: '2026-07-30T19:00:13.697637+00:00'
+  updated_at: '2026-07-30T19:00:13.697637+00:00'
 ---
 ## Summary
 
@@ -274,5 +282,10 @@ Added two new regression tests in test_terminal_status_interfaces.py:
 - test_task_handoff_set_status_with_unknown_project_alias_fails_closed: Verifies unknown aliases still fail closed
 
 All terminal status and task handoff tests pass (15 + 16 tests).
+---
+author: oompah
+created: 2026-07-30 19:00
+---
+Fixed project alias canonicalization for terminal owner authorization in task handoff endpoint. Project aliases (e.g., 'oompah') are now converted to canonical IDs before validation, ensuring they work identically to canonical IDs for terminal status requests. Added regression tests verifying authorized owners can use aliases and unknown aliases fail closed.
 ---
 <!-- COMMENTS:END -->
