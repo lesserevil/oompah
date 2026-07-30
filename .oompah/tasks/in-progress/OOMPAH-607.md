@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:17:13.371379Z'
-updated_at: '2026-07-30T18:55:42.033386Z'
+updated_at: '2026-07-30T18:59:58.229988Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -256,5 +256,23 @@ The task handoff path:
 The issue: if canonicalization in _stage_terminal_transition doesn't catch the alias properly, or if there's a race condition, _project_by_id won't find the project (it only checks project.id, not project.name), resulting in a false 403.
 
 Need to ensure: canonicalize project_id at the task handoff entry point BEFORE using it, similar to how _get_tracker_for_issue_or_project does it.
+---
+author: oompah
+created: 2026-07-30 18:59
+---
+Implementation: Fixed project alias canonicalization in task handoff endpoint (oompah/server.py, api_task_handoff function).
+
+Change: Added project_id canonicalization before handoff token validation. When a task handoff request uses a project alias (e.g., 'oompah'), it's now converted to the canonical project ID before:
+1. Validating the handoff token
+2. Resolving the tracker
+3. Calling _stage_terminal_transition
+
+This ensures that project aliases work identically to canonical IDs for terminal owner authorization, fixing the false HTTP 403 for valid owners using aliases.
+
+Added two new regression tests in test_terminal_status_interfaces.py:
+- test_task_handoff_set_status_with_project_alias_succeeds_for_authorized_owner: Verifies configured owner can use audit override through project alias
+- test_task_handoff_set_status_with_unknown_project_alias_fails_closed: Verifies unknown aliases still fail closed
+
+All terminal status and task handoff tests pass (15 + 16 tests).
 ---
 <!-- COMMENTS:END -->
