@@ -2645,11 +2645,18 @@ class ProjectStore:
             raise ProjectError(f"Unknown project: {project_id}")
         candidate = str(branch_name or "").strip()
         if not candidate:
-            candidate = (
-                self.epic_branch_name(issue_identifier)
-                if is_epic
-                else _sanitize_identifier(issue_identifier)
+            legacy_epic_worktree = self.epic_worktree_path_for(
+                project_id,
+                issue_identifier,
             )
+            if not is_epic and os.path.isdir(legacy_epic_worktree):
+                candidate = self.epic_branch_name(issue_identifier)
+            else:
+                candidate = (
+                    self.epic_branch_name(issue_identifier)
+                    if is_epic
+                    else _sanitize_identifier(issue_identifier)
+                )
         legacy_epic_task = (
             not is_epic
             and candidate == self.epic_branch_name(issue_identifier)

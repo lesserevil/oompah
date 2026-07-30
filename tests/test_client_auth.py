@@ -84,6 +84,7 @@ class TestNoCredentials:
     def test_whitespace_only_env_treated_as_absent(self, monkeypatch):
         monkeypatch.setenv("OOMPAH_SERVER_USERNAME", "   ")
         monkeypatch.setenv("OOMPAH_SERVER_PASSWORD", "  ")
+        monkeypatch.delenv("OOMPAH_SERVER_PASSWORD_FILE", raising=False)
         assert resolve_client_credentials() is None
 
 
