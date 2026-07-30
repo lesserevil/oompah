@@ -421,3 +421,26 @@ class TestLlmTimeoutAndError:
         n, r = asyncio.run(_select_focus_llm(issue, foci, BadProvider()))
         assert n is None
         assert r == ""
+
+    def test_invalid_provider_endpoint_falls_back_without_http_call(self, monkeypatch):
+        from oompah.focus import _select_focus_llm
+
+        issue = _issue(title="feature work", description="feature")
+        foci = [_focus("feature", keywords=["feature"])]
+        calls = []
+
+        def unexpected_http_call(*args, **kwargs):
+            calls.append((args, kwargs))
+            raise AssertionError("invalid endpoint reached HTTP client")
+
+        monkeypatch.setattr("oompah.api_agent._http_post", unexpected_http_call)
+
+        class BadEndpointProvider:
+            base_url = "/v1"
+            api_key = "sk-test"
+            default_model = "test-model"
+
+        n, r = asyncio.run(_select_focus_llm(issue, foci, BadEndpointProvider()))
+        assert n is None
+        assert r == ""
+        assert calls == []

@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
-from oompah.provider_health import ERROR_REASONS
+from oompah.provider_health import ERROR_REASONS, openai_base_url_error
 from oompah.roles import Candidate, Role, RoleStore
 from oompah.work_contributors import WorkContributor
 
@@ -46,6 +46,7 @@ _REASONS = frozenset(
         "all_attempted",
         "unknown_acp_models_only",
         "invalid_model",
+        "invalid_base_url",
         "unknown_error",
     }
 )
@@ -259,6 +260,7 @@ class AuditorCandidateSelector:
         policy_candidates: list[Candidate] = []
         failures: dict[str, list[str]] = {
             "no_providers": [],
+            "invalid_base_url": [],
             "missing_credentials": [],
             "unhealthy": [],
             "invalid_model": [],
@@ -270,6 +272,19 @@ class AuditorCandidateSelector:
             if provider is None:
                 failures["no_providers"].append(label)
                 continue
+
+            # ACP sessions do not use the OpenAI-compatible transport.  Every
+            # other candidate must have a validated absolute endpoint before
+            # it is eligible for an auditor launch.  Keep the diagnostic
+            # generic: provider URLs may contain credentials or query secrets.
+            if str(getattr(provider, "mode", "api") or "api").casefold() != "acp":
+                endpoint_error = openai_base_url_error(
+                    getattr(provider, "base_url", "")
+                )
+                if endpoint_error is not None:
+                    failures["invalid_base_url"].append(f"{label}:{endpoint_error}")
+                    continue
+
             if self._requires_credentials(provider) and not getattr(provider, "api_key", ""):
                 failures["missing_credentials"].append(label)
                 continue
@@ -657,6 +672,7 @@ class AuditorCandidateSelector:
             key, values = nonempty[0]
             reason_map = {
                 "no_providers": "no_providers",
+                "invalid_base_url": "invalid_base_url",
                 "missing_credentials": "all_require_missing_credentials",
                 "unhealthy": "all_unhealthy",
                 "invalid_model": "invalid_model",

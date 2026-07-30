@@ -446,7 +446,12 @@ class TestHandleDispatchNeeded:
         """A blocking tracker call is timed out after it enters the executor.
 
         This regression test guards against wrapping ``wait_for`` around an
-        inner event loop which is itself blocked by synchronous git I/O.
+        inner event loop which is itself blocked by synchronous git I/O.  The
+        slow project blocks for a long duration to sharply distinguish the
+        "timeout worked" case from the "timeout failed and we waited anyway"
+        case even under xdist CPU contention.  The structural checks (results
+        include only the fast project, metrics record the timeout) prove
+        non-blocking behavior independent of wall-clock timing.
         """
         slow = _make_project("slow")
         fast = _make_project("fast")
@@ -455,7 +460,11 @@ class TestHandleDispatchNeeded:
         expected = _make_issue("FAST-1", project_id="fast")
 
         slow_tracker = MagicMock()
-        slow_tracker.fetch_candidate_issues.side_effect = lambda: time.sleep(0.2)
+        # Block for 60s to make "timeout worked" unambiguous even under heavy
+        # xdist load: either we timeout in ~10ms and return early, or we wait
+        # the full 60s. The timing assertion below just needs to verify we did
+        # not wait for the full 60s (proving the timeout fired).
+        slow_tracker.fetch_candidate_issues.side_effect = lambda: time.sleep(60)
         fast_tracker = MagicMock()
         fast_tracker.fetch_candidate_issues.return_value = [expected]
         orch._tracker_for_project = lambda project_id: (
@@ -464,13 +473,25 @@ class TestHandleDispatchNeeded:
 
         started = time.monotonic()
         candidates = asyncio.run(orch._fetch_all_candidates_bounded())
+        elapsed = time.monotonic() - started
 
-        assert time.monotonic() - started < 0.15
+        # Structural invariants: timeout worked if results only include the
+        # fast project and metrics record the timeout.  We still verify timing
+        # (< 2s vs. 60s full wait) to catch regressions, but the threshold is
+        # loose enough for xdist contention.
+        assert elapsed < 2.0, f"took {elapsed:.2f}s; probable timeout failure"
         assert candidates == [expected]
         assert orch._project_refresh_metrics["slow"]["candidates"]["timeout_count"] == 1
 
     def test_in_progress_refresh_timeout_uses_the_same_safe_boundary(self, tmp_path):
-        """Orphan reconciliation cannot block on synchronous tracker I/O."""
+        """Orphan reconciliation cannot block on synchronous tracker I/O.
+
+        The slow project blocks for a long duration to sharply distinguish the
+        "timeout worked" case from the "timeout failed and we waited anyway"
+        case even under xdist CPU contention.  The structural checks (results
+        include only the fast project, metrics record the timeout) prove
+        non-blocking behavior independent of wall-clock timing.
+        """
         slow = _make_project("slow")
         fast = _make_project("fast")
         orch = _make_orchestrator(tmp_path, projects=[slow, fast])
@@ -478,7 +499,10 @@ class TestHandleDispatchNeeded:
         expected = _make_issue("FAST-RUNNING", project_id="fast")
 
         slow_tracker = MagicMock()
-        slow_tracker.fetch_issues_by_states.side_effect = lambda _states: time.sleep(0.2)
+        # Block for 60s to make "timeout worked" unambiguous even under heavy
+        # xdist load: either we timeout in ~10ms and return early, or we wait
+        # the full 60s.
+        slow_tracker.fetch_issues_by_states.side_effect = lambda _states: time.sleep(60)
         fast_tracker = MagicMock()
         fast_tracker.fetch_issues_by_states.return_value = [expected]
         orch._tracker_for_project = lambda project_id: (
@@ -487,8 +511,12 @@ class TestHandleDispatchNeeded:
 
         started = time.monotonic()
         issues = asyncio.run(orch._fetch_in_progress_issues_bounded())
+        elapsed = time.monotonic() - started
 
-        assert time.monotonic() - started < 0.15
+        # Structural invariants: timeout worked if results only include the
+        # fast project and metrics record the timeout.  Timing assertion is
+        # loose (< 2s vs. 60s full wait) for xdist contention resilience.
+        assert elapsed < 2.0, f"took {elapsed:.2f}s; probable timeout failure"
         assert issues == [expected]
         assert orch._project_refresh_metrics["slow"]["in_progress"]["timeout_count"] == 1
 
@@ -5477,3 +5505,197 @@ class TestRunApiWorkerWithTarget:
                                 # No target — legacy path
                             )
                         )
+
+    def test_runtime_endpoint_mutation_fails_before_worker_setup(self, tmp_path):
+        """A target selected with a valid URL cannot use a later invalid one."""
+        from oompah.orchestrator import DispatchTarget, ProviderStartupError
+        from oompah.roles import Candidate
+
+        prov = MagicMock()
+        prov.name = "TestProv"
+        prov.id = "p1"
+        prov.base_url = "https://provider.example/v1"
+        prov.api_key = "sk-runtime-secret"
+        prov.mode = "api"
+        prov.models = ["m-valid"]
+        prov.default_model = "m-valid"
+        prov.model_roles = {}
+        prov.get_model_context = MagicMock(return_value=None)
+
+        orch = _make_orchestrator(tmp_path)
+        orch._on_worker_exit = AsyncMock()
+
+        target = DispatchTarget(
+            role_name="fast",
+            provider=prov,
+            model="m-valid",
+            candidate_key="p1/m-valid",
+            source="role:fast[0]",
+            candidate=Candidate(provider_id="p1", model="m-valid"),
+        )
+
+        with patch("oompah.orchestrator.select_focus_async") as mock_focus:
+            def mutate_runtime_provider(*args, **kwargs):
+                prov.base_url = "/v1"
+                return Focus(name="f", role="r", description="d")
+
+            mock_focus.side_effect = mutate_runtime_provider
+            with patch.object(orch, "_create_workspace_for_issue") as setup:
+                with pytest.raises(ProviderStartupError) as exc_info:
+                    asyncio.run(
+                        orch._run_api_worker(
+                            _make_issue("runtime-url"),
+                            attempt=1,
+                            profile=_profile(mode="api", model_role="fast"),
+                            provider=prov,
+                            target=target,
+                        )
+                    )
+
+        assert exc_info.value.reason == "invalid_base_url"
+        assert exc_info.value.candidate_key == "p1/m-valid"
+        assert "sk-runtime-secret" not in str(exc_info.value)
+        setup.assert_not_called()
+
+    def test_forced_auditor_api_target_ignores_acp_focus_override(self, tmp_path):
+        """The persisted independent API candidate wins over the auditor role default."""
+        from oompah.orchestrator import DispatchTarget
+        from oompah.roles import Candidate
+
+        api_provider = _provider(
+            pid="independent-api",
+            name="Independent API",
+            models=["audit-model"],
+            default_model="audit-model",
+        )
+        api_provider.base_url = "https://audit.example/v1"
+        api_provider.mode = "api"
+        acp_provider = ModelProvider(
+            id="default-acp",
+            name="Default ACP",
+            base_url="",
+            api_key="",
+            models=[],
+            default_model=None,
+            provider_type="acp",
+            backend="claude",
+            mode="acp",
+            billing_model="subscription",
+        )
+        target = DispatchTarget(
+            role_name=None,
+            provider=api_provider,
+            model="audit-model",
+            candidate_key="independent-api/audit-model",
+            source="profile.provider_id",
+            candidate=Candidate(
+                provider_id="independent-api",
+                model="audit-model",
+            ),
+        )
+        orch = _make_orchestrator(tmp_path)
+        focus_override = MagicMock(return_value=acp_provider)
+        orch._resolve_focus_provider_override = focus_override
+        resolved = {}
+
+        class ResolutionCaptured(Exception):
+            pass
+
+        def capture_resolution(provider, model):
+            resolved.update(provider=provider, model=model)
+            raise ResolutionCaptured
+
+        orch._resolve_capabilities = capture_resolution
+
+        with pytest.raises(ResolutionCaptured):
+            asyncio.run(
+                orch._run_api_worker(
+                    _make_issue("auditor-api-binding"),
+                    attempt=1,
+                    profile=_profile(
+                        name="auditor",
+                        mode="auto",
+                        provider_id=api_provider.id,
+                        model="audit-model",
+                    ),
+                    provider=api_provider,
+                    target=target,
+                    forced_auditor=True,
+                )
+            )
+
+        assert resolved == {
+            "provider": api_provider,
+            "model": "audit-model",
+        }
+        focus_override.assert_not_called()
+
+    def test_forced_auditor_acp_target_ignores_api_focus_override(self, tmp_path):
+        """ACP auditors retain the provider/model recorded by the audit scheduler."""
+        from oompah.orchestrator import DispatchTarget
+        from oompah.roles import Candidate
+
+        acp_provider = ModelProvider(
+            id="independent-acp",
+            name="Independent ACP",
+            base_url="",
+            api_key="",
+            models=[],
+            default_model=None,
+            provider_type="acp",
+            backend="codex",
+            mode="acp",
+            billing_model="subscription",
+        )
+        api_provider = _provider(
+            pid="default-api",
+            name="Default API",
+            models=["default-model"],
+            default_model="default-model",
+        )
+        target = DispatchTarget(
+            role_name=None,
+            provider=acp_provider,
+            model="gpt-5.6-sol",
+            candidate_key="independent-acp/gpt-5.6-sol",
+            source="profile.provider_id",
+            candidate=Candidate(
+                provider_id="independent-acp",
+                model="gpt-5.6-sol",
+            ),
+        )
+        orch = _make_orchestrator(tmp_path)
+        focus_override = MagicMock(return_value=api_provider)
+        orch._resolve_focus_provider_override = focus_override
+        resolved = {}
+
+        class ResolutionCaptured(Exception):
+            pass
+
+        def capture_resolution(provider, model):
+            resolved.update(provider=provider, model=model)
+            raise ResolutionCaptured
+
+        orch._resolve_capabilities = capture_resolution
+
+        with pytest.raises(ResolutionCaptured):
+            asyncio.run(
+                orch._run_acp_worker(
+                    _make_issue("auditor-acp-binding"),
+                    attempt=1,
+                    profile=_profile(
+                        name="auditor",
+                        mode="auto",
+                        provider_id=acp_provider.id,
+                        model="gpt-5.6-sol",
+                    ),
+                    target=target,
+                    forced_auditor=True,
+                )
+            )
+
+        assert resolved == {
+            "provider": acp_provider,
+            "model": "gpt-5.6-sol",
+        }
+        focus_override.assert_not_called()

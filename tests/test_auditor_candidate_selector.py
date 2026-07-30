@@ -1015,6 +1015,63 @@ class TestAuditorCandidateSelectorUnknownProvenance:
 class TestAuditorCandidateSelectorPolicyGaps:
     """Regression coverage for policy checks that must fail closed."""
 
+    @pytest.mark.parametrize("endpoint", ["", "/v1", "ftp://provider.example/v1"])
+    def test_invalid_api_endpoint_is_excluded_from_auditor_role(self, endpoint):
+        invalid = _make_provider("invalid", "Invalid", base_url=endpoint)
+        valid = _make_provider("valid", "Valid", base_url="https://valid.example/v1")
+        role = Role(
+            "default",
+            "priority",
+            [Candidate("invalid", "test-model-1"), Candidate("valid", "test-model-1")],
+            datetime.now(timezone.utc),
+        )
+
+        selected, reason = AuditorCandidateSelector(
+            _make_role_store_with_roles({"default": role}),
+            _make_provider_store({"invalid": invalid, "valid": valid}),
+        ).seed_auditor_role()
+
+        assert reason is None
+        assert selected is not None
+        assert [candidate.provider_id for candidate in selected.candidates] == ["valid"]
+
+    def test_all_invalid_api_endpoints_have_structured_safe_diagnostic(self):
+        secret = "sk-do-not-log"
+        invalid = _make_provider(
+            "invalid", "Invalid", base_url=f"https://user:{secret}@provider.example/v1"
+        )
+        role = Role(
+            "default", "priority", [Candidate("invalid", "test-model-1")], datetime.now(timezone.utc)
+        )
+
+        selected, reason = AuditorCandidateSelector(
+            _make_role_store_with_roles({"default": role}),
+            _make_provider_store({"invalid": invalid}),
+        ).seed_auditor_role()
+
+        assert selected is None
+        assert reason is not None
+        assert reason.reason == "invalid_base_url"
+        assert secret not in reason.detail
+        assert reason.to_dict()["reason"] == "invalid_base_url"
+
+    def test_acp_candidate_does_not_require_openai_endpoint(self):
+        acp = _make_provider(
+            "acp", "ACP", mode="acp", base_url="", api_key="", models=[], default_model=""
+        )
+        role = Role(
+            "default", "priority", [Candidate("acp", "")], datetime.now(timezone.utc)
+        )
+
+        selected, reason = AuditorCandidateSelector(
+            _make_role_store_with_roles({"default": role}),
+            _make_provider_store({"acp": acp}),
+        ).seed_auditor_role()
+
+        assert reason is None
+        assert selected is not None
+        assert selected.candidates[0].provider_id == "acp"
+
     def test_seed_retains_union_and_uses_round_robin_order(self):
         providers = {
             "deep-provider": _make_provider("deep-provider", "Deep", ["deep-model"]),

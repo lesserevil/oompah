@@ -36,6 +36,7 @@ from oompah.authority_boundary import (
     operator_policy,
 )
 from oompah.completion_verifier import VerifierResult, verify_completion
+from oompah.provider_health import openai_base_url_error
 from oompah.coordination import CoordinationStore, derive_peer_suggestions
 from oompah.dependency_graph import (
     dependency_parent_has_landed,
@@ -17591,7 +17592,12 @@ class Orchestrator:
 
         return []
 
-    def _candidate_preflight(self, target: "DispatchTarget") -> str:
+    def _candidate_preflight(
+        self,
+        target: "DispatchTarget",
+        *,
+        require_openai_endpoint: bool | None = None,
+    ) -> str:
         """Check whether a candidate can reasonably be used before starting a worker.
 
         Returns an empty string when the candidate is usable, or a normalized
@@ -17609,6 +17615,9 @@ class Orchestrator:
           providers and explicitly-free models are allowed through.
         * ``"invalid_model"`` — ``target.model`` is set but absent from
           ``provider.models`` (and not equal to ``provider.default_model``).
+        * ``"invalid_base_url"`` — an OpenAI-compatible candidate does not
+          have an absolute HTTP(S) base URL. ACP candidates do not use this
+          transport and are excluded from this check.
 
         Log lines produced here must not include ``provider.api_key`` or any
         other secret value.  Only the normalized reason and the
@@ -17620,6 +17629,21 @@ class Orchestrator:
         provider = target.provider
         model = target.model
         provider_mode = (getattr(provider, "mode", "api") or "api").lower()
+
+        if require_openai_endpoint is None:
+            require_openai_endpoint = provider_mode != "acp"
+        if require_openai_endpoint:
+            endpoint_error = openai_base_url_error(
+                getattr(provider, "base_url", "")
+            )
+            if endpoint_error is not None:
+                logger.warning(
+                    "Preflight skip candidate %s (role=%s, provider=%s): invalid_base_url",
+                    target.candidate_key,
+                    target.role_name or "legacy",
+                    getattr(provider, "name", target.candidate_key),
+                )
+                return "invalid_base_url"
 
         # 1. Missing credentials. ACP providers are SDK-managed and do not need
         #    an API key in the provider record. API providers may point at
@@ -20164,7 +20188,24 @@ class Orchestrator:
         last_startup_error: ProviderStartupError | None = None
         for target in targets:
             # --- Preflight: check availability before starting the worker ---
-            preflight_skip = self._candidate_preflight(target)
+            require_openai_endpoint = not (
+                mode == "acp"
+                or str(getattr(target.provider, "mode", "api") or "api").casefold()
+                == "acp"
+            )
+            try:
+                preflight_skip = self._candidate_preflight(
+                    target,
+                    require_openai_endpoint=require_openai_endpoint,
+                )
+            except TypeError as exc:
+                # Keep compatibility with integrations that replace the
+                # preflight hook with the original one-argument callable.
+                # Only the signature mismatch is retried; real TypeErrors
+                # from a preflight implementation still propagate.
+                if "require_openai_endpoint" not in str(exc):
+                    raise
+                preflight_skip = self._candidate_preflight(target)
             if preflight_skip:
                 skip_reasons.append(f"{target.candidate_key}: {preflight_skip}")
                 continue
@@ -20271,7 +20312,20 @@ class Orchestrator:
 
         # Apply focus-level provider override if any. If the focus changes
         # the provider, log it.
-        if target is not None:
+        #
+        # Forced-auditor runs (see OOMPAH-589) short-circuit ALL focus-based
+        # provider/model resolution: the AuditDispatchPlan.candidate that was
+        # persisted before this worker started is authoritative.  The
+        # reserved auditor focus advertises model_role='auditor' which would
+        # otherwise cause _resolve_focus_provider_override to re-resolve the
+        # first auditor role candidate (typically the default ACP provider
+        # with a blank base URL) and silently replace the InferenceAPI target
+        # the scheduler chose.  That in turn turned the OpenAI-compatible
+        # /chat/completions path into a relative URL and crashed the worker
+        # with `unknown url type: '/chat/completions'`.
+        if forced_auditor and target is not None:
+            focus_provider = None
+        elif target is not None:
             # Explicit dispatch target: only apply focus-level overrides.
             # Re-running the full _resolve_provider chain would always return
             # the *first* role candidate (via profile.model_role) and defeat
@@ -20293,13 +20347,22 @@ class Orchestrator:
         # with an empty catalog (Claude SDK, etc.) are SDK-managed —
         # the SDK picks the model from the operator's subscription,
         # so no model name is required at dispatch time.
-        if target is not None and not (
+        if forced_auditor and target is not None:
+            # Auditor plan candidate is authoritative — bypass focus/role
+            # resolution so the scheduler's persisted (provider, model) pair
+            # is honored end-to-end.  See the block above.
+            model: str | None = (
+                target.model
+                or provider.default_model
+                or (provider.models[0] if provider.models else None)
+            )
+        elif target is not None and not (
             getattr(focus, "model", None) or getattr(focus, "model_role", None)
         ):
             # No focus model override: use the target's model directly.
             # Calling _resolve_model would re-resolve via profile.model_role
             # and return the first candidate's model, which is wrong here.
-            model: str | None = (
+            model = (
                 target.model
                 or provider.default_model
                 or (provider.models[0] if provider.models else None)
@@ -20403,6 +20466,21 @@ class Orchestrator:
                     "Model %s is provider.default_model but not in provider.models; proceeding with dispatch",
                     model,
                 )
+
+        # Re-check after focus/provider overrides and immediately before
+        # setup/session construction. Provider records can change at runtime
+        # after the dispatch target was selected; a stale valid target must
+        # never make the API agent construct a relative or malformed URL.
+        endpoint_error = openai_base_url_error(getattr(provider, "base_url", ""))
+        if endpoint_error is not None:
+            msg = f"Invalid OpenAI-compatible provider endpoint: {endpoint_error}"
+            if target is not None:
+                raise ProviderStartupError(
+                    msg,
+                    candidate_key=target.candidate_key,
+                    reason="invalid_base_url",
+                )
+            raise ValueError(msg)
 
         # Resolve modality capabilities for the (provider, model) pair.
         # Used by the prompt renderer to decide whether to embed
@@ -20889,14 +20967,25 @@ class Orchestrator:
         # purposes — the SDK doesn't need a provider URL or API key, but
         # the prompt template embeds the model name and our state response
         # surfaces it for dashboard display.
-        if target is not None:
+        #
+        # Forced-auditor runs (see OOMPAH-589) short-circuit all focus-based
+        # provider/model resolution: the AuditDispatchPlan.candidate that was
+        # persisted before this worker started is authoritative.  This
+        # matches the API worker's behavior and prevents the reserved
+        # auditor focus's model_role='auditor' from re-resolving the first
+        # auditor role candidate and silently replacing a valid candidate
+        # bound to this attempt.
+        if forced_auditor and target is not None:
+            provider = target.provider
+            model: str | None = target.model
+        elif target is not None:
             # Explicit dispatch target: start from target's provider/model,
             # then apply focus-level overrides only (not the full profile chain).
             provider = target.provider
             focus_provider = self._resolve_focus_provider_override(focus)
             if focus_provider is not None:
                 provider = focus_provider
-            model: str | None = target.model
+            model = target.model
             if getattr(focus, "model", None) or getattr(focus, "model_role", None):
                 if provider is not None:
                     model = self._resolve_model(profile, provider, focus=focus)
@@ -24007,9 +24096,10 @@ Return ONLY a JSON object (no markdown fences, no commentary):
 
             # Make API call (single turn, no tools)
             from oompah.api_agent import _build_ssl_context, _http_post
+            from oompah.provider_health import openai_chat_completions_url
 
             ssl_ctx = _build_ssl_context()
-            url = f"{provider.base_url}/chat/completions"
+            url = openai_chat_completions_url(provider.base_url)
             headers = {
                 "Content-Type": "application/json",
                 "Authorization": f"Bearer {provider.api_key}",

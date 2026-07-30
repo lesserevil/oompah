@@ -10930,7 +10930,11 @@ async def api_test_provider(provider_id: str):
     probe succeeded (the ``success`` field distinguishes the two cases).
     Returns 404 only when the provider_id is not in the store at all.
     """
-    from oompah.provider_health import run_acp_health_check, run_health_check
+    from oompah.provider_health import (
+        redact_sensitive_text,
+        run_acp_health_check,
+        run_health_check,
+    )
 
     provider = _provider_store.get(provider_id)
     if provider is None:
@@ -10955,7 +10959,11 @@ async def api_test_provider(provider_id: str):
         else:
             result = await asyncio.to_thread(run_health_check, provider)
     except Exception as exc:
-        logger.error("Provider health-check error for %s: %s", provider_id, exc)
+        logger.error(
+            "Provider health-check error for %s: %s",
+            provider_id,
+            redact_sensitive_text(exc),
+        )
         return JSONResponse(
             {
                 "provider_id": provider_id,
@@ -10964,7 +10972,7 @@ async def api_test_provider(provider_id: str):
                 "success": False,
                 "latency_ms": 0.0,
                 "error_reason": "unknown_error",
-                "error_detail": str(exc)[:300],
+                "error_detail": redact_sensitive_text(str(exc)[:300]),
             }
         )
 
