@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-605
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Bootstrap reviewed terminal-audit fixes through a standalone recovery delivery
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T17:58:44.309909Z'
-updated_at: '2026-07-30T18:07:44.339353Z'
+updated_at: '2026-07-30T18:12:23.540474Z'
 work_branch: OOMPAH-605
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/593
@@ -80,6 +80,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/593
 oompah.review_number: '593'
 oompah.work_branch: OOMPAH-605
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-7cc823408e00
+    project_id: proj-14849f1b
+    task_id: OOMPAH-605
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 32d614b89c9305d0a29d581e4070e43e280111cc5a4235059fc7e0d5ee57346f
+    attempts: []
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-30T18:12:21.379930+00:00'
+  - version: 1
+    audit_id: audit-1bd1d1c05a50
+    project_id: proj-14849f1b
+    task_id: OOMPAH-605
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 32d614b89c9305d0a29d581e4070e43e280111cc5a4235059fc7e0d5ee57346f
+    attempts: []
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-30T18:12:21.379930+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -159,5 +198,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 6m 7s
 - Log: OOMPAH-605__20260730T180141Z.jsonl
+---
+author: oompah
+created: 2026-07-30 18:12
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
