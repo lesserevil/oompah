@@ -1261,15 +1261,25 @@ class TerminalTransitionCoordinator:
                 error_code=OverrideRejection.METADATA_READ_FAILED,
             )
 
-        # Check if the fingerprint matches any record for the requested target.
+        # Check if the fingerprint matches the current active record for the
+        # requested target. The "active" record is the one that is not
+        # SUPERSEDED. Historical superseded records with different fingerprints
+        # are ignored; only the current active record's fingerprint is checked.
+        # This allows an override to proceed when evidence changes (fingerprint
+        # updates) after some older audit attempts, as long as the current
+        # active record matches.
         fingerprint_mismatch = False
+        current_record_for_target = None
         for record in document.pending_chain:
-            if (
-                record.target_state == requested_target
-                and record.evidence_fingerprint != evidence_fingerprint
-            ):
+            if record.target_state == requested_target:
+                # Collect the current (non-superseded) record for this target
+                # The chain is ordered, so a non-superseded record is the active one.
+                if record.request_state != RequestState.SUPERSEDED:
+                    current_record_for_target = record
+
+        if current_record_for_target is not None:
+            if current_record_for_target.evidence_fingerprint != evidence_fingerprint:
                 fingerprint_mismatch = True
-                break
 
         if fingerprint_mismatch:
             return OverrideResult(
