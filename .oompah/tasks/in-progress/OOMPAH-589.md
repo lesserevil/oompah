@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-589
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Validate auditor provider endpoints before candidate dispatch
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:20.256845Z'
-updated_at: '2026-07-30T14:31:13.216633Z'
+updated_at: '2026-07-30T14:31:46.247568Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-589
 target_branch: null
 review_url: null
@@ -67,13 +67,13 @@ oompah.integration:
   base_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
   updated_at: '2026-07-30T14:21:06.762940+00:00'
 oompah.task_costs:
-  total_input_tokens: 146
-  total_output_tokens: 4538
+  total_input_tokens: 904
+  total_output_tokens: 4750
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 146
-      output_tokens: 4538
+      input_tokens: 904
+      output_tokens: 4750
       cost_usd: 0.0
   runs:
   - profile: default
@@ -82,6 +82,12 @@ oompah.task_costs:
     output_tokens: 4538
     cost_usd: 0.0
     recorded_at: '2026-07-30T14:20:39.699057+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 758
+    output_tokens: 212
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T14:31:25.594766+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-589__20260730T141852Z
@@ -196,5 +202,15 @@ Found multiple vulnerable code paths constructing OpenAI-compatible endpoints:
 Current test coverage: test_provider_health.py checks for empty base_url but not URL format validation.
 
 **Plan**: Create URL validator utility, integrate into provider creation/update, validate in auditor dispatch paths, add comprehensive tests.
+---
+author: oompah
+created: 2026-07-30 14:31
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 44
+- Tokens: 758 in / 212 out [970 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 10m 24s
+- Log: OOMPAH-589__20260730T142113Z.jsonl
 ---
 <!-- COMMENTS:END -->

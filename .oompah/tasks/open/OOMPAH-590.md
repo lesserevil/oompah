@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:22.194798Z'
-updated_at: '2026-07-30T14:20:53.088186Z'
+updated_at: '2026-07-30T14:31:30.346709Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-590
 target_branch: null
 review_url: null
@@ -22,14 +22,26 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 668767bd8dc2d7a2894cecc5ec77ed49df140e098ac2791ef421df1d1e9f916c
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-07-30T14:31:23.762647+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 5181b5f6-d3d9-4b7b-afc0-a9cad3ce317f
-  claim_owner: 9e3a680b-e68a-4d5a-ba2e-f9091834f9ec
-  claimed_at: '2026-07-30T14:20:44.878946+00:00'
-  claim_expires_at: '2026-07-30T14:50:44.878946+00:00'
+  evidence: 'Focus handoff: duplicate_detector
+
+
+    Duplicate preflight verdict: no_duplicate
+
+
+    Matches: none
+
+
+    Evidence: Active task records available locally are OOMPAH-281 (self-hosted CI
+    runner) and OOMPAH-282 (state-branch migration failure); neither covers terminal-audit
+    retry or auditor transport/session failures. Repository-wide searches found no
+    active matching task.'
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
 oompah.agent_run_id: 0ec70f19-d33b-4f1a-a892-a332b5a1d659
@@ -42,6 +54,32 @@ oompah.integration:
   base_branch: epic-OOMPAH-585
   base_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
   updated_at: '2026-07-30T14:20:49.754823+00:00'
+oompah.task_costs:
+  total_input_tokens: 3976570
+  total_output_tokens: 13609
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 3976570
+      output_tokens: 13609
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 3976570
+    output_tokens: 13609
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T14:31:23.761710+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-590__20260730T142055Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: epic-OOMPAH-585--task-OOMPAH-590
+    source_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
+    completed_at: '2026-07-30T14:31:23.771017+00:00'
 ---
 ## Summary
 
@@ -79,5 +117,15 @@ author: oompah
 created: 2026-07-30 14:20
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-30 14:31
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 2, Tool calls: 43
+- Tokens: 4.0M in / 13.6K out [4.0M total]
+- Cost: $0.0000
+- Exit: normal, Duration: 10m 37s
+- Log: OOMPAH-590__20260730T142055Z.jsonl
 ---
 <!-- COMMENTS:END -->
