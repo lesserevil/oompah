@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-591
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Reconcile the pending audit backlog and stale In Validation tasks
 parent: OOMPAH-585
@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:26.620047Z'
-updated_at: '2026-07-30T21:04:32.561840Z'
+updated_at: '2026-07-30T21:17:24.726557Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-591
 target_branch: null
 review_url: null
@@ -53,12 +53,18 @@ oompah.agent_run_id: 5892163a-631a-48b1-9440-57520ef51137
 oompah.work_branch: epic-OOMPAH-585--task-OOMPAH-591
 oompah.integration:
   version: 1
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-585--task-OOMPAH-591
-  head_sha: 3af9b8104c091984dee8d7f9066b2e14ef275691
+  base_branch: epic-OOMPAH-585
+  base_sha: 45838987c7435c344c39cf77d0dd3ed1c135834c
+  head_sha: 45838987c7435c344c39cf77d0dd3ed1c135834c
+  integrated_sha: 45838987c7435c344c39cf77d0dd3ed1c135834c
   submitted_at: '2026-07-30T20:54:12.767549+00:00'
-  updated_at: '2026-07-30T20:54:12.767549+00:00'
+  updated_at: '2026-07-30T21:17:21.950769+00:00'
+  dependency_heads:
+    OOMPAH-590: 196653392d78b3bcbcae58c6f8c52aa4be161d4c
+    OOMPAH-589: b252293d3fc950f79a342c74b51d3285f62ecf4c
 oompah.task_costs:
   total_input_tokens: 5295179
   total_output_tokens: 35829
@@ -255,7 +261,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-591
     target_state: Done
-    request_state: pending
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -267,6 +273,23 @@ oompah.terminal_audit:
       source: api
     previous_state: In Validation
     created_at: '2026-07-30T20:20:28.362682+00:00'
+  - version: 1
+    audit_id: audit-0e821c979fd2
+    project_id: proj-14849f1b
+    task_id: OOMPAH-591
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: fb4e753f3297bd0966a2ca43d7f734fbeda68761739a2fdaf7c9107973164bb8
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-30T21:17:23.256576+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-870b1c4d15ed
