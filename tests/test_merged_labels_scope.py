@@ -15,6 +15,7 @@ def _make_issue(
     state: str = "open",
     project_id: str | None = None,
     issue_type: str = "task",
+    labels: list[str] | None = None,
 ) -> Issue:
     """Create a test issue."""
     return Issue(
@@ -25,7 +26,7 @@ def _make_issue(
         state=state,
         project_id=project_id,
         issue_type=issue_type,
-        labels=[],
+        labels=labels or [],
     )
 
 
@@ -89,8 +90,13 @@ class TestMergedLabelsScopeResolution:
         orch._has_managed_projects = lambda: bool(projects)
         orch.tracker = None
         
-        # Bind the real _resolve_issue_project_id method to our mock
+        # Bind the real scope helpers to our mock so these tests exercise the
+        # production resolution/routing code without constructing the full
+        # service.
         orch._resolve_issue_project_id = Orchestrator._resolve_issue_project_id.__get__(orch)
+        orch._scope_issue_for_maintenance = (
+            Orchestrator._scope_issue_for_maintenance.__get__(orch)
+        )
         
         return orch
 
@@ -120,8 +126,8 @@ class TestMergedLabelsScopeResolution:
         resolved = orch._resolve_issue_project_id(issue)
         assert resolved == "proj-1"
 
-    def test_issue_without_project_found_in_multiple_projects_uses_fallback(self):
-        """Issue found in multiple projects should use fallback."""
+    def test_issue_without_project_found_in_multiple_projects_rejects_fallback(self):
+        """An identifier collision must never be resolved by loop fallback."""
         tracker1 = _TestTracker("proj-1")
         tracker1.add_issue(_make_issue("SHARED-123", project_id=None))
         
@@ -135,9 +141,19 @@ class TestMergedLabelsScopeResolution:
         orch = self._make_orchestrator(projects)
         issue = _make_issue("SHARED-123", project_id=None)
         
-        # With fallback
-        resolved = orch._resolve_issue_project_id(issue, fallback_project_id="proj-1")
-        assert resolved == "proj-1"
+        with pytest.raises(ProjectError, match="Ambiguous ownership"):
+            orch._resolve_issue_project_id(issue, fallback_project_id="proj-1")
+
+    def test_explicit_project_mismatch_is_rejected(self):
+        """A record fetched from another project cannot be mutated here."""
+        orch = self._make_orchestrator({
+            "proj-a": _TestTracker("proj-a"),
+            "proj-b": _TestTracker("proj-b"),
+        })
+        issue = _make_issue("TASK-1", project_id="proj-b")
+
+        with pytest.raises(ProjectError, match="declares project"):
+            orch._resolve_issue_project_id(issue, source_project_id="proj-a")
 
     def test_issue_without_project_found_in_multiple_projects_raises_without_fallback(self):
         """Issue found in multiple projects should raise error if no fallback."""
@@ -191,18 +207,121 @@ class TestMergedLabelsScopeResolution:
         resolved = orch._resolve_issue_project_id(issue, fallback_project_id="legacy")
         assert resolved == "legacy"
 
+    def test_github_and_native_records_route_to_their_own_trackers(self):
+        """Scope normalization selects the project tracker, not self.tracker."""
+        github_tracker = _TestTracker("github-project")
+        native_tracker = _TestTracker("native-project")
+        orch = self._make_orchestrator({
+            "github-project": github_tracker,
+            "native-project": native_tracker,
+        })
+        github_issue = _make_issue("org/repo#476", project_id="github-project")
+        native_issue = _make_issue("OOMPAH-476", project_id="native-project")
+
+        github_scope, selected_github = orch._scope_issue_for_maintenance(
+            github_issue, "github-project"
+        )
+        native_scope, selected_native = orch._scope_issue_for_maintenance(
+            native_issue, "native-project"
+        )
+
+        assert (github_scope, selected_github) == ("github-project", github_tracker)
+        assert (native_scope, selected_native) == ("native-project", native_tracker)
+
+    def test_scope_resolution_is_restart_safe(self):
+        """A fresh orchestrator can re-resolve a legacy record after restart."""
+        tracker = _TestTracker("proj-14849f1b")
+        tracker.add_issue(_make_issue("OOMPAH-476"))
+        projects = {"proj-14849f1b": tracker}
+
+        first = self._make_orchestrator(projects)
+        first_issue = _make_issue("OOMPAH-476")
+        assert first._scope_issue_for_maintenance(
+            first_issue, "proj-14849f1b"
+        )[0] == "proj-14849f1b"
+
+        second = self._make_orchestrator(projects)
+        second_issue = _make_issue("OOMPAH-476")
+        assert second._scope_issue_for_maintenance(
+            second_issue, "proj-14849f1b"
+        )[0] == "proj-14849f1b"
+
+    def test_managed_scope_never_calls_legacy_tracker(self):
+        """Managed resolution must not fall back to the unscoped tracker."""
+        project_tracker = _TestTracker("proj-1")
+        project_tracker.add_issue(_make_issue("OOMPAH-476"))
+        orch = self._make_orchestrator({"proj-1": project_tracker})
+        orch.tracker = MagicMock()
+
+        issue = _make_issue("OOMPAH-476")
+        resolved, selected = orch._scope_issue_for_maintenance(issue, "proj-1")
+
+        assert resolved == "proj-1"
+        assert selected is project_tracker
+        orch.tracker.assert_not_called()
+
 
 class TestMergedLabelsMaintenanceLaneScope:
     """Test that merged-labels maintenance lane uses proper scope."""
 
+    @staticmethod
+    def _make_orchestrator(projects: dict[str, _TestTracker]) -> MagicMock:
+        return TestMergedLabelsScopeResolution()._make_orchestrator(projects)
+
     def test_label_merged_issues_skips_ambiguous_scope(self):
         """_label_merged_issues should skip issues with ambiguous scope."""
-        # This test will be implemented once we have better integration
-        # with the actual orchestrator, as testing _label_merged_issues directly
-        # requires mocking many internal methods.
-        pass
+        tracker_a = _TestTracker("proj-a")
+        tracker_b = _TestTracker("proj-b")
+        issue = _make_issue("SHARED-123", state="closed")
+        tracker_a.add_issue(issue)
+        tracker_b.add_issue(_make_issue("SHARED-123", state="closed"))
+        orch = self._make_orchestrator({"proj-a": tracker_a, "proj-b": tracker_b})
+        orch._label_merged_issues = Orchestrator._label_merged_issues.__get__(orch)
+        orch._job_deadline_exceeded = lambda _job: False
+        orch._merged_branches = {"SHARED-123"}
+        orch._reviews_cache = {}
+        orch._landed_branch_for_issue = MagicMock(return_value="SHARED-123")
+
+        with patch("oompah.orchestrator.detect_provider", return_value=None):
+            orch._label_merged_issues()
+
+        orch._landed_branch_for_issue.assert_not_called()
+        assert issue.project_id is None
 
     def test_label_merged_epics_resolves_project_id(self):
-        """_label_merged_epics should resolve project_id for issues lacking it."""
-        # Similar to above, requires significant mocking
-        pass
+        """_label_merged_epics scopes a legacy epic before marking it."""
+        tracker = _TestTracker("proj-1")
+        epic = _make_issue("EPIC-476", state="Backlog", issue_type="epic")
+        tracker.add_issue(epic)
+        orch = self._make_orchestrator({"proj-1": tracker})
+        orch._label_merged_epics = Orchestrator._label_merged_epics.__get__(orch)
+        orch._all_non_terminal_epics = Orchestrator._all_non_terminal_epics.__get__(orch)
+        orch._job_deadline_exceeded = lambda _job: False
+        orch._epic_branch_for_issue = MagicMock(return_value="epic-EPIC-476")
+        orch._resolve_epic_target_branch = MagicMock(return_value="main")
+        orch._epic_branch_landed_on_target = MagicMock(return_value=True)
+        orch._mark_epic_merged = MagicMock()
+
+        with patch("oompah.orchestrator.detect_provider", return_value=MagicMock()):
+            orch._label_merged_epics()
+
+        assert epic.project_id == "proj-1"
+        orch._mark_epic_merged.assert_called_once_with(
+            epic, epic_branch="epic-EPIC-476"
+        )
+
+    def test_label_merged_issues_is_idempotent_for_merged_label(self):
+        """Already-labelled issues are not reprocessed on later sweeps."""
+        tracker = _TestTracker("proj-1")
+        tracker.add_issue(_make_issue("TASK-1", state="closed", labels=["merged"]))
+        orch = self._make_orchestrator({"proj-1": tracker})
+        orch._label_merged_issues = Orchestrator._label_merged_issues.__get__(orch)
+        orch._job_deadline_exceeded = lambda _job: False
+        orch._merged_branches = {"TASK-1"}
+        orch._reviews_cache = {}
+        orch._landed_branch_for_issue = MagicMock()
+
+        with patch("oompah.orchestrator.detect_provider", return_value=None):
+            orch._label_merged_issues()
+
+        orch._landed_branch_for_issue.assert_not_called()
