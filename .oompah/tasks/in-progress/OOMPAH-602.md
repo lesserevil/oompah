@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:01.749200Z'
-updated_at: '2026-07-30T16:16:12.985734Z'
+updated_at: '2026-07-30T16:16:24.558356Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-602
 target_branch: null
 review_url: null
@@ -184,5 +184,10 @@ author: oompah
 created: 2026-07-30 16:16
 ---
 Focus: Auth Http Default Specialist
+---
+author: oompah
+created: 2026-07-30 16:16
+---
+UNDERSTANDING: The issue is that merged-label maintenance operations fail to propagate the owning project's scope to all operations, particularly for legacy records without project_id (like OOMPAH-476). The fix must resolve scope from project iteration or ownership index, never falling back to unscoped trackers. This is an Auth/Http/API scope propagation bug. I will: (1) explore merged-label maintenance and project routing code, (2) find where scope is lost, (3) fix scope resolution to handle missing project_id, (4) add comprehensive tests covering legacy issues, ambiguous cases, and GitHub/native routing, (5) verify no unscoped API calls.
 ---
 <!-- COMMENTS:END -->
