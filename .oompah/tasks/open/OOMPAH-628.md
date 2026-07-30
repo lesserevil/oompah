@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-628
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Rearm explicitly resubmitted integrated queue rows
 parent: OOMPAH-585
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-30T22:37:04.318940Z'
-updated_at: '2026-07-30T22:37:16.503794Z'
+updated_at: '2026-07-30T22:37:34.809247Z'
 work_branch: null
 target_branch: null
 review_url: null
