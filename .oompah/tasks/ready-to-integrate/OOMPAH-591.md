@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-591
 type: task
-status: Open
+status: Ready to Integrate
 priority: 1
 title: Reconcile the pending audit backlog and stale In Validation tasks
 parent: OOMPAH-585
@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:26.620047Z'
-updated_at: '2026-07-30T20:47:55.652027Z'
+updated_at: '2026-07-30T20:54:14.989586Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-591
 target_branch: null
 review_url: null
@@ -52,14 +52,12 @@ oompah.agent_run_id: 5892163a-631a-48b1-9440-57520ef51137
 oompah.work_branch: epic-OOMPAH-585--task-OOMPAH-591
 oompah.integration:
   version: 1
-  state: blocked
-  attempts: 1
-  task_branch: main
-  base_branch: epic-OOMPAH-585
-  base_sha: 64b9b00c55f34d164d4eca2dd6071887ea5b5bb3
-  head_sha: c048ba706cbe9b1342b80a67576a49b82887e84a
-  updated_at: '2026-07-30T20:20:33.990272+00:00'
-  last_error: 'fatal: ''main'' is already used by worktree at ''/home/shedwards/.oompah/repos/oompah'''
+  state: ready
+  attempts: 0
+  task_branch: epic-OOMPAH-585--task-OOMPAH-591
+  head_sha: 3af9b8104c091984dee8d7f9066b2e14ef275691
+  submitted_at: '2026-07-30T20:54:12.767549+00:00'
+  updated_at: '2026-07-30T20:54:12.767549+00:00'
 oompah.task_costs:
   total_input_tokens: 5295179
   total_output_tokens: 35829
@@ -685,5 +683,15 @@ author: oompah
 created: 2026-07-30 20:20
 ---
 Existing integrated implementation resubmitted for completion audit; cancel stale implementation retry and hand ownership to the auditor lane.
+---
+author: oompah
+created: 2026-07-30 20:54
+---
+Repairing the malformed integration row created by the earlier wrong-checkout submit. Resubmitting from the canonical pushed branch epic-OOMPAH-585--task-OOMPAH-591 at 3af9b8104; OOMPAH-616 remains a hard-start prerequisite so this cannot run ahead of the ownership fix.
+---
+author: oompah
+created: 2026-07-30 20:54
+---
+Corrected the stale queue/work-branch identity by resubmitting the existing implementation from canonical branch epic-OOMPAH-585--task-OOMPAH-591 at 3af9b8104. No new implementation changes; wait for hard prerequisite OOMPAH-616.
 ---
 <!-- COMMENTS:END -->
