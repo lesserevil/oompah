@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-426
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Block child task PRs from merging to main before their epic completes
 parent: null
@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T21:15:59.630196Z'
-updated_at: '2026-07-30T23:02:51.116575Z'
+updated_at: '2026-07-30T23:04:59.204746Z'
 work_branch: epic-OOMPAH-426
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/544
@@ -69,6 +69,7 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-0a53a873c97d: '2026-07-30T22:47:53.487853+00:00'
     attempt-87e3d702c90a: '2026-07-30T23:02:30.675159+00:00'
+    attempt-c5370e9496cf: '2026-07-30T23:04:56.633056+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -144,7 +145,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-426
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -153,7 +154,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-c5370e9496cf
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -163,13 +164,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-30T23:02:47.076206+00:00'
       branch_key: epic-OOMPAH-426
+      verdict: pass
+      completed_at: '2026-07-30T23:04:56.632814+00:00'
+      ended_at: '2026-07-30T23:04:56.632814+00:00'
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
       source: oompah
     previous_state: In Validation
     created_at: '2026-07-30T22:31:59.622558+00:00'
-    updated_at: '2026-07-30T23:02:47.076206+00:00'
+    updated_at: '2026-07-30T23:04:56.632814+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-0a53a873c97d
@@ -485,5 +489,32 @@ author: oompah
 created: 2026-07-30 23:02
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 23:04
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- fix_commit_sha: 0574d9ecf70bfae48b1c574da9369ac4c9c0f497
+- merge_commit_sha: 5e0224564ab63aed4bb39481125a32e08dcd61be
+- pr_number: 544
+- epic_branch: epic-OOMPAH-426
+- origin_main_head: c048ba706cbe9b1342b80a67576a49b82887e84a
+- fix_reachable_from_origin_main: true
+- merge_reachable_from_origin_main: true
+- orchestrator_diff_summary: 27 lines changed in oompah/orchestrator.py; child-based issue_epic_branch replaced with issue_type=='epic' exemption plus source_branch==parent_epic_branch check via _resolve_parent_epic
+- regression_tests_added: test_blocks_child_with_stale_own_work_branch_exocomp57, test_allows_nested_epic_rollup_pr_with_parent_id, test_closes_child_pr_with_stale_own_work_branch_exocomp57, test_does_not_close_epic_rollup_pr_whose_source_matches_parent_epic_branch
+- regression_tests_persisted_on_main: confirmed via git log -S (added once in 0574d9ecf, never removed)
+- test_file: tests/test_epic_strategy.py (+161 additions in fix commit)
+- child_OOMPAH-427_state: Archived (prior audit passed 2026-07-30T22:34:47Z)
+- child_OOMPAH-428_state: auto-closed without PR (covered by OOMPAH-427)
+- prior_audit_verdict_archived: PASS (2026-07-30 22:47)
+- prior_audit_verdict_done: PASS (2026-07-30 23:02)
+- prior_agent_make_test: 12063 passed, 38 skipped (per OOMPAH-427 verification comment)
+- prior_auditor_focused_test_run: 4 passed in 2.31s (per OOMPAH-427 auditor evidence)
+- task_review_url: https://github.com/lesserevil/oompah/pull/544
 ---
 <!-- COMMENTS:END -->

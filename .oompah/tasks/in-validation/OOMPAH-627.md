@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T22:09:32.117751Z'
-updated_at: '2026-07-30T23:04:37.475960Z'
+updated_at: '2026-07-30T23:04:53.322402Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-627
 target_branch: null
 review_url: null
@@ -73,18 +73,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-627
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: f0a137be8ed41a2b2671b76d6dfd91affcf958fd83d28a8ac8b133775344ee90
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-54ab762046bd
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: f0a137be8ed41a2b2671b76d6dfd91affcf958fd83d28a8ac8b133775344ee90
+      created_at: '2026-07-30T23:04:48.270691+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-30T23:04:48.270691+00:00'
+      branch_key: epic-OOMPAH-585--task-OOMPAH-627
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-30T23:04:36.015893+00:00'
+    updated_at: '2026-07-30T23:04:48.270691+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-26df5a1390dc
@@ -99,6 +113,19 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-07-30T22:25:54.625821+00:00'
     branch_key: OOMPAH-627
+  - version: 1
+    attempt_id: attempt-54ab762046bd
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f0a137be8ed41a2b2671b76d6dfd91affcf958fd83d28a8ac8b133775344ee90
+    created_at: '2026-07-30T23:04:48.270691+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-30T23:04:48.270691+00:00'
+    branch_key: epic-OOMPAH-585--task-OOMPAH-627
 oompah.work_branch: epic-OOMPAH-585--task-OOMPAH-627
 oompah.task_costs:
   total_input_tokens: 37
@@ -199,5 +226,15 @@ author: oompah
 created: 2026-07-30 22:31
 ---
 Reflow the already-audited exact head under the deployed auditor-worktree protection so canonical integrated evidence is restored without metadata mutation.
+---
+author: oompah
+created: 2026-07-30 23:04
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-07-30 23:04
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
