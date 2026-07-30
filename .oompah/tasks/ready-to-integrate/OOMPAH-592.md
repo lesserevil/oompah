@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-592
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Alert on terminal-audit launch failures and backlog age
 parent: OOMPAH-585
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:28.755226Z'
-updated_at: '2026-07-30T15:51:22.168771Z'
+updated_at: '2026-07-30T15:51:31.116056Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-592
 target_branch: null
 review_url: null
@@ -49,12 +49,12 @@ oompah.agent_run_id: 05fdcabe-8554-4489-b773-2a19f3e1c2c3
 oompah.work_branch: epic-OOMPAH-585--task-OOMPAH-592
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-585--task-OOMPAH-592
-  base_branch: epic-OOMPAH-585
-  base_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
-  updated_at: '2026-07-30T15:25:33.084874+00:00'
+  head_sha: 7d0b363075a683dbe2dfc15e411188a86882b373
+  submitted_at: '2026-07-30T15:51:27.812789+00:00'
+  updated_at: '2026-07-30T15:51:27.812789+00:00'
 oompah.task_costs:
   total_input_tokens: 3151103
   total_output_tokens: 25005
@@ -211,5 +211,10 @@ Files changed:
 - tests/test_dashboard_terminal_audit_health.py (16 tests)
 
 Commit: 7d0b36307 on epic-OOMPAH-585--task-OOMPAH-592
+---
+author: oompah
+created: 2026-07-30 15:51
+---
+Add terminal-audit health alert surface: launch/transport failure counts, oldest pending age, retry exhaustion, stale In Validation records. New terminal_audit_health.py module + orchestrator integration + accessible dashboard banner + 50 tests. All acceptance criteria met.
 ---
 <!-- COMMENTS:END -->
