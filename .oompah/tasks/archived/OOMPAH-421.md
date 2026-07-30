@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-23T19:41:56.160094Z'
-updated_at: '2026-07-30T21:17:49.680294Z'
+updated_at: '2026-07-30T21:18:15.881031Z'
 work_branch: epic-OOMPAH-418--task-OOMPAH-421
 target_branch: null
 review_url: null
@@ -80,6 +80,22 @@ oompah.integration:
   base_branch: epic-OOMPAH-418
   base_sha: c048ba706cbe9b1342b80a67576a49b82887e84a
   updated_at: '2026-07-30T20:55:05.394483+00:00'
+oompah.task_costs:
+  total_input_tokens: 96
+  total_output_tokens: 16423
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 96
+      output_tokens: 16423
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 96
+    output_tokens: 16423
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T21:18:14.369396+00:00'
 ---
 ## Summary
 
@@ -126,5 +142,15 @@ Safe evidence:
 - design_doc_reference: plans/mcp-openapi-exposure-policy.md line 5 records: 'Integration tests + docs: OOMPAH-421'
 - children_blocked: children: [] (no dependents waiting on this task)
 - task_metadata_source: state branch oompah/state/proj-14849f1b @ commit 09f8ea65d shows task file with pending_chain audit-6c7704f8ae1b, target_state=Archived, evidence_fingerprint digest=f5666d57de9c139ece73c55f95eb70e1cc75fc073055a234b49cd26d6e5534db (matches trusted contract)
+---
+author: oompah
+created: 2026-07-30 21:18
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 90
+- Tokens: 96 in / 16.4K out [16.5K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 23m 13s
+- Log: OOMPAH-421__20260730T205507Z.jsonl
 ---
 <!-- COMMENTS:END -->
