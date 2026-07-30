@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-593
 type: task
-status: In Progress
+status: Open
 priority: 1
 title: Integrate and live-verify scoped Codex task CLI authentication
 parent: OOMPAH-586
@@ -13,7 +13,7 @@ labels:
 - needs:devops
 assignee: null
 created_at: '2026-07-30T14:14:54.281403Z'
-updated_at: '2026-07-30T15:33:36.462273Z'
+updated_at: '2026-07-30T15:33:38.669941Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-593
 target_branch: null
 review_url: null
