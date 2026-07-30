@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:53:05.632137Z'
-updated_at: '2026-07-30T19:37:07.779901Z'
+updated_at: '2026-07-30T19:37:36.756542Z'
 work_branch: OOMPAH-610
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/594
@@ -44,8 +44,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 3514c39c-c179-4c65-a97c-34fc1997be79
 oompah.task_costs:
-  total_input_tokens: 2401064
-  total_output_tokens: 32789
+  total_input_tokens: 2401095
+  total_output_tokens: 33565
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -57,8 +57,8 @@ oompah.task_costs:
       output_tokens: 1645
       cost_usd: 0.0
     unknown:
-      input_tokens: 83
-      output_tokens: 20935
+      input_tokens: 114
+      output_tokens: 21711
       cost_usd: 0.0
   runs:
   - profile: default
@@ -85,6 +85,12 @@ oompah.task_costs:
     output_tokens: 20935
     cost_usd: 0.0
     recorded_at: '2026-07-30T19:33:31.731439+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 31
+    output_tokens: 776
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T19:37:35.113256+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-610__20260730T185400Z
@@ -398,5 +404,15 @@ Safe evidence:
 - focused_tests_reran_local_main: test_terminal_audit 28, test_auditor_dispatch 7, test_auditor_focus/contract/result_api/candidate_selector 139, test_orchestrator_handlers+dispatch_lane_contract+stalled_task_watchdog 385, terminal_audit_enforcement/metadata/scanner/override/status_interfaces/transition_coordinator 186 — 745 passed 0 failed
 - prior_make_test_report: 13,726 passed / 7 skipped at 83949a45b per operator comment 2026-07-30 19:08
 - ci_report: PR #594 CI green on Python 3.11, 3.12, 3.13 per operator comment 2026-07-30 19:19
+---
+author: oompah
+created: 2026-07-30 19:37
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 15
+- Tokens: 31 in / 776 out [807 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 3m 8s
+- Log: OOMPAH-610__20260730T193429Z.jsonl
 ---
 <!-- COMMENTS:END -->

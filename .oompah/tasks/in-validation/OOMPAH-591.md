@@ -13,7 +13,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:26.620047Z'
-updated_at: '2026-07-30T19:37:22.231655Z'
+updated_at: '2026-07-30T19:37:45.796845Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-591
 target_branch: null
 review_url: null
@@ -56,7 +56,7 @@ oompah.integration:
   task_branch: epic-OOMPAH-585--task-OOMPAH-591
   base_branch: epic-OOMPAH-585
   base_sha: 64b9b00c55f34d164d4eca2dd6071887ea5b5bb3
-  updated_at: '2026-07-30T19:34:15.028950+00:00'
+  updated_at: '2026-07-30T19:37:41.333241+00:00'
 oompah.task_costs:
   total_input_tokens: 3367897
   total_output_tokens: 20160
@@ -114,7 +114,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-591
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -153,13 +153,27 @@ oompah.terminal_audit:
       ended_at: '2026-07-30T19:37:14.406582+00:00'
       failure_reason: normal
       next_retry_at: '2026-07-30T19:37:34.406550+00:00'
+    - version: 1
+      attempt_id: attempt-59c933ef3cdf
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: c8aa438d295d71b5d7524e1319fdd2038e722d3bbafafbc5a40bf8cdeff8e442
+      created_at: '2026-07-30T19:37:37.864266+00:00'
+      provider_id: prov-52e94e83
+      model: gpt-5.6-luna
+      started_at: '2026-07-30T19:37:37.864266+00:00'
+      branch_key: epic-OOMPAH-585--task-OOMPAH-591
+      candidate_rotation_count: 2
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-30T18:47:32.059124+00:00'
-    updated_at: '2026-07-30T19:37:14.406582+00:00'
+    updated_at: '2026-07-30T19:37:37.864266+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-870b1c4d15ed
@@ -194,6 +208,20 @@ oompah.terminal_audit:
     ended_at: '2026-07-30T19:37:14.406582+00:00'
     failure_reason: normal
     next_retry_at: '2026-07-30T19:37:34.406550+00:00'
+  - version: 1
+    attempt_id: attempt-59c933ef3cdf
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c8aa438d295d71b5d7524e1319fdd2038e722d3bbafafbc5a40bf8cdeff8e442
+    created_at: '2026-07-30T19:37:37.864266+00:00'
+    provider_id: prov-52e94e83
+    model: gpt-5.6-luna
+    started_at: '2026-07-30T19:37:37.864266+00:00'
+    branch_key: epic-OOMPAH-585--task-OOMPAH-591
+    candidate_rotation_count: 2
 ---
 ## Summary
 
@@ -418,5 +446,15 @@ author: oompah
 created: 2026-07-30 19:37
 ---
 Auditor attempt ended: auditor exited (normal) without a result. A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-07-30 19:37
+---
+Auditor dispatched (attempt #3, candidate: prov-52e94e83/gpt-5.6-luna)
+---
+author: oompah
+created: 2026-07-30 19:37
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
