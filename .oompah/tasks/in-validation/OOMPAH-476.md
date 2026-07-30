@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-476
 type: feature
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Stage API, dashboard, and CLI terminal requests through the coordinator
 parent: OOMPAH-459
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:24.379848Z'
-updated_at: '2026-07-29T23:46:03.467527Z'
+updated_at: '2026-07-30T00:10:13.451190Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-476
 target_branch: null
 review_url: null
@@ -146,12 +146,15 @@ oompah.task_costs:
     recorded_at: '2026-07-29T23:20:03.152724+00:00'
 oompah.integration:
   version: 1
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-459--task-OOMPAH-476
-  head_sha: cfa5ca64f43aaa846f4ce7c153291390c5e0648c
+  base_branch: epic-OOMPAH-459
+  base_sha: 2e2005cba5b9106029e706db699ca7cfdaa6e3bd
+  head_sha: 2e2005cba5b9106029e706db699ca7cfdaa6e3bd
+  integrated_sha: 2e2005cba5b9106029e706db699ca7cfdaa6e3bd
   submitted_at: '2026-07-29T23:46:00.929080+00:00'
-  updated_at: '2026-07-29T23:46:00.929080+00:00'
+  updated_at: '2026-07-30T00:10:10.161027+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-476__20260729T230652Z
@@ -162,6 +165,28 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-459--task-OOMPAH-476
     source_sha: 65c8e4725fe931bf0fa9c3357d153ba003ad03c4
     completed_at: '2026-07-29T23:07:19.704634+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-71bc7ec3178a
+    project_id: proj-14849f1b
+    task_id: OOMPAH-476
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: e84a982af634074aad031fc4a1545b78e1b028a0ff70af604ddd0d4404b2b20e
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-30T00:10:11.164214+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -858,5 +883,10 @@ author: oompah
 created: 2026-07-29 23:46
 ---
 Queue recovery finalized on the correct OOMPAH-476 private branch; retry uses sanitized quality-gate environment.
+---
+author: oompah
+created: 2026-07-30 00:10
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
