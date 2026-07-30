@@ -13,7 +13,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:26.620047Z'
-updated_at: '2026-07-30T20:19:43.332260Z'
+updated_at: '2026-07-30T20:20:11.423612Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-591
 target_branch: null
 review_url: null
@@ -56,7 +56,7 @@ oompah.integration:
   task_branch: epic-OOMPAH-585--task-OOMPAH-591
   base_branch: epic-OOMPAH-585
   base_sha: 64b9b00c55f34d164d4eca2dd6071887ea5b5bb3
-  updated_at: '2026-07-30T20:19:41.389277+00:00'
+  updated_at: '2026-07-30T20:20:09.209691+00:00'
 oompah.task_costs:
   total_input_tokens: 5295164
   total_output_tokens: 35745
@@ -216,18 +216,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-591
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: adf4621b89554d4e1307449b835b508f646e096aa0b34f11dc760eb32096aea6
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-e9dfd612b28f
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: adf4621b89554d4e1307449b835b508f646e096aa0b34f11dc760eb32096aea6
+      created_at: '2026-07-30T20:20:05.103415+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-30T20:20:05.103415+00:00'
+      branch_key: epic-OOMPAH-585--task-OOMPAH-591
     requested_by:
       version: 1
       identity: api-client
       source: api
     previous_state: Ready to Integrate
     created_at: '2026-07-30T20:17:13.120383+00:00'
+    updated_at: '2026-07-30T20:20:05.103415+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-870b1c4d15ed
@@ -279,6 +293,19 @@ oompah.terminal_audit:
     ended_at: '2026-07-30T19:42:51.865653+00:00'
     failure_reason: normal
     next_retry_at: '2026-07-30T19:43:31.865628+00:00'
+  - version: 1
+    attempt_id: attempt-e9dfd612b28f
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: adf4621b89554d4e1307449b835b508f646e096aa0b34f11dc760eb32096aea6
+    created_at: '2026-07-30T20:20:05.103415+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-30T20:20:05.103415+00:00'
+    branch_key: epic-OOMPAH-585--task-OOMPAH-591
 ---
 ## Summary
 
@@ -590,5 +617,25 @@ author: oompah
 created: 2026-07-30 20:19
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-30 20:20
+---
+Run #2 [attempt=2, profile=standard, role=standard -> Codex/gpt-5.6-terra]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 26s
+- Log: OOMPAH-591__20260730T201945Z.jsonl
+---
+author: oompah
+created: 2026-07-30 20:20
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-07-30 20:20
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
