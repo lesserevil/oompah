@@ -16,6 +16,10 @@ works inside or how it might work in the future, see [`../plans/`](../plans/).
   lines and deliver already-merged work to them.
 - [HTTP Basic Authentication](authentication.md) - securely deploy, rotate,
   disable, and recover optional htpasswd authentication.
+- [Scoped Task CLI Authentication](scoped-task-cli-authentication.md) -
+  how service-launched agents authenticate to the tracker with a
+  short-lived, task-scoped capability instead of operator credentials,
+  and how to run the live least-privilege probe.
 - [Operator Runbook](operator-runbook.md) - configure and operate the service.
 - [CLI Installation](cli-install.md) - install the task CLI and configure
   client credentials.

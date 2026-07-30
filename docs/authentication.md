@@ -831,4 +831,7 @@ Use password files or secrets management (Kubernetes Secrets, Docker Secrets, Ha
 - `docs/operator-runbook.md` § Configuration — `.env` file reference
 - `docs/cli-install.md` § Basic authentication — CLI credential setup
 - `docs/project-bootstrap.md` — Project-specific authentication configuration
+- `docs/scoped-task-cli-authentication.md` — How service-launched agents
+  authenticate with a scoped, short-lived task capability instead of the
+  operator's Basic credentials
 - `.env.example` — Complete configuration template
