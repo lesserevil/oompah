@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-626
 type: bug
-status: In Validation
+status: Done
 priority: 1
 title: Supersede in-flight terminal audits when evidence changes
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T22:02:35.998442Z'
-updated_at: '2026-07-30T22:12:55.758804Z'
+updated_at: '2026-07-30T22:17:03.848113Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-626
 target_branch: null
 review_url: null
@@ -27,6 +27,8 @@ oompah.integration:
   updated_at: '2026-07-30T22:11:44.007859+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-81d39d73e735: '2026-07-30T22:17:01.599562+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -34,7 +36,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-626
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -43,7 +45,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-81d39d73e735
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -53,13 +55,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-30T22:11:39.206396+00:00'
       branch_key: OOMPAH-626
+      verdict: pass
+      completed_at: '2026-07-30T22:17:01.599429+00:00'
+      ended_at: '2026-07-30T22:17:01.599429+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-30T22:11:25.573500+00:00'
-    updated_at: '2026-07-30T22:11:39.206396+00:00'
+    updated_at: '2026-07-30T22:17:01.599429+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-81d39d73e735
@@ -127,5 +132,20 @@ author: oompah
 created: 2026-07-30 22:12
 ---
 Auditor handoff: exact task head 7576453f passed the complete integration Makefile gate before absorption at epic head 5c4535822. Focused evidence is 152 passing transition/dispatch/override/archive tests plus a passing terminal mutation scan. Read-only command denials are expected; inspect the committed CAS regressions and submit the structured verdict without rerunning the complete suite.
+---
+author: oompah
+created: 2026-07-30 22:17
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: 5c45358226b238c1c9c2bdeee8bf9c85489d6f19
+- focused_tests_passed: 492
+- targeted_supersede_tests_passed: 5
+- coordinator_tests_passed: 106
+- changed_files: oompah/terminal_transition_coordinator.py, tests/test_terminal_transition_coordinator.py
+- commits: 7420c1984 (supersede stale in-flight audits); 5c45358226 (coalesce active audit revisions safely)
 ---
 <!-- COMMENTS:END -->
