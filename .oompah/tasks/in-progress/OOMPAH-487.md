@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-487
 type: feature
-status: Ready to Integrate
+status: In Progress
 priority: 1
 title: Document auditor configuration, overrides, migration, and recovery
 parent: OOMPAH-460
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:26.170630Z'
-updated_at: '2026-07-29T18:58:50.022465Z'
+updated_at: '2026-07-30T05:27:20.999914Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-487
 target_branch: null
 review_url: null
@@ -55,7 +55,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 233a6da2-e5ae-4865-bf79-b2b14f99c25d
+oompah.agent_run_id: c144a011-a4fe-4ba6-960b-c9da5b1661e9
 oompah.work_branch: epic-OOMPAH-460--task-OOMPAH-487
 oompah.task_costs:
   total_input_tokens: 73595
@@ -91,12 +91,12 @@ oompah.task_costs:
     recorded_at: '2026-07-29T18:58:48.181057+00:00'
 oompah.integration:
   version: 1
-  state: ready
+  state: working
   attempts: 0
   task_branch: epic-OOMPAH-460--task-OOMPAH-487
-  head_sha: 3c6e5a899fbf7d513fd11883b9819a74d05c1db9
-  submitted_at: '2026-07-29T18:58:32.046066+00:00'
-  updated_at: '2026-07-29T18:58:32.046066+00:00'
+  base_branch: epic-OOMPAH-460
+  base_sha: 254d2454813ffa07ed895cbf3548b227b94fd04c
+  updated_at: '2026-07-30T05:27:18.967067+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-487__20260729T182909Z
@@ -266,5 +266,20 @@ Run #2 [attempt=2, profile=standard, role=standard -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: terminated, Duration: 28m 59s
 - Log: OOMPAH-487__20260729T182956Z.jsonl
+---
+author: oompah
+created: 2026-07-30 05:27
+---
+Integration found a rebase conflict on `epic-OOMPAH-460--task-OOMPAH-487`. Resolve it against `epic-OOMPAH-460`, run the required tests, push the same private branch, and `oompah task submit` it again.
+---
+author: oompah
+created: 2026-07-30 05:27
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-30 05:27
+---
+Focus: Technical Writer
 ---
 <!-- COMMENTS:END -->
