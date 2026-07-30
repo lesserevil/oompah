@@ -55,6 +55,55 @@ def test_authentication_guide_covers_the_security_and_operations_contract():
     assert not missing, f"authentication guide is missing: {missing}"
 
 
+def test_cli_credential_precedence_is_documented():
+    """Verify that credential precedence is explicitly documented."""
+    text = _read(AUTH_DOC)
+    cli_install = _read(DOCS / "cli-install.md")
+
+    # Precedence must be documented in both files
+    for doc_text in (text, cli_install):
+        # Must mention precedence or priority
+        assert any(word in doc_text for word in ["precedence", "priority", "highest", "override"]), \
+            "Authentication guide must document credential precedence"
+        
+        # Must document CLI flag overrides
+        assert "--username" in doc_text
+        assert "--password-file" in doc_text
+        
+        # Must document environment variable behavior
+        assert "OOMPAH_SERVER_USERNAME" in doc_text
+        assert "OOMPAH_SERVER_PASSWORD_FILE" in doc_text
+        assert "OOMPAH_SERVER_PASSWORD" in doc_text
+    
+    # Examples must cover all precedence tiers
+    for doc_text in (text, cli_install):
+        doc_lower = doc_text.lower()
+        # CLI flags
+        assert "flag" in doc_lower or "--username" in doc_text
+        # Environment variables
+        assert "environment" in doc_lower or "OOMPAH_" in doc_text
+        # Password files vs inline password
+        assert "password file" in doc_lower or "OOMPAH_SERVER_PASSWORD_FILE" in doc_text
+
+
+def test_examples_show_password_file_not_inline_password():
+    """Verify that documentation recommends password files over inline passwords."""
+    text = _read(AUTH_DOC)
+    cli_install = _read(DOCS / "cli-install.md")
+
+    for doc_text in (text, cli_install):
+        # Count recommendations
+        password_file_count = doc_text.count("OOMPAH_SERVER_PASSWORD_FILE") + doc_text.count("--password-file")
+        inline_password_count = doc_text.count("OOMPAH_SERVER_PASSWORD=")
+        
+        # Password files should be recommended more than inline
+        assert password_file_count > inline_password_count, \
+            "Documentation should prefer password files over inline passwords"
+        
+        # Should explicitly say "preferred" for password file
+        assert "preferred" in doc_text or "Prefer" in doc_text
+
+
 def test_only_exact_public_routes_are_documented_as_basic_auth_exempt():
     text = _read(AUTH_DOC)
     expected = {

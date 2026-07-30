@@ -145,6 +145,47 @@ password hashes. `OOMPAH_SERVER_PASSWORD` and `OOMPAH_SERVER_PASSWORD_FILE`
 are client plaintext credential sources; they are not htpasswd files or server
 configuration values. Never put credentials in `OOMPAH_SERVER_URL`.
 
+#### Credential precedence
+
+The CLI resolves credentials using a fixed priority order:
+
+**Username:** `--username` flag → `OOMPAH_SERVER_USERNAME` env → (none)
+
+**Password:** `--password-file` flag → `OOMPAH_SERVER_PASSWORD_FILE` env → `OOMPAH_SERVER_PASSWORD` env → (none)
+
+**Rules:**
+- Exactly one password source (set `OOMPAH_SERVER_PASSWORD_FILE` **or** `OOMPAH_SERVER_PASSWORD`, not both)
+- Username required if password is set
+- Password required if username is set
+- No plaintext `--password` flag exists (security measure)
+
+**Examples:**
+
+Environment-based credentials (recommended for scripts):
+```bash
+export OOMPAH_SERVER_USERNAME=operator
+export OOMPAH_SERVER_PASSWORD_FILE=/run/secrets/oompah-password
+oompah task view TASK-123
+```
+
+CLI flag override:
+```bash
+oompah task --username admin --password-file /var/secret/admin-password view TASK-123
+```
+
+Interactive (password prompted by curl, not stored):
+```bash
+export OOMPAH_SERVER_USERNAME=operator
+oompah task view TASK-123  # curl will prompt for password
+```
+
+Inline password (one-shot only, not for scripts):
+```bash
+# Limited to initialization or controlled secret injection:
+OOMPAH_SERVER_USERNAME=operator OOMPAH_SERVER_PASSWORD=secret123 oompah task view TASK-123
+# Password is process-visible; prefer password files for production
+```
+
 For complete setup, user management, password rotation, troubleshooting, and
 security details, see [`docs/authentication.md`](authentication.md).
 

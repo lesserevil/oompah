@@ -358,6 +358,97 @@ Authentication is **disabled**. All routes are accessible without credentials.
 > logs, documentation, or source control. Password files should be regular,
 > owner-readable files with mode `600` where the platform permits it.
 
+### CLI Credential Precedence
+
+The `oompah task` and `oompah admin` CLIs resolve credentials using a fixed
+priority order. This section documents the exact precedence so you can predict
+which source will be used when multiple are configured.
+
+**Username resolution (highest priority first):**
+1. CLI flag: `--username <user>`
+2. Environment variable: `OOMPAH_SERVER_USERNAME`
+3. (none) — unauthenticated if not set
+
+**Password resolution (highest priority first):**
+1. CLI flag: `--password-file <path>`
+2. Environment variable: `OOMPAH_SERVER_PASSWORD_FILE`
+3. Environment variable: `OOMPAH_SERVER_PASSWORD`
+4. (none) — unauthenticated if not set
+
+**Configuration rules:**
+- Username is required if any password source is set
+- Password is required if username is set
+- Exactly one password source must be configured; both `OOMPAH_SERVER_PASSWORD` and `OOMPAH_SERVER_PASSWORD_FILE` cannot be set together (error)
+- Return value: `ClientCredentials(username, password)` if configured, or `None` for backward-compatible unauthenticated mode
+
+**Security emphasis:** 
+- Never pass plaintext passwords via the `--password` flag (no such flag exists)
+- Prefer password files (`OOMPAH_SERVER_PASSWORD_FILE` or `--password-file`) for unattended use
+- `OOMPAH_SERVER_PASSWORD` is limited to interactive shells and controlled secret injection (do not put in `.env` files)
+- Command-line passwords are process-visible in `ps` output; use password files for production
+
+#### Examples
+
+**Interactive CLI with password prompt (no credentials stored):**
+```bash
+export OOMPAH_SERVER_USERNAME=operator
+oompah task view TASK-123
+# (curl will prompt for password without showing it in shell history)
+```
+
+**Unattended operation with password file (recommended):**
+```bash
+export OOMPAH_SERVER_USERNAME=operator
+export OOMPAH_SERVER_PASSWORD_FILE=/run/secrets/oompah-password
+oompah task view TASK-123
+```
+
+**Override environment with CLI flags:**
+```bash
+# Environment says one thing, CLI flags override it:
+export OOMPAH_SERVER_USERNAME=default-user
+export OOMPAH_SERVER_PASSWORD_FILE=/etc/default-password
+
+# These flags take precedence:
+oompah task --username admin --password-file /var/secret/admin-password view TASK-123
+```
+
+**Inline password for a single short-lived command (not for committed scripts):**
+```bash
+# Limited use: initial deployment, one-off tests, controlled secret injection
+export OOMPAH_SERVER_USERNAME=operator
+export OOMPAH_SERVER_PASSWORD=$(cat /dev/stdin)  # Read interactively
+oompah task view TASK-123
+unset OOMPAH_SERVER_PASSWORD  # Clear immediately
+```
+
+**Default netrc file (curl precedence):**
+Curl and standard `curl`-compatible clients also support `.netrc` / `.netrc-file` 
+for Basic auth. When using `curl` directly or tools that delegate to it, netrc 
+entries follow the same precedence rules as our CLI:
+```bash
+# ~/.netrc entry (must be mode 600):
+machine oompah.example.com
+login operator
+password <plaintext-password>
+
+# Usage (curl reads credentials from ~/.netrc automatically):
+curl https://oompah.example.com/api/v1/state
+
+# Or explicitly:
+curl --netrc-file ~/.netrc https://oompah.example.com/api/v1/state
+```
+
+**Makefile lifecycle commands:**
+Commands like `make status`, `make restart`, and `make graceful` respect the
+same credential precedence:
+```bash
+export OOMPAH_SERVER_USERNAME=operator
+export OOMPAH_SERVER_PASSWORD_FILE=/run/secrets/oompah-password
+make status
+make graceful
+```
+
 ### CLI authentication
 
 For `oompah task` commands:
