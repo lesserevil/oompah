@@ -13,7 +13,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:26.620047Z'
-updated_at: '2026-07-30T19:34:16.982232Z'
+updated_at: '2026-07-30T19:37:22.231655Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-591
 target_branch: null
 review_url: null
@@ -58,8 +58,8 @@ oompah.integration:
   base_sha: 64b9b00c55f34d164d4eca2dd6071887ea5b5bb3
   updated_at: '2026-07-30T19:34:15.028950+00:00'
 oompah.task_costs:
-  total_input_tokens: 2458803
-  total_output_tokens: 13437
+  total_input_tokens: 3367897
+  total_output_tokens: 20160
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -67,8 +67,8 @@ oompah.task_costs:
       output_tokens: 626
       cost_usd: 0.0
     unknown:
-      input_tokens: 2457777
-      output_tokens: 12811
+      input_tokens: 3366871
+      output_tokens: 19534
       cost_usd: 0.0
   runs:
   - profile: default
@@ -89,6 +89,12 @@ oompah.task_costs:
     output_tokens: 12811
     cost_usd: 0.0
     recorded_at: '2026-07-30T18:53:42.570516+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 909094
+    output_tokens: 6723
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T19:37:12.365601+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-591__20260730T143142Z
@@ -108,7 +114,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-591
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -133,7 +139,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-1487c9eafdbc
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -144,13 +150,16 @@ oompah.terminal_audit:
       started_at: '2026-07-30T19:34:11.325673+00:00'
       branch_key: epic-OOMPAH-585--task-OOMPAH-591
       candidate_rotation_count: 1
+      ended_at: '2026-07-30T19:37:14.406582+00:00'
+      failure_reason: normal
+      next_retry_at: '2026-07-30T19:37:34.406550+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-30T18:47:32.059124+00:00'
-    updated_at: '2026-07-30T19:34:11.325673+00:00'
+    updated_at: '2026-07-30T19:37:14.406582+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-870b1c4d15ed
@@ -171,7 +180,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-1487c9eafdbc
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -182,6 +191,9 @@ oompah.terminal_audit:
     started_at: '2026-07-30T19:34:11.325673+00:00'
     branch_key: epic-OOMPAH-585--task-OOMPAH-591
     candidate_rotation_count: 1
+    ended_at: '2026-07-30T19:37:14.406582+00:00'
+    failure_reason: normal
+    next_retry_at: '2026-07-30T19:37:34.406550+00:00'
 ---
 ## Summary
 
@@ -391,5 +403,20 @@ author: oompah
 created: 2026-07-30 19:34
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 19:37
+---
+Run #2 [attempt=2, profile=auditor, role=auditor -> Codex/gpt-5.6-terra]
+- Turns: 1, Tool calls: 20
+- Tokens: 909.1K in / 6.7K out [915.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 3m 0s
+- Log: OOMPAH-591__20260730T193419Z.jsonl
+---
+author: oompah
+created: 2026-07-30 19:37
+---
+Auditor attempt ended: auditor exited (normal) without a result. A different independent auditor will be tried on the next scheduler tick.
 ---
 <!-- COMMENTS:END -->
