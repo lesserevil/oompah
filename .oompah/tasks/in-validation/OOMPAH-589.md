@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:20.256845Z'
-updated_at: '2026-07-30T17:04:31.820365Z'
+updated_at: '2026-07-30T17:08:07.746571Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-589
 target_branch: null
 review_url: null
@@ -949,5 +949,10 @@ author: oompah
 created: 2026-07-30 17:04
 ---
 Auditor attempt ended: unknown url type: '/chat/completions'. A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-07-30 17:08
+---
+Ordered integration succeeded at 17:04 UTC and commit b252293d3 is now on origin/epic-OOMPAH-585. The old running service reproduced the fixed /chat/completions failure during terminal validation. Project-owner override was attempted twice but failed closed because multiple historical Done audit records with superseded evidence fingerprints make every current fingerprint stale under the existing any-mismatch rule. Filed OOMPAH-604 with regression scope; no task metadata was hand-edited and OOMPAH-589 remains In Validation until the repaired runtime can audit it or the tracked override defect is resolved.
 ---
 <!-- COMMENTS:END -->
