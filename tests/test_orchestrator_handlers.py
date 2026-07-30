@@ -72,6 +72,29 @@ def _make_project(
     return p
 
 
+@pytest.mark.parametrize(
+    ("focus_name", "duplicate_preflight", "expected"),
+    [
+        ("auditor", False, True),
+        ("feature", True, True),
+        ("feature", False, False),
+    ],
+)
+def test_acp_session_read_only_authority(
+    focus_name,
+    duplicate_preflight,
+    expected,
+):
+    from oompah.orchestrator import _acp_session_is_read_only
+
+    focus = MagicMock()
+    focus.name = focus_name
+    running_entry = MagicMock()
+    running_entry.duplicate_preflight = duplicate_preflight
+
+    assert _acp_session_is_read_only(focus, running_entry) is expected
+
+
 def _make_review(
     review_id: str = "1",
     source_branch: str = "feat-branch",

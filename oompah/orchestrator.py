@@ -260,6 +260,23 @@ _AUTO_CONCURRENCY_CPU_THREADS_PER_AGENT = 4
 _AUTO_CONCURRENCY_MEMORY_BYTES_PER_AGENT = 4 * 1024**3
 
 
+def _acp_session_is_read_only(focus: Any, running_entry: Any | None) -> bool:
+    """Return the authority mode for an ACP dispatch.
+
+    Completion auditors are always read-only, independently of duplicate
+    preflight state.  This matters for ACP backends with native tools (most
+    notably the subscription Codex CLI), where the action-policy catalog
+    cannot constrain the subprocess sandbox.
+    """
+    return (
+        str(getattr(focus, "name", "")).casefold() == AUDITOR_FOCUS_NAME
+        or bool(
+            running_entry
+            and getattr(running_entry, "duplicate_preflight", False)
+        )
+    )
+
+
 def _available_memory_bytes() -> int | None:
     """Return Linux ``MemAvailable`` bytes, or ``None`` when unavailable."""
     try:
@@ -21401,6 +21418,7 @@ class Orchestrator:
                 running_entry
                 and getattr(running_entry, "duplicate_preflight", False)
             )
+            read_only_session = _acp_session_is_read_only(focus, running_entry)
 
             # Wire the same coordinator handler for ACP sessions that use
             # the Claude Agent SDK.  The handler shape and threading model
@@ -21442,7 +21460,7 @@ class Orchestrator:
                 coordination_service=self,
                 task_identifier=issue.identifier,
                 terminal_transition_coordinator=self.terminal_transition_coordinator,
-                read_only=read_only_preflight,
+                read_only=read_only_session,
                 focus=focus,
                 auditor=focus.name.lower() == AUDITOR_FOCUS_NAME,
                 audit_target=audit_target,
@@ -21656,7 +21674,7 @@ class Orchestrator:
                 model=acp_model,
                 max_turns=max_turns,
                 tool_catalog=tool_catalog,
-                read_only=read_only_preflight,
+                read_only=read_only_session,
                 on_event=_on_event,
                 backend_name=acp_backend_name,
                 billing_model=acp_billing_model,
