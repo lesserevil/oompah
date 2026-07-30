@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-591
 type: task
-status: Needs Human
+status: In Validation
 priority: 1
 title: Reconcile the pending audit backlog and stale In Validation tasks
 parent: OOMPAH-585
@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:26.620047Z'
-updated_at: '2026-07-30T23:52:52.458112Z'
+updated_at: '2026-07-30T23:53:43.170076Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-591
 target_branch: null
 review_url: null
@@ -344,7 +344,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-591
     target_state: Done
-    request_state: in_progress
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -370,6 +370,23 @@ oompah.terminal_audit:
     previous_state: Needs Human
     created_at: '2026-07-30T23:50:16.510765+00:00'
     updated_at: '2026-07-30T23:51:01.327457+00:00'
+  - version: 1
+    audit_id: audit-c4583aff1a63
+    project_id: proj-14849f1b
+    task_id: OOMPAH-591
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c5ee196fe8cdfdf1ee279f9294dd24fdd59f55176131221c7b5f5f9bdbb607c6
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Needs Human
+    created_at: '2026-07-30T23:53:41.572906+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-870b1c4d15ed
