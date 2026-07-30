@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:28:42.855708Z'
-updated_at: '2026-07-30T18:35:37.003722Z'
+updated_at: '2026-07-30T18:38:05.267655Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -191,5 +191,31 @@ created: 2026-07-30 18:35
    - Real credentials (strong patterns) remain rejected without echoing
    - Redaction feedback is actionable
    - Repeated submissions are idempotent
+---
+author: oompah
+created: 2026-07-30 18:38
+---
+**Implementation Complete**:
+
+Changes in oompah/auditor.py:
+1. Added \`_redact_credential_patterns(text, field_name)\` - replaces credential-like patterns with deterministic redaction markers (e.g., [REDACTED-bearer-token], [REDACTED-github-token])
+2. Added \`_redact_safe_evidence(safe_evidence)\` - redacts credential-like keys and values in safe_evidence mapping
+3. Modified \`parse_auditor_result\` to apply redaction before validation:
+   - Message redaction with size-check after redaction
+   - Safe evidence redaction with key/value validation
+   - Questions/instructions redaction
+
+Key features:
+- Deterministic redaction: same inert example always produces same redacted output
+- Inert examples (like documenting credential patterns) are redacted and accepted
+- Credential-like keys are replaced with [REDACTED-credential-key]
+- Credential patterns identified by type (github-token, api-key, bearer-token, jwt-like, etc.)
+- All three sizes (message, keys, values) still enforced post-redaction
+
+Tests updated (71 tests in test_auditor_result_api.py all passing):
+- Changed from rejection to acceptance-with-redaction for inert examples
+- Added tests for idempotent redaction
+- Added OOMPAH-589 scenario test (PASS with credential-pattern examples)
+- Added triple-submission idempotency test
 ---
 <!-- COMMENTS:END -->
