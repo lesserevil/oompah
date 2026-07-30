@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:25:29.809048Z'
-updated_at: '2026-07-30T22:27:09.188516Z'
+updated_at: '2026-07-30T22:29:11.351478Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-621
 target_branch: null
 review_url: null
@@ -192,5 +192,39 @@ Updated documentation and tests for CLI credential precedence.
 - test_client_auth.py: 60/60 PASSED (existing tests unaffected)
 
 All documentation now matches implementation exactly. Examples use only placeholders, and security warnings are prominent.
+---
+author: oompah
+created: 2026-07-30 22:29
+---
+**Verification: All focused tests pass**
+
+Documentation and integration tests for CLI credential precedence complete and verified:
+
+✓ test_docs_authentication_contract.py: 7/7 PASSED
+  - Authentication guide covers security/operations contract
+  - CLI credential precedence is documented explicitly
+  - Examples recommend password files over inline
+  - Public routes match documentation
+  - Examples contain only placeholders
+  - Documentation links present and consistent
+  - CLI help and MCP discovery aligned
+
+✓ test_cli_install_revision_compatibility.py: 18/18 PASSED  
+  - Credential precedence integration (3 tests)
+  - Password file handling (3 tests)
+  - URL sanitization (4 tests)
+  - Password redaction (2 tests)
+  - Configuration examples (3 tests)
+  - Mutual exclusion errors (3 tests)
+
+✓ Existing tests unaffected
+  - test_client_auth.py: 60/60 PASSED
+
+**Ready to submit:**
+- All changes committed and pushed to epic-OOMPAH-619--task-OOMPAH-621
+- Documentation is complete and contract-tested
+- Examples cover all precedence tiers with copy-safe placeholders
+- Security warnings are prominent (process visibility, netrc/file recommendations)
+- Integration tests verify docs/code/help alignment
 ---
 <!-- COMMENTS:END -->
