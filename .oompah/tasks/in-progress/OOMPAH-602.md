@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-602
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Repair project scope propagation in merged-label maintenance
 parent: OOMPAH-588
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:01.749200Z'
-updated_at: '2026-07-30T16:42:34.744407Z'
+updated_at: '2026-07-30T16:42:49.102844Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-602
 target_branch: null
 review_url: null
@@ -57,7 +57,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 1
   retry_after: null
-oompah.agent_run_id: 4708ddd2-7dde-4ed8-a44a-808c2c2afbcf
+oompah.agent_run_id: 9f8d5bff-fe6c-4d68-ac75-075ebd82e110
 oompah.work_branch: epic-OOMPAH-588--task-OOMPAH-602
 oompah.integration:
   version: 1
