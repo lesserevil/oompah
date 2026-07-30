@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:00.331568Z'
-updated_at: '2026-07-30T16:03:17.863979Z'
+updated_at: '2026-07-30T16:04:41.992380Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-601
 target_branch: null
 review_url: null
@@ -271,5 +271,27 @@ author: oompah
 created: 2026-07-30 16:03
 ---
 Focus: Auth Http Default Specialist
+---
+author: oompah
+created: 2026-07-30 16:04
+---
+**Understanding & Plan:**
+
+Issue: Branch-ownership cleanup is emitting one warning per child task on every maintenance tick (warning flood), instead of aggregating skips into a single structured summary. This happens when terminal child tasks legitimately share an epic-owned branch.
+
+Goal: 
+1. Resolve branch ownership through canonical task/epic aliases before deciding to skip
+2. Preserve ambiguous/shared branches (don't warn about normal shared ownership)
+3. Emit one structured categorized summary per run instead of per-tick warnings
+4. Keep actionable corruption/unsafe-path cases as real warnings
+5. Avoid multi-second reconciliation slowdown (measure latency)
+
+Approach:
+1. Find where the warning flood is happening (likely in orchestrator.py or projects.py cleanup logic)
+2. Implement aggregation logic to collect skip reasons by category
+3. Add tests for shared epic branches, aliases, missing project_id, cross-project identifiers, dirty branches, large batches
+4. Verify latency stays within configured budget
+
+Starting codebase exploration...
 ---
 <!-- COMMENTS:END -->
