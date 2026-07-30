@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-459
 type: epic
-status: Needs CI Fix
+status: In Progress
 priority: 1
 title: Route all terminal-state producers through independent auditing
 parent: null
@@ -28,12 +28,13 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:46.877390Z'
-updated_at: '2026-07-30T03:31:30.613181Z'
+updated_at: '2026-07-30T03:32:08.474170Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.agent_run_id: c74020f8-72a8-4537-b791-6bead1249e3e
 ---
 ## Summary
 
@@ -190,5 +191,15 @@ Uninstalled 8 packages in 8ms
 Installed 8 packages in 23ms
 make[1]: *** [Makefile:225: test] Terminated
 ```
+---
+author: oompah
+created: 2026-07-30 03:32
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-30 03:32
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
