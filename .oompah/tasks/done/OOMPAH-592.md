@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-592
 type: feature
-status: In Validation
+status: Done
 priority: 1
 title: Alert on terminal-audit launch failures and backlog age
 parent: OOMPAH-585
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:28.755226Z'
-updated_at: '2026-07-30T18:57:47.630138Z'
+updated_at: '2026-07-30T19:06:03.481562Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-592
 target_branch: null
 review_url: null
@@ -93,6 +93,8 @@ oompah.work_contributors:
     completed_at: '2026-07-30T14:47:44.853900+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-2b3803f5ac37: '2026-07-30T19:06:01.255993+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -100,7 +102,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-592
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -109,7 +111,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-2b3803f5ac37
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -119,13 +121,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-30T18:57:42.401889+00:00'
       branch_key: epic-OOMPAH-585--task-OOMPAH-592
+      verdict: pass
+      completed_at: '2026-07-30T19:06:01.255747+00:00'
+      ended_at: '2026-07-30T19:06:01.255747+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-30T18:56:57.602107+00:00'
-    updated_at: '2026-07-30T18:57:42.401889+00:00'
+    updated_at: '2026-07-30T19:06:01.255747+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-2b3803f5ac37
@@ -300,5 +305,27 @@ author: oompah
 created: 2026-07-30 18:57
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 19:06
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- commit: 64b9b00c55f34d164d4eca2dd6071887ea5b5bb3
+- branch: epic-OOMPAH-585--task-OOMPAH-592
+- branch_up_to_date: true
+- new_module: oompah/terminal_audit_health.py
+- orchestrator_integration: oompah/orchestrator.py:1419 _refresh_terminal_audit_health; 4580 dispatch call site; 25387 snapshot terminal_audit_health + health.status
+- config_field: audit_stale_pending_seconds default 3600 with OOMPAH_AUDIT_STALE_PENDING_SECONDS env var and positive validation
+- dashboard_banner: oompah/templates/dashboard.html:2103 accessible banner (role=status, aria-live=polite, hidden by default); 2490 renderTerminalAuditHealth using only numeric fields; 2571 handleStateUpdate integration
+- alert_types: launch_failures, retry_exhausted, backlog_age, stale_validation, scan, metadata_quarantine (prefix terminal_audit_health:)
+- redaction_mechanism: failure classification via phrase matching against LAUNCH_PHRASES/TRANSPORT_PHRASES; raw reason strings never included in alert titles or details
+- focused_tests_new: 50 passed in tests/test_terminal_audit_health.py, tests/test_terminal_audit_health_api.py, tests/test_dashboard_terminal_audit_health.py
+- focused_tests_neighboring: 155 passed in terminal_audit + terminal_audit_enforcement + terminal_audit_scanner + terminal_audit_metadata + terminal_transition_coordinator; 362 passed in orchestrator_handlers + config; dashboard refresh + state read warnings pass
+- acceptance_criterion_1: Verified: terminal_audit_health_alerts() returns non-empty list whenever any degraded counter is non-zero; scan_complete=false preserves prior alerts.
+- acceptance_criterion_2: Verified: on a complete scan, prior terminal_audit_health: alerts are filtered and replaced from durable numeric facts; empty backlog yields zero alerts.
 ---
 <!-- COMMENTS:END -->
