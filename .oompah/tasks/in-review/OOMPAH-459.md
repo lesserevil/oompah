@@ -28,11 +28,11 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:46.877390Z'
-updated_at: '2026-07-30T04:08:15.919720Z'
-work_branch: null
-target_branch: null
-review_url: null
-review_number: null
+updated_at: '2026-07-30T04:08:20.044365Z'
+work_branch: epic-OOMPAH-459
+target_branch: main
+review_url: https://github.com/lesserevil/oompah/pull/590
+review_number: '590'
 merged_at: null
 oompah.agent_run_id: c74020f8-72a8-4537-b791-6bead1249e3e
 oompah.integration:
@@ -59,6 +59,10 @@ oompah.task_costs:
     output_tokens: 3555
     cost_usd: 0.0
     recorded_at: '2026-07-30T03:52:20.117075+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/590
+oompah.review_number: '590'
+oompah.work_branch: epic-OOMPAH-459
+oompah.target_branch: main
 ---
 ## Summary
 
