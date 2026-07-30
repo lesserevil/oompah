@@ -10959,7 +10959,11 @@ async def api_test_provider(provider_id: str):
         else:
             result = await asyncio.to_thread(run_health_check, provider)
     except Exception as exc:
-        logger.error("Provider health-check error for %s: %s", provider_id, exc)
+        logger.error(
+            "Provider health-check error for %s: %s",
+            provider_id,
+            redact_sensitive_text(exc),
+        )
         return JSONResponse(
             {
                 "provider_id": provider_id,

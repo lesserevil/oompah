@@ -1176,7 +1176,10 @@ async def _select_focus_llm(
     # Lazy import to keep focus.py from depending on api_agent at import time
     # (api_agent imports prompt which imports models — keep the dep DAG flat).
     from oompah.api_agent import _http_post, _build_ssl_context
-    from oompah.provider_health import openai_chat_completions_url
+    from oompah.provider_health import (
+        openai_chat_completions_url,
+        redact_sensitive_text,
+    )
 
     prompt = _build_triage_prompt(issue, foci)
     # Thinking models (e.g. MiniMax-M2.7) burn output budget on the
@@ -1210,7 +1213,11 @@ async def _select_focus_llm(
         logger.warning("LLM triage timed out for %s", issue.identifier)
         return None, ""
     except Exception as exc:
-        logger.warning("LLM triage failed for %s: %s", issue.identifier, exc)
+        logger.warning(
+            "LLM triage failed for %s: %s",
+            issue.identifier,
+            redact_sensitive_text(exc),
+        )
         return None, ""
 
     try:

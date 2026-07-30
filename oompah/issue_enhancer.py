@@ -441,7 +441,10 @@ def enhance_issue(
     base_url = (getattr(provider, "base_url", "") or "").rstrip("/")
     if not base_url:
         raise IssueEnhancerError("provider has no base_url configured")
-    from oompah.provider_health import openai_chat_completions_url
+    from oompah.provider_health import (
+        openai_chat_completions_url,
+        redact_sensitive_text,
+    )
     try:
         url = openai_chat_completions_url(getattr(provider, "base_url", ""))
     except ValueError as exc:
@@ -468,7 +471,9 @@ def enhance_issue(
         ssl_ctx = _build_ssl_context()
         response = _http_post(url, headers, body, ssl_ctx)
     except Exception as exc:
-        raise IssueEnhancerError(f"LLM call failed: {exc}") from exc
+        raise IssueEnhancerError(
+            f"LLM call failed: {redact_sensitive_text(exc)}"
+        ) from exc
 
     try:
         content = response["choices"][0]["message"]["content"] or ""
