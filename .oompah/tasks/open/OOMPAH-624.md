@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-624
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Bind owner authorization to the authenticated server principal
 parent: OOMPAH-619
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T21:37:57.526368Z'
-updated_at: '2026-07-30T21:37:57.526368Z'
+updated_at: '2026-07-30T21:38:29.865941Z'
 work_branch: null
 target_branch: null
 review_url: null
