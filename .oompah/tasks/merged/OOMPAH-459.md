@@ -28,7 +28,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:46.877390Z'
-updated_at: '2026-07-30T04:15:09.605516Z'
+updated_at: '2026-07-30T04:16:22.870167Z'
 work_branch: epic-OOMPAH-459
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/590
@@ -63,6 +63,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/590
 oompah.review_number: '590'
 oompah.work_branch: epic-OOMPAH-459
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-2f8a02a3fbeb
+    project_id: proj-14849f1b
+    task_id: OOMPAH-459
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 72823d84f18f6b958ade2e73acb16f8203c1dfec915b2d05fb65a4541ad4a737
+    attempts: []
+    requested_by:
+      version: 1
+      identity: epic-rollup-reconciliation
+      source: oompah
+    previous_state: Merged
+    created_at: '2026-07-30T04:16:21.411299+00:00'
+  - version: 1
+    audit_id: audit-f48fab3abffb
+    project_id: proj-14849f1b
+    task_id: OOMPAH-459
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 72823d84f18f6b958ade2e73acb16f8203c1dfec915b2d05fb65a4541ad4a737
+    attempts: []
+    requested_by:
+      version: 1
+      identity: epic-rollup-reconciliation
+      source: oompah
+    previous_state: Merged
+    created_at: '2026-07-30T04:16:21.411299+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -264,5 +303,10 @@ author: oompah
 created: 2026-07-30 04:08
 ---
 Branch quality gate passed for `95581aca5772d59c8c23d5b7288b92836f1abbf6` using `make test` in 291.0s. Review creation may proceed.
+---
+author: oompah
+created: 2026-07-30 04:16
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
