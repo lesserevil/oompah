@@ -553,6 +553,53 @@ class TestStaleRejection:
         assert len(doc.pending_chain) == 1
         assert doc.pending_chain[0].audit_id == "audit-done-complete"
 
+    def test_changed_completed_evidence_queues_fresh_audit(self) -> None:
+        """A repaired head may retry after an earlier completed audit failed."""
+        completed = TerminalAuditRecord(
+            audit_id="audit-done-complete",
+            project_id=PROJECT_ID,
+            task_id=TASK_ID,
+            target_state=TargetState.DONE,
+            evidence_fingerprint=_fingerprint("a"),
+            request_state=RequestState.COMPLETED,
+        )
+        tracker = _MemoryTracker()
+        _seed_metadata(tracker, [completed])
+
+        coord = _coordinator(tracker)
+        result = _run(coord.request_transition(
+            _issue(),
+            TargetState.DONE,
+            _trigger(),
+            PROJECT_ID,
+            _fingerprint("b"),
+        ))
+
+        assert result.success is True
+        assert result.superseded_audit_id == "audit-done-complete"
+        assert result.audit_id != "audit-done-complete"
+
+        store = TerminalAuditMetadataStore(tracker, _LockStore(), PROJECT_ID)
+        doc = store.read(TASK_ID)
+        old, fresh = doc.pending_chain
+        assert old.audit_id == "audit-done-complete"
+        assert old.request_state == RequestState.SUPERSEDED
+        assert fresh.audit_id == result.audit_id
+        assert fresh.request_state == RequestState.PENDING
+        assert fresh.evidence_fingerprint == _fingerprint("b")
+
+        repeated = _run(coord.request_transition(
+            _issue(state=IN_VALIDATION),
+            TargetState.DONE,
+            _trigger(),
+            PROJECT_ID,
+            _fingerprint("b"),
+        ))
+        assert repeated.success is True
+        assert repeated.coalesced is True
+        assert repeated.audit_id == fresh.audit_id
+        assert len(store.read(TASK_ID).pending_chain) == 2
+
 
 # ---------------------------------------------------------------------------
 # TestCommentDeduplication
