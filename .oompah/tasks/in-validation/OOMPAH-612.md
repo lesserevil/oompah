@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-612
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Avoid ACP auditor result deadlock on the dispatch event loop
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T19:33:15.081209Z'
-updated_at: '2026-07-30T19:44:26.184248Z'
+updated_at: '2026-07-30T19:50:50.736039Z'
 work_branch: OOMPAH-612
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/595
@@ -29,6 +29,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/595
 oompah.review_number: '595'
 oompah.work_branch: OOMPAH-612
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-f361fb3dd5c8
+    project_id: proj-14849f1b
+    task_id: OOMPAH-612
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 367b643b0dc201fcb00b364e5dc51b3683d583e00500e1adc5dd32e0749d2628
+    attempts: []
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-30T19:50:48.280429+00:00'
+  - version: 1
+    audit_id: audit-f49ea3036489
+    project_id: proj-14849f1b
+    task_id: OOMPAH-612
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 367b643b0dc201fcb00b364e5dc51b3683d583e00500e1adc5dd32e0749d2628
+    attempts: []
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-30T19:50:48.280429+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -58,5 +97,10 @@ author: oompah
 created: 2026-07-30 19:43
 ---
 Offload Claude/OpenCode ACP audit-result submission bridges so the event loop can apply the coordinator result; add same-loop success, idempotency, and rejection regressions. Full make test passed 13,729 with 7 skipped.
+---
+author: oompah
+created: 2026-07-30 19:50
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
