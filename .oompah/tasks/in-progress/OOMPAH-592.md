@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:28.755226Z'
-updated_at: '2026-07-30T15:34:10.113923Z'
+updated_at: '2026-07-30T15:48:44.136535Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-592
 target_branch: null
 review_url: null
@@ -172,5 +172,10 @@ author: oompah
 created: 2026-07-30 15:34
 ---
 Understanding: Previous agents implemented most of the structure in .pyc form but failed to commit. I found: (1) terminal_audit_health.py with AuditHealthObservation, TerminalAuditHealth, build_terminal_audit_health, terminal_audit_health_alerts; (2) orchestrator changes adding _refresh_terminal_audit_health(), _audit_health field, extending _audit_metrics; (3) dashboard UI changes adding terminal-audit-health banner; (4) tests in test_terminal_audit_health.py, test_terminal_audit_health_api.py, test_dashboard_terminal_audit_health.py. Plan: Reconstruct all these files from .pyc decompilation data, write clean implementations, run tests, commit and push.
+---
+author: oompah
+created: 2026-07-30 15:48
+---
+Discovery & Implementation: Previous agent had written most code but failed to commit due to a patch verification error. Reconstructed from .pyc files. Implemented: (1) oompah/terminal_audit_health.py - new module with AuditHealthObservation, TerminalAuditHealth dataclasses, build_terminal_audit_health() function, terminal_audit_health_alerts() function; (2) oompah/config.py - new audit_stale_pending_seconds config field (default 3600s); (3) oompah/orchestrator.py - new _refresh_terminal_audit_health() method, extended _audit_metrics with launch_failure/transport_failure/retry_exhausted/stale_in_validation counters, _dispatch_audit_lane() now collects AuditHealthObservation per In Validation issue and calls refresh, get_snapshot() includes terminal_audit_health and health.status fields; (4) oompah/templates/dashboard.html - new #terminal-audit-health banner (accessible, hidden by default), renderTerminalAuditHealth() JS function using only safe numeric facts.
 ---
 <!-- COMMENTS:END -->
