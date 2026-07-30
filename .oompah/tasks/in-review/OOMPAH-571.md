@@ -11,11 +11,11 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T23:57:40.926693Z'
-updated_at: '2026-07-30T00:02:32.692023Z'
-work_branch: null
-target_branch: null
-review_url: null
-review_number: null
+updated_at: '2026-07-30T00:02:43.321758Z'
+work_branch: OOMPAH-571
+target_branch: main
+review_url: https://github.com/lesserevil/oompah/pull/586
+review_number: '586'
 merged_at: null
 oompah.duplicate_screening:
   schema_version: 1
@@ -38,13 +38,13 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: c8548a53-d97b-48cb-a232-674c85fc6842
 oompah.task_costs:
-  total_input_tokens: 1370079
-  total_output_tokens: 5697
+  total_input_tokens: 1370341
+  total_output_tokens: 5760
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 1370079
-      output_tokens: 5697
+      input_tokens: 1370341
+      output_tokens: 5760
       cost_usd: 0.0
   runs:
   - profile: default
@@ -53,6 +53,12 @@ oompah.task_costs:
     output_tokens: 5697
     cost_usd: 0.0
     recorded_at: '2026-07-30T00:01:03.603876+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 262
+    output_tokens: 63
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T00:02:41.617883+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-571__20260729T235849Z
@@ -63,6 +69,10 @@ oompah.work_contributors:
     source_branch: OOMPAH-571
     source_sha: 8483db2e3e718c1f5f6476018d954574ce5d42f9
     completed_at: '2026-07-30T00:01:03.611530+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/586
+oompah.review_number: '586'
+oompah.work_branch: OOMPAH-571
+oompah.target_branch: main
 ---
 ## Summary
 
@@ -117,5 +127,15 @@ author: oompah
 created: 2026-07-30 00:01
 ---
 Understanding: The issue is that auditors (entries with is_auditor=True) are being terminated prematurely during reconciliation when their tracker task enters 'In Validation' state. The fix needs to keep auditors alive while In Validation so they can reach submit_audit_result, but continue terminating them if the task leaves In Validation or reaches a terminal state. Ordinary workers should still terminate when In Validation. Plan: (1) Explore Orchestrator._reconcile logic in orchestrator.py, (2) Identify the termination condition that fires for In Validation, (3) Add logic to exempt is_auditor entries from termination while In Validation, (4) Write tests to verify the fix and ensure existing behavior is preserved.
+---
+author: oompah
+created: 2026-07-30 00:02
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 14
+- Tokens: 262 in / 63 out [325 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 1m 11s
+- Log: OOMPAH-571__20260730T000132Z.jsonl
 ---
 <!-- COMMENTS:END -->
