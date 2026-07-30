@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-478
 type: feature
-status: Done
+status: Merged
 priority: 1
 title: Route epic rollup, child Done, and epic close transitions through audits
 parent: OOMPAH-459
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:26.329329Z'
-updated_at: '2026-07-30T00:59:04.554016Z'
+updated_at: '2026-07-30T04:15:21.061000Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-478
 target_branch: null
 review_url: null
