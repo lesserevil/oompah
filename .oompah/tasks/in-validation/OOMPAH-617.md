@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-617
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Integrate wrong-checkout submission protection
 parent: OOMPAH-587
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T20:52:01.122820Z'
-updated_at: '2026-07-30T20:52:50.465591Z'
+updated_at: '2026-07-30T21:08:04.801583Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -19,12 +19,37 @@ review_number: null
 merged_at: null
 oompah.integration:
   version: 1
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-587--task-OOMPAH-617
+  base_branch: epic-OOMPAH-587
+  base_sha: da86acf64b292122653b68f7bfaa71775111f237
   head_sha: a678afc20f9c2c97e9dd5bb54c09c2c10903d84c
+  integrated_sha: a678afc20f9c2c97e9dd5bb54c09c2c10903d84c
   submitted_at: '2026-07-30T20:52:48.099654+00:00'
-  updated_at: '2026-07-30T20:52:48.099654+00:00'
+  updated_at: '2026-07-30T21:08:00.720448+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-a02347139d13
+    project_id: proj-14849f1b
+    task_id: OOMPAH-617
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 49a0b5c1d2193ea7a9cea17099e45f3ad8e31eb283141d1c1216b149b4ce357b
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-30T21:08:02.464799+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -52,5 +77,10 @@ author: oompah
 created: 2026-07-30 20:52
 ---
 Integrated OOMPAH-576 wrong-checkout submission and worktree-reset protection onto the OOMPAH-587 epic branch. Combined-tree focused regressions: 125 passed; branch pushed at a678afc20.
+---
+author: oompah
+created: 2026-07-30 21:08
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
