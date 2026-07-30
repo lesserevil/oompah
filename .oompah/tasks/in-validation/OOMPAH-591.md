@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:26.620047Z'
-updated_at: '2026-07-30T22:21:02.803274Z'
+updated_at: '2026-07-30T22:30:54.830359Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-591
 target_branch: null
 review_url: null
@@ -297,18 +297,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-591
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: c5ee196fe8cdfdf1ee279f9294dd24fdd59f55176131221c7b5f5f9bdbb607c6
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-03cc29dbf171
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: c5ee196fe8cdfdf1ee279f9294dd24fdd59f55176131221c7b5f5f9bdbb607c6
+      created_at: '2026-07-30T22:30:50.043695+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-30T22:30:50.043695+00:00'
+      branch_key: epic-OOMPAH-585--task-OOMPAH-591
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-30T22:21:01.353393+00:00'
+    updated_at: '2026-07-30T22:30:50.043695+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-870b1c4d15ed
@@ -375,6 +389,19 @@ oompah.terminal_audit:
     branch_key: epic-OOMPAH-585--task-OOMPAH-591
     ended_at: '2026-07-30T21:17:37.933058+00:00'
     failure_reason: auditor session abandoned; no live worker owns the attempt
+  - version: 1
+    attempt_id: attempt-03cc29dbf171
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c5ee196fe8cdfdf1ee279f9294dd24fdd59f55176131221c7b5f5f9bdbb607c6
+    created_at: '2026-07-30T22:30:50.043695+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-30T22:30:50.043695+00:00'
+    branch_key: epic-OOMPAH-585--task-OOMPAH-591
 ---
 ## Summary
 
@@ -743,5 +770,15 @@ author: oompah
 created: 2026-07-30 22:15
 ---
 Reflowing the already-integrated implementation through the normal integration lane after repairing the two observed audit races. This produces one fresh evidence revision that supersedes both stale pending Done audits. Do not dispatch implementation work; the branch is already contained in epic-OOMPAH-585 and needs audit only.
+---
+author: oompah
+created: 2026-07-30 22:30
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-07-30 22:30
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
