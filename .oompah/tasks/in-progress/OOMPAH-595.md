@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:56.897824Z'
-updated_at: '2026-07-30T15:31:06.172681Z'
+updated_at: '2026-07-30T15:31:10.098292Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-595
 target_branch: null
 review_url: null
@@ -59,13 +59,13 @@ oompah.integration:
   base_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
   updated_at: '2026-07-30T15:30:44.767650+00:00'
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 859
+  total_input_tokens: 46973
+  total_output_tokens: 1360
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 10
-      output_tokens: 859
+      input_tokens: 46973
+      output_tokens: 1360
       cost_usd: 0.0
   runs:
   - profile: default
@@ -74,6 +74,12 @@ oompah.task_costs:
     output_tokens: 859
     cost_usd: 0.0
     recorded_at: '2026-07-30T15:30:33.098859+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 46963
+    output_tokens: 501
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T15:31:04.223935+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-595__20260730T152855Z
@@ -84,6 +90,14 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-586--task-OOMPAH-595
     source_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
     completed_at: '2026-07-30T15:30:33.105446+00:00'
+  - run_id: OOMPAH-595__20260730T153048Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: frontend
+    source_branch: epic-OOMPAH-586--task-OOMPAH-595
+    source_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
+    completed_at: '2026-07-30T15:31:04.228512+00:00'
 ---
 ## Summary
 
@@ -176,5 +190,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 22s
 - Log: OOMPAH-595__20260730T153048Z.jsonl
+---
+author: oompah
+created: 2026-07-30 15:31
+---
+Agent completed without closing this issue (22s (47464 tokens)). Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
 ---
 <!-- COMMENTS:END -->

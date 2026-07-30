@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:54.281403Z'
-updated_at: '2026-07-30T15:30:59.518901Z'
+updated_at: '2026-07-30T15:31:12.025142Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-593
 target_branch: null
 review_url: null
@@ -233,5 +233,10 @@ author: oompah
 created: 2026-07-30 15:30
 ---
 Discovery: existing regression coverage on the current head (epic-OOMPAH-586) already includes TestTaskHandoffGrantStore, TestTaskCliHandoff, TestTaskScopeDirectPath, TestTaskHandoffEndpoint, TestAgentCredentialBoundary, and TestFailedHandoffLifecycle in tests/test_task_handoff.py — all pass locally (16 passed, 1 warning). OOMPAH-575 (single commit e404d6eb7 on origin/OOMPAH-575) layers on TestHandoffTokenFailClosed + TestCodexHandoffAuth for the explicit 401/403 matrix. No documentation existed for the OOMPAH_TASK_HANDOFF_TOKEN / OOMPAH_TASK_HANDOFF_PROJECT_ID / POST /api/v1/task-handoff mechanism; docs/authentication.md only covers operator HTTP Basic. That is the gap I can close as Technical Writer without touching code behavior.
+---
+author: oompah
+created: 2026-07-30 15:31
+---
+Implementation (docs-only): Added docs/scoped-task-cli-authentication.md — an operator-facing reference for the shipped scoped task capability mechanism (env vars, endpoint, action allowlist, fail-closed matrix), plus a step-by-step live least-privilege probe procedure that captures only safe evidence (public identifiers, expected status codes) and never the opaque token or any operator credentials. Added an entry to docs/README.md and a cross-link from docs/authentication.md. All identifier and env var names verified against oompah/task_handoff.py, oompah/task_cli.py, oompah/server.py (POST /api/v1/task-handoff), oompah/orchestrator.py::_issue_task_handoff_token, and oompah/acp_backends/codex.py + opencode.py. No code behavior changes.
 ---
 <!-- COMMENTS:END -->
