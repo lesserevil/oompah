@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-602
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Repair project scope propagation in merged-label maintenance
 parent: OOMPAH-588
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:01.749200Z'
-updated_at: '2026-07-30T16:43:05.118432Z'
+updated_at: '2026-07-30T16:43:32.357965Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-602
 target_branch: null
 review_url: null
@@ -85,9 +85,17 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-588--task-OOMPAH-602
     source_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
     completed_at: '2026-07-30T16:13:01.943716+00:00'
+  - run_id: OOMPAH-602__20260730T164307Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-sol
+    focus: auth_http
+    source_branch: epic-OOMPAH-588--task-OOMPAH-602
+    source_sha: a6fbb7f03b8a9aea5790cfc9bc6b6355490d6a97
+    completed_at: '2026-07-30T16:43:28.146242+00:00'
 oompah.task_costs:
-  total_input_tokens: 1927
-  total_output_tokens: 9187
+  total_input_tokens: 61041
+  total_output_tokens: 9901
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -97,6 +105,10 @@ oompah.task_costs:
     unknown:
       input_tokens: 77
       output_tokens: 2606
+      cost_usd: 0.0
+    opus:
+      input_tokens: 59114
+      output_tokens: 714
       cost_usd: 0.0
   runs:
   - profile: default
@@ -123,6 +135,12 @@ oompah.task_costs:
     output_tokens: 2606
     cost_usd: 0.0
     recorded_at: '2026-07-30T16:42:32.969365+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 59114
+    output_tokens: 714
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T16:43:28.141826+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
@@ -343,5 +361,20 @@ author: oompah
 created: 2026-07-30 16:43
 ---
 Focus: Auth Http Default Specialist
+---
+author: oompah
+created: 2026-07-30 16:43
+---
+Agent completed successfully in 29s (59828 tokens)
+---
+author: oompah
+created: 2026-07-30 16:43
+---
+Run #2 [attempt=2, profile=deep, role=deep -> Codex/gpt-5.6-sol]
+- Turns: 1, Tool calls: 1
+- Tokens: 59.1K in / 714 out [59.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 29s
+- Log: OOMPAH-602__20260730T164307Z.jsonl
 ---
 <!-- COMMENTS:END -->
