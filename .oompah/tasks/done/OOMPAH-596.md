@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-596
 type: bug
-status: In Validation
+status: Done
 priority: 1
 title: Rearm conflict repairs after recoverable agent infrastructure failure
 parent: OOMPAH-587
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:26.248587Z'
-updated_at: '2026-07-30T18:18:23.345167Z'
+updated_at: '2026-07-30T18:20:53.166227Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-596
 target_branch: null
 review_url: null
@@ -200,6 +200,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     no-auditor-audit-2367df3b033e-1: '2026-07-30T18:13:31.482377+00:00'
+    attempt-a7119b3535e6: '2026-07-30T18:20:50.950365+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -253,7 +254,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-596
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -262,7 +263,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-a7119b3535e6
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -272,13 +273,16 @@ oompah.terminal_audit:
       model: nvidia/nvidia/nemotron-3-ultra
       started_at: '2026-07-30T18:18:12.612910+00:00'
       branch_key: epic-OOMPAH-587--task-OOMPAH-596
+      verdict: pass
+      completed_at: '2026-07-30T18:20:50.950311+00:00'
+      ended_at: '2026-07-30T18:20:50.950311+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: api
     previous_state: Needs Human
     created_at: '2026-07-30T18:16:25.348593+00:00'
-    updated_at: '2026-07-30T18:18:12.612910+00:00'
+    updated_at: '2026-07-30T18:20:50.950311+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-938f90fe8e83
@@ -894,5 +898,12 @@ author: oompah
 created: 2026-07-30 18:18
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 18:20
+---
+Audit PASS — Done
+
+[REDACTED]
 ---
 <!-- COMMENTS:END -->
