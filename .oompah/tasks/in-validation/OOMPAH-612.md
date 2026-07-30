@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T19:33:15.081209Z'
-updated_at: '2026-07-30T19:50:50.736039Z'
+updated_at: '2026-07-30T19:53:27.134719Z'
 work_branch: OOMPAH-612
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/595
@@ -38,18 +38,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-612
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 367b643b0dc201fcb00b364e5dc51b3683d583e00500e1adc5dd32e0749d2628
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-9b5e2b06fe84
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 367b643b0dc201fcb00b364e5dc51b3683d583e00500e1adc5dd32e0749d2628
+      created_at: '2026-07-30T19:53:23.492952+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-30T19:53:23.492952+00:00'
+      branch_key: OOMPAH-612
     requested_by:
       version: 1
       identity: NVShawn
       source: forge
     previous_state: In Review
     created_at: '2026-07-30T19:50:48.280429+00:00'
+    updated_at: '2026-07-30T19:53:23.492952+00:00'
   - version: 1
     audit_id: audit-f49ea3036489
     project_id: proj-14849f1b
@@ -67,7 +81,20 @@ oompah.terminal_audit:
       source: forge
     previous_state: In Review
     created_at: '2026-07-30T19:50:48.280429+00:00'
-  attempt_history: []
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-9b5e2b06fe84
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 367b643b0dc201fcb00b364e5dc51b3683d583e00500e1adc5dd32e0749d2628
+    created_at: '2026-07-30T19:53:23.492952+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-30T19:53:23.492952+00:00'
+    branch_key: OOMPAH-612
 ---
 ## Summary
 
@@ -102,5 +129,15 @@ author: oompah
 created: 2026-07-30 19:50
 ---
 Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-07-30 19:53
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-07-30 19:53
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
