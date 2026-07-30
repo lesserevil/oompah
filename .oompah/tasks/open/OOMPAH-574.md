@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-574
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Rerun failed cached quality gates on explicit same-head retry
 parent: null
@@ -11,12 +11,27 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T02:15:22.112289Z'
-updated_at: '2026-07-30T02:15:22.112289Z'
+updated_at: '2026-07-30T13:31:09.136101Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: f55f5eab566970505d6992f30c8a2400036ebbf0fd17826d3c17d85fb6db4782
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 27e2d9fd-5e8b-4e8c-a9f0-2bd0df89b57b
+  claim_owner: 42623072-9e4e-4956-a81f-a5c79aedc624
+  claimed_at: '2026-07-30T13:31:01.545314+00:00'
+  claim_expires_at: '2026-07-30T14:01:01.545314+00:00'
+  retry_count: 0
+  retry_after: null
+oompah.agent_run_id: 43cf88a2-713b-484b-838f-e9523cae8ed9
 ---
 ## Summary
 
@@ -31,10 +46,22 @@ Add regression coverage in tests/test_quality_gate.py, tests/test_integration_qu
 Acceptance criteria
 
 An explicit retry of an unchanged blocked integration row performs a real fresh quality gate instead of immediately reusing failed evidence; successful evidence remains safely reusable and no duplicate active gate is started.
-
 ## Acceptance Criteria
 
 - [ ] Define acceptance criteria.
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-30 13:31
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-07-30 13:31
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
