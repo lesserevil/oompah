@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-582
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Satisfy legacy Done cross-epic dependencies after parent merge
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:39:46.196812Z'
-updated_at: '2026-07-30T04:48:32.492222Z'
+updated_at: '2026-07-30T04:54:58.558007Z'
 work_branch: OOMPAH-582
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/592
@@ -137,6 +137,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/592
 oompah.review_number: '592'
 oompah.work_branch: OOMPAH-582
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-ba83e71f4e4d
+    project_id: proj-14849f1b
+    task_id: OOMPAH-582
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 720675a14cf2539cbbb8bf0aa1f078001c629588e8a2c121b2416760785dd739
+    attempts: []
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-30T04:54:55.183299+00:00'
+  - version: 1
+    audit_id: audit-6db456fe5e16
+    project_id: proj-14849f1b
+    task_id: OOMPAH-582
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 720675a14cf2539cbbb8bf0aa1f078001c629588e8a2c121b2416760785dd739
+    attempts: []
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-30T04:54:55.183299+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -264,5 +303,10 @@ Run #3 [attempt=3, profile=deep, role=deep -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 4m 32s
 - Log: OOMPAH-582__20260730T044357Z.jsonl
+---
+author: oompah
+created: 2026-07-30 04:54
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
