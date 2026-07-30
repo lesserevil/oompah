@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-483
 type: feature
-status: Open
+status: Ready to Integrate
 priority: 1
 title: Detect and block terminal-state writes that bypass the coordinator
 parent: OOMPAH-459
@@ -19,7 +19,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:31.119782Z'
-updated_at: '2026-07-30T02:54:57.546304Z'
+updated_at: '2026-07-30T02:55:29.773604Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-483
 target_branch: null
 review_url: null
@@ -110,15 +110,12 @@ oompah.task_costs:
     recorded_at: '2026-07-30T02:32:08.333773+00:00'
 oompah.integration:
   version: 1
-  state: blocked
-  attempts: 1
-  task_branch: main
-  base_branch: epic-OOMPAH-459
-  base_sha: f94236e267fecf7cf3549096665bedb79ea0d1a3
-  head_sha: ad9a9f226da793f3bc5c1547b25742923c659079
-  submitted_at: '2026-07-30T02:54:29.611264+00:00'
-  updated_at: '2026-07-30T02:54:37.819749+00:00'
-  last_error: 'fatal: ''main'' is already used by worktree at ''/home/shedwards/.oompah/repos/oompah'''
+  state: ready
+  attempts: 0
+  task_branch: epic-OOMPAH-459--task-OOMPAH-483
+  head_sha: bc448cf08b509b4373fdb0adee8cd699c8fa46a3
+  submitted_at: '2026-07-30T02:55:25.286548+00:00'
+  updated_at: '2026-07-30T02:55:25.286548+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
@@ -574,5 +571,10 @@ author: oompah
 created: 2026-07-30 02:54
 ---
 Correcting the integration submission context: the prior submit command was launched from the service checkout and therefore resolved branch main. Resubmitting from the verified task worktree so the queue records epic-OOMPAH-459--task-OOMPAH-483 at bc448cf08.
+---
+author: oompah
+created: 2026-07-30 02:55
+---
+Terminal mutation AST allowlist and gate isolation complete at bc448cf08; submitted from epic-OOMPAH-459--task-OOMPAH-483.
 ---
 <!-- COMMENTS:END -->
