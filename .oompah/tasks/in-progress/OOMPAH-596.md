@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:26.248587Z'
-updated_at: '2026-07-30T15:44:02.209051Z'
+updated_at: '2026-07-30T15:51:50.663321Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-596
 target_branch: null
 review_url: null
@@ -387,5 +387,42 @@ IMPLEMENTATION PLAN:
    - Route to 'needs_human' after max attempts exhausted
 7. Update integration queue recovery logic to respect backoff_until
 8. Add tests for: real conflict, 401, provider failure, successful retry, repeated failure/backoff, restart, no duplicate workers, needs_human exhaustion
+---
+author: oompah
+created: 2026-07-30 15:51
+---
+IMPLEMENTATION: Core backoff and repair recovery infrastructure complete
+
+Implemented in oompah/integration.py and oompah/orchestrator.py:
+
+1. **IntegrationRecord v2** (oompah/integration.py):
+   - Added backoff_until (ISO 8601 timestamp) for cooldown periods
+   - Added repair_failure_reason to track failure classification
+   - Added 'needs_human' state for exhausted repairs
+   - v1->v2 migration: old records auto-upgrade when loaded
+
+2. **Failure Classification** (classify_conflict_repair_failure):
+   - Detects: conflict, auth_failed, rate_limited, timeout, overloaded, provider_unavailable, missing_credentials, invalid_model
+   - Infrastructure failures (all except 'conflict') trigger backoff/retry
+   - Real conflicts dispatch to human operator
+
+3. **Backoff Logic** (_route_integration_failure):
+   - Exponential backoff: 5m, 15m, 45m on each attempt
+   - Max 4 repair attempts (3 retries + needs_human transition)
+   - Preserves conflict details and error messages for retries
+   - User-friendly instructions for manual resolution after exhaustion
+
+4. **Queue Processing** (_process_integration_queues):
+   - Added _is_integration_item_in_backoff() to check cooldown periods
+   - Skips items still in backoff, releases lease to allow retry after cooldown
+   - No duplicate workers: backoff prevents multiple workers on same item
+
+Test coverage (tests/test_integration_conflict_repair.py):
+- Real conflicts vs infrastructure failures classification
+- Backoff tracking and metadata preservation
+- v1->v2 migration and version compatibility
+- All 34 existing + new tests pass
+
+Ready for: orchestrator routing, health check integration, and documentation
 ---
 <!-- COMMENTS:END -->
