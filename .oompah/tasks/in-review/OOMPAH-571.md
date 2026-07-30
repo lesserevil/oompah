@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T23:57:40.926693Z'
-updated_at: '2026-07-30T00:02:43.321758Z'
+updated_at: '2026-07-30T00:02:50.573292Z'
 work_branch: OOMPAH-571
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/586
@@ -137,5 +137,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 1m 11s
 - Log: OOMPAH-571__20260730T000132Z.jsonl
+---
+author: oompah
+created: 2026-07-30 00:02
+---
+PR #586 is open with the auditor-reconciliation regression fix; focused tests pass and the full gate is running.
 ---
 <!-- COMMENTS:END -->
