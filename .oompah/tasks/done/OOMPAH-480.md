@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-480
 type: feature
-status: In Validation
+status: Done
 priority: 1
 title: Route release-delivery and release-pick terminal updates through audits
 parent: OOMPAH-459
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:28.235708Z'
-updated_at: '2026-07-30T01:39:06.399824Z'
+updated_at: '2026-07-30T01:45:12.289158Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-480
 target_branch: null
 review_url: null
@@ -112,6 +112,8 @@ oompah.work_contributors:
     completed_at: '2026-07-29T19:02:59.322134+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-a481da05abb4: '2026-07-30T01:45:10.304163+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -119,7 +121,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-480
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -128,7 +130,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-a481da05abb4
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -138,13 +140,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-30T01:38:59.595576+00:00'
       branch_key: epic-OOMPAH-459--task-OOMPAH-480
+      verdict: pass
+      completed_at: '2026-07-30T01:45:10.303983+00:00'
+      ended_at: '2026-07-30T01:45:10.303983+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-30T01:38:51.031669+00:00'
-    updated_at: '2026-07-30T01:38:59.595576+00:00'
+    updated_at: '2026-07-30T01:45:10.303983+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-a481da05abb4
@@ -534,5 +539,24 @@ author: oompah
 created: 2026-07-30 01:39
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 01:45
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- head_sha: 0b84b7b6d6a1ef0d77ad0de7e6dc51ef2676792c
+- branch: epic-OOMPAH-459--task-OOMPAH-480
+- commit_summary: OOMPAH-480: Audit release pick terminal transitions
+- commits_changed: 3 (oompah/orchestrator.py, oompah/release_pick_reconciler.py, tests/test_release_pick_reconciler.py)
+- release_pick_reconciler_tests: 108 passed
+- combined_focused_tests: 241 passed (terminal_transition_coordinator, cherry_pick_pr_creator, release_addendum_executor, release_delivery_poller)
+- audit_and_gate_tests: 82 passed (terminal_audit, landing_gate, close_gate)
+- delivery_bookkeeping_tests: 360 passed (release_delivery_refresh/backlog/inventory/executor, release_addendum_migration)
+- direct_terminal_writes_in_release_paths: none (release_pick_reconciler/release_delivery_*/release_addendum_* contain no tracker.update_issue MERGED/DONE/ARCHIVED calls)
+- cherry_pick_helper_writes: only NEEDS_REBASE and IN_REVIEW (non-terminal)
 ---
 <!-- COMMENTS:END -->
