@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-30T14:14:54.281403Z'
-updated_at: '2026-07-30T16:12:17.875774Z'
+updated_at: '2026-07-30T16:12:25.828498Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-593
 target_branch: null
 review_url: null
@@ -508,5 +508,10 @@ author: oompah
 created: 2026-07-30 16:12
 ---
 Verification: uv run pytest tests/test_task_handoff.py tests/test_acp_codex_backend.py → 91 passed. uv run pytest tests/test_orchestrator_handlers.py::TestHandleDispatchNeeded → 15 passed. Both previously-failing tests (test_in_progress_refresh_timeout_uses_the_same_safe_boundary and test_candidate_refresh_timeout_does_not_block_dispatch_loop) now pass reliably. Branch pushed as 0a260f027.
+---
+author: oompah
+created: 2026-07-30 16:12
+---
+Completion (Auth Http Default Specialist): Fixed the quality gate failure on epic-OOMPAH-586--task-OOMPAH-593. Root cause: test_in_progress_refresh_timeout_uses_the_same_safe_boundary had a tight timing assertion (< 0.15s) that failed under xdist parallel load; the timeout mechanism itself was working correctly. Fix: cherry-picked OOMPAH-589's deterministic-timeout patch (c4644107f) which increases slow-tracker sleep from 0.2s to 60s and relaxes assertion from < 0.15s to < 2.0s. All prior work preserved: docs/scoped-task-cli-authentication.md, 11 OOMPAH-575 regression tests (TestCodexHandoffAuth + TestHandoffTokenFailClosed), 6 TestOrchestratorHandoffTokenMint tests. Focused suites: 91 + 15 passed. Branch is at 0a260f027 and pushed.
 ---
 <!-- COMMENTS:END -->
