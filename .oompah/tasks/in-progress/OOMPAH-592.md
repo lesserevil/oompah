@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:28.755226Z'
-updated_at: '2026-07-30T15:51:10.295839Z'
+updated_at: '2026-07-30T15:51:22.168771Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-592
 target_branch: null
 review_url: null
@@ -195,5 +195,21 @@ Coverage:
 Acceptance criteria met:
 - A state with failed auditor launches or materially stale pending audits cannot show an empty healthy alert list ✓
 - Recovered normal operation clears the alert deterministically ✓
+---
+author: oompah
+created: 2026-07-30 15:51
+---
+Completion: OOMPAH-592 Alert on terminal-audit launch failures and backlog age — delivered.
+
+Files changed:
+- oompah/terminal_audit_health.py (NEW): AuditHealthObservation, TerminalAuditHealth, build_terminal_audit_health, terminal_audit_health_alerts. Six alert types: launch_failures (error), retry_exhausted (error), backlog_age (warning), stale_validation (warning), scan (warning), metadata_quarantine (error). Redaction enforced — failure reasons classified by phrase matching, never included in alert text.
+- oompah/orchestrator.py: _refresh_terminal_audit_health() method, observation collection in _dispatch_audit_lane, terminal_audit_health/health exposed in get_snapshot
+- oompah/config.py: audit_stale_pending_seconds field + OOMPAH_AUDIT_STALE_PENDING_SECONDS env var (default 3600)
+- oompah/templates/dashboard.html: accessible #terminal-audit-health banner (role=status, aria-live=polite, renderTerminalAuditHealth JS)
+- tests/test_terminal_audit_health.py (32 tests)
+- tests/test_terminal_audit_health_api.py (2 tests)
+- tests/test_dashboard_terminal_audit_health.py (16 tests)
+
+Commit: 7d0b36307 on epic-OOMPAH-585--task-OOMPAH-592
 ---
 <!-- COMMENTS:END -->
