@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-486
 type: feature
-status: In Validation
+status: Done
 priority: 1
 title: Add terminal-audit metrics, maintenance health, and actionable alerts
 parent: OOMPAH-460
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:25.195304Z'
-updated_at: '2026-07-30T05:18:51.960315Z'
+updated_at: '2026-07-30T05:26:49.175204Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-486
 target_branch: null
 review_url: null
@@ -127,6 +127,8 @@ oompah.work_contributors:
     completed_at: '2026-07-29T19:57:22.682164+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-6863d2d088df: '2026-07-30T05:26:47.037390+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -134,7 +136,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-486
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -143,7 +145,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-6863d2d088df
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -153,13 +155,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-30T05:18:46.430872+00:00'
       branch_key: epic-OOMPAH-460--task-OOMPAH-486
+      verdict: pass
+      completed_at: '2026-07-30T05:26:47.037185+00:00'
+      ended_at: '2026-07-30T05:26:47.037185+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-30T05:18:41.231022+00:00'
-    updated_at: '2026-07-30T05:18:46.430872+00:00'
+    updated_at: '2026-07-30T05:26:47.037185+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-6863d2d088df
@@ -437,5 +442,28 @@ author: oompah
 created: 2026-07-30 05:18
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 05:26
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: 254d24548
+- commits_ahead_of_main: 4
+- epic_contains_head: true
+- observability_tests: 9 passed
+- coordinator_tests: 104 passed
+- status_interface_tests: 9 passed
+- dashboard_test: 1 passed
+- terminal_audit_family_tests: 60 passed
+- orchestrator_pause_corruption_test: 1 passed
+- event_driven_loop_tests: 54 passed
+- counter_names: passed,failed,retried,stale_discarded,overridden,grandfathered,no_independent_candidate
+- snapshot_keys_verified: terminal_audit, orchestrator_metrics.terminal_audit, maintenance.terminal_audit
+- actionable_alert_kinds: persistence_corrupt, no_independent_candidate, attempt_threshold, age_threshold, queue_recovery_failed
+- dashboard_stat_ids: audit-stat, audit-queued, audit-running
 ---
 <!-- COMMENTS:END -->
