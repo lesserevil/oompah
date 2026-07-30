@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T17:58:44.309909Z'
-updated_at: '2026-07-30T18:20:57.231559Z'
+updated_at: '2026-07-30T18:23:03.960358Z'
 work_branch: OOMPAH-605
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/593
@@ -262,5 +262,18 @@ Safe evidence:
 - epic_branches_preserved: origin/epic-OOMPAH-585 and children --task-OOMPAH-{589,590,591,592,604} still present
 - focused_tests_this_session: terminal_override 27p, auditor+candidate+provider+focus+issue+completion 310p, orchestrator_handlers+coordinator+auditor_contract 388p, task_cli+api_agent_budget 238p
 - full_gate_prior_handoff: 13,724 passed, 7 skipped on cfe2916c5 (per 2026-07-30 18:07 operator comment)
+---
+author: oompah
+created: 2026-07-30 18:23
+---
+Live recovery verification after PR #593 merged:
+- service restarted gracefully as instance ac40770c-37a8-4b2c-b040-7a7ae948f467
+- fresh auditors launch against their persisted provider/model instead of failing with unknown URL type /chat/completions
+- OOMPAH-596 completed a fresh independent audit and reached Done
+- OOMPAH-589, OOMPAH-593, and OOMPAH-604 were restaged with current evidence after stale overrides correctly failed closed
+- ordinary scheduler work resumed concurrently
+- project-name alias false-403 discovered and filed as OOMPAH-607; the canonical project-ID path remains functional
+
+No tracker Markdown or queue record was edited directly.
 ---
 <!-- COMMENTS:END -->
