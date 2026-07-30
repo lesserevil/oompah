@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-593
 type: task
-status: In Validation
+status: Needs Human
 priority: 1
 title: Integrate and live-verify scoped Codex task CLI authentication
 parent: OOMPAH-586
@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-30T14:14:54.281403Z'
-updated_at: '2026-07-30T18:19:23.826768Z'
+updated_at: '2026-07-30T19:34:19.316975Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-593
 target_branch: null
 review_url: null
@@ -169,6 +169,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     no-auditor-audit-9b099c38caba-1: '2026-07-30T18:13:28.931470+00:00'
+    no-auditor-audit-d1990b4a35cf-1: '2026-07-30T19:34:16.475288+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -222,7 +223,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-593
     target_state: Done
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -244,13 +245,25 @@ oompah.terminal_audit:
       ended_at: '2026-07-30T18:19:20.563848+00:00'
       failure_reason: Stalled after 10 turns without productive action
       next_retry_at: '2026-07-30T18:19:30.563812+00:00'
+    - version: 1
+      attempt_id: no-auditor-audit-d1990b4a35cf-1
+      target_state: Done
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 64a3ea2fe7c425c2db0babd15797e447b48f9639016aae41f19307bb6f57a4d6
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-07-30T19:34:16.475173+00:00'
+      completed_at: '2026-07-30T19:34:16.475173+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: api
     previous_state: Needs Human
     created_at: '2026-07-30T18:16:15.292504+00:00'
-    updated_at: '2026-07-30T18:19:20.563848+00:00'
+    updated_at: '2026-07-30T19:34:16.475173+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-4db44537a773
@@ -725,5 +738,12 @@ author: oompah
 created: 2026-07-30 18:19
 ---
 Auditor attempt ended: Stalled after 10 turns without productive action. A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-07-30 19:34
+---
+Needs Human — Done audit requires operator input.
+
+No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then move the task back to Open to retry.
 ---
 <!-- COMMENTS:END -->

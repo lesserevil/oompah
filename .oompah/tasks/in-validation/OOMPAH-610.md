@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:53:05.632137Z'
-updated_at: '2026-07-30T19:33:33.340035Z'
+updated_at: '2026-07-30T19:34:29.528540Z'
 work_branch: OOMPAH-610
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/594
@@ -152,18 +152,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-610
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 8a45e32e03bb6f6616011264ecddde94b139adfb31d38a5a5649a12743cbd557
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-7fac07b83954
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 8a45e32e03bb6f6616011264ecddde94b139adfb31d38a5a5649a12743cbd557
+      created_at: '2026-07-30T19:34:24.347503+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-30T19:34:24.347503+00:00'
+      branch_key: OOMPAH-610
     requested_by:
       version: 1
       identity: NVShawn
       source: forge
     previous_state: In Review
     created_at: '2026-07-30T19:15:33.898604+00:00'
+    updated_at: '2026-07-30T19:34:24.347503+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-9ad0fa99a03f
@@ -177,6 +191,19 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: opus
     started_at: '2026-07-30T19:15:41.439054+00:00'
+    branch_key: OOMPAH-610
+  - version: 1
+    attempt_id: attempt-7fac07b83954
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8a45e32e03bb6f6616011264ecddde94b139adfb31d38a5a5649a12743cbd557
+    created_at: '2026-07-30T19:34:24.347503+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-30T19:34:24.347503+00:00'
     branch_key: OOMPAH-610
 ---
 ## Summary
@@ -336,5 +363,15 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: normal, Duration: 17m 49s
 - Log: OOMPAH-610__20260730T191549Z.jsonl
+---
+author: oompah
+created: 2026-07-30 19:34
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-07-30 19:34
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
