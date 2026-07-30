@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-483
 type: feature
-status: In Validation
+status: Open
 priority: 1
 title: Detect and block terminal-state writes that bypass the coordinator
 parent: OOMPAH-459
@@ -19,7 +19,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:31.119782Z'
-updated_at: '2026-07-30T02:23:54.738055Z'
+updated_at: '2026-07-30T02:31:11.350574Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-483
 target_branch: null
 review_url: null
@@ -98,6 +98,8 @@ oompah.integration:
   updated_at: '2026-07-30T02:23:52.728337+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-6ce2bc425063: '2026-07-30T02:31:09.238453+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -105,7 +107,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-483
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -114,7 +116,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-6ce2bc425063
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -124,13 +126,17 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-30T02:23:49.398456+00:00'
       branch_key: epic-OOMPAH-459--task-OOMPAH-483
+      verdict: fail
+      failure_classification: missing_tests
+      completed_at: '2026-07-30T02:31:09.238250+00:00'
+      ended_at: '2026-07-30T02:31:09.238250+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-30T02:23:33.044363+00:00'
-    updated_at: '2026-07-30T02:23:49.398456+00:00'
+    updated_at: '2026-07-30T02:31:09.238250+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-6ce2bc425063
@@ -345,5 +351,19 @@ author: oompah
 created: 2026-07-30 02:23
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 02:31
+---
+Audit FAIL — missing tests. Routing task to Open.
+
+[REDACTED]
+
+Instructions:
+- Add the AST/source regression test in tests/ (e.g., tests/test_terminal_audit_scanner.py) that parses every oompah/*.py module and flags calls to tracker.close_issue, tracker.archive_issue, or tracker.update_issue with a terminal-state constant.
+- Define an explicit allowlist of authorized modules (e.g., TerminalTransitionCoordinator, TerminalAuditMetadata, oompah/auditor.py) and check the allowlist in the test.
+- Ensure the scanner does NOT flag terminal-state comparisons or tests, per the task's explicit non-flagging requirement.
+- Replace or add justified allowlist comments for the current direct-close call sites in oompah/error_watcher.py, oompah/server.py, and oompah/orchestrator.py; make each remaining call pass the new test.
+- Cover the required test matrix (direct tracker write, forge label event, stale process race, grandfathered record, authorized override, changed fingerprint, repeated sweep, tracker failure, and static-scanner positive/negative fixtures) and rerun make test.
 ---
 <!-- COMMENTS:END -->
