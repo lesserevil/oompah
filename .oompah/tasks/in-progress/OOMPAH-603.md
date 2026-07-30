@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:03.538398Z'
-updated_at: '2026-07-30T16:32:01.809480Z'
+updated_at: '2026-07-30T16:32:57.875142Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-603
 target_branch: null
 review_url: null
@@ -165,5 +165,26 @@ author: oompah
 created: 2026-07-30 16:32
 ---
 Focus: Auth Http Default Specialist
+---
+author: oompah
+created: 2026-07-30 16:32
+---
+UNDERSTANDING: This issue requires defining health thresholds for repository hygiene. The scope is to:
+
+1. Transform raw cleanup inventory into actionable health metrics (categorize worktrees/branches as active, dirty, unmerged, terminal-protected, shared-owner, safely-prunable)
+2. Add configurable age/count thresholds to .env/.env.example
+3. Alert only on overdue safely-prunable artifacts or cleanup errors
+4. Update docs with operator verification path
+
+This is an API/health feature, so I need to:
+1. Find/create maintenance status APIs that report health categorized by artifact state
+2. Find the cleanup scheduler and integrate threshold-based alerting
+3. Add .env configuration for thresholds
+4. Document operator verification procedures
+5. Ensure dashboard/API properly render health status
+
+As an Auth/Http specialist, I'll focus on API design, state transitions, configuration validation, and integration point definitions.
+
+Let me explore the existing codebase structure.
 ---
 <!-- COMMENTS:END -->
