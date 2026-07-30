@@ -4468,6 +4468,7 @@ class Orchestrator:
                                 )
                             )
                         ),
+                        failure_classification=FailureClassification.INFRASTRUCTURE_ERROR,
                     )
                     await asyncio.get_running_loop().run_in_executor(
                         self._tick_pool,
@@ -22923,7 +22924,12 @@ class Orchestrator:
         reason: str,
         error: str | None,
     ) -> bool:
-        """Persist an auditor exit only if no structured result won the race."""
+        """Persist an auditor exit only if no structured result won the race.
+        
+        Transient failures (crash, timeout, transport error) are classified as
+        INFRASTRUCTURE_ERROR to distinguish them from terminal audit failures.
+        The attempt is marked for retry with the next candidate.
+        """
 
         if not entry.audit_attempt_id:
             return False
@@ -22963,6 +22969,7 @@ class Orchestrator:
                         milliseconds=self._backoff_delay(rotation + 1)
                     )
                 ),
+                failure_classification=FailureClassification.INFRASTRUCTURE_ERROR,
             )
             self._audit_update_record(
                 store,
