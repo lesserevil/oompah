@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T02:15:22.112289Z'
-updated_at: '2026-07-30T13:34:19.671376Z'
+updated_at: '2026-07-30T13:39:04.391388Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -158,5 +158,58 @@ Understanding the current implementation:
 4. Wire explicit_retry flag from integration_queue through task handoff to executor
 5. Add comprehensive tests for all scenarios
 6. Ensure concurrent gate deduplication still works
+---
+author: oompah
+created: 2026-07-30 13:39
+---
+**Implementation Complete**
+
+Changes made to enable forced re-execution of failed quality gates on explicit retry:
+
+**Files Modified:**
+
+1. **oompah/quality_gate.py**
+   - Added retry_forced parameter to BranchQualityGate.run()
+   - When retry_forced=True: bypasses cache for failed/timed_out/error results
+   - Passed results remain cached and reused regardless of retry_forced flag
+
+2. **oompah/integration_queue.py**
+   - Added retry_forced column to integration_queue table schema
+   - Set retry_forced=1 when explicit_retry=True resets a blocked row to ready
+   - Clear retry_forced=0 when item is claimed (moved to integrating state)
+   - Added database migration to add column to older databases
+   - Updated _from_row() with safe column access for backward compatibility
+
+3. **oompah/integration_executor.py**
+   - Added retry_forced parameter to execute_integration() function signature
+   - Pass retry_forced through to quality_gate.run() call
+
+4. **oompah/orchestrator.py**
+   - Pass item.retry_forced from IntegrationQueueItem to execute_integration()
+
+5. **tests/test_quality_gate.py**
+   - Added 5 new tests:
+     * test_explicit_retry_re_executes_failed_result
+     * test_explicit_retry_re_executes_timeout_result
+     * test_explicit_retry_re_executes_failed_with_non_zero_exit
+     * test_explicit_retry_preserves_passed_cache
+     * test_explicit_retry_can_recover_from_transient_failure
+
+6. **tests/test_integration_queue.py**
+   - Added 3 new tests:
+     * test_explicit_retry_sets_retry_forced_flag
+     * test_retry_forced_cleared_when_claimed
+     * test_new_head_on_explicit_retry_row_clears_retry_forced
+
+**Acceptance Criteria Met:**
+✓ Explicit retry of unchanged blocked integration row performs fresh quality gate
+✓ Cached failed/timed_out/error results are bypassed on forced retry
+✓ Successful/passed results remain safely reusable
+✓ No duplicate active gates - existing single-flight lock prevents concurrent execution
+✓ Retry intent wired through task handoff/API without weakening normal cache reuse
+✓ Comprehensive test coverage for all scenarios
+
+All 27 tests in test_quality_gate.py and test_integration_queue.py pass.
+All 4 tests in test_integration_executor.py pass.
 ---
 <!-- COMMENTS:END -->
