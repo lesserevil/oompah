@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T21:58:34.567478Z'
-updated_at: '2026-07-30T22:11:51.332456Z'
+updated_at: '2026-07-30T22:12:36.350140Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-625
 target_branch: null
 review_url: null
@@ -42,13 +42,17 @@ oompah.integration:
   base_sha: 078bcd40c159a7906c30444ceae2e563b48e1ca3
   updated_at: '2026-07-30T22:06:46.829592+00:00'
 oompah.task_costs:
-  total_input_tokens: 870000
-  total_output_tokens: 4588
+  total_input_tokens: 870012
+  total_output_tokens: 5493
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 870000
       output_tokens: 4588
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 12
+      output_tokens: 905
       cost_usd: 0.0
   runs:
   - profile: default
@@ -57,6 +61,12 @@ oompah.task_costs:
     output_tokens: 4588
     cost_usd: 0.0
     recorded_at: '2026-07-30T22:01:28.070502+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 12
+    output_tokens: 905
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T22:12:34.811125+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-625__20260730T215946Z
@@ -210,5 +220,15 @@ Safe evidence:
 - preflight_verifier_selector_suites: tests/test_candidate_preflight.py, test_completion_verifier.py, test_auditor_candidate_selector.py, test_dashboard_terminal_audit_health.py: 180 passed
 - git_status: working tree clean; branch up to date with origin/epic-OOMPAH-585--task-OOMPAH-625
 - direct_pop_scan: grep -n '_audit_branch_claims\.pop' oompah: only match is inside _release_audit_branch_claim itself (line 4386), no bypassing callsites remain
+---
+author: oompah
+created: 2026-07-30 22:12
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 39
+- Tokens: 12 in / 905 out [917 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 5m 51s
+- Log: OOMPAH-625__20260730T220650Z.jsonl
 ---
 <!-- COMMENTS:END -->
