@@ -13,7 +13,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:26.620047Z'
-updated_at: '2026-07-30T18:47:34.466678Z'
+updated_at: '2026-07-30T18:47:59.391974Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-591
 target_branch: null
 review_url: null
@@ -51,18 +51,12 @@ oompah.agent_run_id: 29fbf8c4-5a3e-4070-818d-d4398b9906d8
 oompah.work_branch: epic-OOMPAH-585--task-OOMPAH-591
 oompah.integration:
   version: 1
-  state: integrated
-  attempts: 1
+  state: working
+  attempts: 0
   task_branch: epic-OOMPAH-585--task-OOMPAH-591
   base_branch: epic-OOMPAH-585
-  base_sha: cc261493377c48796574c954e4ca89b65ff7afc1
-  head_sha: 3af9b8104c091984dee8d7f9066b2e14ef275691
-  integrated_sha: 3af9b8104c091984dee8d7f9066b2e14ef275691
-  submitted_at: '2026-07-30T15:19:23.453956+00:00'
-  updated_at: '2026-07-30T18:47:30.742288+00:00'
-  dependency_heads:
-    OOMPAH-590: 196653392d78b3bcbcae58c6f8c52aa4be161d4c
-    OOMPAH-589: b252293d3fc950f79a342c74b51d3285f62ecf4c
+  base_sha: 3af9b8104c091984dee8d7f9066b2e14ef275691
+  updated_at: '2026-07-30T18:47:56.716341+00:00'
 oompah.task_costs:
   total_input_tokens: 1026
   total_output_tokens: 626
@@ -104,19 +98,46 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-591
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: c8aa438d295d71b5d7524e1319fdd2038e722d3bbafafbc5a40bf8cdeff8e442
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-870b1c4d15ed
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: c8aa438d295d71b5d7524e1319fdd2038e722d3bbafafbc5a40bf8cdeff8e442
+      created_at: '2026-07-30T18:47:52.753715+00:00'
+      provider_id: prov-52e94e83
+      model: gpt-5.6-sol
+      started_at: '2026-07-30T18:47:52.753715+00:00'
+      branch_key: epic-OOMPAH-585--task-OOMPAH-591
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-30T18:47:32.059124+00:00'
-  attempt_history: []
+    updated_at: '2026-07-30T18:47:52.753715+00:00'
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-870b1c4d15ed
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c8aa438d295d71b5d7524e1319fdd2038e722d3bbafafbc5a40bf8cdeff8e442
+    created_at: '2026-07-30T18:47:52.753715+00:00'
+    provider_id: prov-52e94e83
+    model: gpt-5.6-sol
+    started_at: '2026-07-30T18:47:52.753715+00:00'
+    branch_key: epic-OOMPAH-585--task-OOMPAH-591
 ---
 ## Summary
 
@@ -291,5 +312,15 @@ author: oompah
 created: 2026-07-30 18:47
 ---
 Queued for terminal transition to Done. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-07-30 18:47
+---
+Auditor dispatched (attempt #1, candidate: prov-52e94e83/gpt-5.6-sol)
+---
+author: oompah
+created: 2026-07-30 18:47
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
