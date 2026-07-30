@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-602
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Repair project scope propagation in merged-label maintenance
 parent: OOMPAH-588
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:01.749200Z'
-updated_at: '2026-07-30T18:45:31.202447Z'
+updated_at: '2026-07-30T18:52:22.485265Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-602
 target_branch: null
 review_url: null
@@ -61,12 +61,12 @@ oompah.agent_run_id: 4eeea2a6-cac7-4100-9af7-edd146fc04d3
 oompah.work_branch: epic-OOMPAH-588--task-OOMPAH-602
 oompah.integration:
   version: 1
-  state: ready
+  state: working
   attempts: 0
   task_branch: epic-OOMPAH-588--task-OOMPAH-602
-  head_sha: 9e7f53286913f34b40cdc52a56b734d31c91e8aa
-  submitted_at: '2026-07-30T18:45:14.338421+00:00'
-  updated_at: '2026-07-30T18:45:14.338421+00:00'
+  base_branch: epic-OOMPAH-588
+  base_sha: 9e7f53286913f34b40cdc52a56b734d31c91e8aa
+  updated_at: '2026-07-30T18:52:20.292625+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-602__20260730T160131Z
@@ -158,7 +158,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-602
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -188,6 +188,37 @@ oompah.terminal_audit:
     previous_state: Ready to Integrate
     created_at: '2026-07-30T16:34:29.743936+00:00'
     updated_at: '2026-07-30T16:42:16.986501+00:00'
+  - version: 1
+    audit_id: audit-34aa65be3c6d
+    project_id: proj-14849f1b
+    task_id: OOMPAH-602
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 15082b631e8dfd46b1e65284362031b1f3b1c4652100766fe5e39d204eac284f
+    attempts:
+    - version: 1
+      attempt_id: attempt-8690b03db7dc
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 15082b631e8dfd46b1e65284362031b1f3b1c4652100766fe5e39d204eac284f
+      created_at: '2026-07-30T18:52:16.151300+00:00'
+      provider_id: prov-3c712bff
+      model: nvidia/nvidia/nemotron-3-ultra
+      started_at: '2026-07-30T18:52:16.151300+00:00'
+      branch_key: epic-OOMPAH-588--task-OOMPAH-602
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-30T18:52:11.912760+00:00'
+    updated_at: '2026-07-30T18:52:16.151300+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-a66782c834a3
@@ -201,6 +232,19 @@ oompah.terminal_audit:
     provider_id: prov-52e94e83
     model: gpt-5.6-sol
     started_at: '2026-07-30T16:34:35.200231+00:00'
+    branch_key: epic-OOMPAH-588--task-OOMPAH-602
+  - version: 1
+    attempt_id: attempt-8690b03db7dc
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 15082b631e8dfd46b1e65284362031b1f3b1c4652100766fe5e39d204eac284f
+    created_at: '2026-07-30T18:52:16.151300+00:00'
+    provider_id: prov-3c712bff
+    model: nvidia/nvidia/nemotron-3-ultra
+    started_at: '2026-07-30T18:52:16.151300+00:00'
     branch_key: epic-OOMPAH-588--task-OOMPAH-602
 ---
 ## Summary
@@ -407,5 +451,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 31m 49s
 - Log: OOMPAH-602__20260730T181348Z.jsonl
+---
+author: oompah
+created: 2026-07-30 18:52
+---
+Auditor dispatched (attempt #1, candidate: prov-3c712bff/nvidia/nvidia/nemotron-3-ultra)
+---
+author: oompah
+created: 2026-07-30 18:52
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
