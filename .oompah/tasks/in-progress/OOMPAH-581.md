@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:35:07.041991Z'
-updated_at: '2026-07-30T04:38:52.661048Z'
+updated_at: '2026-07-30T04:39:12.573802Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -174,5 +174,10 @@ author: oompah
 created: 2026-07-30 04:38
 ---
 Focus: Refactoring Specialist
+---
+author: oompah
+created: 2026-07-30 04:39
+---
+Understanding: This task requires extending the terminal maintenance cleanup in oompah/projects.py to recognize and prune epic repair workspaces. When an epic is terminal (merged/archived) with work_branch=epic-<id>, any auxiliary repair worktree at <worktree_root>/<id> on branch <id> should be auto-cleaned if: (1) it is the managed registered path, (2) it has the exact same-identifier branch, (3) it is clean and ancestor-safe (merged into main). Guards: never touch dirty worktrees, unmerged heads, shared branches, or different-identifier branches. Plan: explore oompah/projects.py cleanup logic, understand existing worktree cleanup guards, then add the auxiliary repair workspace cleanup as a narrowly-scoped extension with tests covering the real bare-remote scenario.
 ---
 <!-- COMMENTS:END -->
