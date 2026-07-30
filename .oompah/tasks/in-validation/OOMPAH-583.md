@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-583
 type: task
-status: In Progress
+status: In Validation
 priority: 0
 title: Rebase epic-OOMPAH-460 onto main
 parent: OOMPAH-460
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:55:03.778533Z'
-updated_at: '2026-07-30T04:56:02.859283Z'
+updated_at: '2026-07-30T04:56:51.802096Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-583
 target_branch: null
 review_url: null
@@ -27,6 +27,28 @@ oompah.integration:
   base_branch: epic-OOMPAH-460
   base_sha: 3aa2bd65bebf902b96e933e845352b1a8b98fbe7
   updated_at: '2026-07-30T04:56:00.819084+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-553495f71c09
+    project_id: proj-14849f1b
+    task_id: OOMPAH-583
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b922e4eb7a1d0ba02b2e9a374817ac10f0d2ddc5f9982db4a659f07a0e41b95c
+    attempts: []
+    requested_by:
+      version: 1
+      identity: api-client
+      source: api
+    previous_state: In Progress
+    created_at: '2026-07-30T04:56:43.837778+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -51,5 +73,15 @@ author: oompah
 created: 2026-07-30 04:56
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-30 04:56
+---
+Operator completed the final one-commit fast-forward after PR #592 advanced main. Clean epic worktree rebased from 3aa2bd65b to 12f63352b and published with an exact SHA lease; local and remote heads match. Administrative rebase helper is complete and should be archived.
+---
+author: oompah
+created: 2026-07-30 04:56
+---
+Queued for terminal transition to Archived. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->

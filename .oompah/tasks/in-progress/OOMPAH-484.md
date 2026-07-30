@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-484
 type: feature
-status: Ready to Integrate
+status: In Progress
 priority: 1
 title: Expose safe terminal-audit state in project, task, and activity APIs
 parent: OOMPAH-460
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:23.210919Z'
-updated_at: '2026-07-29T19:16:20.624289Z'
+updated_at: '2026-07-30T04:56:58.856720Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-484
 target_branch: null
 review_url: null
@@ -43,7 +43,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 4bdf2e89-7b62-4e4a-90a6-d6bb2f186cc5
+oompah.agent_run_id: f14d8950-4387-40b2-8033-88087fb45e7c
 oompah.work_branch: epic-OOMPAH-460--task-OOMPAH-484
 oompah.task_costs:
   total_input_tokens: 391905
@@ -73,12 +73,12 @@ oompah.task_costs:
     recorded_at: '2026-07-29T19:16:19.367536+00:00'
 oompah.integration:
   version: 1
-  state: ready
+  state: working
   attempts: 0
   task_branch: epic-OOMPAH-460--task-OOMPAH-484
-  head_sha: 28208fdb229f7ec8c9b12c81eebc3dd693185521
-  submitted_at: '2026-07-29T19:15:50.004178+00:00'
-  updated_at: '2026-07-29T19:15:50.004178+00:00'
+  base_branch: epic-OOMPAH-460
+  base_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
+  updated_at: '2026-07-30T04:56:52.778883+00:00'
 ---
 ## Summary
 
@@ -241,5 +241,15 @@ Run #2 [attempt=2, profile=standard, role=standard -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: terminated, Duration: 31m 39s
 - Log: OOMPAH-484__20260729T184455Z.jsonl
+---
+author: oompah
+created: 2026-07-30 04:56
+---
+Integration found a rebase conflict on `epic-OOMPAH-460--task-OOMPAH-484`. Resolve it against `epic-OOMPAH-460`, run the required tests, push the same private branch, and `oompah task submit` it again.
+---
+author: oompah
+created: 2026-07-30 04:56
+---
+Agent dispatched (profile: standard)
 ---
 <!-- COMMENTS:END -->
