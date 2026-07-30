@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T22:02:35.998442Z'
-updated_at: '2026-07-30T22:17:03.848113Z'
+updated_at: '2026-07-30T22:18:39.933547Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-626
 target_branch: null
 review_url: null
@@ -80,6 +80,22 @@ oompah.terminal_audit:
     started_at: '2026-07-30T22:11:39.206396+00:00'
     branch_key: OOMPAH-626
 oompah.work_branch: epic-OOMPAH-585--task-OOMPAH-626
+oompah.task_costs:
+  total_input_tokens: 6
+  total_output_tokens: 467
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 6
+      output_tokens: 467
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 6
+    output_tokens: 467
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T22:18:36.245171+00:00'
 ---
 ## Summary
 
@@ -147,5 +163,15 @@ Safe evidence:
 - coordinator_tests_passed: 106
 - changed_files: oompah/terminal_transition_coordinator.py, tests/test_terminal_transition_coordinator.py
 - commits: 7420c1984 (supersede stale in-flight audits); 5c45358226 (coalesce active audit revisions safely)
+---
+author: oompah
+created: 2026-07-30 22:18
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 105, Tool calls: 83
+- Tokens: 6 in / 467 out [473 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 6m 56s
+- Log: OOMPAH-626__20260730T221148Z.jsonl
 ---
 <!-- COMMENTS:END -->
