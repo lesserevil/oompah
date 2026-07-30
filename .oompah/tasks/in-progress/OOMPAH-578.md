@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-578
 type: task
-status: Backlog
+status: In Progress
 priority: null
 title: Prune terminal worktrees that use the legacy epic-task branch shape
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T03:38:06.370836Z'
-updated_at: '2026-07-30T03:38:06.370836Z'
+updated_at: '2026-07-30T03:38:25.728732Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -28,3 +28,11 @@ Implementation scope: Extend OOMPAH-561 terminal cleanup compatibility for legac
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-30 03:38
+---
+Reproduced live: archived OOMPAH-237, OOMPAH-323, and OOMPAH-325 retain registered epic-OOMPAH-* worktrees because their tracker type is task; cleanup removes neither the epic-named directory nor branch and logs an ownership rejection. Implementing exact same-identifier legacy compatibility while preserving shared-parent branch rejection.
+---
+<!-- COMMENTS:END -->
