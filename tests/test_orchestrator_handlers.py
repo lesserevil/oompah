@@ -446,7 +446,12 @@ class TestHandleDispatchNeeded:
         """A blocking tracker call is timed out after it enters the executor.
 
         This regression test guards against wrapping ``wait_for`` around an
-        inner event loop which is itself blocked by synchronous git I/O.
+        inner event loop which is itself blocked by synchronous git I/O.  The
+        slow project blocks for a long duration to sharply distinguish the
+        "timeout worked" case from the "timeout failed and we waited anyway"
+        case even under xdist CPU contention.  The structural checks (results
+        include only the fast project, metrics record the timeout) prove
+        non-blocking behavior independent of wall-clock timing.
         """
         slow = _make_project("slow")
         fast = _make_project("fast")
@@ -455,7 +460,11 @@ class TestHandleDispatchNeeded:
         expected = _make_issue("FAST-1", project_id="fast")
 
         slow_tracker = MagicMock()
-        slow_tracker.fetch_candidate_issues.side_effect = lambda: time.sleep(0.2)
+        # Block for 60s to make "timeout worked" unambiguous even under heavy
+        # xdist load: either we timeout in ~10ms and return early, or we wait
+        # the full 60s. The timing assertion below just needs to verify we did
+        # not wait for the full 60s (proving the timeout fired).
+        slow_tracker.fetch_candidate_issues.side_effect = lambda: time.sleep(60)
         fast_tracker = MagicMock()
         fast_tracker.fetch_candidate_issues.return_value = [expected]
         orch._tracker_for_project = lambda project_id: (
@@ -464,13 +473,25 @@ class TestHandleDispatchNeeded:
 
         started = time.monotonic()
         candidates = asyncio.run(orch._fetch_all_candidates_bounded())
+        elapsed = time.monotonic() - started
 
-        assert time.monotonic() - started < 0.15
+        # Structural invariants: timeout worked if results only include the
+        # fast project and metrics record the timeout.  We still verify timing
+        # (< 2s vs. 60s full wait) to catch regressions, but the threshold is
+        # loose enough for xdist contention.
+        assert elapsed < 2.0, f"took {elapsed:.2f}s; probable timeout failure"
         assert candidates == [expected]
         assert orch._project_refresh_metrics["slow"]["candidates"]["timeout_count"] == 1
 
     def test_in_progress_refresh_timeout_uses_the_same_safe_boundary(self, tmp_path):
-        """Orphan reconciliation cannot block on synchronous tracker I/O."""
+        """Orphan reconciliation cannot block on synchronous tracker I/O.
+
+        The slow project blocks for a long duration to sharply distinguish the
+        "timeout worked" case from the "timeout failed and we waited anyway"
+        case even under xdist CPU contention.  The structural checks (results
+        include only the fast project, metrics record the timeout) prove
+        non-blocking behavior independent of wall-clock timing.
+        """
         slow = _make_project("slow")
         fast = _make_project("fast")
         orch = _make_orchestrator(tmp_path, projects=[slow, fast])
@@ -478,7 +499,10 @@ class TestHandleDispatchNeeded:
         expected = _make_issue("FAST-RUNNING", project_id="fast")
 
         slow_tracker = MagicMock()
-        slow_tracker.fetch_issues_by_states.side_effect = lambda _states: time.sleep(0.2)
+        # Block for 60s to make "timeout worked" unambiguous even under heavy
+        # xdist load: either we timeout in ~10ms and return early, or we wait
+        # the full 60s.
+        slow_tracker.fetch_issues_by_states.side_effect = lambda _states: time.sleep(60)
         fast_tracker = MagicMock()
         fast_tracker.fetch_issues_by_states.return_value = [expected]
         orch._tracker_for_project = lambda project_id: (
@@ -487,8 +511,12 @@ class TestHandleDispatchNeeded:
 
         started = time.monotonic()
         issues = asyncio.run(orch._fetch_in_progress_issues_bounded())
+        elapsed = time.monotonic() - started
 
-        assert time.monotonic() - started < 0.15
+        # Structural invariants: timeout worked if results only include the
+        # fast project and metrics record the timeout.  Timing assertion is
+        # loose (< 2s vs. 60s full wait) for xdist contention resilience.
+        assert elapsed < 2.0, f"took {elapsed:.2f}s; probable timeout failure"
         assert issues == [expected]
         assert orch._project_refresh_metrics["slow"]["in_progress"]["timeout_count"] == 1
 
