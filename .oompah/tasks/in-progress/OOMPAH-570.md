@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-570
 type: bug
-status: Ready to Integrate
+status: In Progress
 priority: 1
 title: Recover interrupted integration leases and explicit blocked-head retries
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T23:53:31.874608Z'
-updated_at: '2026-07-30T00:08:26.393853Z'
+updated_at: '2026-07-30T00:09:02.430584Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -293,5 +293,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 9m 43s
 - Log: OOMPAH-570__20260729T235841Z.jsonl
+---
+author: oompah
+created: 2026-07-30 00:09
+---
+Review found two shutdown-safety gaps before integration: explicit_retry currently resets integrating/integrated rows instead of only blocked rows, and a shutdown-killed quality gate is cached/routed as a CI failure, which can leave the queue blocked before startup recovery. Tightening those semantics and adding executor/retry coverage now.
+---
+author: oompah
+created: 2026-07-30 00:09
+---
+Hardening the submitted implementation before review.
 ---
 <!-- COMMENTS:END -->
