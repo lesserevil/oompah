@@ -354,7 +354,7 @@ def test_ready_to_integrate_board_entry_includes_integration_evidence():
 
     entry = payload["Ready to Integrate"][0]
     assert entry["integration"] == {
-        "version": 1,
+        "version": 2,
         "state": "ready",
         "attempts": 0,
         "task_branch": "oompah/task/TASK-READY",
