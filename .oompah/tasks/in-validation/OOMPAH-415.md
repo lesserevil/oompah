@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-415
 type: task
-status: Merged
+status: In Validation
 priority: 0
 title: Decouple stale-dispatch threshold from full_sync_interval and reduce recovery
   latency
@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-23T19:34:14.691327Z'
-updated_at: '2026-07-23T21:06:44.237441Z'
+updated_at: '2026-07-30T21:55:08.338051Z'
 work_branch: epic-OOMPAH-414
 target_branch: null
 review_url: null
@@ -62,6 +62,28 @@ oompah.task_costs:
     output_tokens: 13546
     cost_usd: 0.0
     recorded_at: '2026-07-23T21:06:27.409042+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-e4aad2eca154
+    project_id: proj-14849f1b
+    task_id: OOMPAH-415
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 955a7186068e32d3060a20b030be6ea8d06093cd891b37a6c30ffe26e40bcf00
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-07-30T21:55:05.620477+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -446,5 +468,10 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Claude
 - Cost: $0.0000
 - Exit: normal, Duration: 14m 23s
 - Log: OOMPAH-415__20260723T205206Z.jsonl
+---
+author: oompah
+created: 2026-07-30 21:55
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
