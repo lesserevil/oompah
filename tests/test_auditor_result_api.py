@@ -698,73 +698,97 @@ class TestStatusInjection:
 
 
 class TestSecretLikeFields:
-    def test_secret_pattern_in_message_is_rejected(self):
+    def test_credential_pattern_in_message_is_redacted_not_rejected(self):
+        """Inert credential-pattern examples in message are redacted and accepted."""
         result, err = _parse(
             _valid_args(message="Authorization: Bearer short-but-still-secret")
         )
-        assert result is None
-        assert "credential pattern" in (err or "")
+        # Should be accepted, not rejected, with the bearer token redacted
+        assert err is None
+        assert result is not None
+        assert "[REDACTED-bearer-token]" in result.message
 
-    def test_github_pat_in_safe_evidence_value_is_rejected(self):
+    def test_github_pat_example_in_safe_evidence_is_redacted(self):
+        """GitHub PAT patterns in safe_evidence values are redacted."""
         result, err = _parse(
             _valid_args(safe_evidence={"output": "ghp_ABCDEFGHIJKLMNOPabcdef1234"})
         )
-        assert result is None
-        assert "credential pattern" in (err or "")
+        assert err is None
+        assert result is not None
+        assert "[REDACTED-github-token]" in result.safe_evidence["output"]
 
-    def test_aws_access_key_in_safe_evidence_value_is_rejected(self):
+    def test_aws_key_example_in_safe_evidence_is_redacted(self):
+        """AWS key patterns in safe_evidence values are redacted."""
         result, err = _parse(
             _valid_args(safe_evidence={"aws": "AKIAIOSFODNN7EXAMPLE"})  # pragma: allowlist secret
         )
-        assert result is None
-        assert "credential pattern" in (err or "")
+        assert err is None
+        assert result is not None
+        assert "[REDACTED-aws-key]" in result.safe_evidence["aws"]
 
-    def test_jwt_in_safe_evidence_value_is_rejected(self):
+    def test_jwt_pattern_in_safe_evidence_is_redacted_not_rejected(self):
+        """JWT-like patterns are redacted. Credential-like keys are redacted to generic marker."""
         # Three Base64url segments resembling a JWT
         jwt_like = "eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJ1c2VyLTEifQ.signature_data_1234"
         result, err = _parse(_valid_args(safe_evidence={"token": jwt_like}))
-        # jwt_like matches both the JWT pattern and the secret key 'token'
-        assert result is None
-        assert err is not None
+        # Both the key "token" and the JWT value should be handled via redaction
+        assert err is None
+        assert result is not None
+        # The credential-like key "token" gets redacted to a generic key
+        assert "[REDACTED" in str(result.safe_evidence)
 
-    def test_password_key_in_safe_evidence_is_rejected(self):
+    def test_password_key_in_safe_evidence_is_redacted(self):
+        """Credential-like keys are redacted to a generic marker."""
         result, err = _parse(
             _valid_args(safe_evidence={"password": "any_value_here"})
         )
-        assert result is None
-        assert "credential-like key" in (err or "")
+        assert err is None
+        assert result is not None
+        # The key should be redacted
+        assert "[REDACTED-credential-key]" in result.safe_evidence
 
-    def test_api_key_key_in_safe_evidence_is_rejected(self):
+    def test_api_key_key_in_safe_evidence_is_redacted(self):
+        """API key credentials are handled through redaction."""
         result, err = _parse(
             _valid_args(safe_evidence={"api_key": "sk-1234567890abcdef1234567890abcdef"})  # pragma: allowlist secret
         )
-        assert result is None
-        assert err is not None  # Either key or value match
+        # Should accept and redact
+        assert err is None
+        assert result is not None
 
-    def test_token_key_in_safe_evidence_is_rejected(self):
+    def test_token_key_in_safe_evidence_is_redacted(self):
+        """Token keys are redacted."""
         result, err = _parse(
             _valid_args(safe_evidence={"auth_token": "any_value"})
         )
-        assert result is None
-        assert "credential-like key" in (err or "")
+        assert err is None
+        assert result is not None
+        # The key should be redacted
+        assert "[REDACTED-credential-key]" in result.safe_evidence
 
-    def test_client_secret_key_is_rejected(self):
+    def test_client_secret_key_is_redacted(self):
+        """client_secret keys are redacted."""
         result, err = _parse(
             _valid_args(safe_evidence={"client_secret": "my_oauth_secret"})
         )
-        assert result is None
-        assert "credential-like key" in (err or "")
+        assert err is None
+        assert result is not None
+        # The key should be redacted
+        assert "[REDACTED-credential-key]" in result.safe_evidence
 
-    def test_openai_key_pattern_in_value_is_rejected(self):
+    def test_openai_key_pattern_in_value_is_redacted(self):
+        """OpenAI key patterns are redacted."""
         result, err = _parse(
             _valid_args(
                 safe_evidence={"info": "sk-proj-ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz01234"}  # pragma: allowlist secret
             )
         )
-        assert result is None
-        assert "credential pattern" in (err or "")
+        assert err is None
+        assert result is not None
+        assert "[REDACTED-api-key]" in result.safe_evidence["info"]
 
-    def test_pem_private_key_header_is_rejected(self):
+    def test_pem_private_key_header_is_redacted(self):
+        """PEM private key headers are redacted."""
         result, err = _parse(
             _valid_args(
                 safe_evidence={
@@ -772,8 +796,9 @@ class TestSecretLikeFields:
                 }
             )
         )
-        assert result is None
-        assert "credential pattern" in (err or "")
+        assert err is None
+        assert result is not None
+        assert "[REDACTED-private-key]" in result.safe_evidence["key"]
 
     def test_safe_regular_evidence_is_accepted(self):
         """Non-sensitive safe_evidence should not be rejected."""
@@ -789,6 +814,75 @@ class TestSecretLikeFields:
         )
         assert err is None, f"Unexpected rejection: {err}"
         assert result is not None
+
+    def test_redaction_is_idempotent(self):
+        """Redacting the same inert credential example twice produces the same output."""
+        message_with_bearer = "Authorization: Bearer short-but-still-secret"
+        
+        # First submission
+        result1, err1 = _parse(_valid_args(message=message_with_bearer))
+        assert err1 is None
+        assert result1 is not None
+        redacted1 = result1.message
+        
+        # Second submission with exact same payload
+        result2, err2 = _parse(_valid_args(message=message_with_bearer))
+        assert err2 is None
+        assert result2 is not None
+        redacted2 = result2.message
+        
+        # Redaction must be deterministic
+        assert redacted1 == redacted2
+
+    def test_credential_safety_task_can_pass_with_inert_examples(self):
+        """Reproduce OOMPAH-589: auditor can submit PASS with credential-pattern examples."""
+        # Simulates OOMPAH-589's attempted verdict discussing credential patterns
+        message = (
+            "Requirements discuss credential-safety patterns:\n"
+            "- Bearer tokens like 'Bearer sk-abc123xyz' are unsafe\n"
+            "- GitHub PATs matching 'ghp_*' must be rejected\n"
+            "Code audit confirms all examples are inert documentation."
+        )
+        
+        result, err = _parse(_valid_args(
+            verdict="pass",
+            message=message,
+            safe_evidence={
+                "example_patterns": "Bearer sk-..., ghp_..., glpat-...",
+                "test_result": "42 passed",
+            }
+        ))
+        
+        # Should accept the PASS verdict despite credential pattern examples
+        assert err is None
+        assert result is not None
+        assert result.verdict == Verdict.PASS
+        # Message should contain redaction markers
+        assert "[REDACTED-" in result.message
+        # Safe evidence values should be redacted
+        assert "[REDACTED-" in result.safe_evidence["example_patterns"]
+
+    def test_triple_identical_submission_of_inert_examples_succeeds_idempotently(self):
+        """OOMPAH-589 submitted 3x with identical payload; all 3 should succeed identically."""
+        message = (
+            "Audit complete. All tests passed. "
+            "Documentation mentions credential patterns like Bearer tokens (sk-...) for reference only."
+        )
+        
+        results = []
+        for attempt in range(3):
+            result, err = _parse(_valid_args(
+                verdict="pass",
+                message=message,
+            ))
+            # Each submission should succeed independently
+            assert err is None, f"Attempt {attempt} failed: {err}"
+            assert result is not None
+            assert result.verdict == Verdict.PASS
+            results.append(result)
+        
+        # All three submissions should produce identical redacted messages (deterministic redaction)
+        assert results[0].message == results[1].message == results[2].message
 
     def test_secret_regex_matches_known_patterns(self):
         """Unit test the _RESULT_SECRET_RE pattern directly."""
