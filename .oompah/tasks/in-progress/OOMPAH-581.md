@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:35:07.041991Z'
-updated_at: '2026-07-30T04:47:27.778454Z'
+updated_at: '2026-07-30T04:47:35.329531Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -194,5 +194,10 @@ author: oompah
 created: 2026-07-30 04:47
 ---
 Verification: 117 tests pass (test_projects.py: 94, test_storage_cleanup.py + test_workspace.py: 23). 7 new tests in TestEpicRepairWorkspaceCleanup all pass: happy path real bare-remote scenario, dirty preserved, unmerged preserved, shared branch preserved, different-identifier preserved, unregistered dir skipped, non-epic no-op. Existing 87 tests unchanged and green. Branch OOMPAH-581 pushed to origin at 741a7d88b.
+---
+author: oompah
+created: 2026-07-30 04:47
+---
+Completion: Delivered _cleanup_epic_repair_workspace_locked() in oompah/projects.py. The method is invoked from cleanup_terminal_issue(is_epic=True) and removes the OOMPAH-459-shaped auxiliary repair workspace in a single maintenance pass with four strict guards (registered path, exact identifier branch, clean, merged). No existing guard is weakened. 7 focused tests validate the happy path plus all negative cases. make test will run the full gate.
 ---
 <!-- COMMENTS:END -->
