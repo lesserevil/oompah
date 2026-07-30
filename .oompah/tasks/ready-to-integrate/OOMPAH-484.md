@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-484
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Expose safe terminal-audit state in project, task, and activity APIs
 parent: OOMPAH-460
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:23.210919Z'
-updated_at: '2026-07-30T05:14:34.504713Z'
+updated_at: '2026-07-30T05:14:44.595912Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-484
 target_branch: null
 review_url: null
@@ -89,12 +89,12 @@ oompah.task_costs:
     recorded_at: '2026-07-30T05:12:52.046637+00:00'
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-460--task-OOMPAH-484
-  base_branch: epic-OOMPAH-460
-  base_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
-  updated_at: '2026-07-30T05:13:02.719205+00:00'
+  head_sha: 28208fdb229f7ec8c9b12c81eebc3dd693185521
+  submitted_at: '2026-07-30T05:14:42.629031+00:00'
+  updated_at: '2026-07-30T05:14:42.629031+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-484__20260730T045702Z
@@ -350,5 +350,10 @@ author: oompah
 created: 2026-07-30 05:14
 ---
 Verification: All tests pass. Focused test suite (test_terminal_status_interfaces.py): 38/38 passed. Adjacent suites (test_server_issue_snapshot.py, test_server_issue_detail.py, test_terminal_audit.py, test_terminal_override.py, test_terminal_transition_coordinator.py): 193 passed total. No regressions. Implementation complete and ready for submission.
+---
+author: oompah
+created: 2026-07-30 05:14
+---
+OOMPAH-484: Expose safe terminal-audit state in project, task, and activity APIs. Implemented _issue_terminal_audit_summary() and _terminal_audit_phase() in server.py exposing safe audit state (phase, attempt_count, verdict, override status, etc.) across list, detail, and activity endpoints. Added renderTerminalAuditSummary() and renderTerminalAuditDetail() to dashboard.html with per-phase CSS styling. Created 38 comprehensive tests verifying all audit phases, redaction contract, API field agreement, and accessibility. All 231+ adjacent tests pass with no regressions. Acceptance criteria met: UI and operators can understand audit state from stable safe APIs without parsing tracker metadata, and no sensitive content is exposed.
 ---
 <!-- COMMENTS:END -->
