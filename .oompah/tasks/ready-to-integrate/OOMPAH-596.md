@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:26.248587Z'
-updated_at: '2026-07-30T15:53:07.525413Z'
+updated_at: '2026-07-30T15:53:18.856699Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-596
 target_branch: null
 review_url: null
@@ -482,5 +482,50 @@ Core Changes:
 Test Coverage: 69 tests pass, including 20 new tests for backoff and failure classification
 
 Acceptance Criteria: All satisfied - recoverable infrastructure failures no longer silently strand conflict rows
+---
+author: oompah
+created: 2026-07-30 15:53
+---
+COMPLETION: Conflict repair backoff and infrastructure failure recovery delivered
+
+**Implementation Summary**
+
+Files Modified:
+- oompah/integration.py: Added v2 schema with backoff tracking, failure classification
+- oompah/orchestrator.py: Implemented repair routing logic, backoff checking, needs_human transition
+- tests/test_integration_conflict_repair.py: 14 new tests for classification and metadata
+- tests/test_orchestrator_conflict_repair.py: 5 new tests for backoff detection
+
+**Technical Details**
+
+1. **Failure Classification** (classify_conflict_repair_failure):
+   - Detects 8 failure types: conflict, auth_failed, rate_limited, timeout, overloaded, provider_unavailable, missing_credentials, invalid_model
+   - Only 'conflict' requires human action; others trigger backoff
+
+2. **Repair Workflow**:
+   - Conflict detected → classify failure
+   - If infrastructure failure: set backoff_until + repair_failure_reason, keep state='ready'
+   - If real conflict: set state='blocked', dispatch human repair agent
+   - On backoff timeout expiry: retry
+   - After 3 retries: transition to state='needs_human' with operator instructions
+
+3. **Queue Processing**:
+   - _is_integration_item_in_backoff() checks if item can be claimed
+   - Skips items during active backoff period
+   - Prevents duplicate workers on same item
+   - No changes to queue schema needed (backoff stored in issue metadata)
+
+**Backwards Compatibility**:
+- V1 records automatically migrate to V2 on load
+- No breaking changes to existing API/queue
+
+**Deployment Note**:
+- Ready to apply recovery path to OOMPAH-484 (task-auth 401 failures)
+- Ready to apply recovery path to OOMPAH-487 (provider/sandbox failures)
+- No additional configuration needed; uses hardcoded backoff schedule
+
+Branch: epic-OOMPAH-587--task-OOMPAH-596
+Commits: 2
+Tests: 69 passing (20 new)
 ---
 <!-- COMMENTS:END -->
