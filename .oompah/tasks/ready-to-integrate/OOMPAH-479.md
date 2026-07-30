@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-479
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Route webhook, YOLO, and merged-branch reconciliation through Merged audits
 parent: OOMPAH-459
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:27.240594Z'
-updated_at: '2026-07-30T01:48:37.042287Z'
+updated_at: '2026-07-30T01:48:50.912797Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-479
 target_branch: null
 review_url: null
@@ -63,12 +63,12 @@ oompah.task_costs:
     recorded_at: '2026-07-29T19:03:19.873010+00:00'
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-459--task-OOMPAH-479
-  base_branch: epic-OOMPAH-459
-  base_sha: 0b84b7b6d6a1ef0d77ad0de7e6dc51ef2676792c
-  updated_at: '2026-07-30T01:42:10.017131+00:00'
+  head_sha: 9c38ddd1df509602061c5d0c6760b4e04ba0a4d7
+  submitted_at: '2026-07-30T01:48:48.673534+00:00'
+  updated_at: '2026-07-30T01:48:48.673534+00:00'
 ---
 ## Summary
 
@@ -186,5 +186,15 @@ author: oompah
 created: 2026-07-30 01:48
 ---
 **Verification**: Resolved rebase conflict with epic branch (OOMPAH-480/481/482 changes). Conflict was in orchestrator.py between the new _request_terminal_transition_from_maintenance (OOMPAH-480) and my _request_merged_via_coordinator (OOMPAH-479) helper methods — resolved by keeping both. Re-ran focused tests: 497 tests pass (test_orchestrator_merged, test_epic_auto_close, test_epic_strategy, test_merge_queue) + 241 neighboring tests (webhooks, terminal coordinator, terminal status interfaces) + 149 more (release_pick_reconciler, close_gate). Branch rebased cleanly onto 0b84b7b6d and force-pushed.
+---
+author: oompah
+created: 2026-07-30 01:48
+---
+**Completion**: Delivered routing of all Merged status transitions through TerminalTransitionCoordinator. Changes: (1) Added _request_merged_via_coordinator() sync wrapper for async coordinator calls, (2) Replaced 6 direct tracker.update_issue(MERGED) calls with coordinator-based transitions (done-review reconciliation, merged-label maintenance, stale-in-review reconciliation, epic rollup, YOLO merge), (3) Updated test suite to assert coordinator.request_transition instead of direct tracker calls. Rebased cleanly onto epic head 0b84b7b6d (post-OOMPAH-480/481/482) with conflict resolution. All 887 relevant tests pass.
+---
+author: oompah
+created: 2026-07-30 01:48
+---
+Rebased OOMPAH-479 cleanly onto current epic head (0b84b7b6d). Resolved conflict between _request_terminal_transition_from_maintenance (OOMPAH-480) and _request_merged_via_coordinator (OOMPAH-479) by preserving both helpers. All 887 focused tests pass. Routes webhook/YOLO/reconciliation Merged transitions through TerminalTransitionCoordinator with evidence fingerprints and idempotent duplicate handling.
 ---
 <!-- COMMENTS:END -->
