@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T23:37:58.090708Z'
-updated_at: '2026-07-30T23:38:13.836575Z'
+updated_at: '2026-07-30T23:38:24.103336Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -28,3 +28,11 @@ Implementation scope: eliminate the post-merge race where reconcile_merged_epic_
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-30 23:38
+---
+Claimed directly by the operator Codex session because the live scheduler is blocked in a stale cleanup sweep. Reproducer confirmed: each affected child head is an ancestor of origin/epic-OOMPAH-584, but reconciliation used a stale target ref and demoted it.
+---
+<!-- COMMENTS:END -->
