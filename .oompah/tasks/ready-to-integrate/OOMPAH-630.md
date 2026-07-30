@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T23:37:58.090708Z'
-updated_at: '2026-07-30T23:49:24.741336Z'
+updated_at: '2026-07-30T23:52:42.720501Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-630
 target_branch: null
 review_url: null
@@ -38,9 +38,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: epic-OOMPAH-584--task-OOMPAH-630
-  head_sha: da4476dbba2e55e966f59755ef896314302e898a
-  submitted_at: '2026-07-30T23:49:06.732147+00:00'
-  updated_at: '2026-07-30T23:49:06.732147+00:00'
+  head_sha: f9f1e78ae25afb462d71a360bf93cc2d4f0804a2
+  submitted_at: '2026-07-30T23:52:40.030850+00:00'
+  updated_at: '2026-07-30T23:52:40.030850+00:00'
 oompah.task_costs:
   total_input_tokens: 110
   total_output_tokens: 39
@@ -99,5 +99,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 38s
 - Log: OOMPAH-630__20260730T234849Z.jsonl
+---
+author: oompah
+created: 2026-07-30 23:52
+---
+Added the live rollup race regression: merged-epic maintenance now preserves In Validation while the terminal transition owns the child. Focused epic strategy suite: 212 passed. The exact combined-tree gate must run on f9f1e78ae.
 ---
 <!-- COMMENTS:END -->
