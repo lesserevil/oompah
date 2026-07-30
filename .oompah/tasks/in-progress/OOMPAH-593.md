@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:54.281403Z'
-updated_at: '2026-07-30T15:25:40.044451Z'
+updated_at: '2026-07-30T15:30:59.518901Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-593
 target_branch: null
 review_url: null
@@ -228,5 +228,10 @@ author: oompah
 created: 2026-07-30 15:25
 ---
 Understanding: OOMPAH-593 must get the OOMPAH-575 regression suite through delivery, deploy, and live-probe a service-launched Codex worker to confirm scoped task-CLI auth. The underlying capability code is already live (OOMPAH-538, oompah/task_handoff.py, POST /api/v1/task-handoff, OOMPAH_TASK_HANDOFF_TOKEN + OOMPAH_TASK_HANDOFF_PROJECT_ID env plumbing in acp_backends/codex.py and acp_backends/opencode.py). OOMPAH-575 branch (origin/OOMPAH-575, single commit e404d6eb7) only adds regression tests (tests/test_acp_codex_backend.py::TestCodexHandoffAuth and tests/test_task_handoff.py::TestHandoffTokenFailClosed). This worktree currently has no delta over the epic-OOMPAH-586 base — the actual integration/probe/env-propagation work is devops+test, not documentation. As Technical Writer, my contribution is to publish the operator-facing scoped-task-CLI-authentication reference (env vars, endpoint, capability lifecycle, fail-closed behavior) and the live least-privilege probe procedure, then hand off to a devops/test specialist to run the actual integrate+probe path. Plan: (1) add docs/scoped-task-cli-authentication.md covering the shipped mechanism and probe procedure, (2) add a plans/ pointer in the existing focus-handoff-mutation-protocol doc if needed, (3) hand off with focus-complete:docs + needs:devops so the integration and live probe run under an operator.
+---
+author: oompah
+created: 2026-07-30 15:30
+---
+Discovery: existing regression coverage on the current head (epic-OOMPAH-586) already includes TestTaskHandoffGrantStore, TestTaskCliHandoff, TestTaskScopeDirectPath, TestTaskHandoffEndpoint, TestAgentCredentialBoundary, and TestFailedHandoffLifecycle in tests/test_task_handoff.py — all pass locally (16 passed, 1 warning). OOMPAH-575 (single commit e404d6eb7 on origin/OOMPAH-575) layers on TestHandoffTokenFailClosed + TestCodexHandoffAuth for the explicit 401/403 matrix. No documentation existed for the OOMPAH_TASK_HANDOFF_TOKEN / OOMPAH_TASK_HANDOFF_PROJECT_ID / POST /api/v1/task-handoff mechanism; docs/authentication.md only covers operator HTTP Basic. That is the gap I can close as Technical Writer without touching code behavior.
 ---
 <!-- COMMENTS:END -->
