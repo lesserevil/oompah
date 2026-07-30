@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-581
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Prune merged epic repair workspaces with task-style branch paths
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:35:07.041991Z'
-updated_at: '2026-07-30T04:47:35.329531Z'
+updated_at: '2026-07-30T04:47:45.126733Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -97,6 +97,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-581
     source_sha: 3aa2bd65bebf902b96e933e845352b1a8b98fbe7
     completed_at: '2026-07-30T04:38:26.026202+00:00'
+oompah.integration:
+  version: 1
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-581
+  head_sha: 741a7d88b2ad409575a0b3577564b98f57733f87
+  submitted_at: '2026-07-30T04:47:42.763165+00:00'
+  updated_at: '2026-07-30T04:47:42.763165+00:00'
 ---
 ## Summary
 
@@ -199,5 +207,10 @@ author: oompah
 created: 2026-07-30 04:47
 ---
 Completion: Delivered _cleanup_epic_repair_workspace_locked() in oompah/projects.py. The method is invoked from cleanup_terminal_issue(is_epic=True) and removes the OOMPAH-459-shaped auxiliary repair workspace in a single maintenance pass with four strict guards (registered path, exact identifier branch, clean, merged). No existing guard is weakened. 7 focused tests validate the happy path plus all negative cases. make test will run the full gate.
+---
+author: oompah
+created: 2026-07-30 04:47
+---
+Added _cleanup_epic_repair_workspace_locked() to ProjectStore in oompah/projects.py. For terminal epics, cleanup_terminal_issue(is_epic=True) now also removes the auxiliary task-style repair workspace at <worktree_root>/<project>/<id> on branch <id> left by epic repair/planner runs. Four strict guards (registered path, exact same-identifier branch, clean worktree, merged head) must all pass before removal. 7 new focused tests in TestEpicRepairWorkspaceCleanup cover the happy-path real bare-remote scenario plus dirty/unmerged/shared/different-identifier/unregistered preservation cases. All 94 test_projects.py tests pass.
 ---
 <!-- COMMENTS:END -->
