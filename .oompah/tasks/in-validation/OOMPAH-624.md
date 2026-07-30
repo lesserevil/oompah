@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-624
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Bind owner authorization to the authenticated server principal
 parent: OOMPAH-619
@@ -12,7 +12,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-30T21:37:57.526368Z'
-updated_at: '2026-07-30T22:10:35.798597Z'
+updated_at: '2026-07-30T22:16:34.659967Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-624
 target_branch: null
 review_url: null
@@ -39,12 +39,12 @@ oompah.agent_run_id: 47663369-3e13-44da-8640-38c73995dbec
 oompah.work_branch: epic-OOMPAH-619--task-OOMPAH-624
 oompah.integration:
   version: 1
-  state: ready
+  state: working
   attempts: 0
   task_branch: epic-OOMPAH-619--task-OOMPAH-624
-  head_sha: 11dc483f0c80b9adb33fb5f55ca3946bbe31ec72
-  submitted_at: '2026-07-30T22:08:05.631919+00:00'
-  updated_at: '2026-07-30T22:08:05.631919+00:00'
+  base_branch: epic-OOMPAH-619
+  base_sha: 11dc483f0c80b9adb33fb5f55ca3946bbe31ec72
+  updated_at: '2026-07-30T22:16:32.010053+00:00'
 oompah.task_costs:
   total_input_tokens: 178280
   total_output_tokens: 13430
@@ -95,6 +95,55 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-619--task-OOMPAH-624
     source_sha: c048ba706cbe9b1342b80a67576a49b82887e84a
     completed_at: '2026-07-30T21:41:10.916822+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-3045068a631c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-624
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8823ed878b0ee97d3d59d1245470c60624a2fde97ddba1e5852669c029e01728
+    attempts:
+    - version: 1
+      attempt_id: attempt-a00b011df7b0
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 8823ed878b0ee97d3d59d1245470c60624a2fde97ddba1e5852669c029e01728
+      created_at: '2026-07-30T22:16:26.468934+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-30T22:16:26.468934+00:00'
+      branch_key: epic-OOMPAH-619--task-OOMPAH-624
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-30T22:16:21.500066+00:00'
+    updated_at: '2026-07-30T22:16:26.468934+00:00'
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-a00b011df7b0
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8823ed878b0ee97d3d59d1245470c60624a2fde97ddba1e5852669c029e01728
+    created_at: '2026-07-30T22:16:26.468934+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-30T22:16:26.468934+00:00'
+    branch_key: epic-OOMPAH-619--task-OOMPAH-624
 ---
 ## Summary
 
@@ -259,5 +308,20 @@ Run #1 [attempt=1, profile=deep, role=deep -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 29m 8s
 - Log: OOMPAH-624__20260730T214133Z.jsonl
+---
+author: oompah
+created: 2026-07-30 22:16
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-07-30 22:16
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-07-30 22:16
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
