@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:53:05.632137Z'
-updated_at: '2026-07-30T19:29:35.592602Z'
+updated_at: '2026-07-30T19:32:34.257473Z'
 work_branch: OOMPAH-610
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/594
@@ -311,5 +311,10 @@ Safe evidence:
 - prior_make_test_report: 13,726 passed / 7 skipped at 83949a45b per operator comment 2026-07-30 19:08
 - auditor_exit_path: oompah/orchestrator.py::Orchestrator._on_worker_exit is_auditor branch (line 23069-23083)
 - defensive_pruning: orphan claimed_issues entries missing from state.claimed are popped with warning log in _audit_branch_busy
+---
+author: oompah
+created: 2026-07-30 19:32
+---
+Operator handoff: your first PASS was durably accepted. Audit audit-490436c776e7 is completed, attempt attempt-9ad0fa99a03f is recorded, and the next Merged audit is pending. The tool's rejection text came from a 60-second ACP handler timeout after the successful write. Do not retry this completed Done audit; end this auditor session now so the graceful restart can deploy the fix.
 ---
 <!-- COMMENTS:END -->
