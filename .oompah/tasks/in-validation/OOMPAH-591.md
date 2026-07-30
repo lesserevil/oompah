@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-591
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Reconcile the pending audit backlog and stale In Validation tasks
 parent: OOMPAH-585
@@ -13,7 +13,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:26.620047Z'
-updated_at: '2026-07-30T20:16:02.485143Z'
+updated_at: '2026-07-30T20:17:15.757333Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-591
 target_branch: null
 review_url: null
@@ -136,7 +136,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-591
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -211,6 +211,23 @@ oompah.terminal_audit:
     previous_state: Ready to Integrate
     created_at: '2026-07-30T18:47:32.059124+00:00'
     updated_at: '2026-07-30T19:43:55.856332+00:00'
+  - version: 1
+    audit_id: audit-85eb5879d029
+    project_id: proj-14849f1b
+    task_id: OOMPAH-591
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: adf4621b89554d4e1307449b835b508f646e096aa0b34f11dc760eb32096aea6
+    attempts: []
+    requested_by:
+      version: 1
+      identity: api-client
+      source: api
+    previous_state: Ready to Integrate
+    created_at: '2026-07-30T20:17:13.120383+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-870b1c4d15ed
@@ -558,5 +575,10 @@ author: oompah
 created: 2026-07-30 20:16
 ---
 Audit retry requested by the operator. Existing completed implementation and verification remain pushed on epic-OOMPAH-585--task-OOMPAH-591; no additional implementation change was required.
+---
+author: oompah
+created: 2026-07-30 20:17
+---
+Existing integrated implementation resubmitted for completion audit at operator request.
 ---
 <!-- COMMENTS:END -->
