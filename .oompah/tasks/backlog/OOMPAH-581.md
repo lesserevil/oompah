@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:35:07.041991Z'
-updated_at: '2026-07-30T04:35:07.041991Z'
+updated_at: '2026-07-30T04:35:34.442056Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -28,3 +28,11 @@ Live cleanup after OOMPAH-459 exposed one remaining owned legacy shape: a termin
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-30 04:35
+---
+Live residue was manually pruned after confirming the clean repair head 95581aca5 is contained in origin/main. Removed managed worktree /home/shedwards/.oompah/worktrees/oompah/OOMPAH-459 and exact local/remote OOMPAH-459 refs. Task remains to automate this exact owned repair-workspace shape for recurrence.
+---
+<!-- COMMENTS:END -->
