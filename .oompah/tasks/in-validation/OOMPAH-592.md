@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-592
 type: feature
-status: Needs Human
+status: In Validation
 priority: 1
 title: Alert on terminal-audit launch failures and backlog age
 parent: OOMPAH-585
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:28.755226Z'
-updated_at: '2026-07-30T23:32:44.020148Z'
+updated_at: '2026-07-30T23:50:25.010039Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-592
 target_branch: null
 review_url: null
@@ -112,7 +112,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-592
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -141,6 +141,23 @@ oompah.terminal_audit:
     previous_state: Ready to Integrate
     created_at: '2026-07-30T18:56:57.602107+00:00'
     updated_at: '2026-07-30T19:06:01.255747+00:00'
+  - version: 1
+    audit_id: audit-b1aef56b01c8
+    project_id: proj-14849f1b
+    task_id: OOMPAH-592
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7cd854b0950d689b3e9fee4500fcbb6ef4dc1f6779fb4cebe28f84bd495efae3
+    attempts: []
+    requested_by:
+      version: 1
+      identity: api-client
+      source: api
+    previous_state: Needs Human
+    created_at: '2026-07-30T23:50:21.503390+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-2b3803f5ac37
@@ -352,5 +369,10 @@ author: oompah
 created: 2026-07-30 23:32
 ---
 The parent epic OOMPAH-585 merged from epic-OOMPAH-585, but this task was Done with work branch epic-OOMPAH-585--task-OOMPAH-592. Its work is not proven to be in the merged epic. Git evidence: OOMPAH-592 branch epic-OOMPAH-585--task-OOMPAH-592 has 3 unlanded commit(s), including cc261493377c. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
+---
+author: oompah
+created: 2026-07-30 23:50
+---
+Operator revalidation after OOMPAH-630 diagnosis: origin/epic-OOMPAH-585--task-OOMPAH-592 is a direct ancestor of merged target origin/epic-OOMPAH-584 at c45e47bb3. The prior Needs Human transition was caused by a stale remote-tracking target ref, not missing work. Requesting a fresh audited Done transition.
 ---
 <!-- COMMENTS:END -->

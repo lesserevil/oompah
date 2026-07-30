@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:22.194798Z'
-updated_at: '2026-07-30T23:32:40.886103Z'
+updated_at: '2026-07-30T23:50:43.669755Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-590
 target_branch: null
 review_url: null
@@ -107,7 +107,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-590
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -136,6 +136,37 @@ oompah.terminal_audit:
     previous_state: Ready to Integrate
     created_at: '2026-07-30T18:35:04.619172+00:00'
     updated_at: '2026-07-30T18:39:43.069349+00:00'
+  - version: 1
+    audit_id: audit-227e88d1a6ba
+    project_id: proj-14849f1b
+    task_id: OOMPAH-590
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ecaa1c4f71b63d4d318085acee72a033b7bcddcfb0ef3582930d6218a906c540
+    attempts:
+    - version: 1
+      attempt_id: attempt-d4f258182594
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: ecaa1c4f71b63d4d318085acee72a033b7bcddcfb0ef3582930d6218a906c540
+      created_at: '2026-07-30T23:50:29.030387+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-30T23:50:29.030387+00:00'
+      branch_key: epic-OOMPAH-585--task-OOMPAH-590
+    requested_by:
+      version: 1
+      identity: api-client
+      source: api
+    previous_state: Needs Human
+    created_at: '2026-07-30T23:50:12.906921+00:00'
+    updated_at: '2026-07-30T23:50:29.030387+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-95f921448d19
@@ -149,6 +180,19 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: opus
     started_at: '2026-07-30T18:35:21.202702+00:00'
+    branch_key: epic-OOMPAH-585--task-OOMPAH-590
+  - version: 1
+    attempt_id: attempt-d4f258182594
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ecaa1c4f71b63d4d318085acee72a033b7bcddcfb0ef3582930d6218a906c540
+    created_at: '2026-07-30T23:50:29.030387+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-30T23:50:29.030387+00:00'
     branch_key: epic-OOMPAH-585--task-OOMPAH-590
 ---
 ## Summary
@@ -381,5 +425,25 @@ author: oompah
 created: 2026-07-30 23:32
 ---
 The parent epic OOMPAH-585 merged from epic-OOMPAH-585, but this task was Done with work branch epic-OOMPAH-585--task-OOMPAH-590. Its work is not proven to be in the merged epic. Git evidence: OOMPAH-590 branch epic-OOMPAH-585--task-OOMPAH-590 has 1 unlanded commit(s), including cc261493377c. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
+---
+author: oompah
+created: 2026-07-30 23:50
+---
+Operator revalidation after OOMPAH-630 diagnosis: origin/epic-OOMPAH-585--task-OOMPAH-590 is a direct ancestor of merged target origin/epic-OOMPAH-584 at c45e47bb3. The prior Needs Human transition was caused by a stale remote-tracking target ref, not missing work. Requesting a fresh audited Done transition.
+---
+author: oompah
+created: 2026-07-30 23:50
+---
+The parent epic OOMPAH-585 merged from epic-OOMPAH-585, but this task was In Validation with work branch epic-OOMPAH-585--task-OOMPAH-590. Its work is not proven to be in the merged epic. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
+---
+author: oompah
+created: 2026-07-30 23:50
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-07-30 23:50
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
