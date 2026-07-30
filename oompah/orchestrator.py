@@ -37,7 +37,11 @@ from oompah.authority_boundary import (
 )
 from oompah.completion_verifier import VerifierResult, verify_completion
 from oompah.coordination import CoordinationStore, derive_peer_suggestions
-from oompah.dependency_graph import effective_dependencies, issue_index
+from oompah.dependency_graph import (
+    dependency_parent_has_landed,
+    effective_dependencies,
+    issue_index,
+)
 from oompah.duplicate_screening import (
     DEFAULT_CLAIM_TTL_SECONDS,
     DETECTOR_VERSION as DUPLICATE_DETECTOR_VERSION,
@@ -4855,8 +4859,15 @@ class Orchestrator:
             integrated_sha = str(
                 getattr(record, "integrated_sha", "") or ""
             ).strip()
+            parent_landed = dependency_parent_has_landed(
+                issue,
+                issues_by_alias,
+            )
             if _reachable(integrated_sha) or (
-                status in {MERGED, ARCHIVED}
+                (
+                    status in {MERGED, ARCHIVED}
+                    or (status == DONE and parent_landed)
+                )
                 and default_ref is not None
                 and _reachable(default_ref)
             ):
@@ -5159,13 +5170,21 @@ class Orchestrator:
                 integrated_sha = str(
                     getattr(record, "integrated_sha", "") or ""
                 ).strip()
+                parent_landed = dependency_parent_has_landed(
+                    dep_issue,
+                    issues_by_alias,
+                )
 
                 # Merged/Archived dependencies without integration metadata use
-                # the default-branch tip as their reachability witness. A Done
-                # dependency must have an integrated commit that is already on
-                # the target branch; otherwise rebasing onto the target cannot
-                # satisfy it.
-                repairable_from_target = status in {MERGED, ARCHIVED}
+                # the default-branch tip as their reachability witness. A legacy
+                # Done child may use the same witness after its parent epic has
+                # landed, even when its old integration record lost the
+                # integrated SHA. A Done child of a nonterminal parent still
+                # requires its own integrated commit on the target branch.
+                repairable_from_target = (
+                    status in {MERGED, ARCHIVED}
+                    or (status == DONE and parent_landed)
+                )
                 if integrated_sha and status == DONE:
                     try:
                         result = subprocess.run(
@@ -5183,9 +5202,12 @@ class Orchestrator:
                             text=True,
                             timeout=10,
                         )
-                        repairable_from_target = result.returncode == 0
+                        repairable_from_target = (
+                            repairable_from_target
+                            or result.returncode == 0
+                        )
                     except (OSError, subprocess.TimeoutExpired):
-                        repairable_from_target = False
+                        pass
 
                 if repairable_from_target:
                     has_unreachable_terminal = True

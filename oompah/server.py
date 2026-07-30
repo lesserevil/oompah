@@ -70,6 +70,7 @@ from oompah.intake_summary import build_intake_summary
 from oompah.integration import IntegrationRecord
 from oompah.coordination import CoordinationStore
 from oompah.dependency_graph import (
+    dependency_parent_has_landed,
     dependency_cycle_for_new_edge,
     effective_dependencies,
     issue_index,
@@ -2077,6 +2078,10 @@ def _integration_queue_summary(item, issue, issues) -> dict[str, Any]:
             own_parent_aliases
             and blocker_parent_aliases
             and not own_parent_aliases & blocker_parent_aliases
+            and not (
+                canonicalize_status(blocker.state) == DONE
+                and dependency_parent_has_landed(blocker, index)
+            )
         ):
             unreachable.append(dependency)
 

@@ -6,6 +6,7 @@ from collections import deque
 from typing import Iterable, Mapping, Sequence
 
 from oompah.models import BlockerRef, Issue
+from oompah.statuses import ARCHIVED, MERGED, canonicalize_status
 
 
 def _ref_identifier(ref: BlockerRef) -> str:
@@ -26,6 +27,22 @@ def issue_index(issues: Iterable[Issue]) -> dict[str, Issue]:
         for alias in issue_aliases(issue):
             result[alias] = issue
     return result
+
+
+def dependency_parent_has_landed(
+    issue: Issue,
+    issues_by_id: Mapping[str, Issue],
+) -> bool:
+    """Return whether a dependency's parent epic has landed externally."""
+
+    parent_id = str(issue.parent_id or "").strip()
+    if not parent_id:
+        return False
+    parent = issues_by_id.get(parent_id)
+    return (
+        parent is not None
+        and canonicalize_status(parent.state) in {MERGED, ARCHIVED}
+    )
 
 
 def effective_dependencies(
@@ -113,4 +130,3 @@ def dependency_cycle_for_new_edge(
                 visited.add(dependency)
                 queue.append((dependency, next_path))
     return None
-

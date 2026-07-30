@@ -5,6 +5,8 @@ from pathlib import Path
 import subprocess
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from oompah.integration import IntegrationRecord
 from oompah.integration_executor import IntegrationExecutionResult
 from oompah.integration_queue import IntegrationQueueItem
@@ -144,7 +146,73 @@ def test_cross_epic_dependency_requires_reachable_integrated_head(tmp_path):
         )
 
 
-def test_stale_queue_files_one_authorized_epic_rebase(tmp_path):
+def test_cross_epic_done_dependency_uses_default_after_parent_lands(
+    tmp_path,
+):
+    project = _make_project_record(epic_strategy="shared")
+    project.repo_path = str(tmp_path)
+    orchestrator = _make_orch(tmp_path, projects=[project])
+    epic = _make_issue(
+        identifier="EPIC-2",
+        issue_type="epic",
+        project_id=project.id,
+    )
+    upstream_parent = _make_issue(
+        identifier="EPIC-1",
+        issue_type="epic",
+        project_id=project.id,
+        state="Merged",
+    )
+    upstream = _make_issue(
+        identifier="TASK-1",
+        parent_id=upstream_parent.identifier,
+        project_id=project.id,
+        state="Done",
+    )
+    upstream.integration = IntegrationRecord(state="working")
+    fetch = subprocess.CompletedProcess([], 0, stdout="", stderr="")
+    unreachable = subprocess.CompletedProcess([], 1, stdout="", stderr="")
+    reachable = subprocess.CompletedProcess([], 0, stdout="", stderr="")
+
+    with patch(
+        "oompah.orchestrator.subprocess.run",
+        side_effect=[fetch, unreachable, unreachable],
+    ):
+        assert (
+            orchestrator._integration_satisfied_dependencies(
+                [epic, upstream_parent, upstream],
+                [],
+                project_id=project.id,
+                epic_id=epic.identifier,
+            )
+            == set()
+        )
+
+    with patch(
+        "oompah.orchestrator.subprocess.run",
+        side_effect=[fetch, reachable, reachable],
+    ):
+        assert (
+            orchestrator._integration_satisfied_dependencies(
+                [epic, upstream_parent, upstream],
+                [],
+                project_id=project.id,
+                epic_id=epic.identifier,
+            )
+            == {
+                upstream_parent.id,
+                upstream_parent.identifier,
+                upstream.id,
+                upstream.identifier,
+            }
+        )
+
+
+@pytest.mark.parametrize("parent_state", [None, "In Progress", "Done"])
+def test_cross_epic_done_dependency_rejects_unlanded_parent(
+    tmp_path,
+    parent_state,
+):
     project = _make_project_record(epic_strategy="shared")
     project.repo_path = str(tmp_path)
     orchestrator = _make_orch(tmp_path, projects=[project])
@@ -157,8 +225,72 @@ def test_stale_queue_files_one_authorized_epic_rebase(tmp_path):
         identifier="TASK-1",
         parent_id="EPIC-1",
         project_id=project.id,
-        state="Merged",
+        state="Done",
     )
+    issues = [epic, upstream]
+    if parent_state is not None:
+        issues.append(
+            _make_issue(
+                identifier="EPIC-1",
+                issue_type="epic",
+                project_id=project.id,
+                state=parent_state,
+            )
+        )
+
+    with patch(
+        "oompah.orchestrator.subprocess.run",
+        return_value=subprocess.CompletedProcess(
+            [],
+            0,
+            stdout="",
+            stderr="",
+        ),
+    ):
+        assert (
+            orchestrator._integration_satisfied_dependencies(
+                issues,
+                [],
+                project_id=project.id,
+                epic_id=epic.identifier,
+            )
+            == set()
+        )
+
+
+@pytest.mark.parametrize(
+    "upstream_state, parent_state",
+    [("Merged", None), ("Done", "Merged")],
+)
+def test_stale_queue_files_one_authorized_epic_rebase(
+    tmp_path,
+    upstream_state,
+    parent_state,
+):
+    project = _make_project_record(epic_strategy="shared")
+    project.repo_path = str(tmp_path)
+    orchestrator = _make_orch(tmp_path, projects=[project])
+    epic = _make_issue(
+        identifier="EPIC-2",
+        issue_type="epic",
+        project_id=project.id,
+    )
+    upstream = _make_issue(
+        identifier="TASK-1",
+        parent_id="EPIC-1",
+        project_id=project.id,
+        state=upstream_state,
+    )
+    issues = [epic, upstream]
+    if parent_state is not None:
+        issues.append(
+            _make_issue(
+                identifier="EPIC-1",
+                issue_type="epic",
+                project_id=project.id,
+                state=parent_state,
+            )
+        )
     queued = IntegrationQueueItem(
         project_id=project.id,
         epic_id=epic.identifier,
@@ -191,7 +323,7 @@ def test_stale_queue_files_one_authorized_epic_rebase(tmp_path):
             orchestrator._detect_and_repair_integration_queue_staleness_block(
                 project_id=project.id,
                 epic_id=epic.identifier,
-                issues=[epic, upstream],
+                issues=issues,
                 queue_items=[queued],
                 dependency_map={"TASK-2": ("TASK-1",)},
                 satisfied=set(),
@@ -452,6 +584,113 @@ def test_integration_queue_summary_explains_finish_dependency_wait():
     assert summary["waiting_on"] == ["TASK-1"]
     assert summary["wait_reason"] == (
         "Waiting for finish dependencies to pass terminal audit: TASK-1"
+    )
+
+
+def test_integration_queue_summary_accepts_done_child_of_landed_parent():
+    upstream_parent = Issue(
+        id="upstream-epic-uuid",
+        identifier="EPIC-1",
+        title="Upstream epic",
+        state="Merged",
+        issue_type="epic",
+    )
+    blocker = Issue(
+        id="dep-uuid",
+        identifier="TASK-1",
+        title="Dependency",
+        state="Done",
+        parent_id=upstream_parent.identifier,
+    )
+    target_parent = Issue(
+        id="target-epic-uuid",
+        identifier="EPIC-2",
+        title="Target epic",
+        state="In Progress",
+        issue_type="epic",
+    )
+    task = Issue(
+        id="task-uuid",
+        identifier="TASK-2",
+        title="Dependent",
+        state="Ready to Integrate",
+        parent_id=target_parent.identifier,
+        blocked_by=[BlockerRef(id=blocker.id, identifier=blocker.identifier)],
+    )
+    item = IntegrationQueueItem(
+        project_id="project-1",
+        epic_id=target_parent.identifier,
+        task_id=task.identifier,
+        task_branch="epic-EPIC-2--task-TASK-2",
+        head_sha="a" * 40,
+        base_sha="b" * 40,
+        priority=1,
+        submitted_at="2026-07-29T00:00:00+00:00",
+        state="ready",
+        attempts=0,
+        lease_owner=None,
+        lease_expires_at=None,
+        updated_at="2026-07-29T00:00:00+00:00",
+    )
+
+    summary = _integration_queue_summary(
+        item,
+        task,
+        [task, target_parent, blocker, upstream_parent],
+    )
+
+    assert summary["waiting_on"] == []
+    assert summary["wait_reason"] == "Waiting for the per-epic integration executor"
+
+
+def test_integration_queue_summary_rejects_done_child_of_unlanded_parent():
+    upstream_parent = Issue(
+        id="upstream-epic-uuid",
+        identifier="EPIC-1",
+        title="Upstream epic",
+        state="In Progress",
+        issue_type="epic",
+    )
+    blocker = Issue(
+        id="dep-uuid",
+        identifier="TASK-1",
+        title="Dependency",
+        state="Done",
+        parent_id=upstream_parent.identifier,
+    )
+    task = Issue(
+        id="task-uuid",
+        identifier="TASK-2",
+        title="Dependent",
+        state="Ready to Integrate",
+        parent_id="EPIC-2",
+        blocked_by=[BlockerRef(id=blocker.id, identifier=blocker.identifier)],
+    )
+    item = IntegrationQueueItem(
+        project_id="project-1",
+        epic_id="EPIC-2",
+        task_id=task.identifier,
+        task_branch="epic-EPIC-2--task-TASK-2",
+        head_sha="a" * 40,
+        base_sha="b" * 40,
+        priority=1,
+        submitted_at="2026-07-29T00:00:00+00:00",
+        state="ready",
+        attempts=0,
+        lease_owner=None,
+        lease_expires_at=None,
+        updated_at="2026-07-29T00:00:00+00:00",
+    )
+
+    summary = _integration_queue_summary(
+        item,
+        task,
+        [task, blocker, upstream_parent],
+    )
+
+    assert summary["waiting_on"] == ["TASK-1"]
+    assert summary["wait_reason"] == (
+        "Waiting for upstream dependency code to reach this epic branch: TASK-1"
     )
 
 
