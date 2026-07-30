@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T17:07:44.032640Z'
-updated_at: '2026-07-30T17:23:40.211792Z'
+updated_at: '2026-07-30T17:24:12.316282Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-604
 target_branch: null
 review_url: null
@@ -47,15 +47,12 @@ oompah.agent_run_id: f5298e77-99d4-4298-8f50-76eb05df55f4
 oompah.work_branch: epic-OOMPAH-585--task-OOMPAH-604
 oompah.integration:
   version: 1
-  state: integrated
-  attempts: 1
+  state: working
+  attempts: 0
   task_branch: epic-OOMPAH-585--task-OOMPAH-604
   base_branch: epic-OOMPAH-585
-  base_sha: b252293d3fc950f79a342c74b51d3285f62ecf4c
-  head_sha: 4cd5ddfae7384bbb7022d2562149468f0127a35e
-  integrated_sha: 4cd5ddfae7384bbb7022d2562149468f0127a35e
-  submitted_at: '2026-07-30T17:18:47.380173+00:00'
-  updated_at: '2026-07-30T17:23:36.023801+00:00'
+  base_sha: 4cd5ddfae7384bbb7022d2562149468f0127a35e
+  updated_at: '2026-07-30T17:24:03.022660+00:00'
 oompah.task_costs:
   total_input_tokens: 1840201
   total_output_tokens: 12108
@@ -116,14 +113,47 @@ oompah.terminal_audit:
       version: 1
       algorithm: sha256
       digest: 0f613657d486fa940f53b02ce2189b529f124964715d216756a0e0ddb4956f35
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-1c2185a9153a
+      target_state: Done
+      request_state: pending
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 0f613657d486fa940f53b02ce2189b529f124964715d216756a0e0ddb4956f35
+      created_at: '2026-07-30T17:23:59.222018+00:00'
+      provider_id: prov-3c712bff
+      model: nvidia/nvidia/nemotron-3-ultra
+      started_at: '2026-07-30T17:23:59.222018+00:00'
+      branch_key: epic-OOMPAH-585--task-OOMPAH-604
+      ended_at: '2026-07-30T17:24:09.062897+00:00'
+      failure_reason: 'unknown url type: ''/chat/completions'''
+      next_retry_at: '2026-07-30T17:24:19.062867+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-30T17:23:37.458459+00:00'
-  attempt_history: []
+    updated_at: '2026-07-30T17:24:09.062897+00:00'
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-1c2185a9153a
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0f613657d486fa940f53b02ce2189b529f124964715d216756a0e0ddb4956f35
+    created_at: '2026-07-30T17:23:59.222018+00:00'
+    provider_id: prov-3c712bff
+    model: nvidia/nvidia/nemotron-3-ultra
+    started_at: '2026-07-30T17:23:59.222018+00:00'
+    branch_key: epic-OOMPAH-585--task-OOMPAH-604
+    ended_at: '2026-07-30T17:24:09.062897+00:00'
+    failure_reason: 'unknown url type: ''/chat/completions'''
+    next_retry_at: '2026-07-30T17:24:19.062867+00:00'
 ---
 ## Summary
 
@@ -246,5 +276,30 @@ author: oompah
 created: 2026-07-30 17:23
 ---
 Queued for terminal transition to Done. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-07-30 17:24
+---
+Auditor dispatched (attempt #1, candidate: prov-3c712bff/nvidia/nvidia/nemotron-3-ultra)
+---
+author: oompah
+created: 2026-07-30 17:24
+---
+Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 17:24
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 1, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 7s
+- Log: OOMPAH-604__20260730T172407Z.jsonl
+---
+author: oompah
+created: 2026-07-30 17:24
+---
+Auditor attempt ended: unknown url type: '/chat/completions'. A different independent auditor will be tried on the next scheduler tick.
 ---
 <!-- COMMENTS:END -->
