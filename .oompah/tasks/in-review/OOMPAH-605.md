@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T17:58:44.309909Z'
-updated_at: '2026-07-30T18:05:19.604522Z'
+updated_at: '2026-07-30T18:07:05.269752Z'
 work_branch: OOMPAH-605
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/593
@@ -138,5 +138,10 @@ author: oompah
 created: 2026-07-30 18:01
 ---
 **Understanding**: This is a bootstrap recovery task to break the self-hosting control-plane deadlock. The terminal-audit control plane cannot deliver its own reviewed repairs, so we need to create a standalone recovery branch from main containing the already-reviewed OOMPAH-589 (auditor candidate/endpoint fixes) and OOMPAH-604 (owner-override fix) from origin/epic-OOMPAH-585. After delivery and restart, the terminal-audit lane should resume. My approach: (1) Explore epic-OOMPAH-585 to find the reviewed fixes, (2) Extract and apply those fixes to a recovery branch from main, (3) Run focused tests and full make test gate, (4) Document the bootstrap procedure in docs/operator-runbook.md, (5) Verify the fixes work after restart.
+---
+author: oompah
+created: 2026-07-30 18:07
+---
+Operator handoff: recovery branch OOMPAH-605 is already complete and pushed at cfe2916c5; focused tests passed (698), exact full make test passed (13,724 passed, 7 skipped), and PR #593 is running CI. Do not rewrite or push the branch. Inspect/verify only, then exit cleanly.
 ---
 <!-- COMMENTS:END -->
