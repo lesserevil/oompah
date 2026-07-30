@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:22.194798Z'
-updated_at: '2026-07-30T14:41:07.639688Z'
+updated_at: '2026-07-30T14:41:34.343085Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-590
 target_branch: null
 review_url: null
@@ -223,5 +223,29 @@ Key behaviors implemented:
 ✓ Audit history preserved with all attempts and their classifications
 
 Test results: All 13 auditor dispatch tests pass + 103 terminal transition tests pass
+---
+author: oompah
+created: 2026-07-30 14:41
+---
+**Verification Complete:**
+
+Focused Test Results:
+- test_auditor_dispatch.py: 13 tests PASSED (all scenarios from issue)
+- test_terminal_audit.py: 28 tests PASSED
+- test_terminal_transition_coordinator.py: 103 tests PASSED
+- Total: 144 tests PASSED ✓
+
+Coverage of acceptance criteria:
+✓ Transient auditor-session failure (launch, transport, timeout, provider-session) cannot leave request silently Pending
+✓ Request passes on retry with next eligible independent candidate
+✓ Request reaches explicit actionable exhausted/needs-human state when all candidates exhausted
+✓ Safe failure classification persisted (INFRASTRUCTURE_ERROR)
+✓ Candidate claims released on transient failure
+✓ Bounded backoff implemented with exponential delay
+✓ Duplicate concurrent attempts prevented via active_attempt_ids deduplication
+✓ Terminal-state idempotency preserved (no duplicate verdicts applied)
+✓ Complete audit history maintained across all attempts
+
+All changes pushed to epic-OOMPAH-585--task-OOMPAH-590. Ready for integration.
 ---
 <!-- COMMENTS:END -->
