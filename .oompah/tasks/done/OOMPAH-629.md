@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T23:07:33.040594Z'
-updated_at: '2026-07-30T23:26:09.778787Z'
+updated_at: '2026-07-30T23:26:21.621358Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -82,6 +82,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-07-30T23:21:36.685160+00:00'
     branch_key: OOMPAH-629
+oompah.task_costs:
+  total_input_tokens: 61
+  total_output_tokens: 11348
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 61
+      output_tokens: 11348
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 61
+    output_tokens: 11348
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T23:26:20.197366+00:00'
 ---
 ## Summary
 
@@ -150,5 +166,15 @@ Safe evidence:
 - server_validation_call_site: oompah/server.py:2807 (inside _submission_record, called before set_metadata_field/update_issue/enqueue at 3045-3054)
 - acp_validation_call_site: oompah/acp_tools.py:711 (before set_metadata_field/update_issue at 739-753)
 - executor_fence_call_site: oompah/integration_executor.py:69 (returns wrong_worktree before fetch/checkout/reset)
+---
+author: oompah
+created: 2026-07-30 23:26
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 55
+- Tokens: 61 in / 11.3K out [11.4K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 4m 42s
+- Log: OOMPAH-629__20260730T232144Z.jsonl
 ---
 <!-- COMMENTS:END -->
