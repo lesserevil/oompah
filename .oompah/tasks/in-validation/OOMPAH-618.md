@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-618
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Keep ACP shell commands off the scheduler event loop
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T21:03:01.411786Z'
-updated_at: '2026-07-30T21:21:01.737633Z'
+updated_at: '2026-07-30T21:22:12.526584Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -19,12 +19,37 @@ review_number: null
 merged_at: null
 oompah.integration:
   version: 1
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-585--task-OOMPAH-618
+  base_branch: epic-OOMPAH-585
+  base_sha: 45838987c7435c344c39cf77d0dd3ed1c135834c
   head_sha: 58915e5f0b116cf4269f6bb882dd81aa4010ec03
+  integrated_sha: 58915e5f0b116cf4269f6bb882dd81aa4010ec03
   submitted_at: '2026-07-30T21:08:25.802457+00:00'
-  updated_at: '2026-07-30T21:08:25.802457+00:00'
+  updated_at: '2026-07-30T21:22:08.873737+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-9d800f698a24
+    project_id: proj-14849f1b
+    task_id: OOMPAH-618
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 34e97871777f8d8185691d0089611298ba88e2995780542a26eb2d3c7886c7a0
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-30T21:22:10.374704+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -57,5 +82,10 @@ author: oompah
 created: 2026-07-30 21:21
 ---
 Completion-auditor handoff: focused verification already passed (53 project-tool tests, 367 ACP-related tests, terminal mutation scan). The integration executor is now running the exact combined-tree full gate; once this task is marked In Validation/integrated, that queue transition is evidence that the full gate passed. Inspect the three asyncio.to_thread boundaries and deterministic thread-identity regressions; do not redundantly rerun the full suite on the old server, whose inline run_command behavior is the bug this task fixes.
+---
+author: oompah
+created: 2026-07-30 21:22
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
