@@ -121,6 +121,79 @@ def _make_orch(tmp_path, projects=None):
     return orch
 
 
+def _make_landing_evidence_repo(tmp_path, *, land_child: bool):
+    """Create a clone whose parent remote-tracking ref can be stale."""
+    remote = tmp_path / "remote.git"
+    source = tmp_path / "source"
+    managed = tmp_path / "managed"
+    subprocess.run(["git", "init", "-q", "--bare", str(remote)], check=True)
+    subprocess.run(
+        ["git", "init", "-q", "--initial-branch=main", str(source)],
+        check=True,
+    )
+    subprocess.run(["git", "config", "user.name", "oompah"], cwd=source, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "lesserevil@users.noreply.github.com"],
+        cwd=source,
+        check=True,
+    )
+    (source / "base.txt").write_text("base\n")
+    subprocess.run(["git", "add", "base.txt"], cwd=source, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "base"], cwd=source, check=True)
+    subprocess.run(
+        ["git", "remote", "add", "origin", str(remote)],
+        cwd=source,
+        check=True,
+    )
+    subprocess.run(["git", "branch", "epic-parent"], cwd=source, check=True)
+    subprocess.run(
+        ["git", "push", "-q", "origin", "main", "epic-parent"],
+        cwd=source,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "checkout", "-q", "-b", "child-work", "epic-parent"],
+        cwd=source,
+        check=True,
+    )
+    (source / "child.txt").write_text("land me\n")
+    subprocess.run(["git", "add", "child.txt"], cwd=source, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "child work"], cwd=source, check=True)
+    subprocess.run(
+        ["git", "push", "-q", "origin", "child-work"],
+        cwd=source,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "clone", "-q", "--branch", "main", str(remote), str(managed)],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "fetch", "-q", "origin", "epic-parent", "child-work"],
+        cwd=managed,
+        check=True,
+    )
+
+    if land_child:
+        subprocess.run(
+            ["git", "checkout", "-q", "epic-parent"],
+            cwd=source,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "merge", "-q", "--ff-only", "child-work"],
+            cwd=source,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "push", "-q", "origin", "epic-parent"],
+            cwd=source,
+            check=True,
+        )
+
+    return managed
+
+
 # ----------------------------------------------------- Project model + storage
 
 
@@ -4221,6 +4294,146 @@ class TestResolveEpicTargetBranch:
 class TestLabelMergedEpics:
     """When an epic→main PR merges, the epic and all its children become
     Merged."""
+
+    def test_refreshes_stale_target_before_judging_done_child(self, tmp_path):
+        """A merge webhook may beat the local target remote-tracking ref."""
+        managed = _make_landing_evidence_repo(tmp_path, land_child=True)
+        proj = _make_project_record(epic_strategy="shared")
+        proj.repo_path = str(managed)
+        orch = _make_orch(tmp_path, projects=[proj])
+        epic = _make_issue(
+            identifier="OOMPAH-585",
+            issue_type="epic",
+            state=MERGED,
+            project_id=proj.id,
+        )
+        child = _make_issue(
+            identifier="OOMPAH-590",
+            state=DONE,
+            parent_id=epic.identifier,
+            project_id=proj.id,
+            work_branch="child-work",
+        )
+        tracker = MagicMock()
+
+        stale = subprocess.run(
+            [
+                "git",
+                "merge-base",
+                "--is-ancestor",
+                "refs/remotes/origin/child-work",
+                "refs/remotes/origin/epic-parent",
+            ],
+            cwd=managed,
+            check=False,
+        )
+        assert stale.returncode != 0
+
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(
+                orch,
+                "_resolve_epic_target_branch",
+                return_value="epic-parent",
+            ),
+        ):
+            orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-585")
+
+        landed = subprocess.run(
+            [
+                "git",
+                "merge-base",
+                "--is-ancestor",
+                "refs/remotes/origin/child-work",
+                "refs/remotes/origin/epic-parent",
+            ],
+            cwd=managed,
+            check=False,
+        )
+        assert landed.returncode == 0
+        tracker.mark_needs_human.assert_not_called()
+        assert (
+            orch.terminal_transition_coordinator.request_transition.call_count
+            == 2
+        )
+
+    def test_refresh_failure_leaves_done_child_unchanged(self, tmp_path):
+        """Unavailable authoritative refs must not trigger a stale demotion."""
+        managed = _make_landing_evidence_repo(tmp_path, land_child=False)
+        subprocess.run(
+            ["git", "remote", "set-url", "origin", str(tmp_path / "missing.git")],
+            cwd=managed,
+            check=True,
+        )
+        proj = _make_project_record(epic_strategy="shared")
+        proj.repo_path = str(managed)
+        orch = _make_orch(tmp_path, projects=[proj])
+        epic = _make_issue(
+            identifier="OOMPAH-585",
+            issue_type="epic",
+            state=MERGED,
+            project_id=proj.id,
+        )
+        child = _make_issue(
+            identifier="OOMPAH-590",
+            state=DONE,
+            parent_id=epic.identifier,
+            project_id=proj.id,
+            work_branch="child-work",
+        )
+        tracker = MagicMock()
+
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(
+                orch,
+                "_resolve_epic_target_branch",
+                return_value="epic-parent",
+            ),
+        ):
+            orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-585")
+
+        tracker.mark_needs_human.assert_not_called()
+        assert (
+            orch.terminal_transition_coordinator.request_transition.call_count
+            == 1
+        )
+
+    def test_fresh_target_still_escalates_genuinely_unlanded_child(self, tmp_path):
+        managed = _make_landing_evidence_repo(tmp_path, land_child=False)
+        proj = _make_project_record(epic_strategy="shared")
+        proj.repo_path = str(managed)
+        orch = _make_orch(tmp_path, projects=[proj])
+        epic = _make_issue(
+            identifier="OOMPAH-585",
+            issue_type="epic",
+            state=MERGED,
+            project_id=proj.id,
+        )
+        child = _make_issue(
+            identifier="OOMPAH-590",
+            state=DONE,
+            parent_id=epic.identifier,
+            project_id=proj.id,
+            work_branch="child-work",
+        )
+        tracker = MagicMock()
+
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(
+                orch,
+                "_resolve_epic_target_branch",
+                return_value="epic-parent",
+            ),
+        ):
+            orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-585")
+
+        tracker.mark_needs_human.assert_called_once()
+        assert "unlanded commit" in tracker.mark_needs_human.call_args.args[1]
 
     def test_marks_epic_and_children_merged(self, tmp_path):
         proj = _make_project_record(epic_strategy="shared")

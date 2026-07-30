@@ -7810,6 +7810,73 @@ class Orchestrator:
                 found.append(ref)
         return tuple(found)
 
+    @staticmethod
+    def _refresh_landing_evidence_target_refs(
+        repo_path: str,
+        branches: tuple[str, ...],
+    ) -> tuple[bool, str | None]:
+        """Refresh authoritative rollup targets before containment checks.
+
+        Merged-review webhooks can be processed before the managed clone's
+        remote-tracking ref advances.  Comparing a child against that stale
+        ref falsely reports landed commits as missing.  Fetch only the exact
+        target refs with a bounded command; callers defer child mutation when
+        the refresh cannot be proven successful.
+        """
+        if not (
+            repo_path
+            and os.path.isdir(repo_path)
+            and os.path.exists(os.path.join(repo_path, ".git"))
+        ):
+            return True, None
+
+        for branch in dict.fromkeys(branches):
+            branch = str(branch or "").strip()
+            if not branch:
+                continue
+            full_ref = f"refs/heads/{branch}"
+            try:
+                valid = subprocess.run(
+                    ["git", "check-ref-format", full_ref],
+                    cwd=repo_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                    check=False,
+                )
+            except subprocess.TimeoutExpired:
+                return False, "validation timed out"
+            except OSError:
+                return False, "validation could not start"
+            if valid.returncode != 0:
+                return False, "target branch is invalid"
+
+            remote_ref = f"refs/remotes/origin/{branch}"
+            try:
+                fetched = subprocess.run(
+                    [
+                        "git",
+                        "fetch",
+                        "--no-tags",
+                        "--quiet",
+                        "origin",
+                        f"+{full_ref}:{remote_ref}",
+                    ],
+                    cwd=repo_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=15,
+                    check=False,
+                )
+            except subprocess.TimeoutExpired:
+                return False, "fetch timed out"
+            except OSError:
+                return False, "fetch could not start"
+            if fetched.returncode != 0:
+                return False, "fetch failed"
+
+        return True, None
+
     def _child_landing_evidence_block_reason(
         self,
         epic: Issue,
@@ -14486,6 +14553,24 @@ class Orchestrator:
         except Exception:  # noqa: BLE001 - metadata checks still apply
             landed_target = ""
         containment_targets = (landed_target,) if landed_target else (epic_branch,)
+        repo_path = (
+            os.fspath(getattr(project, "repo_path", ""))
+            if project is not None and getattr(project, "repo_path", None)
+            else ""
+        )
+        landing_refs_fresh, landing_refresh_error = (
+            self._refresh_landing_evidence_target_refs(
+                repo_path,
+                containment_targets,
+            )
+        )
+        if not landing_refs_fresh:
+            logger.warning(
+                "Deferring Done-child landing reconciliation for epic %s: "
+                "authoritative target ref %s",
+                epic.identifier,
+                landing_refresh_error or "refresh failed",
+            )
 
         tracker = self._tracker_for_issue(epic)
         project_id = getattr(epic, "project_id", None) or ""
@@ -14523,6 +14608,14 @@ class Orchestrator:
             child_branch = (child.work_branch or "").strip()
             landing_reason = None
             if child_status == DONE:
+                if not landing_refs_fresh:
+                    logger.info(
+                        "Leaving epic child %s Done until target refs for epic %s "
+                        "can be refreshed",
+                        child.identifier,
+                        epic.identifier,
+                    )
+                    continue
                 landing_reason = self._child_landing_evidence_block_reason(
                     epic,
                     child,
