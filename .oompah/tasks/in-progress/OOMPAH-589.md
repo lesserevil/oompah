@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-589
 type: bug
-status: In Validation
+status: In Progress
 priority: 1
 title: Validate auditor provider endpoints before candidate dispatch
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:20.256845Z'
-updated_at: '2026-07-30T15:49:09.169198Z'
+updated_at: '2026-07-30T16:34:04.825934Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-589
 target_branch: null
 review_url: null
@@ -756,5 +756,10 @@ author: oompah
 created: 2026-07-30 15:49
 ---
 Auditor attempt ended: unknown url type: '/chat/completions'. A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-07-30 16:34
+---
+Operator diagnosis: the independent scheduler selects the valid InferenceAPI candidate, but forced auditor focus resolution replaces it with the default Claude ACP provider after the worker has already chosen ApiAgentSession. The blank ACP base URL then becomes /chat/completions, and the selected independent provider/model is lost. Reopening this task to bind forced auditor runs to AuditDispatchPlan.candidate and add a cross-mode regression test.
 ---
 <!-- COMMENTS:END -->
