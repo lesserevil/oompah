@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T02:55:54.699694Z'
-updated_at: '2026-07-30T13:49:14.367293Z'
+updated_at: '2026-07-30T20:52:19.020089Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -260,5 +260,10 @@ Run #3 [attempt=3, profile=deep, role=deep -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 1m 48s
 - Log: OOMPAH-576__20260730T134728Z.jsonl
+---
+author: oompah
+created: 2026-07-30 20:52
+---
+This parentless Ready-to-Integrate record cannot enter the project's require-epic-parent delivery path. OOMPAH-617 is the canonical OOMPAH-587 child carrying commit 6f5a859b2 through integration; keep this record as provenance and do not redispatch it.
 ---
 <!-- COMMENTS:END -->

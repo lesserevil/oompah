@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-617
 type: bug
-status: Backlog
+status: In Progress
 priority: 1
 title: Integrate wrong-checkout submission protection
 parent: OOMPAH-587
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T20:52:01.122820Z'
-updated_at: '2026-07-30T20:52:01.122820Z'
+updated_at: '2026-07-30T20:52:16.113940Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -28,3 +28,11 @@ Implementation scope: land the already implemented OOMPAH-576 fix onto the OOMPA
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-30 20:52
+---
+Claimed directly by the operator Codex session to transplant the already-tested OOMPAH-576 commit onto the valid OOMPAH-587 epic branch; do not dispatch a second implementation agent.
+---
+<!-- COMMENTS:END -->
