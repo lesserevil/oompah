@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-607
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Canonicalize project aliases before terminal owner authorization
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:17:13.371379Z'
-updated_at: '2026-07-30T18:27:16.427044Z'
+updated_at: '2026-07-30T18:28:27.938805Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -56,7 +56,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 91b59518-0b60-4e41-8483-9814185e200c
+oompah.agent_run_id: 674832fa-a9de-4014-966c-46f8ade01550
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-607__20260730T181838Z
@@ -132,5 +132,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 8m 38s
 - Log: OOMPAH-607__20260730T181838Z.jsonl
+---
+author: oompah
+created: 2026-07-30 18:28
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-30 18:28
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->

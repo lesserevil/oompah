@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:13:49.613612Z'
-updated_at: '2026-07-30T18:21:02.267381Z'
+updated_at: '2026-07-30T18:28:27.061580Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-606
 target_branch: null
 review_url: null
@@ -71,6 +71,20 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-460--task-OOMPAH-606
     source_sha: 254d2454813ffa07ed895cbf3548b227b94fd04c
     completed_at: '2026-07-30T18:20:57.748322+00:00'
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 04ce92916ff7e3e48e86aaf90629a7d27feb1844a88781b35f92d48131db7aa4
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: a9a2ece1-8a72-468d-9a32-53a364615a3d
+  claim_owner: ac40770c-37a8-4b2c-b040-7a7ae948f467
+  claimed_at: '2026-07-30T18:28:26.032648+00:00'
+  claim_expires_at: '2026-07-30T18:58:26.032648+00:00'
+  retry_count: 0
+  retry_after: null
 ---
 ## Summary
 
