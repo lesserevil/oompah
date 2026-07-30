@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-589
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Validate auditor provider endpoints before candidate dispatch
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:20.256845Z'
-updated_at: '2026-07-30T15:42:52.244445Z'
+updated_at: '2026-07-30T15:48:35.554988Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-589
 target_branch: null
 review_url: null
@@ -60,12 +60,15 @@ oompah.agent_run_id: d2d8c085-48de-43fb-a278-7c77caec998e
 oompah.work_branch: epic-OOMPAH-585--task-OOMPAH-589
 oompah.integration:
   version: 1
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-585--task-OOMPAH-589
+  base_branch: epic-OOMPAH-585
+  base_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
   head_sha: c4644107f13bdb747e8f19fe3fe7456db546b458
+  integrated_sha: c4644107f13bdb747e8f19fe3fe7456db546b458
   submitted_at: '2026-07-30T15:42:32.371610+00:00'
-  updated_at: '2026-07-30T15:42:32.371610+00:00'
+  updated_at: '2026-07-30T15:48:32.258257+00:00'
 oompah.task_costs:
   total_input_tokens: 37815032
   total_output_tokens: 59288
@@ -148,6 +151,28 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-585--task-OOMPAH-589
     source_sha: 88d46cabb8f97628460a04eb333267c7a57514d0
     completed_at: '2026-07-30T15:33:14.338176+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-d85de1769a0d
+    project_id: proj-14849f1b
+    task_id: OOMPAH-589
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d8a2ca14afe874af808a2cd4253fa8e4d9ab9f0a35211db87f2de9077a0d32ea
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-30T15:48:33.439440+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -671,5 +696,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 9m 3s
 - Log: OOMPAH-589__20260730T153408Z.jsonl
+---
+author: oompah
+created: 2026-07-30 15:48
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
