@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-593
 type: task
-status: Needs Human
+status: In Progress
 priority: 1
 title: Integrate and live-verify scoped Codex task CLI authentication
 parent: OOMPAH-586
@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-30T14:14:54.281403Z'
-updated_at: '2026-07-30T19:34:19.316975Z'
+updated_at: '2026-07-30T20:14:04.143478Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-593
 target_branch: null
 review_url: null
@@ -57,7 +57,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: eb60b117-2ef0-419a-9bff-6285abad1e1d
+oompah.agent_run_id: 11c75df3-20a0-46d2-b0dc-6cee3c2f181e
 oompah.work_branch: epic-OOMPAH-586--task-OOMPAH-593
 oompah.integration:
   version: 1
@@ -66,7 +66,7 @@ oompah.integration:
   task_branch: epic-OOMPAH-586--task-OOMPAH-593
   base_branch: epic-OOMPAH-586
   base_sha: 0a260f0279690a12fb056da0c8becb6f492f8c26
-  updated_at: '2026-07-30T18:17:51.913270+00:00'
+  updated_at: '2026-07-30T20:14:00.133030+00:00'
 oompah.task_costs:
   total_input_tokens: 1808769
   total_output_tokens: 32444
@@ -745,5 +745,20 @@ created: 2026-07-30 19:34
 Needs Human — Done audit requires operator input.
 
 No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then move the task back to Open to retry.
+---
+author: oompah
+created: 2026-07-30 20:13
+---
+Operator requested an auditor retry after updating the auditor role. The completed implementation remains pushed on epic-OOMPAH-586--task-OOMPAH-593. Treat this as audit retry only: inspect the existing evidence and branch, avoid reimplementation unless a concrete gap is found, and submit the existing work through the normal terminal-audit path.
+---
+author: oompah
+created: 2026-07-30 20:13
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-30 20:14
+---
+Focus: Test Engineer
 ---
 <!-- COMMENTS:END -->

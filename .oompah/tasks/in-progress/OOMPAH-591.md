@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-591
 type: task
-status: Needs Human
+status: In Progress
 priority: 1
 title: Reconcile the pending audit backlog and stale In Validation tasks
 parent: OOMPAH-585
@@ -13,7 +13,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:26.620047Z'
-updated_at: '2026-07-30T19:43:58.199092Z'
+updated_at: '2026-07-30T20:13:58.634502Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-591
 target_branch: null
 review_url: null
@@ -47,7 +47,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 29fbf8c4-5a3e-4070-818d-d4398b9906d8
+oompah.agent_run_id: b53f86dc-c341-4369-95d9-523099d68e60
 oompah.work_branch: epic-OOMPAH-585--task-OOMPAH-591
 oompah.integration:
   version: 1
@@ -56,7 +56,7 @@ oompah.integration:
   task_branch: epic-OOMPAH-585--task-OOMPAH-591
   base_branch: epic-OOMPAH-585
   base_sha: 64b9b00c55f34d164d4eca2dd6071887ea5b5bb3
-  updated_at: '2026-07-30T19:37:41.333241+00:00'
+  updated_at: '2026-07-30T20:13:54.367073+00:00'
 oompah.task_costs:
   total_input_tokens: 5245428
   total_output_tokens: 35010
@@ -504,5 +504,20 @@ created: 2026-07-30 19:43
 Needs Human — Done audit requires operator input.
 
 No independent auditor candidate is available for this audit (Audit reached the maximum of 3 attempts.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then move the task back to Open to retry.
+---
+author: oompah
+created: 2026-07-30 20:13
+---
+Operator requested an auditor retry after updating the auditor role. The completed implementation remains pushed on epic-OOMPAH-585--task-OOMPAH-591. Treat this as audit retry only: inspect the existing evidence and branch, avoid reimplementation unless a concrete gap is found, and submit the existing work through the normal terminal-audit path.
+---
+author: oompah
+created: 2026-07-30 20:13
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-30 20:13
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
