@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-419
 type: task
-status: In Validation
+status: Archived
 priority: 1
 title: Define the oompah OpenAPI-to-MCP exposure policy
 parent: OOMPAH-418
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T19:41:54.055851Z'
-updated_at: '2026-07-30T20:55:14.332121Z'
+updated_at: '2026-07-30T20:56:14.457334Z'
 work_branch: epic-OOMPAH-418--task-OOMPAH-419
 target_branch: null
 review_url: null
@@ -61,6 +61,8 @@ oompah.task_costs:
     recorded_at: '2026-07-23T20:33:33.936416+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-86873bc42631: '2026-07-30T20:56:11.908477+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -68,7 +70,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-419
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -77,7 +79,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-86873bc42631
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -87,13 +89,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-30T20:55:01.878333+00:00'
       branch_key: epic-OOMPAH-418
+      verdict: pass
+      completed_at: '2026-07-30T20:56:11.908383+00:00'
+      ended_at: '2026-07-30T20:56:11.908383+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-07-30T20:54:43.321941+00:00'
-    updated_at: '2026-07-30T20:55:01.878333+00:00'
+    updated_at: '2026-07-30T20:56:11.908383+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-86873bc42631
@@ -546,5 +551,24 @@ author: oompah
 created: 2026-07-30 20:55
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 20:56
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit: 10fac3f6e
+- pr_number: 542
+- impl_commit: 9079accfb
+- ci_fix_commit: a975649d5
+- policy_module_present: oompah/mcp_exposure_policy.py
+- tests_present: tests/test_mcp_exposure_policy.py
+- plan_present: plans/mcp-openapi-exposure-policy.md
+- merge_stat: 6 files changed, 1641 insertions, 11 deletions
+- previous_state: Merged
+- auto_archive_reason: Aged Merged auto-archive (7 days)
 ---
 <!-- COMMENTS:END -->
