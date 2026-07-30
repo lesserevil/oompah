@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T21:26:15.242500Z'
-updated_at: '2026-07-30T21:43:04.518596Z'
+updated_at: '2026-07-30T21:47:32.849323Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-622
 target_branch: null
 review_url: null
@@ -285,5 +285,10 @@ author: oompah
 created: 2026-07-30 21:43
 ---
 Operator re-ran the exact capability/authority nodes from the audit worktree with the worktree on PYTHONPATH (`python -m pytest --import-mode=importlib -p no:cacheprovider`): 8 passed in 0.63s. This confirms the earlier bare-pytest failure was root editable-install contamination, not a branch regression.
+---
+author: oompah
+created: 2026-07-30 21:47
+---
+Operator is rotating audit attempt #1: after the exact full gate passed, this attempt spent ten minutes trying to recover from a known root editable-install mismatch and was about to rerun the full gate through the old server path. That would unnecessarily recreate the event-loop stall fixed by OOMPAH-618. The branch itself remains clean, integrated, and independently verified; next auditor should use comments #11, #19, and #22 and submit a verdict without another full run.
 ---
 <!-- COMMENTS:END -->
