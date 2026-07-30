@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-604
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Allow owner overrides after terminal-audit evidence supersession
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T17:07:44.032640Z'
-updated_at: '2026-07-30T17:07:44.032640Z'
+updated_at: '2026-07-30T17:08:21.867025Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,3 +38,11 @@ A project owner can apply an auditable override to the current OOMPAH-589-style 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-30 17:08
+---
+Project-owner-approved follow-up to repair the terminal owner-override fingerprint deadlock discovered while bootstrapping OOMPAH-589.
+---
+<!-- COMMENTS:END -->
