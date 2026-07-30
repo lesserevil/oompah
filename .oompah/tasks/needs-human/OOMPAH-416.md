@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-416
 type: task
-status: In Validation
+status: Needs Human
 priority: 0
 title: Post REFRESH_REQUESTED after orphan resets to wake dispatch immediately
 parent: OOMPAH-414
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-23T19:34:30.939292Z'
-updated_at: '2026-07-30T21:55:13.234774Z'
+updated_at: '2026-07-30T21:57:47.007084Z'
 work_branch: epic-OOMPAH-414
 target_branch: null
 review_url: null
@@ -268,5 +268,10 @@ author: oompah
 created: 2026-07-30 21:55
 ---
 Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
+---
+author: oompah
+created: 2026-07-30 21:57
+---
+The parent epic OOMPAH-414 merged from epic-OOMPAH-414, but this task was In Validation with work branch epic-OOMPAH-414. Its work is not proven to be in the merged epic. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
 ---
 <!-- COMMENTS:END -->

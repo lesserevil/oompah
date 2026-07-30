@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-415
 type: task
-status: In Validation
+status: Needs Human
 priority: 0
 title: Decouple stale-dispatch threshold from full_sync_interval and reduce recovery
   latency
@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-23T19:34:14.691327Z'
-updated_at: '2026-07-30T21:55:08.338051Z'
+updated_at: '2026-07-30T21:57:42.910477Z'
 work_branch: epic-OOMPAH-414
 target_branch: null
 review_url: null
@@ -473,5 +473,10 @@ author: oompah
 created: 2026-07-30 21:55
 ---
 Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
+---
+author: oompah
+created: 2026-07-30 21:57
+---
+The parent epic OOMPAH-414 merged from epic-OOMPAH-414, but this task was In Validation with work branch epic-OOMPAH-414. Its work is not proven to be in the merged epic. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
 ---
 <!-- COMMENTS:END -->
