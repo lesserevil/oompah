@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-486
 type: feature
-status: Ready to Integrate
+status: In Progress
 priority: 1
 title: Add terminal-audit metrics, maintenance health, and actionable alerts
 parent: OOMPAH-460
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:25.195304Z'
-updated_at: '2026-07-29T20:13:47.627093Z'
+updated_at: '2026-07-30T04:57:18.702926Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-486
 target_branch: null
 review_url: null
@@ -37,7 +37,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 26a0bf9d-f9b8-43e6-b7bf-55eda8937c73
+oompah.agent_run_id: 1d974c55-6a77-4044-be66-f945b96ef83e
 oompah.work_branch: epic-OOMPAH-460--task-OOMPAH-486
 oompah.task_costs:
   total_input_tokens: 16623045
@@ -95,12 +95,12 @@ oompah.task_costs:
     recorded_at: '2026-07-29T20:13:46.249012+00:00'
 oompah.integration:
   version: 1
-  state: ready
+  state: working
   attempts: 0
   task_branch: epic-OOMPAH-460--task-OOMPAH-486
-  head_sha: 46b7ce15b55cb20a003ee65c31b75e0c7385213b
-  submitted_at: '2026-07-29T20:13:30.858946+00:00'
-  updated_at: '2026-07-29T20:13:30.858946+00:00'
+  base_branch: epic-OOMPAH-460
+  base_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
+  updated_at: '2026-07-30T04:57:16.556178+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-486__20260729T195540Z
@@ -332,5 +332,20 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 16m 9s
 - Log: OOMPAH-486__20260729T195744Z.jsonl
+---
+author: oompah
+created: 2026-07-30 04:57
+---
+Integration found a rebase conflict on `epic-OOMPAH-460--task-OOMPAH-486`. Resolve it against `epic-OOMPAH-460`, run the required tests, push the same private branch, and `oompah task submit` it again.
+---
+author: oompah
+created: 2026-07-30 04:57
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-30 04:57
+---
+Focus: Frontend Developer
 ---
 <!-- COMMENTS:END -->
