@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T02:55:54.699694Z'
-updated_at: '2026-07-30T13:47:26.356853Z'
+updated_at: '2026-07-30T13:48:47.239260Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -217,5 +217,15 @@ author: oompah
 created: 2026-07-30 13:47
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-30 13:48
+---
+Continuation run: verified the previously landed commit 6f5a859b2 covers the full scope. The change wires validate_submission_branch through both the ACP direct-submit path (oompah/acp_tools.py) and the HTTP submit endpoint (oompah/server.py); adds branch-identity checks with fail-closed behavior in oompah/projects.py::_reset_existing_worktree and oompah/integration_executor.py::execute_integration; and introduces expected_submission_branch/validate_submission_branch in oompah/integration.py. Focused tests exercise wrong-checkout ACP submit rejection, wrong-checkout HTTP submit rejection with unchanged queue, correct-checkout enqueue, worktree preparation refusal on branch mismatch (no reset/clean), and executor branch_mismatch without reset.
+---
+author: oompah
+created: 2026-07-30 13:48
+---
+Verification: ran focused pytest suite for tests/test_projects.py, tests/test_integration_executor.py, tests/test_integration_record.py, tests/test_task_handoff.py, and tests/test_worker_submission.py — 125 passed, 0 failures. All acceptance criteria (wrong-checkout submission rejected before tracker/queue/worktree mutation, correct submissions still integrate, malformed queue rows cannot rewrite a registered worktree) are covered.
 ---
 <!-- COMMENTS:END -->
