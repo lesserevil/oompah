@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:28.755226Z'
-updated_at: '2026-07-30T15:48:44.136535Z'
+updated_at: '2026-07-30T15:51:10.295839Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-592
 target_branch: null
 review_url: null
@@ -177,5 +177,23 @@ author: oompah
 created: 2026-07-30 15:48
 ---
 Discovery & Implementation: Previous agent had written most code but failed to commit due to a patch verification error. Reconstructed from .pyc files. Implemented: (1) oompah/terminal_audit_health.py - new module with AuditHealthObservation, TerminalAuditHealth dataclasses, build_terminal_audit_health() function, terminal_audit_health_alerts() function; (2) oompah/config.py - new audit_stale_pending_seconds config field (default 3600s); (3) oompah/orchestrator.py - new _refresh_terminal_audit_health() method, extended _audit_metrics with launch_failure/transport_failure/retry_exhausted/stale_in_validation counters, _dispatch_audit_lane() now collects AuditHealthObservation per In Validation issue and calls refresh, get_snapshot() includes terminal_audit_health and health.status fields; (4) oompah/templates/dashboard.html - new #terminal-audit-health banner (accessible, hidden by default), renderTerminalAuditHealth() JS function using only safe numeric facts.
+---
+author: oompah
+created: 2026-07-30 15:51
+---
+Verification: all 50 new tests pass.
+
+Ran focused test suite:
+  python -m pytest tests/test_terminal_audit_health.py tests/test_terminal_audit_health_api.py tests/test_dashboard_terminal_audit_health.py -v
+  Result: 50 passed in 1.06s
+
+Coverage:
+- test_terminal_audit_health.py (32 tests): empty backlog, fresh queue, aged backlog, stale validation (distinct alerts), launch/transport failure counts, retry exhaustion, successful recovery/clear, restart persistence (to_dict/from_dict roundtrip), redaction (no provider secrets or reason text in alert messages), quarantine, alert prefix namespace
+- test_terminal_audit_health_api.py (2 tests): snapshot shape with degraded=True on launch failures; graceful handling of missing _audit_health
+- test_dashboard_terminal_audit_health.py (16 tests): banner hidden by default, aria attributes (role=status, aria-live=polite, aria-label), detail element presence, renderTerminalAuditHealth uses all numeric fields, banner.hidden toggling, handleStateUpdate reads state.terminal_audit_health, null guard
+
+Acceptance criteria met:
+- A state with failed auditor launches or materially stale pending audits cannot show an empty healthy alert list ✓
+- Recovered normal operation clears the alert deterministically ✓
 ---
 <!-- COMMENTS:END -->
