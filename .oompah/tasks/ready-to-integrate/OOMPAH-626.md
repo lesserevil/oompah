@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T22:02:35.998442Z'
-updated_at: '2026-07-30T22:03:55.281791Z'
+updated_at: '2026-07-30T22:06:07.454805Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -22,9 +22,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: epic-OOMPAH-585--task-OOMPAH-626
-  head_sha: b5425ab78c45350345ee59ca8a8e1c15559a6463
-  submitted_at: '2026-07-30T22:03:51.385063+00:00'
-  updated_at: '2026-07-30T22:03:51.385063+00:00'
+  head_sha: 7576453f56c86edb05a9e49631056d4eb19c8878
+  submitted_at: '2026-07-30T22:06:05.301194+00:00'
+  updated_at: '2026-07-30T22:06:05.301194+00:00'
 ---
 ## Summary
 
@@ -47,5 +47,15 @@ author: oompah
 created: 2026-07-30 22:03
 ---
 Supersede in-progress audits on changed evidence and reject stale late verdicts through the existing CAS.
+---
+author: oompah
+created: 2026-07-30 22:06
+---
+Extended the fix to the exact persisted OOMPAH-591 shape: identical in-progress requests now coalesce instead of duplicating, and coalescing a fresh record repairs older active records with stale fingerprints by superseding them. Verification now covers 152 transition/dispatch/override/archive tests plus the terminal mutation scan.
+---
+author: oompah
+created: 2026-07-30 22:06
+---
+Supersede changed in-flight evidence, coalesce identical in-progress requests, and self-heal stale duplicate revisions.
 ---
 <!-- COMMENTS:END -->
