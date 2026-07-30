@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:20.256845Z'
-updated_at: '2026-07-30T14:21:09.611501Z'
+updated_at: '2026-07-30T14:21:29.521410Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-589
 target_branch: null
 review_url: null
@@ -149,5 +149,24 @@ author: oompah
 created: 2026-07-30 14:21
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-07-30 14:21
+---
+**Understanding & Security Analysis**
+
+Security Issue: OpenAI-compatible endpoints must validate base URLs before dispatch.
+
+Attack Vector: Missing/relative base URLs could be resolved to attacker-controlled paths (e.g., /chat/completions on localhost or uncontrolled domains). This violates the OWASP Top 10 (A03:2021 Injection, A06:2021 Vulnerable & Outdated Components).
+
+Planned approach:
+1. Locate provider configuration loading and auditor dispatch code
+2. Identify current endpoint validation gaps
+3. Implement validation layer checking: absolute HTTP(S) URLs, no relative paths
+4. Add credential redaction in error messages
+5. Create unit/integration tests for absent/relative/malformed/valid URLs
+6. Verify invalid candidates are skipped with health evidence, not silently ignored
+
+Starting code exploration...
 ---
 <!-- COMMENTS:END -->
