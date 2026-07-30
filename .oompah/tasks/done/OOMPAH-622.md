@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-622
 type: task
-status: In Validation
+status: Done
 priority: null
 title: Reject verdict-incapable Codex CLI auditor sessions
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T21:26:15.242500Z'
-updated_at: '2026-07-30T21:48:50.331174Z'
+updated_at: '2026-07-30T21:52:38.967710Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-622
 target_branch: null
 review_url: null
@@ -99,6 +99,8 @@ oompah.work_contributors:
     completed_at: '2026-07-30T21:30:08.153718+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-899ceea92932: '2026-07-30T21:52:36.678248+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -106,7 +108,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-622
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -131,7 +133,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-899ceea92932
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -142,13 +144,16 @@ oompah.terminal_audit:
       started_at: '2026-07-30T21:48:41.844683+00:00'
       branch_key: epic-OOMPAH-585--task-OOMPAH-622
       candidate_rotation_count: 1
+      verdict: pass
+      completed_at: '2026-07-30T21:52:36.678142+00:00'
+      ended_at: '2026-07-30T21:52:36.678142+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-30T21:37:51.513794+00:00'
-    updated_at: '2026-07-30T21:48:41.844683+00:00'
+    updated_at: '2026-07-30T21:52:36.678142+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-a475f88c122f
@@ -360,5 +365,21 @@ author: oompah
 created: 2026-07-30 21:48
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 21:52
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- commit: ebb5b12d9
+- files_changed: oompah/auditor_candidate_selector.py, oompah/orchestrator.py, tests/test_auditor_candidate_selector.py, tests/test_auditor_contract.py, tests/test_orchestrator_handlers.py
+- focused_tests: 7 passed (3 AuditCapability selector + 3 read-only authority + 1 contract catalog)
+- broader_tests: 338 passed across 3 affected test files
+- subscription_codex_filtered: _supports_audit_verdict() returns False for backend=codex AND _is_subscription_acp()
+- auditor_always_read_only: _acp_session_is_read_only returns True for auditor focus name
+- no_candidate_diagnostic: missing_audit_capability reason code registered and returned on exhaustion
 ---
 <!-- COMMENTS:END -->
