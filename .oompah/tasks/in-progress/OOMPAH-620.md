@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T21:25:27.860280Z'
-updated_at: '2026-07-30T21:35:24.331010Z'
+updated_at: '2026-07-30T21:36:08.592257Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-620
 target_branch: null
 review_url: null
@@ -120,5 +120,40 @@ author: oompah
 created: 2026-07-30 21:35
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-07-30 21:36
+---
+SECURITY AUDITOR: Initial Analysis
+
+**Understanding:**
+I've reviewed the implementation of basic-auth credential resolution in client_auth.py, task_cli.py, and admin_cli.py. Current implementation includes:
+- Argument parsing for --username and --password-file in both CLIs
+- Environment variable support (OOMPAH_SERVER_USERNAME, PASSWORD, PASSWORD_FILE)
+- Strong security practices: symlink rejection, TOCTOU inode verification, permission warnings
+- URL sanitization to reject embedded credentials
+- Comprehensive error handling without credential leakage
+
+**Key Finding - Missing Implementation:**
+The issue requires netrc support (RFC 7489) to complete the credential resolution cascade. According to the spec, when no higher-precedence source provides complete credentials, the system should:
+1. Resolve the normalized hostname from OOMPAH_SERVER_URL
+2. Read the default ~/.netrc file
+3. Look up that hostname entry for username/password
+4. Apply strict precedence and validation rules
+
+Currently, netrc is NOT implemented in client_auth.py. This is a critical gap.
+
+**Security Concerns to Address:**
+1. Netrc file handling: Must properly reject symlinks, verify permissions (mode 0600), TOCTOU verification
+2. Hostname normalization: Must handle IPv4, IPv6 in URLs, port stripping
+3. Credential precedence conflicts: CLI username with netrc password or vice versa
+4. Malformed netrc: Detect parsing errors and reject unsafe entries
+5. No secret leakage: Ensure all error messages and logs redact credentials
+
+**Next Steps:**
+1. Implement netrc reading with proper security validation
+2. Extend credential resolver with netrc fallback
+3. Add comprehensive test coverage for all netrc scenarios
+4. Verify no secrets appear in error messages or logs
 ---
 <!-- COMMENTS:END -->
