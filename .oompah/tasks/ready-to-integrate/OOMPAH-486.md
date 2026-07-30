@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:25.195304Z'
-updated_at: '2026-07-30T05:13:57.868122Z'
+updated_at: '2026-07-30T05:14:16.220551Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-486
 target_branch: null
 review_url: null
@@ -40,8 +40,8 @@ oompah.duplicate_screening:
 oompah.agent_run_id: 1d974c55-6a77-4044-be66-f945b96ef83e
 oompah.work_branch: epic-OOMPAH-460--task-OOMPAH-486
 oompah.task_costs:
-  total_input_tokens: 16623045
-  total_output_tokens: 47361
+  total_input_tokens: 16623074
+  total_output_tokens: 52271
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -49,8 +49,8 @@ oompah.task_costs:
       output_tokens: 28927
       cost_usd: 0.0
     sonnet:
-      input_tokens: 119736
-      output_tokens: 17845
+      input_tokens: 119765
+      output_tokens: 22755
       cost_usd: 0.0
     opus:
       input_tokens: 84773
@@ -93,6 +93,12 @@ oompah.task_costs:
     output_tokens: 329
     cost_usd: 0.0
     recorded_at: '2026-07-29T20:13:46.249012+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 29
+    output_tokens: 4910
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T05:14:14.893874+00:00'
 oompah.integration:
   version: 1
   state: ready
@@ -357,5 +363,15 @@ author: oompah
 created: 2026-07-30 05:13
 ---
 Rebased onto epic-OOMPAH-460 (12f63352b), resolved orchestrator.py snapshot conflict (kept both 'audits' and 'terminal_audit' top-level keys), all 122 focused tests pass (9 observability, 104 coordinator, 9 status interfaces). Dashboard audit throughput stat, TerminalAuditMetrics, TerminalAuditAlertRegistry, and orchestrator integration complete.
+---
+author: oompah
+created: 2026-07-30 05:14
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 0, Tool calls: 33
+- Tokens: 29 in / 4.9K out [4.9K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 17m 1s
+- Log: OOMPAH-486__20260730T045720Z.jsonl
 ---
 <!-- COMMENTS:END -->
