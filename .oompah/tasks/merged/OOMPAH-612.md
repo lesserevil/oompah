@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-612
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Avoid ACP auditor result deadlock on the dispatch event loop
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T19:33:15.081209Z'
-updated_at: '2026-07-30T19:59:11.636873Z'
+updated_at: '2026-07-30T20:00:06.088165Z'
 work_branch: OOMPAH-612
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/595
@@ -33,6 +33,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-9b5e2b06fe84: '2026-07-30T19:55:52.677971+00:00'
+    attempt-f25bce183791: '2026-07-30T20:00:03.597889+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -74,7 +75,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-612
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -83,7 +84,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-f25bce183791
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -93,13 +94,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-30T19:56:07.467799+00:00'
       branch_key: OOMPAH-612
+      verdict: pass
+      completed_at: '2026-07-30T20:00:03.597707+00:00'
+      ended_at: '2026-07-30T20:00:03.597707+00:00'
     requested_by:
       version: 1
       identity: NVShawn
       source: forge
     previous_state: In Review
     created_at: '2026-07-30T19:50:48.280429+00:00'
-    updated_at: '2026-07-30T19:56:07.467799+00:00'
+    updated_at: '2026-07-30T20:00:03.597707+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-9b5e2b06fe84
@@ -229,5 +233,23 @@ author: oompah
 created: 2026-07-30 19:59
 ---
 Live deployment evidence for the pending Merged audit: service instance c1f4a4cb-217d-4c2a-aad6-f768a3cdbb4b is running merge c048ba706. The preceding Claude ACP Done auditor called submit_audit_result at 19:55:52.666 and received accepted=true at 19:55:54.810 (2.14s), then exited normally; no 60-second rejection or retry occurred. PR #595 CI passed on Python 3.11, 3.12, and 3.13. Please submit the structured Merged verdict after completing read-only review.
+---
+author: oompah
+created: 2026-07-30 20:00
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: c048ba706cbe9b1342b80a67576a49b82887e84a
+- fix_commit: 8ce6fa0ad3a343b053298a64f721a6a3b73ceb22
+- merge_parents: e1e4e0c9fee2a17b5a9b02002fcaa2d3cc7793ec 8ce6fa0ad3a343b053298a64f721a6a3b73ceb22
+- changed_files: oompah/acp_tools.py, tests/test_acp_auditor_result_bridge.py
+- fix_locations: oompah/acp_tools.py:1241 (Claude ACP), oompah/acp_tools.py:1857 (OpenCode ACP)
+- fix_mechanism: await asyncio.to_thread(submit_auditor_result, payload, audit_target, audit_result_handler)
+- regression_tests: tests/test_acp_auditor_result_bridge.py::test_claude_acp_submission_does_not_block_its_dispatch_loop, ::test_opencode_acp_submission_does_not_block_its_dispatch_loop, ::test_claude_acp_submission_surfaces_coordinator_rejection
+- focused_suite_result: 187 passed (test_auditor_contract=13, test_auditor_result_api=68, test_terminal_transition_coordinator=103, test_acp_auditor_result_bridge=3)
+- worktree_status: clean; OOMPAH-612 tracks origin/main
 ---
 <!-- COMMENTS:END -->
