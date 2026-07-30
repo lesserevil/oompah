@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-30T14:14:54.281403Z'
-updated_at: '2026-07-30T15:49:22.242779Z'
+updated_at: '2026-07-30T15:49:50.010716Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-593
 target_branch: null
 review_url: null
@@ -68,8 +68,8 @@ oompah.integration:
   submitted_at: '2026-07-30T15:49:19.989212+00:00'
   updated_at: '2026-07-30T15:49:19.989212+00:00'
 oompah.task_costs:
-  total_input_tokens: 281218
-  total_output_tokens: 12318
+  total_input_tokens: 281291
+  total_output_tokens: 30106
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -81,8 +81,8 @@ oompah.task_costs:
       output_tokens: 7428
       cost_usd: 0.0
     opus:
-      input_tokens: 6
-      output_tokens: 638
+      input_tokens: 79
+      output_tokens: 18426
       cost_usd: 0.0
   runs:
   - profile: default
@@ -109,6 +109,12 @@ oompah.task_costs:
     output_tokens: 6730
     cost_usd: 0.0
     recorded_at: '2026-07-30T15:36:25.576488+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 73
+    output_tokens: 17788
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T15:49:48.265902+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-593__20260730T150438Z
@@ -400,5 +406,15 @@ author: oompah
 created: 2026-07-30 15:49
 ---
 Integrated OOMPAH-575 handoff-auth regression tests (11 cases across TestCodexHandoffAuth + TestHandoffTokenFailClosed) and added TestOrchestratorHandoffTokenMint (6 cases) as the missing live-path reproducer targeting Orchestrator._issue_task_handoff_token. Together they cover mint → env injection → CLI dispatch → endpoint validation. Docs (docs/scoped-task-cli-authentication.md) already documented the mechanism and probe. Focused suites: 91 passed. Mutation-tested drift-guard and least-privilege guard by editing the orchestrator and confirming both fail.
+---
+author: oompah
+created: 2026-07-30 15:49
+---
+Run #2 [attempt=2, profile=deep, role=deep -> Claude/opus]
+- Turns: 0, Tool calls: 67
+- Tokens: 73 in / 17.8K out [17.9K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 13m 2s
+- Log: OOMPAH-593__20260730T153653Z.jsonl
 ---
 <!-- COMMENTS:END -->
