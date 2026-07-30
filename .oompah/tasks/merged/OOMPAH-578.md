@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-578
 type: task
-status: In Review
+status: Merged
 priority: null
 title: Prune terminal worktrees that use the legacy epic-task branch shape
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T03:38:06.370836Z'
-updated_at: '2026-07-30T03:45:37.137137Z'
+updated_at: '2026-07-30T03:51:32.496290Z'
 work_branch: OOMPAH-578
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/589

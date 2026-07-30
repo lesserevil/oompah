@@ -28,7 +28,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:46.877390Z'
-updated_at: '2026-07-30T03:50:46.286062Z'
+updated_at: '2026-07-30T03:51:29.254482Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -211,5 +211,10 @@ author: oompah
 created: 2026-07-30 03:50
 ---
 Discovery: Reproduced a real (not just SIGTERM-timeout) test failure under 4-worker xdist parallel load: tests/test_orchestrator_handlers.py::TestMaintenanceLaneNonBlocking::test_tick_does_not_await_maintenance_heal fails with the 1.0s asyncio.wait_for tripping before _tick() has a chance to schedule its handlers under CPU contention. In isolation the test passes in <1s; under full-suite parallel load it exceeds the 1.0s guard even though _tick() is genuinely non-blocking. Root cause: wall-clock threshold too tight for CI parallel load — the same class of regression OOMPAH-483 fixed in test_task_cost_telemetry.py.
+---
+author: oompah
+created: 2026-07-30 03:51
+---
+Implementation & Verification: Applied the OOMPAH-483-style structural-timing fix to tests/test_orchestrator_handlers.py::TestMaintenanceLaneNonBlocking::test_tick_does_not_await_maintenance_heal — block maintenance for 60s (vs. 5s) and extend tick's wait_for to 15s (vs. 1.0s). The distinguishing signal (60s block > 15s wait) still deterministically detects a regression where _tick() awaits maintenance, while the assertion remains structural (\`not _maintenance_future.done()\` after tick returns).\n\nVerification: full parallel gate under 4 xdist workers now passes: **13684 passed, 7 skipped in 246s**. Previously this same run failed with 1 flaky failure in the same test.\n\nPushed 95581aca5 to origin/epic-OOMPAH-459. Ready for the orchestrator to rerun the branch gate.
 ---
 <!-- COMMENTS:END -->
