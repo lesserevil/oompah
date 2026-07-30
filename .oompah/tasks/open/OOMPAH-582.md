@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-582
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Satisfy legacy Done cross-epic dependencies after parent merge
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:39:46.196812Z'
-updated_at: '2026-07-30T04:39:46.196812Z'
+updated_at: '2026-07-30T04:39:56.636652Z'
 work_branch: null
 target_branch: null
 review_url: null
