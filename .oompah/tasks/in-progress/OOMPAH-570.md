@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T23:53:31.874608Z'
-updated_at: '2026-07-30T00:01:17.856591Z'
+updated_at: '2026-07-30T00:05:46.804642Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -185,5 +185,41 @@ created: 2026-07-30 00:01
 All existing tests pass (4 integration_queue + 9 quality_gate tests).
 
 Next: Implement explicit_retry flag, startup lease recovery, and shutdown process cleanup.
+---
+author: oompah
+created: 2026-07-30 00:05
+---
+**Implementation:** Completed all required changes for recover interrupted leases and explicit blocked-head retries.
+
+Changes made:
+1. IntegrationQueueStore.enqueue() now accepts optional explicit_retry parameter (default False)
+   - When explicit_retry=True: clears blocked state even for unchanged head_sha/task_branch
+   - When explicit_retry=False: maintains idempotent behavior for background sync
+
+2. IntegrationQueueStore.recover_abandoned() - new method to reset all integrating leases
+   - Called at orchestrator startup in startup_cleanup()
+   - Ensures operators never wait for hour-long lease timeouts after restart
+
+3. BranchQualityGate process tracking and cleanup
+   - _active_processes class dict tracks running process groups
+   - cleanup_active_processes() class method terminates all active processes
+   - Process tracking added in run() and exception handlers
+   - Called from orchestrator.stop() before shutdown
+
+4. Server submission wiring updated
+   - _enqueue_worker_submission() now accepts explicit_retry parameter
+   - API submissions pass explicit_retry=True (default for user actions)
+   - Background sync passes explicit_retry=False (line 4627)
+   - Automatic retryable recovery passes explicit_retry=False (line 4887)
+
+Tests added (7 new tests, all passing):
+- test_explicit_retry_unblocks_blocked_row_with_same_head
+- test_background_sync_is_idempotent_for_blocked_rows
+- test_recover_abandoned_leases_at_startup
+- test_quality_gate_cleans_up_active_process_groups
+- test_quality_gate_tracks_and_removes_processes_on_completion
+- test_quality_gate_cleans_up_on_timeout
+
+All existing tests passing (19 total integration_queue + quality_gate tests, 266 orchestrator_handlers + 3 integration_executor).
 ---
 <!-- COMMENTS:END -->
