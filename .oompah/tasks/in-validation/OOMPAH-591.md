@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-591
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Reconcile the pending audit backlog and stale In Validation tasks
 parent: OOMPAH-585
@@ -13,7 +13,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:26.620047Z'
-updated_at: '2026-07-30T15:19:46.507690Z'
+updated_at: '2026-07-30T18:47:34.466678Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-591
 target_branch: null
 review_url: null
@@ -51,12 +51,18 @@ oompah.agent_run_id: 29fbf8c4-5a3e-4070-818d-d4398b9906d8
 oompah.work_branch: epic-OOMPAH-585--task-OOMPAH-591
 oompah.integration:
   version: 1
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-585--task-OOMPAH-591
-  head_sha: edb55e894417ac37e9fdb9c14a59046c558e303a
+  base_branch: epic-OOMPAH-585
+  base_sha: cc261493377c48796574c954e4ca89b65ff7afc1
+  head_sha: 3af9b8104c091984dee8d7f9066b2e14ef275691
+  integrated_sha: 3af9b8104c091984dee8d7f9066b2e14ef275691
   submitted_at: '2026-07-30T15:19:23.453956+00:00'
-  updated_at: '2026-07-30T15:19:23.453956+00:00'
+  updated_at: '2026-07-30T18:47:30.742288+00:00'
+  dependency_heads:
+    OOMPAH-590: 196653392d78b3bcbcae58c6f8c52aa4be161d4c
+    OOMPAH-589: b252293d3fc950f79a342c74b51d3285f62ecf4c
 oompah.task_costs:
   total_input_tokens: 1026
   total_output_tokens: 626
@@ -89,6 +95,28 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-585--task-OOMPAH-591
     source_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
     completed_at: '2026-07-30T14:33:38.488473+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-37099e414d25
+    project_id: proj-14849f1b
+    task_id: OOMPAH-591
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c8aa438d295d71b5d7524e1319fdd2038e722d3bbafafbc5a40bf8cdeff8e442
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-30T18:47:32.059124+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -258,5 +286,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 45m 45s
 - Log: OOMPAH-591__20260730T143408Z.jsonl
+---
+author: oompah
+created: 2026-07-30 18:47
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
