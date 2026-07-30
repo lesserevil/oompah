@@ -429,6 +429,14 @@ class TestRunStage2:
         assert "base_url" in result.error.lower()
         assert result.is_fail_open
 
+    @patch("oompah.api_agent._http_post")
+    def test_relative_base_url_is_rejected_without_http_call(self, mock_post):
+        result = run_stage2_sync("AC", "diff", self._provider(base_url="/v1"))
+
+        assert "absolute" in result.error.lower()
+        assert result.is_fail_open
+        mock_post.assert_not_called()
+
 
 # --------------------------------------------------------------------------- #
 # should_skip_verification

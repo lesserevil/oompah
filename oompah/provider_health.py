@@ -33,6 +33,7 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
+from urllib.parse import urlsplit
 
 if TYPE_CHECKING:
     from oompah.models import ModelProvider
@@ -61,6 +62,7 @@ _TEST_PROMPT = "What is 2 + 2? Answer with only the number."
 #: All valid normalized error-reason strings.
 ERROR_REASONS = frozenset(
     {
+        "invalid_base_url",
         "missing_credentials",
         "auth_failed",
         "rate_limited",
@@ -72,6 +74,84 @@ ERROR_REASONS = frozenset(
         "unknown_error",
     }
 )
+
+
+def openai_base_url_error(base_url: object) -> str | None:
+    """Return a safe configuration error for an OpenAI-compatible base URL.
+
+    A base URL is a transport boundary.  It must be an absolute HTTP(S) URL
+    with a host before any caller appends ``/chat/completions``.  The returned
+    text is deliberately independent of the supplied value so malformed URLs
+    and embedded credentials can never be reflected in health or dispatch
+    diagnostics.
+    """
+
+    if not isinstance(base_url, str) or not base_url.strip():
+        return "base_url is missing; configure an absolute http:// or https:// URL"
+
+    value = base_url.strip()
+    if any(char.isspace() or ord(char) < 32 for char in value) or "\\" in value:
+        return "base_url must be an absolute http:// or https:// URL"
+    try:
+        parsed = urlsplit(value)
+        scheme = parsed.scheme.casefold()
+        hostname = parsed.hostname
+        # Accessing .port validates malformed and out-of-range ports.
+        _ = parsed.port
+    except ValueError:
+        return "base_url must be an absolute http:// or https:// URL"
+
+    if scheme not in {"http", "https"} or not parsed.netloc or not hostname:
+        return "base_url must be an absolute http:// or https:// URL"
+    # Query strings/fragments are not part of a transport base and would make
+    # naive endpoint joining ambiguous (and commonly carry credentials).
+    if parsed.query or parsed.fragment:
+        return "base_url must not contain a query or fragment"
+    # Credentials in a URL are both unnecessary (the API key belongs in the
+    # Authorization header) and easy to leak through URL exceptions/logs.
+    if parsed.username is not None or parsed.password is not None:
+        return "base_url must not contain embedded credentials"
+    return None
+
+
+def validate_openai_base_url(base_url: object) -> bool:
+    """Return whether *base_url* is safe for an OpenAI-compatible request."""
+
+    return openai_base_url_error(base_url) is None
+
+
+def openai_chat_completions_url(base_url: object) -> str:
+    """Build a chat-completions URL only after validating its base URL."""
+
+    error = openai_base_url_error(base_url)
+    if error is not None:
+        raise ValueError(error)
+    return f"{str(base_url).strip().rstrip('/')}/chat/completions"
+
+
+_BEARER_RE = re.compile(r"(?i)(\bbearer\s+)[^\s,;]+")
+_URL_CREDENTIALS_RE = re.compile(r"(?i)(https?://)[^/\s@]+@")
+_URL_QUERY_SECRET_RE = re.compile(
+    r"(?i)([?&](?:api[_-]?key|access[_-]?token|auth[_-]?token|password|secret|token)=)"
+    r"[^&#\s]+"
+)
+_SECRET_VALUE_RE = re.compile(
+    r"(?i)((?:api[ _-]?key|access[ _-]?token|auth[ _-]?token|password|secret|token)"
+    r"\s*[:=]\s*)([\"']?)[^\"'\s,;}]+"
+)
+
+
+def redact_sensitive_text(value: object) -> str:
+    """Remove common credential forms from provider-facing diagnostics."""
+
+    text = str(value or "")
+    text = _URL_CREDENTIALS_RE.sub(r"\1[REDACTED]@", text)
+    text = _URL_QUERY_SECRET_RE.sub(r"\1[REDACTED]", text)
+    text = _BEARER_RE.sub(r"\1[REDACTED]", text)
+    text = _SECRET_VALUE_RE.sub(r"\1\2[REDACTED]", text)
+    # Common provider keys are prefixed this way. Redacting the shape catches
+    # upstream errors that mention a key without naming the field.
+    return re.sub(r"(?i)\bsk-[A-Za-z0-9_-]{4,}\b", "[REDACTED]", text)
 
 
 @dataclass
@@ -97,11 +177,13 @@ class ProviderTestResult:
             "latency_ms": round(self.latency_ms, 1),
         }
         if self.response_text:
-            d["response_text"] = self.response_text[:MAX_RESPONSE_LENGTH]
+            d["response_text"] = redact_sensitive_text(
+                self.response_text[:MAX_RESPONSE_LENGTH]
+            )
         if self.error_reason:
             d["error_reason"] = self.error_reason
         if self.error_detail:
-            d["error_detail"] = self.error_detail[:500]
+            d["error_detail"] = redact_sensitive_text(self.error_detail[:500])
         return d
 
 
@@ -237,20 +319,30 @@ def run_health_check(provider: "ModelProvider") -> ProviderTestResult:
             ),
         )
 
-    base_url = (provider.base_url or "").rstrip("/")
-    if not base_url:
+    base_url_error = openai_base_url_error(getattr(provider, "base_url", ""))
+    if base_url_error is not None:
+        # Preserve the established health reason for a missing URL while
+        # exposing malformed/relative URLs as a distinct actionable state.
+        missing = not str(getattr(provider, "base_url", "") or "").strip()
         return ProviderTestResult(
             provider_id=pid,
             provider_name=pname,
             model=model,
             success=False,
             latency_ms=0.0,
-            error_reason="provider_unavailable",
-            error_detail="Provider has no base_url configured.",
+            error_reason="provider_unavailable" if missing else "invalid_base_url",
+            error_detail=(
+                "Provider has no base_url configured."
+                if missing
+                else base_url_error
+            ),
         )
 
     api_key = provider.api_key or ""
-    url = f"{base_url}/chat/completions"
+    # Validation above and the guarded builder below are intentionally both
+    # present: this function is a public integration boundary and should not
+    # regress into constructing a relative URL if its checks are refactored.
+    url = openai_chat_completions_url(provider.base_url)
 
     payload = {
         "model": model,
@@ -342,7 +434,7 @@ def run_health_check(provider: "ModelProvider") -> ProviderTestResult:
             success=False,
             latency_ms=latency_ms,
             error_reason=reason,
-            error_detail=str(exc),
+            error_detail=redact_sensitive_text(str(exc)),
         )
 
     except TimeoutError:
@@ -366,7 +458,7 @@ def run_health_check(provider: "ModelProvider") -> ProviderTestResult:
             success=False,
             latency_ms=latency_ms,
             error_reason="provider_unavailable",
-            error_detail=f"Network error: {exc}",
+            error_detail=f"Network error: {redact_sensitive_text(exc)}",
         )
 
     except Exception as exc:  # noqa: BLE001
@@ -379,7 +471,7 @@ def run_health_check(provider: "ModelProvider") -> ProviderTestResult:
             success=False,
             latency_ms=latency_ms,
             error_reason="unknown_error",
-            error_detail=str(exc)[:300],
+            error_detail=redact_sensitive_text(str(exc)[:300]),
         )
 
 
