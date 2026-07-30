@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:26.170630Z'
-updated_at: '2026-07-30T05:29:59.938844Z'
+updated_at: '2026-07-30T05:30:12.385842Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-487
 target_branch: null
 review_url: null
@@ -58,8 +58,8 @@ oompah.duplicate_screening:
 oompah.agent_run_id: c144a011-a4fe-4ba6-960b-c9da5b1661e9
 oompah.work_branch: epic-OOMPAH-460--task-OOMPAH-487
 oompah.task_costs:
-  total_input_tokens: 73595
-  total_output_tokens: 11305
+  total_input_tokens: 73643
+  total_output_tokens: 12574
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -67,8 +67,8 @@ oompah.task_costs:
       output_tokens: 6715
       cost_usd: 0.0
     sonnet:
-      input_tokens: 170
-      output_tokens: 4590
+      input_tokens: 218
+      output_tokens: 5859
       cost_usd: 0.0
   runs:
   - profile: default
@@ -89,6 +89,12 @@ oompah.task_costs:
     output_tokens: 4590
     cost_usd: 0.0
     recorded_at: '2026-07-29T18:58:48.181057+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 48
+    output_tokens: 1269
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T05:30:10.838910+00:00'
 oompah.integration:
   version: 1
   state: ready
@@ -342,5 +348,15 @@ author: oompah
 created: 2026-07-30 05:29
 ---
 Document auditor configuration, overrides, migration, and recovery. Delivered: docs/auditor-dispatch-operations.md (comprehensive operator guide with Mermaid lifecycle diagram, independence rules, whitelist effects, failure routing, owner override API, no-candidate recovery, upgrade grandfathering, restart recovery, migration guide); docs/task-epic-workflow.md (In Validation in flowchart and table); docs/operator-runbook.md (deprecation migration notes); .env.example (OOMPAH_AUDIT_MAX_ATTEMPTS section, DEPRECATED VERIFY_COMPLETION notices); oompah/config.py (audit config fields, startup deprecation warnings); 19 focused tests all passing.
+---
+author: oompah
+created: 2026-07-30 05:30
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 0, Tool calls: 30
+- Tokens: 48 in / 1.3K out [1.3K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 2m 55s
+- Log: OOMPAH-487__20260730T052722Z.jsonl
 ---
 <!-- COMMENTS:END -->
