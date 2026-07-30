@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:28:42.855708Z'
-updated_at: '2026-07-30T18:34:34.494830Z'
+updated_at: '2026-07-30T18:35:37.003722Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -145,5 +145,51 @@ Approach:
 6. Test: reproduce PASS verdict with inert examples, verify safe redaction, confirm actual secrets stay rejected
 
 Key areas to investigate: completion auditor tool validation, redaction helpers, audit result persistence, retry behavior.
+---
+author: oompah
+created: 2026-07-30 18:35
+---
+**Discovery**: 
+
+Found the issue in oompah/auditor.py:
+- \`parse_auditor_result\` validates auditor submissions using \`_RESULT_SECRET_RE\` and \`_SECRET_KEY_RE\`
+- Currently rejects entire result if message or safe_evidence matches credential patterns
+- OOMPAH-589 attempted PASS 3x with inert credential-pattern examples in verdict prose (describing credential formats, not actual secrets)
+- All 3 attempts hit identical validation rejection → audit stranded in In Validation
+
+Solution approach:
+1. Create field-aware redaction function that replaces credential-like patterns with safe markers (e.g., "[REDACTED-credential-type]")
+2. Modify parse_auditor_result to:
+   - Apply redaction to message and safe_evidence fields
+   - Distinguish between inert examples (can be redacted) and actual secrets (must reject)
+   - Return feedback about redactions so auditor knows what was normalized
+3. Ensure real credentials (strong patterns) remain fail-closed without echoing them
+
+Relevant files: auditor.py (validation), terminal_audit.py (record structure), terminal_transition_coordinator.py (AuditResult handling)
+---
+author: oompah
+created: 2026-07-30 18:35
+---
+**Implementation Plan**:
+
+1. Create redaction helpers in auditor.py:
+   - \`_redact_credential_patterns(text, field_name)\` - replaces matches with "[REDACTED-<type>]"
+   - \`_redact_safe_evidence(safe_evidence)\` - redacts keys and values with feedback
+
+2. Modify \`parse_auditor_result\` to:
+   - Apply redaction to message before checking for secrets
+   - Apply redaction to safe_evidence before checking for secrets
+   - Distinguish actionable feedback (what was redacted) vs hard rejection (real secrets)
+   - Only reject if actual credentials are found that cannot be safely redacted
+
+3. Ensure idempotency:
+   - Same inert example in message → same redacted output every time
+   - Three identical submissions → three identical redactions + acceptance
+
+4. Test the changes:
+   - Inert credential-pattern examples get redacted and accepted
+   - Real credentials (strong patterns) remain rejected without echoing
+   - Redaction feedback is actionable
+   - Repeated submissions are idempotent
 ---
 <!-- COMMENTS:END -->
