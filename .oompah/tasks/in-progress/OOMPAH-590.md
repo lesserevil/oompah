@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-590
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Retry terminal audits after auditor launch or transport failure
 parent: OOMPAH-585
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:22.194798Z'
-updated_at: '2026-07-30T14:31:30.346709Z'
+updated_at: '2026-07-30T14:32:05.238839Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-590
 target_branch: null
 review_url: null
@@ -44,7 +44,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 0ec70f19-d33b-4f1a-a892-a332b5a1d659
+oompah.agent_run_id: 945de5f9-9701-40f0-b89c-eef1dbd0ec57
 oompah.work_branch: epic-OOMPAH-585--task-OOMPAH-590
 oompah.integration:
   version: 1
@@ -53,7 +53,7 @@ oompah.integration:
   task_branch: epic-OOMPAH-585--task-OOMPAH-590
   base_branch: epic-OOMPAH-585
   base_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
-  updated_at: '2026-07-30T14:20:49.754823+00:00'
+  updated_at: '2026-07-30T14:32:03.138796+00:00'
 oompah.task_costs:
   total_input_tokens: 3976570
   total_output_tokens: 13609
@@ -127,5 +127,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 10m 37s
 - Log: OOMPAH-590__20260730T142055Z.jsonl
+---
+author: oompah
+created: 2026-07-30 14:32
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-30 14:32
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
