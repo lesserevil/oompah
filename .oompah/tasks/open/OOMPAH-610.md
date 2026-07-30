@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:53:05.632137Z'
-updated_at: '2026-07-30T18:54:00.263849Z'
+updated_at: '2026-07-30T18:55:46.029313Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -61,5 +61,10 @@ author: oompah
 created: 2026-07-30 18:54
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-30 18:55
+---
+Implemented locally: auditor exit now removes state.claimed_issues in addition to state.claimed and the audit branch claim. The audit branch gate also prunes orphaned claimed_issues entries whose ID is absent from state.claimed, with a warning, while preserving active claim serialization. Added focused regressions for stalled auditor cleanup and defensive stale-claim pruning. Focused auditor/terminal suites: 298 passed; full gate next.
 ---
 <!-- COMMENTS:END -->

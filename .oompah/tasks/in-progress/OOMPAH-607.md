@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:17:13.371379Z'
-updated_at: '2026-07-30T18:54:07.452055Z'
+updated_at: '2026-07-30T18:55:42.033386Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -241,5 +241,20 @@ Approach:
 3. Verify the terminal status CLI/API endpoints properly canonicalize before passing to _stage_terminal_transition
 4. Add tests to ensure both project IDs and aliases work equally for terminal owner authorization
 5. Run focused tests on terminal override and CLI endpoints
+---
+author: oompah
+created: 2026-07-30 18:55
+---
+Discovery: Found the issue. In the task handoff endpoint (api_task_handoff at line 3248), the project_id is read from the request body but never canonicalized before being passed to _get_tracker and _stage_terminal_transition. Meanwhile, _get_tracker_for_issue_or_project (used in the normal PATCH endpoint) properly canonicalizes. 
+
+The task handoff path:
+1. project_id from request body (possibly an alias like 'oompah')
+2. _get_tracker(orch, project_id) - works due to _tracker_for_project alias fallback
+3. _stage_terminal_transition(..., project_id=project_id) - eventually canonicalizes
+4. coordinator.override_transition(..., project=_project_by_id(orch, project_id))
+
+The issue: if canonicalization in _stage_terminal_transition doesn't catch the alias properly, or if there's a race condition, _project_by_id won't find the project (it only checks project.id, not project.name), resulting in a false 403.
+
+Need to ensure: canonicalize project_id at the task handoff entry point BEFORE using it, similar to how _get_tracker_for_issue_or_project does it.
 ---
 <!-- COMMENTS:END -->
