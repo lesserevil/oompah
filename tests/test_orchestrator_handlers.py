@@ -5556,3 +5556,146 @@ class TestRunApiWorkerWithTarget:
         assert exc_info.value.candidate_key == "p1/m-valid"
         assert "sk-runtime-secret" not in str(exc_info.value)
         setup.assert_not_called()
+
+    def test_forced_auditor_api_target_ignores_acp_focus_override(self, tmp_path):
+        """The persisted independent API candidate wins over the auditor role default."""
+        from oompah.orchestrator import DispatchTarget
+        from oompah.roles import Candidate
+
+        api_provider = _provider(
+            pid="independent-api",
+            name="Independent API",
+            models=["audit-model"],
+            default_model="audit-model",
+        )
+        api_provider.base_url = "https://audit.example/v1"
+        api_provider.mode = "api"
+        acp_provider = ModelProvider(
+            id="default-acp",
+            name="Default ACP",
+            base_url="",
+            api_key="",
+            models=[],
+            default_model=None,
+            provider_type="acp",
+            backend="claude",
+            mode="acp",
+            billing_model="subscription",
+        )
+        target = DispatchTarget(
+            role_name=None,
+            provider=api_provider,
+            model="audit-model",
+            candidate_key="independent-api/audit-model",
+            source="profile.provider_id",
+            candidate=Candidate(
+                provider_id="independent-api",
+                model="audit-model",
+            ),
+        )
+        orch = _make_orchestrator(tmp_path)
+        focus_override = MagicMock(return_value=acp_provider)
+        orch._resolve_focus_provider_override = focus_override
+        resolved = {}
+
+        class ResolutionCaptured(Exception):
+            pass
+
+        def capture_resolution(provider, model):
+            resolved.update(provider=provider, model=model)
+            raise ResolutionCaptured
+
+        orch._resolve_capabilities = capture_resolution
+
+        with pytest.raises(ResolutionCaptured):
+            asyncio.run(
+                orch._run_api_worker(
+                    _make_issue("auditor-api-binding"),
+                    attempt=1,
+                    profile=_profile(
+                        name="auditor",
+                        mode="auto",
+                        provider_id=api_provider.id,
+                        model="audit-model",
+                    ),
+                    provider=api_provider,
+                    target=target,
+                    forced_auditor=True,
+                )
+            )
+
+        assert resolved == {
+            "provider": api_provider,
+            "model": "audit-model",
+        }
+        focus_override.assert_not_called()
+
+    def test_forced_auditor_acp_target_ignores_api_focus_override(self, tmp_path):
+        """ACP auditors retain the provider/model recorded by the audit scheduler."""
+        from oompah.orchestrator import DispatchTarget
+        from oompah.roles import Candidate
+
+        acp_provider = ModelProvider(
+            id="independent-acp",
+            name="Independent ACP",
+            base_url="",
+            api_key="",
+            models=[],
+            default_model=None,
+            provider_type="acp",
+            backend="codex",
+            mode="acp",
+            billing_model="subscription",
+        )
+        api_provider = _provider(
+            pid="default-api",
+            name="Default API",
+            models=["default-model"],
+            default_model="default-model",
+        )
+        target = DispatchTarget(
+            role_name=None,
+            provider=acp_provider,
+            model="gpt-5.6-sol",
+            candidate_key="independent-acp/gpt-5.6-sol",
+            source="profile.provider_id",
+            candidate=Candidate(
+                provider_id="independent-acp",
+                model="gpt-5.6-sol",
+            ),
+        )
+        orch = _make_orchestrator(tmp_path)
+        focus_override = MagicMock(return_value=api_provider)
+        orch._resolve_focus_provider_override = focus_override
+        resolved = {}
+
+        class ResolutionCaptured(Exception):
+            pass
+
+        def capture_resolution(provider, model):
+            resolved.update(provider=provider, model=model)
+            raise ResolutionCaptured
+
+        orch._resolve_capabilities = capture_resolution
+
+        with pytest.raises(ResolutionCaptured):
+            asyncio.run(
+                orch._run_acp_worker(
+                    _make_issue("auditor-acp-binding"),
+                    attempt=1,
+                    profile=_profile(
+                        name="auditor",
+                        mode="auto",
+                        provider_id=acp_provider.id,
+                        model="gpt-5.6-sol",
+                    ),
+                    target=target,
+                    forced_auditor=True,
+                )
+            )
+
+        assert resolved == {
+            "provider": acp_provider,
+            "model": "gpt-5.6-sol",
+        }
+        focus_override.assert_not_called()
