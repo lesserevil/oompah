@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T21:15:59.630196Z'
-updated_at: '2026-07-30T22:58:48.908765Z'
+updated_at: '2026-07-30T23:02:45.718423Z'
 work_branch: epic-OOMPAH-426
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/544
@@ -21,13 +21,13 @@ review_number: '544'
 merged_at: null
 oompah.agent_run_id: 253ce0a7-8fd3-49ec-b846-7a07a833082a
 oompah.task_costs:
-  total_input_tokens: 366642
-  total_output_tokens: 45508
+  total_input_tokens: 366698
+  total_output_tokens: 55852
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 366642
-      output_tokens: 45508
+      input_tokens: 366698
+      output_tokens: 55852
       cost_usd: 0.0
   runs:
   - profile: default
@@ -54,6 +54,12 @@ oompah.task_costs:
     output_tokens: 18144
     cost_usd: 0.0
     recorded_at: '2026-07-30T22:53:35.014494+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 56
+    output_tokens: 10344
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T23:02:41.441600+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/544
 oompah.review_number: '544'
 oompah.work_branch: epic-OOMPAH-426
@@ -62,6 +68,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-0a53a873c97d: '2026-07-30T22:47:53.487853+00:00'
+    attempt-87e3d702c90a: '2026-07-30T23:02:30.675159+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -103,7 +110,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-426
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -112,7 +119,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-87e3d702c90a
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -122,13 +129,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-30T22:58:46.296846+00:00'
       branch_key: epic-OOMPAH-426
+      verdict: pass
+      completed_at: '2026-07-30T23:02:30.675007+00:00'
+      ended_at: '2026-07-30T23:02:30.675007+00:00'
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
       source: oompah
     previous_state: In Validation
     created_at: '2026-07-30T22:31:59.622558+00:00'
-    updated_at: '2026-07-30T22:58:46.296846+00:00'
+    updated_at: '2026-07-30T23:02:30.675007+00:00'
   - version: 1
     audit_id: audit-eebfd3032b56
     project_id: proj-14849f1b
@@ -403,5 +413,40 @@ author: oompah
 created: 2026-07-30 22:58
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 23:02
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- fix_commit_sha: 0574d9ecf70bfae48b1c574da9369ac4c9c0f497
+- merge_commit_sha: 5e0224564ab63aed4bb39481125a32e08dcd61be
+- pr_number: 544
+- epic_branch: epic-OOMPAH-426
+- fix_reachable_from_origin_main: true
+- origin_main_head: c048ba706cbe9b1342b80a67576a49b82887e84a
+- orchestrator_diff_summary: 27 lines changed in oompah/orchestrator.py; child-based issue_epic_branch replaced with issue_type=='epic' exemption plus source_branch==parent_epic_branch check via _resolve_parent_epic
+- regression_tests_added: test_blocks_child_with_stale_own_work_branch_exocomp57, test_allows_nested_epic_rollup_pr_with_parent_id, test_closes_child_pr_with_stale_own_work_branch_exocomp57, test_does_not_close_epic_rollup_pr_whose_source_matches_parent_epic_branch
+- regression_tests_persisted_on_main: confirmed via git log -S (added once in 0574d9ecf, never removed)
+- test_file: tests/test_epic_strategy.py (+161 additions in fix commit; still present on main with subsequent unrelated growth)
+- child_OOMPAH-427_state: Archived (prior audit passed 2026-07-30T22:34:47Z)
+- child_OOMPAH-428_state: auto-closed without PR (covered by OOMPAH-427)
+- prior_audit_verdict_archived: PASS (2026-07-30 22:47)
+- prior_agent_make_test: 12063 passed, 38 skipped (per OOMPAH-427 verification comment)
+- prior_auditor_focused_test_run: 4 passed in 2.31s (per OOMPAH-427 auditor evidence)
+- task_review_url: https://github.com/lesserevil/oompah/pull/544
+---
+author: oompah
+created: 2026-07-30 23:02
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 64, Tool calls: 50
+- Tokens: 56 in / 10.3K out [10.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 3m 54s
+- Log: OOMPAH-426__20260730T225849Z.jsonl
 ---
 <!-- COMMENTS:END -->

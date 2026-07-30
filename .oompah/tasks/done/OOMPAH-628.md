@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T22:37:04.318940Z'
-updated_at: '2026-07-30T23:02:10.739881Z'
+updated_at: '2026-07-30T23:02:38.347896Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -119,13 +119,13 @@ oompah.terminal_audit:
     branch_key: OOMPAH-628
     candidate_rotation_count: 1
 oompah.task_costs:
-  total_input_tokens: 6
-  total_output_tokens: 451
+  total_input_tokens: 9
+  total_output_tokens: 663
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 6
-      output_tokens: 451
+      input_tokens: 9
+      output_tokens: 663
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -134,6 +134,12 @@ oompah.task_costs:
     output_tokens: 451
     cost_usd: 0.0
     recorded_at: '2026-07-30T22:51:52.228719+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 3
+    output_tokens: 212
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T23:02:34.558813+00:00'
 ---
 ## Summary
 
@@ -229,5 +235,15 @@ Safe evidence:
 - key_test_server_wiring_nonready: test_api_submission_does_not_rearm_without_fresh_ready_record PASSED
 - background_sync_idempotency: orchestrator.py integration_queue.enqueue() calls carry no explicit_retry or rearm_integrated
 - changed_files: oompah/integration_queue.py (+15 lines), oompah/server.py (+4 lines), tests/test_integration_queue.py (+73 lines), tests/test_task_handoff.py (+30 lines)
+---
+author: oompah
+created: 2026-07-30 23:02
+---
+Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 61, Tool calls: 39
+- Tokens: 3 in / 212 out [215 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 3m 45s
+- Log: OOMPAH-628__20260730T225857Z.jsonl
 ---
 <!-- COMMENTS:END -->
