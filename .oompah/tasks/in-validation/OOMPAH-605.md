@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T17:58:44.309909Z'
-updated_at: '2026-07-30T18:23:03.960358Z'
+updated_at: '2026-07-30T18:32:20.098973Z'
 work_branch: OOMPAH-605
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/593
@@ -45,13 +45,17 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: f601b8e9-a776-4b45-b5b7-10c8337cdb36
 oompah.task_costs:
-  total_input_tokens: 1205133
-  total_output_tokens: 5491
+  total_input_tokens: 1205203
+  total_output_tokens: 24408
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 1205133
       output_tokens: 5491
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 70
+      output_tokens: 18917
       cost_usd: 0.0
   runs:
   - profile: default
@@ -66,6 +70,12 @@ oompah.task_costs:
     output_tokens: 93
     cost_usd: 0.0
     recorded_at: '2026-07-30T18:07:42.766813+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 70
+    output_tokens: 18917
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T18:32:18.023475+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-605__20260730T175922Z
@@ -275,5 +285,15 @@ Live recovery verification after PR #593 merged:
 - project-name alias false-403 discovered and filed as OOMPAH-607; the canonical project-ID path remains functional
 
 No tracker Markdown or queue record was edited directly.
+---
+author: oompah
+created: 2026-07-30 18:32
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 84, Tool calls: 64
+- Tokens: 70 in / 18.9K out [19.0K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 18m 41s
+- Log: OOMPAH-605__20260730T181339Z.jsonl
 ---
 <!-- COMMENTS:END -->
