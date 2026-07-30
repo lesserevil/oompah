@@ -680,11 +680,12 @@ class TerminalTransitionCoordinator:
             """Atomically decide and commit all metadata changes."""
             chain = list(doc.pending_chain)
 
-            # --- Stale-request rejection (target already completed) ---
+            # --- Stale-request rejection (identical target already completed) ---
             for record in chain:
                 if (
                     record.target_state == requested_target
                     and record.request_state == RequestState.COMPLETED
+                    and record.evidence_fingerprint == evidence_fingerprint
                 ):
                     decision.early_result = TransitionResult(
                         success=False,
@@ -708,13 +709,14 @@ class TerminalTransitionCoordinator:
                     )
                     return doc  # no metadata change needed
 
-            # --- Supersede pending record with a changed fingerprint ---
+            # --- Supersede active/failed record with changed evidence ---
             superseded_id: str | None = None
             updated_chain: list[TerminalAuditRecord] = []
             for record in chain:
                 if (
                     record.target_state == requested_target
-                    and record.request_state == RequestState.PENDING
+                    and record.request_state
+                    in (RequestState.PENDING, RequestState.COMPLETED)
                     and record.evidence_fingerprint != evidence_fingerprint
                 ):
                     updated_chain.append(
