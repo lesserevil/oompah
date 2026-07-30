@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T23:57:40.926693Z'
-updated_at: '2026-07-30T00:01:32.476459Z'
+updated_at: '2026-07-30T00:01:43.615364Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -112,5 +112,10 @@ author: oompah
 created: 2026-07-30 00:01
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-30 00:01
+---
+Understanding: The issue is that auditors (entries with is_auditor=True) are being terminated prematurely during reconciliation when their tracker task enters 'In Validation' state. The fix needs to keep auditors alive while In Validation so they can reach submit_audit_result, but continue terminating them if the task leaves In Validation or reaches a terminal state. Ordinary workers should still terminate when In Validation. Plan: (1) Explore Orchestrator._reconcile logic in orchestrator.py, (2) Identify the termination condition that fires for In Validation, (3) Add logic to exempt is_auditor entries from termination while In Validation, (4) Write tests to verify the fix and ensure existing behavior is preserved.
 ---
 <!-- COMMENTS:END -->
