@@ -4372,6 +4372,20 @@ class Orchestrator:
                 return True
         return False
 
+    def _release_audit_branch_claim(
+        self,
+        branch_key: str | None,
+        attempt_id: str | None,
+    ) -> bool:
+        """Release an audit branch fence only when *attempt_id* still owns it."""
+
+        if not branch_key or not attempt_id:
+            return False
+        if self._audit_branch_claims.get(branch_key) != attempt_id:
+            return False
+        self._audit_branch_claims.pop(branch_key, None)
+        return True
+
     def _audit_selector(self, issue: Issue) -> AuditorCandidateSelector:
         project = None
         if issue.project_id:
@@ -4519,7 +4533,10 @@ class Orchestrator:
                     running = self.state.running.get(issue.id)
                     if running and running.is_auditor:
                         await self._terminate_running(issue.id, cleanup_workspace=False)
-                        self._audit_branch_claims.pop(branch_key, None)
+                        self._release_audit_branch_claim(
+                            branch_key,
+                            running.audit_attempt_id,
+                        )
                         active.discard(running.audit_attempt_id)
                         recovery = lane.recover(
                             record, active_attempt_ids=active
@@ -4579,7 +4596,7 @@ class Orchestrator:
                     # creation must release the branch claim and leave the
                     # attempt retryable. Otherwise a scheduler exception can
                     # strand the audit indefinitely in ``in_progress``.
-                    self._audit_branch_claims.pop(branch_key, None)
+                    self._release_audit_branch_claim(branch_key, plan.attempt_id)
                     failed = AuditorDispatchLane.finish_attempt(
                         persisted,
                         plan.attempt_id,
@@ -19707,7 +19724,10 @@ class Orchestrator:
             self.state.claimed_issues.pop(issue.id, None)
             await _release_preflight("dispatch aborted because orchestrator is paused")
             if auditor_plan:
-                self._audit_branch_claims.pop(auditor_plan.branch_key, None)
+                self._release_audit_branch_claim(
+                    auditor_plan.branch_key,
+                    auditor_plan.attempt_id,
+                )
             return
         # A terminal transition places this marker before awaiting durable audit
         # staging.  Retry callbacks may already have popped their RetryEntry, so
@@ -19869,7 +19889,10 @@ class Orchestrator:
                 self.state.claimed.discard(issue.id)
                 self.state.claimed_issues.pop(issue.id, None)
                 if auditor_plan:
-                    self._audit_branch_claims.pop(auditor_plan.branch_key, None)
+                    self._release_audit_branch_claim(
+                        auditor_plan.branch_key,
+                        auditor_plan.attempt_id,
+                    )
                 if cur_state in terminal or implementation_blocked:
                     self.state.completed.add(issue.id)
                 await _release_preflight(
@@ -23318,8 +23341,10 @@ class Orchestrator:
             # machine: a normal exit is meaningful only when the structured
             # result tool has already completed the durable audit record.
             self.state.claimed.discard(issue_id)
-            if entry.branch_key:
-                self._audit_branch_claims.pop(entry.branch_key, None)
+            self._release_audit_branch_claim(
+                entry.branch_key,
+                entry.audit_attempt_id,
+            )
             ended = await asyncio.to_thread(
                 self._finish_audit_attempt,
                 entry,
@@ -25312,6 +25337,11 @@ Return ONLY a JSON object (no markdown fences, no commentary):
 
             self.state.claimed.discard(issue_id)
             self.state.claimed_issues.pop(issue_id, None)
+            if entry.is_auditor:
+                self._release_audit_branch_claim(
+                    entry.branch_key,
+                    entry.audit_attempt_id,
+                )
 
             if (
                 getattr(entry, "duplicate_preflight", False)
