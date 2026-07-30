@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-612
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Avoid ACP auditor result deadlock on the dispatch event loop
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T19:33:15.081209Z'
-updated_at: '2026-07-30T19:43:52.551135Z'
+updated_at: '2026-07-30T19:44:17.386903Z'
 work_branch: null
 target_branch: null
 review_url: null

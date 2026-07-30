@@ -11,13 +11,13 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T19:34:40.947096Z'
-updated_at: '2026-07-30T19:43:03.368270Z'
+updated_at: '2026-07-30T19:44:18.593741Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-613
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: da5f996a-0434-425f-92e0-238f3668dd6d
+oompah.agent_run_id: 0c6d7bbc-ed39-4db2-b941-8e66e0515aaf
 oompah.work_branch: epic-OOMPAH-460--task-OOMPAH-613
 oompah.integration:
   version: 1
@@ -84,8 +84,8 @@ oompah.duplicate_screening:
   claim_owner: null
   claimed_at: null
   claim_expires_at: null
-  retry_count: 1
-  retry_after: '2026-07-30T19:43:59.935723+00:00'
+  retry_count: 2
+  retry_after: '2026-07-30T19:46:12.243837+00:00'
 ---
 ## Summary
 
@@ -163,6 +163,20 @@ Duplicate screening dispatched (profile: default, task remains Open)
 ---
 author: oompah
 created: 2026-07-30 19:43
+---
+Run #1 [attempt=1, profile=default, role=— -> Claude/haiku]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 1s
+---
+author: oompah
+created: 2026-07-30 19:44
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-07-30 19:44
 ---
 Run #1 [attempt=1, profile=default, role=— -> Claude/haiku]
 - Turns: 0, Tool calls: 0
