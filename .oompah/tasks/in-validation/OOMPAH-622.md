@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T21:26:15.242500Z'
-updated_at: '2026-07-30T21:39:11.990921Z'
+updated_at: '2026-07-30T21:40:10.502027Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-622
 target_branch: null
 review_url: null
@@ -270,5 +270,10 @@ author: oompah
 created: 2026-07-30 21:39
 ---
 Completion-auditor handoff: the exact combined-tree make test gate passed when the queue advanced to integrated at 21:37:50 UTC. Focused evidence is in comment #11. Please inspect the small five-file diff and submit the verdict; do not rerun the full suite.
+---
+author: oompah
+created: 2026-07-30 21:40
+---
+Auditor note: the shell authority allowlist is intentionally narrow. Use the read_file tool directly for source inspection (for example oompah/orchestrator.py and oompah/auditor_candidate_selector.py), not sed/awk/grep/python shell commands.
 ---
 <!-- COMMENTS:END -->
