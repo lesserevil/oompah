@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:26.248587Z'
-updated_at: '2026-07-30T16:16:47.780113Z'
+updated_at: '2026-07-30T16:16:57.669354Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-596
 target_branch: null
 review_url: null
@@ -205,7 +205,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-596
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -214,7 +214,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-938f90fe8e83
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -224,18 +224,21 @@ oompah.terminal_audit:
       model: nvidia/nvidia/nemotron-3-ultra
       started_at: '2026-07-30T16:16:39.933215+00:00'
       branch_key: epic-OOMPAH-587--task-OOMPAH-596
+      ended_at: '2026-07-30T16:16:56.877536+00:00'
+      failure_reason: 'unknown url type: ''/chat/completions'''
+      next_retry_at: '2026-07-30T16:17:06.877507+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-30T16:16:34.861687+00:00'
-    updated_at: '2026-07-30T16:16:39.933215+00:00'
+    updated_at: '2026-07-30T16:16:56.877536+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-938f90fe8e83
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -245,6 +248,9 @@ oompah.terminal_audit:
     model: nvidia/nvidia/nemotron-3-ultra
     started_at: '2026-07-30T16:16:39.933215+00:00'
     branch_key: epic-OOMPAH-587--task-OOMPAH-596
+    ended_at: '2026-07-30T16:16:56.877536+00:00'
+    failure_reason: 'unknown url type: ''/chat/completions'''
+    next_retry_at: '2026-07-30T16:17:06.877507+00:00'
 ---
 ## Summary
 
@@ -798,5 +804,15 @@ author: oompah
 created: 2026-07-30 16:16
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 16:16
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 1, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 15s
+- Log: OOMPAH-596__20260730T161655Z.jsonl
 ---
 <!-- COMMENTS:END -->
