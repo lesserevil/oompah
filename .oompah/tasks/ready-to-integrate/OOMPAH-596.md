@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:26.248587Z'
-updated_at: '2026-07-30T16:10:35.312931Z'
+updated_at: '2026-07-30T16:11:58.994594Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-596
 target_branch: null
 review_url: null
@@ -113,8 +113,8 @@ oompah.integration:
   submitted_at: '2026-07-30T16:10:33.148869+00:00'
   updated_at: '2026-07-30T16:10:33.148869+00:00'
 oompah.task_costs:
-  total_input_tokens: 160808
-  total_output_tokens: 39795
+  total_input_tokens: 160879
+  total_output_tokens: 41872
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -122,8 +122,8 @@ oompah.task_costs:
       output_tokens: 38965
       cost_usd: 0.0
     opus:
-      input_tokens: 58200
-      output_tokens: 830
+      input_tokens: 58271
+      output_tokens: 2907
       cost_usd: 0.0
   runs:
   - profile: default
@@ -156,6 +156,12 @@ oompah.task_costs:
     output_tokens: 32353
     cost_usd: 0.0
     recorded_at: '2026-07-30T15:53:51.296530+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 71
+    output_tokens: 2077
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T16:11:57.697368+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-596__20260730T153052Z
@@ -718,5 +724,15 @@ This dispatch (commit da86acf64):
 - Fixed the single failing snapshot test (test_ready_to_integrate_board_entry_includes_integration_evidence) that still expected version=1 in the serialized IntegrationRecord. The xdist worker KeyError in the previous gate was collateral from that assertion failure.
 
 Focused verification: 2221 tests passed across integration/orchestrator/server/snapshot slices.
+---
+author: oompah
+created: 2026-07-30 16:11
+---
+Run #1 [attempt=1, profile=deep, role=deep -> Claude/opus]
+- Turns: 0, Tool calls: 40
+- Tokens: 71 in / 2.1K out [2.1K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 10m 47s
+- Log: OOMPAH-596__20260730T160120Z.jsonl
 ---
 <!-- COMMENTS:END -->
