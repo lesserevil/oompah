@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:00.331568Z'
-updated_at: '2026-07-30T16:12:17.083351Z'
+updated_at: '2026-07-30T16:23:28.393099Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-601
 target_branch: null
 review_url: null
@@ -315,5 +315,34 @@ Fix approach:
 2. Aggregate skip reasons instead of per-issue warnings
 3. Emit one structured summary per cleanup run with categorized counts
 4. Enhance cleanup logic to detect parent epic relationship
+---
+author: oompah
+created: 2026-07-30 16:23
+---
+**Implementation Progress:**
+
+Completed core fix for warning flood issue:
+
+1. **Modified _delete_owned_issue_branch_locked** (projects.py):
+   - Changed return type from bool to (bool, skip_reason) tuple
+   - Silently skips branches starting with 'epic-' (shared epic branches) without warning
+   - Returns categorized skip_reason: 'shared_epic_branch', 'protected_branch', 'checked_out_in_worktree', 'not_owned'
+
+2. **Updated cleanup_terminal_issue** (projects.py):
+   - Now returns (changed, skip_reason) tuple
+   - Passes skip reason up for orchestrator aggregation
+
+3. **Enhanced _cleanup_terminal_worktrees** (orchestrator.py):
+   - Tracks categorized skip_reasons dictionary
+   - Aggregates skip counts across all terminal issues in cleanup run
+   - Emits one structured summary log message instead of per-issue warnings
+   - Includes 'skipped_branches' categorized counts in maintenance_status
+
+4. **Updated tests**:
+   - All 87 existing tests in test_projects.py pass
+   - Tests handle new tuple return types
+   - test_terminal_child_cleanup_preserves_shared_epic_branch verifies skip_reason='shared_epic_branch'
+
+Next: Add orchestrator-level integration tests, verify latency budget
 ---
 <!-- COMMENTS:END -->
