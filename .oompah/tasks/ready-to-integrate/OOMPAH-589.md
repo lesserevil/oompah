@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:20.256845Z'
-updated_at: '2026-07-30T16:59:35.397543Z'
+updated_at: '2026-07-30T16:59:48.610852Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-589
 target_branch: null
 review_url: null
@@ -869,5 +869,10 @@ Run #2 [attempt=2, profile=deep, role=deep -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 10m 23s
 - Log: OOMPAH-589__20260730T164918Z.jsonl
+---
+author: oompah
+created: 2026-07-30 16:59
+---
+Fixed the terminal-audit dispatch bug at commit b252293d3: forced auditors now retain the exact independent provider/model persisted in AuditDispatchPlan in both API and ACP worker paths, so Completion Auditor focus cannot switch transport modes after dispatch. Added API-to-ACP and ACP-to-API regressions. Focused regression: 3 passed. Exact committed full gate: 13,720 passed, 7 skipped. Branch is pushed and synchronized with origin.
 ---
 <!-- COMMENTS:END -->
