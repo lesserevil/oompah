@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-428
 type: task
-status: Merged
+status: In Validation
 priority: null
 title: Harden PR creation gate and work_branch reconciliation for shared-epic child
   tasks
@@ -14,7 +14,7 @@ labels:
 - needs:feature
 assignee: null
 created_at: '2026-07-23T21:34:08.303204Z'
-updated_at: '2026-07-23T22:16:34.530070Z'
+updated_at: '2026-07-30T22:31:41.109494Z'
 work_branch: epic-OOMPAH-426
 target_branch: null
 review_url: null
@@ -44,6 +44,28 @@ oompah.task_costs:
     output_tokens: 8994
     cost_usd: 0.0
     recorded_at: '2026-07-23T22:16:20.611107+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-1d3214571ebe
+    project_id: proj-14849f1b
+    task_id: OOMPAH-428
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0223e6cbfdd490bec9b7f1a26f82dc0aa9419f1f40da91657544383f40767732
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-07-30T22:31:38.986991+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -221,5 +243,10 @@ author: oompah
 created: 2026-07-23 22:16
 ---
 YOLO: merged PR #544.
+---
+author: oompah
+created: 2026-07-30 22:31
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
