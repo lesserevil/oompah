@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:58.634342Z'
-updated_at: '2026-07-30T14:19:14.650248Z'
+updated_at: '2026-07-30T14:49:36.693656Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -52,5 +52,10 @@ author: oompah
 created: 2026-07-30 14:19
 ---
 Project-owner-approved green recovery work; dispatch under recorded dependencies and acceptance criteria.
+---
+author: oompah
+created: 2026-07-30 14:49
+---
+Operator cleanup completed 2026-07-30: pruned 19 exact inactive worktrees across aethel, exocomp, oompah, and ova after verifying merged/archived task or PR state and no live process. Sixteen were fully clean; three contained only generated untracked artifacts (Erlang crash/build outputs or .oompah-no-hooks). Active OOMPAH-589/591/592, Ready/Needs Human worktrees, dirty source/task-record worktrees, and unmerged branches were preserved. ~/.oompah worktree storage dropped from about 2.4 GiB to be remeasured below. The unregistered aethel clone remains because its main checkout and two surviving worktrees contain uncommitted task-record changes; do not delete it without preserving/resolving those changes.
 ---
 <!-- COMMENTS:END -->
