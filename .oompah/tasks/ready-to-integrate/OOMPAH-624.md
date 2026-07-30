@@ -12,7 +12,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-30T21:37:57.526368Z'
-updated_at: '2026-07-30T22:08:07.996987Z'
+updated_at: '2026-07-30T22:10:35.798597Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-624
 target_branch: null
 review_url: null
@@ -46,13 +46,17 @@ oompah.integration:
   submitted_at: '2026-07-30T22:08:05.631919+00:00'
   updated_at: '2026-07-30T22:08:05.631919+00:00'
 oompah.task_costs:
-  total_input_tokens: 177999
-  total_output_tokens: 5508
+  total_input_tokens: 178280
+  total_output_tokens: 13430
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 177999
       output_tokens: 5508
+      cost_usd: 0.0
+    opus:
+      input_tokens: 281
+      output_tokens: 7922
       cost_usd: 0.0
   runs:
   - profile: default
@@ -67,6 +71,12 @@ oompah.task_costs:
     output_tokens: 4324
     cost_usd: 0.0
     recorded_at: '2026-07-30T21:41:10.913452+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 281
+    output_tokens: 7922
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T22:10:34.209681+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-624__20260730T213853Z
@@ -239,5 +249,15 @@ author: oompah
 created: 2026-07-30 22:08
 ---
 Bound owner authorization to the authenticated server principal. Middleware exposes AuthenticatedPrincipal via private ASGI scope; new validated actor_mapping module (fail-closed strict mode, ambiguous-mapping rejection); _resolve_authorization_actor returns 403 actor_mismatch on client/principal conflict with no tracker mutation. Wired into intake actions, PATCH issue, add/remove label, terminal transitions, task handoff, and detail cache. CLI (--actor) deprecated: silent-drop-on-match, exit-2-on-conflict short-circuit. Docs added at docs/authentication-identity-mapping.md with auth-flow Mermaid diagram and migration guide. Full regression coverage in tests/test_actor_mapping.py (19), tests/test_server_actor_binding.py (7, covers all 6 issue scenarios), tests/test_task_cli_actor.py (11); no regressions across 1891 tests on server/auth/actor/transition surface.
+---
+author: oompah
+created: 2026-07-30 22:10
+---
+Run #1 [attempt=1, profile=deep, role=deep -> Claude/opus]
+- Turns: 0, Tool calls: 190
+- Tokens: 281 in / 7.9K out [8.2K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 29m 8s
+- Log: OOMPAH-624__20260730T214133Z.jsonl
 ---
 <!-- COMMENTS:END -->
