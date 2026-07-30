@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:53:05.632137Z'
-updated_at: '2026-07-30T18:55:46.029313Z'
+updated_at: '2026-07-30T18:58:55.308432Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -21,17 +21,54 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: bc294a0c7385189335b6f506d2ae07b096e00f7fb10f230cc9acd1e7494ff87f
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-07-30T18:58:45.299450+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 198d1e1b-ff70-42f1-ad48-0c729bad2a17
-  claim_owner: ac40770c-37a8-4b2c-b040-7a7ae948f467
-  claimed_at: '2026-07-30T18:53:56.485776+00:00'
-  claim_expires_at: '2026-07-30T19:23:56.485776+00:00'
+  evidence: 'Focus handoff: duplicate_detector
+
+
+    Duplicate preflight verdict: no_duplicate
+
+
+    Matches: none
+
+
+    Evidence: Reviewed active OOMPAH-591, OOMPAH-592, OOMPAH-593, and OOMPAH-599.
+    None covers completion-auditor exit cleanup of `state.claimed_issues` and audit-branch
+    claims. OOMPAH-590 is the closest predecessor but is terminal (`Done`) and excluded.'
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
 oompah.agent_run_id: 4db1411f-cfb9-4104-bba9-bc0122ff5e83
+oompah.task_costs:
+  total_input_tokens: 2400319
+  total_output_tokens: 10074
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 2400319
+      output_tokens: 10074
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 2400319
+    output_tokens: 10074
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T18:58:45.298050+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-610__20260730T185400Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: OOMPAH-610
+    source_sha: b4fa5db81322ae24b90a5c80689d94d1a49a1f30
+    completed_at: '2026-07-30T18:58:45.304450+00:00'
 ---
 ## Summary
 
@@ -66,5 +103,15 @@ author: oompah
 created: 2026-07-30 18:55
 ---
 Implemented locally: auditor exit now removes state.claimed_issues in addition to state.claimed and the audit branch claim. The audit branch gate also prunes orphaned claimed_issues entries whose ID is absent from state.claimed, with a warning, while preserving active claim serialization. Added focused regressions for stalled auditor cleanup and defensive stale-claim pruning. Focused auditor/terminal suites: 298 passed; full gate next.
+---
+author: oompah
+created: 2026-07-30 18:58
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 27
+- Tokens: 2.4M in / 10.1K out [2.4M total]
+- Cost: $0.0000
+- Exit: normal, Duration: 4m 47s
+- Log: OOMPAH-610__20260730T185400Z.jsonl
 ---
 <!-- COMMENTS:END -->
