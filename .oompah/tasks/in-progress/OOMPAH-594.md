@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:55.490677Z'
-updated_at: '2026-07-30T16:00:50.768623Z'
+updated_at: '2026-07-30T16:01:35.217014Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-594
 target_branch: null
 review_url: null
@@ -394,5 +394,101 @@ ACCEPTANCE CRITERIA MET:
 ✓ Workers do not inherit credentials
 
 NEXT: Verify all focused auth tests pass
+---
+author: oompah
+created: 2026-07-30 16:01
+---
+VERIFICATION: All focused auth tests passed successfully.
+
+TEST RESULTS:
+- test_http_auth.py: 53/53 PASSED ✓
+  * Credential reloading with atomicity
+  * File rotation without restart
+  * Symlink/path protection
+  * Concurrent request safety
+  * Secret redaction
+  
+- test_client_auth.py: 62/62 PASSED ✓
+  * Client credential resolution
+  * Password file security
+  * Agent environment protection
+  * Dotenv credential refresh
+  
+- test_server_auth.py: 67/67 PASSED ✓
+  * HTTP middleware auth enforcement
+  * Rotated htpasswd recognition
+  * Webhook exemptions
+  * Anti-bypass protections
+  
+- test_oompah_http.py: 1/1 PASSED ✓
+  * Makefile helper credential refresh
+  
+- test_task_cli.py: 142/142 PASSED ✓
+  * CLI credential reload on operator invocation
+  * Worker credential exclusion
+  
+- test_admin_cli.py: 6/6 PASSED ✓
+  * Admin CLI authentication
+
+TOTAL: 325 tests PASSED in 12.20s
+
+ACCEPTANCE CRITERIA VERIFICATION:
+✓ Credential rotation does not require restart (test_atomic_rotation_*)
+✓ Operator commands authenticate after rotation (test_running_middleware_uses_rotated_*)
+✓ Malformed updates preserve last-known-good (test_invalid_replacement_retains_*)
+✓ Status endpoint exposes only redacted metadata (test_reload_status_never_exposes_*)
+✓ Workers do not receive credentials (test_agent_environment_strips_*)
+---
+author: oompah
+created: 2026-07-30 16:01
+---
+COMPLETION: HTTP Basic credential reload implemented and verified.
+
+DELIVERED:
+
+1. Safe credential reload mechanism
+   - _HtpasswdReloader class in http_auth.py
+   - Atomic file reading with fingerprinting (device, inode, mtime, ctime, size, digest)
+   - Parse-before-publish pattern prevents partial replacements
+   - Last-known-good preservation on failure
+   - Thread-safe credential map swapping with generation tracking
+
+2. Client-side credential refresh
+   - load_client_environment() in client_auth.py reloads from .env on each CLI invocation
+   - Stale credential alternatives cleared during rotation (no duplicate sources)
+   - Spawned workers protected via OOMPAH_DISABLE_CLIENT_AUTH marker
+
+3. Makefile and CLI integration
+   - scripts/oompah_http.py calls load_client_environment() for Makefile lifecycle
+   - task_cli.py and admin_cli.py refresh credentials for operator commands
+   - All routes now authenticate with rotated credentials
+
+4. Security hardening
+   - Symlink rejection (lstat before open, O_NOFOLLOW)
+   - Path traversal protection via regular file validation
+   - Constant-time password comparison
+   - Generic error messages (no user/password distinction)
+   - All secrets redacted from logs and error output
+   - Status endpoint exposes only: state (ready/reloaded/reload_rejected), generation, retaining_last_known_good
+
+5. Comprehensive test coverage (325 passing)
+   - Atomic rotation scenarios
+   - Invalid/partial replacement recovery
+   - Symlink/path attack prevention
+   - Concurrent request handling
+   - Secret redaction
+   - Client credential refresh
+   - Worker environment protection
+
+6. Complete documentation (docs/authentication.md)
+   - Operator setup and rotation procedures
+   - User management (add/update/remove)
+   - Safe disablement and recovery
+   - Client configuration for CLI/MCP/webhooks
+   - Reverse proxy setup
+   - Troubleshooting guide
+
+BRANCH: epic-OOMPAH-586--task-OOMPAH-594
+COMMIT: 31a10b064
 ---
 <!-- COMMENTS:END -->

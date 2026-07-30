@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-601
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Aggregate branch-ownership cleanup skips without warning floods
 parent: OOMPAH-588
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:00.331568Z'
-updated_at: '2026-07-30T15:59:03.639422Z'
+updated_at: '2026-07-30T16:01:25.811256Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-601
 target_branch: null
 review_url: null
@@ -57,7 +57,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 1
   retry_after: null
-oompah.agent_run_id: 81b77a4b-be9a-498f-a33e-7bfe877361d0
+oompah.agent_run_id: 707ac258-c45a-46d2-9cd2-5313fdfdbec6
 oompah.work_branch: epic-OOMPAH-588--task-OOMPAH-601
 oompah.integration:
   version: 1
@@ -66,7 +66,7 @@ oompah.integration:
   task_branch: epic-OOMPAH-588--task-OOMPAH-601
   base_branch: epic-OOMPAH-588
   base_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
-  updated_at: '2026-07-30T15:57:17.259986+00:00'
+  updated_at: '2026-07-30T16:01:20.101653+00:00'
 oompah.task_costs:
   total_input_tokens: 606012
   total_output_tokens: 6823
@@ -174,5 +174,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 50s
 - Log: OOMPAH-601__20260730T155721Z.jsonl
+---
+author: oompah
+created: 2026-07-30 16:01
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-30 16:01
+---
+Focus: Auth Http Default Specialist
 ---
 <!-- COMMENTS:END -->
