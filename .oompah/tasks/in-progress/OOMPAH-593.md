@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-30T14:14:54.281403Z'
-updated_at: '2026-07-30T15:37:40.147049Z'
+updated_at: '2026-07-30T15:46:08.166767Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-593
 target_branch: null
 review_url: null
@@ -375,5 +375,10 @@ author: oompah
 created: 2026-07-30 15:37
 ---
 Understanding (Test Engineer): Docs handoff shipped (commit fe52c187f). Previous devops run left no code delta. My scope: (1) integrate OOMPAH-575's regression tests into this branch (cherry-pick e404d6eb7), (2) run focused suites to confirm they pass against the shipped OOMPAH-538 mechanism, (3) add any additional live-path reproducer if a gap is uncovered. The two suites OOMPAH-575 lands are TestCodexHandoffAuth (5 cases in tests/test_acp_codex_backend.py) and TestHandoffTokenFailClosed (6 cases in tests/test_task_handoff.py). Both are pure regression coverage over already-shipped behavior. Since OOMPAH-575 exists only on its own branch, integrating them into this task branch is the correct path — the acceptance criterion 'OOMPAH-575 reaches Merged' is satisfied by rolling its tests up under this task's submit.
+---
+author: oompah
+created: 2026-07-30 15:46
+---
+Discovery: The existing OOMPAH-575 tests + prior handoff coverage do not exercise Orchestrator._issue_task_handoff_token directly. That method is the single point where the live worker's scope and action set are decided — if it drifts away from the CLI's dispatch set or from the endpoint allowlist, a real worker returns 401/403 on its own task (the failure mode explicitly named in the OOMPAH-593 acceptance criteria). The rest of the pipeline (env injection, endpoint validation) is now covered by TestCodexHandoffAuth (5) and TestHandoffTokenFailClosed (6). The remaining gap is the orchestrator's mint step itself. That's the live-path reproducer to add.
 ---
 <!-- COMMENTS:END -->
