@@ -58,7 +58,7 @@ from oompah.duplicate_screening import (
     new_claim_record,
     save_record as save_duplicate_screening_record,
 )
-from oompah.integration import IntegrationRecord
+from oompah.integration import IntegrationRecord, classify_conflict_repair_failure
 from oompah.integration_executor import (
     IntegrationExecutionResult,
     execute_integration,
@@ -4909,6 +4909,33 @@ class Orchestrator:
                     explicit_retry=False,  # Background sync is idempotent
                 )
 
+    def _is_integration_item_in_backoff(
+        self,
+        item: IntegrationQueueItem,
+        issue: Issue | None,
+    ) -> bool:
+        """Return True if the item is currently in a conflict repair backoff period.
+        
+        When a conflict repair worker encounters a recoverable infrastructure failure
+        (auth, provider, timeout), the item is marked for backoff with a backoff_until
+        timestamp. During the backoff period, the item should remain in 'ready' state
+        but not be claimed for integration.
+        """
+        if issue is None:
+            return False
+        integration = getattr(issue, "integration", None)
+        if integration is None:
+            return False
+        if not integration.backoff_until:
+            return False
+        try:
+            backoff_time = datetime.fromisoformat(integration.backoff_until)
+            now = datetime.now(timezone.utc)
+            return now < backoff_time
+        except (ValueError, TypeError):
+            # Invalid timestamp format, treat as no backoff
+            return False
+
     def _integration_satisfied_dependencies(
         self,
         issues: list[Issue],
@@ -5111,7 +5138,13 @@ class Orchestrator:
         item: IntegrationQueueItem,
         result: IntegrationExecutionResult,
     ) -> None:
-        """Persist a recoverable repair state without deleting any branch."""
+        """Persist a recoverable repair state without deleting any branch.
+        
+        Handles three categories of failures:
+        1. Executor retryable (epic_head_race, interrupted): auto-retry immediately
+        2. Conflict with infrastructure failure: backoff and retry after cooldown
+        3. Real conflicts or hard failures: dispatch to human (NEEDS_REBASE status)
+        """
 
         # An epic-head race is safe to retry from the rebased private head
         # that this executor already pushed. A task-branch push race means a
@@ -5130,6 +5163,40 @@ class Orchestrator:
         existing = getattr(issue, "integration", None) if issue else None
         head_sha = result.rebased_task_sha or item.head_sha
         state = "ready" if retryable else "blocked"
+        
+        # Track repair failure classification for conflicts
+        repair_failure_reason: str | None = None
+        backoff_until: str | None = None
+        
+        if result.status == "conflict":
+            # Classify the failure to detect infrastructure vs real conflicts
+            repair_failure_reason = classify_conflict_repair_failure(result.message)
+            
+            # Infrastructure failures (auth, provider, timeout, etc.) should retry with backoff
+            if repair_failure_reason and repair_failure_reason != "conflict":
+                # Calculate exponential backoff: 5m, 15m, 45m, then needs_human
+                backoff_delays = [300, 900, 2700]  # seconds
+                repair_attempts = 0
+                if existing is not None:
+                    # Count how many times this repair has been attempted
+                    repair_attempts = item.attempts
+                    if repair_attempts >= 1:  # Attempts start at 1 on first try
+                        repair_attempts -= 1
+                
+                max_repair_attempts = 4  # 3 backoff retries + needs_human
+                if repair_attempts < max_repair_attempts:
+                    # Still have retries left
+                    if repair_attempts < len(backoff_delays):
+                        backoff_seconds = backoff_delays[repair_attempts]
+                    else:
+                        backoff_seconds = backoff_delays[-1]
+                    backoff_time = datetime.now(timezone.utc) + timedelta(seconds=backoff_seconds)
+                    backoff_until = backoff_time.isoformat()
+                    state = "ready"
+                else:
+                    # Exhausted repair attempts, transition to needs_human
+                    state = "needs_human"
+        
         tracker.set_metadata_field(
             item.task_id,
             "oompah.integration",
@@ -5145,6 +5212,8 @@ class Orchestrator:
                 ),
                 updated_at=datetime.now(timezone.utc).isoformat(),
                 last_error=result.message,
+                backoff_until=backoff_until,
+                repair_failure_reason=repair_failure_reason,
             ).to_dict(),
         )
         if retryable:
@@ -5166,6 +5235,57 @@ class Orchestrator:
                 result.message,
             )
             return
+        
+        # Handle conflict with retryable infrastructure failure
+        if result.status == "conflict" and backoff_until and state == "ready":
+            instruction = (
+                f"Integration found a rebase conflict on `{item.task_branch}`, "
+                f"but the conflict-repair worker encountered a recoverable infrastructure failure "
+                f"({repair_failure_reason}). Oompah will retry conflict resolution automatically.\n\n"
+                f"Error details:\n```\n{result.message[-2000:]}\n```"
+            )
+            tracker.add_comment(item.task_id, instruction, author="oompah")
+            self.state.completed.discard(item.task_id)
+            self.request_refresh()
+            logger.info(
+                "Retryable conflict repair failure for %s with backoff until %s: %s",
+                item.task_id,
+                backoff_until,
+                repair_failure_reason,
+            )
+            return
+        
+        # Handle exhausted repairs (needs_human transition)
+        if state == "needs_human":
+            repair_status = NEEDS_REBASE
+            tracker.update_issue(item.task_id, status=repair_status)
+            instruction = (
+                f"**Conflict repair exhausted**: Integration found a rebase conflict on "
+                f"`{item.task_branch}`, and after several retries due to recoverable infrastructure "
+                f"failures ({repair_failure_reason}), the repair worker has given up.\n\n"
+                f"**Action required**: Please resolve the conflict manually:\n\n"
+                f"1. Fetch the latest `{self.project_store.epic_branch_name(item.epic_id)}` "
+                f"(the epic branch)\n"
+                f"2. Fetch your private branch `{item.task_branch}`\n"
+                f"3. Rebase `{item.task_branch}` onto `{self.project_store.epic_branch_name(item.epic_id)}`\n"
+                f"4. Resolve all conflicts\n"
+                f"5. Run the required tests\n"
+                f"6. Force-push the resolved branch: `git push --force-with-lease origin {item.task_branch}`\n"
+                f"7. Run `oompah task submit` to resubmit\n\n"
+                f"Last error:\n```\n{result.message[-2000:]}\n```"
+            )
+            tracker.add_comment(item.task_id, instruction, author="oompah")
+            self.state.completed.discard(item.task_id)
+            self.request_refresh()
+            logger.warning(
+                "Conflict repair exhausted for %s (failure reason: %s): %s",
+                item.task_id,
+                repair_failure_reason,
+                result.message[:500],
+            )
+            return
+        
+        # Handle real conflicts and other non-retryable failures
         repair_status = {
             "conflict": NEEDS_REBASE,
             "ci_failure": NEEDS_CI_FIX,
@@ -5559,6 +5679,29 @@ class Orchestrator:
                     ),
                 )
                 continue
+            
+            # Check if this item is in a conflict repair backoff period
+            # (recoverable infrastructure failure). If so, release the lease
+            # and skip it for now.
+            claimed_issue = next(
+                (iss for iss in issues if iss.identifier == item.task_id),
+                None,
+            )
+            if self._is_integration_item_in_backoff(item, claimed_issue):
+                # Release the lease by marking as ready again
+                self.integration_queue.fail(
+                    item.project_id,
+                    item.task_id,
+                    lease_owner=item.lease_owner or "",
+                    error=item.last_error or "",
+                    retryable=True,
+                )
+                logger.debug(
+                    "Skipping integration item %s: still in conflict repair backoff",
+                    item.task_id,
+                )
+                continue
+            
             result = await loop.run_in_executor(
                 self._tick_pool,
                 self._execute_integration_item,
