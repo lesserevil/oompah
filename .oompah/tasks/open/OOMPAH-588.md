@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-588
 type: epic
-status: Backlog
+status: Open
 priority: 1
 title: Finish safe repository hygiene and maintenance correctness
 parent: OOMPAH-584
@@ -15,7 +15,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:13:46.482910Z'
-updated_at: '2026-07-30T14:19:09.488209Z'
+updated_at: '2026-07-30T14:20:00.270042Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -48,5 +48,10 @@ author: oompah
 created: 2026-07-30 14:18
 ---
 Project-owner-approved green recovery work; dispatch under recorded dependencies and acceptance criteria.
+---
+author: oompah
+created: 2026-07-30 14:20
+---
+Children are accepted and open; activate the hygiene recovery epic.
 ---
 <!-- COMMENTS:END -->
