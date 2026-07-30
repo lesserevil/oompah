@@ -177,13 +177,13 @@ class ProviderTestResult:
             "latency_ms": round(self.latency_ms, 1),
         }
         if self.response_text:
-            d["response_text"] = redact_sensitive_text(
-                self.response_text[:MAX_RESPONSE_LENGTH]
-            )
+            d["response_text"] = redact_sensitive_text(self.response_text)[
+                :MAX_RESPONSE_LENGTH
+            ]
         if self.error_reason:
             d["error_reason"] = self.error_reason
         if self.error_detail:
-            d["error_detail"] = redact_sensitive_text(self.error_detail[:500])
+            d["error_detail"] = redact_sensitive_text(self.error_detail)[:500]
         return d
 
 
@@ -417,7 +417,7 @@ def run_health_check(provider: "ModelProvider") -> ProviderTestResult:
             success=False,
             latency_ms=latency_ms,
             error_reason=reason,
-            error_detail=f"HTTP {exc.code}: {error_body[:300]}",
+                error_detail=f"HTTP {exc.code}: {redact_sensitive_text(error_body)[:300]}",
         )
 
     except urllib.error.URLError as exc:
@@ -463,7 +463,11 @@ def run_health_check(provider: "ModelProvider") -> ProviderTestResult:
 
     except Exception as exc:  # noqa: BLE001
         latency_ms = (time.monotonic() - t0) * 1000.0
-        logger.warning("Provider health-check unexpected error for %s: %s", pname, exc)
+        logger.warning(
+            "Provider health-check unexpected error for %s: %s",
+            pname,
+            redact_sensitive_text(exc),
+        )
         return ProviderTestResult(
             provider_id=pid,
             provider_name=pname,

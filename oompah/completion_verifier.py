@@ -518,7 +518,10 @@ def run_stage2_sync(
     if not base_url:
         result.error = "no base_url on provider"
         return result
-    from oompah.provider_health import openai_chat_completions_url
+    from oompah.provider_health import (
+        openai_chat_completions_url,
+        redact_sensitive_text,
+    )
 
     model = (getattr(provider, "model_roles", None) or {}).get("fast")
     if not model:
@@ -547,7 +550,7 @@ def run_stage2_sync(
     try:
         url = openai_chat_completions_url(getattr(provider, "base_url", ""))
     except ValueError as exc:
-        result.error = str(exc)
+        result.error = redact_sensitive_text(exc)
         return result
 
     try:
@@ -561,8 +564,9 @@ def run_stage2_sync(
         del timeout_s  # parameter reserved for future async variant
         response = _http_post(url, headers, body, ssl_ctx)
     except Exception as exc:
-        result.error = f"http_post failed: {exc}"
-        logger.warning("completion verifier stage 2 call failed: %s", exc)
+        safe_error = redact_sensitive_text(exc)
+        result.error = f"http_post failed: {safe_error}"
+        logger.warning("completion verifier stage 2 call failed: %s", safe_error)
         return result
 
     try:
