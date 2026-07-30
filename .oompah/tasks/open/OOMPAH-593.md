@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:54.281403Z'
-updated_at: '2026-07-30T14:47:50.858035Z'
-work_branch: null
+updated_at: '2026-07-30T15:00:01.205940Z'
+work_branch: epic-OOMPAH-586--task-OOMPAH-593
 target_branch: null
 review_url: null
 review_number: null
@@ -31,6 +31,16 @@ oompah.duplicate_screening:
   claim_expires_at: '2026-07-30T15:17:49.776663+00:00'
   retry_count: 0
   retry_after: null
+oompah.agent_run_id: fea80c25-e4d0-4bfb-aea0-d20edfaa7e21
+oompah.work_branch: epic-OOMPAH-586--task-OOMPAH-593
+oompah.integration:
+  version: 1
+  state: working
+  attempts: 0
+  task_branch: epic-OOMPAH-586--task-OOMPAH-593
+  base_branch: epic-OOMPAH-586
+  base_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
+  updated_at: '2026-07-30T14:59:59.024847+00:00'
 ---
 ## Summary
 
@@ -59,5 +69,15 @@ author: oompah
 created: 2026-07-30 14:18
 ---
 Project-owner-approved green recovery work; dispatch under recorded dependencies and acceptance criteria.
+---
+author: oompah
+created: 2026-07-30 14:59
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-07-30 15:00
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
