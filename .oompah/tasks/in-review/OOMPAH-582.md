@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-582
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Satisfy legacy Done cross-epic dependencies after parent merge
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:39:46.196812Z'
-updated_at: '2026-07-30T04:48:12.995787Z'
+updated_at: '2026-07-30T04:48:27.941993Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -58,8 +58,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: caacc9ea-0c2e-497f-b3cb-18e3d0da98c5
 oompah.task_costs:
-  total_input_tokens: 119925
-  total_output_tokens: 4849
+  total_input_tokens: 119988
+  total_output_tokens: 6526
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -69,6 +69,10 @@ oompah.task_costs:
     sonnet:
       input_tokens: 74903
       output_tokens: 810
+      cost_usd: 0.0
+    opus:
+      input_tokens: 63
+      output_tokens: 1677
       cost_usd: 0.0
   runs:
   - profile: default
@@ -89,6 +93,12 @@ oompah.task_costs:
     output_tokens: 810
     cost_usd: 0.0
     recorded_at: '2026-07-30T04:43:15.175382+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 63
+    output_tokens: 1677
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T04:48:25.398255+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-582__20260730T044038Z
@@ -240,5 +250,15 @@ author: oompah
 created: 2026-07-30 04:48
 ---
 Fixed live cross-epic queue blocker: legacy Done children without integrated_sha may use default-branch ancestry only after their parent epic has Merged/Archived. Updated stale-rebase detection and wait summaries; negative cases remain blocked. Focused tests: 24 passed. Full make test: 13,694 passed, 7 skipped; terminal mutation scan passed. Commit bbd48ada7 pushed.
+---
+author: oompah
+created: 2026-07-30 04:48
+---
+Run #3 [attempt=3, profile=deep, role=deep -> Claude/opus]
+- Turns: 0, Tool calls: 38
+- Tokens: 63 in / 1.7K out [1.7K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 4m 32s
+- Log: OOMPAH-582__20260730T044357Z.jsonl
 ---
 <!-- COMMENTS:END -->
