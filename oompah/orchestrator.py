@@ -129,6 +129,10 @@ from oompah.storage_cleanup import (
     cleanup_owned_storage,
     inspect_storage_pressure,
 )
+from oompah.repo_hygiene import (
+    HealthThresholds,
+    RepoHygieneHealth,
+)
 from oompah.terminal_audit import (
     AuditAttempt,
     ContributorIdentity,
@@ -1158,6 +1162,22 @@ class Orchestrator:
         # Counts events that were drained from the dispatch queue and coalesced
         # into the current tick so slow-tick logs can report burst size.
         self._last_coalesced_event_count: int = 0
+        # Repository hygiene health thresholds (OOMPAH-603).
+        # Configured via .env variables; tracks health status in maintenance_status.
+        self._repo_hygiene_thresholds: HealthThresholds = HealthThresholds(
+            safely_prunable_age_seconds=(
+                config.repo_hygiene_safely_prunable_age_seconds
+            ),
+            safely_prunable_count_warning=(
+                config.repo_hygiene_safely_prunable_count_warning
+            ),
+            safely_prunable_count_critical=(
+                config.repo_hygiene_safely_prunable_count_critical
+            ),
+            cleanup_error_threshold=(
+                config.repo_hygiene_cleanup_error_threshold
+            ),
+        )
         # ---- Bounded per-project refresh infrastructure (TASK-467.2) ----
         # Per-project semaphores for bounded concurrency. Created on-demand
         # when a project is first refreshed.
@@ -3707,6 +3727,49 @@ class Orchestrator:
                 self._cleanup_error_last = str(exc)
                 logger.warning("Terminal worktree cleanup failed during maintenance: %s", exc)
 
+    def _evaluate_repo_hygiene_health(self) -> RepoHygieneHealth:
+        """Evaluate repository hygiene health status (OOMPAH-603).
+
+        Builds a RepoHygieneHealth snapshot with current inventory counts,
+        overdue artifacts, and cleanup errors. Used to populate
+        maintenance_status for dashboard and API display.
+
+        Returns:
+            RepoHygieneHealth instance with current status and thresholds applied.
+        """
+        health = RepoHygieneHealth()
+
+        # Track most recent cleanup error if present
+        if self._cleanup_error_last:
+            health.cleanup_errors.append(self._cleanup_error_last)
+
+        # Evaluate health against thresholds
+        is_healthy, summary = self._repo_hygiene_thresholds.evaluate_health(health)
+        health.is_healthy = is_healthy
+        health.summary = summary
+        health.last_evaluated_at = time.time()
+
+        return health
+
+    def _update_repo_hygiene_health(self) -> None:
+        """Update repository hygiene health status in maintenance_status.
+
+        Called periodically as part of maintenance sweep. Exposes health
+        status to dashboard and API via orchestrator_metrics.
+        """
+        try:
+            health = self._evaluate_repo_hygiene_health()
+            self._maintenance_status["repo_hygiene_health"] = health.to_dict()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Failed to evaluate repository hygiene health: %s", exc)
+            # Maintain previous state rather than failing the entire maintenance sweep
+            if "repo_hygiene_health" not in self._maintenance_status:
+                self._maintenance_status["repo_hygiene_health"] = {
+                    "is_healthy": False,
+                    "summary": "Health evaluation error",
+                    "error": str(exc),
+                }
+
     def _storage_cleanup_paths(self) -> tuple[str, str, list[str]]:
         log_root = os.environ.get("OOMPAH_AGENT_LOG_DIR") or os.path.join(
             os.path.expanduser("~"), ".oompah", "agent-logs"
@@ -3835,6 +3898,7 @@ class Orchestrator:
         self._maybe_heal_repos()
         self._maybe_cleanup_worktrees()
         self._maybe_cleanup_storage()
+        self._update_repo_hygiene_health()
         self._auto_archive()
         self._maybe_open_deferred_done_reviews()
         self._maybe_run_merged_labels()
