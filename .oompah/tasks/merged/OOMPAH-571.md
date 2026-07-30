@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-571
 type: bug
-status: In Review
+status: Merged
 priority: 1
 title: Keep active terminal auditors alive in In Validation
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T23:57:40.926693Z'
-updated_at: '2026-07-30T00:05:44.208937Z'
+updated_at: '2026-07-30T00:10:31.999667Z'
 work_branch: OOMPAH-571
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/586
