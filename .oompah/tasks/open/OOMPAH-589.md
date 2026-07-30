@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-589
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Validate auditor provider endpoints before candidate dispatch
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:20.256845Z'
-updated_at: '2026-07-30T15:20:54.283200Z'
+updated_at: '2026-07-30T15:21:20.888849Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-589
 target_branch: null
 review_url: null
@@ -67,13 +67,17 @@ oompah.integration:
   base_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
   updated_at: '2026-07-30T15:20:52.335969+00:00'
 oompah.task_costs:
-  total_input_tokens: 37623983
-  total_output_tokens: 57173
+  total_input_tokens: 37681860
+  total_output_tokens: 57560
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 37623983
       output_tokens: 57173
+      cost_usd: 0.0
+    opus:
+      input_tokens: 57877
+      output_tokens: 387
       cost_usd: 0.0
   runs:
   - profile: default
@@ -94,6 +98,12 @@ oompah.task_costs:
     output_tokens: 52423
     cost_usd: 0.0
     recorded_at: '2026-07-30T15:20:24.159993+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 57877
+    output_tokens: 387
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T15:21:15.360952+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-589__20260730T141852Z
@@ -104,6 +114,14 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-585--task-OOMPAH-589
     source_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
     completed_at: '2026-07-30T14:20:39.705139+00:00'
+  - run_id: OOMPAH-589__20260730T152054Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-sol
+    focus: security
+    source_branch: epic-OOMPAH-585--task-OOMPAH-589
+    source_sha: 88d46cabb8f97628460a04eb333267c7a57514d0
+    completed_at: '2026-07-30T15:21:15.367960+00:00'
 ---
 ## Summary
 
@@ -253,5 +271,20 @@ author: oompah
 created: 2026-07-30 15:20
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-07-30 15:21
+---
+Agent completed successfully in 27s (58264 tokens)
+---
+author: oompah
+created: 2026-07-30 15:21
+---
+Run #2 [attempt=2, profile=deep, role=deep -> Codex/gpt-5.6-sol]
+- Turns: 1, Tool calls: 1
+- Tokens: 57.9K in / 387 out [58.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 27s
+- Log: OOMPAH-589__20260730T152054Z.jsonl
 ---
 <!-- COMMENTS:END -->
