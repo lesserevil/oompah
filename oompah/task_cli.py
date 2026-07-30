@@ -882,10 +882,14 @@ def build_parser() -> argparse.ArgumentParser:
             "Calls the local oompah server API and works with supported oompah "
             "trackers.  Set OOMPAH_SERVER_URL or use "
             "--server/--port to point at a non-default server.\n\n"
-            "For HTTP Basic auth, set OOMPAH_SERVER_USERNAME and exactly one "
-            "of OOMPAH_SERVER_PASSWORD_FILE (preferred) or "
-            "OOMPAH_SERVER_PASSWORD. Never put credentials in the server URL; "
-            "there is no plaintext --password option."
+            "For HTTP Basic auth, credentials are resolved from (in precedence order):\n"
+            "  1. CLI: --username and --password-file\n"
+            "  2. Environment: OOMPAH_SERVER_USERNAME and "
+            "OOMPAH_SERVER_PASSWORD_FILE (preferred) or OOMPAH_SERVER_PASSWORD\n"
+            "  3. ~/.netrc file (when server URL can be resolved)\n\n"
+            "Never put credentials in the server URL. "
+            "There is no plaintext --password option (use --password-file or "
+            "OOMPAH_SERVER_PASSWORD_FILE for unattended use)."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -1335,9 +1339,9 @@ def main(argv: list[str] | None = None) -> None:
         getattr(args, "port", None),
     )
 
-    # Resolve client credentials (env vars + optional CLI overrides).
+    # Resolve client credentials (env vars + optional CLI overrides + netrc).
     # Exits with a clear error on misconfiguration (missing username,
-    # conflicting sources, unreadable password file, etc.).
+    # conflicting sources, unreadable password file, malformed netrc, etc.).
     if _task_handoff_token():
         # The capability is the only authentication mechanism for this
         # process.  Do not even resolve inherited operator credentials.
@@ -1347,6 +1351,7 @@ def main(argv: list[str] | None = None) -> None:
             _auth = resolve_client_credentials(
                 username_override=getattr(args, "username", None),
                 password_file_override=getattr(args, "password_file", None),
+                server_url=base_url,
             )
         except CredentialError as exc:
             sys.exit(f"ERROR: {exc}")

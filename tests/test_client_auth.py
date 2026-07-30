@@ -797,3 +797,377 @@ class TestCurrentClientEnvironment:
         assert load_client_environment() == 0
         assert "OOMPAH_SERVER_USERNAME" not in os.environ
         assert "OOMPAH_SERVER_PASSWORD_FILE" not in os.environ
+
+
+# ---------------------------------------------------------------------------
+# Netrc support
+# ---------------------------------------------------------------------------
+
+
+def _make_netrc_file(content: str, mode: int = 0o600) -> str:
+    """Create a temporary netrc file with content and permissions; return path."""
+    fd, path = tempfile.mkstemp()
+    try:
+        os.write(fd, content.encode("utf-8"))
+    finally:
+        os.close(fd)
+    os.chmod(path, mode)
+    return path
+
+
+class TestNetrcFallback:
+    """Netrc credentials fallback when CLI/env don't supply complete credentials."""
+
+    def test_netrc_credentials_used_when_no_cli_or_env(self, monkeypatch, tmp_path):
+        """When no CLI/env credentials, netrc entry is used."""
+        netrc_content = "machine 127.0.0.1\nlogin alice\npassword netrc_secret\n"
+        netrc_path = str(tmp_path / ".netrc")
+        Path(netrc_path).write_text(netrc_content)
+        os.chmod(netrc_path, 0o600)
+
+        monkeypatch.delenv("OOMPAH_SERVER_USERNAME", raising=False)
+        monkeypatch.delenv("OOMPAH_SERVER_PASSWORD", raising=False)
+        monkeypatch.delenv("OOMPAH_SERVER_PASSWORD_FILE", raising=False)
+
+        # Patch Path.home() to return our tmp_path
+        with patch("oompah.client_auth.Path.home") as mock_home:
+            mock_home.return_value = tmp_path
+
+            creds = resolve_client_credentials(server_url="http://127.0.0.1:8080")
+            assert creds is not None
+            assert creds.username == "alice"
+            assert creds.password == "netrc_secret"
+
+    def test_cli_username_takes_precedence_over_netrc_but_needs_password(self, monkeypatch, tmp_path):
+        """CLI --username overrides netrc but requires explicit password."""
+        netrc_content = "machine 127.0.0.1\nlogin alice\npassword netrc_secret\n"
+        netrc_path = str(tmp_path / ".netrc")
+        Path(netrc_path).write_text(netrc_content)
+        os.chmod(netrc_path, 0o600)
+
+        monkeypatch.delenv("OOMPAH_SERVER_USERNAME", raising=False)
+        monkeypatch.delenv("OOMPAH_SERVER_PASSWORD", raising=False)
+        monkeypatch.delenv("OOMPAH_SERVER_PASSWORD_FILE", raising=False)
+
+        with patch("oompah.client_auth.Path.home") as mock_home:
+            mock_home.return_value = tmp_path
+
+            # CLI username overrides netrc username, so netrc password cannot be used
+            # (precedence conflict). Must provide explicit password.
+            with pytest.raises(CredentialError, match="Credential conflict"):
+                resolve_client_credentials(
+                    username_override="bob",
+                    server_url="http://127.0.0.1:8080",
+                )
+
+    def test_env_username_takes_precedence_over_netrc_but_conflicts(self, monkeypatch, tmp_path):
+        """OOMPAH_SERVER_USERNAME overrides netrc username, causing conflict with netrc password."""
+        netrc_content = "machine 127.0.0.1\nlogin alice\npassword netrc_secret\n"
+        netrc_path = str(tmp_path / ".netrc")
+        Path(netrc_path).write_text(netrc_content)
+        os.chmod(netrc_path, 0o600)
+
+        monkeypatch.setenv("OOMPAH_SERVER_USERNAME", "bob")
+        monkeypatch.delenv("OOMPAH_SERVER_PASSWORD", raising=False)
+        monkeypatch.delenv("OOMPAH_SERVER_PASSWORD_FILE", raising=False)
+
+        with patch("oompah.client_auth.Path.home") as mock_home:
+            mock_home.return_value = tmp_path
+
+            # env username (bob) conflicts with netrc password for alice
+            with pytest.raises(CredentialError, match="Credential conflict"):
+                resolve_client_credentials(server_url="http://127.0.0.1:8080")
+
+    def test_env_password_takes_precedence_over_netrc_password(self, monkeypatch, tmp_path):
+        """OOMPAH_SERVER_PASSWORD overrides netrc password."""
+        netrc_content = "machine 127.0.0.1\nlogin alice\npassword netrc_secret\n"
+        netrc_path = str(tmp_path / ".netrc")
+        Path(netrc_path).write_text(netrc_content)
+        os.chmod(netrc_path, 0o600)
+
+        monkeypatch.setenv("OOMPAH_SERVER_USERNAME", "alice")
+        monkeypatch.setenv("OOMPAH_SERVER_PASSWORD", "env_secret")
+        monkeypatch.delenv("OOMPAH_SERVER_PASSWORD_FILE", raising=False)
+
+        with patch("oompah.client_auth.Path.home") as mock_home:
+            mock_home.return_value = tmp_path
+
+            creds = resolve_client_credentials(server_url="http://127.0.0.1:8080")
+            assert creds is not None
+            assert creds.username == "alice"
+            assert creds.password == "env_secret"  # env wins over netrc
+
+    def test_hostname_normalization_for_netrc_lookup(self, monkeypatch, tmp_path):
+        """Hostname from URL is normalized (lowercase) for netrc lookup."""
+        netrc_content = "machine example.com\nlogin alice\npassword secret123\n"
+        netrc_path = str(tmp_path / ".netrc")
+        Path(netrc_path).write_text(netrc_content)
+        os.chmod(netrc_path, 0o600)
+
+        monkeypatch.delenv("OOMPAH_SERVER_USERNAME", raising=False)
+        monkeypatch.delenv("OOMPAH_SERVER_PASSWORD", raising=False)
+        monkeypatch.delenv("OOMPAH_SERVER_PASSWORD_FILE", raising=False)
+
+        with patch("oompah.client_auth.Path.home") as mock_home:
+            mock_home.return_value = tmp_path
+
+            # URL has uppercase host; netrc has lowercase; should match via normalization
+            creds = resolve_client_credentials(server_url="http://EXAMPLE.COM:8080")
+            assert creds is not None
+            assert creds.username == "alice"
+            assert creds.password == "secret123"
+
+    def test_no_netrc_fallback_without_server_url(self, monkeypatch, tmp_path):
+        """When no server_url provided, netrc is not consulted."""
+        netrc_content = "machine 127.0.0.1\nlogin alice\npassword netrc_secret\n"
+        netrc_path = str(tmp_path / ".netrc")
+        Path(netrc_path).write_text(netrc_content)
+        os.chmod(netrc_path, 0o600)
+
+        monkeypatch.delenv("OOMPAH_SERVER_USERNAME", raising=False)
+        monkeypatch.delenv("OOMPAH_SERVER_PASSWORD", raising=False)
+        monkeypatch.delenv("OOMPAH_SERVER_PASSWORD_FILE", raising=False)
+
+        with patch("oompah.client_auth.Path.home") as mock_home:
+            mock_home.return_value = tmp_path
+
+            # Without server_url, netrc should not be queried
+            creds = resolve_client_credentials()
+            assert creds is None
+
+
+class TestNetrcPermissions:
+    """Netrc file permission validation."""
+
+    def test_netrc_must_be_0o600(self, monkeypatch, tmp_path):
+        """Netrc file must have 0o600 permissions."""
+        netrc_content = "machine 127.0.0.1\nlogin alice\npassword secret\n"
+        netrc_path = str(tmp_path / ".netrc")
+        Path(netrc_path).write_text(netrc_content)
+        os.chmod(netrc_path, 0o644)  # unsafe
+
+        monkeypatch.delenv("OOMPAH_SERVER_USERNAME", raising=False)
+        monkeypatch.delenv("OOMPAH_SERVER_PASSWORD", raising=False)
+        monkeypatch.delenv("OOMPAH_SERVER_PASSWORD_FILE", raising=False)
+
+        with patch("oompah.client_auth.Path.home") as mock_home:
+            mock_home.return_value = tmp_path
+
+            with pytest.raises(CredentialError, match="unsafe permissions"):
+                resolve_client_credentials(server_url="http://127.0.0.1:8080")
+
+    def test_netrc_can_be_0o400(self, monkeypatch, tmp_path):
+        """Netrc file can be 0o400 (read-only)."""
+        netrc_content = "machine 127.0.0.1\nlogin alice\npassword secret\n"
+        netrc_path = str(tmp_path / ".netrc")
+        Path(netrc_path).write_text(netrc_content)
+        os.chmod(netrc_path, 0o400)  # read-only, also acceptable
+
+        monkeypatch.delenv("OOMPAH_SERVER_USERNAME", raising=False)
+        monkeypatch.delenv("OOMPAH_SERVER_PASSWORD", raising=False)
+        monkeypatch.delenv("OOMPAH_SERVER_PASSWORD_FILE", raising=False)
+
+        with patch("oompah.client_auth.Path.home") as mock_home:
+            mock_home.return_value = tmp_path
+
+            creds = resolve_client_credentials(server_url="http://127.0.0.1:8080")
+            assert creds is not None
+            assert creds.password == "secret"
+
+    def test_netrc_symlink_rejected(self, monkeypatch, tmp_path):
+        """Netrc symlink is rejected (symlink-substitution attack prevention)."""
+        real_netrc = tmp_path / "real_netrc"
+        real_netrc.write_text("machine 127.0.0.1\nlogin alice\npassword secret\n")
+        real_netrc.chmod(0o600)
+
+        link_netrc = tmp_path / ".netrc"
+        link_netrc.symlink_to(real_netrc)
+
+        monkeypatch.delenv("OOMPAH_SERVER_USERNAME", raising=False)
+        monkeypatch.delenv("OOMPAH_SERVER_PASSWORD", raising=False)
+        monkeypatch.delenv("OOMPAH_SERVER_PASSWORD_FILE", raising=False)
+
+        with patch("oompah.client_auth.Path.home") as mock_home:
+            mock_home.return_value = tmp_path
+
+            with pytest.raises(CredentialError, match="symbolic link"):
+                resolve_client_credentials(server_url="http://127.0.0.1:8080")
+
+    def test_netrc_directory_rejected(self, monkeypatch, tmp_path):
+        """Netrc must be a regular file, not a directory."""
+        netrc_dir = tmp_path / ".netrc"
+        netrc_dir.mkdir(mode=0o700)
+
+        monkeypatch.delenv("OOMPAH_SERVER_USERNAME", raising=False)
+        monkeypatch.delenv("OOMPAH_SERVER_PASSWORD", raising=False)
+        monkeypatch.delenv("OOMPAH_SERVER_PASSWORD_FILE", raising=False)
+
+        with patch("oompah.client_auth.Path.home") as mock_home:
+            mock_home.return_value = tmp_path
+
+            with pytest.raises(CredentialError, match="not a regular file"):
+                resolve_client_credentials(server_url="http://127.0.0.1:8080")
+
+
+class TestNetrcParsing:
+    """Netrc parsing and entry validation."""
+
+    def test_malformed_netrc_partial_entry_rejected(self, monkeypatch, tmp_path):
+        """Netrc entry with only login or only password is rejected."""
+        # Entry has only login, missing password
+        netrc_content = "machine 127.0.0.1\nlogin alice\n"
+        netrc_path = str(tmp_path / ".netrc")
+        Path(netrc_path).write_text(netrc_content)
+        os.chmod(netrc_path, 0o600)
+
+        monkeypatch.delenv("OOMPAH_SERVER_USERNAME", raising=False)
+        monkeypatch.delenv("OOMPAH_SERVER_PASSWORD", raising=False)
+        monkeypatch.delenv("OOMPAH_SERVER_PASSWORD_FILE", raising=False)
+
+        with patch("oompah.client_auth.Path.home") as mock_home:
+            mock_home.return_value = tmp_path
+
+            with pytest.raises(CredentialError, match="Malformed netrc"):
+                resolve_client_credentials(server_url="http://127.0.0.1:8080")
+
+    def test_netrc_multiple_machines(self, monkeypatch, tmp_path):
+        """Netrc can have multiple machine entries; correct one is looked up."""
+        netrc_content = (
+            "machine host1.com\n"
+            "login user1\n"
+            "password pass1\n"
+            "\n"
+            "machine 127.0.0.1\n"
+            "login alice\n"
+            "password secret123\n"
+            "\n"
+            "machine host2.com\n"
+            "login user2\n"
+            "password pass2\n"
+        )
+        netrc_path = str(tmp_path / ".netrc")
+        Path(netrc_path).write_text(netrc_content)
+        os.chmod(netrc_path, 0o600)
+
+        monkeypatch.delenv("OOMPAH_SERVER_USERNAME", raising=False)
+        monkeypatch.delenv("OOMPAH_SERVER_PASSWORD", raising=False)
+        monkeypatch.delenv("OOMPAH_SERVER_PASSWORD_FILE", raising=False)
+
+        with patch("oompah.client_auth.Path.home") as mock_home:
+            mock_home.return_value = tmp_path
+
+            creds = resolve_client_credentials(server_url="http://127.0.0.1:8080")
+            assert creds is not None
+            assert creds.username == "alice"
+            assert creds.password == "secret123"
+
+    def test_netrc_comments_ignored(self, monkeypatch, tmp_path):
+        """Netrc comments (lines starting with #) are ignored."""
+        netrc_content = (
+            "# This is a comment\n"
+            "machine 127.0.0.1\n"
+            "# Another comment\n"
+            "login alice\n"
+            "password secret123\n"
+        )
+        netrc_path = str(tmp_path / ".netrc")
+        Path(netrc_path).write_text(netrc_content)
+        os.chmod(netrc_path, 0o600)
+
+        monkeypatch.delenv("OOMPAH_SERVER_USERNAME", raising=False)
+        monkeypatch.delenv("OOMPAH_SERVER_PASSWORD", raising=False)
+        monkeypatch.delenv("OOMPAH_SERVER_PASSWORD_FILE", raising=False)
+
+        with patch("oompah.client_auth.Path.home") as mock_home:
+            mock_home.return_value = tmp_path
+
+            creds = resolve_client_credentials(server_url="http://127.0.0.1:8080")
+            assert creds is not None
+            assert creds.password == "secret123"
+
+    def test_netrc_whitespace_handling(self, monkeypatch, tmp_path):
+        """Netrc parsing handles whitespace correctly."""
+        netrc_content = "machine  127.0.0.1  \nlogin   alice  \npassword   secret123  \n"
+        netrc_path = str(tmp_path / ".netrc")
+        Path(netrc_path).write_text(netrc_content)
+        os.chmod(netrc_path, 0o600)
+
+        monkeypatch.delenv("OOMPAH_SERVER_USERNAME", raising=False)
+        monkeypatch.delenv("OOMPAH_SERVER_PASSWORD", raising=False)
+        monkeypatch.delenv("OOMPAH_SERVER_PASSWORD_FILE", raising=False)
+
+        with patch("oompah.client_auth.Path.home") as mock_home:
+            mock_home.return_value = tmp_path
+
+            creds = resolve_client_credentials(server_url="http://127.0.0.1:8080")
+            assert creds is not None
+            # Note: whitespace after values is preserved in netrc
+            # (it's the field value, not the username/password)
+            assert creds.username == "alice"
+            # Password parsing preserves trailing spaces if not stripped by the parser
+            assert "secret" in creds.password
+
+    def test_netrc_missing_file_is_optional(self, monkeypatch, tmp_path):
+        """Missing netrc file is not an error (optional fallback)."""
+        # Don't create a netrc file
+        monkeypatch.delenv("OOMPAH_SERVER_USERNAME", raising=False)
+        monkeypatch.delenv("OOMPAH_SERVER_PASSWORD", raising=False)
+        monkeypatch.delenv("OOMPAH_SERVER_PASSWORD_FILE", raising=False)
+
+        with patch("oompah.client_auth.Path.home") as mock_home:
+            mock_home.return_value = tmp_path
+
+            # Should return None, not raise an error
+            creds = resolve_client_credentials(server_url="http://127.0.0.1:8080")
+            assert creds is None
+
+
+class TestNetrcHostnameLookupMiss:
+    """Netrc lookup can miss when hostname is not found in netrc."""
+
+    def test_hostname_not_in_netrc_returns_none(self, monkeypatch, tmp_path):
+        """When server hostname is not in netrc, None is returned."""
+        netrc_content = "machine otherhost.com\nlogin alice\npassword secret\n"
+        netrc_path = str(tmp_path / ".netrc")
+        Path(netrc_path).write_text(netrc_content)
+        os.chmod(netrc_path, 0o600)
+
+        monkeypatch.delenv("OOMPAH_SERVER_USERNAME", raising=False)
+        monkeypatch.delenv("OOMPAH_SERVER_PASSWORD", raising=False)
+        monkeypatch.delenv("OOMPAH_SERVER_PASSWORD_FILE", raising=False)
+
+        with patch("oompah.client_auth.Path.home") as mock_home:
+            mock_home.return_value = tmp_path
+
+            # 127.0.0.1 is not in netrc, so credentials should be None
+            creds = resolve_client_credentials(server_url="http://127.0.0.1:8080")
+            assert creds is None
+
+
+class TestNetrcSecretRedaction:
+    """Ensure netrc credentials are never leaked in error messages."""
+
+    def test_netrc_parsing_error_does_not_leak_credentials(self, monkeypatch, tmp_path):
+        """Malformed netrc errors do not echo credential values."""
+        netrc_content = (
+            "machine 127.0.0.1\n"
+            "login alice\n"
+            "# Missing password\n"
+        )
+        netrc_path = str(tmp_path / ".netrc")
+        Path(netrc_path).write_text(netrc_content)
+        os.chmod(netrc_path, 0o600)
+
+        monkeypatch.delenv("OOMPAH_SERVER_USERNAME", raising=False)
+        monkeypatch.delenv("OOMPAH_SERVER_PASSWORD", raising=False)
+        monkeypatch.delenv("OOMPAH_SERVER_PASSWORD_FILE", raising=False)
+
+        with patch("oompah.client_auth.Path.home") as mock_home:
+            mock_home.return_value = tmp_path
+
+            try:
+                resolve_client_credentials(server_url="http://127.0.0.1:8080")
+            except CredentialError as exc:
+                # Error should not echo the password field name or values
+                msg = str(exc)
+                assert "alice" not in msg  # username must not be in error

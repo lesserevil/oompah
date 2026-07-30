@@ -50,9 +50,11 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import stat
 import urllib.parse
 from collections.abc import Mapping
+from pathlib import Path
 from typing import NamedTuple
 
 logger = logging.getLogger(__name__)
@@ -308,6 +310,249 @@ def _read_password_file(path: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Hostname normalization
+# ---------------------------------------------------------------------------
+
+
+def _normalize_hostname(server_url: str) -> str:
+    """Extract and normalize the hostname for netrc lookup from a server URL.
+
+    The hostname is extracted from the server URL and normalized for netrc
+    lookup.  IPv6 addresses are returned without brackets (netrc uses bare
+    addresses).  The port is stripped; netrc entries are hostname-only.
+
+    Args:
+        server_url: Sanitized server URL (already validated by sanitize_server_url).
+
+    Returns:
+        The normalized hostname for netrc lookup (IPv6 without brackets).
+
+    Raises:
+        CredentialError: If the URL cannot be parsed or contains no hostname.
+    """
+    if not server_url or not server_url.strip():
+        raise CredentialError("Cannot extract hostname from empty server URL.")
+
+    try:
+        parsed = urllib.parse.urlparse(server_url)
+        hostname = parsed.hostname
+    except Exception as exc:
+        raise CredentialError(
+            f"Cannot parse server URL to extract hostname: {exc}"
+        ) from exc
+
+    if not hostname:
+        raise CredentialError(
+            f"Server URL does not contain a valid hostname: {server_url}"
+        )
+
+    # Return hostname normalized for netrc (IPv6 without brackets, lowercase for DNS).
+    # netrc format uses bare IPv6 without brackets; we return that form.
+    return hostname.lower()
+
+
+# ---------------------------------------------------------------------------
+# Netrc file reading
+# ---------------------------------------------------------------------------
+
+
+def _read_netrc_file(path: str) -> dict[str, tuple[str, str]] | None:
+    """Read and parse a netrc file, returning hostname -> (username, password) mapping.
+
+    Security requirements enforced here:
+
+    * Uses ``os.lstat`` before opening to detect and reject symlinks.
+    * Regular files only; rejects directories, devices, sockets, FIFOs.
+    * Permissions must be 0o600 (or 0o400 on some systems); stricter than password-file.
+    * TOCTOU verification via inode check (lstat vs fstat).
+    * Rejects malformed entries and ignores whitespace-only lines.
+    * Returns a dict mapping hostname -> (username, password) for matching entries.
+    * Returns None if file does not exist (not an error; netrc is optional).
+
+    Args:
+        path: Path to the netrc file (typically ~/.netrc).
+
+    Returns:
+        Dict mapping hostname -> (username, password) when file exists and is valid,
+        or None when file does not exist (optional fallback).
+
+    Raises:
+        CredentialError: On symlink, unsafe permissions, non-regular file,
+                         parse errors, or read failures.
+    """
+    # Return None if the file does not exist (netrc is optional).
+    try:
+        lst = os.lstat(path)
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        # Other OS errors (permission denied on parent directory, etc.) are fatal.
+        raise CredentialError(
+            f"Cannot access netrc file {path!r}: {exc.strerror}"
+        ) from exc
+
+    # Reject symlinks to prevent substitution attacks.
+    if stat.S_ISLNK(lst.st_mode):
+        raise CredentialError(
+            f"netrc file {path!r} is a symbolic link. "
+            "Provide the direct target path to prevent symlink-substitution attacks."
+        )
+
+    # Regular file only.
+    if not stat.S_ISREG(lst.st_mode):
+        raise CredentialError(
+            f"netrc file {path!r} is not a regular file "
+            f"(mode={oct(lst.st_mode)})."
+        )
+
+    # Permissions: netrc must be owner-readable only (0o600 or 0o400).
+    # This is stricter than password-file (0o644 is allowed with a warning).
+    # Historically, netrc expects 0o600; we accept 0o400 (read-only) as well.
+    file_mode = stat.S_IMODE(lst.st_mode)
+    if file_mode not in (0o600, 0o400):
+        raise CredentialError(
+            f"netrc file {path!r} has unsafe permissions {oct(file_mode)}. "
+            "netrc must be readable only by the owner (chmod 600). "
+            "Fix with: chmod 600 {path!r}".format(path=path)
+        )
+
+    # Open and verify inode consistency (TOCTOU protection).
+    try:
+        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+        fd = os.open(path, flags)
+    except PermissionError:
+        raise CredentialError(
+            f"netrc file {path!r} is not readable. "
+            "Check file permissions (chmod 600)."
+        ) from None
+    except OSError as exc:
+        raise CredentialError(
+            f"Failed to open netrc file {path!r}: {exc.strerror}"
+        ) from exc
+
+    try:
+        fst = os.fstat(fd)
+        if fst.st_ino != lst.st_ino or fst.st_dev != lst.st_dev:
+            raise CredentialError(
+                f"netrc file {path!r} changed between stat and open "
+                "(possible symlink race). Aborting."
+            )
+        with os.fdopen(fd, "r", encoding="utf-8") as fh:
+            fd = -1  # prevent double-close in finally
+            content = fh.read()
+    except CredentialError:
+        raise
+    except OSError as exc:
+        raise CredentialError(
+            f"Failed to read netrc file {path!r}: {exc.strerror}"
+        ) from exc
+    finally:
+        if fd != -1:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+
+    # Parse the netrc file.
+    # netrc format:
+    #   machine <hostname>
+    #   login <username>
+    #   password <password>
+    # [optional: account <account>]
+    # Entries are whitespace-separated; comments start with '#'.
+    # We parse conservatively, supporting only the fields we use.
+    #
+    # This is a simplified parser focused on security: we extract login and
+    # password for matching machines, and ignore other fields.
+
+    entries: dict[str, tuple[str, str]] = {}
+    lines = content.splitlines()
+
+    i = 0
+    while i < len(lines):
+        line = lines[i].strip()
+        i += 1
+
+        # Skip empty lines and comments.
+        if not line or line.startswith("#"):
+            continue
+
+        # Look for "machine <hostname>" keyword.
+        parts = line.split()
+        if not parts or parts[0] != "machine":
+            continue
+
+        if len(parts) < 2:
+            raise CredentialError(
+                f"Malformed netrc entry: 'machine' keyword missing hostname"
+            )
+
+        machine = parts[1]
+        login = None
+        password = None
+
+        # Parse subsequent lines for login and password in this entry.
+        while i < len(lines):
+            entry_line = lines[i].strip()
+            i += 1
+
+            # Empty lines and comments within an entry are allowed.
+            if not entry_line or entry_line.startswith("#"):
+                continue
+
+            entry_parts = entry_line.split(None, 1)
+            if not entry_parts:
+                continue
+
+            keyword = entry_parts[0]
+
+            # Stop at the next machine declaration.
+            if keyword == "machine":
+                i -= 1  # Back up to reprocess this line as a new machine.
+                break
+
+            # Extract login and password; ignore other keywords (account, etc.).
+            if keyword == "login" and len(entry_parts) > 1:
+                login = entry_parts[1]
+            elif keyword == "password" and len(entry_parts) > 1:
+                password = entry_parts[1]
+            elif keyword not in ("account", "default"):
+                # Unrecognized keywords are allowed (for forward compatibility);
+                # we just skip them.
+                pass
+
+        # Require both login and password in a valid entry.
+        if login and password:
+            entries[machine] = (login, password)
+        elif login or password:
+            # Partial entry (only login or only password) is a configuration error.
+            raise CredentialError(
+                f"Malformed netrc: machine {machine!r} has 'login' "
+                "or 'password' but not both. Both are required."
+            )
+
+    return entries if entries else None
+
+
+def _lookup_netrc_credentials(
+    netrc_entries: dict[str, tuple[str, str]],
+    hostname: str,
+) -> tuple[str, str] | None:
+    """Look up hostname in netrc entries and return (username, password) or None.
+
+    Args:
+        netrc_entries: Dict mapping hostname -> (username, password) from netrc.
+        hostname: Normalized hostname to look up (lowercase, no IPv6 brackets).
+
+    Returns:
+        (username, password) tuple if found, or None if not found.
+    """
+    if hostname in netrc_entries:
+        return netrc_entries[hostname]
+    return None
+
+
+# ---------------------------------------------------------------------------
 # URL sanitization
 # ---------------------------------------------------------------------------
 
@@ -377,15 +622,34 @@ def sanitize_server_url(url: str) -> str:
 def resolve_client_credentials(
     username_override: str | None = None,
     password_file_override: str | None = None,
+    server_url: str | None = None,
 ) -> ClientCredentials | None:
-    """Resolve client Basic-auth credentials from environment and/or overrides.
+    """Resolve client Basic-auth credentials from multiple sources with proper precedence.
 
     Source priority
     ~~~~~~~~~~~~~~~
-    username:  CLI ``--username`` > ``OOMPAH_SERVER_USERNAME`` env var
-    password:  CLI ``--password-file`` > ``OOMPAH_SERVER_PASSWORD_FILE`` env var
-               OR ``OOMPAH_SERVER_PASSWORD`` env var
-               (exactly one must be provided when a username is configured)
+    **Username precedence:**
+      1. CLI ``--username`` override
+      2. ``OOMPAH_SERVER_USERNAME`` environment variable
+      3. Entry in ~/.netrc for the resolved server hostname (if URL provided)
+
+    **Password precedence:**
+      1. CLI ``--password-file`` override
+      2. ``OOMPAH_SERVER_PASSWORD_FILE`` environment variable
+      3. ``OOMPAH_SERVER_PASSWORD`` environment variable (inline)
+      4. Entry in ~/.netrc for the resolved server hostname (if URL provided)
+
+    When credentials are incomplete (username without password or vice versa),
+    resolution fails with a clear error. Conflicting same-tier sources
+    (e.g., both OOMPAH_SERVER_PASSWORD and OOMPAH_SERVER_PASSWORD_FILE) are
+    rejected.
+
+    Args:
+        username_override: CLI ``--username`` value (highest precedence).
+        password_file_override: CLI ``--password-file`` path (highest password precedence).
+        server_url: Sanitized server URL for netrc hostname extraction.
+                    When provided and neither CLI nor env vars supply complete
+                    credentials, netrc is consulted as a fallback.
 
     Returns:
         :class:`ClientCredentials` ``(username, password)`` when credentials
@@ -395,8 +659,9 @@ def resolve_client_credentials(
     Raises:
         :exc:`CredentialError`: On inconsistent (both password sources),
             incomplete (username without password or vice versa), unreadable,
-            empty, or unsafe credential configuration.
+            empty, unsafe credential configuration, or netrc errors.
     """
+    # Resolve username with precedence: CLI > env > netrc.
     raw_username = (
         os.environ.get("OOMPAH_SERVER_USERNAME", "")
         if username_override is None
@@ -414,39 +679,97 @@ def resolve_client_credentials(
         password_file = os.environ.get("OOMPAH_SERVER_PASSWORD_FILE", "").strip() or None
         password_env = os.environ.get("OOMPAH_SERVER_PASSWORD", "").strip() or None
 
-    # Nothing configured at all → unauthenticated (backward-compatible).
-    if not username and not password_file and not password_env:
-        return None
-
-    # Username required when any password source is set.
-    if not username and (password_file or password_env):
-        raise CredentialError(
-            "OOMPAH_SERVER_USERNAME is required when "
-            "OOMPAH_SERVER_PASSWORD or OOMPAH_SERVER_PASSWORD_FILE is set."
-        )
-
-    # Password source required when username is set.
-    if username and not password_file and not password_env:
-        raise CredentialError(
-            "A password source is required when OOMPAH_SERVER_USERNAME is set. "
-            "Set OOMPAH_SERVER_PASSWORD_FILE (preferred) or OOMPAH_SERVER_PASSWORD."
-        )
-
-    # Mutual exclusion: exactly one password source.
+    # Check for mutual exclusion of password sources at the environment tier.
     if password_file and password_env:
         raise CredentialError(
             "Set exactly one of OOMPAH_SERVER_PASSWORD or OOMPAH_SERVER_PASSWORD_FILE, "
             "not both. Prefer OOMPAH_SERVER_PASSWORD_FILE for unattended use."
         )
 
-    # Resolve the password.
-    if password_file:
-        password = _read_password_file(password_file)
-    else:
-        assert password_env is not None  # guarded by mutual-exclusion checks above
-        password = password_env
+    # Try to read netrc if URL is provided and higher-tier sources didn't supply
+    # complete credentials. netrc is the lowest precedence.
+    netrc_username = None
+    netrc_password = None
+    netrc_available = False
 
-    return ClientCredentials(username=username, password=password)
+    if server_url:
+        try:
+            netrc_path = str(Path.home() / ".netrc")
+            netrc_entries = _read_netrc_file(netrc_path)
+            if netrc_entries:
+                netrc_available = True
+                hostname = _normalize_hostname(server_url)
+                netrc_creds = _lookup_netrc_credentials(netrc_entries, hostname)
+                if netrc_creds:
+                    netrc_username, netrc_password = netrc_creds
+        except CredentialError:
+            # netrc errors are fatal (malformed, unsafe permissions, etc.).
+            raise
+        except Exception:
+            # Other exceptions (e.g., Path.home() might fail in unusual environments)
+            # are silently ignored; netrc is optional.
+            pass
+
+    # Now apply precedence rules and validate the result.
+
+    # If CLI or env supplied a username, use that precedence order.
+    # If not, fall back to netrc username.
+    if not username and netrc_username:
+        username = netrc_username
+
+    # Resolve password with precedence: CLI password-file > env password-file >
+    # env inline password > netrc password.
+    resolved_password = None
+    password_source = None  # Track which source provided the password
+
+    if password_file:
+        resolved_password = _read_password_file(password_file)
+        password_source = "password-file"
+    elif password_env:
+        resolved_password = password_env
+        password_source = "password-env"
+    elif netrc_password:
+        resolved_password = netrc_password
+        password_source = "netrc"
+
+    # Validate: if any source (CLI, env, netrc) provided credentials, we need
+    # both username and password.
+
+    # Nothing configured at all → unauthenticated (backward-compatible).
+    if not username and not resolved_password:
+        return None
+
+    # Username required when any password source is set.
+    if not username and resolved_password:
+        raise CredentialError(
+            "OOMPAH_SERVER_USERNAME is required when a password source is set. "
+            "Set OOMPAH_SERVER_USERNAME, OOMPAH_SERVER_PASSWORD_FILE (preferred), "
+            "or OOMPAH_SERVER_PASSWORD, or provide credentials in ~/.netrc."
+        )
+
+    # Password source required when username is set.
+    if username and not resolved_password:
+        raise CredentialError(
+            "A password source is required when OOMPAH_SERVER_USERNAME is set. "
+            "Set OOMPAH_SERVER_PASSWORD_FILE (preferred), OOMPAH_SERVER_PASSWORD, "
+            "or provide credentials in ~/.netrc."
+        )
+
+    # Reject netrc password paired with a CLI-overridden username (precedence conflict).
+    # This catches cases where the CLI or env vars supply a different username
+    # than what netrc would provide.
+    if password_source == "netrc" and (username_override or os.environ.get("OOMPAH_SERVER_USERNAME", "").strip()):
+        if (username_override and username_override.strip() != netrc_username) or \
+           (not username_override and os.environ.get("OOMPAH_SERVER_USERNAME", "").strip() != netrc_username):
+            raise CredentialError(
+                "Credential conflict: netrc password cannot be used with a "
+                "different username from CLI or OOMPAH_SERVER_USERNAME. "
+                "Either provide both username and password from the same source, "
+                "or remove the conflicting source."
+            )
+
+    assert resolved_password is not None  # guarded by checks above
+    return ClientCredentials(username=username, password=resolved_password)
 
 
 def agent_environment(base_env: Mapping[str, str] | None = None) -> dict[str, str]:
