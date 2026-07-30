@@ -13,7 +13,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:26.620047Z'
-updated_at: '2026-07-30T15:19:25.602014Z'
+updated_at: '2026-07-30T15:19:46.507690Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-591
 target_branch: null
 review_url: null
@@ -58,13 +58,13 @@ oompah.integration:
   submitted_at: '2026-07-30T15:19:23.453956+00:00'
   updated_at: '2026-07-30T15:19:23.453956+00:00'
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 363
+  total_input_tokens: 1026
+  total_output_tokens: 626
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 10
-      output_tokens: 363
+      input_tokens: 1026
+      output_tokens: 626
       cost_usd: 0.0
   runs:
   - profile: default
@@ -73,6 +73,12 @@ oompah.task_costs:
     output_tokens: 363
     cost_usd: 0.0
     recorded_at: '2026-07-30T14:33:38.478659+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 1016
+    output_tokens: 263
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T15:19:43.436622+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-591__20260730T143142Z
@@ -242,5 +248,15 @@ All acceptance criteria satisfied:
 - No successful audit duplicated or overwritten (idempotent via attempt_id)
 
 Tests passing: 13699 (including 5 new recovery tests)
+---
+author: oompah
+created: 2026-07-30 15:19
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 60
+- Tokens: 1.0K in / 263 out [1.3K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 45m 45s
+- Log: OOMPAH-591__20260730T143408Z.jsonl
 ---
 <!-- COMMENTS:END -->
