@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:55.490677Z'
-updated_at: '2026-07-30T15:29:27.168609Z'
+updated_at: '2026-07-30T15:29:47.716402Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-594
 target_branch: null
 review_url: null
@@ -56,7 +56,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 1
   retry_after: null
-oompah.agent_run_id: 977c8566-2ca5-47b0-b0b3-84b9d3a99feb
+oompah.agent_run_id: 016d16dc-948d-43ac-84ab-31bf3c683217
 oompah.work_branch: epic-OOMPAH-586--task-OOMPAH-594
 oompah.integration:
   version: 1
@@ -65,7 +65,7 @@ oompah.integration:
   task_branch: epic-OOMPAH-586--task-OOMPAH-594
   base_branch: epic-OOMPAH-586
   base_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
-  updated_at: '2026-07-30T15:28:47.725225+00:00'
+  updated_at: '2026-07-30T15:29:45.691261+00:00'
 oompah.task_costs:
   total_input_tokens: 46270
   total_output_tokens: 5787
@@ -217,5 +217,15 @@ author: oompah
 created: 2026-07-30 15:29
 ---
 Agent completed without closing this issue (40s (46568 tokens)). Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-30 15:29
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-30 15:29
+---
+Focus: Security Auditor
 ---
 <!-- COMMENTS:END -->
