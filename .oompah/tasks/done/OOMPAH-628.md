@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-628
 type: bug
-status: In Validation
+status: Done
 priority: 1
 title: Rearm explicitly resubmitted integrated queue rows
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T22:37:04.318940Z'
-updated_at: '2026-07-30T22:58:53.333505Z'
+updated_at: '2026-07-30T23:02:10.739881Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -30,6 +30,8 @@ oompah.integration:
   updated_at: '2026-07-30T22:46:48.872338+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-0aef35cc12c3: '2026-07-30T23:02:08.480330+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -37,7 +39,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-628
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -63,7 +65,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-0aef35cc12c3
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -74,13 +76,16 @@ oompah.terminal_audit:
       started_at: '2026-07-30T22:58:47.547933+00:00'
       branch_key: OOMPAH-628
       candidate_rotation_count: 1
+      verdict: pass
+      completed_at: '2026-07-30T23:02:08.480207+00:00'
+      ended_at: '2026-07-30T23:02:08.480207+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-30T22:46:51.130292+00:00'
-    updated_at: '2026-07-30T22:58:47.547933+00:00'
+    updated_at: '2026-07-30T23:02:08.480207+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-62700fcd7450
@@ -206,5 +211,23 @@ author: oompah
 created: 2026-07-30 22:58
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 23:02
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: b8c6817b12744e164a2de65b3c49ce8e3ce2b551
+- focused_test_count: 30
+- focused_test_result: 30 passed in 22.60s
+- key_test_explicit_reflow: test_explicit_ready_reflow_rearms_identical_integrated_row PASSED
+- key_test_active_idempotency: test_explicit_ready_reflow_does_not_reset_active_row PASSED
+- key_test_server_wiring_ready: test_api_submission_marks_queue_enqueue_as_explicit_retry PASSED
+- key_test_server_wiring_nonready: test_api_submission_does_not_rearm_without_fresh_ready_record PASSED
+- background_sync_idempotency: orchestrator.py integration_queue.enqueue() calls carry no explicit_retry or rearm_integrated
+- changed_files: oompah/integration_queue.py (+15 lines), oompah/server.py (+4 lines), tests/test_integration_queue.py (+73 lines), tests/test_task_handoff.py (+30 lines)
 ---
 <!-- COMMENTS:END -->
