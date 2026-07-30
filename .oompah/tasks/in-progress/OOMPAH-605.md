@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-605
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Bootstrap reviewed terminal-audit fixes through a standalone recovery delivery
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T17:58:44.309909Z'
-updated_at: '2026-07-30T17:59:20.789979Z'
+updated_at: '2026-07-30T18:01:33.593803Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -21,17 +21,55 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: a653af83a7e1bdd9024aa771b856539ffb3075bff5471de61b01a842771debb9
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-07-30T18:01:23.888860+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 885e10da-f6ed-4b4e-9780-e296e883098f
-  claim_owner: 9e3a680b-e68a-4d5a-ba2e-f9091834f9ec
-  claimed_at: '2026-07-30T17:59:11.989214+00:00'
-  claim_expires_at: '2026-07-30T18:29:11.989214+00:00'
+  evidence: 'Focus handoff: duplicate_detector
+
+
+    Duplicate preflight verdict: no_duplicate
+
+
+    Matches: none
+
+
+    Evidence: Reviewed active OOMPAH-584, OOMPAH-585, OOMPAH-589, OOMPAH-598, OOMPAH-599,
+    and OOMPAH-604. They cover the parent recovery epic, component fixes, generic
+    standalone delivery, and permanent liveness invariant, but none duplicates this
+    one-off bootstrap delivery through a broken control plane.'
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
 oompah.agent_run_id: 11779e52-bff1-4cf6-bc59-6fd85575ca71
+oompah.task_costs:
+  total_input_tokens: 1204783
+  total_output_tokens: 5398
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 1204783
+      output_tokens: 5398
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 1204783
+    output_tokens: 5398
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T18:01:23.887773+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-605__20260730T175922Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: OOMPAH-605
+    source_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
+    completed_at: '2026-07-30T18:01:23.897031+00:00'
 ---
 ## Summary
 
@@ -71,5 +109,15 @@ author: oompah
 created: 2026-07-30 17:59
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-30 18:01
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 18
+- Tokens: 1.2M in / 5.4K out [1.2M total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 5s
+- Log: OOMPAH-605__20260730T175922Z.jsonl
 ---
 <!-- COMMENTS:END -->
