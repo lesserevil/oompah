@@ -28,7 +28,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:46.877390Z'
-updated_at: '2026-07-30T03:32:08.474170Z'
+updated_at: '2026-07-30T03:34:09.273219Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -201,5 +201,10 @@ author: oompah
 created: 2026-07-30 03:32
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-30 03:34
+---
+Understanding: The failing gate at 11ea824f7 shows 'make[1]: *** [Makefile:225: test] Terminated' — a SIGTERM kill during pytest startup, not a test failure. Prior comments indicate transient/non-reproducible failures. I'll run focused tests on the epic worktree (OOMPAH-459-fix branch tracks origin/epic-OOMPAH-459 at 11ea824f7) to identify any real regression. Plan: (1) run pytest -x on tests likely affected by recent OOMPAH-483 changes (integration gate, terminal mutation scanner, worker timeout), (2) if all pass, verify the previously-flaky intake_promotion test survives multiple runs, (3) commit a determinism fix if needed and force-push to origin/epic-OOMPAH-459.
 ---
 <!-- COMMENTS:END -->
