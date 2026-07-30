@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-487
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Document auditor configuration, overrides, migration, and recovery
 parent: OOMPAH-460
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:26.170630Z'
-updated_at: '2026-07-30T05:29:51.253968Z'
+updated_at: '2026-07-30T05:29:59.938844Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-487
 target_branch: null
 review_url: null
@@ -91,12 +91,12 @@ oompah.task_costs:
     recorded_at: '2026-07-29T18:58:48.181057+00:00'
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-460--task-OOMPAH-487
-  base_branch: epic-OOMPAH-460
-  base_sha: 254d2454813ffa07ed895cbf3548b227b94fd04c
-  updated_at: '2026-07-30T05:27:18.967067+00:00'
+  head_sha: 3c6e5a899fbf7d513fd11883b9819a74d05c1db9
+  submitted_at: '2026-07-30T05:29:56.923398+00:00'
+  updated_at: '2026-07-30T05:29:56.923398+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-487__20260729T182909Z
@@ -337,5 +337,10 @@ Deliverables:
 - tests/test_config.py: 19 focused tests all passing (107 total in file)
 
 A junior operator reading only public docs can: configure ≥2 independent auditor candidates, diagnose Needs Human from the troubleshooting section, execute owner override via the API example, and understand upgrade grandfathering behavior.
+---
+author: oompah
+created: 2026-07-30 05:29
+---
+Document auditor configuration, overrides, migration, and recovery. Delivered: docs/auditor-dispatch-operations.md (comprehensive operator guide with Mermaid lifecycle diagram, independence rules, whitelist effects, failure routing, owner override API, no-candidate recovery, upgrade grandfathering, restart recovery, migration guide); docs/task-epic-workflow.md (In Validation in flowchart and table); docs/operator-runbook.md (deprecation migration notes); .env.example (OOMPAH_AUDIT_MAX_ATTEMPTS section, DEPRECATED VERIFY_COMPLETION notices); oompah/config.py (audit config fields, startup deprecation warnings); 19 focused tests all passing.
 ---
 <!-- COMMENTS:END -->
