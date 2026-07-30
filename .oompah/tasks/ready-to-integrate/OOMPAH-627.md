@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T22:09:32.117751Z'
-updated_at: '2026-07-30T22:31:37.487243Z'
+updated_at: '2026-07-30T22:31:50.926440Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-627
 target_branch: null
 review_url: null
@@ -19,12 +19,12 @@ review_number: null
 merged_at: null
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-585--task-OOMPAH-627
-  base_branch: epic-OOMPAH-585
-  base_sha: 2a8fc4a4b3a101c15e2fea0608480f783f9f3e28
-  updated_at: '2026-07-30T22:25:58.508614+00:00'
+  head_sha: 2a8fc4a4b3a101c15e2fea0608480f783f9f3e28
+  submitted_at: '2026-07-30T22:31:48.736186+00:00'
+  updated_at: '2026-07-30T22:31:48.736186+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
@@ -174,5 +174,10 @@ author: oompah
 created: 2026-07-30 22:31
 ---
 Reflow after pre-deployment auditor reproduced the fixed metadata race; restore canonical integrated evidence under the deployed protection.
+---
+author: oompah
+created: 2026-07-30 22:31
+---
+Reflow the already-audited exact head under the deployed auditor-worktree protection so canonical integrated evidence is restored without metadata mutation.
 ---
 <!-- COMMENTS:END -->
