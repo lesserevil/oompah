@@ -2930,6 +2930,10 @@ def _enqueue_worker_submission(
         priority=getattr(issue, "priority", None),
         submitted_at=record.submitted_at,
         explicit_retry=explicit_retry,
+        rearm_integrated=(
+            explicit_retry
+            and str(getattr(record, "state", "")).strip().lower() == "ready"
+        ),
     )
 
 

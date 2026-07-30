@@ -350,6 +350,7 @@ class TestTaskHandoffEndpoint:
             priority=1,
         )
         record = SimpleNamespace(
+            state="ready",
             task_branch="epic-EPIC-1--task-TASK-1",
             head_sha="a" * 40,
             base_sha="b" * 40,
@@ -361,6 +362,35 @@ class TestTaskHandoffEndpoint:
         assert (
             orch.integration_queue.enqueue.call_args.kwargs["explicit_retry"]
             is True
+        )
+        assert (
+            orch.integration_queue.enqueue.call_args.kwargs["rearm_integrated"]
+            is True
+        )
+
+    def test_api_submission_does_not_rearm_without_fresh_ready_record(self):
+        from oompah.server import _enqueue_worker_submission
+
+        orch = MagicMock()
+        orch.config.parallel_epic_children_enabled = True
+        issue = SimpleNamespace(
+            identifier="TASK-1",
+            parent_id="EPIC-1",
+            priority=1,
+        )
+        record = SimpleNamespace(
+            state="integrated",
+            task_branch="epic-EPIC-1--task-TASK-1",
+            head_sha="a" * 40,
+            base_sha="b" * 40,
+            submitted_at="2026-07-30T00:00:00+00:00",
+        )
+
+        _enqueue_worker_submission(orch, "proj-a", issue, record)
+
+        assert (
+            orch.integration_queue.enqueue.call_args.kwargs["rearm_integrated"]
+            is False
         )
 
     def test_authenticated_worker_can_comment_and_transition_own_task(self):
