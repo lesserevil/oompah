@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T20:22:18.934506Z'
-updated_at: '2026-07-30T20:45:45.396515Z'
+updated_at: '2026-07-30T20:47:57.128278Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -160,5 +160,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 20m 35s
 - Log: OOMPAH-615__20260730T202515Z.jsonl
+---
+author: oompah
+created: 2026-07-30 20:47
+---
+This parentless Ready-to-Integrate record cannot enter the project's require-epic-parent delivery path. OOMPAH-616 is the canonical OOMPAH-585 child carrying commit ce8a124fc through integration; keep this record as provenance and do not redispatch it.
 ---
 <!-- COMMENTS:END -->

@@ -9,11 +9,12 @@ children: []
 blocked_by:
 - OOMPAH-589
 - OOMPAH-590
-start_blocked_by: &id001 []
+start_blocked_by: &id001
+- OOMPAH-616
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:26.620047Z'
-updated_at: '2026-07-30T20:20:48.529108Z'
+updated_at: '2026-07-30T20:47:55.652027Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-591
 target_branch: null
 review_url: null

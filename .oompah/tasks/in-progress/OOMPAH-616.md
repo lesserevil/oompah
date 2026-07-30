@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-616
 type: bug
-status: Backlog
+status: In Progress
 priority: 1
 title: Integrate terminal-audit retry ownership fencing
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T20:47:41.612111Z'
-updated_at: '2026-07-30T20:47:41.612111Z'
+updated_at: '2026-07-30T20:47:54.102860Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -28,3 +28,11 @@ Implementation scope: land the already implemented and fully tested OOMPAH-615 f
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-30 20:47
+---
+Claimed directly by the operator Codex session to transplant the already-tested OOMPAH-615 commit onto the valid OOMPAH-585 epic branch; do not dispatch a second implementation agent.
+---
+<!-- COMMENTS:END -->
