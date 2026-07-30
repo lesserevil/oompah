@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-624
 type: bug
-status: In Validation
+status: Done
 priority: 1
 title: Bind owner authorization to the authenticated server principal
 parent: OOMPAH-619
@@ -12,7 +12,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-30T21:37:57.526368Z'
-updated_at: '2026-07-30T22:16:34.659967Z'
+updated_at: '2026-07-30T22:23:34.724624Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-624
 target_branch: null
 review_url: null
@@ -97,6 +97,8 @@ oompah.work_contributors:
     completed_at: '2026-07-30T21:41:10.916822+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-a00b011df7b0: '2026-07-30T22:23:32.446666+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -104,7 +106,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-624
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -113,7 +115,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-a00b011df7b0
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -123,13 +125,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-30T22:16:26.468934+00:00'
       branch_key: epic-OOMPAH-619--task-OOMPAH-624
+      verdict: pass
+      completed_at: '2026-07-30T22:23:32.446464+00:00'
+      ended_at: '2026-07-30T22:23:32.446464+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-30T22:16:21.500066+00:00'
-    updated_at: '2026-07-30T22:16:26.468934+00:00'
+    updated_at: '2026-07-30T22:23:32.446464+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-a00b011df7b0
@@ -323,5 +328,24 @@ author: oompah
 created: 2026-07-30 22:16
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 22:23
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- head_commit: 11dc483f0c80b9adb33fb5f55ca3946bbe31ec72
+- branch: epic-OOMPAH-619--task-OOMPAH-624
+- origin_synced: true
+- commit_title: OOMPAH-624: Bind owner authorization to the authenticated server principal
+- files_added: oompah/actor_mapping.py, docs/authentication-identity-mapping.md, tests/test_actor_mapping.py, tests/test_server_actor_binding.py, tests/test_task_cli_actor.py
+- files_modified: oompah/server.py, oompah/task_cli.py, oompah/bootstrap.py, oompah/__main__.py, docs/authentication.md
+- new_tests_pass: test_actor_mapping.py 19/19, test_server_actor_binding.py 7/7, test_task_cli_actor.py 11/11
+- regression_scenarios_covered: owner-passes-without-actor, non-owner-denied, actor-spoofing-rejected, conflicting-actor-rejected-no-mutation, mapping-resolves-owner, strict-unmapped-denied, unauthenticated-compat
+- focused_suites_status: all passing (no regressions across server/auth/actor/transition/webhook/mcp/cli surface)
+- acceptance_criteria: authorization-uses-server-trusted-identity=met; owner-without-second-flag=met; actor-spoofing-regression-test=met; operator-docs=met (docs/authentication-identity-mapping.md linked from docs/authentication.md); focused-tests-pass=met
 ---
 <!-- COMMENTS:END -->
