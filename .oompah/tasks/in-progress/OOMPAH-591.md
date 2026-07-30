@@ -13,7 +13,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:26.620047Z'
-updated_at: '2026-07-30T15:14:33.115155Z'
+updated_at: '2026-07-30T15:19:16.609970Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-591
 target_branch: null
 review_url: null
@@ -200,5 +200,27 @@ Acceptance criteria coverage:
 ✓ Pending audit count reaches zero (handled by auditor dispatch consuming recovered audits)
 ✓ OOMPAH-580/582 leave In Validation correctly (tested via recovery)
 ✓ No successful audit duplicated or overwritten (idempotent, attempt-ID based recovery)
+---
+author: oompah
+created: 2026-07-30 15:19
+---
+VERIFICATION: All tests passing (13699 tests)
+
+Recovery mechanism verified through comprehensive tests:
+
+✓ Multi-request audit chains are deduplicated correctly
+✓ Stale/superseded records are not requeued inappropriately  
+✓ Completed audits don't show as pending
+✓ Restart recovery preserves full attempt history
+✓ Repeated recovery passes are idempotent
+
+The TerminalAuditEnforcement system provides:
+- Idempotent recovery of pending audits via recover_pending_audits()
+- Deterministic audit_id from state+fingerprint prevents duplicates
+- Persisted attempt_ids ensure no duplicate attempts on restart
+- Proper handling of superseded records (OOMPAH-577)
+- Integration with auditor dispatch for execution
+
+Code ready for review and integration.
 ---
 <!-- COMMENTS:END -->
