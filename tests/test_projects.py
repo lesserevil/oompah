@@ -1398,6 +1398,406 @@ class TestRemoveWorktreeCleanup:
 
 
 # ---------------------------------------------------------------------------
+# Epic repair workspace cleanup (_cleanup_epic_repair_workspace_locked via
+# cleanup_terminal_issue with is_epic=True)
+# ---------------------------------------------------------------------------
+
+
+class TestEpicRepairWorkspaceCleanup:
+    """cleanup_terminal_issue for a terminal epic also prunes the auxiliary
+    task-style repair workspace at <worktree_root>/<project>/<id> on branch
+    <id> when it is registered, clean, and fully merged."""
+
+    # ------------------------------------------------------------------
+    # Shared bare-remote Git repo setup (mirroring the real-path tests above)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _setup_bare_remote(tmp_path):
+        """Create a bare remote and a local clone with an initial commit on main."""
+        remote = tmp_path / "origin.git"
+        repo = tmp_path / "checkout"
+        subprocess.run(
+            ["git", "init", "--bare", str(remote)],
+            check=True, capture_output=True, text=True,
+        )
+        subprocess.run(
+            ["git", "init", "-b", "main", str(repo)],
+            check=True, capture_output=True, text=True,
+        )
+        for args in (
+            ["config", "user.name", "Oompah Test"],
+            ["config", "user.email", "oompah@example.test"],
+            ["remote", "add", "origin", str(remote)],
+        ):
+            subprocess.run(
+                ["git", *args], cwd=repo, check=True, capture_output=True, text=True,
+            )
+        (repo / "README.md").write_text("initial\n", encoding="utf-8")
+        subprocess.run(
+            ["git", "add", "README.md"],
+            cwd=repo, check=True, capture_output=True, text=True,
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "initial"],
+            cwd=repo, check=True, capture_output=True, text=True,
+        )
+        subprocess.run(
+            ["git", "push", "-u", "origin", "main"],
+            cwd=repo, check=True, capture_output=True, text=True,
+        )
+        return remote, repo
+
+    def _store_and_project(self, tmp_path, remote, repo):
+        store = _store(tmp_path)
+        project = Project(
+            id="proj-epic-repair",
+            name="epic-repair",
+            repo_url=str(remote),
+            repo_path=str(repo),
+            branch="main",
+            default_branch="main",
+        )
+        store._projects[project.id] = project
+        return store, project
+
+    # ------------------------------------------------------------------
+    # Happy path: real bare-remote scenario
+    # ------------------------------------------------------------------
+
+    def test_terminal_epic_cleanup_removes_auxiliary_repair_workspace(
+        self, tmp_path
+    ):
+        """The normal aggressive cleanup pass removes a merged, clean repair
+        workspace at the task-style path/<id> on branch <id> for a terminal
+        epic that has a canonical epic-<id> work_branch."""
+        remote, repo = self._setup_bare_remote(tmp_path)
+        store, project = self._store_and_project(tmp_path, remote, repo)
+
+        # Primary epic worktree/branch (canonical epic-<id> shape)
+        epic_branch = store.epic_branch_name("EPIC-1")       # epic-EPIC-1
+        epic_wt = store.epic_worktree_path_for(project.id, "EPIC-1")
+        subprocess.run(
+            ["git", "branch", epic_branch],
+            cwd=repo, check=True, capture_output=True, text=True,
+        )
+        subprocess.run(
+            ["git", "push", "-u", "origin", epic_branch],
+            cwd=repo, check=True, capture_output=True, text=True,
+        )
+        subprocess.run(
+            ["git", "worktree", "add", epic_wt, epic_branch],
+            cwd=repo, check=True, capture_output=True, text=True,
+        )
+
+        # Auxiliary task-style repair worktree at <id> on branch <id>
+        repair_branch = "EPIC-1"
+        repair_wt = store.worktree_path_for(project.id, "EPIC-1")
+        subprocess.run(
+            ["git", "branch", repair_branch],
+            cwd=repo, check=True, capture_output=True, text=True,
+        )
+        subprocess.run(
+            ["git", "push", "-u", "origin", repair_branch],
+            cwd=repo, check=True, capture_output=True, text=True,
+        )
+        subprocess.run(
+            ["git", "worktree", "add", repair_wt, repair_branch],
+            cwd=repo, check=True, capture_output=True, text=True,
+        )
+
+        # Simulate terminal epic cleanup with work_branch=epic-<id>
+        changed = store.cleanup_terminal_issue(
+            project.id,
+            "EPIC-1",
+            branch_name=epic_branch,
+            is_epic=True,
+        )
+
+        assert changed is True
+
+        # Primary epic worktree and branch removed
+        assert not os.path.exists(epic_wt)
+        assert subprocess.run(
+            ["git", "show-ref", "--verify", "--quiet", f"refs/heads/{epic_branch}"],
+            cwd=repo, check=False,
+        ).returncode == 1
+        assert subprocess.run(
+            ["git", "ls-remote", "--heads", "origin", epic_branch],
+            cwd=repo, check=True, capture_output=True, text=True,
+        ).stdout == ""
+
+        # Auxiliary repair worktree and branch also removed
+        assert not os.path.exists(repair_wt)
+        assert subprocess.run(
+            ["git", "show-ref", "--verify", "--quiet", f"refs/heads/{repair_branch}"],
+            cwd=repo, check=False,
+        ).returncode == 1
+        assert subprocess.run(
+            ["git", "ls-remote", "--heads", "origin", repair_branch],
+            cwd=repo, check=True, capture_output=True, text=True,
+        ).stdout == ""
+
+    # ------------------------------------------------------------------
+    # Guards: dirty, unmerged, shared, different-identifier — all preserved
+    # ------------------------------------------------------------------
+
+    def test_epic_repair_cleanup_preserves_dirty_worktree(self, tmp_path):
+        """A dirty repair workspace is never removed."""
+        remote, repo = self._setup_bare_remote(tmp_path)
+        store, project = self._store_and_project(tmp_path, remote, repo)
+
+        repair_branch = "EPIC-DIRTY"
+        repair_wt = store.worktree_path_for(project.id, "EPIC-DIRTY")
+        subprocess.run(
+            ["git", "branch", repair_branch],
+            cwd=repo, check=True, capture_output=True, text=True,
+        )
+        subprocess.run(
+            ["git", "worktree", "add", repair_wt, repair_branch],
+            cwd=repo, check=True, capture_output=True, text=True,
+        )
+        # Make the worktree dirty
+        (tmp_path / "checkout" / repair_wt / "dirty.txt").parent.mkdir(
+            parents=True, exist_ok=True
+        )
+        open(os.path.join(repair_wt, "dirty.txt"), "w").close()
+        subprocess.run(
+            ["git", "add", "dirty.txt"],
+            cwd=repair_wt, check=True, capture_output=True, text=True,
+        )
+
+        changed = store.cleanup_terminal_issue(
+            project.id,
+            "EPIC-DIRTY",
+            branch_name=store.epic_branch_name("EPIC-DIRTY"),
+            is_epic=True,
+        )
+
+        # Repair workspace preserved (dirty)
+        assert os.path.isdir(repair_wt)
+        assert subprocess.run(
+            ["git", "show-ref", "--verify", "--quiet", f"refs/heads/{repair_branch}"],
+            cwd=repo, check=False,
+        ).returncode == 0
+
+    def test_epic_repair_cleanup_preserves_unmerged_head(self, tmp_path):
+        """A repair workspace whose head is not merged is never removed."""
+        remote, repo = self._setup_bare_remote(tmp_path)
+        store, project = self._store_and_project(tmp_path, remote, repo)
+
+        repair_branch = "EPIC-UNMERGED"
+        repair_wt = store.worktree_path_for(project.id, "EPIC-UNMERGED")
+        subprocess.run(
+            ["git", "branch", repair_branch],
+            cwd=repo, check=True, capture_output=True, text=True,
+        )
+        subprocess.run(
+            ["git", "push", "-u", "origin", repair_branch],
+            cwd=repo, check=True, capture_output=True, text=True,
+        )
+        subprocess.run(
+            ["git", "worktree", "add", repair_wt, repair_branch],
+            cwd=repo, check=True, capture_output=True, text=True,
+        )
+        # Add an unmerged commit on the repair branch
+        (tmp_path / "new.txt").write_text("extra\n", encoding="utf-8")
+        import shutil
+        shutil.copy(str(tmp_path / "new.txt"), os.path.join(repair_wt, "new.txt"))
+        subprocess.run(
+            ["git", "add", "new.txt"],
+            cwd=repair_wt, check=True, capture_output=True, text=True,
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "unmerged"],
+            cwd=repair_wt, check=True, capture_output=True, text=True,
+        )
+
+        changed = store.cleanup_terminal_issue(
+            project.id,
+            "EPIC-UNMERGED",
+            branch_name=store.epic_branch_name("EPIC-UNMERGED"),
+            is_epic=True,
+        )
+
+        # Repair workspace preserved (unmerged)
+        assert os.path.isdir(repair_wt)
+        assert subprocess.run(
+            ["git", "show-ref", "--verify", "--quiet", f"refs/heads/{repair_branch}"],
+            cwd=repo, check=False,
+        ).returncode == 0
+
+    def test_epic_repair_cleanup_preserves_shared_branch(self, tmp_path):
+        """A repair branch checked out in an additional worktree is never removed."""
+        remote, repo = self._setup_bare_remote(tmp_path)
+        store, project = self._store_and_project(tmp_path, remote, repo)
+
+        repair_branch = "EPIC-SHARED"
+        repair_wt = store.worktree_path_for(project.id, "EPIC-SHARED")
+        # Create a SECOND worktree on the same branch (simulating shared use)
+        extra_wt = str(tmp_path / "extra-wt")
+        subprocess.run(
+            ["git", "branch", repair_branch],
+            cwd=repo, check=True, capture_output=True, text=True,
+        )
+        subprocess.run(
+            ["git", "push", "-u", "origin", repair_branch],
+            cwd=repo, check=True, capture_output=True, text=True,
+        )
+        subprocess.run(
+            ["git", "worktree", "add", repair_wt, repair_branch],
+            cwd=repo, check=True, capture_output=True, text=True,
+        )
+        # The repair branch is now checked out in repair_wt. A second worktree
+        # on the same branch isn't directly possible in git; instead we verify
+        # that the _delete_owned_issue_branch_locked "checked out elsewhere"
+        # guard fires by mocking the registered branches after removing the wt.
+        # We test the direct guard path: branch still in registered set → skip.
+        calls = []
+        real_run = subprocess.run
+
+        def intercept(args, **kwargs):
+            calls.append(list(args))
+            if args[:3] == ["git", "merge-base"]:
+                # Passes the merge check — head IS an ancestor
+                return MagicMock(returncode=0, stdout="", stderr="")
+            if args[:3] == ["git", "status"]:
+                # Clean worktree
+                return MagicMock(returncode=0, stdout="", stderr="")
+            if args[:3] == ["git", "symbolic-ref"]:
+                return MagicMock(returncode=0, stdout=repair_branch + "\n", stderr="")
+            if args[:3] == ["git", "worktree", "list"]:
+                # After removal, report branch as STILL checked out elsewhere
+                return MagicMock(
+                    returncode=0,
+                    stdout=(
+                        f"worktree {repair_wt}\n"
+                        f"HEAD abc\n"
+                        f"branch refs/heads/{repair_branch}\n"
+                        f"\n"
+                        f"worktree {extra_wt}\n"
+                        f"HEAD abc\n"
+                        f"branch refs/heads/{repair_branch}\n"
+                        f"\n"
+                    ),
+                    stderr="",
+                )
+            if args[:3] == ["git", "worktree", "remove"]:
+                return MagicMock(returncode=0, stdout="", stderr="")
+            return real_run(args, **kwargs)
+
+        with patch("oompah.projects.subprocess.run", side_effect=intercept):
+            changed = store.cleanup_terminal_issue(
+                project.id,
+                "EPIC-SHARED",
+                branch_name=store.epic_branch_name("EPIC-SHARED"),
+                is_epic=True,
+            )
+
+        # Branch was NOT deleted because it's still checked out elsewhere
+        assert ["git", "push", "origin", "--delete", repair_branch] not in calls
+        assert ["git", "branch", "-D", "--", repair_branch] not in calls
+
+    def test_epic_repair_cleanup_skips_non_matching_identifier(self, tmp_path):
+        """A repair workspace with a different-identifier branch is never touched."""
+        remote, repo = self._setup_bare_remote(tmp_path)
+        store, project = self._store_and_project(tmp_path, remote, repo)
+
+        # Create a task-style worktree at EPIC-1's path, but with a DIFFERENT branch
+        repair_wt = store.worktree_path_for(project.id, "EPIC-1")
+        other_branch = "EPIC-999"
+        subprocess.run(
+            ["git", "branch", other_branch],
+            cwd=repo, check=True, capture_output=True, text=True,
+        )
+        subprocess.run(
+            ["git", "push", "-u", "origin", other_branch],
+            cwd=repo, check=True, capture_output=True, text=True,
+        )
+        subprocess.run(
+            ["git", "worktree", "add", repair_wt, other_branch],
+            cwd=repo, check=True, capture_output=True, text=True,
+        )
+
+        changed = store.cleanup_terminal_issue(
+            project.id,
+            "EPIC-1",
+            branch_name=store.epic_branch_name("EPIC-1"),
+            is_epic=True,
+        )
+
+        # The workspace at EPIC-1's path with EPIC-999 branch must be preserved
+        assert os.path.isdir(repair_wt)
+        assert subprocess.run(
+            ["git", "show-ref", "--verify", "--quiet", f"refs/heads/{other_branch}"],
+            cwd=repo, check=False,
+        ).returncode == 0
+
+    def test_epic_repair_cleanup_skips_unregistered_directory(self, tmp_path):
+        """A directory at the repair path that is not a registered worktree is skipped."""
+        remote, repo = self._setup_bare_remote(tmp_path)
+        store, project = self._store_and_project(tmp_path, remote, repo)
+
+        # Create just a directory at the repair path (not a git worktree)
+        repair_wt = store.worktree_path_for(project.id, "EPIC-UNREG")
+        os.makedirs(repair_wt)
+
+        calls = []
+
+        def fake_run(args, **kwargs):
+            calls.append(list(args))
+            if args[:3] == ["git", "worktree", "list"]:
+                # The path is NOT registered
+                return MagicMock(returncode=0, stdout="", stderr="")
+            return MagicMock(returncode=0, stdout="", stderr="")
+
+        with patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            store.cleanup_terminal_issue(
+                project.id,
+                "EPIC-UNREG",
+                branch_name=store.epic_branch_name("EPIC-UNREG"),
+                is_epic=True,
+            )
+
+        # Directory is preserved; no symbolic-ref, status, or merge-base calls
+        assert os.path.isdir(repair_wt)
+        assert not any(
+            args[:2] == ["git", "symbolic-ref"] for args in calls
+        )
+
+    def test_non_epic_cleanup_does_not_trigger_repair_path(self, tmp_path):
+        """cleanup_terminal_issue for a non-epic issue does not attempt
+        to clean up an auxiliary repair workspace (is_epic=False path)."""
+        remote, repo = self._setup_bare_remote(tmp_path)
+        store, project = self._store_and_project(tmp_path, remote, repo)
+
+        repair_wt = store.worktree_path_for(project.id, "TASK-NE")
+        subprocess.run(
+            ["git", "branch", "TASK-NE"],
+            cwd=repo, check=True, capture_output=True, text=True,
+        )
+        subprocess.run(
+            ["git", "push", "-u", "origin", "TASK-NE"],
+            cwd=repo, check=True, capture_output=True, text=True,
+        )
+        subprocess.run(
+            ["git", "worktree", "add", repair_wt, "TASK-NE"],
+            cwd=repo, check=True, capture_output=True, text=True,
+        )
+
+        # Non-epic cleanup: removes the task worktree normally
+        changed = store.cleanup_terminal_issue(
+            project.id,
+            "TASK-NE",
+            branch_name="TASK-NE",
+            is_epic=False,
+        )
+        assert changed is True
+        # Worktree was removed (normal path, not repair cleanup)
+        assert not os.path.isdir(repair_wt)
+
+
+# ---------------------------------------------------------------------------
 # ProjectStore.find_by_name
 # ---------------------------------------------------------------------------
 

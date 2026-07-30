@@ -2621,6 +2621,167 @@ class ProjectStore:
         logger.info("Worktree removed path=%s", wt_path)
         return True
 
+    def _cleanup_epic_repair_workspace_locked(
+        self,
+        project_id: str,
+        issue_identifier: str,
+    ) -> bool:
+        """Remove the task-style repair worktree left by an epic repair/planner run.
+
+        A terminal epic records ``work_branch=epic-<id>`` for its primary
+        shared worktree.  When an epic repair or planner agent runs under a
+        task-style context it may create an *auxiliary* managed worktree at
+        ``<worktree_root>/<project>/<id>`` on branch ``<id>`` — identical to
+        what a regular task worktree uses.  This residue is safe to remove
+        only when ALL of the following hold:
+
+        - The path is the **exact managed registered** worktree for this
+          identifier (``worktree_path_for``), not an arbitrary directory.
+        - The **exact same-identifier branch** (``<id>``, not ``epic-<id>``)
+          is checked out in the worktree.
+        - The worktree is **clean** (``git status --porcelain`` is empty,
+          ignoring the ``.oompah-no-hooks`` sentinel).
+        - The branch head is an **ancestor** of ``origin/<default_branch>``
+          (i.e. the work is already merged).
+
+        The method never infers arbitrary paths, tolerates shared branches,
+        removes dirty worktrees, or deletes unmerged heads.  It is called
+        only for terminal *epic* records and is a no-op when no such
+        auxiliary workspace exists.
+
+        Returns ``True`` when the worktree and/or branch were removed.
+        """
+        project = self._projects.get(project_id)
+        if not project:
+            raise ProjectError(f"Unknown project: {project_id}")
+
+        # The repair workspace uses the exact task-style path and branch name.
+        repair_branch = _sanitize_identifier(issue_identifier)
+        repair_path = self.worktree_path_for(project_id, issue_identifier)
+
+        if not os.path.isdir(repair_path):
+            return False
+
+        # Guard 1: the path must be a registered managed git worktree.
+        registered_paths = self._registered_worktree_paths(project.repo_path)
+        if os.path.realpath(repair_path) not in registered_paths:
+            logger.debug(
+                "Epic repair workspace exists but is not a registered worktree; "
+                "skipping cleanup path=%s",
+                repair_path,
+            )
+            return False
+
+        # Guard 2: the exact same-identifier branch must be checked out.
+        try:
+            head_result = subprocess.run(
+                ["git", "symbolic-ref", "--short", "HEAD"],
+                cwd=repair_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise ProjectError(
+                f"git symbolic-ref failed in repair workspace {repair_path}: {exc}"
+            ) from exc
+
+        checked_out_branch = head_result.stdout.strip()
+        if head_result.returncode != 0 or checked_out_branch != repair_branch:
+            logger.debug(
+                "Epic repair workspace branch mismatch; skipping cleanup "
+                "path=%s expected=%s found=%s",
+                repair_path,
+                repair_branch,
+                checked_out_branch if head_result.returncode == 0 else "(detached)",
+            )
+            return False
+
+        # Guard 3: the worktree must be clean (no uncommitted changes).
+        try:
+            status_result = subprocess.run(
+                ["git", "status", "--porcelain"],
+                cwd=repair_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise ProjectError(
+                f"git status failed in repair workspace {repair_path}: {exc}"
+            ) from exc
+
+        dirty_lines = [
+            line
+            for line in status_result.stdout.splitlines()
+            if line[3:].strip() not in {".oompah-no-hooks", ".oompah-no-hooks/"}
+            and not line[3:].strip().startswith(".oompah-no-hooks/")
+        ]
+        if status_result.returncode != 0 or dirty_lines:
+            logger.warning(
+                "Epic repair workspace is dirty; skipping cleanup "
+                "project=%s identifier=%s path=%s",
+                project.id,
+                issue_identifier,
+                repair_path,
+            )
+            return False
+
+        # Guard 4: the branch head must be fully merged into the default branch.
+        default_ref = f"origin/{project.default_branch}"
+        try:
+            ancestor_result = subprocess.run(
+                [
+                    "git",
+                    "merge-base",
+                    "--is-ancestor",
+                    repair_branch,
+                    default_ref,
+                ],
+                cwd=project.repo_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise ProjectError(
+                f"git merge-base ancestry check failed for repair branch "
+                f"{repair_branch}: {exc}"
+            ) from exc
+
+        if ancestor_result.returncode != 0:
+            logger.warning(
+                "Epic repair workspace branch is not merged; skipping cleanup "
+                "project=%s identifier=%s branch=%s",
+                project.id,
+                issue_identifier,
+                repair_branch,
+            )
+            return False
+
+        # All guards passed — remove the repair worktree then its branch.
+        worktree_removed = self._remove_worktree_locked(project_id, issue_identifier)
+        branch_removed = self._delete_owned_issue_branch_locked(
+            project,
+            issue_identifier,
+            repair_branch,
+            is_epic=False,
+            issue_number=None,
+        )
+        if worktree_removed or branch_removed:
+            logger.info(
+                "Removed epic repair workspace project=%s identifier=%s "
+                "path=%s branch=%s",
+                project.id,
+                issue_identifier,
+                repair_path,
+                repair_branch,
+            )
+        return worktree_removed or branch_removed
+
     def cleanup_terminal_issue(
         self,
         project_id: str,
@@ -2636,6 +2797,11 @@ class ProjectStore:
         shape Oompah generates for this exact issue. This prevents stale or
         manually edited metadata from targeting a shared epic, default, state,
         release, or other operator-owned branch.
+
+        For terminal epics, also removes any auxiliary task-style repair
+        workspace at ``<worktree_root>/<project>/<id>`` on branch ``<id>``
+        left by an epic repair/planner run, subject to the strict ownership
+        and ancestry guards in ``_cleanup_epic_repair_workspace_locked``.
 
         Returns whether either the worktree or branch was actually removed.
         """
@@ -2680,7 +2846,16 @@ class ProjectStore:
                 is_epic=is_epic,
                 issue_number=issue_number,
             )
-        return worktree_removed or branch_removed
+            # For terminal epics, also clean up any auxiliary task-style repair
+            # workspace left by an epic repair/planner run (e.g. the OOMPAH-459
+            # residue shape: worktree at <root>/<id> on branch <id>).
+            repair_removed = False
+            if is_epic:
+                repair_removed = self._cleanup_epic_repair_workspace_locked(
+                    project_id,
+                    issue_identifier,
+                )
+        return worktree_removed or branch_removed or repair_removed
 
     def cleanup_stale_worktree_dirs(
         self, project_id: str, limit: int | None = None
