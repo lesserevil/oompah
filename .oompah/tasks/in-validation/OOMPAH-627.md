@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-627
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Preserve integrated evidence when creating auditor worktrees
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T22:09:32.117751Z'
-updated_at: '2026-07-30T22:31:50.926440Z'
+updated_at: '2026-07-30T23:04:37.475960Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-627
 target_branch: null
 review_url: null
@@ -19,12 +19,15 @@ review_number: null
 merged_at: null
 oompah.integration:
   version: 1
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-585--task-OOMPAH-627
-  head_sha: 2a8fc4a4b3a101c15e2fea0608480f783f9f3e28
+  base_branch: epic-OOMPAH-585
+  base_sha: d8d265b9a1957560206eec2b4da5d833942c82ea
+  head_sha: d8d265b9a1957560206eec2b4da5d833942c82ea
+  integrated_sha: d8d265b9a1957560206eec2b4da5d833942c82ea
   submitted_at: '2026-07-30T22:31:48.736186+00:00'
-  updated_at: '2026-07-30T22:31:48.736186+00:00'
+  updated_at: '2026-07-30T23:04:34.839115+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
@@ -36,7 +39,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-627
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -65,6 +68,23 @@ oompah.terminal_audit:
     previous_state: Ready to Integrate
     created_at: '2026-07-30T22:25:41.249328+00:00'
     updated_at: '2026-07-30T22:29:35.606444+00:00'
+  - version: 1
+    audit_id: audit-c0a68ab5e96e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-627
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f0a137be8ed41a2b2671b76d6dfd91affcf958fd83d28a8ac8b133775344ee90
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-30T23:04:36.015893+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-26df5a1390dc
