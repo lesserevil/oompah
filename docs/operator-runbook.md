@@ -536,6 +536,44 @@ The task detail panel also shows its queue row and separate coordination
 timeline. Full enablement, recovery, and rollback instructions are in
 [Parallel Epic Integration](parallel-epic-integration.md).
 
+### 6.4.1 The control-plane fix is blocked behind the broken control plane
+
+This is a self-hosting deadlock. Treat it as a bug, not as an expected idle
+state. It occurs when all of the following are true:
+
+- review-ready work exists, but no agent, integration lease, or audit is
+  running;
+- the blocking transition is owned by oompah itself, such as terminal-audit
+  dispatch, integration recovery, or status coordination;
+- the reviewed fix for that transition is on an epic or task branch whose
+  delivery depends on the same broken transition.
+
+Do not break the deadlock by editing `.oompah/tasks`, deleting queue records,
+or skipping the quality gate. Create a standalone high-priority recovery task
+and use a recovery branch based on the current default branch:
+
+1. Record the exact reviewed commits and the live blocking evidence on the
+   recovery task.
+2. Apply only those reviewed commits to the standalone recovery branch.
+3. Run the focused tests and the configured complete `make test` gate on the
+   exact recovery head.
+4. Push the branch and deliver it directly to the default branch through the
+   normal pull-request path.
+5. Restart with `make restart`, then verify the previously blocked lane makes
+   a durable transition.
+6. Leave the original epic branches intact. Once the service is healthy, let
+   their remaining work and terminal audits resume normally.
+
+The recovery task is the audit trail for why delivery order changed. The
+original implementation tasks retain their normal evidence and terminal
+audits; the recovery path changes only how already-reviewed control-plane code
+reaches the running service.
+
+After recovery, file or update a product bug for the missing automatic
+recovery. A backlog with runnable or review-ready work and no legal transition
+must produce an actionable alert or an automatic bounded recovery; silent
+stable idleness is never a healthy terminal state.
+
 ### 6.5 Webhook forwarding degraded
 
 **Symptom:** Dashboard shows a warning banner: "Webhooks degraded: unknown
