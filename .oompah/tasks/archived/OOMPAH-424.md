@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-424
 type: task
-status: In Validation
+status: Archived
 priority: 0
 title: 'fix CI on PR #543 (epic-OOMPAH-414)'
 parent: null
@@ -11,7 +11,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-23T20:43:29.346291Z'
-updated_at: '2026-07-30T21:56:03.390367Z'
+updated_at: '2026-07-30T21:58:17.172293Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,6 +36,8 @@ oompah.task_costs:
     recorded_at: '2026-07-23T21:12:50.293208+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-18a1783753e5: '2026-07-30T21:58:14.959813+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -43,7 +45,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-424
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -52,7 +54,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-18a1783753e5
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -62,13 +64,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-30T21:55:55.330279+00:00'
       branch_key: OOMPAH-424
+      verdict: pass
+      completed_at: '2026-07-30T21:58:14.959595+00:00'
+      ended_at: '2026-07-30T21:58:14.959595+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-07-30T21:55:24.040585+00:00'
-    updated_at: '2026-07-30T21:55:55.330279+00:00'
+    updated_at: '2026-07-30T21:58:14.959595+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-18a1783753e5
@@ -205,5 +210,23 @@ author: oompah
 created: 2026-07-30 21:56
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 21:58
+---
+Audit PASS — Archived
+
+Aged Merged auto-archive of OOMPAH-424 is safe. Task's CI-fix commit bab9d7fb5 landed via PR #543 (merge commit c563be791 on main), and origin/main contains both. Working tree is clean and current with origin/main. Prior verification recorded green CI on Python 3.11/3.12/3.13 for the merged head, and the four originally failing tests pass locally. No lingering work, unpushed commits, or open follow-ups tied to this task were found. Routine terminal transition Merged → Archived after 7-day age-out.
+
+Safe evidence:
+- merge_commit: c563be79132870eb9317e9f0a62a4f70eaa079a9
+- task_ci_fix_commit: bab9d7fb594e214df63d5fff0f3e5a1a88f4d42a
+- task_ci_fix_on_main: true
+- worktree_status: clean; up to date with origin/main
+- worktree_head: c048ba706cbe9b1342b80a67576a49b82887e84a
+- origin_main_head: c048ba706cbe9b1342b80a67576a49b82887e84a
+- pr_number: 543
+- source_branch: epic-OOMPAH-414
+- audit_reason: Aged Merged auto-archive (closed ~7 days ago)
 ---
 <!-- COMMENTS:END -->
