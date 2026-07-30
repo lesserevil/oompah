@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-610
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Release stale claimed_issues entries when completion auditors exit
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:53:05.632137Z'
-updated_at: '2026-07-30T19:34:29.528540Z'
+updated_at: '2026-07-30T19:37:07.779901Z'
 work_branch: OOMPAH-610
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/594
@@ -111,6 +111,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-9ad0fa99a03f: '2026-07-30T19:29:33.337559+00:00'
+    attempt-7fac07b83954: '2026-07-30T19:37:05.502638+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -152,7 +153,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-610
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -161,7 +162,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-7fac07b83954
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -171,13 +172,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-30T19:34:24.347503+00:00'
       branch_key: OOMPAH-610
+      verdict: pass
+      completed_at: '2026-07-30T19:37:05.502397+00:00'
+      ended_at: '2026-07-30T19:37:05.502397+00:00'
     requested_by:
       version: 1
       identity: NVShawn
       source: forge
     previous_state: In Review
     created_at: '2026-07-30T19:15:33.898604+00:00'
-    updated_at: '2026-07-30T19:34:24.347503+00:00'
+    updated_at: '2026-07-30T19:37:05.502397+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-9ad0fa99a03f
@@ -373,5 +377,26 @@ author: oompah
 created: 2026-07-30 19:34
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 19:37
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- pushed_head: 83949a45b38f10a844a40c679ca105dc3e456f01
+- merge_commit: e1e4e0c9fee2a17b5a9b02002fcaa2d3cc7793ec
+- merge_pr: #594
+- merged_into: origin/main
+- ancestor_check: 83949a45b is ancestor of origin/main; only e1e4e0c9f sits above it
+- files_changed: oompah/orchestrator.py (+12/-1), tests/test_auditor_exit_cleanup.py (+89/-0)
+- orchestrator_change_lines: _audit_branch_busy orphan prune at 4276-4288; auditor exit claimed_issues.pop at 23082
+- commit_trailer_check: canonical oompah trailer present; no Anthropic/Claude/GPT co-author
+- prior_done_audit: audit-490436c776e7 completed PASS at 2026-07-30 19:29 per operator handoff
+- focused_tests_reran_local_main: test_terminal_audit 28, test_auditor_dispatch 7, test_auditor_focus/contract/result_api/candidate_selector 139, test_orchestrator_handlers+dispatch_lane_contract+stalled_task_watchdog 385, terminal_audit_enforcement/metadata/scanner/override/status_interfaces/transition_coordinator 186 — 745 passed 0 failed
+- prior_make_test_report: 13,726 passed / 7 skipped at 83949a45b per operator comment 2026-07-30 19:08
+- ci_report: PR #594 CI green on Python 3.11, 3.12, 3.13 per operator comment 2026-07-30 19:19
 ---
 <!-- COMMENTS:END -->
