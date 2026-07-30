@@ -47,6 +47,11 @@ class BranchQualityGate:
     safe across service restarts.
     """
 
+    # Class-level tracking of active process groups for graceful shutdown.
+    # Maps pid -> process object for cleanup on orchestrator stop.
+    _active_processes: dict[int, subprocess.Popen[str]] = {}
+    _processes_lock = threading.Lock()
+
     def __init__(
         self,
         state_path: str,
@@ -58,6 +63,38 @@ class BranchQualityGate:
         self.timeout_seconds = max(int(timeout_seconds), 1)
         self.output_tail_bytes = max(int(output_tail_bytes), 1024)
         self._lock = threading.Lock()
+
+    @classmethod
+    def cleanup_active_processes(cls) -> int:
+        """Terminate all active quality gate process groups.
+        
+        Called during orchestrator shutdown to ensure process groups are
+        cleaned up before leases become reclaimable. Returns count terminated.
+        """
+        terminated_count = 0
+        with cls._processes_lock:
+            # Create a copy to avoid modifying dict during iteration
+            pids_to_clean = list(cls._active_processes.keys())
+        
+        for pid in pids_to_clean:
+            with cls._processes_lock:
+                process = cls._active_processes.get(pid)
+                if process is None:
+                    continue
+            
+            try:
+                # Terminate the process group (all children)
+                os.killpg(pid, signal.SIGTERM)
+                terminated_count += 1
+                logger.info("Terminated quality gate process group %d", pid)
+            except (OSError, ProcessLookupError) as exc:
+                logger.debug("Failed to terminate process group %d: %s", pid, exc)
+            
+            # Clean up from tracking
+            with cls._processes_lock:
+                cls._active_processes.pop(pid, None)
+        
+        return terminated_count
 
     @staticmethod
     def _head_sha(repo_path: str) -> str:
@@ -219,7 +256,15 @@ class BranchQualityGate:
                     text=True,
                     start_new_session=True,
                 )
-                stdout, stderr = process.communicate(timeout=self.timeout_seconds)
+                # Track process group for graceful shutdown cleanup
+                with self._processes_lock:
+                    self._active_processes[process.pid] = process
+                try:
+                    stdout, stderr = process.communicate(timeout=self.timeout_seconds)
+                finally:
+                    # Remove from tracking after completion
+                    with self._processes_lock:
+                        self._active_processes.pop(process.pid, None)
                 duration = time.monotonic() - started
                 combined = "\n".join(
                     part for part in (stdout, stderr) if part
@@ -249,6 +294,9 @@ class BranchQualityGate:
                     os.killpg(process.pid, signal.SIGKILL)
                 except (OSError, UnboundLocalError):
                     pass
+                # Clean up from tracking even on timeout
+                with self._processes_lock:
+                    self._active_processes.pop(process.pid, None)
                 stdout, stderr = process.communicate()
                 duration = time.monotonic() - started
                 combined = "\n".join(

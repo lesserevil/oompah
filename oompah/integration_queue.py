@@ -127,8 +127,13 @@ class IntegrationQueueStore:
         base_sha: str | None = None,
         priority: int | None = None,
         submitted_at: str | None = None,
+        explicit_retry: bool = False,
     ) -> IntegrationQueueItem:
-        """Insert or refresh a submission; identical resubmits are idempotent."""
+        """Insert or refresh a submission; identical resubmits are idempotent.
+        
+        When explicit_retry=True, clears blocked state even for unchanged head/branch,
+        allowing explicit user retries while background sync remains idempotent.
+        """
 
         values = {
             "project_id": str(project_id).strip(),
@@ -153,6 +158,7 @@ class IntegrationQueueStore:
                 existing is not None
                 and existing["head_sha"] == values["head_sha"]
                 and existing["task_branch"] == values["task_branch"]
+                and not explicit_retry
             ):
                 return self._from_row(existing)
             self._conn.execute(
@@ -212,6 +218,25 @@ class IntegrationQueueStore:
                   AND lease_expires_at <= ?
                 """,
                 (_now_iso(), timestamp),
+            )
+            self._conn.commit()
+        return int(result.rowcount)
+
+    def recover_abandoned(self) -> int:
+        """Recover all integrating leases as abandoned (e.g., after restart).
+        
+        Called at orchestrator startup to clear any integrating rows that
+        were left behind by a crashed or shutdown service instance.
+        """
+        with self._lock:
+            result = self._conn.execute(
+                """
+                UPDATE integration_queue
+                SET state = 'ready', lease_owner = NULL,
+                    lease_expires_at = NULL, updated_at = ?
+                WHERE state = 'integrating'
+                """,
+                (_now_iso(),),
             )
             self._conn.commit()
         return int(result.rowcount)

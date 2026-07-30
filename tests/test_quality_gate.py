@@ -265,3 +265,85 @@ def test_orchestrator_rejects_checkout_that_is_not_branch_tip(tmp_path):
     orch._issue_has_children = MagicMock(return_value=False)
 
     assert orch._quality_gate_worktree(project, issue, "work") == ""
+
+
+def test_quality_gate_cleans_up_active_process_groups(tmp_path):
+    """Test that cleanup_active_processes terminates active process groups."""
+    repo = _git_repo(tmp_path)
+    
+    # Clear any previous state
+    BranchQualityGate._active_processes.clear()
+    
+    gate = BranchQualityGate(str(tmp_path / "quality.json"))
+    
+    # Simulate an active process (sleep that will be terminated)
+    command = "sleep 60"
+    
+    try:
+        # Start a process that will take time
+        process = subprocess.Popen(
+            command,
+            shell=True,
+            start_new_session=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        
+        # Manually track it as the run() method would
+        with BranchQualityGate._processes_lock:
+            BranchQualityGate._active_processes[process.pid] = process
+        
+        # Verify it's tracked
+        assert process.pid in BranchQualityGate._active_processes
+        
+        # Clean up
+        terminated = BranchQualityGate.cleanup_active_processes()
+        
+        # Verify it was cleaned up
+        assert terminated == 1
+        assert process.pid not in BranchQualityGate._active_processes
+        
+        # Verify process was actually terminated
+        import time
+        time.sleep(0.2)  # Give it a moment to actually terminate
+        assert process.poll() is not None  # Process has exited
+    finally:
+        # Make sure we clean up even if test fails
+        BranchQualityGate._active_processes.clear()
+
+
+def test_quality_gate_tracks_and_removes_processes_on_completion(tmp_path):
+    """Test that quality gate tracks processes and removes them on completion."""
+    repo = _git_repo(tmp_path)
+    
+    # Clear any previous state
+    BranchQualityGate._active_processes.clear()
+    
+    gate = BranchQualityGate(str(tmp_path / "quality.json"))
+    
+    # Run a quick command
+    result = _run(gate, repo, "true")
+    
+    # Verify process was tracked and then cleaned up
+    assert result.passed
+    assert len(BranchQualityGate._active_processes) == 0
+
+
+def test_quality_gate_cleans_up_on_timeout(tmp_path):
+    """Test that quality gate cleans up process tracking even on timeout."""
+    repo = _git_repo(tmp_path)
+    
+    # Clear any previous state
+    BranchQualityGate._active_processes.clear()
+    
+    gate = BranchQualityGate(str(tmp_path / "quality.json"), timeout_seconds=1)
+    
+    # Run a command that will timeout
+    result = _run(gate, repo, "sleep 10")
+    
+    # Verify it timed out
+    assert result.status == "timed_out"
+    
+    # Verify process was tracked and then cleaned up (no zombie processes)
+    assert len(BranchQualityGate._active_processes) == 0
