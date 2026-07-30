@@ -34,12 +34,14 @@ from unittest.mock import patch
 import pytest
 
 from oompah.client_auth import (
+    CLIENT_AUTH_DISABLED_ENV,
     ClientCredentials,
     CredentialError,
     _check_password_file_permissions,
     _read_password_file,
     agent_environment,
     format_auth_error,
+    load_client_environment,
     resolve_client_credentials,
     sanitize_server_url,
 )
@@ -747,4 +749,48 @@ class TestEndToEnd:
         assert clean == {
             "PATH": "/bin",
             "OOMPAH_SERVER_URL": "http://127.0.0.1:8080",
+            CLIENT_AUTH_DISABLED_ENV: "1",
         }
+
+
+class TestCurrentClientEnvironment:
+    """First-party clients refresh only their current .env inputs."""
+
+    def test_current_dotenv_replaces_stale_client_inputs(self, tmp_path, monkeypatch):
+        (tmp_path / ".env").write_text(
+            "OOMPAH_SERVER_USERNAME=rotated-user\n"
+            "OOMPAH_SERVER_PASSWORD_FILE=/run/secrets/rotated-password\n"
+            "OOMPAH_SERVER_URL=http://127.0.0.1:9070\n"
+            "UNRELATED_SETTING=must-not-be-loaded\n",
+            encoding="utf-8",
+        )
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("OOMPAH_SERVER_USERNAME", "stale-user")
+        monkeypatch.setenv("OOMPAH_SERVER_PASSWORD", "stale-value")
+        monkeypatch.delenv("OOMPAH_SERVER_PASSWORD_FILE", raising=False)
+        monkeypatch.setenv("OOMPAH_SERVER_URL", "http://127.0.0.1:8080")
+        monkeypatch.delenv("UNRELATED_SETTING", raising=False)
+
+        assert load_client_environment() == 3
+        assert os.environ["OOMPAH_SERVER_USERNAME"] == "rotated-user"
+        assert os.environ["OOMPAH_SERVER_PASSWORD_FILE"] == "/run/secrets/rotated-password"
+        assert os.environ["OOMPAH_SERVER_URL"] == "http://127.0.0.1:9070"
+        assert "OOMPAH_SERVER_PASSWORD" not in os.environ
+        assert "UNRELATED_SETTING" not in os.environ
+
+    def test_worker_marker_prevents_dotenv_credential_reacquisition(
+        self, tmp_path, monkeypatch
+    ):
+        (tmp_path / ".env").write_text(
+            "OOMPAH_SERVER_USERNAME=operator\n"
+            "OOMPAH_SERVER_PASSWORD_FILE=/run/secrets/client-password\n",
+            encoding="utf-8",
+        )
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv(CLIENT_AUTH_DISABLED_ENV, "1")
+        monkeypatch.delenv("OOMPAH_SERVER_USERNAME", raising=False)
+        monkeypatch.delenv("OOMPAH_SERVER_PASSWORD_FILE", raising=False)
+
+        assert load_client_environment() == 0
+        assert "OOMPAH_SERVER_USERNAME" not in os.environ
+        assert "OOMPAH_SERVER_PASSWORD_FILE" not in os.environ

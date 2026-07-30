@@ -11,6 +11,7 @@ Security test coverage includes:
 
 import os
 import tempfile
+import threading
 from pathlib import Path
 
 import pytest
@@ -249,6 +250,15 @@ class TestLoadHtpasswdFile:
             finally:
                 os.unlink(path)
 
+    def test_invalid_bcrypt_work_factor_rejected(self):
+        hashed = "$2y$99$R9h/cIPz0gi.URNNGS3/aO/O.r6HS5xO31a5NQc6XjHPT8f6sFXe2"
+        path = self._make_file(f"admin:{hashed}\n")
+        try:
+            with pytest.raises(AuthError, match="malformed password hash"):
+                _load_htpasswd_file(path)
+        finally:
+            os.unlink(path)
+
     def test_apr1_hash_accepted(self):
         content = "admin:$apr1$r31.....$HqJZimJIs6ZvDpe9xNrKA.\n"
         path = self._make_file(content)
@@ -405,6 +415,155 @@ class TestVerifierCallable:
             creds.verifier("admin", "wrong")
         with pytest.raises(VerificationError):
             creds.verifier("operator", "wrong")
+
+
+class TestCredentialReload:
+    """Live htpasswd replacement preserves a complete, last-known-good map."""
+
+    @staticmethod
+    def _replace(path: Path, content: str) -> None:
+        replacement = path.with_name(f"{path.name}.next")
+        replacement.write_text(content, encoding="utf-8")
+        replacement.chmod(0o600)
+        os.replace(replacement, path)
+
+    def test_atomic_rotation_adds_and_removes_users(self, tmp_path, bcrypt_hash):
+        path = tmp_path / ".htpasswd"
+        path.write_text(f"old-user:{bcrypt_hash}\n", encoding="utf-8")
+        creds = load_credentials(str(path), str(tmp_path))
+
+        creds.verifier("old-user", "password")
+        self._replace(path, f"new-user:{bcrypt_hash}\n")
+
+        with pytest.raises(VerificationError):
+            creds.verifier("old-user", "password")
+        creds.verifier("new-user", "password")
+
+        # A restarted service observes the same replacement as the live one.
+        restarted = load_credentials(str(path), str(tmp_path))
+        restarted.verifier("new-user", "password")
+        with pytest.raises(VerificationError):
+            restarted.verifier("old-user", "password")
+
+        status = creds.reload_status()
+        assert status["reload"] == {
+            "state": "reloaded",
+            "generation": 2,
+            "retaining_last_known_good": False,
+        }
+
+    def test_invalid_replacement_retains_last_known_good_then_recovers(
+        self, tmp_path, bcrypt_hash
+    ):
+        path = tmp_path / ".htpasswd"
+        path.write_text(f"operator:{bcrypt_hash}\n", encoding="utf-8")
+        creds = load_credentials(str(path), str(tmp_path))
+
+        self._replace(path, "operator:$2y$12$partial\n")
+        # The parse failure must not disable auth or replace the existing map.
+        creds.verifier("operator", "password")
+        rejected = creds.reload_status()
+        assert rejected["reload"]["state"] == "reload_rejected"
+        assert rejected["reload"]["retaining_last_known_good"] is True
+
+        self._replace(path, f"replacement:{bcrypt_hash}\n")
+        with pytest.raises(VerificationError):
+            creds.verifier("operator", "password")
+        creds.verifier("replacement", "password")
+        assert creds.reload_status()["reload"]["generation"] == 2
+
+    def test_symlink_replacement_is_rejected_without_dropping_auth(
+        self, tmp_path, bcrypt_hash
+    ):
+        path = tmp_path / ".htpasswd"
+        target = tmp_path / "replacement.htpasswd"
+        path.write_text(f"operator:{bcrypt_hash}\n", encoding="utf-8")
+        target.write_text(f"attacker:{bcrypt_hash}\n", encoding="utf-8")
+        creds = load_credentials(str(path), str(tmp_path))
+
+        path.unlink()
+        path.symlink_to(target)
+
+        creds.verifier("operator", "password")
+        with pytest.raises(VerificationError):
+            creds.verifier("attacker", "password")
+        assert creds.reload_status()["reload"]["retaining_last_known_good"] is True
+
+    def test_initial_symlink_is_rejected(self, tmp_path, bcrypt_hash):
+        target = tmp_path / "target.htpasswd"
+        path = tmp_path / ".htpasswd"
+        target.write_text(f"operator:{bcrypt_hash}\n", encoding="utf-8")
+        path.symlink_to(target)
+
+        with pytest.raises(AuthError, match="symbolic link"):
+            load_credentials(str(path), str(tmp_path))
+
+    def test_discovered_symlink_is_not_treated_as_auth_disabled(self, tmp_path, bcrypt_hash):
+        target = tmp_path / "target.htpasswd"
+        path = tmp_path / ".htpasswd"
+        target.write_text(f"operator:{bcrypt_hash}\n", encoding="utf-8")
+        path.symlink_to(target)
+
+        with pytest.raises(AuthError, match="symbolic link"):
+            load_credentials(None, str(tmp_path))
+
+    def test_unchanged_file_does_not_advance_generation(self, tmp_path, bcrypt_hash):
+        path = tmp_path / ".htpasswd"
+        path.write_text(f"operator:{bcrypt_hash}\n", encoding="utf-8")
+        creds = load_credentials(str(path), str(tmp_path))
+
+        creds.verifier("operator", "password")
+        creds.verifier("operator", "password")
+        assert creds.reload_status()["reload"] == {
+            "state": "ready",
+            "generation": 1,
+            "retaining_last_known_good": False,
+        }
+
+    def test_concurrent_verification_observes_only_complete_maps(
+        self, tmp_path, bcrypt_hash
+    ):
+        path = tmp_path / ".htpasswd"
+        path.write_text(f"operator:{bcrypt_hash}\n", encoding="utf-8")
+        creds = load_credentials(str(path), str(tmp_path))
+        start = threading.Barrier(9)
+        outcomes: list[bool] = []
+        outcome_lock = threading.Lock()
+
+        def verify() -> None:
+            start.wait()
+            try:
+                creds.verifier("operator", "password")
+                outcome = True
+            except VerificationError:
+                outcome = False
+            with outcome_lock:
+                outcomes.append(outcome)
+
+        threads = [threading.Thread(target=verify) for _ in range(8)]
+        for thread in threads:
+            thread.start()
+        start.wait()
+        self._replace(path, f"operator:{bcrypt_hash}\nnew-user:{bcrypt_hash}\n")
+        for thread in threads:
+            thread.join()
+
+        assert outcomes == [True] * 8
+        creds.verifier("new-user", "password")
+
+    def test_reload_status_never_exposes_file_or_credential_details(
+        self, tmp_path, bcrypt_hash
+    ):
+        path = tmp_path / "private-credentials.htpasswd"
+        path.write_text(f"operator:{bcrypt_hash}\n", encoding="utf-8")
+        creds = load_credentials(str(path), str(tmp_path))
+        self._replace(path, "operator:$2y$12$partial\n")
+        creds.verifier("operator", "password")
+
+        rendered = repr(creds.reload_status())
+        assert str(path) not in rendered
+        assert "operator" not in rendered
+        assert bcrypt_hash not in rendered
 
 
 class TestSecurityProperties:

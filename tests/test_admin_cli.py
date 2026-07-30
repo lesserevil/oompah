@@ -117,3 +117,18 @@ def test_parser_exposes_non_secret_auth_options():
     )
     assert args.username == "operator"
     assert args.password_file == "/run/secrets/pass"
+
+
+def test_admin_main_refreshes_current_client_environment(monkeypatch):
+    refreshed: list[bool] = []
+    monkeypatch.setattr(
+        admin_cli,
+        "load_client_environment",
+        lambda: refreshed.append(True),
+    )
+    monkeypatch.setattr(admin_cli, "resolve_client_credentials", lambda **_: None)
+    monkeypatch.setattr(admin_cli, "cmd_status", lambda _: None)
+
+    admin_cli.main(["state-branch-status", "project-a"])
+
+    assert refreshed == [True]

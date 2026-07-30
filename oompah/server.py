@@ -1158,6 +1158,36 @@ def set_http_credentials(creds: Any) -> None:
         logger.debug("HTTP Basic auth disabled")
 
 
+def _http_auth_reload_status() -> dict[str, object]:
+    """Return the redacted HTTP-auth reload state for protected status APIs."""
+    creds = _http_credentials
+    if creds is None or not getattr(creds, "enabled", False):
+        return {
+            "enabled": False,
+            "reload": {
+                "state": "disabled",
+                "generation": 0,
+                "retaining_last_known_good": False,
+            },
+        }
+    status = getattr(creds, "reload_status", None)
+    if callable(status):
+        try:
+            result = status()
+            if isinstance(result, dict):
+                return result
+        except Exception:  # noqa: BLE001 - status must never break the API
+            pass
+    return {
+        "enabled": True,
+        "reload": {
+            "state": "static",
+            "generation": 0,
+            "retaining_last_known_good": False,
+        },
+    }
+
+
 def remove_draft_labels_from_epics(tracker) -> int:
     """Compatibility migration: remove the 'draft' label from all existing epics.
 
@@ -2771,6 +2801,7 @@ async def api_state():
             duration_ms = (time.monotonic() - t_start) * 1000
             _record_api_latency("/api/v1/state", duration_ms)
             snapshot["api_metrics"] = _api_metrics_snapshot()
+            snapshot["http_auth"] = _http_auth_reload_status()
             return JSONResponse(snapshot)
 
         # Combined mode: prefer the cached snapshot to avoid recomputing
@@ -2779,6 +2810,7 @@ async def api_state():
         duration_ms = (time.monotonic() - t_start) * 1000
         _record_api_latency("/api/v1/state", duration_ms)
         snapshot["api_metrics"] = _api_metrics_snapshot()
+        snapshot["http_auth"] = _http_auth_reload_status()
         return JSONResponse(snapshot)
     except Exception as exc:
         _record_api_latency(

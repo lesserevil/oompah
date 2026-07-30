@@ -68,6 +68,87 @@ CLIENT_AUTH_ENV_VARS = frozenset(
     }
 )
 
+# This non-secret marker prevents client entry points from reloading Basic
+# credentials from a checked-out .env file after the server deliberately
+# removed them from a spawned worker's inherited environment.
+CLIENT_AUTH_DISABLED_ENV = "OOMPAH_DISABLE_CLIENT_AUTH"
+
+
+def _parse_dotenv_value(raw: str) -> str:
+    """Parse the small, dependency-free .env subset needed by CLI clients."""
+    raw = raw.strip()
+    if len(raw) >= 2 and raw.startswith('"') and raw.endswith('"'):
+        inner = raw[1:-1]
+        return (
+            inner.replace('\\"', '"')
+            .replace("\\n", "\n")
+            .replace("\\r", "\r")
+            .replace("\\t", "\t")
+            .replace("\\\\", "\\")
+        )
+    if len(raw) >= 2 and raw.startswith("'") and raw.endswith("'"):
+        return raw[1:-1]
+    return raw
+
+
+def load_client_environment(
+    env_file: str = ".env", *, include_server_url: bool = True
+) -> int:
+    """Refresh client-only settings from the current ``.env`` file.
+
+    Standalone task/admin CLIs do not install the server's YAML dependency, so
+    they use this deliberately small parser instead of importing the server
+    configuration module.  Only HTTP-client inputs are read, values from the
+    selected file replace stale inherited values, and neither values nor parse
+    failures are logged.  Spawned workers are explicitly excluded so a worker
+    cannot regain a server Basic secret from the checkout after inheritance was
+    stripped.
+    """
+    if os.environ.get(CLIENT_AUTH_DISABLED_ENV, "").strip():
+        return 0
+
+    allowed = set(CLIENT_AUTH_ENV_VARS)
+    if include_server_url:
+        allowed.add("OOMPAH_SERVER_URL")
+
+    try:
+        with open(env_file, "r", encoding="utf-8") as handle:
+            lines = handle.readlines()
+    except FileNotFoundError:
+        return 0
+    except OSError:
+        # An unavailable client .env should preserve an explicitly exported
+        # configuration.  Keep diagnostics redacted because the file can be a
+        # secret-bearing deployment artifact.
+        logger.warning("Unable to read client environment file")
+        return 0
+
+    loaded = 0
+    configured_auth_keys: set[str] = set()
+    for line in lines:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if stripped.startswith("export "):
+            stripped = stripped[7:].lstrip()
+        key, separator, raw_value = stripped.partition("=")
+        key = key.strip()
+        if not separator or key not in allowed:
+            continue
+        os.environ[key] = _parse_dotenv_value(raw_value)
+        if key in CLIENT_AUTH_ENV_VARS:
+            configured_auth_keys.add(key)
+        loaded += 1
+
+    # A .env that intentionally configures any client credential source is an
+    # authoritative set: remove a stale alternative inherited from an earlier
+    # shell so rotation cannot leave both password sources configured.  A .env
+    # with no client-auth entries preserves externally supplied credentials.
+    if configured_auth_keys:
+        for key in CLIENT_AUTH_ENV_VARS - configured_auth_keys:
+            os.environ.pop(key, None)
+    return loaded
+
 # ---------------------------------------------------------------------------
 # Exceptions
 # ---------------------------------------------------------------------------
@@ -380,6 +461,7 @@ def agent_environment(base_env: Mapping[str, str] | None = None) -> dict[str, st
     environment = dict(os.environ if base_env is None else base_env)
     for key in CLIENT_AUTH_ENV_VARS:
         environment.pop(key, None)
+    environment[CLIENT_AUTH_DISABLED_ENV] = "1"
     return environment
 
 
