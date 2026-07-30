@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T21:26:15.242500Z'
-updated_at: '2026-07-30T21:48:28.442010Z'
+updated_at: '2026-07-30T21:48:50.331174Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-622
 target_branch: null
 review_url: null
@@ -44,7 +44,7 @@ oompah.integration:
   task_branch: epic-OOMPAH-585--task-OOMPAH-622
   base_branch: epic-OOMPAH-585
   base_sha: ebb5b12d9bd9668458750ec38bee7d7216f186d7
-  updated_at: '2026-07-30T21:38:16.282630+00:00'
+  updated_at: '2026-07-30T21:48:48.293865+00:00'
 oompah.task_costs:
   total_input_tokens: 521200
   total_output_tokens: 9923
@@ -106,7 +106,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-622
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -128,13 +128,27 @@ oompah.terminal_audit:
       ended_at: '2026-07-30T21:48:26.020588+00:00'
       failure_reason: '[REDACTED]'
       next_retry_at: '2026-07-30T21:48:36.020557+00:00'
+    - version: 1
+      attempt_id: attempt-899ceea92932
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 98c119264a7564b3e91e8662ce38bee51e3259f779f73f6f68273c47eff11192
+      created_at: '2026-07-30T21:48:41.844683+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-07-30T21:48:41.844683+00:00'
+      branch_key: epic-OOMPAH-585--task-OOMPAH-622
+      candidate_rotation_count: 1
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-30T21:37:51.513794+00:00'
-    updated_at: '2026-07-30T21:48:26.020588+00:00'
+    updated_at: '2026-07-30T21:48:41.844683+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-a475f88c122f
@@ -152,6 +166,20 @@ oompah.terminal_audit:
     ended_at: '2026-07-30T21:48:26.020588+00:00'
     failure_reason: '[REDACTED]'
     next_retry_at: '2026-07-30T21:48:36.020557+00:00'
+  - version: 1
+    attempt_id: attempt-899ceea92932
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 98c119264a7564b3e91e8662ce38bee51e3259f779f73f6f68273c47eff11192
+    created_at: '2026-07-30T21:48:41.844683+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-07-30T21:48:41.844683+00:00'
+    branch_key: epic-OOMPAH-585--task-OOMPAH-622
+    candidate_rotation_count: 1
 ---
 ## Summary
 
@@ -322,5 +350,15 @@ created: 2026-07-30 21:48
 ---
 Auditor attempt ended: Exception: Command failed with exit code 143 (exit code: 143)
 Error output: Check stderr output for details. A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-07-30 21:48
+---
+Auditor dispatched (attempt #2, candidate: prov-651d553c/sonnet)
+---
+author: oompah
+created: 2026-07-30 21:48
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
