@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T02:15:25.255613Z'
-updated_at: '2026-07-30T13:59:33.507507Z'
+updated_at: '2026-07-30T14:04:19.927857Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -149,5 +149,25 @@ The missing pieces appear to be:
 - Possibly a code gap: the in-process SDK path builds agent_env but never passes it anywhere useful
 
 Security concerns: The code path looks correct but needs regression tests to prove the security boundary is enforced end-to-end.
+---
+author: oompah
+created: 2026-07-30 14:04
+---
+Discovery: The fix for the 401 bug was already implemented in OOMPAH-538 (commit 49521488f). It added:
+1. task_handoff_token injection into Codex CLI subprocess env (codex.py lines 774-777)
+2. task_handoff_token flow through AcpAgentSession → AcpBackendOptions
+3. Orchestrator properly minting tokens via _issue_task_handoff_token
+
+OOMPAH-575's job is to add the regression test suite that was described in the acceptance criteria:
+- Prove assigned Codex agent can view/comment/submit only its assigned task via CLI env
+- Assert missing/expired tokens fail closed
+- Assert unrelated tasks remain unauthorized
+
+Code gaps found:
+- In-process SDK path (_run_turn_via_api) builds agent_env but doesn't inject task_handoff_token. This is acceptable since in-process tools handle oompah task commands without HTTP, but _exec_run_command subprocesses would also miss the token. Defense-in-depth: should inject token into _exec_run_command env overrides too.
+- No Codex-specific tests in test_acp_codex_backend.py proving the env injection works
+- test_task_handoff.py lacks tests for missing/expired token failures on the handoff endpoint
+
+Note: OOMPAH-576 is modifying test_task_handoff.py (adding submit branch validation tests). Adding new test class at end to minimize conflicts.
 ---
 <!-- COMMENTS:END -->
