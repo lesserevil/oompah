@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-604
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Allow owner overrides after terminal-audit evidence supersession
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T17:07:44.032640Z'
-updated_at: '2026-07-30T17:16:28.499758Z'
+updated_at: '2026-07-30T17:18:49.655039Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-604
 target_branch: null
 review_url: null
@@ -47,12 +47,12 @@ oompah.agent_run_id: f5298e77-99d4-4298-8f50-76eb05df55f4
 oompah.work_branch: epic-OOMPAH-585--task-OOMPAH-604
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-585--task-OOMPAH-604
-  base_branch: epic-OOMPAH-585
-  base_sha: b252293d3fc950f79a342c74b51d3285f62ecf4c
-  updated_at: '2026-07-30T17:14:56.680702+00:00'
+  head_sha: 4cd5ddfae7384bbb7022d2562149468f0127a35e
+  submitted_at: '2026-07-30T17:18:47.380173+00:00'
+  updated_at: '2026-07-30T17:18:47.380173+00:00'
 oompah.task_costs:
   total_input_tokens: 1839603
   total_output_tokens: 11956
@@ -180,5 +180,20 @@ author: oompah
 created: 2026-07-30 17:16
 ---
 DISCOVERY: Found the bug in _override_transition_locked (line 1255-1263). Currently checks ALL records in pending_chain for the requested target and rejects if ANY has a different fingerprint. The fix: only check the CURRENT/ACTIVE record (non-superseded one). When fingerprints change, old records are marked SUPERSEDED and new ones created, so we must check only the last non-superseded record for that target. Will now implement the fix and add regression tests.
+---
+author: oompah
+created: 2026-07-30 17:18
+---
+IMPLEMENTATION: Fixed the fingerprint-mismatch check in _override_transition_locked. Changed from checking all records in pending_chain to only checking the current (non-SUPERSEDED) record for the requested target. When evidence fingerprints change, older records are marked SUPERSEDED and new ones created; the override must evaluate only the current active record. This allows valid overrides on tasks like OOMPAH-589 with multiple Done records.
+---
+author: oompah
+created: 2026-07-30 17:18
+---
+VERIFICATION: All tests pass. Terminal override tests (27 tests): all pass. Terminal coordinator tests (103 tests): all pass. Terminal audit tests (37 tests): all pass. New regression tests validate: (1) override succeeds when current record matches despite superseded records with different fingerprints, (2) override rejected when current record fingerprint mismatches, (3) override allowed when no pending record exists, (4) correct handling of multiple targets in the chain. Authorization, metadata quarantine, atomic persistence, redaction, and concurrent behavior all covered.
+---
+author: oompah
+created: 2026-07-30 17:18
+---
+Fixed TerminalTransitionCoordinator._override_transition_locked to check only the current active (non-superseded) audit record's fingerprint, allowing owner overrides after evidence fingerprint updates. Added 4 regression tests. All existing tests pass.
 ---
 <!-- COMMENTS:END -->
