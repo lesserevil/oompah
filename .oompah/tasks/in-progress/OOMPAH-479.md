@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-479
 type: feature
-status: Needs CI Fix
+status: In Progress
 priority: 1
 title: Route webhook, YOLO, and merged-branch reconciliation through Merged audits
 parent: OOMPAH-459
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:27.240594Z'
-updated_at: '2026-07-30T01:55:55.154508Z'
+updated_at: '2026-07-30T01:56:08.690908Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-479
 target_branch: null
 review_url: null
@@ -37,7 +37,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 95cc5a5d-fa80-410c-a5a6-158d6edd4153
+oompah.agent_run_id: 226505d8-d451-4cbd-81df-8fa660ece084
 oompah.work_branch: epic-OOMPAH-459--task-OOMPAH-479
 oompah.task_costs:
   total_input_tokens: 545978
@@ -89,53 +89,12 @@ oompah.task_costs:
     recorded_at: '2026-07-30T01:55:43.816519+00:00'
 oompah.integration:
   version: 1
-  state: blocked
-  attempts: 1
+  state: working
+  attempts: 0
   task_branch: epic-OOMPAH-459--task-OOMPAH-479
   base_branch: epic-OOMPAH-459
   base_sha: 0b84b7b6d6a1ef0d77ad0de7e6dc51ef2676792c
-  head_sha: 9c38ddd1df509602061c5d0c6760b4e04ba0a4d7
-  submitted_at: '2026-07-30T01:55:30.847835+00:00'
-  updated_at: '2026-07-30T01:55:52.658336+00:00'
-  last_error: "Combined-tree quality gate failed: :test_mcp_client_can_initialize_list_allowed_tools_and_call_state\n\
-    tests/test_mcp_gateway.py::test_authenticated_mcp_client_can_initialize_list_and_call_protected_api\n\
-    \  /home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/contextlib.py:105:\
-    \ DeprecationWarning: Use `streamable_http_client` instead.\n    self.gen = func(*args,\
-    \ **kwds)\n\ntests/test_sdk_install_guards.py::TestClaudeSessionMcpServerGuard::test_no_tool_catalog_skips_mcp_server_path\n\
-    \  /home/shedwards/.oompah/worktrees/oompah/OOMPAH-479/oompah/acp_backends/claude.py:493:\
-    \ RuntimeWarning: coroutine 'AsyncMockMixin._execute_mock_call' was never awaited\n\
-    \    async for msg in client.receive_response():\n  Enable tracemalloc to get\
-    \ traceback where the object was allocated.\n  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
-    \ for more info.\n\ntests/test_server_release_picks.py::TestPatchReleasePicksEndpoint::test_returns_400_on_invalid_json\n\
-    tests/test_server_release_picks.py::TestPostApplyReleasePicksToAllChildren::test_returns_400_on_invalid_json\n\
-    \  /home/shedwards/.oompah/worktrees/oompah/OOMPAH-479/.venv/lib/python3.12/site-packages/httpx/_models.py:408:\
-    \ DeprecationWarning: Use 'content=<...>' to upload raw bytes/text content.\n\
-    \    headers, stream = encode_request(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n\
-    =========================== short test summary info ============================\n\
-    FAILED tests/test_intake_promotion.py::test_plain_requestor_approval_comment_auto_promotes_ready_issue\n\
-    ===== 1 failed, 13668 passed, 7 skipped, 39 warnings in 246.06s (0:04:06) ======\n\
-    make[1]: Leaving directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-479'\n\
-    \nResolved 74 packages in 212ms\n   Building oompah @ file:///home/shedwards/.oompah/worktrees/oompah/OOMPAH-479\n\
-    \      Built oompah @ file:///home/shedwards/.oompah/worktrees/oompah/OOMPAH-479\n\
-    Prepared 1 package in 273ms\nUninstalled 2 packages in 3ms\nInstalled 14 packages\
-    \ in 48ms\n + charset-normalizer==3.4.9\n + claude-agent-sdk==0.2.128\n + distro==1.9.0\n\
-    \ + granian==2.7.9\n + griffelib==2.1.0\n + jiter==0.16.0\n ~ oompah==0.1.0 (from\
-    \ file:///home/shedwards/.oompah/worktrees/oompah/OOMPAH-479)\n + openai==2.50.0\n\
-    \ + openai-agents==0.17.8\n + requests==2.34.2\n + sniffio==1.3.1\n + tqdm==4.70.0\n\
-    \ + urllib3==2.7.0\n - websockets==17.0\n + websockets==16.1.1\n/home/shedwards/.oompah/worktrees/oompah/OOMPAH-479/.venv/lib/python3.12/site-packages/_pytest/unraisableexception.py:67:\
-    \ PytestUnraisableExceptionWarning: Exception ignored in: <function BaseSubprocessTransport.__del__\
-    \ at 0x7ab033e8f600>\n\nTraceback (most recent call last):\n  File \"/home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
-    , line 126, in __del__\n    self.close()\n  File \"/home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
-    , line 104, in close\n    proto.pipe.close()\n  File \"/home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 568, in close\n    self._close(None)\n  File \"/home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 592, in _close\n    self._loop.call_soon(self._call_connection_lost, exc)\n\
-    \  File \"/home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 799, in call_soon\n    self._check_closed()\n  File \"/home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 545, in _check_closed\n    raise RuntimeError('Event loop is closed')\n\
-    RuntimeError: Event loop is closed\n\nEnable tracemalloc to get traceback where\
-    \ the object was allocated.\nSee https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
-    \ for more info.\n  warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))\n\
-    make[1]: *** [Makefile:224: test] Error 1\n"
+  updated_at: '2026-07-30T01:56:06.198039+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-479__20260730T015348Z
@@ -491,5 +450,15 @@ See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warn
 make[1]: *** [Makefile:224: test] Error 1
 
 ```
+---
+author: oompah
+created: 2026-07-30 01:56
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-30 01:56
+---
+Focus: DevOps Engineer
 ---
 <!-- COMMENTS:END -->
