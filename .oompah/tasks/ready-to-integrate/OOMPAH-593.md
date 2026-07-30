@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-593
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Integrate and live-verify scoped Codex task CLI authentication
 parent: OOMPAH-586
@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-30T14:14:54.281403Z'
-updated_at: '2026-07-30T16:12:25.828498Z'
+updated_at: '2026-07-30T16:12:34.668301Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-593
 target_branch: null
 review_url: null
@@ -61,12 +61,12 @@ oompah.agent_run_id: eb60b117-2ef0-419a-9bff-6285abad1e1d
 oompah.work_branch: epic-OOMPAH-586--task-OOMPAH-593
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-586--task-OOMPAH-593
-  base_branch: epic-OOMPAH-586
-  base_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
-  updated_at: '2026-07-30T15:57:10.724728+00:00'
+  head_sha: 0a260f0279690a12fb056da0c8becb6f492f8c26
+  submitted_at: '2026-07-30T16:12:31.202913+00:00'
+  updated_at: '2026-07-30T16:12:31.202913+00:00'
 oompah.task_costs:
   total_input_tokens: 281291
   total_output_tokens: 30106
@@ -513,5 +513,10 @@ author: oompah
 created: 2026-07-30 16:12
 ---
 Completion (Auth Http Default Specialist): Fixed the quality gate failure on epic-OOMPAH-586--task-OOMPAH-593. Root cause: test_in_progress_refresh_timeout_uses_the_same_safe_boundary had a tight timing assertion (< 0.15s) that failed under xdist parallel load; the timeout mechanism itself was working correctly. Fix: cherry-picked OOMPAH-589's deterministic-timeout patch (c4644107f) which increases slow-tracker sleep from 0.2s to 60s and relaxes assertion from < 0.15s to < 2.0s. All prior work preserved: docs/scoped-task-cli-authentication.md, 11 OOMPAH-575 regression tests (TestCodexHandoffAuth + TestHandoffTokenFailClosed), 6 TestOrchestratorHandoffTokenMint tests. Focused suites: 91 + 15 passed. Branch is at 0a260f027 and pushed.
+---
+author: oompah
+created: 2026-07-30 16:12
+---
+Fixed quality gate failure: cherry-picked OOMPAH-589 deterministic-timeout fix onto this branch (test_in_progress_refresh_timeout_uses_the_same_safe_boundary was flaky under xdist due to tight timing). All prior deliverables preserved: docs/scoped-task-cli-authentication.md, OOMPAH-575 handoff-auth regression tests (11 cases), TestOrchestratorHandoffTokenMint live-path reproducer (6 cases). Focused suites 91+15 pass.
 ---
 <!-- COMMENTS:END -->
