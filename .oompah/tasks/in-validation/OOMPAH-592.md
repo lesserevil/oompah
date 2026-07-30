@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:28.755226Z'
-updated_at: '2026-07-30T23:51:06.236703Z'
+updated_at: '2026-07-30T23:51:14.334981Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-592
 target_branch: null
 review_url: null
@@ -401,5 +401,15 @@ author: oompah
 created: 2026-07-30 23:50
 ---
 Operator revalidation after OOMPAH-630 diagnosis: origin/epic-OOMPAH-585--task-OOMPAH-592 is a direct ancestor of merged target origin/epic-OOMPAH-584 at c45e47bb3. The prior Needs Human transition was caused by a stale remote-tracking target ref, not missing work. Requesting a fresh audited Done transition.
+---
+author: oompah
+created: 2026-07-30 23:51
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-07-30 23:51
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
