@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-602
 type: bug
-status: In Validation
+status: Open
 priority: 1
 title: Repair project scope propagation in merged-label maintenance
 parent: OOMPAH-588
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:01.749200Z'
-updated_at: '2026-07-30T16:34:42.421689Z'
+updated_at: '2026-07-30T16:42:19.420822Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-602
 target_branch: null
 review_url: null
@@ -115,6 +115,8 @@ oompah.task_costs:
     recorded_at: '2026-07-30T16:29:52.887731+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-a66782c834a3: '2026-07-30T16:42:16.986663+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -122,7 +124,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-602
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -131,7 +133,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-a66782c834a3
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -141,13 +143,17 @@ oompah.terminal_audit:
       model: gpt-5.6-sol
       started_at: '2026-07-30T16:34:35.200231+00:00'
       branch_key: epic-OOMPAH-588--task-OOMPAH-602
+      verdict: fail
+      failure_classification: incomplete
+      completed_at: '2026-07-30T16:42:16.986501+00:00'
+      ended_at: '2026-07-30T16:42:16.986501+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-30T16:34:29.743936+00:00'
-    updated_at: '2026-07-30T16:34:35.200231+00:00'
+    updated_at: '2026-07-30T16:42:16.986501+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-a66782c834a3
@@ -294,5 +300,18 @@ author: oompah
 created: 2026-07-30 16:34
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 16:42
+---
+Audit FAIL — incomplete. Routing task to Open.
+
+[REDACTED]
+
+Instructions:
+- Extend the safe scope resolver call to the second unsafe assignment at oompah/orchestrator.py:13032 inside _reconcile_stale_in_review_tasks (mirroring the pattern used in _reconcile_terminal_open_reviews).
+- Replace the two placeholder test methods in tests/test_merged_labels_scope.py (test_label_merged_issues_skips_ambiguous_scope, test_label_merged_epics_resolves_project_id) with real assertions or delete them.
+- Add tests for the scenarios listed in the task description that are still missing: explicit project mismatch, GitHub vs native tracker routing, restart persistence, idempotent labels, and no fallback to self.tracker.
+- Verify make test / full branch gate remains green after the additional fix and tests.
 ---
 <!-- COMMENTS:END -->
