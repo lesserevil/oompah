@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:25.383734Z'
-updated_at: '2026-07-30T00:06:01.773049Z'
+updated_at: '2026-07-30T00:14:44.871952Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-477
 target_branch: null
 review_url: null
@@ -73,7 +73,7 @@ oompah.integration:
   task_branch: epic-OOMPAH-459--task-OOMPAH-477
   base_branch: epic-OOMPAH-459
   base_sha: 2e2005cba5b9106029e706db699ca7cfdaa6e3bd
-  updated_at: '2026-07-30T00:05:44.933683+00:00'
+  updated_at: '2026-07-30T00:14:42.833271+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
   version: 1
@@ -83,7 +83,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-477
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -104,13 +104,27 @@ oompah.terminal_audit:
       branch_key: epic-OOMPAH-459--task-OOMPAH-477
       ended_at: '2026-07-30T00:06:00.251622+00:00'
       failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: attempt-4e835f333d67
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 6b742c0d562af6d5cd240ac8731fb1a475ab0838d7fd91c2c80a4cabd3674a4a
+      created_at: '2026-07-30T00:14:35.261037+00:00'
+      provider_id: prov-52e94e83
+      model: gpt-5.6-sol
+      started_at: '2026-07-30T00:14:35.261037+00:00'
+      branch_key: epic-OOMPAH-459--task-OOMPAH-477
+      candidate_rotation_count: 1
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-30T00:05:29.961007+00:00'
-    updated_at: '2026-07-30T00:05:41.515176+00:00'
+    updated_at: '2026-07-30T00:14:35.261037+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-a3d95e6d1295
@@ -127,6 +141,20 @@ oompah.terminal_audit:
     branch_key: epic-OOMPAH-459--task-OOMPAH-477
     ended_at: '2026-07-30T00:06:00.251622+00:00'
     failure_reason: auditor session abandoned; no live worker owns the attempt
+  - version: 1
+    attempt_id: attempt-4e835f333d67
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6b742c0d562af6d5cd240ac8731fb1a475ab0838d7fd91c2c80a4cabd3674a4a
+    created_at: '2026-07-30T00:14:35.261037+00:00'
+    provider_id: prov-52e94e83
+    model: gpt-5.6-sol
+    started_at: '2026-07-30T00:14:35.261037+00:00'
+    branch_key: epic-OOMPAH-459--task-OOMPAH-477
+    candidate_rotation_count: 1
 ---
 ## Summary
 
@@ -574,5 +602,15 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 12s
 - Log: OOMPAH-477__20260730T000549Z.jsonl
+---
+author: oompah
+created: 2026-07-30 00:14
+---
+Auditor dispatched (attempt #2, candidate: prov-52e94e83/gpt-5.6-sol)
+---
+author: oompah
+created: 2026-07-30 00:14
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
