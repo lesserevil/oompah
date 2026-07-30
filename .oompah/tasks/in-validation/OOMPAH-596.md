@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:26.248587Z'
-updated_at: '2026-07-30T16:16:57.669354Z'
+updated_at: '2026-07-30T16:17:20.578882Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-596
 target_branch: null
 review_url: null
@@ -814,5 +814,10 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: error, Duration: 15s
 - Log: OOMPAH-596__20260730T161655Z.jsonl
+---
+author: oompah
+created: 2026-07-30 16:17
+---
+Auditor attempt ended: unknown url type: '/chat/completions'. A different independent auditor will be tried on the next scheduler tick.
 ---
 <!-- COMMENTS:END -->
