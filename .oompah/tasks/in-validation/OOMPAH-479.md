@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-479
 type: feature
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Route webhook, YOLO, and merged-branch reconciliation through Merged audits
 parent: OOMPAH-459
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:27.240594Z'
-updated_at: '2026-07-30T02:03:16.232859Z'
+updated_at: '2026-07-30T02:07:37.092191Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-479
 target_branch: null
 review_url: null
@@ -95,12 +95,17 @@ oompah.task_costs:
     recorded_at: '2026-07-30T02:01:26.289278+00:00'
 oompah.integration:
   version: 1
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-459--task-OOMPAH-479
+  base_branch: epic-OOMPAH-459
+  base_sha: 0b84b7b6d6a1ef0d77ad0de7e6dc51ef2676792c
   head_sha: d61679dbe4d99414a6c941d425abfc3cd7109341
+  integrated_sha: d61679dbe4d99414a6c941d425abfc3cd7109341
   submitted_at: '2026-07-30T02:03:13.037575+00:00'
-  updated_at: '2026-07-30T02:03:13.037575+00:00'
+  updated_at: '2026-07-30T02:07:32.962373+00:00'
+  dependency_heads:
+    OOMPAH-477: cfa5ca64f43aaa846f4ce7c153291390c5e0648c
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-479__20260730T015348Z
@@ -111,6 +116,28 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-459--task-OOMPAH-479
     source_sha: 9c38ddd1df509602061c5d0c6760b4e04ba0a4d7
     completed_at: '2026-07-30T01:54:22.666303+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-99611c19e42b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-479
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d4d650131b7851a5f219f3330bbbaabb382df5a3ccb464b7d0cd9fbdbaa1bde4
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-30T02:07:33.872646+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -501,5 +528,10 @@ author: oompah
 created: 2026-07-30 02:03
 ---
 Repaired rebase conflict and stabilized the unrelated full-gate intake thread race. New pushed head d61679dbe; 887 coordinator-focused tests previously passed, plus exact flake 20/20 and full intake module 80/80 in parallel.
+---
+author: oompah
+created: 2026-07-30 02:07
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
