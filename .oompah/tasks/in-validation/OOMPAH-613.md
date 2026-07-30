@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-613
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: 0
 title: Rebase epic-OOMPAH-460 onto main
 parent: OOMPAH-460
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T19:34:40.947096Z'
-updated_at: '2026-07-30T19:52:49.250315Z'
+updated_at: '2026-07-30T19:58:01.943342Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-613
 target_branch: null
 review_url: null
@@ -21,14 +21,15 @@ oompah.agent_run_id: 34181f3a-b9ff-49bf-bfee-830af4574861
 oompah.work_branch: epic-OOMPAH-460--task-OOMPAH-613
 oompah.integration:
   version: 1
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-460--task-OOMPAH-613
-  base_branch: main
-  base_sha: c048ba706cbe9b1342b80a67576a49b82887e84a
-  head_sha: 477e91370f77dd37a8edd6091bf6d5f54559d88f
+  base_branch: epic-OOMPAH-460
+  base_sha: 868f1e391361f315198995b0569688f0142e1062
+  head_sha: 868f1e391361f315198995b0569688f0142e1062
+  integrated_sha: 868f1e391361f315198995b0569688f0142e1062
   submitted_at: '2026-07-30T19:52:28.164087+00:00'
-  updated_at: '2026-07-30T19:52:47.356016+00:00'
+  updated_at: '2026-07-30T19:57:58.371724+00:00'
 oompah.task_costs:
   total_input_tokens: 262734
   total_output_tokens: 17957
@@ -122,6 +123,28 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 2
   retry_after: null
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-a355c23981a1
+    project_id: proj-14849f1b
+    task_id: OOMPAH-613
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 161248c30cf60c724c5fddadca7608d05ff2a654e4cf740b03b27c1fc41818c7
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-30T19:57:59.513905+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -284,5 +307,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 2m 32s
 - Log: OOMPAH-613__20260730T195023Z.jsonl
+---
+author: oompah
+created: 2026-07-30 19:58
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
