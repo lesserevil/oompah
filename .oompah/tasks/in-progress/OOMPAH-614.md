@@ -11,13 +11,22 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T19:51:07.651359Z'
-updated_at: '2026-07-30T19:56:36.368485Z'
-work_branch: null
+updated_at: '2026-07-30T19:59:33.660261Z'
+work_branch: epic-OOMPAH-460--task-OOMPAH-614
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 9d31dfa7-9a57-4bd3-98ce-a12b5e4a6c84
+oompah.agent_run_id: 22039285-db75-4c0d-b63f-862d00058092
+oompah.work_branch: epic-OOMPAH-460--task-OOMPAH-614
+oompah.integration:
+  version: 1
+  state: working
+  attempts: 0
+  task_branch: epic-OOMPAH-460--task-OOMPAH-614
+  base_branch: epic-OOMPAH-460
+  base_sha: 868f1e391361f315198995b0569688f0142e1062
+  updated_at: '2026-07-30T19:59:29.738170+00:00'
 ---
 ## Summary
 
@@ -127,5 +136,15 @@ Run #5 [attempt=5, profile=standard, role=— -> Claude/sonnet]
 - Tokens: 0 in / 0 out [0 total]
 - Cost: $0.0000
 - Exit: error, Duration: 1s
+---
+author: oompah
+created: 2026-07-30 19:59
+---
+Retrying (attempt #5, agent: standard)
+---
+author: oompah
+created: 2026-07-30 19:59
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
