@@ -4276,7 +4276,17 @@ class Orchestrator:
             # auditors; ordinary claims are intentionally left to the normal
             # shared-epic gate so its established P0 semantics are preserved.
             return False
-        for claimed_issue in getattr(self.state, "claimed_issues", {}).values():
+        claimed_issues = getattr(self.state, "claimed_issues", {})
+        for issue_id, claimed_issue in list(claimed_issues.items()):
+            if issue_id not in self.state.claimed:
+                claimed_issues.pop(issue_id, None)
+                logger.warning(
+                    "Released stale in-memory claim for %s while checking "
+                    "audit branch %s",
+                    claimed_issue.identifier,
+                    branch_key,
+                )
+                continue
             if audit_branch_key(claimed_issue) == branch_key:
                 return True
         return False
@@ -23071,6 +23081,7 @@ class Orchestrator:
             # machine: a normal exit is meaningful only when the structured
             # result tool has already completed the durable audit record.
             self.state.claimed.discard(issue_id)
+            self.state.claimed_issues.pop(issue_id, None)
             if entry.branch_key:
                 self._audit_branch_claims.pop(entry.branch_key, None)
             ended = await asyncio.to_thread(
