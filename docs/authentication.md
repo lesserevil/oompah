@@ -766,6 +766,46 @@ secret-store's procedure; do not edit a live secret in a shell transcript.
 
 ---
 
+## Auth Health Dashboard Signals
+
+The Oompah dashboard exposes separate health indicators for the two
+authentication planes.  These appear as compact badges under a collapsible
+"Authentication health" banner whenever a plane is degraded.
+
+### Operator auth plane (HTTP Basic)
+
+| Badge | Meaning |
+|-------|---------|
+| **Operator auth: ✓** (green) | No recent 401 failures. Credentials are accepted. |
+| **Operator auth: ⚠ N** (amber) | N failed Basic-auth requests in the last 15 min. |
+
+**Recovery:** Update `.htpasswd` (regenerate with `htpasswd -B`) and run
+`make restart` to reload credentials.  The badge clears automatically once the
+15-minute window passes without new failures.
+
+### Worker token plane (task-handoff capability)
+
+| Badge | Meaning |
+|-------|---------|
+| **Worker token: —** (grey) | No token has been minted yet. No workers dispatched. |
+| **Worker token: ✓** (green) | Token minted and accepted; no recent failures. |
+| **Worker token: ⚠ N** (amber) | N missing-token or cross-scope failures in the last 15 min. |
+
+**Missing-token failures (401):** The worker did not receive or forward
+`OOMPAH_TASK_HANDOFF_TOKEN`.  Check that `agent_environment()` is applied to
+every spawned subprocess environment.
+
+**Cross-scope failures (403 scope):** The worker presented a token scoped to a
+different project or task identifier.  Verify `OOMPAH_TASK_HANDOFF_PROJECT_ID`
+matches the project of the dispatched task.
+
+**Intentional action denials (403 action):** The worker requested an action
+not included in the capability grant (e.g., a tracker operation not in the
+allowed-actions set).  These are expected least-privilege denials and are
+**never** surfaced as auth-health warnings.
+
+---
+
 ## Configuration Reference
 
 ### Environment variables
