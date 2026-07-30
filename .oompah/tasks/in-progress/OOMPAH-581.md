@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:35:07.041991Z'
-updated_at: '2026-07-30T04:38:29.527281Z'
+updated_at: '2026-07-30T04:38:52.661048Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -56,7 +56,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 94cb7506-1d98-421c-b561-a7afe82762f7
+oompah.agent_run_id: 6a4de8a6-701b-4c8a-b916-6798acc68b91
 oompah.task_costs:
   total_input_tokens: 46037
   total_output_tokens: 5042
@@ -164,5 +164,15 @@ author: oompah
 created: 2026-07-30 04:38
 ---
 Agent completed without landing — no commits found on origin for branch `OOMPAH-581`. Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-30 04:38
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-30 04:38
+---
+Focus: Refactoring Specialist
 ---
 <!-- COMMENTS:END -->
