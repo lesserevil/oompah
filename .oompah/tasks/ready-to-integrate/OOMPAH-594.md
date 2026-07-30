@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-594
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Reload HTTP Basic credentials safely after htpasswd rotation
 parent: OOMPAH-586
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:55.490677Z'
-updated_at: '2026-07-30T16:21:48.226772Z'
+updated_at: '2026-07-30T16:21:57.136426Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-594
 target_branch: null
 review_url: null
@@ -60,12 +60,12 @@ oompah.agent_run_id: 72f5cd0a-dc2d-435b-b1ed-8717f5070313
 oompah.work_branch: epic-OOMPAH-586--task-OOMPAH-594
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-586--task-OOMPAH-594
-  base_branch: epic-OOMPAH-586
-  base_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
-  updated_at: '2026-07-30T16:11:53.917649+00:00'
+  head_sha: 31a10b064158948503a7eaa646a1bfa7d1b35e55
+  submitted_at: '2026-07-30T16:21:54.118041+00:00'
+  updated_at: '2026-07-30T16:21:54.118041+00:00'
 oompah.task_costs:
   total_input_tokens: 1436034
   total_output_tokens: 17351
@@ -648,5 +648,10 @@ The previously reported failure (tests/test_scm.py::TestGitHubReviewQueueState::
 - The reported failure was accompanied by asyncio subprocess GC warnings from test_work_contributors and test_webhooks; those are pre-existing pytest/asyncio interpreter-teardown noise and did not repeat.
 
 No code changes were needed to fix the gate — the failure was a transient parallel-run flake. Re-running the full make test on the same HEAD (31a10b064) now succeeds. Ready for integration.
+---
+author: oompah
+created: 2026-07-30 16:21
+---
+HTTP Basic credential reload implemented and verified. Full quality gate passes (13711 tests). Previous gate flake in unrelated test_scm.py::test_list_open_reviews_auto_merge_dirty_after_enqueue does not reproduce.
 ---
 <!-- COMMENTS:END -->
