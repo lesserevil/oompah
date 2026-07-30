@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:27.240594Z'
-updated_at: '2026-07-30T01:54:26.278594Z'
+updated_at: '2026-07-30T01:54:50.552726Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-479
 target_branch: null
 review_url: null
@@ -37,7 +37,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: aec59695-7915-4891-bc3d-a5295a122e52
+oompah.agent_run_id: 95cc5a5d-fa80-410c-a5a6-158d6edd4153
 oompah.work_branch: epic-OOMPAH-459--task-OOMPAH-479
 oompah.task_costs:
   total_input_tokens: 545959
@@ -336,5 +336,10 @@ author: oompah
 created: 2026-07-30 01:54
 ---
 Agent completed without closing this issue (49s (86551 tokens)). Escalating from 'standard' to 'deep'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-30 01:54
+---
+Agent dispatched (profile: deep)
 ---
 <!-- COMMENTS:END -->
