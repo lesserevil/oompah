@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T02:15:25.255613Z'
-updated_at: '2026-07-30T14:11:43.423242Z'
+updated_at: '2026-07-30T14:11:59.097071Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,13 +36,17 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: c8332be3-4b98-43d0-af21-0b69eeff6438
 oompah.task_costs:
-  total_input_tokens: 642758
-  total_output_tokens: 3111
+  total_input_tokens: 642959
+  total_output_tokens: 8854
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 642758
       output_tokens: 3111
+      cost_usd: 0.0
+    sonnet:
+      input_tokens: 201
+      output_tokens: 5743
       cost_usd: 0.0
   runs:
   - profile: default
@@ -51,6 +55,12 @@ oompah.task_costs:
     output_tokens: 3111
     cost_usd: 0.0
     recorded_at: '2026-07-30T13:34:22.410428+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 201
+    output_tokens: 5743
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T14:11:57.774633+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-575__20260730T133259Z
@@ -232,5 +242,15 @@ author: oompah
 created: 2026-07-30 14:11
 ---
 Added Codex session task-handoff auth regression tests proving: (1) scoped token and project_id are injected into Codex CLI subprocess env; (2) operator credentials are always stripped; (3) missing/invalid tokens fail closed with 401; (4) cross-task and cross-project access is rejected with 403; (5) an assigned Codex repair session can view and comment on its own task without operator credentials. No code changes required - the underlying fix was already implemented in OOMPAH-538. Tests added to tests/test_acp_codex_backend.py (TestCodexHandoffAuth) and tests/test_task_handoff.py (TestHandoffTokenFailClosed).
+---
+author: oompah
+created: 2026-07-30 14:11
+---
+Run #2 [attempt=2, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 0, Tool calls: 121
+- Tokens: 201 in / 5.7K out [5.9K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 19m 55s
+- Log: OOMPAH-575__20260730T135208Z.jsonl
 ---
 <!-- COMMENTS:END -->
