@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:26.248587Z'
-updated_at: '2026-07-30T16:04:28.601352Z'
+updated_at: '2026-07-30T16:09:16.501553Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-596
 target_branch: null
 review_url: null
@@ -685,5 +685,21 @@ author: oompah
 created: 2026-07-30 16:04
 ---
 DISCOVERY: Root cause identified. The failing test is tests/test_server_issue_snapshot.py::test_ready_to_integrate_board_entry_includes_integration_evidence. It asserts the serialized integration record has version=1, but this branch bumped INTEGRATION_RECORD_VERSION to 2. The xdist worker crash was collateral damage after the assertion failure (loadscope scheduler bug). Fix: update the test expectation from version 1 to version 2 — this is the correct new behavior since IntegrationRecord now emits v2 records by default.
+---
+author: oompah
+created: 2026-07-30 16:09
+---
+IMPLEMENTATION+VERIFICATION: Fixed the failing snapshot test.
+
+Change:
+- tests/test_server_issue_snapshot.py: expect version=2 in serialized IntegrationRecord (was 1)
+
+Rationale: IntegrationRecord version was bumped from 1 to 2 to carry backoff_until and repair_failure_reason. All in-memory records now serialize with version=2 by default; v1 records still parse and are migrated to v2 on load. The API contract is unchanged for consumers that don't read the version field.
+
+Focused verification (broad slice):
+- tests/ -k 'integration or snapshot or orchestrator or server': 2221 passed, 1 skipped, 0 failed (3m 46s)
+- tests/test_server_issue_snapshot.py tests/test_integration_record.py tests/test_integration_conflict_repair.py tests/test_orchestrator_conflict_repair.py: 49 passed
+
+Commit da86acf64 pushed to epic-OOMPAH-587--task-OOMPAH-596. The xdist worker KeyError in the previous gate was collateral damage from the assertion failure (loadscope scheduler bug); with the failing test fixed the gate should pass cleanly.
 ---
 <!-- COMMENTS:END -->
