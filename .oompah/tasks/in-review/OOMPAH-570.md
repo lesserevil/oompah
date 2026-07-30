@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T23:53:31.874608Z'
-updated_at: '2026-07-30T00:20:17.608329Z'
+updated_at: '2026-07-30T00:22:54.919836Z'
 work_branch: OOMPAH-570
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/587
@@ -312,5 +312,10 @@ author: oompah
 created: 2026-07-30 00:20
 ---
 Branch quality gate passed for `bec579e966af1e43550d890629b8e34fed4a7fcb` using `make test` in 267.1s. Review creation may proceed.
+---
+author: oompah
+created: 2026-07-30 00:22
+---
+Post-review hardening is pushed at 4bcaa85cc after rebasing onto PR #586/main. Focused shutdown/retry suite: 28 passed. Full make test on this exact head: 13,616 passed, 7 skipped in 262.06s. PR #587 is open; the revised semantics only rearm blocked identical explicit retries, preserve ready/integrating/integrated idempotency, and route shutdown-interrupted gates as retryable without caching false CI evidence.
 ---
 <!-- COMMENTS:END -->
