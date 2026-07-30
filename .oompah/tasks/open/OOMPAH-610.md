@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:53:05.632137Z'
-updated_at: '2026-07-30T19:00:37.257580Z'
+updated_at: '2026-07-30T19:01:30.138558Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -123,5 +123,10 @@ author: oompah
 created: 2026-07-30 18:59
 ---
 Focus: Refactoring Specialist
+---
+author: oompah
+created: 2026-07-30 19:01
+---
+Refactoring Specialist: understanding phase. The previous Duplicate Investigator identified the issue: auditor exits clear state.claimed and the branch claim but leave state.claimed_issues, causing stale claims to suppress retries. The fix needs to remove claimed_issues in addition to state.claimed during auditor exit. The working tree is currently clean; exploring codebase structure to locate the auditor worker-exit path and existing tests to establish baseline before implementing refactored solution.
 ---
 <!-- COMMENTS:END -->

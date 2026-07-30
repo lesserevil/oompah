@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:17:13.371379Z'
-updated_at: '2026-07-30T19:00:50.817413Z'
+updated_at: '2026-07-30T19:01:28.119443Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -83,14 +83,22 @@ oompah.work_contributors:
     source_branch: OOMPAH-607
     source_sha: 213a0321c6bd78a58bffb77abc670365144ca8d1
     completed_at: '2026-07-30T18:52:32.595100+00:00'
+  - run_id: OOMPAH-607__20260730T185248Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: general
+    source_branch: OOMPAH-607
+    source_sha: b10b328ed7779cd3c72e7097a77f8ab4e69c1c90
+    completed_at: '2026-07-30T19:01:24.058428+00:00'
 oompah.task_costs:
-  total_input_tokens: 14849322
-  total_output_tokens: 30831
+  total_input_tokens: 14849340
+  total_output_tokens: 31519
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 14731954
-      output_tokens: 29857
+      input_tokens: 14731972
+      output_tokens: 30545
       cost_usd: 0.0
     opus:
       input_tokens: 117368
@@ -115,14 +123,22 @@ oompah.task_costs:
     output_tokens: 974
     cost_usd: 0.0
     recorded_at: '2026-07-30T18:52:32.588272+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 18
+    output_tokens: 688
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T19:01:24.054082+00:00'
 oompah.integration:
   version: 1
   state: ready
   attempts: 0
   task_branch: OOMPAH-607
+  base_branch: main
+  base_sha: b4fa5db81322ae24b90a5c80689d94d1a49a1f30
   head_sha: b10b328ed7779cd3c72e7097a77f8ab4e69c1c90
   submitted_at: '2026-07-30T19:00:13.697637+00:00'
-  updated_at: '2026-07-30T19:00:13.697637+00:00'
+  updated_at: '2026-07-30T19:01:25.595721+00:00'
 ---
 ## Summary
 
@@ -306,5 +322,20 @@ Acceptance criteria met:
 ✓ Error messages do not leak configuration
 
 Code delivered: 1 commit, 2 new regression tests, all tests passing.
+---
+author: oompah
+created: 2026-07-30 19:01
+---
+Agent completed successfully in 519s (706 tokens)
+---
+author: oompah
+created: 2026-07-30 19:01
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 198, Tool calls: 94
+- Tokens: 18 in / 688 out [706 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 8m 39s
+- Log: OOMPAH-607__20260730T185248Z.jsonl
 ---
 <!-- COMMENTS:END -->
