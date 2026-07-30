@@ -11,12 +11,36 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:26.248587Z'
-updated_at: '2026-07-30T14:18:58.949202Z'
-work_branch: null
+updated_at: '2026-07-30T15:30:52.356059Z'
+work_branch: epic-OOMPAH-587--task-OOMPAH-596
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: b8c9779d72e8d10e89d53ba9eed3f6602095a5255ac360e48817df156b151940
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 4a885e64-8f5d-4dc3-97c3-b3c7898c25db
+  claim_owner: 9e3a680b-e68a-4d5a-ba2e-f9091834f9ec
+  claimed_at: '2026-07-30T15:30:42.587556+00:00'
+  claim_expires_at: '2026-07-30T16:00:42.587556+00:00'
+  retry_count: 0
+  retry_after: null
+oompah.agent_run_id: 64effcd9-d21e-44c7-b1f9-478039bcb550
+oompah.work_branch: epic-OOMPAH-587--task-OOMPAH-596
+oompah.integration:
+  version: 1
+  state: working
+  attempts: 0
+  task_branch: epic-OOMPAH-587--task-OOMPAH-596
+  base_branch: epic-OOMPAH-587
+  base_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
+  updated_at: '2026-07-30T15:30:50.376910+00:00'
 ---
 ## Summary
 
@@ -44,5 +68,15 @@ author: oompah
 created: 2026-07-30 14:18
 ---
 Project-owner-approved green recovery work; dispatch under recorded dependencies and acceptance criteria.
+---
+author: oompah
+created: 2026-07-30 15:30
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-07-30 15:30
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
