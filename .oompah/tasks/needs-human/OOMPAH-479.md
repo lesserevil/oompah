@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-479
 type: feature
-status: In Progress
+status: Needs Human
 priority: 1
 title: Route webhook, YOLO, and merged-branch reconciliation through Merged audits
 parent: OOMPAH-459
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:27.240594Z'
-updated_at: '2026-07-30T01:56:27.871544Z'
+updated_at: '2026-07-30T02:01:27.693502Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-479
 target_branch: null
 review_url: null
@@ -40,8 +40,8 @@ oompah.duplicate_screening:
 oompah.agent_run_id: 226505d8-d451-4cbd-81df-8fa660ece084
 oompah.work_branch: epic-OOMPAH-459--task-OOMPAH-479
 oompah.task_costs:
-  total_input_tokens: 545978
-  total_output_tokens: 7097
+  total_input_tokens: 546045
+  total_output_tokens: 9650
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -49,8 +49,8 @@ oompah.task_costs:
       output_tokens: 3718
       cost_usd: 0.0
     sonnet:
-      input_tokens: 85750
-      output_tokens: 3096
+      input_tokens: 85817
+      output_tokens: 5649
       cost_usd: 0.0
     opus:
       input_tokens: 19
@@ -87,6 +87,12 @@ oompah.task_costs:
     output_tokens: 283
     cost_usd: 0.0
     recorded_at: '2026-07-30T01:55:43.816519+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 67
+    output_tokens: 2553
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T02:01:26.289278+00:00'
 oompah.integration:
   version: 1
   state: working
@@ -465,5 +471,25 @@ author: oompah
 created: 2026-07-30 01:56
 ---
 **Understanding**: This task has been through multiple agent cycles. The core implementation (routing Merged transitions through TerminalTransitionCoordinator) is complete and 887 focused tests pass. The blocker is a flaky test `test_plain_requestor_approval_comment_auto_promotes_ready_issue` in the combined-tree gate. Previous agents confirmed it passes 10/10 in isolation and 3/3 parallel xdist runs, but it fails in the full gate context. My plan: (1) Analyze the failing test to understand what it tests and whether there's a timing/ordering issue, (2) Check if recent changes in this branch could create test interference, (3) Either fix the test isolation or stabilize any real race condition.
+---
+author: oompah
+created: 2026-07-30 02:01
+---
+Operator takeover: the repair worker confirmed the pre-existing daemon-thread polling race but had not changed files. Temporarily holding dispatch while applying the deterministic Event-based test synchronization and producing a new gate head.
+---
+author: oompah
+created: 2026-07-30 02:01
+---
+Moved to Needs Human from the dashboard/API. Human action required: inspect OOMPAH-479 (Route webhook, YOLO, and merged-branch reconciliation through Merged audits), add the specific decision, missing information, or manual fix needed, then move the task back to Open when it is ready for agents again.
+---
+author: oompah
+created: 2026-07-30 02:01
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 0, Tool calls: 46
+- Tokens: 67 in / 2.6K out [2.6K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 5m 23s
+- Log: OOMPAH-479__20260730T015611Z.jsonl
 ---
 <!-- COMMENTS:END -->
