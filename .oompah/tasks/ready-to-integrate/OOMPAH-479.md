@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-479
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Route webhook, YOLO, and merged-branch reconciliation through Merged audits
 parent: OOMPAH-459
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:27.240594Z'
-updated_at: '2026-07-30T01:54:55.596480Z'
+updated_at: '2026-07-30T01:55:33.443868Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-479
 target_branch: null
 review_url: null
@@ -79,12 +79,12 @@ oompah.task_costs:
     recorded_at: '2026-07-30T01:54:22.662956+00:00'
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-459--task-OOMPAH-479
-  base_branch: epic-OOMPAH-459
-  base_sha: 0b84b7b6d6a1ef0d77ad0de7e6dc51ef2676792c
-  updated_at: '2026-07-30T01:54:53.126666+00:00'
+  head_sha: 9c38ddd1df509602061c5d0c6760b4e04ba0a4d7
+  submitted_at: '2026-07-30T01:55:30.847835+00:00'
+  updated_at: '2026-07-30T01:55:30.847835+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-479__20260730T015348Z
@@ -346,5 +346,15 @@ author: oompah
 created: 2026-07-30 01:54
 ---
 Focus: DevOps Engineer
+---
+author: oompah
+created: 2026-07-30 01:55
+---
+Integration gate reached 13,668 passes before one unrelated intake-promotion failure. The exact failed test then passed 10/10 isolated reruns, and the complete 16-test intake-promotion module passed 3/3 parallel xdist reruns (48/48 assertions). No code change was warranted; treating the single gate failure as non-reproducing and resubmitting the identical pushed head 9c38ddd1d. The service-launched repair session also exposed a separate missing CLI-auth propagation issue, but it made no files changes.
+---
+author: oompah
+created: 2026-07-30 01:55
+---
+Rearmed unchanged repaired head 9c38ddd1d after the sole unrelated gate failure proved non-reproducible: exact test 10/10 passes; full intake-promotion module 3/3 parallel passes. Prior conflict-resolution verification remains 887 passing tests.
 ---
 <!-- COMMENTS:END -->
