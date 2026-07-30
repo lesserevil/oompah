@@ -2224,8 +2224,12 @@ class TestMaintenanceLaneNonBlocking:
         """_tick() must complete even if _run_step5b_maintenance is slow.
 
         This verifies AC#1: the maintenance job is fire-and-forget, not awaited
-        inline.  The maintenance job blocks on an event so the test does not
-        rely on CI wall-clock timing thresholds.
+        inline.  The maintenance job blocks on a long-duration event and the
+        assertion is structural (``_maintenance_future`` is still pending after
+        tick returns) rather than a wall-clock threshold, so the test remains
+        reliable under xdist CPU contention.  The ``asyncio.wait_for`` guard is
+        only there to prevent the test from hanging forever in the regression
+        case where ``_tick`` incorrectly awaits maintenance.
         """
         orch = _make_orchestrator(tmp_path)
         orch._handle_reconcile = AsyncMock()
@@ -2241,10 +2245,13 @@ class TestMaintenanceLaneNonBlocking:
         maintenance_started = threading.Event()
         maintenance_unblock = threading.Event()
         maintenance_finished = []
+        # Block maintenance long enough that "tick awaited it" is unambiguously
+        # distinguishable from "tick completed early under CI load".
+        _MAINTENANCE_BLOCK_SECONDS = 60
 
         def _blocked_maintenance():
             maintenance_started.set()
-            maintenance_unblock.wait(timeout=5)
+            maintenance_unblock.wait(timeout=_MAINTENANCE_BLOCK_SECONDS)
             maintenance_finished.append(True)
 
         orch._run_step5b_maintenance = _blocked_maintenance
@@ -2253,7 +2260,11 @@ class TestMaintenanceLaneNonBlocking:
             with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
                 tick_task = asyncio.create_task(orch._tick())
                 try:
-                    await asyncio.wait_for(asyncio.shield(tick_task), timeout=1.0)
+                    # 15s is generous under 4-worker xdist load but far shorter
+                    # than the 60s maintenance block, so a regression where
+                    # ``_tick`` awaits the maintenance executor deterministically
+                    # trips the TimeoutError below.
+                    await asyncio.wait_for(asyncio.shield(tick_task), timeout=15.0)
                 except asyncio.TimeoutError as exc:
                     maintenance_unblock.set()
                     await tick_task
@@ -2262,12 +2273,14 @@ class TestMaintenanceLaneNonBlocking:
                     ) from exc
 
             assert orch._maintenance_future is not None
-            assert maintenance_started.wait(timeout=1.0)
+            assert maintenance_started.wait(timeout=15.0)
+            # Structural invariant: tick submitted maintenance to the executor
+            # and returned while it was still running (proving no inline await).
             assert not orch._maintenance_future.done()
             assert maintenance_finished == []
 
             maintenance_unblock.set()
-            await asyncio.wait_for(orch._maintenance_future, timeout=1.0)
+            await asyncio.wait_for(orch._maintenance_future, timeout=15.0)
             assert maintenance_finished == [True]
 
         asyncio.run(_run_tick_with_blocked_maintenance())
