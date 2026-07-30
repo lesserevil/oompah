@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-620
 type: feature
-status: In Validation
+status: Done
 priority: 1
 title: Resolve CLI Basic-auth credentials from argv, environment, and netrc
 parent: OOMPAH-619
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T21:25:27.860280Z'
-updated_at: '2026-07-30T21:45:14.977988Z'
+updated_at: '2026-07-30T21:52:05.087667Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-620
 target_branch: null
 review_url: null
@@ -86,6 +86,8 @@ oompah.work_contributors:
     completed_at: '2026-07-30T21:35:05.880996+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-47496fbfda1a: '2026-07-30T21:52:02.670412+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -93,7 +95,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-620
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -102,7 +104,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-47496fbfda1a
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -112,13 +114,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-30T21:45:06.807152+00:00'
       branch_key: epic-OOMPAH-619--task-OOMPAH-620
+      verdict: pass
+      completed_at: '2026-07-30T21:52:02.670295+00:00'
+      ended_at: '2026-07-30T21:52:02.670295+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-30T21:45:01.123133+00:00'
-    updated_at: '2026-07-30T21:45:06.807152+00:00'
+    updated_at: '2026-07-30T21:52:02.670295+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-47496fbfda1a
@@ -304,5 +309,24 @@ author: oompah
 created: 2026-07-30 21:45
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 21:52
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- head_sha: 6fee72d5725e4341c580c91577533d15ba97df62
+- remote_head_sha: 6fee72d5725e4341c580c91577533d15ba97df62
+- worktree_clean: true
+- focused_tests_passed: 265
+- focused_tests_failed: 0
+- focused_suites_run: test_client_auth, test_task_cli, test_admin_cli, test_docs_authentication_contract, test_http_auth
+- precedence_documented_in_help: task and admin --help both list the three-tier precedence chain
+- divergence_1: CLIs intentionally omit a plaintext argv flag for the secret; help text explains why. Prior security auditor endorsed the omission.
+- divergence_2: No integration test exercises the CLIs against an in-process HTTP test server; resolver behavior is covered by unit and parser tests only.
+- divergence_3: Hostname normalization handles IPv6 in code, but no explicit IPv6 server URL test is present.
 ---
 <!-- COMMENTS:END -->
