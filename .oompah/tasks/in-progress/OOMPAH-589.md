@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-589
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Validate auditor provider endpoints before candidate dispatch
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:20.256845Z'
-updated_at: '2026-07-30T16:34:43.207008Z'
+updated_at: '2026-07-30T16:35:11.357215Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-589
 target_branch: null
 review_url: null
@@ -56,7 +56,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: d2d8c085-48de-43fb-a278-7c77caec998e
+oompah.agent_run_id: 24510410-bf87-43ac-bc81-b4ba1cb80309
 oompah.work_branch: epic-OOMPAH-585--task-OOMPAH-589
 oompah.integration:
   version: 1
@@ -65,7 +65,7 @@ oompah.integration:
   task_branch: epic-OOMPAH-585--task-OOMPAH-589
   base_branch: epic-OOMPAH-585
   base_sha: c4644107f13bdb747e8f19fe3fe7456db546b458
-  updated_at: '2026-07-30T15:48:56.765112+00:00'
+  updated_at: '2026-07-30T16:35:07.937441+00:00'
 oompah.task_costs:
   total_input_tokens: 37815032
   total_output_tokens: 59288
@@ -761,5 +761,15 @@ author: oompah
 created: 2026-07-30 16:34
 ---
 Operator diagnosis: the independent scheduler selects the valid InferenceAPI candidate, but forced auditor focus resolution replaces it with the default Claude ACP provider after the worker has already chosen ApiAgentSession. The blank ACP base URL then becomes /chat/completions, and the selected independent provider/model is lost. Reopening this task to bind forced auditor runs to AuditDispatchPlan.candidate and add a cross-mode regression test.
+---
+author: oompah
+created: 2026-07-30 16:35
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-30 16:35
+---
+Focus: Auth Http Default Specialist
 ---
 <!-- COMMENTS:END -->
