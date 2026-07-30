@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:29.211296Z'
-updated_at: '2026-07-30T00:00:32.431348Z'
+updated_at: '2026-07-30T00:01:27.735143Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-481
 target_branch: null
 review_url: null
@@ -60,13 +60,17 @@ oompah.duplicate_screening:
 oompah.agent_run_id: d5366bd7-97e6-4901-88d4-006c2a189f76
 oompah.work_branch: epic-OOMPAH-459--task-OOMPAH-481
 oompah.task_costs:
-  total_input_tokens: 2384
-  total_output_tokens: 6172
+  total_input_tokens: 2406
+  total_output_tokens: 6807
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 2384
       output_tokens: 6172
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 22
+      output_tokens: 635
       cost_usd: 0.0
   runs:
   - profile: default
@@ -81,6 +85,12 @@ oompah.task_costs:
     output_tokens: 566
     cost_usd: 0.0
     recorded_at: '2026-07-29T18:58:26.294553+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 22
+    output_tokens: 635
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T00:01:24.476162+00:00'
 oompah.integration:
   version: 1
   state: working
@@ -98,7 +108,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-481
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -107,7 +117,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-987beac3b8e9
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -117,6 +127,8 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-30T00:00:25.335407+00:00'
       branch_key: epic-OOMPAH-459--task-OOMPAH-481
+      ended_at: '2026-07-30T00:01:26.747963+00:00'
+      failure_reason: auditor session abandoned; no live worker owns the attempt
     requested_by:
       version: 1
       identity: oompah-integration
@@ -128,7 +140,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-987beac3b8e9
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -138,6 +150,8 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-07-30T00:00:25.335407+00:00'
     branch_key: epic-OOMPAH-459--task-OOMPAH-481
+    ended_at: '2026-07-30T00:01:26.747963+00:00'
+    failure_reason: auditor session abandoned; no live worker owns the attempt
 ---
 ## Summary
 
@@ -420,5 +434,15 @@ author: oompah
 created: 2026-07-30 00:00
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 00:01
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 11
+- Tokens: 22 in / 635 out [657 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 58s
+- Log: OOMPAH-481__20260730T000034Z.jsonl
 ---
 <!-- COMMENTS:END -->

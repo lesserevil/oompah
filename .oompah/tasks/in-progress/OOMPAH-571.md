@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-571
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Keep active terminal auditors alive in In Validation
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T23:57:40.926693Z'
-updated_at: '2026-07-30T00:01:06.482906Z'
+updated_at: '2026-07-30T00:01:32.476459Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,7 +36,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 5235a9b7-bff9-4a7c-aa62-99d633e92ad4
+oompah.agent_run_id: c8548a53-d97b-48cb-a232-674c85fc6842
 oompah.task_costs:
   total_input_tokens: 1370079
   total_output_tokens: 5697
@@ -102,5 +102,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 2m 16s
 - Log: OOMPAH-571__20260729T235849Z.jsonl
+---
+author: oompah
+created: 2026-07-30 00:01
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-30 00:01
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
