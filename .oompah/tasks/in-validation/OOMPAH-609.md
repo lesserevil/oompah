@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:36:07.344003Z'
-updated_at: '2026-07-30T19:03:47.610183Z'
+updated_at: '2026-07-30T19:04:12.373386Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-609
 target_branch: null
 review_url: null
@@ -21,15 +21,12 @@ oompah.agent_run_id: 74a4baf4-d0e7-4be9-a443-4d8f6f6cee2c
 oompah.work_branch: epic-OOMPAH-460--task-OOMPAH-609
 oompah.integration:
   version: 1
-  state: integrated
-  attempts: 1
+  state: working
+  attempts: 0
   task_branch: epic-OOMPAH-460--task-OOMPAH-609
   base_branch: epic-OOMPAH-460
   base_sha: 477e91370f77dd37a8edd6091bf6d5f54559d88f
-  head_sha: 477e91370f77dd37a8edd6091bf6d5f54559d88f
-  integrated_sha: 477e91370f77dd37a8edd6091bf6d5f54559d88f
-  submitted_at: '2026-07-30T18:53:11.423170+00:00'
-  updated_at: '2026-07-30T19:03:43.886307+00:00'
+  updated_at: '2026-07-30T19:04:09.754296+00:00'
 oompah.task_costs:
   total_input_tokens: 795592
   total_output_tokens: 11768
@@ -133,19 +130,46 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-609
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 080ed3acb56e20a0a40d81e49381ae805f46437d1a330dd9f5494333e7796f9e
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-33a9c184da59
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 080ed3acb56e20a0a40d81e49381ae805f46437d1a330dd9f5494333e7796f9e
+      created_at: '2026-07-30T19:04:04.813483+00:00'
+      provider_id: prov-3c712bff
+      model: nvidia/nvidia/nemotron-3-ultra
+      started_at: '2026-07-30T19:04:04.813483+00:00'
+      branch_key: epic-OOMPAH-460--task-OOMPAH-609
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-30T19:03:45.204741+00:00'
-  attempt_history: []
+    updated_at: '2026-07-30T19:04:04.813483+00:00'
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-33a9c184da59
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 080ed3acb56e20a0a40d81e49381ae805f46437d1a330dd9f5494333e7796f9e
+    created_at: '2026-07-30T19:04:04.813483+00:00'
+    provider_id: prov-3c712bff
+    model: nvidia/nvidia/nemotron-3-ultra
+    started_at: '2026-07-30T19:04:04.813483+00:00'
+    branch_key: epic-OOMPAH-460--task-OOMPAH-609
 ---
 ## Summary
 
@@ -375,5 +399,15 @@ author: oompah
 created: 2026-07-30 19:03
 ---
 Queued for terminal transition to Done. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-07-30 19:04
+---
+Auditor dispatched (attempt #1, candidate: prov-3c712bff/nvidia/nvidia/nemotron-3-ultra)
+---
+author: oompah
+created: 2026-07-30 19:04
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
