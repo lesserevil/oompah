@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-630
 type: task
-status: Open
+status: Ready to Integrate
 priority: null
 title: Fetch rollup targets before judging child landing evidence
 parent: OOMPAH-584
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T23:37:58.090708Z'
-updated_at: '2026-07-30T23:48:48.797887Z'
+updated_at: '2026-07-30T23:49:09.143037Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-630
 target_branch: null
 review_url: null
@@ -35,12 +35,12 @@ oompah.agent_run_id: 9b79b103-3d7a-4969-8c61-03f2a0555795
 oompah.work_branch: epic-OOMPAH-584--task-OOMPAH-630
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-584--task-OOMPAH-630
-  base_branch: epic-OOMPAH-584
-  base_sha: c45e47bb3bdf8f3424357dd499010d52322bd7cc
-  updated_at: '2026-07-30T23:48:46.655989+00:00'
+  head_sha: da4476dbba2e55e966f59755ef896314302e898a
+  submitted_at: '2026-07-30T23:49:06.732147+00:00'
+  updated_at: '2026-07-30T23:49:06.732147+00:00'
 ---
 ## Summary
 
@@ -68,5 +68,10 @@ author: oompah
 created: 2026-07-30 23:48
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-30 23:49
+---
+Fixed the stale target-ref rollup race. Exact full gate: terminal mutation scan passed; 13,822 passed, 7 skipped. Focused epic strategy suite: 211 passed.
 ---
 <!-- COMMENTS:END -->
