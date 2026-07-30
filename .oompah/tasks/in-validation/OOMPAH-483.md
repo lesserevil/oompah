@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-483
 type: feature
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Detect and block terminal-state writes that bypass the coordinator
 parent: OOMPAH-459
@@ -19,7 +19,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:31.119782Z'
-updated_at: '2026-07-29T23:42:33.178524Z'
+updated_at: '2026-07-30T02:23:36.221777Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-483
 target_branch: null
 review_url: null
@@ -90,12 +90,45 @@ oompah.task_costs:
     recorded_at: '2026-07-29T18:44:37.595111+00:00'
 oompah.integration:
   version: 1
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-459--task-OOMPAH-483
-  head_sha: 96219a6812bf9246bb4fce7201591b679dfc8ce4
+  base_branch: epic-OOMPAH-459
+  base_sha: d61679dbe4d99414a6c941d425abfc3cd7109341
+  head_sha: f94236e267fecf7cf3549096665bedb79ea0d1a3
+  integrated_sha: f94236e267fecf7cf3549096665bedb79ea0d1a3
   submitted_at: '2026-07-29T23:42:30.270277+00:00'
-  updated_at: '2026-07-29T23:42:30.270277+00:00'
+  updated_at: '2026-07-30T02:23:31.848744+00:00'
+  dependency_heads:
+    OOMPAH-478: b68d7438fd5afee99b5e77688274478c748bdb3a
+    OOMPAH-482: d84ec54ce0173e8a41a93c180aa2b84dab299c88
+    OOMPAH-481: 0a7e06f144285b8d3309a9ae0aab1330aa54985f
+    OOMPAH-477: cfa5ca64f43aaa846f4ce7c153291390c5e0648c
+    OOMPAH-476: cfa5ca64f43aaa846f4ce7c153291390c5e0648c
+    OOMPAH-480: ee00485a0433381f5ec7d28647d44c93169f4ce2
+    OOMPAH-479: d61679dbe4d99414a6c941d425abfc3cd7109341
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-b060c959682e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-483
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 4c45865313510c26a772f8547ca1f776885924dc90d16c81b8d93269bdfcae94
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-30T02:23:33.044363+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -281,5 +314,10 @@ author: oompah
 created: 2026-07-29 23:42
 ---
 Rebased terminal-audit enforcement documentation onto the repaired epic base; verified clean diff and canonical attribution.
+---
+author: oompah
+created: 2026-07-30 02:23
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
