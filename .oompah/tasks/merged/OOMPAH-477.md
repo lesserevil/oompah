@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-477
 type: feature
-status: Done
+status: Merged
 priority: 1
 title: Replace the post-worker completion verifier with Done audit staging
 parent: OOMPAH-459
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:25.383734Z'
-updated_at: '2026-07-30T01:41:49.327341Z'
+updated_at: '2026-07-30T04:15:16.820286Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-477
 target_branch: null
 review_url: null
