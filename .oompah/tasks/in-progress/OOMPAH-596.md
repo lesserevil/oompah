@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:26.248587Z'
-updated_at: '2026-07-30T15:40:42.943570Z'
+updated_at: '2026-07-30T15:43:17.704823Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-596
 target_branch: null
 review_url: null
@@ -338,5 +338,25 @@ author: oompah
 created: 2026-07-30 15:40
 ---
 Focus: Auth Http Default Specialist
+---
+author: oompah
+created: 2026-07-30 15:43
+---
+UNDERSTANDING: The issue is about the integration repair lifecycle for rebase conflicts. Currently, when execute_integration() detects a conflict (status='conflict'), the integration queue marks it as 'blocked' permanently. If a repair worker exits due to recoverable infrastructure failure (task-auth 401, provider failure, sandbox issues), the conflict row stays blocked indefinitely.
+
+Key findings:
+1. integration_executor.py returns status='conflict' when rebase fails
+2. orchestrator.py _route_integration_failure() marks conflicts as 'blocked' state (non-retryable)
+3. integration_queue.py has 'ready' and 'blocked' states but no backoff/retry tracking
+4. No mechanism to distinguish infrastructure failures from real conflicts
+5. No bounded backoff or needs-human transition
+
+PLAN:
+1. Add repair attempt tracking to integration queue (attempts counter exists but needs tuning)
+2. Implement backoff logic: only retry after timeout or health check passes
+3. Add explicit 'needs_human' state for exhausted repairs
+4. Detect recoverable failures (401, provider errors) vs real conflicts
+5. Route infrastructure failures to retryable state after bounded wait
+6. Add tests for conflict + 401, provider failure, successful retry, repeated failure, restart scenarios
 ---
 <!-- COMMENTS:END -->
