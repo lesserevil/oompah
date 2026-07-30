@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-625
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Release terminal-auditor branch claims on forced termination
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T21:58:34.567478Z'
-updated_at: '2026-07-30T21:58:58.019531Z'
+updated_at: '2026-07-30T21:59:24.506204Z'
 work_branch: null
 target_branch: null
 review_url: null
