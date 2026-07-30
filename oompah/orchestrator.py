@@ -2914,11 +2914,20 @@ class Orchestrator:
 
     async def startup_cleanup(self) -> None:
         """Remove workspaces/worktrees for issues in terminal states."""
+        # Recover abandoned integrating leases from the previous service instance.
+        # This ensures an operator never waits for the hour-long lease after restart.
+        abandoned = self.integration_queue.recover_abandoned()
+        if abandoned > 0:
+            logger.info(
+                "Recovered %d abandoned integration lease(s) at startup", abandoned
+            )
+        
         projects = self.project_store.list_all()
         self._maintenance_status["startup_cleanup"] = {
             "last_run_at": datetime.now(timezone.utc).isoformat(),
             "worktree_cleanup_deferred": True,
             "delay_seconds": self.config.maintenance_startup_delay_seconds,
+            "abandoned_leases_recovered": abandoned,
         }
 
     async def _recover_restart_issues(self) -> None:
@@ -3596,6 +3605,10 @@ class Orchestrator:
         for issue_id, retry in list(self.state.retry_attempts.items()):
             if retry.timer_handle and not retry.timer_handle.cancelled():
                 retry.timer_handle.cancel()
+        # Terminate active quality gate process groups before shutdown
+        terminated = self._branch_quality_gate.cleanup_active_processes()
+        if terminated > 0:
+            logger.info("Terminated %d quality gate process group(s)", terminated)
         self._post_event(DispatchEvent(event_type=DispatchEventType.SHUTDOWN))
         await self._drain_background_work()
         logger.info("Orchestrator stopped")
@@ -4633,6 +4646,7 @@ class Orchestrator:
                     base_sha=record.base_sha,
                     priority=issue.priority,
                     submitted_at=record.submitted_at,
+                    explicit_retry=False,  # Background sync is idempotent
                 )
 
     def _integration_satisfied_dependencies(
@@ -4836,7 +4850,7 @@ class Orchestrator:
         # that this executor already pushed. A task-branch push race means a
         # worker or operator changed the private branch concurrently; require
         # a fresh explicit submission instead of guessing which head wins.
-        retryable = result.status == "epic_head_race"
+        retryable = result.status in {"epic_head_race", "interrupted"}
         self.integration_queue.fail(
             item.project_id,
             item.task_id,
@@ -4877,9 +4891,10 @@ class Orchestrator:
                     base_sha=result.expected_epic_sha or item.base_sha,
                     priority=item.priority,
                     submitted_at=item.submitted_at,
+                    explicit_retry=False,  # Automatic background retry
                 )
             logger.info(
-                "Integration race for %s will retry automatically: %s",
+                "Retryable integration interruption for %s will retry automatically: %s",
                 item.task_id,
                 result.message,
             )

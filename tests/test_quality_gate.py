@@ -5,6 +5,8 @@ import json
 import shlex
 import subprocess
 import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import MagicMock
 
 from oompah.models import Issue, Project
@@ -265,3 +267,58 @@ def test_orchestrator_rejects_checkout_that_is_not_branch_tip(tmp_path):
     orch._issue_has_children = MagicMock(return_value=False)
 
     assert orch._quality_gate_worktree(project, issue, "work") == ""
+
+
+def test_quality_gate_cleans_up_active_process_groups(tmp_path):
+    repo = _git_repo(tmp_path)
+    state = tmp_path / "quality.json"
+    gate = BranchQualityGate(str(state))
+    with BranchQualityGate._processes_lock:
+        BranchQualityGate._active_processes.clear()
+
+    try:
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(_run, gate, repo, "sleep 60")
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                with BranchQualityGate._processes_lock:
+                    if BranchQualityGate._active_processes:
+                        break
+                time.sleep(0.01)
+            else:
+                raise AssertionError("quality gate process was not tracked")
+
+            assert BranchQualityGate.cleanup_active_processes() == 1
+            result = future.result(timeout=5)
+
+        assert result.status == "interrupted"
+        assert result.cached is False
+        assert not state.exists()
+        with BranchQualityGate._processes_lock:
+            assert BranchQualityGate._active_processes == {}
+    finally:
+        BranchQualityGate.cleanup_active_processes()
+
+
+def test_quality_gate_tracks_and_removes_processes_on_completion(tmp_path):
+    repo = _git_repo(tmp_path)
+    with BranchQualityGate._processes_lock:
+        BranchQualityGate._active_processes.clear()
+    gate = BranchQualityGate(str(tmp_path / "quality.json"))
+    result = _run(gate, repo, "true")
+
+    assert result.passed
+    with BranchQualityGate._processes_lock:
+        assert BranchQualityGate._active_processes == {}
+
+
+def test_quality_gate_cleans_up_on_timeout(tmp_path):
+    repo = _git_repo(tmp_path)
+    with BranchQualityGate._processes_lock:
+        BranchQualityGate._active_processes.clear()
+    gate = BranchQualityGate(str(tmp_path / "quality.json"), timeout_seconds=1)
+    result = _run(gate, repo, "sleep 10")
+
+    assert result.status == "timed_out"
+    with BranchQualityGate._processes_lock:
+        assert BranchQualityGate._active_processes == {}

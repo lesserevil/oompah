@@ -154,6 +154,14 @@ def execute_integration(
         command=quality_command,
     )
     if not quality.passed:
+        if quality.status == "interrupted":
+            return IntegrationExecutionResult(
+                status="interrupted",
+                message="Combined-tree quality gate interrupted by service shutdown",
+                expected_epic_sha=expected_epic_sha,
+                rebased_task_sha=rebased_sha,
+                quality=quality,
+            )
         return IntegrationExecutionResult(
             status="ci_failure",
             message=(

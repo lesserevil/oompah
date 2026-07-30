@@ -2883,8 +2883,15 @@ async def _persist_worker_submission(
     return record
 
 
-def _enqueue_worker_submission(orch, project_id: str, issue, record) -> None:
-    """Mirror an epic-child submission into the durable integration queue."""
+def _enqueue_worker_submission(
+    orch, project_id: str, issue, record, *, explicit_retry: bool = True
+) -> None:
+    """Mirror an epic-child submission into the durable integration queue.
+    
+    When explicit_retry=True (default for API submissions), clears blocked state
+    to allow explicit retries. When explicit_retry=False (for background sync),
+    maintains idempotent behavior.
+    """
 
     if not getattr(orch.config, "parallel_epic_children_enabled", False):
         return
@@ -2904,6 +2911,7 @@ def _enqueue_worker_submission(orch, project_id: str, issue, record) -> None:
         base_sha=record.base_sha,
         priority=getattr(issue, "priority", None),
         submitted_at=record.submitted_at,
+        explicit_retry=explicit_retry,
     )
 
 
