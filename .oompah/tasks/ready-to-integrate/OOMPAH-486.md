@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-486
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Add terminal-audit metrics, maintenance health, and actionable alerts
 parent: OOMPAH-460
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:25.195304Z'
-updated_at: '2026-07-30T05:13:29.825998Z'
+updated_at: '2026-07-30T05:13:57.868122Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-486
 target_branch: null
 review_url: null
@@ -95,12 +95,12 @@ oompah.task_costs:
     recorded_at: '2026-07-29T20:13:46.249012+00:00'
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-460--task-OOMPAH-486
-  base_branch: epic-OOMPAH-460
-  base_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
-  updated_at: '2026-07-30T04:57:16.556178+00:00'
+  head_sha: 254d2454813ffa07ed895cbf3548b227b94fd04c
+  submitted_at: '2026-07-30T05:13:55.712465+00:00'
+  updated_at: '2026-07-30T05:13:55.712465+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-486__20260729T195540Z
@@ -352,5 +352,10 @@ author: oompah
 created: 2026-07-30 05:13
 ---
 Rebase conflict resolved: Epic branch added top-level 'audits' key at the same snapshot location where this branch adds 'terminal_audit'. Resolved by keeping both keys — 'audits' for legacy _audit_metrics compatibility, 'terminal_audit' for the stable API consumer shape. All 122 focused tests pass (9 observability, 104 coordinator, 9 status interfaces). Branch rebased onto epic-OOMPAH-460 at 12f63352b and force-pushed.
+---
+author: oompah
+created: 2026-07-30 05:13
+---
+Rebased onto epic-OOMPAH-460 (12f63352b), resolved orchestrator.py snapshot conflict (kept both 'audits' and 'terminal_audit' top-level keys), all 122 focused tests pass (9 observability, 104 coordinator, 9 status interfaces). Dashboard audit throughput stat, TerminalAuditMetrics, TerminalAuditAlertRegistry, and orchestrator integration complete.
 ---
 <!-- COMMENTS:END -->
