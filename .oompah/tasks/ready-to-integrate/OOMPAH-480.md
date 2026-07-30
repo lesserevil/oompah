@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-480
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Route release-delivery and release-pick terminal updates through audits
 parent: OOMPAH-459
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:28.235708Z'
-updated_at: '2026-07-30T00:30:25.859029Z'
+updated_at: '2026-07-30T00:30:55.847109Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-480
 target_branch: null
 review_url: null
@@ -86,48 +86,12 @@ oompah.task_costs:
     recorded_at: '2026-07-29T23:19:40.993325+00:00'
 oompah.integration:
   version: 1
-  state: blocked
-  attempts: 1
+  state: ready
+  attempts: 0
   task_branch: epic-OOMPAH-459--task-OOMPAH-480
-  base_branch: epic-OOMPAH-459
-  base_sha: bd5f23f53161c8b2722f445d9c62c7f39cf61d98
   head_sha: ee00485a0433381f5ec7d28647d44c93169f4ce2
-  submitted_at: '2026-07-29T23:47:39.496059+00:00'
-  updated_at: '2026-07-30T00:28:43.052048+00:00'
-  last_error: "Combined-tree quality gate failed:  content.\n    headers, stream =\
-    \ encode_request(\n\ntests/test_work_contributors.py::TestBuildWorkContributorRecord::test_cli_worker_gives_none_model_id\n\
-    \  /home/shedwards/.oompah/worktrees/oompah/OOMPAH-480/.venv/lib/python3.12/site-packages/_pytest/unraisableexception.py:67:\
-    \ PytestUnraisableExceptionWarning: Exception ignored in: <function BaseSubprocessTransport.__del__\
-    \ at 0x7c5b1ad2b600>\n  \n  Traceback (most recent call last):\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
-    , line 126, in __del__\n      self.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
-    , line 104, in close\n      proto.pipe.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 568, in close\n      self._close(None)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 592, in _close\n      self._loop.call_soon(self._call_connection_lost,\
-    \ exc)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 799, in call_soon\n      self._check_closed()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 545, in _check_closed\n      raise RuntimeError('Event loop is closed')\n\
-    \  RuntimeError: Event loop is closed\n  \n  Enable tracemalloc to get traceback\
-    \ where the object was allocated.\n  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
-    \ for more info.\n    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))\n\
-    \ntests/test_work_contributors.py::TestFireWorkContributorRecord::test_submits_to_thread_pool\n\
-    \  /home/shedwards/.oompah/worktrees/oompah/OOMPAH-480/.venv/lib/python3.12/site-packages/_pytest/unraisableexception.py:67:\
-    \ PytestUnraisableExceptionWarning: Exception ignored in: <function BaseSubprocessTransport.__del__\
-    \ at 0x721f4dfef600>\n  \n  Traceback (most recent call last):\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
-    , line 126, in __del__\n      self.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
-    , line 104, in close\n      proto.pipe.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 568, in close\n      self._close(None)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 592, in _close\n      self._loop.call_soon(self._call_connection_lost,\
-    \ exc)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 799, in call_soon\n      self._check_closed()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 545, in _check_closed\n      raise RuntimeError('Event loop is closed')\n\
-    \  RuntimeError: Event loop is closed\n  \n  Enable tracemalloc to get traceback\
-    \ where the object was allocated.\n  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
-    \ for more info.\n    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))\n\
-    \n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n===========================\
-    \ short test summary info ============================\nFAILED tests/test_project_locks.py::TestResetOrphanedInProgressUsesProjectLock::test_orphan_resets_for_different_projects_are_independent\n\
-    ===== 1 failed, 13624 passed, 7 skipped, 40 warnings in 256.33s (0:04:16) ======\n\
-    make[1]: Leaving directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-480'\n\
-    \nmake[1]: *** [Makefile:224: test] Error 1\n"
+  submitted_at: '2026-07-30T00:30:53.890942+00:00'
+  updated_at: '2026-07-30T00:30:53.890942+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-480__20260729T182912Z
@@ -501,5 +465,10 @@ author: oompah
 created: 2026-07-30 00:30
 ---
 The combined-tree gate's sole failure was a transient project-lock concurrency test after 13,624 passes. The exact failing test passed five consecutive focused reruns. Reconciled the clean managed epic worktree to the verified rebased origin/epic-OOMPAH-459 tip 65df7489f; the task branch remains at pushed rebased head ee00485a0. Rearming integration on that current head.
+---
+author: oompah
+created: 2026-07-30 00:30
+---
+Rearmed after confirming the sole combined-tree failure was transient; exact failing test passed five consecutive reruns, epic worktree reconciled to 65df7489f, task head ee00485a0 remains pushed.
 ---
 <!-- COMMENTS:END -->
