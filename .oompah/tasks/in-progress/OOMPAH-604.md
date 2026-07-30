@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T17:07:44.032640Z'
-updated_at: '2026-07-30T17:14:58.724848Z'
+updated_at: '2026-07-30T17:15:20.390494Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-604
 target_branch: null
 review_url: null
@@ -170,5 +170,10 @@ author: oompah
 created: 2026-07-30 17:14
 ---
 Focus: Auth Http Default Specialist
+---
+author: oompah
+created: 2026-07-30 17:15
+---
+UNDERSTANDING: The issue is that TerminalTransitionCoordinator._override_transition_locked currently rejects owner overrides whenever ANY historical pending-chain record has a different EvidenceFingerprint, even if the CURRENT active record matches. The fix should evaluate only the current active audit record's fingerprint. This blocks OOMPAH-589 (which has multiple Done audit records after reintegration) from accepting valid overrides. I need to: (1) locate and understand the buggy code, (2) identify how to select the current/active record, (3) change the fingerprint check to use only that record, (4) add regression tests, and (5) verify all existing tests still pass.
 ---
 <!-- COMMENTS:END -->
