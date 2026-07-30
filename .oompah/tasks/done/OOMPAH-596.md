@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:26.248587Z'
-updated_at: '2026-07-30T18:20:53.166227Z'
+updated_at: '2026-07-30T18:21:04.178095Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-596
 target_branch: null
 review_url: null
@@ -113,8 +113,8 @@ oompah.integration:
   base_sha: da86acf64b292122653b68f7bfaa71775111f237
   updated_at: '2026-07-30T18:18:20.958213+00:00'
 oompah.task_costs:
-  total_input_tokens: 160879
-  total_output_tokens: 41872
+  total_input_tokens: 1830447
+  total_output_tokens: 44513
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -124,6 +124,10 @@ oompah.task_costs:
     opus:
       input_tokens: 58271
       output_tokens: 2907
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 1669568
+      output_tokens: 2641
       cost_usd: 0.0
   runs:
   - profile: default
@@ -162,6 +166,12 @@ oompah.task_costs:
     output_tokens: 2077
     cost_usd: 0.0
     recorded_at: '2026-07-30T16:11:57.697368+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 1669568
+    output_tokens: 2641
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T18:21:02.642429+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-596__20260730T153052Z
@@ -905,5 +915,15 @@ created: 2026-07-30 18:20
 Audit PASS — Done
 
 [REDACTED]
+---
+author: oompah
+created: 2026-07-30 18:21
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> InferenceAPI/nvidia/nvidia/nemotron-3-ultra]
+- Turns: 11, Tool calls: 11
+- Tokens: 1.7M in / 2.6K out [1.7M total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 46s
+- Log: OOMPAH-596__20260730T181824Z.jsonl
 ---
 <!-- COMMENTS:END -->
