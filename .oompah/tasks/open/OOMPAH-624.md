@@ -1,17 +1,19 @@
 ---
 id: OOMPAH-624
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Bind owner authorization to the authenticated server principal
 parent: OOMPAH-619
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- focus-complete:frontend
+- needs:security
 assignee: null
 created_at: '2026-07-30T21:37:57.526368Z'
-updated_at: '2026-07-30T21:39:59.502669Z'
+updated_at: '2026-07-30T21:41:05.677922Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-624
 target_branch: null
 review_url: null
@@ -140,5 +142,25 @@ author: oompah
 created: 2026-07-30 21:39
 ---
 **Understanding**: This issue requires fixing the authentication/authorization boundary for task mutations. The server currently accepts client-supplied actor_login independently of HTTP authentication, allowing owner spoofing and forcing authenticated owners to use --actor. Core work involves: (1) exposing authenticated principal from auth middleware, (2) deriving authorization actor from trusted identity, (3) implementing username-to-actor mapping, (4) removing redundant --actor in CLIs, (5) comprehensive authorization tests. However, I notice this is categorized as 'Frontend Developer' role. This appears to be backend/security work affecting server auth middleware, API handlers, and CLI tools - not user-facing UI. I'm exploring the codebase to determine if there's a frontend component or if I should handoff to a backend/security specialist.
+---
+author: oompah
+created: 2026-07-30 21:40
+---
+**Focus handoff: frontend** -- This is a backend/security issue that does not involve frontend UI work. After exploring the codebase, the required changes are:
+
+**Changes needed:**
+1. oompah/http_auth.py - Already has credential loading; needs to expose authenticated principal
+2. oompah/server.py - FastAPI app needs middleware to expose authenticated principal to request handlers  
+3. oompah/task_cli.py - Remove/deprecate redundant --actor flag when authenticated principal matches
+4. oompah/admin_cli.py - Similar CLI changes
+5. oompah/transition_gate.py - Use authenticated principal instead of actor_login for authorization
+6. oompah/intake_actions.py - Same
+
+**Frontend finding:**
+- src/components/Dashboard.tsx is a stub ("useEffect cleanup" only)
+- No UI components need changes for this security boundary fix
+- Authorization is checked server-side, not displayed to user
+
+**Recommended next focus:** backend/security specialist to implement authenticated principal exposure, username-to-actor mapping, and authorization refactoring. The orchestrator can dispatch immediately.
 ---
 <!-- COMMENTS:END -->
