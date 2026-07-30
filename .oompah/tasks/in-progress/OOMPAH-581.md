@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:35:07.041991Z'
-updated_at: '2026-07-30T04:46:52.645217Z'
+updated_at: '2026-07-30T04:47:27.778454Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -189,5 +189,10 @@ author: oompah
 created: 2026-07-30 04:46
 ---
 Implementation: Added _cleanup_epic_repair_workspace_locked() to ProjectStore in oompah/projects.py (line 2624). This method is called only for terminal epic records from cleanup_terminal_issue() when is_epic=True. It enforces four sequential guards before removing: (1) repair path is exact managed registered worktree via worktree_path_for(); (2) exact same-identifier branch <id> (not epic-<id>) is checked out via git symbolic-ref; (3) worktree is clean via git status --porcelain; (4) branch head is ancestor of origin/<default_branch> via git merge-base --is-ancestor. All four guards must pass or the method returns False and leaves everything intact. Added 7 tests in TestEpicRepairWorkspaceCleanup: happy path (real bare-remote with both epic worktree and repair worktree), dirty preserved, unmerged preserved, shared-branch preserved, different-identifier preserved, unregistered-directory skipped, non-epic call skips repair path.
+---
+author: oompah
+created: 2026-07-30 04:47
+---
+Verification: 117 tests pass (test_projects.py: 94, test_storage_cleanup.py + test_workspace.py: 23). 7 new tests in TestEpicRepairWorkspaceCleanup all pass: happy path real bare-remote scenario, dirty preserved, unmerged preserved, shared branch preserved, different-identifier preserved, unregistered dir skipped, non-epic no-op. Existing 87 tests unchanged and green. Branch OOMPAH-581 pushed to origin at 741a7d88b.
 ---
 <!-- COMMENTS:END -->
