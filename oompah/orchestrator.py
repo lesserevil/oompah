@@ -81,6 +81,9 @@ from oompah.models import (
     AgentProfile,
     AgentTotals,
     BlockerRef,
+    EPIC_AUDIT_REPAIR_LABEL,
+    EPIC_AUDIT_REPAIR_METADATA_KEY,
+    EPIC_AUDIT_REPAIR_METADATA_VERSION,
     EPIC_INDEPENDENTLY_MERGED_LABEL,
     EpicRebaseState,
     EpicRebaseStateEntry,
@@ -109,6 +112,7 @@ from oompah.statuses import (
     OPEN,
     PROPOSED,
     READY_TO_INTEGRATE,
+    TERMINAL_STATUSES,
     canonicalize_status,
     epic_rollup_state,
     is_dispatchable_status,
@@ -136,6 +140,7 @@ from oompah.terminal_transition_coordinator import (
     TerminalTransitionCoordinator,
     TransitionResult,
 )
+from oompah.archived_audit_requests import request_archived_audit
 from oompah.task_handoff import (
     TASK_HANDOFF_PROJECT_ENV,
     TASK_HANDOFF_TOKEN_ENV,
@@ -1026,8 +1031,6 @@ class Orchestrator:
         # bad verifier prompt or pathological case can't pin an issue
         # forever. Keyed by issue.id (not identifier — id is the stable
         # primary key across reopen).
-        self._verifier_reject_counts: dict[str, int] = {}
-
         # Pending agent-profile swap (oompah-zlz_2-mif). When the API-path
         # AgentProfileStore writes a profile, it queues a fresh list here
         # via :meth:`replace_agent_profiles`. The next ``_tick()`` applies
@@ -2476,6 +2479,83 @@ class Orchestrator:
             project_id=str(effective_project_id),
             evidence_fingerprint=evidence_fingerprint,
         )
+
+    def _request_terminal_transition_from_maintenance(self, **kwargs: Any):
+        """Bridge a synchronous maintenance observation to terminal auditing.
+
+        Release reconciliation runs in the maintenance worker, while the
+        coordinator's per-project async locks belong to the dispatch loop.
+        Submitting the request back to that loop preserves its serialization
+        guarantees; the ``asyncio.run`` fallback keeps standalone synchronous
+        maintenance calls (including focused tests) usable before ``run()``
+        owns a loop.
+        """
+        request = self.terminal_transition_coordinator.request_transition(**kwargs)
+        if not asyncio.iscoroutine(request):
+            return request
+
+        loop = self._dispatch_loop
+        if loop is not None and loop.is_running():
+            if self._running_loop() is loop:
+                raise RuntimeError(
+                    "synchronous maintenance cannot block the dispatch loop for "
+                    "a terminal transition"
+                )
+            return asyncio.run_coroutine_threadsafe(request, loop).result()
+        return asyncio.run(request)
+
+    def _request_merged_via_coordinator(
+        self,
+        issue: Issue,
+        project_id: str,
+        trigger_identity: str = "merge-reconciliation",
+        trigger_source: str = "oompah",
+        evidence_fingerprint: EvidenceFingerprint | None = None,
+    ) -> TransitionResult | None:
+        """Request a Merged transition through the terminal coordinator (sync wrapper).
+
+        Wraps the async request_terminal_transition for use in sync reconciliation
+        methods. Returns None on failure rather than raising, for best-effort
+        reconciliation semantics.
+        """
+        try:
+            issue.project_id = project_id
+            if evidence_fingerprint is None:
+                # Auto-compute fingerprint from issue fields
+                contributors = getattr(issue, "contributors", ()) or ()
+                if isinstance(contributors, str):
+                    contributors = (contributors,)
+                evidence_fingerprint = compute_evidence_fingerprint(
+                    requirements_text=str(issue.description or ""),
+                    project_id=str(project_id),
+                    task_id=str(issue.identifier),
+                    source_branch=str(
+                        getattr(issue, "source_branch", None)
+                        or issue.work_branch
+                        or issue.branch_name
+                        or ""
+                    ),
+                    target_branch=str(issue.target_branch or ""),
+                    review_id=str(issue.review_number or ""),
+                    review_state=str(getattr(issue, "review_state", "") or ""),
+                    contributors=contributors,
+                )
+            return asyncio.run(
+                self.request_terminal_transition(
+                    current_issue=issue,
+                    requested_target=TargetState.MERGED,
+                    trigger_identity=ContributorIdentity(trigger_identity, trigger_source),
+                    project_id=project_id,
+                    evidence_fingerprint=evidence_fingerprint,
+                )
+            )
+        except Exception as exc:  # noqa: BLE001 - best-effort reconciliation
+            logger.debug(
+                "Failed to request Merged via coordinator for %s: %s",
+                issue.identifier,
+                exc,
+            )
+            return None
 
     def _tracker_for_issue(self, issue: Issue) -> TrackerProtocol:
         """Get the appropriate tracker for an issue."""
@@ -4508,13 +4588,21 @@ class Orchestrator:
         timings["normal_dispatch"] = (time.monotonic() - _t_dispatch) * 1000
         metrics["dispatched_count"] = dispatched
 
-        # 7. Epic planning — plan open epics without children
+        # 7. Epic planning — plan open epics without children (or repair epics)
         _t_epic = time.monotonic()
         epics_to_plan = await _timed("plan_open_epics", self._plan_open_epics, candidates)
         planned = 0
         for epic in epics_to_plan:
             if self._available_slots() <= 0:
                 break
+            # For audit-repair epics, claim the repair in tracker metadata
+            # before dispatch so a restart cannot produce a duplicate run.
+            issue_labels = {str(lbl).lower() for lbl in (epic.labels or [])}
+            if EPIC_AUDIT_REPAIR_LABEL.lower() in issue_labels:
+                await asyncio.get_event_loop().run_in_executor(
+                    self._tick_pool,
+                    lambda _e=epic: self._claim_epic_audit_repair(_e),
+                )
             await self._dispatch(epic, attempt=None)
             planned += 1
         timings["epic_planning"] = (time.monotonic() - _t_epic) * 1000
@@ -6512,6 +6600,15 @@ class Orchestrator:
     def _reconcile_epic_rollup_statuses(self, epics: list[Issue]) -> int:
         """Persist each epic's tracker status from its children's states.
 
+        Terminal state transitions (Done, Merged, Archived) are routed through
+        the terminal-transition coordinator to ensure proper audit chains.
+        Nonterminal states (Open, In Progress, etc.) continue to be persisted
+        directly.
+
+        In Validation children count as nonterminal and block rollup to a
+        terminal parent state. Reconciliation is skipped if the epic is
+        already In Validation or has the audit:repair-needed label.
+
         The dashboard derives epic state from child issue state at render time,
         but the tracker itself also needs that status label so GitHub issues do
         not show stale Backlog/Open values while their children are active or
@@ -6522,12 +6619,33 @@ class Orchestrator:
             if canonicalize_status(epic.state) in {MERGED, ARCHIVED}:
                 continue
 
+            # Skip if epic is already in audit/repair flow
+            current_status = canonicalize_status(epic.state)
+            if current_status == IN_VALIDATION:
+                logger.debug(
+                    "Skipping rollup reconciliation for epic %s in In Validation",
+                    epic.identifier,
+                )
+                continue
+            labels = {str(label).strip().lower() for label in epic.labels or []}
+            if "audit:repair-needed" in labels:
+                logger.debug(
+                    "Skipping rollup reconciliation for epic %s with audit:repair-needed",
+                    epic.identifier,
+                )
+                continue
+
             children = self._fetch_epic_children(epic)
             if not children:
                 continue
 
-            current_status = canonicalize_status(epic.state)
-            labels = {str(label).strip().lower() for label in epic.labels or []}
+            # Check if any children are In Validation — if so, block terminal
+            # state rollup since In Validation children are nonterminal.
+            child_in_validation = any(
+                canonicalize_status(child.state) == IN_VALIDATION
+                for child in children
+            )
+
             has_review_evidence = bool(
                 current_status in {IN_REVIEW, NEEDS_CI_FIX, NEEDS_REBASE}
                 or getattr(epic, "review_url", None)
@@ -6580,6 +6698,18 @@ class Orchestrator:
             ):
                 rolled = IN_REVIEW
                 rolled_status = IN_REVIEW
+
+            # Block terminal state rollup if any child is In Validation
+            if child_in_validation and rolled_status in TERMINAL_STATUSES:
+                logger.debug(
+                    "Blocking terminal rollup to %s for epic %s: "
+                    "at least one child is In Validation",
+                    rolled_status,
+                    epic.identifier,
+                )
+                rolled = None
+                rolled_status = None
+
             if (
                 not rolled
                 or rolled_status == current_status
@@ -6622,8 +6752,17 @@ class Orchestrator:
                         epic.identifier,
                     )
                     continue
-                tracker.update_issue(epic.identifier, status=rolled)
-                epic.state = rolled
+
+                # Route terminal states through the coordinator; update
+                # nonterminal states directly.
+                if rolled_status in TERMINAL_STATUSES:
+                    self._request_epic_terminal_rollup(epic, rolled_status)
+                    # Coordinator will stage the transition and move epic to
+                    # In Validation. Don't update epic.state locally since the
+                    # coordinator manages it from here.
+                else:
+                    tracker.update_issue(epic.identifier, status=rolled)
+                    epic.state = rolled
                 updated += 1
                 logger.info(
                     "Reconciled epic %s status to %s from %d child issue(s)",
@@ -6639,6 +6778,96 @@ class Orchestrator:
                     exc,
                 )
         return updated
+
+    def _request_epic_terminal_rollup(self, epic: Issue, target_state: str) -> None:
+        """Request terminal transition for an epic via the coordinator.
+
+        Calls the async coordinator from a sync context using the event
+        loop's run_coroutine_threadsafe. This ensures proper audit chains
+        and validation before the epic is moved to a terminal state.
+
+        When the event loop is not available (e.g., in tests or during
+        startup), this method is a no-op and the epic state is not changed.
+        This ensures that terminal transitions are audited and not silently
+        skipped.
+
+        Parameters
+        ----------
+        epic:
+            The epic issue to transition.
+        target_state:
+            The requested terminal state (DONE, MERGED, or ARCHIVED).
+
+        Raises:
+            Logs and continues on any error; this is best-effort maintenance.
+        """
+        try:
+            loop = self._dispatch_loop
+            if loop is None or not loop.is_running():
+                logger.debug(
+                    "Deferring terminal transition for epic %s to %s: "
+                    "event loop not available (will retry on next tick)",
+                    epic.identifier,
+                    target_state,
+                )
+                return
+
+            # Build evidence fingerprint from epic state
+            contributors = getattr(epic, "contributors", ()) or ()
+            if isinstance(contributors, str):
+                contributors = (contributors,)
+            fingerprint = compute_evidence_fingerprint(
+                requirements_text=str(epic.description or ""),
+                project_id=str(epic.project_id or ""),
+                task_id=str(epic.identifier),
+                source_branch=str(
+                    getattr(epic, "source_branch", None)
+                    or epic.work_branch
+                    or epic.branch_name
+                    or ""
+                ),
+                target_branch=str(epic.target_branch or ""),
+                review_id=str(epic.review_number or ""),
+                review_state=str(getattr(epic, "review_state", "") or ""),
+                contributors=contributors,
+            )
+
+            # Request the transition through the coordinator
+            future = asyncio.run_coroutine_threadsafe(
+                self.terminal_transition_coordinator.request_transition(
+                    current_issue=epic,
+                    requested_target=TargetState.from_raw(target_state),
+                    trigger_identity=ContributorIdentity("orchestrator"),
+                    project_id=str(epic.project_id or ""),
+                    evidence_fingerprint=fingerprint,
+                ),
+                loop,
+            )
+            # Wait for the result with a timeout
+            result = future.result(timeout=10.0)
+            logger.info(
+                "Requested terminal transition for epic %s to %s: success=%s",
+                epic.identifier,
+                target_state,
+                result.success if result else False,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "Failed to request terminal transition for epic %s to %s: %s",
+                epic.identifier,
+                target_state,
+                exc,
+            )
+
+    def _terminal_status_for_tracker(self, tracker: TrackerProtocol) -> str:
+        """Return the first configured terminal state for a tracker.
+
+        Defaults to DONE if no explicit terminal states are configured.
+        """
+        terminal_states = getattr(tracker, "terminal_states", None)
+        if terminal_states:
+            return terminal_states[0]
+        return DONE
 
     def _project_max_in_flight(self, project_id: str | None) -> int:
         """Return the configured in-flight PR limit for a project.
@@ -6762,7 +6991,8 @@ class Orchestrator:
 
         An epic is dispatchable for planning when:
         - It is in an active state (open)
-        - It has no existing children (hasn't been planned yet)
+        - It has no existing children (hasn't been planned yet), OR it carries
+          the ``audit:repair-needed`` label and no repair run has been claimed
         - It is not already running, claimed, retrying, or completed
         - Standard guards (paused, budget, slots) pass
         """
@@ -6800,11 +7030,98 @@ class Orchestrator:
             return False
         if not self._check_budget():
             return False
-        # Check if epic already has children — if so, it's already been planned
+        # Check if the epic has the audit:repair-needed label.
+        # If so, dispatch is allowed even when children exist (exactly one
+        # repair-planner run), but only when no repair run has been claimed
+        # for the current audit_id.
+        issue_labels = {str(lbl).lower() for lbl in (issue.labels or [])}
+        if EPIC_AUDIT_REPAIR_LABEL.lower() in issue_labels:
+            return not self._epic_audit_repair_claimed(issue)
+        # Without the repair label, only dispatch when no children exist.
         children = self._fetch_epic_children(issue)
         if children:
             return False
         return True
+
+    def _epic_audit_repair_claimed(self, epic: Issue) -> bool:
+        """Return True when a repair run for this epic has already been claimed.
+
+        Reads the ``oompah.epic_audit_repair`` metadata field from the tracker
+        and checks whether the ``claimed`` flag is set.  Returns ``False`` on
+        any read error so the orchestrator can optimistically proceed.
+        """
+        try:
+            tracker = self._tracker_for_issue(epic)
+            raw_meta = tracker.get_metadata(epic.identifier)
+        except Exception as exc:
+            logger.debug(
+                "Could not read repair metadata for epic %s: %s",
+                epic.identifier,
+                exc,
+            )
+            return False
+        doc = (raw_meta or {}).get(EPIC_AUDIT_REPAIR_METADATA_KEY)
+        if not isinstance(doc, dict):
+            return False
+        return bool(doc.get("claimed"))
+
+    def _claim_epic_audit_repair(self, epic: Issue) -> str | None:
+        """Mark the epic's audit-repair metadata as claimed and return the audit ID.
+
+        Called just before dispatching a repair-planner run to prevent duplicate
+        dispatch on restart.  Returns the audit ID from the persisted context,
+        or ``None`` if the metadata is absent or unreadable.  Tracker write
+        failures are logged and swallowed — the repair dispatch must not be
+        blocked by a metadata write error.
+        """
+        try:
+            tracker = self._tracker_for_issue(epic)
+            raw_meta = tracker.get_metadata(epic.identifier)
+        except Exception as exc:
+            logger.debug(
+                "Could not read repair metadata before claiming epic %s: %s",
+                epic.identifier,
+                exc,
+            )
+            return None
+        doc = (raw_meta or {}).get(EPIC_AUDIT_REPAIR_METADATA_KEY)
+        if not isinstance(doc, dict):
+            return None
+        audit_id = doc.get("audit_id") or None
+        claimed_doc = dict(doc)
+        claimed_doc["claimed"] = True
+        try:
+            tracker.set_metadata_field(
+                epic.identifier, EPIC_AUDIT_REPAIR_METADATA_KEY, claimed_doc
+            )
+        except Exception as exc:
+            logger.warning(
+                "Failed to claim audit-repair metadata for epic %s: %s",
+                epic.identifier,
+                exc,
+            )
+        return audit_id if isinstance(audit_id, str) else None
+
+    def _get_epic_audit_repair_context(self, epic: Issue) -> dict | None:
+        """Return the persisted audit-repair context for *epic*, or ``None``.
+
+        Used by the prompt renderer to inject the failed-audit findings into
+        the repair-planner prompt.
+        """
+        try:
+            tracker = self._tracker_for_issue(epic)
+            raw_meta = tracker.get_metadata(epic.identifier)
+        except Exception as exc:
+            logger.debug(
+                "Could not read repair context for epic %s: %s",
+                epic.identifier,
+                exc,
+            )
+            return None
+        doc = (raw_meta or {}).get(EPIC_AUDIT_REPAIR_METADATA_KEY)
+        if not isinstance(doc, dict):
+            return None
+        return doc
 
     def _fetch_epic_children(self, epic: Issue) -> list[Issue]:
         """Fetch existing child issues for an epic.
@@ -8064,15 +8381,33 @@ class Orchestrator:
             self._clear_stuck_epic_alert(epic.identifier)
             return False
 
-        # All conditions hold — close + comment.
+        # All conditions hold — request close via coordinator.
+        # close_issue typically moves to the first terminal state (Done/Merged).
+        # We route this through the coordinator to ensure proper audit chains.
         reason = (
             f"Auto-closed: all {len(children)} children closed and merged "
             f"to {expected_child_target}.\n"
             f"Children: " + ", ".join(merged_summaries)
         )
         try:
+            # Determine the target terminal state (typically DONE or MERGED)
             tracker = self._tracker_for_issue(epic)
-            tracker.close_issue(epic.identifier, reason=reason)
+            terminal_state = self._terminal_status_for_tracker(tracker)
+
+            # Route through coordinator for terminal transitions
+            self._request_epic_terminal_rollup(epic, terminal_state)
+
+            # Also post the reason comment directly (not routed through coordinator)
+            if reason:
+                try:
+                    tracker.append_comment(epic.identifier, reason)
+                except Exception as exc:
+                    logger.debug(
+                        "Failed to append auto-close reason comment to %s: %s",
+                        epic.identifier,
+                        exc,
+                    )
+
             self._clear_stuck_epic_alert(epic.identifier)
             logger.info(
                 "Auto-closed epic %s — all %d children closed and merged to %s",
@@ -8390,7 +8725,10 @@ class Orchestrator:
     def _plan_open_epics(self, candidates: list[Issue]) -> list[Issue]:
         """Identify open epics that need planning and return them for dispatch.
 
-        An epic needs planning if it's in an active state and has no children.
+        An epic needs planning if it is in an active state and either:
+        - Has no existing children (initial planning run), or
+        - Has the ``audit:repair-needed`` label and no repair run has been
+          claimed yet (audit-repair run).
         """
         epics_to_plan: list[Issue] = []
         for issue in candidates:
@@ -8921,7 +9259,12 @@ class Orchestrator:
                 next_status = OPEN
                 reason = "no matching work found on epic review branch"
             try:
-                tracker.update_issue(child.identifier, status=next_status)
+                # Route terminal transitions (MERGED) through the coordinator;
+                # nonterminal updates (OPEN) use direct update.
+                if canonicalize_status(next_status) in TERMINAL_STATUSES:
+                    self._request_epic_terminal_rollup(child, next_status)
+                else:
+                    tracker.update_issue(child.identifier, status=next_status)
                 child.state = next_status
                 moved += 1
                 logger.info(
@@ -10593,6 +10936,9 @@ class Orchestrator:
                         else contextlib.nullcontext()
                     )
                     with _lock_ctx:
+                        # TERMINAL-AUDIT-ALLOW OOMPAH-483: reassert Done only
+                        # for an issue already present in the completed set.
+                        # The enforcement sweep still verifies audit metadata.
                         tracker.update_issue(issue.identifier, status=DONE)
                     logger.info(
                         "Preserved completed issue %s as Done during orphan reset",
@@ -11483,6 +11829,9 @@ class Orchestrator:
         if project_id:
             try:
                 tracker = self._tracker_for_project(project_id)
+                # TERMINAL-AUDIT-ALLOW OOMPAH-483: compatibility write for a
+                # completed branch whose review is deferred solely by the
+                # project review-capacity limit.
                 tracker.update_issue(entry.identifier, status=DONE)
             except Exception as exc:
                 logger.warning(
@@ -11671,34 +12020,44 @@ class Orchestrator:
                         rollup_strategy=rollup_strategy,
                     )
                 ):
-                    try:
-                        tracker.update_issue(issue.identifier, status=MERGED)
+                    result = self._request_merged_via_coordinator(
+                        issue,
+                        project_id,
+                        trigger_identity="done-review-reconciliation",
+                        trigger_source="oompah",
+                    )
+                    if result is None or not result.success:
+                        logger.debug(
+                            "Failed to stage Merged transition for %s: %s",
+                            issue.identifier,
+                            result.reason if result else "coordinator error",
+                        )
+                    else:
                         logger.info(
-                            "Marked Done task %s Merged: branch %s has merged",
+                            "Staged %s as Merged via coordinator: branch %s has merged",
                             issue.identifier,
                             branch,
                         )
-                    except TrackerError as exc:
-                        logger.debug(
-                            "Failed to mark merged Done task %s merged: %s",
-                            issue.identifier,
-                            exc,
-                        )
                     continue
                 if self._done_issue_branch_tip_landed(issue, project, project_id):
-                    try:
-                        tracker.update_issue(issue.identifier, status=MERGED)
+                    result = self._request_merged_via_coordinator(
+                        issue,
+                        project_id,
+                        trigger_identity="done-review-reconciliation",
+                        trigger_source="oompah",
+                    )
+                    if result is None or not result.success:
+                        logger.debug(
+                            "Failed to stage Merged transition for %s: %s",
+                            issue.identifier,
+                            result.reason if result else "coordinator error",
+                        )
+                    else:
                         logger.info(
-                            "Marked Done task %s Merged: branch %s is already "
-                            "contained in its target",
+                            "Staged %s as Merged via coordinator: branch %s is already contained "
+                            "in its target",
                             issue.identifier,
                             self._branch_for_issue(issue, project),
-                        )
-                    except TrackerError as exc:
-                        logger.debug(
-                            "Failed to mark landed Done task %s merged: %s",
-                            issue.identifier,
-                            exc,
                         )
                     continue
                 if not self._done_issue_has_unmerged_review_work(
@@ -12109,16 +12468,23 @@ class Orchestrator:
                             branch,
                         )
                         continue
-                    try:
-                        tracker.update_issue(issue.identifier, status=MERGED)
+                    result = self._request_merged_via_coordinator(
+                        issue,
+                        project_id,
+                        trigger_identity="merged-label-maintenance",
+                        trigger_source="oompah",
+                    )
+                    if result is None or not result.success:
+                        logger.debug(
+                            "Failed to stage Merged transition for %s: %s",
+                            issue.identifier,
+                            result.reason if result else "coordinator error",
+                        )
+                    else:
                         logger.info(
-                            "Marked %s as Merged (branch %s)",
+                            "Staged %s as Merged via coordinator (branch %s)",
                             issue.identifier,
                             branch,
-                        )
-                    except TrackerError as exc:
-                        logger.debug(
-                            "Failed to label %s as merged: %s", issue.identifier, exc
                         )
 
     def _reconcile_in_review_pr_outcomes(self) -> None:
@@ -12867,19 +13233,25 @@ class Orchestrator:
         issue: Issue,
         branch: str,
     ) -> None:
-        try:
-            tracker.update_issue(issue.identifier, status=MERGED)
+        project_id = getattr(issue, "project_id", None) or ""
+        result = self._request_merged_via_coordinator(
+            issue,
+            project_id,
+            trigger_identity="stale-in-review-reconciliation",
+            trigger_source="oompah",
+        )
+        if result is None or not result.success:
+            logger.debug(
+                "Failed to stage Merged transition for %s: %s",
+                issue.identifier,
+                result.reason if result else "coordinator error",
+            )
+        else:
             logger.info(
-                "Marked %s as Merged during stale In Review reconciliation "
+                "Staged %s as Merged via coordinator during stale In Review reconciliation "
                 "(branch %s)",
                 issue.identifier,
                 branch,
-            )
-        except TrackerError as exc:
-            logger.debug(
-                "Failed to mark stale In Review task %s merged: %s",
-                issue.identifier,
-                exc,
             )
 
     def _mark_stale_in_review_done(
@@ -12895,6 +13267,8 @@ class Orchestrator:
         ``Merged`` until that epic branch lands on the target.
         """
         try:
+            # TERMINAL-AUDIT-ALLOW OOMPAH-483: Git containment has proved this
+            # shared child's work is present on the epic review branch.
             tracker.update_issue(issue.identifier, status=DONE)
             logger.info(
                 "Marked %s as Done during stale In Review reconciliation "
@@ -13049,6 +13423,9 @@ class Orchestrator:
                     scm=scm,
                     repo=repo,
                     should_stop=lambda: self._job_deadline_exceeded("release_picks"),
+                    terminal_transition_requester=(
+                        self._request_terminal_transition_from_maintenance
+                    ),
                 )
                 if result.changed:
                     logger.info(
@@ -13919,16 +14296,26 @@ class Orchestrator:
         containment_targets = (landed_target,) if landed_target else (epic_branch,)
 
         tracker = self._tracker_for_issue(epic)
-        try:
-            tracker.update_issue(epic.identifier, status=MERGED)
+        project_id = getattr(epic, "project_id", None) or ""
+        result = self._request_merged_via_coordinator(
+            epic,
+            project_id,
+            trigger_identity="epic-rollup-reconciliation",
+            trigger_source="oompah",
+        )
+        if result is None or not result.success:
+            logger.debug(
+                "Failed to stage Merged transition for epic %s: %s",
+                epic.identifier,
+                result.reason if result else "coordinator error",
+            )
+        else:
             self._clear_stuck_epic_alert(epic.identifier)
             logger.info(
-                "Marked epic %s Merged (branch %s merged to main)",
+                "Staged epic %s as Merged via coordinator (branch %s merged to main)",
                 epic.identifier,
                 epic_branch,
             )
-        except TrackerError as exc:
-            logger.debug("Failed to mark epic %s merged: %s", epic.identifier, exc)
 
         try:
             children = self._fetch_epic_children(epic)
@@ -14017,17 +14404,25 @@ class Orchestrator:
                     epic.identifier,
                 )
                 continue
-            try:
-                tracker.update_issue(child.identifier, status=MERGED)
+            project_id = getattr(child, "project_id", None) or ""
+            result = self._request_merged_via_coordinator(
+                child,
+                project_id,
+                trigger_identity="epic-rollup-reconciliation",
+                trigger_source="oompah",
+            )
+            if result is None or not result.success:
+                logger.debug(
+                    "Failed to stage Merged transition for child %s: %s",
+                    child.identifier,
+                    result.reason if result else "coordinator error",
+                )
+            else:
                 self._cleanup_landed_private_child_branch(epic, child)
                 logger.info(
-                    "Marked epic child %s Merged (epic %s landed)",
+                    "Staged epic child %s as Merged via coordinator (epic %s landed)",
                     child.identifier,
                     epic.identifier,
-                )
-            except TrackerError as exc:
-                logger.debug(
-                    "Failed to mark child %s merged: %s", child.identifier, exc
                 )
 
     def _cleanup_landed_private_child_branch(
@@ -15980,8 +16375,14 @@ class Orchestrator:
             if not issue:
                 return
             if canonicalize_status(issue.state) != MERGED:
-                tracker.update_issue(issue.identifier, status=MERGED)
-                self.state.completed.discard(issue.id)
+                result = self._request_merged_via_coordinator(
+                    issue,
+                    project.id,
+                    trigger_identity="yolo-merge",
+                    trigger_source="oompah",
+                )
+                if result is not None and result.success:
+                    self.state.completed.discard(issue.id)
             tracker.add_comment(
                 issue.identifier,
                 f"YOLO: merged PR #{review_id}.",
@@ -19608,7 +20009,6 @@ class Orchestrator:
         self.state.claimed_issues.pop(issue_id, None)
         self.state.stall_counts.pop(issue_id, None)
         self._clear_reopen_count(issue_id)
-        self._verifier_reject_counts.pop(issue_id, None)
         try:
             tracker = (
                 self._tracker_for_project(project_id)
@@ -20707,6 +21107,7 @@ class Orchestrator:
                 task_tracker=task_tracker,
                 coordination_service=self,
                 task_identifier=issue.identifier,
+                terminal_transition_coordinator=self.terminal_transition_coordinator,
                 read_only=read_only_preflight,
                 focus=focus,
                 auditor=focus.name.lower() == AUDITOR_FOCUS_NAME,
@@ -20944,6 +21345,7 @@ class Orchestrator:
                 auditor=focus.name.lower() == AUDITOR_FOCUS_NAME,
                 audit_target=audit_target,
                 audit_result_handler=_acp_audit_handler,
+                terminal_transition_coordinator=self.terminal_transition_coordinator,
             )
             self._acp_agent_sessions[issue.id] = session
 
@@ -21721,7 +22123,14 @@ class Orchestrator:
         current_issue: Issue,
         project_id: str | None,
     ) -> VerifierResult:
-        """Run the post-close verification pass (oompah-zlz_2-y0ns).
+        """DEPRECATED: Run the post-close verification pass (oompah-zlz_2-y0ns).
+
+        .. deprecated:: OOMPAH-477
+            Replaced by ``TerminalTransitionCoordinator.request_transition()`` which
+            stages Done audits independently via the auditor.  This method is
+            retained for reference and backward compatibility but is no longer
+            called in the normal worker-exit path.  Deterministic acceptance-reference
+            extraction is reused by the auditor as Done evidence.
 
         Called from ``_on_worker_exit`` when the worker exited
         ``normal`` AND the task has moved to a terminal state — i.e.
@@ -22701,7 +23110,6 @@ class Orchestrator:
                         if repair_finished:
                             self.state.completed.add(issue_id)
                             self._clear_reopen_count(issue_id)
-                            self._verifier_reject_counts.pop(issue_id, None)
                         else:
                             self.state.completed.discard(issue_id)
                     elif (
@@ -22760,6 +23168,9 @@ class Orchestrator:
                             )
                         except Exception:
                             pass
+                        # TERMINAL-AUDIT-ALLOW OOMPAH-483: compatibility close
+                        # after the merge-conflict repair gate succeeds.  The
+                        # enforcement sweep supplies the audit backstop.
                         tracker.close_issue(entry.identifier)
                         self.state.completed.add(issue_id)
                         self._clear_reopen_count(issue_id)
@@ -22995,126 +23406,64 @@ class Orchestrator:
                             # Gate refused; task re-opened, skip verifier.
                             pass
                         else:
-                            # Step 2: Completion verifier (oompah-zlz_2-y0ns).
-                            # Run the two-stage check (regex + LLM) against the
-                            # task's "# Acceptance criteria" section to catch
-                            # false-success closures where the agent's diff
-                            # doesn't actually satisfy the AC.
-                            verifier_result = self._run_completion_verifier(
-                                entry,
-                                current,
-                                project_id,
-                            )
-                            max_verifier_rejects = 3
-                            reject_count = self._verifier_reject_counts.get(
-                                issue_id, 0
-                            )
-                            if (
-                                not verifier_result.passed
-                                and reject_count < max_verifier_rejects
-                            ):
-                                # Reject the close: reopen, post diagnostics,
-                                # schedule a retry. Increment reject count so
-                                # we eventually give up if the agent keeps
-                                # shipping the same gap.
-                                self._verifier_reject_counts[issue_id] = (
-                                    reject_count + 1
+                            # Step 2: Terminal transition (OOMPAH-477).
+                            # Stage a Done audit request with the
+                            # terminal-transition-coordinator. The orchestrator
+                            # captures contributor provenance and calls
+                            # request_transition() instead of running
+                            # _run_completion_verifier() directly. The auditor
+                            # will independently verify the closure and apply
+                            # the Done status. Review creation is deferred
+                            # until the audit passes.
+                            if not project_id or not current.id:
+                                logger.warning(
+                                    "Cannot stage Done audit for %s: missing project_id or task id",
+                                    entry.identifier,
                                 )
+                            else:
                                 try:
-                                    tracker.reopen_issue(entry.identifier)
+                                    evidence_fp = compute_evidence_fingerprint(
+                                        requirements_text=current.description or "",
+                                        project_id=project_id,
+                                        task_id=current.id,
+                                        source_branch=entry.issue.branch_name or "",
+                                        target_branch="main",
+                                    )
+                                    orchestrator_trigger = ContributorIdentity(
+                                        identity="orchestrator",
+                                        source="oompah",
+                                    )
+                                    result = await self.terminal_transition_coordinator.request_transition(
+                                        current_issue=current,
+                                        requested_target=TargetState.DONE,
+                                        trigger_identity=orchestrator_trigger,
+                                        project_id=project_id,
+                                        evidence_fingerprint=evidence_fp,
+                                    )
+                                    if result.success:
+                                        # Transition request staged successfully.
+                                        # The task is now in In Validation status.
+                                        # The auditor will process the audit and
+                                        # handle review creation and completion.
+                                        logger.info(
+                                            "Staged Done audit for %s (audit_id=%s)",
+                                            entry.identifier,
+                                            result.audit_id,
+                                        )
+                                    else:
+                                        # Transition request failed (e.g., already
+                                        # completed). Log and continue.
+                                        logger.warning(
+                                            "Failed to stage Done audit for %s: %s",
+                                            entry.identifier,
+                                            result.reason,
+                                        )
                                 except Exception as exc:
                                     logger.warning(
-                                        "Failed to reopen %s after verifier rejection: %s",
+                                        "Error staging Done audit for %s: %s",
                                         entry.identifier,
                                         exc,
                                     )
-                                    self.state.completed.add(issue_id)
-                                    self._clear_reopen_count(issue_id)
-                                    if not self._defer_review_gate_to_maintenance(
-                                        entry,
-                                        project_id,
-                                    ):
-                                        self._ensure_review_exists(entry, project_id)
-                                else:
-                                    try:
-                                        self._post_comment(
-                                            entry.identifier,
-                                            verifier_result.render_rejection_comment(),
-                                            project_id=project_id,
-                                        )
-                                    except Exception as exc:
-                                        logger.warning(
-                                            "Failed to post verifier-rejection comment "
-                                            "to %s: %s",
-                                            entry.identifier,
-                                            exc,
-                                        )
-                                    # Schedule a retry — try a higher profile if
-                                    # available so the next attempt has more
-                                    # capacity to satisfy the AC.
-                                    next_attempt = (entry.retry_attempt or 0) + 1
-                                    escalated, escalated_name = (
-                                        self._next_profile_for_retry(entry)
-                                    )
-                                    delay = self._backoff_delay(next_attempt)
-                                    self._schedule_retry(
-                                        issue_id,
-                                        attempt=next_attempt,
-                                        identifier=entry.identifier,
-                                        delay_ms=delay,
-                                        error="completion_verifier_rejected",
-                                        escalated_profile=escalated_name
-                                        if escalated
-                                        else None,
-                                        project_id=project_id,
-                                        context_entry=entry,
-                                    )
-                                    logger.info(
-                                        "Completion verifier rejected close for %s — "
-                                        "reopened, retrying in %ds (reject %d/%d)",
-                                        entry.identifier,
-                                        delay // 1000,
-                                        reject_count + 1,
-                                        max_verifier_rejects,
-                                    )
-                            else:
-                                if not verifier_result.passed:
-                                    # We've hit the verifier reject ceiling —
-                                    # fail open and let the close stick, but
-                                    # log a WARNING so the operator can
-                                    # investigate.
-                                    logger.warning(
-                                        "Completion verifier rejected %s for the %dth "
-                                        "time — failing open and honoring the close",
-                                        entry.identifier,
-                                        reject_count + 1,
-                                    )
-                                # Auto-create review if agent pushed a branch.
-                                # If review handoff fails for unmerged work,
-                                # the task is reopened and should not be
-                                # recorded as cleanly completed.
-                                if self._defer_review_gate_to_maintenance(
-                                    entry,
-                                    project_id,
-                                ):
-                                    review_ready = True
-                                else:
-                                    review_ready = self._ensure_review_exists(
-                                        entry,
-                                        project_id,
-                                    )
-                                if review_ready:
-                                    self.state.completed.add(issue_id)
-                                    self._clear_reopen_count(issue_id)
-                                    self._verifier_reject_counts.pop(issue_id, None)
-                                    # Reactive epic auto-close: if the just-closed
-                                    # task is a child of an epic, evaluate the
-                                    # parent for auto-close immediately rather
-                                    # than waiting for the next full-sync tick.
-                                    # See oompah-zlz_2-lvcd.
-                                    self._maybe_auto_close_parent_epic(current)
-                                else:
-                                    self.state.completed.discard(issue_id)
             except Exception:
                 self.state.completed.add(issue_id)
             # Analyze completed work against foci library
@@ -24248,6 +24597,8 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 suggestion.suggested_role,
             )
 
+
+
     def _auto_archive(self) -> None:
         """Archive closed issues older than _ARCHIVE_DAYS days.
 
@@ -24307,6 +24658,12 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     scanned += 1
                     if tracker.is_archived(issue):
                         continue
+                    if self._auto_archive_is_active(issue, pid):
+                        logger.debug(
+                            "Skipping automatic archive for active task %s",
+                            issue.identifier,
+                        )
+                        continue
                     if (
                         issue.closed_at
                         and (now - issue.closed_at).days >= self._ARCHIVE_DAYS
@@ -24324,17 +24681,25 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                                 "cursor": last_processed_key,
                             }
                             return
-                        try:
-                            tracker.archive_issue(issue.identifier)
+                        disposition_reason = (
+                            f"Aged {issue.state or 'terminal'} "
+                            f"auto-archive (closed {(now - issue.closed_at).days} days ago)"
+                        )
+                        if request_archived_audit(
+                            issue, tracker, pid or "legacy", disposition_reason,
+                            project_store=self.project_store,
+                            trigger_source="auto_archive",
+                        ):
                             archived += 1
                             logger.info(
-                                "Auto-archived issue %s (closed %d days ago)",
+                                "Queued archive audit for %s (closed %d days ago)",
                                 issue.identifier,
                                 (now - issue.closed_at).days,
                             )
-                        except TrackerError as exc:
+                        else:
                             logger.debug(
-                                "Failed to archive %s: %s", issue.identifier, exc
+                                "Skipped archive audit for %s (pending or failed)",
+                                issue.identifier,
                             )
                     last_processed_key = issue_key
             except (TrackerError, ProjectError) as exc:
@@ -24348,6 +24713,57 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             "deferred": False,
             "cursor": None,
         }
+
+    def _auto_archive_is_active(self, issue: Issue, project_id: str | None) -> bool:
+        """Return whether a terminal-looking task still owns active work.
+
+        Retention never races a live agent, scheduled retry, claim, or open
+        review.  Tracker state can briefly lag these in-memory activities, so
+        checking only ``Done``/``Merged`` would risk hiding recoverable work.
+        """
+        issue_keys = {str(value) for value in (issue.id, issue.identifier) if value}
+
+        def _same_project(candidate_project_id: str | None) -> bool:
+            return not project_id or not candidate_project_id or candidate_project_id == project_id
+
+        for running_id, entry in self.state.running.items():
+            entry_issue = getattr(entry, "issue", None)
+            entry_keys = {
+                str(value)
+                for value in (
+                    running_id,
+                    getattr(entry, "identifier", None),
+                    getattr(entry_issue, "id", None),
+                    getattr(entry_issue, "identifier", None),
+                )
+                if value
+            }
+            if issue_keys & entry_keys and _same_project(
+                getattr(entry_issue, "project_id", None)
+            ):
+                return True
+
+        for retry_id, retry in self.state.retry_attempts.items():
+            retry_keys = {
+                str(value)
+                for value in (
+                    retry_id,
+                    getattr(retry, "issue_id", None),
+                    getattr(retry, "identifier", None),
+                )
+                if value
+            }
+            if issue_keys & retry_keys and _same_project(
+                getattr(retry, "project_id", None)
+            ):
+                return True
+
+        if issue_keys & {str(value) for value in self.state.claimed if value}:
+            return True
+
+        if project_id and not issue.project_id:
+            issue.project_id = project_id
+        return bool(self._open_review_branch_for_issue_in_cache(issue))
 
     async def _terminate_running(self, issue_id: str, cleanup_workspace: bool) -> bool:
         """Terminate a running worker and optionally clean its workspace.

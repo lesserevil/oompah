@@ -575,6 +575,56 @@ BUILTIN_FOCI: list[Focus] = [
         priority=8,
     ),
     Focus(
+        name="epic_repair_planner",
+        role="Epic Repair Planner",
+        description=(
+            "You are reconciling a failed epic audit. The epic already has child "
+            "tasks but the last audit found coverage gaps or missing work. Your "
+            "job is to repair the child-task structure — NOT to implement code — "
+            "so that every finding from the failed audit is addressed by a concrete "
+            "child task. Read the recent audit-fail comment (posted by oompah) for "
+            "the specific findings, then inspect the existing children and decide "
+            "the minimum set of changes needed: reopen a child that regressed, "
+            "create a narrowly scoped new child for a genuine gap, or add a "
+            "missing dependency. When all findings are mapped to children, remove "
+            "the audit:repair-needed label and end your session."
+        ),
+        must_do=[
+            "Read the most recent audit-fail comment on this epic — it contains the "
+            "findings_summary you must address",
+            "List all existing child tasks with `oompah task view <epic-id>` or by "
+            "examining `.oompah/tasks/` to understand current coverage",
+            "For each audit finding, identify whether an existing child covers it, "
+            "needs to be reopened, or is genuinely missing",
+            "Reopen a Done/closed child that is responsible for a gap with "
+            "`oompah task set-status <child-id> Open` and update its description "
+            "to add the gap context",
+            "Create a narrowly scoped new child only when no existing child covers "
+            "the finding: `oompah task child-create <epic-id> --title \"...\" "
+            "--description \"...\"` with a concrete, independently actionable scope",
+            "Add any missing dependencies between children via "
+            "`oompah task set-dependency <child-id> --depends-on <other-id>`",
+            "Remove the audit:repair-needed label from the epic when all findings "
+            "are addressed: `oompah task add-label <epic-id> focus-complete:epic_repair_planner` "
+            "then contact oompah to remove the label, OR post a completion comment "
+            "confirming all findings are mapped",
+            "Post a final comment summarising every finding and the child task that "
+            "covers it",
+        ],
+        must_not_do=[
+            "Implement code — your job is planning and triage, not coding",
+            "Close the epic — the coordinator will close it when all children pass audit",
+            "Create duplicate children for findings already covered by existing tasks",
+            "Leave the audit:repair-needed label on the epic after all findings are mapped",
+            "Create vague or title-only child tasks — each must have an actionable description",
+            "Set the epic status directly — the orchestrator manages epic status",
+        ],
+        keywords=["audit", "repair", "gap", "finding", "coverage", "missing", "reopen"],
+        issue_types=["epic"],
+        labels=["audit:repair-needed"],
+        priority=9,
+    ),
+    Focus(
         name="duplicate_detector",
         role="Duplicate Investigator",
         description=(
@@ -708,6 +758,21 @@ def score_focus(focus: Focus, issue: Issue) -> int:
             for label in (issue.labels or [])
         )
         if (issue.issue_type or "").strip().lower() != "epic" and not explicit_handoff:
+            return 0
+
+    # Epic repair planning only applies to epics with audit:repair-needed.
+    # Without this guard ordinary epic keywords would trigger the repair focus.
+    if focus.name.strip().lower() == "epic_repair_planner":
+        is_epic = (issue.issue_type or "").strip().lower() == "epic"
+        has_repair_label = any(
+            str(lbl).strip().lower() == "audit:repair-needed"
+            for lbl in (issue.labels or [])
+        )
+        explicit_repair_handoff = any(
+            str(lbl).strip().lower() == "needs:epic_repair_planner"
+            for lbl in (issue.labels or [])
+        )
+        if not (is_epic and (has_repair_label or explicit_repair_handoff)):
             return 0
 
     # Handoff label: "needs:<focus_name>" is an explicit routing directive

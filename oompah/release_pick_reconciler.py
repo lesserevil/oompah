@@ -27,10 +27,11 @@ It performs four operations:
 
 3. **Track PR outcomes** for ``pr_open`` and ``cherry_picking`` entries
    (TASK-455.6).  When the SCM provider is available, each entry's PR is
-   queried.  A merged PR advances the entry to ``merged`` and marks the child
-   task as Merged.  A PR closed without merging escalates the entry to
-   ``needs_human`` and posts an actionable comment on the source task.  An
-   open PR is left unchanged (check on next pass).
+   queried.  A merged PR advances the delivery entry to ``merged`` and stages
+   a target-specific Merged audit for the child task.  A PR closed without
+   merging escalates the entry to ``needs_human`` and posts an actionable
+   comment on the source task.  An open PR is left unchanged (check on next
+   pass).
 
 4. **Mirror terminal child outcomes** back to the parent entry.  When a child
    task reaches Done, Merged, or Archived the corresponding backports entry is
@@ -55,6 +56,11 @@ from oompah.release_pick_schema import (
     parse_backports,
 )
 from oompah.statuses import ARCHIVED, DONE, MERGED, NEEDS_HUMAN, canonicalize_status
+from oompah.terminal_audit import (
+    ContributorIdentity,
+    TargetState,
+    compute_evidence_fingerprint,
+)
 
 if TYPE_CHECKING:
     from oompah.models import Issue
@@ -63,6 +69,12 @@ if TYPE_CHECKING:
     from oompah.tracker import TrackerProtocol
 
 logger = logging.getLogger(__name__)
+
+
+# The reconciler deliberately remains synchronous because it is run from the
+# maintenance worker.  The orchestrator supplies this callback to bridge the
+# release observation to its async, server-owned terminal coordinator.
+TerminalTransitionRequester = Callable[..., Any]
 
 
 # ---------------------------------------------------------------------------
@@ -107,6 +119,7 @@ def reconcile_release_picks(
     scm: "SCMProvider | None" = None,
     repo: "str | None" = None,
     should_stop: Callable[[], bool] | None = None,
+    terminal_transition_requester: TerminalTransitionRequester | None = None,
 ) -> ReconcileResult:
     """Run one idempotent release-pick reconciliation pass.
 
@@ -125,11 +138,18 @@ def reconcile_release_picks(
     * Advances non-terminal entries whose child task is Done/Merged/Archived
       to ``merged`` or ``archived`` to mirror the child's outcome.
 
+    A merged release PR never writes ``Merged`` to its child task directly.
+    When *terminal_transition_requester* is supplied, the observation is
+    staged as a target-specific Merged audit instead.  The release-pick
+    metadata still records the physical PR outcome independently.
+
     Terminal entries (``merged``, ``archived``) are left untouched.
 
     The pass is designed to be safe to run concurrently with the normal
-    dispatch loop — it only writes metadata fields and creates new tasks; it
-    never modifies existing task status.
+    dispatch loop — it only writes metadata fields and creates new tasks.  A
+    confirmed terminal release observation is handed to the terminal
+    coordinator, which stages ``In Validation`` rather than applying a
+    terminal task status directly.
 
     Args:
         tracker: The :class:`~oompah.tracker.TrackerProtocol` implementation for the project
@@ -148,6 +168,10 @@ def reconcile_release_picks(
             Required when *scm* is supplied.
         should_stop: Optional cooperative stop callback. When it returns
             ``True``, the pass exits at a safe boundary and resumes next run.
+        terminal_transition_requester: Server-owned callback used to stage
+            canonical task transitions through terminal auditing.  It receives
+            keyword arguments compatible with
+            ``TerminalTransitionCoordinator.request_transition``.
 
     Returns:
         :class:`ReconcileResult` summarising changes made during this pass.
@@ -219,6 +243,7 @@ def reconcile_release_picks(
             project_id=project_id,
             scm=scm,
             repo=repo,
+            terminal_transition_requester=terminal_transition_requester,
         )
         result.advanced += n_advanced
         result.created += n_created
@@ -312,6 +337,7 @@ def _reconcile_entries(
     project_id: "str | None" = None,
     scm: "SCMProvider | None" = None,
     repo: "str | None" = None,
+    terminal_transition_requester: TerminalTransitionRequester | None = None,
 ) -> "tuple[list[BackportEntry], int, int, int]":
     """Reconcile the backport entries for one source task.
 
@@ -365,7 +391,10 @@ def _reconcile_entries(
             try:
                 updated = _check_pr_outcome(
                     tracker, source, entry, children,
-                    scm=scm, repo=repo,
+                    scm=scm,
+                    repo=repo,
+                    project_id=project_id,
+                    terminal_transition_requester=terminal_transition_requester,
                 )
                 if updated is not entry:
                     entries[i] = updated
@@ -575,14 +604,18 @@ def _check_pr_outcome(
     *,
     scm: "SCMProvider",
     repo: str,
+    project_id: str | None = None,
+    terminal_transition_requester: TerminalTransitionRequester | None = None,
 ) -> "BackportEntry":
     """Check the PR status for a backport entry and advance accordingly.
 
     Queries the SCM provider for the PR associated with the child task's
     branch.  Based on the PR state:
 
-    * **merged**: Advance entry to ``merged``, mark the child task as Merged,
-      and update the child's ``oompah.backport_of`` metadata.
+    * **merged**: Advance the release-pick entry to ``merged``, stage a
+      target-specific Merged audit for the child task, and update the child's
+      ``oompah.backport_of`` metadata.  The audit is the only path that may
+      later apply the canonical task status.
     * **closed** (unmerged): Escalate entry to ``needs_human`` with an
       actionable comment on the *source* task, and update the child's
       ``oompah.backport_of`` metadata.
@@ -656,21 +689,17 @@ def _check_pr_outcome(
         pr_state,
     )
 
-    # --- PR merged: advance entry to merged, mark child Merged ------------
+    # --- PR merged: record delivery and stage child Merged audit -----------
     if pr_state == "merged":
-        try:
-            if canonicalize_status(live_child.state) != MERGED:
-                tracker.update_issue(live_child.identifier, status=MERGED)
-                logger.info(
-                    "release_pick_reconciler: marked child %s Merged (PR merged)",
-                    live_child.identifier,
-                )
-        except Exception as exc:  # noqa: BLE001
-            logger.warning(
-                "release_pick_reconciler: failed to mark child %s Merged: %s",
-                live_child.identifier,
-                exc,
-            )
+        _stage_merged_release_pick_audit(
+            live_child,
+            entry,
+            pr,
+            scm=scm,
+            repo=repo,
+            project_id=project_id,
+            terminal_transition_requester=terminal_transition_requester,
+        )
 
         # Mirror merged status into the child's backport_of metadata.
         try:
@@ -766,6 +795,124 @@ def _check_pr_outcome(
 
     # --- PR still open: no change -----------------------------------------
     return entry
+
+
+def _stage_merged_release_pick_audit(
+    child_issue: "Issue",
+    entry: "BackportEntry",
+    review: "ReviewRequest",
+    *,
+    scm: "SCMProvider",
+    repo: str,
+    project_id: str | None,
+    terminal_transition_requester: TerminalTransitionRequester | None,
+) -> None:
+    """Stage a Merged audit for a confirmed release-pick PR.
+
+    Release-pick metadata represents physical delivery and can move to
+    ``merged`` as soon as the forge confirms the PR.  The child task/epic is
+    separate canonical work and must remain non-terminal until its audit
+    passes.  The evidence fingerprint therefore includes both the expected
+    release target and the observed review target, the exact selected commit
+    set, review identity/state, CI state, and target branch SHA.  A wrong
+    branch or partial selection changes the evidence submitted to the auditor
+    instead of being hidden by a direct tracker status write.
+    """
+    if canonicalize_status(child_issue.state) == MERGED:
+        return
+    if terminal_transition_requester is None or not project_id:
+        logger.warning(
+            "release_pick_reconciler: refusing direct Merged update for %s; "
+            "no terminal audit requester is configured",
+            child_issue.identifier,
+        )
+        return
+
+    target_sha = _release_target_sha(scm, repo, entry.branch)
+    selected_commits = tuple(str(commit).strip() for commit in entry.commits if str(commit).strip())
+    observed_target = str(getattr(review, "target_branch", "") or "").strip()
+    review_id = str(getattr(review, "id", "") or "").strip()
+    review_state = str(getattr(review, "state", "") or "").strip().lower()
+    ci_value = getattr(review, "ci_status", "unknown")
+    ci_state = str(getattr(ci_value, "value", ci_value) or "unknown").strip().lower()
+    source_branch = str(
+        getattr(review, "source_branch", "")
+        or getattr(child_issue, "branch_name", "")
+        or ""
+    ).strip()
+    requirements_text = "\n".join(
+        (
+            str(child_issue.description or ""),
+            "Release-pick landing evidence:",
+            f"expected target branch: {entry.branch}",
+            f"observed review target branch: {observed_target}",
+            f"selected commits: {','.join(selected_commits)}",
+            f"target SHA: {target_sha}",
+            f"review: {review_id} ({review_state})",
+            f"CI: {ci_state}",
+        )
+    )
+    trigger = ContributorIdentity(
+        identity="release-pick-reconciler",
+        source="oompah",
+    )
+    fingerprint = compute_evidence_fingerprint(
+        requirements_text=requirements_text,
+        project_id=str(project_id),
+        task_id=child_issue.identifier,
+        source_branch=source_branch,
+        source_sha=",".join(selected_commits),
+        target_branch=entry.branch,
+        target_sha=target_sha,
+        review_id=review_id,
+        review_state=f"{review_state};ci={ci_state};observed_target={observed_target}",
+        contributors=(trigger,),
+    )
+    try:
+        result = terminal_transition_requester(
+            current_issue=child_issue,
+            requested_target=TargetState.MERGED,
+            trigger_identity=trigger,
+            project_id=str(project_id),
+            evidence_fingerprint=fingerprint,
+        )
+        if getattr(result, "success", True):
+            logger.info(
+                "release_pick_reconciler: staged Merged audit for child %s "
+                "after release PR %s",
+                child_issue.identifier,
+                review_id or "(unknown)",
+            )
+        else:
+            logger.warning(
+                "release_pick_reconciler: Merged audit request for child %s "
+                "was rejected: %s",
+                child_issue.identifier,
+                getattr(result, "reason", "unknown reason"),
+            )
+    except Exception as exc:  # noqa: BLE001 - release metadata remains durable
+        logger.warning(
+            "release_pick_reconciler: failed to stage Merged audit for child %s: %s",
+            child_issue.identifier,
+            exc,
+        )
+
+
+def _release_target_sha(scm: "SCMProvider", repo: str, target_branch: str) -> str:
+    """Return the observed release-branch tip without treating lookup failure as proof."""
+    get_head = getattr(scm, "get_branch_head_sha", None)
+    if not callable(get_head):
+        return ""
+    try:
+        value = get_head(repo, target_branch)
+    except Exception as exc:  # noqa: BLE001 - the audit must see the missing evidence
+        logger.debug(
+            "release_pick_reconciler: could not read target SHA for %s: %s",
+            target_branch,
+            exc,
+        )
+        return ""
+    return value.strip() if isinstance(value, str) else ""
 
 def _most_terminal_child(children: "list[Issue]") -> "Issue | None":
     """Return the most terminal (Done/Merged/Archived) child issue, or None.

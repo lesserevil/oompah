@@ -710,6 +710,8 @@ class OompahMarkdownTracker:
         self.update_issue(identifier, status=self._active_status())
 
     def archive_issue(self, identifier: str) -> None:
+        # TERMINAL-AUDIT-ALLOW OOMPAH-483: low-level tracker persistence
+        # implementation for the Archived lifecycle state.
         self.update_issue(identifier, status=ARCHIVED)
 
     def mark_needs_human(

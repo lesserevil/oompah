@@ -19,12 +19,14 @@ Covers:
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import AsyncMock, MagicMock, patch, call
 import fnmatch
 
 import pytest
 
 from oompah.models import Project
+from oompah.terminal_audit import TargetState
+from oompah.terminal_transition_coordinator import TransitionResult
 from oompah.webhooks import (
     WebhookEvent,
     parse_github_webhook,
@@ -381,18 +383,33 @@ class TestYoloEnqueueMode:
     def _make_orchestrator(self, tmp_path, projects=None):
         from oompah.config import ServiceConfig
         from oompah.orchestrator import Orchestrator
+        from unittest.mock import AsyncMock
+        from oompah.terminal_audit import TargetState
+        from oompah.terminal_transition_coordinator import TransitionResult
 
         project_store = MagicMock()
         project_store.list_all.return_value = projects or []
         project_store.get.side_effect = lambda pid: next(
             (p for p in (projects or []) if p.id == pid), None
         )
-        return Orchestrator(
+        orch = Orchestrator(
             config=ServiceConfig(),
             workflow_path="WORKFLOW.md",
             project_store=project_store,
             state_path=str(tmp_path / "state.json"),
         )
+        # Mock the coordinator's request_transition to return success
+        orch.terminal_transition_coordinator.request_transition = AsyncMock(
+            return_value=TransitionResult(
+                success=True,
+                audit_id="audit-123",
+                queued_targets=[TargetState.MERGED],
+                coalesced=False,
+                superseded_audit_id=None,
+                reason=None,
+            )
+        )
+        return orch
 
     @patch("oompah.orchestrator.detect_provider")
     @patch("oompah.orchestrator.extract_repo_slug")
@@ -1642,6 +1659,13 @@ class TestLabelTaskMergedFromMergeGroup:
 
         orch = MagicMock()
         orch._tracker_for_project.return_value = mock_tracker
+        orch.request_terminal_transition = AsyncMock(
+            return_value=TransitionResult(
+                success=True,
+                audit_id="audit-merge-queue",
+                queued_targets=[TargetState.MERGED],
+            )
+        )
         # _resolve_task_for_branch is used by the updated webhook handlers
         # to support tracker-backed task lookup.
         orch._resolve_task_for_branch.return_value = mock_issue
@@ -1668,9 +1692,12 @@ class TestLabelTaskMergedFromMergeGroup:
 
         _label_task_merged_from_merge_group(orch, event, project)
 
-        tracker.update_issue.assert_called_once_with(
-            "oompah-zlz_2-xyz", status="Merged"
+        orch.request_terminal_transition.assert_awaited_once()
+        assert (
+            orch.request_terminal_transition.await_args.kwargs["requested_target"]
+            is TargetState.MERGED
         )
+        tracker.update_issue.assert_not_called()
 
     def test_skips_already_merged_task(self):
         from oompah.server import _label_task_merged_from_merge_group
@@ -1777,6 +1804,9 @@ class TestYoloGitHubTrackerUpdates:
     def _make_orchestrator(self, tmp_path, projects=None):
         from oompah.config import ServiceConfig
         from oompah.orchestrator import Orchestrator
+        from unittest.mock import AsyncMock
+        from oompah.terminal_audit import TargetState
+        from oompah.terminal_transition_coordinator import TransitionResult
 
         project_store = MagicMock()
         project_store.list_all.return_value = projects or []
@@ -1790,6 +1820,17 @@ class TestYoloGitHubTrackerUpdates:
             state_path=str(tmp_path / "state.json"),
         )
         orch.config.tracker_kind = "github_issues"
+        # Mock the coordinator's request_transition to return success
+        orch.terminal_transition_coordinator.request_transition = AsyncMock(
+            return_value=TransitionResult(
+                success=True,
+                audit_id="audit-123",
+                queued_targets=[TargetState.MERGED],
+                coalesced=False,
+                superseded_audit_id=None,
+                reason=None,
+            )
+        )
         return orch
 
     def _make_github_tracker(self, issue_id: str, issue_state: str = "In Review"):
@@ -1865,9 +1906,10 @@ class TestYoloGitHubTrackerUpdates:
         orch._yolo_review_actions_sync()
 
         # Task must be updated to Merged.
-        tracker.update_issue.assert_called_once_with(
-            task_issue.identifier, status="Merged"
-        )
+        # Verify that the coordinator's request_transition was called for Merged
+        orch.terminal_transition_coordinator.request_transition.assert_called_once()
+        call_args = orch.terminal_transition_coordinator.request_transition.call_args
+        assert call_args[1]['requested_target'] == TargetState.MERGED
         # A comment must be posted.
         tracker.add_comment.assert_called_once()
         comment_text = tracker.add_comment.call_args[0][1]
@@ -1902,6 +1944,13 @@ class TestWebhookGitHubTaskResolution:
         orch = MagicMock()
         mock_tracker = tracker or MagicMock()
         orch._tracker_for_project.return_value = mock_tracker
+        orch.request_terminal_transition = AsyncMock(
+            return_value=TransitionResult(
+                success=True,
+                audit_id="audit-merge-queue",
+                queued_targets=[TargetState.MERGED],
+            )
+        )
         orch._resolve_task_for_branch.return_value = issue
         return orch, mock_tracker
 
@@ -1915,8 +1964,6 @@ class TestWebhookGitHubTaskResolution:
     def test_merge_group_uses_resolve_for_github_branch(self):
         """merge_group handler calls _resolve_task_for_branch, not fetch_issue_detail."""
         from oompah.server import _label_task_merged_from_merge_group
-        from oompah.statuses import MERGED
-
         issue = self._make_github_issue("owner/tasks#99", state="In Review")
         orch, tracker = self._make_orch(issue)
         project = self._make_project()
@@ -1932,7 +1979,12 @@ class TestWebhookGitHubTaskResolution:
 
         # Must use _resolve_task_for_branch (not just fetch_issue_detail).
         orch._resolve_task_for_branch.assert_called_once()
-        tracker.update_issue.assert_called_once_with(issue.identifier, status=MERGED)
+        orch.request_terminal_transition.assert_awaited_once()
+        assert (
+            orch.request_terminal_transition.await_args.kwargs["requested_target"]
+            is TargetState.MERGED
+        )
+        tracker.update_issue.assert_not_called()
 
     def test_merge_group_resolve_returns_none_is_noop(self):
         """merge_group handler is a no-op when no task resolves for the branch."""
@@ -1960,8 +2012,6 @@ class TestWebhookGitHubTaskResolution:
     def test_pr_merged_webhook_uses_resolve_for_github_branch(self):
         """Direct-merge PR webhook calls _resolve_task_for_branch."""
         from oompah.server import _label_task_merged_from_pr
-        from oompah.statuses import MERGED
-
         issue = self._make_github_issue("owner/tasks#100", state="In Review")
         orch, tracker = self._make_orch(issue)
         project = self._make_project()
@@ -1976,7 +2026,12 @@ class TestWebhookGitHubTaskResolution:
         _label_task_merged_from_pr(orch, event, project)
 
         orch._resolve_task_for_branch.assert_called_once()
-        tracker.update_issue.assert_called_once_with(issue.identifier, status=MERGED)
+        orch.request_terminal_transition.assert_awaited_once()
+        assert (
+            orch.request_terminal_transition.await_args.kwargs["requested_target"]
+            is TargetState.MERGED
+        )
+        tracker.update_issue.assert_not_called()
 
     def test_pr_merged_webhook_resolve_returns_none_is_noop(self):
         """Direct-merge PR webhook is a no-op when no task resolves."""

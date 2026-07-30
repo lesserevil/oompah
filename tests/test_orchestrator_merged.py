@@ -20,6 +20,8 @@ from oompah.statuses import (
     NEEDS_CI_FIX,
     NEEDS_REBASE,
 )
+from oompah.terminal_audit import TargetState
+from oompah.terminal_transition_coordinator import TransitionResult
 
 
 def _make_config() -> ServiceConfig:
@@ -80,6 +82,17 @@ class TestLabelMergedIssues:
             project_store=project_store,
             state_path=str(tmp_path / "state.json"),
         )
+        # Mock the coordinator's request_transition to return success
+        orch.terminal_transition_coordinator.request_transition = AsyncMock(
+            return_value=TransitionResult(
+                success=True,
+                audit_id="audit-123",
+                queued_targets=[TargetState.MERGED],
+                coalesced=False,
+                superseded_audit_id=None,
+                reason=None,
+            )
+        )
         return orch
 
     def test_no_merged_branches_is_noop(self, tmp_path):
@@ -106,9 +119,10 @@ class TestLabelMergedIssues:
 
         orch._label_merged_issues()
 
-        mock_tracker.update_issue.assert_called_once_with(
-            "feat-branch", status="Merged"
-        )
+        # Verify that the coordinator's request_transition was called for Merged
+        orch.terminal_transition_coordinator.request_transition.assert_called_once()
+        call_args = orch.terminal_transition_coordinator.request_transition.call_args
+        assert call_args[1]['requested_target'] == TargetState.MERGED
 
     def test_skips_matching_merged_branch_when_current_tip_is_ahead(self, tmp_path):
         project = _make_project()
@@ -152,9 +166,10 @@ class TestLabelMergedIssues:
         assert "In Review" in queried_states
         assert "Needs CI Fix" in queried_states
         assert "Needs Rebase" in queried_states
-        mock_tracker.update_issue.assert_called_once_with(
-            "feat-branch", status="Merged"
-        )
+        # Verify that the coordinator's request_transition was called for Merged
+        orch.terminal_transition_coordinator.request_transition.assert_called_once()
+        call_args = orch.terminal_transition_coordinator.request_transition.call_args
+        assert call_args[1]['requested_target'] == TargetState.MERGED
 
     def test_skips_already_merged_label(self, tmp_path):
         project = _make_project()
@@ -214,9 +229,10 @@ class TestLabelMergedIssues:
 
         orch._label_merged_issues()
 
-        mock_tracker.update_issue.assert_called_once_with(
-            "issue-123", status="Merged"
-        )
+        # Verify that the coordinator's request_transition was called for Merged
+        orch.terminal_transition_coordinator.request_transition.assert_called_once()
+        call_args = orch.terminal_transition_coordinator.request_transition.call_args
+        assert call_args[1]['requested_target'] == TargetState.MERGED
 
     @patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo")
     @patch("oompah.orchestrator.detect_provider")
@@ -269,10 +285,10 @@ class TestLabelMergedIssues:
             "org/repo",
             landed_branch,
         )
-        mock_tracker.update_issue.assert_called_once_with(
-            helper.identifier,
-            status=MERGED,
-        )
+        # Verify that the coordinator's request_transition was called for Merged
+        orch.terminal_transition_coordinator.request_transition.assert_called_once()
+        call_args = orch.terminal_transition_coordinator.request_transition.call_args
+        assert call_args[1]['requested_target'] == TargetState.MERGED
 
     def test_done_issue_with_open_review_is_not_closed_from_stale_merged_ref(
         self,
@@ -379,6 +395,17 @@ class TestReconcileStaleInReviewTasks:
             workflow_path="WORKFLOW.md",
             project_store=project_store,
             state_path=str(tmp_path / "state.json"),
+        )
+        # Mock the coordinator's request_transition to return success
+        orch.terminal_transition_coordinator.request_transition = AsyncMock(
+            return_value=TransitionResult(
+                success=True,
+                audit_id="audit-123",
+                queued_targets=[TargetState.MERGED],
+                coalesced=False,
+                superseded_audit_id=None,
+                reason=None,
+            )
         )
         return orch
 
@@ -735,7 +762,10 @@ class TestReconcileStaleInReviewTasks:
 
         orch._reconcile_stale_in_review_tasks()
 
-        mock_tracker.update_issue.assert_called_once_with("TASK-1", status="Merged")
+        # Verify that the coordinator's request_transition was called for Merged
+        orch.terminal_transition_coordinator.request_transition.assert_called_once()
+        call_args = orch.terminal_transition_coordinator.request_transition.call_args
+        assert call_args[1]['requested_target'] == TargetState.MERGED
         mock_tracker.add_comment.assert_not_called()
 
     @patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo")
@@ -786,10 +816,10 @@ class TestReconcileStaleInReviewTasks:
             "org/repo",
             expected_branch,
         )
-        mock_tracker.update_issue.assert_called_once_with(
-            issue.identifier,
-            status=MERGED,
-        )
+        # Verify that the coordinator's request_transition was called for Merged
+        orch.terminal_transition_coordinator.request_transition.assert_called_once()
+        call_args = orch.terminal_transition_coordinator.request_transition.call_args
+        assert call_args[1]['requested_target'] == TargetState.MERGED
         mock_tracker.add_comment.assert_not_called()
 
     @patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo")
@@ -838,7 +868,10 @@ class TestReconcileStaleInReviewTasks:
         orch._reconcile_stale_in_review_tasks()
 
         provider.find_pr_for_branch.assert_called_once_with("org/repo", work_branch)
-        mock_tracker.update_issue.assert_called_once_with("OVA-1", status=MERGED)
+        # Verify that the coordinator's request_transition was called for Merged
+        orch.terminal_transition_coordinator.request_transition.assert_called_once()
+        call_args = orch.terminal_transition_coordinator.request_transition.call_args
+        assert call_args[1]['requested_target'] == TargetState.MERGED
         mock_tracker.add_comment.assert_not_called()
 
     @patch("oompah.orchestrator.detect_provider", return_value=None)
@@ -1102,7 +1135,10 @@ class TestReconcileStaleInReviewTasks:
 
         orch._reconcile_stale_in_review_tasks()
 
-        mock_tracker.update_issue.assert_called_once_with("TASK-1", status="Merged")
+        # Verify that the coordinator's request_transition was called for Merged
+        orch.terminal_transition_coordinator.request_transition.assert_called_once()
+        call_args = orch.terminal_transition_coordinator.request_transition.call_args
+        assert call_args[1]['requested_target'] == TargetState.MERGED
         mock_tracker.add_comment.assert_not_called()
 
     @patch("oompah.orchestrator.extract_repo_slug")

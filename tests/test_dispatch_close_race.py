@@ -21,13 +21,15 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from oompah.config import ServiceConfig
 from oompah.models import Issue, RetryEntry
 from oompah.orchestrator import Orchestrator
+from oompah.terminal_audit import TargetState
+from oompah.terminal_transition_coordinator import TransitionResult
 
 
 def _make_config() -> ServiceConfig:
@@ -44,11 +46,23 @@ def event_loop():
 
 
 def _make_orchestrator(tmp_path) -> Orchestrator:
-    return Orchestrator(
+    orch = Orchestrator(
         config=_make_config(),
         workflow_path="WORKFLOW.md",
         state_path=str(tmp_path / "service_state.json"),
     )
+    # Terminal status requests now go through this collaborator. Keep these
+    # retry-cancellation tests focused on bookkeeping rather than audit-store
+    # persistence.
+    orch.terminal_transition_coordinator = MagicMock()
+    orch.terminal_transition_coordinator.request_transition = AsyncMock(
+        return_value=TransitionResult(
+            success=True,
+            audit_id="audit-close-race",
+            queued_targets=[TargetState.DONE],
+        )
+    )
+    return orch
 
 
 def _issue(state: str = "open", **overrides) -> Issue:
@@ -219,8 +233,9 @@ class TestUiCloseCancelsPendingRetry:
         assert "i-abc" not in orch.state.retry_attempts
         assert "i-abc" not in orch.state.claimed
         assert "i-abc" in orch.state.completed
-        # tracker.close_issue should have been invoked.
-        mock_tracker.close_issue.assert_called_once_with("proj-1")
+        # The task remains In Validation until the coordinator audit is
+        # completed; no direct terminal tracker write is allowed.
+        mock_tracker.close_issue.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -589,8 +604,8 @@ class TestGitHubManualCloseRace:
         assert issue_id not in orch.state.retry_attempts
         assert issue_id not in orch.state.claimed
         assert issue_id in orch.state.completed
-        # The GitHub tracker should have received close_issue.
-        mock_tracker.close_issue.assert_called_once_with(gh_id)
+        # The GitHub tracker must not receive a direct terminal write.
+        mock_tracker.close_issue.assert_not_called()
 
     def test_github_pending_retry_cancelled_on_status_update_to_done(self, tmp_path):
         """A non-close terminal status update (e.g. 'Done') on a GitHub task

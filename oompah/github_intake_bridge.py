@@ -13,6 +13,10 @@ from datetime import datetime, timezone
 from typing import Any
 
 from oompah.github_tracker import GitHubAuth, GitHubIssueTracker, _gh_issue_to_issue
+from oompah.archived_audit_requests import (
+    cancel_pending_archived_audit,
+    request_archived_audit,
+)
 from oompah.intake_comments import (
     ValidatorResult as IntakeCommentResult,
     compute_fingerprint,
@@ -27,7 +31,14 @@ from oompah.provenance import (
     make_provenance,
     wrap_untrusted,
 )
-from oompah.statuses import ARCHIVED, MERGED, PROPOSED, canonicalize_status, status_key
+from oompah.statuses import (
+    ARCHIVED,
+    IN_VALIDATION,
+    MERGED,
+    PROPOSED,
+    canonicalize_status,
+    status_key,
+)
 from oompah.tracker import TrackerAuthError, TrackerError
 from oompah.webhooks import WebhookEvent
 
@@ -277,6 +288,9 @@ def _reconcile_native_status_from_github_issue(
     github_issue: Issue,
     existing: Issue | None = None,
     metadata: dict[str, Any] | None = None,
+    *,
+    project_id: str | None = None,
+    project_store: object | None = None,
 ) -> Issue | None:
     """Apply GitHub open/closed state (and backfill missing metadata) to an
     already-imported native task."""
@@ -294,12 +308,23 @@ def _reconcile_native_status_from_github_issue(
     if github_closed:
         metadata["last_github_state"] = "closed"
         if not _native_status_is_merged_or_archived(current_status):
-            native_tracker.update_issue(existing.identifier, status=ARCHIVED)
-            current_status = ARCHIVED
+            disposition_reason = (
+                "External GitHub intake retirement "
+                f"(source={external_id}, external_state=closed)"
+            )
+            request_archived_audit(
+                existing,
+                native_tracker,
+                project_id,
+                disposition_reason,
+                project_store=project_store,
+                trigger_source="github_intake",
+            )
             metadata["external_closed_at"] = _now_iso()
-            metadata["last_synced_status"] = ARCHIVED
-            metadata["last_synced_at"] = _now_iso()
             existing = native_tracker.fetch_issue_detail(existing.identifier) or existing
+            current_status = canonicalize_status(existing.state)
+            metadata["last_synced_status"] = current_status
+            metadata["last_synced_at"] = _now_iso()
         _write_external_metadata_if_changed(
             native_tracker,
             existing.identifier,
@@ -326,6 +351,30 @@ def _reconcile_native_status_from_github_issue(
             metadata,
         )
         return existing
+
+    if current_status == IN_VALIDATION and was_closed_by_github:
+        cancelled, previous_state = cancel_pending_archived_audit(
+            existing,
+            native_tracker,
+            project_id,
+            "external GitHub issue reopened before retirement completed; restoring prior state.",
+            project_store=project_store,
+        )
+        if cancelled:
+            restored_status = previous_state or PROPOSED
+            native_tracker.update_issue(existing.identifier, status=restored_status)
+            metadata["last_github_state"] = "open"
+            metadata["external_reopened_at"] = _now_iso()
+            metadata["last_synced_status"] = restored_status
+            metadata["last_synced_at"] = _now_iso()
+            existing = native_tracker.fetch_issue_detail(existing.identifier) or existing
+            _write_external_metadata_if_changed(
+                native_tracker,
+                existing.identifier,
+                original_metadata,
+                metadata,
+            )
+            return existing
 
     # Backfill missing type and labels on open, already-imported tasks.
     # This repairs tasks that were created before label normalization was
@@ -709,7 +758,12 @@ def handle_github_issue_event_for_native_project(
         return
 
     if _github_issue_is_closed(github_issue):
-        _reconcile_native_status_from_github_issue(native_tracker, github_issue)
+        _reconcile_native_status_from_github_issue(
+            native_tracker,
+            github_issue,
+            project_id=project.id,
+            project_store=getattr(orch, "project_store", None),
+        )
         return
 
     existing, metadata = _find_native_issue_for_external(native_tracker, external_id)
@@ -719,6 +773,8 @@ def handle_github_issue_event_for_native_project(
             github_issue,
             existing,
             metadata,
+            project_id=project.id,
+            project_store=getattr(orch, "project_store", None),
         ) or existing
         if event.event_type == "issue_comment" and event.action in {"created", "edited"}:
             metadata = _get_external_metadata(native_tracker, internal.identifier)
@@ -756,7 +812,12 @@ def handle_github_issue_event_for_native_project(
                     )
         return
 
-    _reconcile_native_status_from_github_issue(native_tracker, github_issue)
+    _reconcile_native_status_from_github_issue(
+        native_tracker,
+        github_issue,
+        project_id=project.id,
+        project_store=getattr(orch, "project_store", None),
+    )
 
     if event.event_type == "issues" and event.action in {"opened", "edited", "reopened"}:
         if not _github_issue_ready_for_native_import(github_tracker, github_issue):
@@ -834,7 +895,12 @@ def poll_github_issue_intake_project(orch: Any, project: Project) -> int:
     for github_issue in github_issues:
         try:
             if _github_issue_is_closed(github_issue):
-                _reconcile_native_status_from_github_issue(native_tracker, github_issue)
+                _reconcile_native_status_from_github_issue(
+                    native_tracker,
+                    github_issue,
+                    project_id=project.id,
+                    project_store=getattr(orch, "project_store", None),
+                )
                 continue
 
             existing, metadata = _find_native_issue_for_external(
@@ -847,11 +913,18 @@ def poll_github_issue_intake_project(orch: Any, project: Project) -> int:
                     github_issue,
                     existing,
                     metadata,
+                    project_id=project.id,
+                    project_store=getattr(orch, "project_store", None),
                 ) or existing
                 _copy_existing_github_comments(native_tracker, github_tracker, internal)
                 continue
 
-            _reconcile_native_status_from_github_issue(native_tracker, github_issue)
+            _reconcile_native_status_from_github_issue(
+                native_tracker,
+                github_issue,
+                project_id=project.id,
+                project_store=getattr(orch, "project_store", None),
+            )
             if not _github_issue_ready_for_native_import(github_tracker, github_issue):
                 continue
             created = ensure_native_issue_for_github_issue(

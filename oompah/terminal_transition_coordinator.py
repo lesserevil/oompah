@@ -69,7 +69,12 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from typing import Any
 
-from oompah.models import Issue
+from oompah.models import (
+    Issue,
+    EPIC_AUDIT_REPAIR_LABEL,
+    EPIC_AUDIT_REPAIR_METADATA_KEY,
+    EPIC_AUDIT_REPAIR_METADATA_VERSION,
+)
 from oompah.statuses import (
     ARCHIVED,
     DONE,
@@ -251,6 +256,12 @@ class TransitionResult:
 
     coalesced: bool = False
     """``True`` when the request was deduplicated against an identical pending audit."""
+
+    status_repaired: bool = False
+    """``True`` when a coalesced synchronous request restored In Validation."""
+
+    status_staged: bool = False
+    """``True`` when this call confirmed the task in ``In Validation``."""
 
     superseded_audit_id: str | None = None
     """``audit_id`` of the pending record that was superseded (different fingerprint), if any."""
@@ -519,6 +530,43 @@ class TerminalTransitionCoordinator:
                 evidence_fingerprint,
             )
 
+    def request_transition_sync(
+        self,
+        current_issue: Issue,
+        requested_target: TargetState,
+        trigger_identity: ContributorIdentity,
+        project_id: str,
+        evidence_fingerprint: EvidenceFingerprint,
+        *,
+        coalesce_pending_target: bool = False,
+        ensure_validation_on_coalesce: bool = False,
+        queued_comment: str | None = None,
+    ) -> TransitionResult:
+        """Stage a transition from a synchronous maintenance worker.
+
+        Tracker metadata provides the cross-thread/project lock for the
+        read-modify-write operation.  This entry point is intentionally for
+        bounded maintenance work that cannot await :meth:`request_transition`.
+        ``coalesce_pending_target`` is used by automatic retirement: a pending
+        archive is never superseded merely because a later maintenance pass
+        has a different timestamp in its retention evidence.
+        """
+        requested_target = TargetState.from_raw(requested_target)
+        tracker = self._tracker_for_project(project_id)
+        store = TerminalAuditMetadataStore(tracker, self._project_store, project_id)
+        return self._transition_locked(
+            store,
+            tracker,
+            current_issue,
+            requested_target,
+            trigger_identity,
+            project_id,
+            evidence_fingerprint,
+            coalesce_pending_target=coalesce_pending_target,
+            ensure_validation_on_coalesce=ensure_validation_on_coalesce,
+            queued_comment=queued_comment,
+        )
+
     # ------------------------------------------------------------------
     # Public API — apply_audit_result
     # ------------------------------------------------------------------
@@ -672,6 +720,10 @@ class TerminalTransitionCoordinator:
         trigger_identity: ContributorIdentity,
         project_id: str,
         evidence_fingerprint: EvidenceFingerprint,
+        *,
+        coalesce_pending_target: bool = False,
+        ensure_validation_on_coalesce: bool = False,
+        queued_comment: str | None = None,
     ) -> TransitionResult:
         identifier = current_issue.identifier
         decision = _Decision()
@@ -698,8 +750,16 @@ class TerminalTransitionCoordinator:
             for record in chain:
                 if (
                     record.target_state == requested_target
-                    and record.request_state == RequestState.PENDING
-                    and record.evidence_fingerprint == evidence_fingerprint
+                    and record.request_state
+                    in (
+                        (RequestState.PENDING, RequestState.IN_PROGRESS)
+                        if coalesce_pending_target
+                        else (RequestState.PENDING,)
+                    )
+                    and (
+                        coalesce_pending_target
+                        or record.evidence_fingerprint == evidence_fingerprint
+                    )
                 ):
                     decision.early_result = TransitionResult(
                         success=True,
@@ -758,15 +818,42 @@ class TerminalTransitionCoordinator:
         except TerminalAuditMetadataQuarantinedError:
             return TransitionResult(success=False, reason="metadata quarantined")
 
-        # Return early if the updater decided to short-circuit (coalesce/stale)
+        # Return early if the updater decided to short-circuit (coalesce/stale).
+        # A previous tracker write can fail after the durable audit has been
+        # staged.  Automatic retirement repairs only the nonterminal staging
+        # status on its next pass; it never creates or supersedes an audit.
         if decision.early_result is not None:
+            if (
+                decision.early_result.coalesced
+                and ensure_validation_on_coalesce
+                and requested_target == TargetState.ARCHIVED
+                and canonicalize_status(current_issue.state or "")
+                not in {IN_VALIDATION, ARCHIVED}
+            ):
+                try:
+                    tracker.update_issue(identifier, status=IN_VALIDATION)
+                    decision.early_result.status_repaired = True
+                    decision.early_result.status_staged = True
+                except Exception:
+                    logger.exception(
+                        "Failed to restore In Validation for pending archive audit %s",
+                        identifier,
+                    )
             return decision.early_result
 
         # --- Step 6: Move task to In Validation (after persistence) ---
         issue_status = current_issue.state or ""
-        if canonicalize_status(issue_status) not in TERMINAL_STATUSES:
+        # An Archived audit must be observable to the audit worker even when
+        # retention starts from Done or Merged.  The only status that cannot
+        # be staged again is already Archived (which callers reject first).
+        status_staged = canonicalize_status(issue_status) == IN_VALIDATION
+        if (
+            requested_target == TargetState.ARCHIVED
+            and canonicalize_status(issue_status) != ARCHIVED
+        ) or canonicalize_status(issue_status) not in TERMINAL_STATUSES:
             try:
                 tracker.update_issue(identifier, status=IN_VALIDATION)
+                status_staged = True
             except Exception:
                 logger.exception(
                     "Failed to move %s to In Validation; audit chain persisted",
@@ -776,7 +863,7 @@ class TerminalTransitionCoordinator:
         # --- Step 7: Post concise queued comment once ---
         if self._post_comments and not decision.already_posted:
             try:
-                comment = (
+                comment = queued_comment or (
                     f"Queued for terminal transition to "
                     f"{requested_target.value}. "
                     "An auditor will review and apply the terminal status."
@@ -795,6 +882,7 @@ class TerminalTransitionCoordinator:
             queued_targets=[r.target_state for r in decision.new_entries],
             coalesced=False,
             superseded_audit_id=decision.superseded_id,
+            status_staged=status_staged,
         )
 
     # ------------------------------------------------------------------
@@ -1094,12 +1182,27 @@ class TerminalTransitionCoordinator:
         if decision.keep_in_validation:
             applied_status = IN_VALIDATION
         try:
+            # TERMINAL-AUDIT-ALLOW OOMPAH-483: apply a validated, persisted
+            # terminal-audit verdict (or its deterministic repair status).
             tracker.update_issue(identifier, status=applied_status)
         except Exception:
             logger.exception(
                 "Failed to apply audit-result status %r for %s",
                 applied_status,
                 identifier,
+            )
+
+        # --- Epic-audit-repair signalling ---
+        # When a failed audit reopens an epic as Open, mark it with the
+        # audit:repair-needed label and persist the repair context so the
+        # orchestrator can dispatch exactly one repair-planner run.
+        if (
+            applied_status == OPEN
+            and (current_issue.issue_type or "").strip().lower() == "epic"
+            and result.verdict == Verdict.FAIL
+        ):
+            _stamp_epic_audit_repair(
+                tracker, identifier, result, decision.audit_id
             )
 
         return ResultOutcome(
@@ -1244,6 +1347,8 @@ class TerminalTransitionCoordinator:
         # Step 6: Apply terminal status
         target_status = _target_state_to_status(requested_target)
         try:
+            # TERMINAL-AUDIT-ALLOW OOMPAH-483: apply a validated, persisted
+            # project-owner override.
             tracker.update_issue(identifier, status=target_status)
         except Exception:
             logger.exception(
@@ -1267,7 +1372,10 @@ class TerminalTransitionCoordinator:
 
     def _tracker_for_project(self, project_id: str) -> TrackerProtocol:
         """Resolve the tracker used for a project-scoped request."""
-        if callable(self._tracker):
+        # Trackers are normally not callable, but ``MagicMock`` test doubles
+        # are.  A real tracker exposes metadata methods; only a callable that
+        # does not look like a tracker is the project-aware factory variant.
+        if callable(self._tracker) and not hasattr(self._tracker, "get_metadata"):
             return self._tracker(project_id)
         return self._tracker
 
@@ -1708,6 +1816,74 @@ def _generate_audit_id() -> str:
     return f"audit-{uuid.uuid4().hex[:12]}"
 
 
+def _stamp_epic_audit_repair(
+    tracker: TrackerProtocol,
+    identifier: str,
+    result: AuditResult,
+    audit_id: str | None,
+) -> None:
+    """Add the audit:repair-needed label and persist repair context.
+
+    Called by :meth:`TerminalTransitionCoordinator._apply_result_locked`
+    immediately after the epic is moved back to ``Open``.  A tracker failure
+    is logged and swallowed — the repair label is advisory; the caller's
+    ``ResultOutcome`` has already been decided and must not be affected.
+
+    The repair context is a small, versioned document stored under
+    :data:`~oompah.models.EPIC_AUDIT_REPAIR_METADATA_KEY`::
+
+        {
+            "version": 1,
+            "audit_id": "<failed_audit_id>",
+            "failure_classification": "<classification or null>",
+            "findings_summary": "<brief human-readable audit message>",
+            "claimed": False,
+        }
+
+    The ``claimed`` flag is set to ``True`` by the orchestrator's
+    ``_should_dispatch_epic`` path when it claims the repair run, preventing
+    duplicate dispatch on restart.
+    """
+    effective_audit_id = audit_id or (result.audit_id if result else "")
+    # Summarise the failure for the repair-planner prompt.  Audit messages
+    # can contain sensitive or large text — limit to 512 chars and strip
+    # leading/trailing whitespace.  An empty message is stored as an empty
+    # string so the planner knows a summary was unavailable.
+    raw_message = (getattr(result, "message", None) or "").strip()
+    findings_summary = raw_message[:512]
+
+    classification_raw = getattr(result, "failure_classification", None)
+    classification_str = (
+        classification_raw.value
+        if isinstance(classification_raw, FailureClassification)
+        else (str(classification_raw) if classification_raw is not None else "")
+    )
+
+    repair_doc: dict[str, object] = {
+        "version": EPIC_AUDIT_REPAIR_METADATA_VERSION,
+        "audit_id": effective_audit_id,
+        "failure_classification": classification_str,
+        "findings_summary": findings_summary,
+        "claimed": False,
+    }
+    try:
+        tracker.set_metadata_field(
+            identifier, EPIC_AUDIT_REPAIR_METADATA_KEY, repair_doc
+        )
+    except Exception:
+        logger.exception(
+            "Failed to persist audit-repair metadata for epic %s", identifier
+        )
+    try:
+        tracker.add_label(identifier, EPIC_AUDIT_REPAIR_LABEL)
+    except Exception:
+        logger.exception(
+            "Failed to add %r label to epic %s after failed audit",
+            EPIC_AUDIT_REPAIR_LABEL,
+            identifier,
+        )
+
+
 def _generate_override_id() -> str:
     """Return a unique override record identifier."""
     return f"override-{uuid.uuid4().hex[:12]}"
@@ -1739,4 +1915,5 @@ __all__ = [
     "TransitionResult",
     "classify_failure_to_status",
     "route_failure_status",
+    "_stamp_epic_audit_repair",
 ]

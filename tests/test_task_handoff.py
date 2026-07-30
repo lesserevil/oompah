@@ -144,6 +144,40 @@ class TestTaskCliHandoff:
         resolve.assert_not_called()
         command.assert_called_once()
 
+    def test_spawned_cli_reports_terminal_audit_response(self, monkeypatch, capsys):
+        from oompah import task_cli
+
+        monkeypatch.setenv(TASK_HANDOFF_TOKEN_ENV, "opaque")
+        monkeypatch.setenv(TASK_HANDOFF_PROJECT_ENV, "proj-a")
+        response = {
+            "ok": True,
+            "status": "In Validation",
+            "requested_target": "Done",
+            "audit_id": "audit-cli-handoff",
+        }
+        with patch.object(task_cli, "_task_handoff_request", return_value=response) as request:
+            args = task_cli.build_parser().parse_args(
+                [
+                    "set-status",
+                    "TASK-1",
+                    "Done",
+                    "--actor",
+                    "owner",
+                    "--audit-override",
+                    "--override-reason",
+                    "Approved",
+                ]
+            )
+            task_cli._cmd_set_status("http://server", args)
+
+        assert "Terminal transition queued: Done" in capsys.readouterr().out
+        request.assert_called_once()
+        assert request.call_args.args[1] == "set-status"
+        assert request.call_args.args[2]["status"] == "Done"
+        assert request.call_args.args[2]["actor_login"] == "owner"
+        assert request.call_args.args[2]["audit_override"] is True
+        assert request.call_args.args[2]["override_reason"] == "Approved"
+
 
 class TestTaskScopeDirectPath:
     def test_direct_acp_command_allows_only_assigned_task_and_actions(self):
@@ -349,6 +383,16 @@ class TestTaskHandoffEndpoint:
         orch = MagicMock()
         orch._tracker_for_project.return_value = tracker
         orch.project_store.get.return_value = None
+        from oompah.terminal_audit import TargetState
+        from oompah.terminal_transition_coordinator import TransitionResult
+
+        orch.terminal_transition_coordinator.request_transition = AsyncMock(
+            return_value=TransitionResult(
+                success=True,
+                audit_id="audit-handoff-1",
+                queued_targets=[TargetState.DONE],
+            )
+        )
         token = issue_task_handoff_token(
             project_id="proj-a",
             task_identifier="TASK-1",
@@ -409,14 +453,10 @@ class TestTaskHandoffEndpoint:
         tracker.add_comment.assert_any_call(
             "TASK-1", "handoff complete", author="oompah"
         )
-        tracker.update_issue.assert_called_once_with(
-            "TASK-1", status="Ready to Integrate"
-        )
-        tracker.set_metadata_field.assert_called_once()
-        assert tracker.set_metadata_field.call_args.args[:2] == (
-            "TASK-1",
-            "oompah.integration",
-        )
+        assert status.json()["status"] == "In Validation"
+        assert status.json()["requested_target"] == "Done"
+        assert status.json()["audit_id"] == "audit-handoff-1"
+        tracker.update_issue.assert_not_called()
 
     def test_capability_header_cannot_bypass_basic_auth_on_general_api(self):
         from fastapi.testclient import TestClient

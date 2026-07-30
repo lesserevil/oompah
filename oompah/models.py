@@ -30,6 +30,19 @@ logger = logging.getLogger(__name__)
 # annotation — no git history is rewritten.
 EPIC_INDEPENDENTLY_MERGED_LABEL: str = "epic:independently-merged"
 
+# Label applied to an epic when a terminal audit fails and the coordinator
+# reopens it as Open.  The presence of this label signals that the epic
+# already has children but the audit identified coverage gaps; the repair
+# planner inspects existing children, reopens or creates narrowly scoped
+# children for each gap, adds dependencies, and removes the label on
+# completion.  Ordinary already-planned epics *without* this label remain
+# non-dispatchable by _should_dispatch_epic.
+EPIC_AUDIT_REPAIR_LABEL: str = "audit:repair-needed"
+
+# Tracker metadata key for the audit-repair context persisted on an epic.
+EPIC_AUDIT_REPAIR_METADATA_KEY: str = "oompah.epic_audit_repair"
+EPIC_AUDIT_REPAIR_METADATA_VERSION: int = 1
+
 
 class EpicRebaseState(str, Enum):
     """Possible outcomes of a proactive rebase for an epic branch."""

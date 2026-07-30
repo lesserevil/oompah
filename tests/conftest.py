@@ -192,6 +192,12 @@ def _isolate_agent_profile_store(tmp_path, monkeypatch):
     # both touch resolve_agent_profiles each get a fresh chance to WARN.
     aps.reset_warning_state()
 
+    # The managed agent process carries a short-lived task-handoff capability
+    # in its environment. Unit tests should exercise ordinary CLI behavior by
+    # default; handoff tests opt in explicitly with monkeypatch.setenv().
+    monkeypatch.delenv("OOMPAH_TASK_HANDOFF_TOKEN", raising=False)
+    monkeypatch.delenv("OOMPAH_TASK_HANDOFF_PROJECT_ID", raising=False)
+
     yield
 
     aps.reset_warning_state()

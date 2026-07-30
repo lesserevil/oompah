@@ -61,6 +61,7 @@ from oompah.statuses import (
     OPEN,
     canonicalize_status,
 )
+from oompah.archived_audit_requests import request_archived_audit
 
 logger = logging.getLogger(__name__)
 
@@ -760,15 +761,21 @@ def run_watchdog_audit(
                     result.errors.append(msg)
 
             elif decision.action == "archive":
-                try:
-                    tracker.archive_issue(identifier)
+                disposition_reason = f"Watchdog stalled-task archive: {decision.evidence}"
+                if request_archived_audit(
+                    issue,
+                    tracker,
+                    project_id,
+                    disposition_reason,
+                    trigger_source="stalled_task_watchdog",
+                ):
                     logger.info(
-                        "Watchdog archived %s (project=%s) — %s",
+                        "Watchdog queued archive audit for %s (project=%s) — %s",
                         identifier, project_id, decision.evidence,
                     )
                     result.actions_taken += 1
-                except Exception as exc:
-                    msg = f"Failed to archive {identifier}: {exc}"
+                else:
+                    msg = f"Failed to queue archive audit for {identifier}"
                     logger.warning(msg)
                     result.errors.append(msg)
 

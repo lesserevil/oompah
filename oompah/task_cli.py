@@ -13,6 +13,7 @@ Usage::
     oompah task create --project <project-id> --title "..." [--source <source-id>]
     oompah task child-create <parent-id> --title "..." [--project <id>]
     oompah task set-status <identifier> <status> [--summary "..."]
+        [--audit-override --override-reason "..."]
     oompah task add-label <identifier> <label>
     oompah task remove-label <identifier> <label>
     oompah task set-dependency <identifier> --depends-on <dep-id> [--hard-start]
@@ -477,7 +478,7 @@ def _cmd_child_create(base_url: str, args: argparse.Namespace) -> None:
 
 
 def _cmd_set_status(base_url: str, args: argparse.Namespace) -> None:
-    """oompah task set-status <identifier> <status> [--summary "..."]"""
+    """Request a task status change through the project-aware API."""
     identifier = args.identifier
     data: dict[str, Any] = {
         "status": args.status,
@@ -488,6 +489,14 @@ def _cmd_set_status(base_url: str, args: argparse.Namespace) -> None:
     actor = actor or os.environ.get("OOMPAH_ACTOR_LOGIN")
     if actor:
         data["actor_login"] = str(actor).strip()
+    # ``is True`` keeps older programmatic callers (and Namespace-like test
+    # doubles without the new field) on the backward-compatible path.
+    audit_override = getattr(args, "audit_override", False) is True
+    if audit_override:
+        data["audit_override"] = True
+        reason = getattr(args, "override_reason", None)
+        if reason is not None:
+            data["override_reason"] = reason
     _add_project_or_managed_repo(data, identifier, getattr(args, "project", None))
     handoff_data = {
         "identifier": identifier,
@@ -495,13 +504,18 @@ def _cmd_set_status(base_url: str, args: argparse.Namespace) -> None:
         "status": args.status,
         "summary": getattr(args, "summary", None),
     }
-    if str(args.status).strip().lower() in {"done", "merged", "archived"}:
-        handoff_data.update(_git_submission_evidence())
-    if _task_handoff_request(base_url, "set-status", handoff_data) is not None:
-        print(f"Status set to: {args.status}")
+    if actor:
+        handoff_data["actor_login"] = str(actor).strip()
+    if audit_override:
+        handoff_data["audit_override"] = True
+        if getattr(args, "override_reason", None) is not None:
+            handoff_data["override_reason"] = args.override_reason
+    handoff = _task_handoff_request(base_url, "set-status", handoff_data)
+    if handoff is not None:
+        _print_status_result(handoff, args.status)
         return
     path = f"/api/v1/issues/{_encode_path_id(identifier)}"
-    _http("PATCH", f"{base_url}{path}", data=data)
+    result = _http("PATCH", f"{base_url}{path}", data=data)
 
     # Post the summary as a comment when provided (tracker-neutral approach).
     summary = getattr(args, "summary", None)
@@ -519,7 +533,29 @@ def _cmd_set_status(base_url: str, args: argparse.Namespace) -> None:
         comment_path = f"/api/v1/issues/{_encode_path_id(identifier)}/comments"
         _http("POST", f"{base_url}{comment_path}", data=comment_data)
 
-    print(f"Status set to: {args.status}")
+    _print_status_result(result, args.status)
+
+
+def _print_status_result(result: dict[str, Any], requested_status: str) -> None:
+    """Print a stable status result for API and task-handoff responses."""
+
+    if (
+        str(result.get("status", "")).strip().lower() == "in validation"
+        and result.get("requested_target")
+    ):
+        audit_id = result.get("audit_id") or "pending"
+        print(
+            f"Terminal transition queued: {result['requested_target']} "
+            f"(status: In Validation, audit ID: {audit_id})"
+        )
+    elif result.get("audit_override"):
+        print(
+            f"Status set by owner override: "
+            f"{result.get('status') or requested_status} "
+            f"(audit ID: {result.get('audit_id') or 'recorded'})"
+        )
+    else:
+        print(f"Status set to: {requested_status}")
 
 
 def _git_value(*args: str, cwd: str | Path | None = None) -> str | None:
@@ -1043,7 +1079,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     # --- set-status ---
-    p_status = sub.add_parser("set-status", help="Update task status")
+    p_status = sub.add_parser(
+        "set-status",
+        help="Update task status (terminal states are queued for validation)",
+    )
     p_status.add_argument("identifier", help="Task identifier")
     p_status.add_argument("status", help="New status (e.g. Done, In Progress, Open)")
     p_status.add_argument(
@@ -1062,7 +1101,18 @@ def build_parser() -> argparse.ArgumentParser:
         "--actor",
         default=None,
         metavar="LOGIN",
-        help="GitHub login requesting a gated intake transition",
+        help="Login requesting a gated transition or owner audit override",
+    )
+    p_status.add_argument(
+        "--audit-override",
+        action="store_true",
+        help="Apply a terminal status as an authorized project-owner override",
+    )
+    p_status.add_argument(
+        "--override-reason",
+        default=None,
+        metavar="REASON",
+        help="Required explanation when --audit-override is used",
     )
 
     # --- submit ---

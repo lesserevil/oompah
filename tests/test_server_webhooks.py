@@ -17,13 +17,15 @@ import hashlib
 import hmac
 import json
 from datetime import datetime, timezone
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 
 from oompah.events import EventBus, EventType
 from oompah.models import Project
+from oompah.terminal_audit import TargetState
+from oompah.terminal_transition_coordinator import TransitionResult
 
 
 # ---------------------------------------------------------------------------
@@ -1771,15 +1773,21 @@ class TestWebhookMergedReconciliation:
         mock_tracker.fetch_issue_detail.return_value = mock_issue
         mock_tracker.update_issue = MagicMock()
         orch._tracker_for_project = MagicMock(return_value=mock_tracker)
+        orch.request_terminal_transition = AsyncMock(
+            return_value=TransitionResult(
+                success=True,
+                audit_id="audit-webhook-1",
+                queued_targets=[TargetState.MERGED],
+            )
+        )
         # _resolve_task_for_branch is used by the updated webhook handlers
         # to support both Backlog and GitHub-backed task lookup.
         orch._resolve_task_for_branch = MagicMock(return_value=mock_issue)
 
         return orch, mock_tracker
 
-    def test_pr_merged_marks_task_merged(self):
-        """A pull_request closed+merged event marks the task Merged."""
-        import time
+    def test_pr_merged_stages_task_merged(self):
+        """A pull_request closed+merged event stages the task as Merged."""
         from oompah.server import app, _api_cache
 
         orch, mock_tracker = self._make_orch_with_task("feat-branch", "In Review")
@@ -1800,13 +1808,12 @@ class TestWebhookMergedReconciliation:
             )
 
         assert resp.status_code == 200
-        for _ in range(50):
-            if mock_tracker.update_issue.called:
-                break
-            time.sleep(0.02)
-
-        from oompah.statuses import MERGED
-        mock_tracker.update_issue.assert_called_once_with("feat-branch", status=MERGED)
+        orch.request_terminal_transition.assert_awaited_once()
+        assert (
+            orch.request_terminal_transition.await_args.kwargs["requested_target"]
+            is TargetState.MERGED
+        )
+        mock_tracker.update_issue.assert_not_called()
 
     def test_pr_already_merged_skips_update(self):
         """PR merged webhook for an already-Merged task is a no-op."""

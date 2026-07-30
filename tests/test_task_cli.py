@@ -698,6 +698,50 @@ class TestCmdSetStatus:
         out = capsys.readouterr().out
         assert "In Progress" in out
 
+    def test_sends_owner_override_fields(self):
+        args = _make_args(
+            subcommand="set-status",
+            identifier="TASK-5",
+            status="Merged",
+            summary=None,
+            project="proj-1",
+            actor="owner",
+            audit_override=True,
+            override_reason="Approved after manual review",
+        )
+        with _make_http_mock(
+            {"ok": True, "status": "Merged", "audit_override": True}
+        ) as http_mock:
+            task_cli._cmd_set_status("http://localhost:8080", args)
+
+        data = http_mock.call_args.kwargs["data"]
+        assert data["audit_override"] is True
+        assert data["override_reason"] == "Approved after manual review"
+        assert data["actor_login"] == "owner"
+
+    def test_prints_terminal_queue_response(self, capsys):
+        args = _make_args(
+            subcommand="set-status",
+            identifier="TASK-5",
+            status="Done",
+            summary=None,
+            project=None,
+        )
+        with _make_http_mock(
+            {
+                "ok": True,
+                "status": "In Validation",
+                "requested_target": "Done",
+                "audit_id": "audit-5",
+            }
+        ):
+            task_cli._cmd_set_status("http://localhost:8080", args)
+
+        out = capsys.readouterr().out
+        assert "Terminal transition queued: Done" in out
+        assert "In Validation" in out
+        assert "audit-5" in out
+
 
 class TestCmdAddLabel:
     def test_posts_to_labels_endpoint(self):
@@ -1323,6 +1367,21 @@ class TestBuildParser:
         assert args.coordinate_operation == "send"
         assert args.recipient == "TASK-1"
         assert args.message == "Shared API changed"
+
+    def test_set_status_override_flags_parse(self):
+        parser = task_cli.build_parser()
+        args = parser.parse_args(
+            [
+                "set-status",
+                "TASK-1",
+                "Archived",
+                "--audit-override",
+                "--override-reason",
+                "Approved retirement",
+            ]
+        )
+        assert args.audit_override is True
+        assert args.override_reason == "Approved retirement"
 
     def test_add_label_subcommand_parses(self):
         parser = task_cli.build_parser()

@@ -17,6 +17,8 @@ from fastapi.testclient import TestClient
 import oompah.server as server_module
 from oompah.server import app, _state_key, _verify_epic_state_after_update
 from oompah.models import Issue
+from oompah.terminal_audit import TargetState
+from oompah.terminal_transition_coordinator import TransitionResult
 
 
 # ---------------------------------------------------------------------------
@@ -50,6 +52,9 @@ def _make_mock_orchestrator(project_id: str = "proj-1") -> tuple[MagicMock, Magi
     mock_orch = MagicMock()
     mock_orch._tracker_for_project = MagicMock(return_value=mock_tracker)
     mock_orch.config.tracker_terminal_states = ["closed"]
+    mock_orch.terminal_transition_coordinator.request_transition = AsyncMock(
+        return_value=TransitionResult(success=True, audit_id="audit-epic-1")
+    )
     mock_orch.state.running = {}
     mock_orch.state.retry_attempts = {}
     mock_orch.state.claimed = set()
@@ -413,7 +418,7 @@ class TestEpicStateVerification:
         assert resp.json()["ok"] is True
 
     def test_epic_close_does_not_verify(self, client):
-        """Closing an Epic (terminal transition) skips the verification pass."""
+        """The legacy close alias stages Done and skips the verification pass."""
         mock_orch, mock_tracker = _make_mock_orchestrator()
         mock_tracker.fetch_issue_detail.return_value = _make_issue(
             identifier="epic-1", issue_type="epic", state="deferred"
@@ -428,9 +433,14 @@ class TestEpicStateVerification:
                 json={"status": "closed", "project_id": "proj-1"},
             )
 
-        # No verification for terminal transitions (close is aterminal state)
+        # No post-write verification for coordinator-owned terminal transitions.
         assert resp.status_code == 200
         assert resp.json()["ok"] is True
+        mock_tracker.close_issue.assert_not_called()
+        request = (
+            mock_orch.terminal_transition_coordinator.request_transition.await_args
+        )
+        assert request.kwargs["requested_target"] == TargetState.DONE
 
 
 # ---------------------------------------------------------------------------

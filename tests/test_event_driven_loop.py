@@ -116,6 +116,11 @@ class TestDispatchEvent:
 class TestFullSyncIntervalConfig:
     """full_sync_interval_ms has a sensible default and can be configured."""
 
+    @pytest.fixture(autouse=True)
+    def _clear_service_override(self, monkeypatch):
+        """Exercise workflow precedence without the service's gate environment."""
+        monkeypatch.delenv("OOMPAH_FULL_SYNC_INTERVAL_MS", raising=False)
+
     def test_default_is_300000(self):
         cfg = ServiceConfig()
         assert cfg.full_sync_interval_ms == 300000
