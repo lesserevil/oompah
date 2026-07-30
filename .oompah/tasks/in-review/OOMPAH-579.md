@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T03:54:54.485192Z'
-updated_at: '2026-07-30T04:02:58.651300Z'
+updated_at: '2026-07-30T04:03:12.613877Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,13 +44,13 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 0f81df32-5dec-411c-99ac-8eae3640cda0
 oompah.task_costs:
-  total_input_tokens: 835643
-  total_output_tokens: 3233
+  total_input_tokens: 835929
+  total_output_tokens: 3294
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 835643
-      output_tokens: 3233
+      input_tokens: 835929
+      output_tokens: 3294
       cost_usd: 0.0
   runs:
   - profile: default
@@ -59,6 +59,12 @@ oompah.task_costs:
     output_tokens: 3233
     cost_usd: 0.0
     recorded_at: '2026-07-30T03:57:15.514800+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 286
+    output_tokens: 61
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T04:03:11.012705+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-579__20260730T035552Z
@@ -121,5 +127,15 @@ author: oompah
 created: 2026-07-30 04:00
 ---
 The full gate reproduced the unrelated 1-second maintenance-lane wall-clock flake fixed at OOMPAH-459 commit 95581aca5 (13,618 other tests passed). Carried the identical structural 60s-vs-15s stabilization so this branch can pass its required gate now; repeated the formerly flaky test 10/10 successfully and kept the structural non-blocking assertion unchanged.
+---
+author: oompah
+created: 2026-07-30 04:03
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 17
+- Tokens: 286 in / 61 out [347 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 5m 46s
+- Log: OOMPAH-579__20260730T035729Z.jsonl
 ---
 <!-- COMMENTS:END -->
