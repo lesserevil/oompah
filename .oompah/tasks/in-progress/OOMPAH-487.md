@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:26.170630Z'
-updated_at: '2026-07-30T05:29:41.469657Z'
+updated_at: '2026-07-30T05:29:51.253968Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-487
 target_branch: null
 review_url: null
@@ -322,5 +322,20 @@ Key acceptance criteria verified:
 - Owner override procedure is documented with API request shape and rejection codes
 - Upgrade/grandfathering behavior is explained with clear upgrade path instructions
 - All per-doc requirement tests pass (doc existence, content keywords, env example coverage)
+---
+author: oompah
+created: 2026-07-30 05:29
+---
+Completion: Delivered OOMPAH-487 — Document auditor configuration, overrides, migration, and recovery.
+
+Deliverables:
+- docs/auditor-dispatch-operations.md: comprehensive operator guide (333 lines) with Mermaid lifecycle diagram, independence rules, whitelist effects, all 14 failure classifications, owner override API, no-candidate recovery, upgrade grandfathering, restart recovery, config examples
+- docs/task-epic-workflow.md: In Validation state added to lifecycle flowchart and status table with auditor verdict routing
+- docs/operator-runbook.md: key files updated, deprecation migration §10.1
+- .env.example: OOMPAH_AUDIT_MAX_ATTEMPTS and related vars with full section; DEPRECATED notices on VERIFY_COMPLETION vars
+- oompah/config.py: audit_max_attempts/ttl/priority/lane_scan_limit in ServiceConfig; startup deprecation warning function
+- tests/test_config.py: 19 focused tests all passing (107 total in file)
+
+A junior operator reading only public docs can: configure ≥2 independent auditor candidates, diagnose Needs Human from the troubleshooting section, execute owner override via the API example, and understand upgrade grandfathering behavior.
 ---
 <!-- COMMENTS:END -->
