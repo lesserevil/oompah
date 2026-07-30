@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-579
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Prune branchless terminal legacy epic-task worktrees
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T03:54:54.485192Z'
-updated_at: '2026-07-30T04:31:50.032419Z'
+updated_at: '2026-07-30T04:40:17.957515Z'
 work_branch: OOMPAH-579
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/591
@@ -101,6 +101,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-251e79e4565b: '2026-07-30T04:26:50.105440+00:00'
+    attempt-7ef7db1b6f50: '2026-07-30T04:40:15.958825+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -142,7 +143,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-579
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -151,7 +152,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-7ef7db1b6f50
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -161,13 +162,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-30T04:31:47.080885+00:00'
       branch_key: OOMPAH-579
+      verdict: pass
+      completed_at: '2026-07-30T04:40:15.958708+00:00'
+      ended_at: '2026-07-30T04:40:15.958708+00:00'
     requested_by:
       version: 1
       identity: NVShawn
       source: forge
     previous_state: In Review
     created_at: '2026-07-30T04:20:02.983899+00:00'
-    updated_at: '2026-07-30T04:31:47.080885+00:00'
+    updated_at: '2026-07-30T04:40:15.958708+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-251e79e4565b
@@ -312,5 +316,21 @@ author: oompah
 created: 2026-07-30 04:31
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 04:40
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- implementation_commit: a994cad2c31d26067b8942c58b15b02e9b457a13
+- merge_commit: 3aa2bd65bebf902b96e933e845352b1a8b98fbe7
+- merged_to_main: true
+- focused_tests: tests/test_projects.py::TestRemoveWorktreeCleanup all passing
+- changed_files: oompah/projects.py, tests/test_projects.py, tests/test_client_auth.py
+- scope_guardrails: fallback gated on not is_epic AND os.path.isdir(epic_worktree_path_for(same identifier)); candidate is epic_branch_name(same identifier); legacy_epic_task gate unchanged; _remove_epic_worktree_locked called with the same task identifier
+- test_parametrization: recorded_branch in ['epic-TASK-42', None] against real bare remote
 ---
 <!-- COMMENTS:END -->
