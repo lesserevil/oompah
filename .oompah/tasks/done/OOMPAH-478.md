@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:26.329329Z'
-updated_at: '2026-07-30T00:58:50.942422Z'
+updated_at: '2026-07-30T00:59:04.554016Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-478
 target_branch: null
 review_url: null
@@ -60,8 +60,8 @@ oompah.duplicate_screening:
 oompah.agent_run_id: a7b10f1f-c864-48d8-b779-ecb895c94339
 oompah.work_branch: epic-OOMPAH-459--task-OOMPAH-478
 oompah.task_costs:
-  total_input_tokens: 2658
-  total_output_tokens: 11947
+  total_input_tokens: 2756
+  total_output_tokens: 16326
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -71,6 +71,10 @@ oompah.task_costs:
     sonnet:
       input_tokens: 40
       output_tokens: 1037
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 98
+      output_tokens: 4379
       cost_usd: 0.0
   runs:
   - profile: default
@@ -97,6 +101,12 @@ oompah.task_costs:
     output_tokens: 1037
     cost_usd: 0.0
     recorded_at: '2026-07-29T23:19:30.811167+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 98
+    output_tokens: 4379
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T00:59:03.108942+00:00'
 oompah.integration:
   version: 1
   state: working
@@ -520,5 +530,15 @@ Safe evidence:
 - task_commit_stat: oompah/orchestrator.py +179/-, tests/test_epic_auto_close.py 46 changed, tests/test_epic_strategy.py 24 changed
 - focused_tests: pass (2000+ tests across affected suites)
 - key_changes: _reconcile_epic_rollup_statuses skips In Validation and audit:repair-needed; blocks rollup when child In Validation; routes terminal states via _request_epic_terminal_rollup. _auto_close_completed_epics routes terminal transition via coordinator; posts reason via append_comment. _sync_epic_review_child_states routes MERGED via coordinator.
+---
+author: oompah
+created: 2026-07-30 00:59
+---
+Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 75
+- Tokens: 98 in / 4.4K out [4.5K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 44m 17s
+- Log: OOMPAH-478__20260730T001450Z.jsonl
 ---
 <!-- COMMENTS:END -->
