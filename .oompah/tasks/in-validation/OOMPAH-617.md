@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T20:52:01.122820Z'
-updated_at: '2026-07-30T21:08:21.101280Z'
+updated_at: '2026-07-30T21:15:08.504507Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-617
 target_branch: null
 review_url: null
@@ -117,5 +117,10 @@ author: oompah
 created: 2026-07-30 21:08
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 21:15
+---
+Operator note for the active completion auditor: the exact combined-tree integration gate already passed before a678afc20 was pushed onto origin/epic-OOMPAH-587 and the queue was marked integrated at 21:08:01. The focused branch verification was 125 passed. Do not invoke make test-serial: the currently deployed run_command wrapper blocks the scheduler until OOMPAH-618 lands. Inspect the committed diff/evidence and submit the audit result.
 ---
 <!-- COMMENTS:END -->
