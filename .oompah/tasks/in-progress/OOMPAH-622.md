@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T21:26:15.242500Z'
-updated_at: '2026-07-30T21:30:24.886315Z'
+updated_at: '2026-07-30T21:30:38.003910Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-622
 target_branch: null
 review_url: null
@@ -118,5 +118,10 @@ author: oompah
 created: 2026-07-30 21:30
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-30 21:30
+---
+Understanding: Implementing filter to reject subscription-backed Codex CLI sessions from auditor candidates, enforce read-only mode for all auditor ACP sessions, and provide actionable diagnostics when no capable candidates exist. Will examine auditor_candidate_selector.py, orchestrator.py, and acp_backends/codex.py.
 ---
 <!-- COMMENTS:END -->
