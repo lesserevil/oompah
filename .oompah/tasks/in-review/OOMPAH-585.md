@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-585
 type: epic
-status: In Progress
+status: In Review
 priority: 1
 title: Restore terminal-audit execution and truthful health reporting
 parent: OOMPAH-584
@@ -24,12 +24,16 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:13:32.577860Z'
-updated_at: '2026-07-30T23:07:33.260048Z'
-work_branch: null
-target_branch: null
-review_url: null
-review_number: null
+updated_at: '2026-07-30T23:31:10.572883Z'
+work_branch: epic-OOMPAH-585
+target_branch: epic-OOMPAH-584
+review_url: https://github.com/lesserevil/oompah/pull/596
+review_number: '596'
 merged_at: null
+oompah.review_url: https://github.com/lesserevil/oompah/pull/596
+oompah.review_number: '596'
+oompah.work_branch: epic-OOMPAH-585
+oompah.target_branch: epic-OOMPAH-584
 ---
 ## Summary
 
@@ -51,3 +55,11 @@ Eligible auditors launch against validated absolute endpoints; invalid candidate
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-30 23:31
+---
+Branch quality gate passed for `4510fb912aebc99dce90df1dc55e8ee952408401` using `make test` in 255.7s. Review creation may proceed.
+---
+<!-- COMMENTS:END -->
