@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-624
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Bind owner authorization to the authenticated server principal
 parent: OOMPAH-619
@@ -13,7 +13,7 @@ labels:
 - needs:security
 assignee: null
 created_at: '2026-07-30T21:37:57.526368Z'
-updated_at: '2026-07-30T21:41:05.677922Z'
+updated_at: '2026-07-30T21:41:23.052664Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-624
 target_branch: null
 review_url: null
@@ -47,13 +47,13 @@ oompah.integration:
   base_sha: c048ba706cbe9b1342b80a67576a49b82887e84a
   updated_at: '2026-07-30T21:39:38.647956+00:00'
 oompah.task_costs:
-  total_input_tokens: 177845
-  total_output_tokens: 1184
+  total_input_tokens: 177999
+  total_output_tokens: 5508
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 177845
-      output_tokens: 1184
+      input_tokens: 177999
+      output_tokens: 5508
       cost_usd: 0.0
   runs:
   - profile: default
@@ -62,6 +62,12 @@ oompah.task_costs:
     output_tokens: 1184
     cost_usd: 0.0
     recorded_at: '2026-07-30T21:39:26.126861+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 154
+    output_tokens: 4324
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T21:41:10.913452+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-624__20260730T213853Z
@@ -72,6 +78,14 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-619--task-OOMPAH-624
     source_sha: c048ba706cbe9b1342b80a67576a49b82887e84a
     completed_at: '2026-07-30T21:39:26.134357+00:00'
+  - run_id: OOMPAH-624__20260730T213945Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: frontend
+    source_branch: epic-OOMPAH-619--task-OOMPAH-624
+    source_sha: c048ba706cbe9b1342b80a67576a49b82887e84a
+    completed_at: '2026-07-30T21:41:10.916822+00:00'
 ---
 ## Summary
 
@@ -162,5 +176,25 @@ created: 2026-07-30 21:40
 - Authorization is checked server-side, not displayed to user
 
 **Recommended next focus:** backend/security specialist to implement authenticated principal exposure, username-to-actor mapping, and authorization refactoring. The orchestrator can dispatch immediately.
+---
+author: oompah
+created: 2026-07-30 21:41
+---
+Agent completed successfully in 97s (4478 tokens)
+---
+author: oompah
+created: 2026-07-30 21:41
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 41, Tool calls: 18
+- Tokens: 154 in / 4.3K out [4.5K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 37s
+- Log: OOMPAH-624__20260730T213945Z.jsonl
+---
+author: oompah
+created: 2026-07-30 21:41
+---
+Focus handoff from `frontend` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
 ---
 <!-- COMMENTS:END -->
