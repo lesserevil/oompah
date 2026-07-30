@@ -13,7 +13,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:26.620047Z'
-updated_at: '2026-07-30T14:34:06.341391Z'
+updated_at: '2026-07-30T14:39:40.271793Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-591
 target_branch: null
 review_url: null
@@ -140,5 +140,23 @@ author: oompah
 created: 2026-07-30 14:34
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-30 14:39
+---
+UNDERSTANDING: This task requires implementing an idempotent recovery mechanism for pending terminal-audit metadata and stale In Validation tasks. The terminal-audit enforcement system is already implemented; I need to:
+
+1. Verify the enforcement system can recover from pending audit metadata without duplication
+2. Implement recovery for OOMPAH-580 and OOMPAH-582 (stale In Validation tasks)
+3. Add bounded batch/restart behavior if needed
+4. Ensure tests cover multi-request tasks, stale fingerprints, already-completed audits, restart midway, and repeated recovery passes
+5. Verify pending audit count reaches zero or each has actionable terminal failure
+
+PLAN:
+1. Explore what OOMPAH-580 and OOMPAH-582 are and their current state
+2. Understand the pending audit backlog
+3. Implement recovery mechanism as needed
+4. Add comprehensive tests
+5. Verify acceptance criteria are met
 ---
 <!-- COMMENTS:END -->
