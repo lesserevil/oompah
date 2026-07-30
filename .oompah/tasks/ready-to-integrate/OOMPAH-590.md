@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-590
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Retry terminal audits after auditor launch or transport failure
 parent: OOMPAH-585
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:22.194798Z'
-updated_at: '2026-07-30T14:41:34.343085Z'
+updated_at: '2026-07-30T14:41:43.078379Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-590
 target_branch: null
 review_url: null
@@ -48,12 +48,12 @@ oompah.agent_run_id: 945de5f9-9701-40f0-b89c-eef1dbd0ec57
 oompah.work_branch: epic-OOMPAH-585--task-OOMPAH-590
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-585--task-OOMPAH-590
-  base_branch: epic-OOMPAH-585
-  base_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
-  updated_at: '2026-07-30T14:32:03.138796+00:00'
+  head_sha: 196653392d78b3bcbcae58c6f8c52aa4be161d4c
+  submitted_at: '2026-07-30T14:41:39.513289+00:00'
+  updated_at: '2026-07-30T14:41:39.513289+00:00'
 oompah.task_costs:
   total_input_tokens: 3976570
   total_output_tokens: 13609
@@ -247,5 +247,10 @@ Coverage of acceptance criteria:
 ✓ Complete audit history maintained across all attempts
 
 All changes pushed to epic-OOMPAH-585--task-OOMPAH-590. Ready for integration.
+---
+author: oompah
+created: 2026-07-30 14:41
+---
+Implemented retry mechanism for terminal audits after transient failures. Transient auditor-session failures (launch, transport, timeout, provider-session) are now classified as INFRASTRUCTURE_ERROR, triggering automatic retry with the next eligible independent candidate and bounded exponential backoff. When all candidates are exhausted, the audit is routed to Needs Human with actionable instructions. The implementation prevents duplicate concurrent attempts, preserves terminal-state idempotency, and maintains complete audit history. All acceptance criteria met: 144 tests passing (13 new tests + 131 existing), covering launch exception, transport exception, timeout, next-candidate fallback, exhausted candidates, restart recovery, duplicate tick coalescing, and successful later completion.
 ---
 <!-- COMMENTS:END -->
