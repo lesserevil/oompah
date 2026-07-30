@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-616
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Integrate terminal-audit retry ownership fencing
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T20:47:41.612111Z'
-updated_at: '2026-07-30T20:49:50.417525Z'
+updated_at: '2026-07-30T20:54:26.903495Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-616
 target_branch: null
 review_url: null
@@ -35,12 +35,15 @@ oompah.agent_run_id: 666032db-c114-4d08-9f56-ece5bc8e02e0
 oompah.work_branch: epic-OOMPAH-585--task-OOMPAH-616
 oompah.integration:
   version: 1
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-585--task-OOMPAH-616
+  base_branch: epic-OOMPAH-585
+  base_sha: 64b9b00c55f34d164d4eca2dd6071887ea5b5bb3
   head_sha: 45838987c7435c344c39cf77d0dd3ed1c135834c
+  integrated_sha: 45838987c7435c344c39cf77d0dd3ed1c135834c
   submitted_at: '2026-07-30T20:49:32.032464+00:00'
-  updated_at: '2026-07-30T20:49:32.032464+00:00'
+  updated_at: '2026-07-30T20:54:23.125200+00:00'
 oompah.task_costs:
   total_input_tokens: 294
   total_output_tokens: 74
@@ -57,6 +60,28 @@ oompah.task_costs:
     output_tokens: 74
     cost_usd: 0.0
     recorded_at: '2026-07-30T20:49:48.067654+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-2461e8bb7254
+    project_id: proj-14849f1b
+    task_id: OOMPAH-616
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0964ac8afc3b37e150cae341bca6d514ab7a10549b3e048759c6627ce31a2224
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-30T20:54:24.446967+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -104,5 +129,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 1m 20s
 - Log: OOMPAH-616__20260730T204836Z.jsonl
+---
+author: oompah
+created: 2026-07-30 20:54
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
