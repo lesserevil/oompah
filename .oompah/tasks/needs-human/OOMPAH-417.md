@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-23T19:34:44.997439Z'
-updated_at: '2026-07-30T21:59:25.830581Z'
+updated_at: '2026-07-30T22:00:47.818891Z'
 work_branch: epic-OOMPAH-414
 target_branch: null
 review_url: null
@@ -119,5 +119,10 @@ author: oompah
 created: 2026-07-30 21:59
 ---
 The parent epic OOMPAH-414 merged from epic-OOMPAH-414, but this task was In Validation with work branch epic-OOMPAH-414. Its work is not proven to be in the merged epic. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
+---
+author: oompah
+created: 2026-07-30 22:00
+---
+The parent epic OOMPAH-414 merged from epic-OOMPAH-414, but this task was Needs Human with work branch epic-OOMPAH-414. Its work is not proven to be in the merged epic. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
 ---
 <!-- COMMENTS:END -->
