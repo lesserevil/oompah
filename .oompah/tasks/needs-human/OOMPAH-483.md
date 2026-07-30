@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-483
 type: feature
-status: In Progress
+status: Needs Human
 priority: 1
 title: Detect and block terminal-state writes that bypass the coordinator
 parent: OOMPAH-459
@@ -19,7 +19,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:31.119782Z'
-updated_at: '2026-07-30T02:32:12.811684Z'
+updated_at: '2026-07-30T02:32:49.512105Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-483
 target_branch: null
 review_url: null
@@ -64,7 +64,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: b3575c94-f727-479a-835e-a2db4fd06dd6
+oompah.agent_run_id: b6f24afb-8aa9-4def-966d-3199d2259101
 oompah.work_branch: epic-OOMPAH-459--task-OOMPAH-483
 oompah.task_costs:
   total_input_tokens: 55955
@@ -115,7 +115,7 @@ oompah.integration:
   task_branch: epic-OOMPAH-459--task-OOMPAH-483
   base_branch: epic-OOMPAH-459
   base_sha: f94236e267fecf7cf3549096665bedb79ea0d1a3
-  updated_at: '2026-07-30T02:31:46.419059+00:00'
+  updated_at: '2026-07-30T02:32:35.528578+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
@@ -435,5 +435,35 @@ author: oompah
 created: 2026-07-30 02:32
 ---
 Agent completed without closing this issue (27s (55619 tokens)). Escalating from 'standard' to 'deep'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-30 02:32
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-30 02:32
+---
+Focus: Technical Writer
+---
+author: oompah
+created: 2026-07-30 02:32
+---
+Operator takeover: the repair worker stopped before file changes because its scoped task CLI returned 401 (tracked separately as OOMPAH-575). Holding dispatch while implementing the audit-required AST terminal-mutation scanner, explicit allowlist, Makefile gate, and regression fixtures directly on the existing branch.
+---
+author: oompah
+created: 2026-07-30 02:32
+---
+Moved to Needs Human from the dashboard/API. Human action required: inspect OOMPAH-483 (Detect and block terminal-state writes that bypass the coordinator), add the specific decision, missing information, or manual fix needed, then move the task back to Open when it is ready for agents again.
+---
+author: oompah
+created: 2026-07-30 02:32
+---
+Run #2 [attempt=2, profile=deep, role=deep -> Codex/gpt-5.6-sol]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 18s
+- Log: OOMPAH-483__20260730T023240Z.jsonl
 ---
 <!-- COMMENTS:END -->
