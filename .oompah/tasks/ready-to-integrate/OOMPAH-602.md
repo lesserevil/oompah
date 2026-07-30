@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-602
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Repair project scope propagation in merged-label maintenance
 parent: OOMPAH-588
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:01.749200Z'
-updated_at: '2026-07-30T23:06:20.235248Z'
+updated_at: '2026-07-30T23:07:06.279890Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-602
 target_branch: null
 review_url: null
@@ -61,12 +61,12 @@ oompah.agent_run_id: 0ef23ba4-9a93-4757-96f0-0c81a5ad0946
 oompah.work_branch: epic-OOMPAH-588--task-OOMPAH-602
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-588--task-OOMPAH-602
-  base_branch: epic-OOMPAH-588
-  base_sha: 9e7f53286913f34b40cdc52a56b734d31c91e8aa
-  updated_at: '2026-07-30T23:06:18.395730+00:00'
+  head_sha: 89dfc18811454bb05e0fd027702d9aafb2edc40c
+  submitted_at: '2026-07-30T23:07:02.037584+00:00'
+  updated_at: '2026-07-30T23:07:02.037584+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-602__20260730T160131Z
@@ -566,5 +566,10 @@ author: oompah
 created: 2026-07-30 23:06
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-30 23:07
+---
+Correct the rejected cross-worktree submission with OOMPAH-602's own pushed branch and current head; integrate and validate the scope-propagation repair.
 ---
 <!-- COMMENTS:END -->
