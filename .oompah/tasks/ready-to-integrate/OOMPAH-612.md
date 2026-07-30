@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-612
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Avoid ACP auditor result deadlock on the dispatch event loop
 parent: null
@@ -11,12 +11,20 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T19:33:15.081209Z'
-updated_at: '2026-07-30T19:43:40.320181Z'
+updated_at: '2026-07-30T19:43:52.551135Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.integration:
+  version: 1
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-612
+  head_sha: 8ce6fa0ad3a343b053298a64f721a6a3b73ceb22
+  submitted_at: '2026-07-30T19:43:50.264292+00:00'
+  updated_at: '2026-07-30T19:43:50.264292+00:00'
 ---
 ## Summary
 
@@ -41,5 +49,10 @@ author: oompah
 created: 2026-07-30 19:43
 ---
 Implemented the ACP bridge repair: Claude and OpenCode async submit_audit_result tools now offload the synchronous run_coroutine_threadsafe coordinator bridge, keeping the dispatch loop free to apply and return the actual result. Added same-loop success/idempotency regressions for both async ACP catalogs and a coordinator-rejection regression. Focused suite: 237 passed. Full make test: 13,729 passed, 7 skipped; terminal mutation scan and secret scan passed.
+---
+author: oompah
+created: 2026-07-30 19:43
+---
+Offload Claude/OpenCode ACP audit-result submission bridges so the event loop can apply the coordinator result; add same-loop success, idempotency, and rejection regressions. Full make test passed 13,729 with 7 skipped.
 ---
 <!-- COMMENTS:END -->

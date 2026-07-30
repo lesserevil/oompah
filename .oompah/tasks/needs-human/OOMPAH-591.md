@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-591
 type: task
-status: In Validation
+status: Needs Human
 priority: 1
 title: Reconcile the pending audit backlog and stale In Validation tasks
 parent: OOMPAH-585
@@ -13,7 +13,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:26.620047Z'
-updated_at: '2026-07-30T19:42:54.974532Z'
+updated_at: '2026-07-30T19:43:58.199092Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-591
 target_branch: null
 review_url: null
@@ -113,6 +113,8 @@ oompah.work_contributors:
     completed_at: '2026-07-30T14:33:38.488473+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    no-auditor-audit-37099e414d25-3: '2026-07-30T19:43:55.856470+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -120,7 +122,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-591
     target_state: Done
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -176,13 +178,25 @@ oompah.terminal_audit:
       ended_at: '2026-07-30T19:42:51.865653+00:00'
       failure_reason: normal
       next_retry_at: '2026-07-30T19:43:31.865628+00:00'
+    - version: 1
+      attempt_id: no-auditor-audit-37099e414d25-3
+      target_state: Done
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: c8aa438d295d71b5d7524e1319fdd2038e722d3bbafafbc5a40bf8cdeff8e442
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-07-30T19:43:55.856332+00:00'
+      completed_at: '2026-07-30T19:43:55.856332+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-30T18:47:32.059124+00:00'
-    updated_at: '2026-07-30T19:42:51.865653+00:00'
+    updated_at: '2026-07-30T19:43:55.856332+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-870b1c4d15ed
@@ -483,5 +497,12 @@ author: oompah
 created: 2026-07-30 19:42
 ---
 Auditor attempt ended: auditor exited (normal) without a result. A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-07-30 19:43
+---
+Needs Human — Done audit requires operator input.
+
+No independent auditor candidate is available for this audit (Audit reached the maximum of 3 attempts.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then move the task back to Open to retry.
 ---
 <!-- COMMENTS:END -->
