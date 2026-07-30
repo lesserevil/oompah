@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T21:26:15.242500Z'
-updated_at: '2026-07-30T21:30:38.003910Z'
+updated_at: '2026-07-30T21:31:58.762975Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-622
 target_branch: null
 review_url: null
@@ -123,5 +123,21 @@ author: oompah
 created: 2026-07-30 21:30
 ---
 Understanding: Implementing filter to reject subscription-backed Codex CLI sessions from auditor candidates, enforce read-only mode for all auditor ACP sessions, and provide actionable diagnostics when no capable candidates exist. Will examine auditor_candidate_selector.py, orchestrator.py, and acp_backends/codex.py.
+---
+author: oompah
+created: 2026-07-30 21:31
+---
+Discovery: Found key code paths:
+
+1. auditor_candidate_selector.py - has _is_subscription_acp() method, needs filter in _eligible_candidates()
+2. orchestrator.py line 21400-21659 - controls auditor ACP session creation, currently read_only only set on duplicate_preflight
+3. auditor.py - has AUDITOR_CAPABILITY_POLICY and read_only enforcement
+4. Codex backend check needed: _is_subscription_acp() uses mode='acp' and billing_model='subscription'
+
+Planned implementation: 
+- Add 'verdict_incapable' reason to NoCandidateReason
+- Filter subscription-backed Codex from eligible candidates in auditor selection
+- Force read_only=True for all auditor ACP sessions
+- Add tests for mixed candidates, subscription exhaustion, and token-backed Codex eligibility
 ---
 <!-- COMMENTS:END -->
