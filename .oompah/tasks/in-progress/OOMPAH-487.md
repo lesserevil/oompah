@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:26.170630Z'
-updated_at: '2026-07-30T05:29:19.325057Z'
+updated_at: '2026-07-30T05:29:32.861663Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-487
 target_branch: null
 review_url: null
@@ -291,5 +291,22 @@ author: oompah
 created: 2026-07-30 05:29
 ---
 Discovery: Reviewed the branch HEAD commit (3c6e5a8). All required work is already committed and pushed. The branch contains: docs/auditor-dispatch-operations.md (333 lines, comprehensive operator guide with Mermaid lifecycle diagram), updates to docs/task-epic-workflow.md (In Validation state, auditor verdict flows), docs/operator-runbook.md (deprecation migration steps), .env.example (OOMPAH_AUDIT_MAX_ATTEMPTS section + DEPRECATED notices for VERIFY_COMPLETION vars), oompah/config.py (audit fields in ServiceConfig, warn_deprecated_verify_completion_vars()), and tests/test_config.py (19 tests in TestAuditDispatchConfiguration).
+---
+author: oompah
+created: 2026-07-30 05:29
+---
+Implementation: The single commit on this branch (3c6e5a8) delivers all required documentation and code changes:
+
+1. docs/auditor-dispatch-operations.md — operator guide covering: auditor role and tool set, Mermaid lifecycle flowchart, target-specific audit chains (Done/Merged/Archived), independence rules, failure routing table, configuration section with all OOMPAH_AUDIT_* vars, auditor role JSON config with 2-provider/4-provider examples, monitoring (dashboard + logs + state endpoint), troubleshooting (no_auditor, rate-limiting, timeout), explicit owner override API with rejection codes, upgrade grandfathering behavior, restart recovery, and migration from deprecated completion verifier.
+
+2. docs/task-epic-workflow.md — In Validation added to status lifecycle Mermaid diagram with auditor verdict paths; In Validation row added to dispatch table with 'auditor only' note and cross-reference to auditor doc.
+
+3. docs/operator-runbook.md — .oompah/roles.json added to key files; §10.1 migration note for VERIFY_COMPLETION → auditor role.
+
+4. .env.example — OOMPAH_AUDIT_MAX_ATTEMPTS, OOMPAH_AUDIT_ATTEMPT_TTL, OOMPAH_AUDIT_PRIORITY, OOMPAH_AUDIT_LANE_SCAN_LIMIT in dedicated section; OOMPAH_VERIFY_COMPLETION and OOMPAH_VERIFY_COMPLETION_LLM marked DEPRECATED with migration pointers.
+
+5. oompah/config.py — audit_max_attempts, audit_attempt_ttl, audit_priority, audit_lane_scan_limit in ServiceConfig with env var parsing; warn_deprecated_verify_completion_vars() called at from_workflow startup.
+
+6. tests/test_config.py — TestAuditDispatchConfiguration class with 19 tests.
 ---
 <!-- COMMENTS:END -->
