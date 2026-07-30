@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-414
 type: task
-status: In Validation
+status: Merged
 priority: 0
 title: Prevent scheduler stalls from delaying task dispatch
 parent: null
@@ -17,7 +17,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-23T19:20:53.199562Z'
-updated_at: '2026-07-30T22:02:41.934029Z'
+updated_at: '2026-07-30T22:04:11.872394Z'
 work_branch: epic-OOMPAH-414
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/543
@@ -74,6 +74,7 @@ oompah.terminal_audit:
     attempt-d0ebf75eb257: '2026-07-30T21:58:33.242916+00:00'
     attempt-2fe61af3577e: '2026-07-30T22:01:02.376871+00:00'
     attempt-b130979b1141: '2026-07-30T22:02:15.012985+00:00'
+    attempt-8cddd61d6523: '2026-07-30T22:04:09.192145+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -183,7 +184,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-414
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -192,7 +193,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-8cddd61d6523
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -202,13 +203,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-30T22:02:34.345428+00:00'
       branch_key: epic-OOMPAH-414
+      verdict: pass
+      completed_at: '2026-07-30T22:04:09.191999+00:00'
+      ended_at: '2026-07-30T22:04:09.191999+00:00'
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
       source: oompah
     previous_state: In Validation
     created_at: '2026-07-30T22:02:11.312030+00:00'
-    updated_at: '2026-07-30T22:02:34.345428+00:00'
+    updated_at: '2026-07-30T22:04:09.191999+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-d0ebf75eb257
@@ -546,5 +550,21 @@ author: oompah
 created: 2026-07-30 22:02
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 22:04
+---
+Audit PASS — Merged
+
+Merged target verified: PR #543 merge commit c563be791 is on main and contains the full OOMPAH-414 epic (children OOMPAH-415 dispatch stale decoupling, OOMPAH-415 docs, OOMPAH-416 orphan-reset wake). No revert commit on main affects the changed files. Diff stat matches prior audits (6 files, +268/-36) covering config, orchestrator, tests, and docs.
+
+Safe evidence:
+- merge_commit: c563be791 Merge pull request #543 from lesserevil/epic-OOMPAH-414
+- merge_date_utc: 2026-07-23T21:05:38Z (2026-07-23 16:05:38 -0500)
+- on_main: yes (git branch --contains c563be791 lists main; git log main --grep=OOMPAH-414 returns c563be791)
+- child_commits: e8dca97b4 OOMPAH-415: decouple dispatch stale recovery timing; c9b72babb OOMPAH-415: docs for OOMPAH_DISPATCH_STALE_THRESHOLD_MS/GRACE_MS; c19f47ca4 OOMPAH-416: wake dispatch after orphan resets
+- diff_stat: 6 files changed, 268 insertions(+), 36 deletions(-): .env.example +13, docs/tick-latency-diagnostics.md +32, oompah/config.py +20 (net +16), oompah/orchestrator.py +45 (net +38), tests/test_dispatch_loop_heartbeat.py +100 (net +87), tests/test_orphan_reset_dispatch_wake.py +94 (new)
+- reverts_check: no revert commit affecting these files found on main (git log main --grep=Revert.*OOMPAH-41 empty)
+- prior_audits: prior Archived audit 2026-07-30 21:58 passed, prior Done audit 2026-07-30 22:01 passed, prior Merged audit 2026-07-30 22:02 passed — all with same evidence fingerprint 9469139f
 ---
 <!-- COMMENTS:END -->
