@@ -18,11 +18,26 @@ from oompah.server import _BasicAuthMiddleware
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
 AUTH_DOC = DOCS / "authentication.md"
+CLI_INSTALL_DOC = DOCS / "cli-install.md"
 
 
 def _read(path: Path) -> str:
     assert path.is_file(), f"expected documentation file: {path}"
     return path.read_text(encoding="utf-8")
+
+
+def _credential_precedence_sections() -> tuple[str, str]:
+    """Return the dedicated credential-precedence section from each guide."""
+    authentication = _read(AUTH_DOC)
+    cli_install = _read(CLI_INSTALL_DOC)
+    return (
+        authentication.split("### CLI Credential Precedence", 1)[1].split(
+            "### CLI authentication", 1
+        )[0],
+        cli_install.split("#### Credential precedence", 1)[1].split(
+            "## Upgrading", 1
+        )[0],
+    )
 
 
 def test_authentication_guide_covers_the_security_and_operations_contract():
@@ -58,10 +73,12 @@ def test_authentication_guide_covers_the_security_and_operations_contract():
 def test_cli_credential_precedence_is_documented():
     """Verify that credential precedence is explicitly documented."""
     text = _read(AUTH_DOC)
-    cli_install = _read(DOCS / "cli-install.md")
+    cli_install = _read(CLI_INSTALL_DOC)
 
-    # Precedence must be documented in both files
-    for doc_text in (text, cli_install):
+    # Precedence must be documented in both files.
+    for doc_text, precedence in zip(
+        (text, cli_install), _credential_precedence_sections(), strict=True
+    ):
         # Must mention precedence or priority
         assert any(word in doc_text for word in ["precedence", "priority", "highest", "override"]), \
             "Authentication guide must document credential precedence"
@@ -74,6 +91,10 @@ def test_cli_credential_precedence_is_documented():
         assert "OOMPAH_SERVER_USERNAME" in doc_text
         assert "OOMPAH_SERVER_PASSWORD_FILE" in doc_text
         assert "OOMPAH_SERVER_PASSWORD" in doc_text
+        # Netrc is the third source tier for both task and admin surfaces. It
+        # must be in the precedence section, rather than unrelated curl text.
+        assert "~/.netrc" in precedence
+        assert "Tier 3" in precedence
     
     # Examples must cover all precedence tiers
     for doc_text in (text, cli_install):
@@ -84,6 +105,19 @@ def test_cli_credential_precedence_is_documented():
         assert "environment" in doc_lower or "OOMPAH_" in doc_text
         # Password files vs inline password
         assert "password file" in doc_lower or "OOMPAH_SERVER_PASSWORD_FILE" in doc_text
+        assert "~/.netrc" in doc_text
+
+
+def test_netrc_hostname_selection_is_documented_for_both_cli_surfaces():
+    """Netrc lookup must remain reproducible for DNS and IP server URLs."""
+    for doc_text in (_read(AUTH_DOC), _read(CLI_INSTALL_DOC)):
+        lowered = doc_text.lower()
+        assert "hostname" in lowered
+        assert "port" in lowered
+        assert "lowercase" in lowered
+        assert "ipv4" in lowered
+        assert "ipv6" in lowered
+        assert "without url brackets" in lowered
 
 
 def test_examples_show_password_file_not_inline_password():
@@ -161,6 +195,8 @@ def test_documentation_links_and_env_example_are_present():
     assert "OOMPAH_SERVER_USERNAME" in auth and "OOMPAH_SERVER_USERNAME" in cli
     assert "OOMPAH_SERVER_PASSWORD_FILE" in auth and "OOMPAH_SERVER_PASSWORD_FILE" in cli
     assert "OOMPAH_SERVER_PASSWORD" in env
+    assert "docs/authentication.md#cli-credential-precedence" in env
+    assert "~/.netrc" in env
 
 
 def test_cli_help_and_mcp_discovery_match_documented_auth_configuration():
@@ -172,6 +208,7 @@ def test_cli_help_and_mcp_discovery_match_documented_auth_configuration():
         assert "OOMPAH_SERVER_USERNAME" in help_text
         assert "OOMPAH_SERVER_PASSWORD_FILE" in help_text
         assert "OOMPAH_SERVER_PASSWORD" in help_text
+        assert "~/.netrc" in help_text
         assert "--password" in help_text
         assert "Never put credentials" in help_text
 

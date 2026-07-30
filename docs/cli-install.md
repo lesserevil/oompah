@@ -147,43 +147,64 @@ configuration values. Never put credentials in `OOMPAH_SERVER_URL`.
 
 #### Credential precedence
 
-The CLI resolves credentials using a fixed priority order:
+The task and admin CLIs use the same fixed source tiers: command-line options,
+environment variables, then the default `~/.netrc` file. Tier 3, the netrc
+fallback, is used only when a server URL can be resolved and no higher-priority
+source supplies that value. If a default netrc file exists, it must still be
+valid and safely permissioned.
 
-**Username:** `--username` flag → `OOMPAH_SERVER_USERNAME` env → (none)
+**Username:** `--username` flag → `OOMPAH_SERVER_USERNAME` env → matching
+`~/.netrc` entry → (none)
 
-**Password:** `--password-file` flag → `OOMPAH_SERVER_PASSWORD_FILE` env → `OOMPAH_SERVER_PASSWORD` env → (none)
+**Password:** `--password-file` flag → environment (`OOMPAH_SERVER_PASSWORD_FILE`,
+then `OOMPAH_SERVER_PASSWORD`) → matching `~/.netrc` entry → (none)
 
 **Rules:**
 - Exactly one password source (set `OOMPAH_SERVER_PASSWORD_FILE` **or** `OOMPAH_SERVER_PASSWORD`, not both)
 - Username required if password is set
 - Password required if username is set
 - No plaintext `--password` flag exists (security measure)
+- A netrc entry must contain both `login` and `password`, and `~/.netrc` must
+  be a non-symlink regular file with mode `600` or `400`
+
+For netrc lookup, the CLI takes the hostname from `OOMPAH_SERVER_URL` (or
+`--server`), removes its port, and lowercases it. Use the lowercased hostname
+in the `machine` entry. IPv4 addresses are unchanged; write IPv6 addresses
+without URL brackets. Thus `https://OOMPah.example.com:8443` selects `machine
+oompah.example.com`, and `https://[2001:db8::1]:8443` selects `machine
+2001:db8::1`. The machine value is matched exactly after this URL
+normalization.
 
 **Examples:**
 
 Environment-based credentials (recommended for scripts):
 ```bash
-export OOMPAH_SERVER_USERNAME=operator
-export OOMPAH_SERVER_PASSWORD_FILE=/run/secrets/oompah-password
-oompah task view TASK-123
+export OOMPAH_SERVER_USERNAME=<username>
+export OOMPAH_SERVER_PASSWORD_FILE=/path/to/password-file
+oompah task view <task-id>
 ```
 
 CLI flag override:
 ```bash
-oompah task --username admin --password-file /var/secret/admin-password view TASK-123
+oompah task --username <username> --password-file /path/to/password-file view <task-id>
 ```
 
-Interactive (password prompted by curl, not stored):
+Default netrc credentials:
 ```bash
-export OOMPAH_SERVER_USERNAME=operator
-oompah task view TASK-123  # curl will prompt for password
+chmod 600 ~/.netrc
+# ~/.netrc (keep outside the repository)
+machine oompah.example.com
+login <username>
+password <password>
+
+OOMPAH_SERVER_URL=https://oompah.example.com oompah task view <task-id>
 ```
 
 Inline password (one-shot only, not for scripts):
 ```bash
-# Limited to initialization or controlled secret injection:
-OOMPAH_SERVER_USERNAME=operator OOMPAH_SERVER_PASSWORD=secret123 oompah task view TASK-123
-# Password is process-visible; prefer password files for production
+# Controlled secret injection only; never use a command-line password.
+OOMPAH_SERVER_USERNAME=<username> OOMPAH_SERVER_PASSWORD=<password> oompah task view <task-id>
+# Environment values are preferable to arguments, but netrc/password files are safer for unattended use.
 ```
 
 For complete setup, user management, password rotation, troubleshooting, and
