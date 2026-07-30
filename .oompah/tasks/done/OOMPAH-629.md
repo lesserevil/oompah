@@ -11,8 +11,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T23:07:33.040594Z'
-updated_at: '2026-07-30T23:26:21.621358Z'
-work_branch: null
+updated_at: '2026-07-30T23:31:19.854715Z'
+work_branch: epic-OOMPAH-585
 target_branch: null
 review_url: null
 review_number: null
@@ -98,6 +98,7 @@ oompah.task_costs:
     output_tokens: 11348
     cost_usd: 0.0
     recorded_at: '2026-07-30T23:26:20.197366+00:00'
+oompah.work_branch: epic-OOMPAH-585
 ---
 ## Summary
 
