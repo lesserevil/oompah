@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-581
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Prune merged epic repair workspaces with task-style branch paths
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:35:07.041991Z'
-updated_at: '2026-07-30T04:37:36.045858Z'
+updated_at: '2026-07-30T04:37:47.833659Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -56,7 +56,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: d42f8e1b-a75c-42c8-b891-05e1fb40ce84
+oompah.agent_run_id: 94cb7506-1d98-421c-b561-a7afe82762f7
 oompah.task_costs:
   total_input_tokens: 122
   total_output_tokens: 4044
@@ -120,5 +120,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 24s
 - Log: OOMPAH-581__20260730T043610Z.jsonl
+---
+author: oompah
+created: 2026-07-30 04:37
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-30 04:37
+---
+Focus: Refactoring Specialist
 ---
 <!-- COMMENTS:END -->
