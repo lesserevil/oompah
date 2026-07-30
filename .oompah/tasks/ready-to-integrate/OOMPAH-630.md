@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T23:37:58.090708Z'
-updated_at: '2026-07-30T23:49:09.143037Z'
+updated_at: '2026-07-30T23:49:24.741336Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-630
 target_branch: null
 review_url: null
@@ -24,13 +24,13 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: cd943ffa-791b-4c75-a4f7-1c3399506c3c
-  claim_owner: 9bd6f53b-ba8c-40b8-855a-73f609dcfa82
-  claimed_at: '2026-07-30T23:48:42.026677+00:00'
-  claim_expires_at: '2026-07-31T00:18:42.026677+00:00'
+  evidence: Duplicate screening worker was terminated.
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
-  retry_after: null
+  retry_after: '2026-07-30T23:49:22.767702+00:00'
 oompah.agent_run_id: 9b79b103-3d7a-4969-8c61-03f2a0555795
 oompah.work_branch: epic-OOMPAH-584--task-OOMPAH-630
 oompah.integration:
@@ -41,6 +41,22 @@ oompah.integration:
   head_sha: da4476dbba2e55e966f59755ef896314302e898a
   submitted_at: '2026-07-30T23:49:06.732147+00:00'
   updated_at: '2026-07-30T23:49:06.732147+00:00'
+oompah.task_costs:
+  total_input_tokens: 110
+  total_output_tokens: 39
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 110
+      output_tokens: 39
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 110
+    output_tokens: 39
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T23:49:22.257737+00:00'
 ---
 ## Summary
 
@@ -73,5 +89,15 @@ author: oompah
 created: 2026-07-30 23:49
 ---
 Fixed the stale target-ref rollup race. Exact full gate: terminal mutation scan passed; 13,822 passed, 7 skipped. Focused epic strategy suite: 211 passed.
+---
+author: oompah
+created: 2026-07-30 23:49
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 6
+- Tokens: 110 in / 39 out [149 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 38s
+- Log: OOMPAH-630__20260730T234849Z.jsonl
 ---
 <!-- COMMENTS:END -->
