@@ -12,7 +12,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:29.695490Z'
-updated_at: '2026-07-30T15:41:12.615744Z'
+updated_at: '2026-07-30T15:42:39.659006Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-598
 target_branch: null
 review_url: null
@@ -136,5 +136,25 @@ author: oompah
 created: 2026-07-30 15:41
 ---
 Focus: Auth Http Default Specialist
+---
+author: oompah
+created: 2026-07-30 15:42
+---
+**UNDERSTANDING & PLAN**
+
+Issue: Standalone tasks in 'Ready to Integrate' state with pushed branches are not being delivered (no PR/queue activity). Need to detect and deliver them deterministically without creating duplicates.
+
+Scope: Focus on stranded-ready reconciliation for OOMPAH-574, OOMPAH-576, OOMPAH-581 (OOMPAH-575 is owned by OOMPAH-593). Note: Duplicate screening ran previously, so OOMPAH-598 task itself should be singleton-checked.
+
+Planned approach:
+1. Explore codebase to find landing/integration reconciliation code
+2. Identify delivery mechanisms (PR creation, integration queue)
+3. Locate relevant tracker state checks and branch validation
+4. Implement idempotent reconciliation loop for stranded-ready tasks
+5. Add delivery path selection (deterministic, respects config)
+6. Cover test scenarios: pushed branch, missing branch, existing PR (open/closed), existing queue row, duplicates, restarts
+7. Verify all four rows obtain valid delivery path or actionable failure
+
+Starting code exploration now.
 ---
 <!-- COMMENTS:END -->
