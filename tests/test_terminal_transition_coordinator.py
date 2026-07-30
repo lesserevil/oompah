@@ -560,6 +560,67 @@ class TestSuperseding:
         assert late.reason == ResultRejection.STATE_MISMATCH
         assert tracker.current_status(TASK_ID) == IN_VALIDATION
 
+    def test_identical_request_coalesces_with_in_progress_audit(self) -> None:
+        tracker = _MemoryTracker()
+        coord = _coordinator(tracker, post_comments=False)
+        store = TerminalAuditMetadataStore(tracker, _LockStore(), PROJECT_ID)
+        initial = _run(coord.request_transition(
+            _issue(), TargetState.DONE, _trigger(), PROJECT_ID, _fingerprint("a")
+        ))
+        store.update(
+            TASK_ID,
+            lambda doc: replace(
+                doc,
+                pending_chain=[
+                    replace(record, request_state=RequestState.IN_PROGRESS)
+                    for record in doc.pending_chain
+                ],
+            ),
+        )
+
+        repeated = _run(coord.request_transition(
+            _issue(state=IN_VALIDATION),
+            TargetState.DONE,
+            _trigger(),
+            PROJECT_ID,
+            _fingerprint("a"),
+        ))
+
+        assert repeated.success is True
+        assert repeated.coalesced is True
+        assert repeated.audit_id == initial.audit_id
+        assert len(store.read(TASK_ID).pending_chain) == 1
+
+    def test_coalescing_fresh_request_repairs_stale_active_revision(self) -> None:
+        tracker = _MemoryTracker()
+        coord = _coordinator(tracker, post_comments=False)
+        store = TerminalAuditMetadataStore(tracker, _LockStore(), PROJECT_ID)
+        stale = _pending_record(
+            audit_id="audit-stale",
+            fingerprint=_fingerprint("a"),
+        )
+        fresh = _pending_record(
+            audit_id="audit-fresh",
+            fingerprint=_fingerprint("b"),
+        )
+        _seed_metadata(tracker, [stale, fresh])
+
+        repeated = _run(coord.request_transition(
+            _issue(state=IN_VALIDATION),
+            TargetState.DONE,
+            _trigger(),
+            PROJECT_ID,
+            _fingerprint("b"),
+        ))
+
+        assert repeated.success is True
+        assert repeated.coalesced is True
+        assert repeated.audit_id == fresh.audit_id
+        assert repeated.superseded_audit_id == stale.audit_id
+        old, current = store.read(TASK_ID).pending_chain
+        assert old.request_state == RequestState.SUPERSEDED
+        assert current.request_state == RequestState.PENDING
+
     def test_superseded_chain_retains_both_records(self) -> None:
         """The full chain is preserved: superseded record is not deleted."""
         tracker = _MemoryTracker()

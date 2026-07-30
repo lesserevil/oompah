@@ -264,7 +264,7 @@ class TransitionResult:
     """``True`` when this call confirmed the task in ``In Validation``."""
 
     superseded_audit_id: str | None = None
-    """``audit_id`` of the pending record that was superseded (different fingerprint), if any."""
+    """``audit_id`` of the prior record superseded by changed evidence, if any."""
 
     reason: str | None = None
     """Human-readable explanation when ``success`` is ``False``."""
@@ -751,23 +751,48 @@ class TerminalTransitionCoordinator:
                 if (
                     record.target_state == requested_target
                     and record.request_state
-                    in (
-                        (RequestState.PENDING, RequestState.IN_PROGRESS)
-                        if coalesce_pending_target
-                        else (RequestState.PENDING,)
-                    )
+                    in (RequestState.PENDING, RequestState.IN_PROGRESS)
                     and (
                         coalesce_pending_target
                         or record.evidence_fingerprint == evidence_fingerprint
                     )
                 ):
+                    updated_chain = chain
+                    superseded_id: str | None = None
+                    if not coalesce_pending_target:
+                        updated_chain = []
+                        for existing in chain:
+                            if (
+                                existing.audit_id != record.audit_id
+                                and existing.target_state == requested_target
+                                and existing.request_state
+                                in (
+                                    RequestState.PENDING,
+                                    RequestState.IN_PROGRESS,
+                                    RequestState.COMPLETED,
+                                )
+                                and existing.evidence_fingerprint
+                                != evidence_fingerprint
+                            ):
+                                updated_chain.append(
+                                    replace(
+                                        existing,
+                                        request_state=RequestState.SUPERSEDED,
+                                    )
+                                )
+                                superseded_id = existing.audit_id
+                            else:
+                                updated_chain.append(existing)
                     decision.early_result = TransitionResult(
                         success=True,
                         audit_id=record.audit_id,
                         queued_targets=[requested_target],
                         coalesced=True,
+                        superseded_audit_id=superseded_id,
                     )
-                    return doc  # no metadata change needed
+                    if superseded_id is None:
+                        return doc
+                    return replace(doc, pending_chain=updated_chain)
 
             # --- Supersede active/failed record with changed evidence ---
             superseded_id: str | None = None
