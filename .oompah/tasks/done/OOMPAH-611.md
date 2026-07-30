@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-611
 type: task
-status: In Validation
+status: Done
 priority: 0
 title: Rebase epic-OOMPAH-460 onto main
 parent: OOMPAH-460
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T19:15:55.237083Z'
-updated_at: '2026-07-30T19:47:20.067058Z'
+updated_at: '2026-07-30T19:49:50.840657Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-611
 target_branch: null
 review_url: null
@@ -122,6 +122,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-fc740f247608: '2026-07-30T19:49:48.592831+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -129,7 +131,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-611
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -138,7 +140,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-fc740f247608
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -148,13 +150,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-30T19:47:08.930113+00:00'
       branch_key: epic-OOMPAH-460--task-OOMPAH-611
+      verdict: pass
+      completed_at: '2026-07-30T19:49:48.592648+00:00'
+      ended_at: '2026-07-30T19:49:48.592648+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-30T19:46:52.313942+00:00'
-    updated_at: '2026-07-30T19:47:08.930113+00:00'
+    updated_at: '2026-07-30T19:49:48.592648+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-fc740f247608
@@ -329,5 +334,20 @@ author: oompah
 created: 2026-07-30 19:47
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 19:49
+---
+Audit PASS — Done
+
+Rebase task completed successfully. origin/epic-OOMPAH-460 (4c2be1a09) contains origin/main (e1e4e0c9f) as ancestor with 4 epic-work commits on top (OOMPAH-486 series). `origin/epic-OOMPAH-460..origin/main` yields 0 commits, confirming the epic branch is fully caught up with main. Force-push visible in remote state. No test suite applies — this is a pure git-maintenance task with no code changes.
+
+Safe evidence:
+- local_head: 4c2be1a099a914f1776cb11948c81ec95ee9f624
+- remote_epic_head: 4c2be1a099a914f1776cb11948c81ec95ee9f624
+- origin_main_head: e1e4e0c9fee2a17b5a9b02002fcaa2d3cc7793ec
+- epic_ahead_of_main: 4 commits (OOMPAH-486 series)
+- epic_behind_main: 0 commits
+- task_type: git-maintenance (rebase, no code changes)
 ---
 <!-- COMMENTS:END -->
