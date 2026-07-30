@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:13:49.613612Z'
-updated_at: '2026-07-30T18:29:35.809031Z'
+updated_at: '2026-07-30T18:32:57.723457Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-606
 target_branch: null
 review_url: null
@@ -28,8 +28,8 @@ oompah.integration:
   base_sha: 254d2454813ffa07ed895cbf3548b227b94fd04c
   updated_at: '2026-07-30T18:29:33.120575+00:00'
 oompah.task_costs:
-  total_input_tokens: 771595
-  total_output_tokens: 8729
+  total_input_tokens: 771717
+  total_output_tokens: 14134
   total_cost_usd: 0.0
   by_model:
     sonnet:
@@ -39,6 +39,10 @@ oompah.task_costs:
     opus:
       input_tokens: 771577
       output_tokens: 3956
+      cost_usd: 0.0
+    haiku:
+      input_tokens: 122
+      output_tokens: 5405
       cost_usd: 0.0
   runs:
   - profile: standard
@@ -53,6 +57,12 @@ oompah.task_costs:
     output_tokens: 3956
     cost_usd: 0.0
     recorded_at: '2026-07-30T18:20:57.738866+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 122
+    output_tokens: 5405
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T18:32:53.098573+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-606__20260730T181416Z
@@ -71,6 +81,14 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-460--task-OOMPAH-606
     source_sha: 254d2454813ffa07ed895cbf3548b227b94fd04c
     completed_at: '2026-07-30T18:20:57.748322+00:00'
+  - run_id: OOMPAH-606__20260730T183030Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: duplicate_detector
+    source_branch: epic-OOMPAH-460--task-OOMPAH-606
+    source_sha: 254d2454813ffa07ed895cbf3548b227b94fd04c
+    completed_at: '2026-07-30T18:32:53.107173+00:00'
 oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 04ce92916ff7e3e48e86aaf90629a7d27feb1844a88781b35f92d48131db7aa4
@@ -78,13 +96,13 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: a9a2ece1-8a72-468d-9a32-53a364615a3d
-  claim_owner: ac40770c-37a8-4b2c-b040-7a7ae948f467
-  claimed_at: '2026-07-30T18:28:26.032648+00:00'
-  claim_expires_at: '2026-07-30T18:58:26.032648+00:00'
-  retry_count: 0
-  retry_after: null
+  evidence: Duplicate-screening worker exited with reason normal.
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
+  retry_count: 1
+  retry_after: '2026-07-30T18:33:53.099864+00:00'
 ---
 ## Summary
 
@@ -164,5 +182,15 @@ author: oompah
 created: 2026-07-30 18:29
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-30 18:32
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 46, Tool calls: 21
+- Tokens: 122 in / 5.4K out [5.5K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 3m 25s
+- Log: OOMPAH-606__20260730T183030Z.jsonl
 ---
 <!-- COMMENTS:END -->
