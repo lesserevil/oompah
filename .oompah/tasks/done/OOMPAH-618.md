@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T21:03:01.411786Z'
-updated_at: '2026-07-30T21:26:09.985272Z'
+updated_at: '2026-07-30T21:26:24.650705Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-618
 target_branch: null
 review_url: null
@@ -80,6 +80,22 @@ oompah.terminal_audit:
     started_at: '2026-07-30T21:22:26.182799+00:00'
     branch_key: OOMPAH-618
 oompah.work_branch: epic-OOMPAH-585--task-OOMPAH-618
+oompah.task_costs:
+  total_input_tokens: 65
+  total_output_tokens: 2229
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 65
+      output_tokens: 2229
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 65
+    output_tokens: 2229
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T21:26:23.175712+00:00'
 ---
 ## Summary
 
@@ -142,5 +158,15 @@ Safe evidence:
 - to_thread_call_sites: oompah/acp_tools.py:1124 (Claude), 1431 (Codex), 1734 (OpenCode)
 - regression_tests: tests/test_acp_project_tools.py:633 (Claude), 1017 (Codex), 1043 (OpenCode)
 - focused_tests_passed: 53 acp_project_tools + 240 combined acp + 18 server_blocking_off_loop + 140 authority/dispatch
+---
+author: oompah
+created: 2026-07-30 21:26
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 43
+- Tokens: 65 in / 2.2K out [2.3K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 3m 56s
+- Log: OOMPAH-618__20260730T212234Z.jsonl
 ---
 <!-- COMMENTS:END -->

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-622
 type: task
-status: Backlog
+status: In Progress
 priority: null
 title: Reject verdict-incapable Codex CLI auditor sessions
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T21:26:15.242500Z'
-updated_at: '2026-07-30T21:26:15.242500Z'
+updated_at: '2026-07-30T21:26:29.800292Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -28,3 +28,11 @@ Implementation scope: eliminate the terminal-audit dispatch race in which a subs
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-30 21:26
+---
+Claimed directly by the operator Codex session because the bug itself prevents subscription-backed Codex auditors from completing terminal validation. I will implement, test, push, submit, and prune the temporary worktree.
+---
+<!-- COMMENTS:END -->
