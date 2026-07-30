@@ -17,7 +17,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-23T19:20:53.199562Z'
-updated_at: '2026-07-30T22:02:17.391608Z'
+updated_at: '2026-07-30T22:02:41.934029Z'
 work_branch: epic-OOMPAH-414
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/543
@@ -25,13 +25,13 @@ review_number: '543'
 merged_at: null
 oompah.agent_run_id: 28e0109e-70af-4e36-a8db-f4dbcd7ab473
 oompah.task_costs:
-  total_input_tokens: 1908974
-  total_output_tokens: 36438
+  total_input_tokens: 1908989
+  total_output_tokens: 38822
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 1908974
-      output_tokens: 36438
+      input_tokens: 1908989
+      output_tokens: 38822
       cost_usd: 0.0
   runs:
   - profile: default
@@ -58,6 +58,12 @@ oompah.task_costs:
     output_tokens: 6134
     cost_usd: 0.0
     recorded_at: '2026-07-30T22:01:10.011572+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 15
+    output_tokens: 2384
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T22:02:24.609767+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/543
 oompah.review_number: '543'
 oompah.work_branch: epic-OOMPAH-414
@@ -177,18 +183,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-414
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 9469139fdc3d69d72a8a0fe5b1fa90ccb8a1792a1d98aab2c7b224e29d929dd5
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-8cddd61d6523
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 9469139fdc3d69d72a8a0fe5b1fa90ccb8a1792a1d98aab2c7b224e29d929dd5
+      created_at: '2026-07-30T22:02:34.345428+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-30T22:02:34.345428+00:00'
+      branch_key: epic-OOMPAH-414
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
       source: oompah
     previous_state: In Validation
     created_at: '2026-07-30T22:02:11.312030+00:00'
+    updated_at: '2026-07-30T22:02:34.345428+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-d0ebf75eb257
@@ -228,6 +248,19 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: opus
     started_at: '2026-07-30T22:01:15.607560+00:00'
+    branch_key: epic-OOMPAH-414
+  - version: 1
+    attempt_id: attempt-8cddd61d6523
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9469139fdc3d69d72a8a0fe5b1fa90ccb8a1792a1d98aab2c7b224e29d929dd5
+    created_at: '2026-07-30T22:02:34.345428+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-30T22:02:34.345428+00:00'
     branch_key: epic-OOMPAH-414
 ---
 ## Summary
@@ -493,5 +526,25 @@ Safe evidence:
 - diff_stat: 6 files changed, 268 insertions(+), 36 deletions(-): .env.example +13, docs/tick-latency-diagnostics.md +32, oompah/config.py +16/-4, oompah/orchestrator.py +38/-7, tests/test_dispatch_loop_heartbeat.py +87/-13, tests/test_orphan_reset_dispatch_wake.py +94 (new)
 - reverts_check: no revert commit affecting these files found on main (git log main --grep=Revert.*OOMPAH-414 empty)
 - prior_audits: prior Archived audit 2026-07-30 21:58 passed and prior Done audit 2026-07-30 22:01 passed with same evidence fingerprint
+---
+author: oompah
+created: 2026-07-30 22:02
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 12, Tool calls: 9
+- Tokens: 15 in / 2.4K out [2.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 8s
+- Log: OOMPAH-414__20260730T220125Z.jsonl
+---
+author: oompah
+created: 2026-07-30 22:02
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-07-30 22:02
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
