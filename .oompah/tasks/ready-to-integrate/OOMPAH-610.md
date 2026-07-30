@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:53:05.632137Z'
-updated_at: '2026-07-30T19:08:09.965286Z'
+updated_at: '2026-07-30T19:08:24.691690Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,13 +44,17 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 3514c39c-c179-4c65-a97c-34fc1997be79
 oompah.task_costs:
-  total_input_tokens: 2400917
-  total_output_tokens: 10209
+  total_input_tokens: 2400981
+  total_output_tokens: 11854
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 2400917
       output_tokens: 10209
+      cost_usd: 0.0
+    opus:
+      input_tokens: 64
+      output_tokens: 1645
       cost_usd: 0.0
   runs:
   - profile: default
@@ -65,6 +69,12 @@ oompah.task_costs:
     output_tokens: 135
     cost_usd: 0.0
     recorded_at: '2026-07-30T19:01:42.918187+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 64
+    output_tokens: 1645
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T19:08:23.056668+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-610__20260730T185400Z
@@ -177,5 +187,15 @@ author: oompah
 created: 2026-07-30 19:08
 ---
 Release stale auditor claims on worker exit and self-heal orphaned claimed_issues at audit branch admission; add stalled-exit and active-claim regression coverage.
+---
+author: oompah
+created: 2026-07-30 19:08
+---
+Run #2 [attempt=2, profile=deep, role=deep -> Claude/opus]
+- Turns: 0, Tool calls: 39
+- Tokens: 64 in / 1.6K out [1.7K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 4m 27s
+- Log: OOMPAH-610__20260730T190400Z.jsonl
 ---
 <!-- COMMENTS:END -->
