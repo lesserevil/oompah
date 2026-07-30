@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-478
 type: feature
-status: In Validation
+status: Done
 priority: 1
 title: Route epic rollup, child Done, and epic close transitions through audits
 parent: OOMPAH-459
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:26.329329Z'
-updated_at: '2026-07-30T00:14:50.403747Z'
+updated_at: '2026-07-30T00:58:50.942422Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-478
 target_branch: null
 review_url: null
@@ -107,6 +107,8 @@ oompah.integration:
   updated_at: '2026-07-30T00:14:48.349502+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-15afd28d0dd7: '2026-07-30T00:58:48.796129+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -114,7 +116,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-478
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -138,7 +140,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-15afd28d0dd7
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -149,13 +151,16 @@ oompah.terminal_audit:
       started_at: '2026-07-30T00:14:40.510521+00:00'
       branch_key: epic-OOMPAH-459--task-OOMPAH-478
       candidate_rotation_count: 1
+      verdict: pass
+      completed_at: '2026-07-30T00:58:48.795971+00:00'
+      ended_at: '2026-07-30T00:58:48.795971+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-29T23:39:26.237376+00:00'
-    updated_at: '2026-07-30T00:14:40.510521+00:00'
+    updated_at: '2026-07-30T00:58:48.795971+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-e8f6b6b026f4
@@ -501,5 +506,19 @@ author: oompah
 created: 2026-07-30 00:14
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 00:58
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- head_sha: b68d7438fd5afee99b5e77688274478c748bdb3a
+- commits_ahead_of_epic: 6
+- task_commit_stat: oompah/orchestrator.py +179/-, tests/test_epic_auto_close.py 46 changed, tests/test_epic_strategy.py 24 changed
+- focused_tests: pass (2000+ tests across affected suites)
+- key_changes: _reconcile_epic_rollup_statuses skips In Validation and audit:repair-needed; blocks rollup when child In Validation; routes terminal states via _request_epic_terminal_rollup. _auto_close_completed_epics routes terminal transition via coordinator; posts reason via append_comment. _sync_epic_review_child_states routes MERGED via coordinator.
 ---
 <!-- COMMENTS:END -->
