@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-476
 type: feature
-status: In Validation
+status: Done
 priority: 1
 title: Stage API, dashboard, and CLI terminal requests through the coordinator
 parent: OOMPAH-459
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:24.379848Z'
-updated_at: '2026-07-30T00:14:39.447456Z'
+updated_at: '2026-07-30T00:54:17.791215Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-476
 target_branch: null
 review_url: null
@@ -174,6 +174,8 @@ oompah.work_contributors:
     completed_at: '2026-07-29T23:07:19.704634+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-292951765b32: '2026-07-30T00:54:15.380009+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -181,7 +183,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-476
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -205,7 +207,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-292951765b32
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -216,13 +218,16 @@ oompah.terminal_audit:
       started_at: '2026-07-30T00:14:34.263479+00:00'
       branch_key: epic-OOMPAH-459--task-OOMPAH-476
       candidate_rotation_count: 1
+      verdict: pass
+      completed_at: '2026-07-30T00:54:15.379847+00:00'
+      ended_at: '2026-07-30T00:54:15.379847+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-30T00:10:11.164214+00:00'
-    updated_at: '2026-07-30T00:14:34.263479+00:00'
+    updated_at: '2026-07-30T00:54:15.379847+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-4dbbf4bc025e
@@ -984,5 +989,23 @@ author: oompah
 created: 2026-07-30 00:14
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 00:54
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- branch: epic-OOMPAH-459--task-OOMPAH-476
+- head_commit: 2e2005cba (HEAD ahead of main by 9 commits)
+- oompah_476_commits: eb7db0350, 95281a4bb, a6eabbcf6
+- server_wiring: oompah/server.py L3517,3844,3857,3860,3893
+- cli_wiring: oompah/task_cli.py L494-512
+- acp_wiring: oompah/acp_tools.py L449,452,480
+- dashboard_wiring: oompah/templates/dashboard.html board-notice + updateIssue terminal-validation branch
+- primary_tests: tests/test_terminal_status_interfaces.py (9 tests), tests/test_dashboard_intake_actions.py board-notice/aria regressions
+- working_tree: clean, up-to-date with origin
 ---
 <!-- COMMENTS:END -->
