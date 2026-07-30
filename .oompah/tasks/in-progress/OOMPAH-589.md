@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:20.256845Z'
-updated_at: '2026-07-30T14:21:29.521410Z'
+updated_at: '2026-07-30T14:23:04.093798Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-589
 target_branch: null
 review_url: null
@@ -168,5 +168,33 @@ Planned approach:
 6. Verify invalid candidates are skipped with health evidence, not silently ignored
 
 Starting code exploration...
+---
+author: oompah
+created: 2026-07-30 14:23
+---
+**Discovery: Critical Missing Validation**
+
+Found multiple vulnerable code paths constructing OpenAI-compatible endpoints:
+
+1. **oompah/api_agent.py** - `self._url = f"{self.base_url}/chat/completions"`
+2. **oompah/completion_verifier.py** - No HTTP(S) validation before constructing URL
+3. **oompah/focus.py** - Constructs endpoint without base_url validation
+4. **oompah/issue_enhancer.py** - Similar pattern
+5. **oompah/orchestrator.py** - Task decomposition endpoint construction
+6. **oompah/provider_health.py** - Checks for empty base_url BUT NOT absolute HTTP(S)
+
+**Root Cause**: Endpoint construction uses f-string concatenation without validating:
+- base_url must be absolute HTTP(S) URL
+- base_url must not be relative (e.g., "/chat/completions")
+- base_url must not be malformed
+
+**Security Impact**: Missing base or relative URL could resolve to:
+- localhost:/chat/completions (SSRF)
+- /chat/completions (relative path injection)
+- Unknown destination (unvalidated redirect)
+
+Current test coverage: test_provider_health.py checks for empty base_url but not URL format validation.
+
+**Plan**: Create URL validator utility, integrate into provider creation/update, validate in auditor dispatch paths, add comprehensive tests.
 ---
 <!-- COMMENTS:END -->
