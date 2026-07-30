@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-616
 type: bug
-status: Open
+status: Ready to Integrate
 priority: 1
 title: Integrate terminal-audit retry ownership fencing
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T20:47:41.612111Z'
-updated_at: '2026-07-30T20:48:34.012147Z'
+updated_at: '2026-07-30T20:49:34.397931Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-616
 target_branch: null
 review_url: null
@@ -35,12 +35,12 @@ oompah.agent_run_id: 666032db-c114-4d08-9f56-ece5bc8e02e0
 oompah.work_branch: epic-OOMPAH-585--task-OOMPAH-616
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-585--task-OOMPAH-616
-  base_branch: epic-OOMPAH-585
-  base_sha: 64b9b00c55f34d164d4eca2dd6071887ea5b5bb3
-  updated_at: '2026-07-30T20:48:31.160016+00:00'
+  head_sha: 45838987c7435c344c39cf77d0dd3ed1c135834c
+  submitted_at: '2026-07-30T20:49:32.032464+00:00'
+  updated_at: '2026-07-30T20:49:32.032464+00:00'
 ---
 ## Summary
 
@@ -68,5 +68,15 @@ author: oompah
 created: 2026-07-30 20:48
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-30 20:49
+---
+Cherry-picked ce8a124fc cleanly onto origin/epic-OOMPAH-585 at combined-tree commit 45838987c and pushed the expected branch epic-OOMPAH-585--task-OOMPAH-616. Focused scheduler/server/audit suite on the combined tree: 408 passed.
+---
+author: oompah
+created: 2026-07-30 20:49
+---
+Integrated the fully gated OOMPAH-615 ownership-race fix onto the OOMPAH-585 epic branch. Combined-tree focused regressions: 408 passed; source commit full gate: terminal mutation scan passed, 13,736 passed, 7 skipped.
 ---
 <!-- COMMENTS:END -->

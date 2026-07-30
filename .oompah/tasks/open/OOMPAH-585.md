@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-585
 type: epic
-status: In Progress
+status: Open
 priority: 1
 title: Restore terminal-audit execution and truthful health reporting
 parent: OOMPAH-584
@@ -17,7 +17,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:13:32.577860Z'
-updated_at: '2026-07-30T20:48:10.358951Z'
+updated_at: '2026-07-30T20:49:26.808830Z'
 work_branch: null
 target_branch: null
 review_url: null
