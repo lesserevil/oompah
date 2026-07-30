@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:25:29.809048Z'
-updated_at: '2026-07-30T22:24:51.150788Z'
+updated_at: '2026-07-30T22:27:09.188516Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-621
 target_branch: null
 review_url: null
@@ -151,5 +151,46 @@ Task is to document and integration-test CLI credential precedence. I've identif
 6. Commit and submit
 
 Starting with discovery of existing test structure and doc references.
+---
+author: oompah
+created: 2026-07-30 22:27
+---
+**Implementation Complete:**
+
+Updated documentation and tests for CLI credential precedence.
+
+**Changes made:**
+
+1. **docs/authentication.md** - Added comprehensive 'CLI Credential Precedence' section documenting:
+   - Username resolution priority (CLI flag > env var > none)
+   - Password resolution priority (CLI flag > password file env > inline password env > none)
+   - Configuration rules (username required if password set, exactly one password source)
+   - Security emphasis (prefer password files, never inline CLI passwords)
+   - Practical examples (interactive, unattended, override, inline, netrc, Makefile)
+
+2. **docs/cli-install.md** - Added credential precedence section with:
+   - Clear priority order table
+   - Configuration rules
+   - Practical examples covering all tiers
+   - Links to authentication.md for full details
+
+3. **tests/test_docs_authentication_contract.py** - Enhanced with:
+   - test_cli_credential_precedence_is_documented() - Verifies precedence is documented
+   - test_examples_show_password_file_not_inline_password() - Verifies recommendations
+
+4. **tests/test_cli_install_revision_compatibility.py** - Created with:
+   - TestCredentialPrecedenceIntegration - Tests precedence end-to-end
+   - TestPasswordFileHandling - Tests password file security
+   - TestURLSanitization - Tests URL sanitization
+   - TestPasswordRedaction - Verifies no credential leaks
+   - TestConfigurationExamples - Verifies docs examples work
+   - TestMutualExclusion - Tests error cases
+
+**Test results:**
+- test_docs_authentication_contract.py: 7/7 PASSED
+- test_cli_install_revision_compatibility.py: 18/18 PASSED
+- test_client_auth.py: 60/60 PASSED (existing tests unaffected)
+
+All documentation now matches implementation exactly. Examples use only placeholders, and security warnings are prominent.
 ---
 <!-- COMMENTS:END -->
