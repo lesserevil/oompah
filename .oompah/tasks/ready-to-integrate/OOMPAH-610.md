@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-610
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Release stale claimed_issues entries when completion auditors exit
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:53:05.632137Z'
-updated_at: '2026-07-30T19:06:47.472665Z'
+updated_at: '2026-07-30T19:08:09.965286Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -75,6 +75,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-610
     source_sha: b4fa5db81322ae24b90a5c80689d94d1a49a1f30
     completed_at: '2026-07-30T18:58:45.304450+00:00'
+oompah.integration:
+  version: 1
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-610
+  head_sha: 83949a45b38f10a844a40c679ca105dc3e456f01
+  submitted_at: '2026-07-30T19:08:07.342076+00:00'
+  updated_at: '2026-07-30T19:08:07.342076+00:00'
 ---
 ## Summary
 
@@ -159,5 +167,15 @@ author: oompah
 created: 2026-07-30 19:06
 ---
 Refactoring Specialist: understanding phase. The previous session's local changes did not get committed (worktree is clean, no diff vs main). Recreating the fix. Root cause confirmed at oompah/orchestrator.py:23069-23081 — the auditor exit path clears state.claimed and _audit_branch_claims but NOT state.claimed_issues. That leaves the entry in claimed_issues, and _audit_branch_busy at line 4279 treats any surviving claimed_issues entry with the same branch key as a live claim, silently suppressing every retry after retry_after. Plan: (1) add self.state.claimed_issues.pop(issue_id, None) to the auditor exit branch alongside the existing claimed.discard and audit_branch_claims.pop; (2) add defensive pruning in _audit_branch_busy so any claimed_issues entry whose ID is missing from state.claimed is discarded and warned about (idempotent belt-and-braces); (3) add regression tests exercising both auditor exit cleanup and the defensive pruning path.
+---
+author: oompah
+created: 2026-07-30 19:08
+---
+Verification complete on pushed head 83949a45b: focused auditor/terminal suite 298 passed; isolated prior full-gate timing failure passed under xdist; final make test passed 13,726 with 7 skipped; terminal mutation scan and secret scan passed.
+---
+author: oompah
+created: 2026-07-30 19:08
+---
+Release stale auditor claims on worker exit and self-heal orphaned claimed_issues at audit branch admission; add stalled-exit and active-claim regression coverage.
 ---
 <!-- COMMENTS:END -->
