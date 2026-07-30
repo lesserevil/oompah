@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-583
 type: task
-status: In Validation
+status: Archived
 priority: 0
 title: Rebase epic-OOMPAH-460 onto main
 parent: OOMPAH-460
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:55:03.778533Z'
-updated_at: '2026-07-30T04:57:11.299588Z'
+updated_at: '2026-07-30T04:59:15.072833Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-583
 target_branch: null
 review_url: null
@@ -29,6 +29,8 @@ oompah.integration:
   updated_at: '2026-07-30T04:57:08.386908+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-a4db9f00db86: '2026-07-30T04:59:13.087666+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -36,7 +38,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-583
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -45,7 +47,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-a4db9f00db86
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -55,13 +57,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-30T04:57:03.347372+00:00'
       branch_key: epic-OOMPAH-460--task-OOMPAH-583
+      verdict: pass
+      completed_at: '2026-07-30T04:59:13.087514+00:00'
+      ended_at: '2026-07-30T04:59:13.087514+00:00'
     requested_by:
       version: 1
       identity: api-client
       source: api
     previous_state: In Progress
     created_at: '2026-07-30T04:56:43.837778+00:00'
-    updated_at: '2026-07-30T04:57:03.347372+00:00'
+    updated_at: '2026-07-30T04:59:13.087514+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-a4db9f00db86
@@ -146,5 +151,20 @@ author: oompah
 created: 2026-07-30 04:57
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 04:59
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- origin_epic_head: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
+- origin_main_head: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
+- epic_ahead_of_main: 0 commits
+- epic_behind_main: 0 commits
+- task_branch_ahead_of_main: 0 commits
+- epic_head_subject: Merge pull request #592 from lesserevil/OOMPAH-582
 ---
 <!-- COMMENTS:END -->
