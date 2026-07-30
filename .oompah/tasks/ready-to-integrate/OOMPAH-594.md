@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-594
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Reload HTTP Basic credentials safely after htpasswd rotation
 parent: OOMPAH-586
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:55.490677Z'
-updated_at: '2026-07-30T16:01:35.217014Z'
+updated_at: '2026-07-30T16:01:51.597607Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-594
 target_branch: null
 review_url: null
@@ -60,12 +60,12 @@ oompah.agent_run_id: 5c363165-93e3-4ada-9adb-fb946c51fc61
 oompah.work_branch: epic-OOMPAH-586--task-OOMPAH-594
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-586--task-OOMPAH-594
-  base_branch: epic-OOMPAH-586
-  base_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
-  updated_at: '2026-07-30T15:53:59.311605+00:00'
+  head_sha: 31a10b064158948503a7eaa646a1bfa7d1b35e55
+  submitted_at: '2026-07-30T16:01:49.106608+00:00'
+  updated_at: '2026-07-30T16:01:49.106608+00:00'
 oompah.task_costs:
   total_input_tokens: 1377313
   total_output_tokens: 16323
@@ -490,5 +490,10 @@ DELIVERED:
 
 BRANCH: epic-OOMPAH-586--task-OOMPAH-594
 COMMIT: 31a10b064
+---
+author: oompah
+created: 2026-07-30 16:01
+---
+HTTP Basic credential reload implemented with safe atomicity, client refresh, and comprehensive test coverage. All 325 focused auth tests passing.
 ---
 <!-- COMMENTS:END -->
