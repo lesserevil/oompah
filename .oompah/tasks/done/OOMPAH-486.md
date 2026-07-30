@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:25.195304Z'
-updated_at: '2026-07-30T05:26:49.175204Z'
+updated_at: '2026-07-30T05:27:02.766039Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-486
 target_branch: null
 review_url: null
@@ -40,8 +40,8 @@ oompah.duplicate_screening:
 oompah.agent_run_id: 1d974c55-6a77-4044-be66-f945b96ef83e
 oompah.work_branch: epic-OOMPAH-460--task-OOMPAH-486
 oompah.task_costs:
-  total_input_tokens: 16623074
-  total_output_tokens: 52271
+  total_input_tokens: 16623145
+  total_output_tokens: 54997
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -55,6 +55,10 @@ oompah.task_costs:
     opus:
       input_tokens: 84773
       output_tokens: 589
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 71
+      output_tokens: 2726
       cost_usd: 0.0
   runs:
   - profile: default
@@ -99,6 +103,12 @@ oompah.task_costs:
     output_tokens: 4910
     cost_usd: 0.0
     recorded_at: '2026-07-30T05:14:14.893874+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 71
+    output_tokens: 2726
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T05:27:01.238469+00:00'
 oompah.integration:
   version: 1
   state: working
@@ -465,5 +475,15 @@ Safe evidence:
 - snapshot_keys_verified: terminal_audit, orchestrator_metrics.terminal_audit, maintenance.terminal_audit
 - actionable_alert_kinds: persistence_corrupt, no_independent_candidate, attempt_threshold, age_threshold, queue_recovery_failed
 - dashboard_stat_ids: audit-stat, audit-queued, audit-running
+---
+author: oompah
+created: 2026-07-30 05:27
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 51
+- Tokens: 71 in / 2.7K out [2.8K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 8m 14s
+- Log: OOMPAH-486__20260730T051853Z.jsonl
 ---
 <!-- COMMENTS:END -->
