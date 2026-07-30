@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:25:29.809048Z'
-updated_at: '2026-07-30T22:29:20.284869Z'
+updated_at: '2026-07-30T22:29:40.294129Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-621
 target_branch: null
 review_url: null
@@ -231,5 +231,49 @@ author: oompah
 created: 2026-07-30 22:29
 ---
 Documented CLI credential precedence and added comprehensive integration tests. Updated docs/authentication.md and docs/cli-install.md with explicit precedence documentation covering username and password resolution priority, configuration rules, and practical examples across all tiers. Added contract tests in test_docs_authentication_contract.py to verify documentation alignment with implementation. Created test_cli_install_revision_compatibility.py with 18 integration tests covering precedence, password file security, URL sanitization, password redaction, configuration examples, and mutual exclusion errors. All 25 focused tests pass plus existing 60 tests unaffected.
+---
+author: oompah
+created: 2026-07-30 22:29
+---
+**Task Complete - Summary**
+
+✅ OOMPAH-621: Document and integration-test CLI credential precedence
+
+**Deliverables:**
+
+1. **Documentation Updates**
+   - docs/authentication.md: Added 'CLI Credential Precedence' section with explicit priority tables
+   - docs/cli-install.md: Added credential precedence section with practical examples
+   - Both docs now clearly state: CLI flags > env vars > none for username and CLI --password-file > OOMPAH_SERVER_PASSWORD_FILE > OOMPAH_SERVER_PASSWORD for passwords
+   - Security warnings emphasize process visibility and netrc/file recommendations
+
+2. **Documentation Contract Tests**
+   - Enhanced test_docs_authentication_contract.py with 2 new tests
+   - Verify precedence is explicitly documented
+   - Verify examples recommend password files
+   - All 7 contract tests passing
+
+3. **Integration Tests**
+   - Created test_cli_install_revision_compatibility.py with 18 tests covering:
+     • Credential precedence behavior
+     • Password file security (symlinks, permissions, content stripping)
+     • URL sanitization (embedded credentials rejected)
+     • Password redaction (no leaks in help/errors)
+     • Documentation examples work as written
+     • Conflicting configuration rejected
+
+4. **Test Results**
+   - 25 focused tests: 25 PASSED ✓
+   - 60 existing client_auth tests: 60 PASSED ✓
+   - 0 regressions
+
+5. **Code Quality**
+   - Commit message includes complete scope and rationale
+   - Proper attribution trailer
+   - All files follow project conventions
+
+**Branch:** epic-OOMPAH-619--task-OOMPAH-621 (1 commit, pushed, submitted)
+
+Task is ready for integration.
 ---
 <!-- COMMENTS:END -->
