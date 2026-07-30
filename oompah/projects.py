@@ -1900,12 +1900,18 @@ class ProjectStore:
         *,
         is_epic: bool,
         issue_number: str | None = None,
-    ) -> bool:
-        """Delete one terminal Oompah-owned branch locally and remotely."""
+    ) -> tuple[bool, str | None]:
+        """Delete one terminal Oompah-owned branch locally and remotely.
+        
+        Returns (changed, skip_reason). skip_reason is None if the branch was
+        deleted or attempted (changed=True or attempted), or a category string
+        if skipped (changed=False): 'shared_epic_branch', 'protected_branch',
+        'checked_out_in_worktree'.
+        """
 
         branch_name = str(branch_name or "").strip()
         if not branch_name:
-            return False
+            return False, None
         if not self._is_owned_issue_branch(
             project,
             issue_identifier,
@@ -1913,6 +1919,12 @@ class ProjectStore:
             is_epic=is_epic,
             issue_number=issue_number,
         ):
+            # Silently skip likely shared epic branches (epic-*) to avoid warning
+            # floods when terminal child tasks legitimately share their parent's branch.
+            # Only warn for ambiguous cases that might indicate misconfiguration.
+            if branch_name.startswith("epic-"):
+                # Likely a parent epic branch shared with child tasks.
+                return False, "shared_epic_branch"
             logger.warning(
                 "Skipping terminal branch not owned by issue project=%s "
                 "issue=%s branch=%s",
@@ -1920,7 +1932,7 @@ class ProjectStore:
                 issue_identifier,
                 branch_name,
             )
-            return False
+            return False, "not_owned"
         if self._branch_is_protected(project, branch_name):
             logger.warning(
                 "Skipping protected terminal branch project=%s issue=%s branch=%s",
@@ -1928,7 +1940,7 @@ class ProjectStore:
                 issue_identifier,
                 branch_name,
             )
-            return False
+            return False, "protected_branch"
 
         self._prune_git_worktrees(project.repo_path)
         if branch_name in self._registered_worktree_branches(project.repo_path):
@@ -1939,7 +1951,7 @@ class ProjectStore:
                 issue_identifier,
                 branch_name,
             )
-            return False
+            return False, "checked_out_in_worktree"
 
         local_ref = f"refs/heads/{branch_name}"
         remote_ref = f"refs/remotes/origin/{branch_name}"
@@ -1998,7 +2010,7 @@ class ProjectStore:
                 issue_identifier,
                 branch_name,
             )
-        return changed
+        return changed, None
 
     def create_epic_worktree(self, project_id: str, epic_identifier: str) -> str:
         """Create or reuse a shared epic worktree (for ``epic_strategy='shared'``
@@ -2759,7 +2771,7 @@ class ProjectStore:
 
         # All guards passed — remove the repair worktree then its branch.
         worktree_removed = self._remove_worktree_locked(project_id, issue_identifier)
-        branch_removed = self._delete_owned_issue_branch_locked(
+        branch_removed, _skip_reason = self._delete_owned_issue_branch_locked(
             project,
             issue_identifier,
             repair_branch,
@@ -2785,7 +2797,7 @@ class ProjectStore:
         branch_name: str | None = None,
         is_epic: bool = False,
         issue_number: str | None = None,
-    ) -> bool:
+    ) -> tuple[bool, str | None]:
         """Remove one terminal issue's worktree and Oompah-owned branch.
 
         The tracker-provided branch is accepted only when it matches a branch
@@ -2798,7 +2810,11 @@ class ProjectStore:
         left by an epic repair/planner run, subject to the strict ownership
         and ancestry guards in ``_cleanup_epic_repair_workspace_locked``.
 
-        Returns whether either the worktree or branch was actually removed.
+        Returns (changed, skip_reason). changed indicates whether either the
+        worktree, branch, or auxiliary repair workspace was actually removed.
+        skip_reason is None if the branch was removed or attempted, or a
+        category string if skipped ('shared_epic_branch', 'protected_branch',
+        'checked_out_in_worktree').
         """
 
         project = self._projects.get(project_id)
@@ -2834,7 +2850,7 @@ class ProjectStore:
                     project_id,
                     issue_identifier,
                 )
-            branch_removed = self._delete_owned_issue_branch_locked(
+            branch_removed, skip_reason = self._delete_owned_issue_branch_locked(
                 project,
                 issue_identifier,
                 candidate,
@@ -2850,7 +2866,7 @@ class ProjectStore:
                     project_id,
                     issue_identifier,
                 )
-        return worktree_removed or branch_removed or repair_removed
+        return worktree_removed or branch_removed or repair_removed, skip_reason
 
     def cleanup_stale_worktree_dirs(
         self, project_id: str, limit: int | None = None
