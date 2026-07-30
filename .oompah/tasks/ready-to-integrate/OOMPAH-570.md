@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-570
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Recover interrupted integration leases and explicit blocked-head retries
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T23:53:31.874608Z'
-updated_at: '2026-07-30T00:07:57.448071Z'
+updated_at: '2026-07-30T00:08:08.316865Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -76,6 +76,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-570
     source_sha: 8483db2e3e718c1f5f6476018d954574ce5d42f9
     completed_at: '2026-07-29T23:58:31.982681+00:00'
+oompah.integration:
+  version: 1
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-570
+  head_sha: 64b9c6d81a851da760225299c6df082d70ead338
+  submitted_at: '2026-07-30T00:08:06.189040+00:00'
+  updated_at: '2026-07-30T00:08:06.189040+00:00'
 ---
 ## Summary
 
@@ -249,5 +257,10 @@ Acceptance criteria met:
 ✓ Same-head explicit resubmit clears blocked row (explicit_retry flag)
 ✓ Background sync remains idempotent (explicit_retry=False)
 ✓ Focused and orchestrator tests pass
+---
+author: oompah
+created: 2026-07-30 00:08
+---
+Recovered interrupted integration leases and implemented explicit blocked-head retries. Added explicit_retry flag to distinguish user submissions from background sync, recover_abandoned() for startup lease recovery, quality gate process group cleanup on shutdown. All 291 tests passing.
 ---
 <!-- COMMENTS:END -->
