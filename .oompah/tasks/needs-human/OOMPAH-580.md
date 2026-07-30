@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-580
 type: task
-status: In Validation
+status: Needs Human
 priority: 0
 title: Rebase epic-OOMPAH-460 onto main
 parent: OOMPAH-460
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:15:45.628870Z'
-updated_at: '2026-07-30T04:55:54.978935Z'
+updated_at: '2026-07-30T14:12:36.979982Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-580
 target_branch: null
 review_url: null
@@ -164,6 +164,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    no-auditor-audit-010f4c5c61f5-1: '2026-07-30T14:12:34.837603+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -171,7 +173,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-580
     target_state: Archived
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -193,13 +195,25 @@ oompah.terminal_audit:
       ended_at: '2026-07-30T04:55:52.501048+00:00'
       failure_reason: 'unknown url type: ''/chat/completions'''
       next_retry_at: '2026-07-30T04:56:02.501027+00:00'
+    - version: 1
+      attempt_id: no-auditor-audit-010f4c5c61f5-1
+      target_state: Archived
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: ffec049844313a422a82af8eebe52e6f09ac578242f7dd22ff80cbfacf4021df
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-07-30T14:12:34.837521+00:00'
+      completed_at: '2026-07-30T14:12:34.837521+00:00'
     requested_by:
       version: 1
       identity: api-client
       source: api
     previous_state: Needs Human
     created_at: '2026-07-30T04:38:02.706803+00:00'
-    updated_at: '2026-07-30T04:55:52.501048+00:00'
+    updated_at: '2026-07-30T14:12:34.837521+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-14495b2922f4
@@ -451,5 +465,12 @@ author: oompah
 created: 2026-07-30 04:55
 ---
 Auditor attempt ended: unknown url type: '/chat/completions'. A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-07-30 14:12
+---
+Needs Human — Archived audit requires operator input.
+
+No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then move the task back to Open to retry.
 ---
 <!-- COMMENTS:END -->

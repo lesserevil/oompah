@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-582
 type: task
-status: In Validation
+status: Needs Human
 priority: null
 title: Satisfy legacy Done cross-epic dependencies after parent merge
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:39:46.196812Z'
-updated_at: '2026-07-30T04:55:50.484739Z'
+updated_at: '2026-07-30T14:12:34.606971Z'
 work_branch: OOMPAH-582
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/592
@@ -139,6 +139,8 @@ oompah.work_branch: OOMPAH-582
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    no-auditor-audit-ba83e71f4e4d-1: '2026-07-30T14:12:32.507045+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -146,7 +148,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-582
     target_state: Done
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -168,13 +170,25 @@ oompah.terminal_audit:
       ended_at: '2026-07-30T04:55:41.394020+00:00'
       failure_reason: 'unknown url type: ''/chat/completions'''
       next_retry_at: '2026-07-30T04:55:51.393988+00:00'
+    - version: 1
+      attempt_id: no-auditor-audit-ba83e71f4e4d-1
+      target_state: Done
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 720675a14cf2539cbbb8bf0aa1f078001c629588e8a2c121b2416760785dd739
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-07-30T14:12:32.506872+00:00'
+      completed_at: '2026-07-30T14:12:32.506872+00:00'
     requested_by:
       version: 1
       identity: NVShawn
       source: forge
     previous_state: In Review
     created_at: '2026-07-30T04:54:55.183299+00:00'
-    updated_at: '2026-07-30T04:55:41.394020+00:00'
+    updated_at: '2026-07-30T14:12:32.506872+00:00'
   - version: 1
     audit_id: audit-6db456fe5e16
     project_id: proj-14849f1b
@@ -366,5 +380,12 @@ author: oompah
 created: 2026-07-30 04:55
 ---
 Auditor attempt ended: unknown url type: '/chat/completions'. A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-07-30 14:12
+---
+Needs Human — Done audit requires operator input.
+
+No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then move the task back to Open to retry.
 ---
 <!-- COMMENTS:END -->
