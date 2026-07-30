@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T02:15:22.112289Z'
-updated_at: '2026-07-30T13:32:54.265178Z'
+updated_at: '2026-07-30T13:33:10.316226Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -112,5 +112,26 @@ author: oompah
 created: 2026-07-30 13:32
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-30 13:33
+---
+**Understanding & Plan**
+
+Issue OOMPAH-574 requires implementing explicit retry logic for quality gates that have failed/timed out/errored. Key requirements:
+- Explicit retry of an unchanged integration row should NOT reuse cached failed results
+- Passed results SHOULD continue to be reused (for unchanged head SHA)
+- Prevent duplicate concurrent quality gates for same row/head
+- Wire retry intent through task handoff API and integration executor
+
+Planned approach:
+1. Explore quality_gate.py to understand cache structure and decision logic
+2. Explore integration_queue.py to identify explicit retry trigger points
+3. Explore server.py API endpoints for retry submission
+4. Explore integration_executor.py task handling
+5. Add retry_forced or similar flag to cache key logic to distinguish explicit retries
+6. Implement deduplication of concurrent quality gates for same row/head
+7. Add comprehensive tests for all scenarios
+8. Verify focused tests pass before submission
 ---
 <!-- COMMENTS:END -->
