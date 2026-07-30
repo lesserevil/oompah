@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:17:13.371379Z'
-updated_at: '2026-07-30T19:00:15.864141Z'
+updated_at: '2026-07-30T19:00:50.817413Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -287,5 +287,24 @@ author: oompah
 created: 2026-07-30 19:00
 ---
 Fixed project alias canonicalization for terminal owner authorization in task handoff endpoint. Project aliases (e.g., 'oompah') are now converted to canonical IDs before validation, ensuring they work identically to canonical IDs for terminal status requests. Added regression tests verifying authorized owners can use aliases and unknown aliases fail closed.
+---
+author: oompah
+created: 2026-07-30 19:00
+---
+Verification: All tests pass (15 terminal status + 16 task handoff tests). 
+
+Fixed the issue where terminal status requests with project aliases resulted in false HTTP 403 for authorized owners.
+
+Root cause: The task handoff endpoint (api_task_handoff) was not canonicalizing project IDs before validation and tracker resolution. When a caller used a project name alias, the handoff token validation would fail because the token was scoped to the canonical ID.
+
+Solution: Canonicalize project_id at task handoff entry point before token validation, using _canonical_managed_project_id. This ensures aliases are converted to canonical IDs early, allowing subsequent operations to proceed correctly.
+
+Acceptance criteria met:
+✓ Configured owner can use audit override through both project ID and alias
+✓ Unauthorized actor and unknown alias still fail closed  
+✓ Ordinary terminal status requests retain canonical project ID
+✓ Error messages do not leak configuration
+
+Code delivered: 1 commit, 2 new regression tests, all tests passing.
 ---
 <!-- COMMENTS:END -->
