@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T20:47:41.612111Z'
-updated_at: '2026-07-30T20:49:34.397931Z'
+updated_at: '2026-07-30T20:49:50.417525Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-616
 target_branch: null
 review_url: null
@@ -24,13 +24,13 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: c4c196f0-002b-4ee3-a8c5-da9fb6bcdd3e
-  claim_owner: c1f4a4cb-217d-4c2a-aad6-f768a3cdbb4b
-  claimed_at: '2026-07-30T20:48:20.610665+00:00'
-  claim_expires_at: '2026-07-30T21:18:20.610665+00:00'
+  evidence: Duplicate screening worker was terminated.
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
-  retry_after: null
+  retry_after: '2026-07-30T20:49:48.290395+00:00'
 oompah.agent_run_id: 666032db-c114-4d08-9f56-ece5bc8e02e0
 oompah.work_branch: epic-OOMPAH-585--task-OOMPAH-616
 oompah.integration:
@@ -41,6 +41,22 @@ oompah.integration:
   head_sha: 45838987c7435c344c39cf77d0dd3ed1c135834c
   submitted_at: '2026-07-30T20:49:32.032464+00:00'
   updated_at: '2026-07-30T20:49:32.032464+00:00'
+oompah.task_costs:
+  total_input_tokens: 294
+  total_output_tokens: 74
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 294
+      output_tokens: 74
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 294
+    output_tokens: 74
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T20:49:48.067654+00:00'
 ---
 ## Summary
 
@@ -78,5 +94,15 @@ author: oompah
 created: 2026-07-30 20:49
 ---
 Integrated the fully gated OOMPAH-615 ownership-race fix onto the OOMPAH-585 epic branch. Combined-tree focused regressions: 408 passed; source commit full gate: terminal mutation scan passed, 13,736 passed, 7 skipped.
+---
+author: oompah
+created: 2026-07-30 20:49
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 15
+- Tokens: 294 in / 74 out [368 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 1m 20s
+- Log: OOMPAH-616__20260730T204836Z.jsonl
 ---
 <!-- COMMENTS:END -->
