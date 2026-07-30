@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:22.194798Z'
-updated_at: '2026-07-30T14:34:20.808203Z'
+updated_at: '2026-07-30T14:41:07.639688Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-590
 target_branch: null
 review_url: null
@@ -187,5 +187,41 @@ Gaps to address:
 ✗ Duplicate tick coalescing: deduplication of concurrent audit attempts not fully tested
 
 Next: Add specific failure classifications and ensure they're set on transient failures.
+---
+author: oompah
+created: 2026-07-30 14:41
+---
+**Implementation Complete:**
+
+Changed 3 files:
+1. oompah/auditor_dispatch.py:
+   - Updated AuditorDispatchLane.finish_attempt() to accept failure_classification parameter
+   - Persists classification on transient failures to distinguish from terminal failures
+   - Added import for TYPE_CHECKING FailureClassification
+
+2. oompah/orchestrator.py:
+   - _dispatch_audit_lane: Pass FailureClassification.INFRASTRUCTURE_ERROR when auditor launch fails
+   - _finish_audit_attempt: Pass INFRASTRUCTURE_ERROR when auditor exits without result
+   - This marks transient failures for retry without losing audit history
+
+3. tests/test_auditor_dispatch.py:
+   - Added 6 new tests covering all acceptance criteria:
+     - test_finish_attempt_classifies_transient_failures
+     - test_transient_failure_with_backoff_enables_later_retry
+     - test_exhausted_candidates_after_multiple_failures
+     - test_successful_retry_after_transient_failure
+     - test_duplicate_tick_coalescing_prevents_duplicate_dispatch
+     - test_crash_recovery_marks_attempt_abandoned
+
+Key behaviors implemented:
+✓ Transient failures (launch error, timeout, transport) classified as INFRASTRUCTURE_ERROR
+✓ Attempts marked PENDING with next_retry_at for automatic retry after backoff
+✓ Candidate claims released, rotation to next independent candidate enabled
+✓ Duplicate concurrent attempts prevented via recovery check on active_attempt_ids
+✓ Abandoned auditor sessions detected via TTL and marked for retry
+✓ Multiple failed candidates tracked, routing to Needs Human when exhausted
+✓ Audit history preserved with all attempts and their classifications
+
+Test results: All 13 auditor dispatch tests pass + 103 terminal transition tests pass
 ---
 <!-- COMMENTS:END -->
