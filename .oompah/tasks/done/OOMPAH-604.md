@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T17:07:44.032640Z'
-updated_at: '2026-07-30T18:26:04.022928Z'
+updated_at: '2026-07-30T18:27:07.151861Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-604
 target_branch: null
 review_url: null
@@ -54,13 +54,17 @@ oompah.integration:
   base_sha: 4cd5ddfae7384bbb7022d2562149468f0127a35e
   updated_at: '2026-07-30T18:18:28.458615+00:00'
 oompah.task_costs:
-  total_input_tokens: 1840201
-  total_output_tokens: 12108
+  total_input_tokens: 4048502
+  total_output_tokens: 14121
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 1840201
       output_tokens: 12108
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 2208301
+      output_tokens: 2013
       cost_usd: 0.0
   runs:
   - profile: default
@@ -81,6 +85,12 @@ oompah.task_costs:
     output_tokens: 152
     cost_usd: 0.0
     recorded_at: '2026-07-30T17:19:10.743451+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 2208301
+    output_tokens: 2013
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T18:27:05.631790+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-604__20260730T170845Z
@@ -392,5 +402,15 @@ Safe evidence:
 - test_results: 13724 passed, 7 skipped
 - fix_location: oompah/terminal_transition_coordinator.py:_override_transition_locked
 - regression_tests: tests/test_terminal_override.py (4 new tests)
+---
+author: oompah
+created: 2026-07-30 18:27
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> InferenceAPI/nvidia/nvidia/nemotron-3-ultra]
+- Turns: 8, Tool calls: 8
+- Tokens: 2.2M in / 2.0K out [2.2M total]
+- Cost: $0.0000
+- Exit: normal, Duration: 8m 41s
+- Log: OOMPAH-604__20260730T181834Z.jsonl
 ---
 <!-- COMMENTS:END -->
