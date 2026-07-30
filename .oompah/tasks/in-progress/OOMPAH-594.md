@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:55.490677Z'
-updated_at: '2026-07-30T15:29:47.716402Z'
+updated_at: '2026-07-30T15:52:11.527426Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-594
 target_branch: null
 review_url: null
@@ -67,13 +67,17 @@ oompah.integration:
   base_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
   updated_at: '2026-07-30T15:29:45.691261+00:00'
 oompah.task_costs:
-  total_input_tokens: 46270
-  total_output_tokens: 5787
+  total_input_tokens: 1162862
+  total_output_tokens: 14571
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 46270
       output_tokens: 5787
+      cost_usd: 0.0
+    sonnet:
+      input_tokens: 1116592
+      output_tokens: 8784
       cost_usd: 0.0
   runs:
   - profile: default
@@ -94,6 +98,12 @@ oompah.task_costs:
     output_tokens: 454
     cost_usd: 0.0
     recorded_at: '2026-07-30T15:29:23.206083+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 1116592
+    output_tokens: 8784
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T15:52:07.584195+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-594__20260730T152001Z
@@ -120,6 +130,14 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-586--task-OOMPAH-594
     source_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
     completed_at: '2026-07-30T15:29:23.210006+00:00'
+  - run_id: OOMPAH-594__20260730T152949Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-terra
+    focus: security
+    source_branch: epic-OOMPAH-586--task-OOMPAH-594
+    source_sha: 31a10b064158948503a7eaa646a1bfa7d1b35e55
+    completed_at: '2026-07-30T15:52:07.589483+00:00'
 ---
 ## Summary
 
@@ -227,5 +245,25 @@ author: oompah
 created: 2026-07-30 15:29
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-07-30 15:52
+---
+Agent completed successfully in 1345s (1125376 tokens)
+---
+author: oompah
+created: 2026-07-30 15:52
+---
+Run #2 [attempt=2, profile=standard, role=standard -> Codex/gpt-5.6-terra]
+- Turns: 2, Tool calls: 77
+- Tokens: 1.1M in / 8.8K out [1.1M total]
+- Cost: $0.0000
+- Exit: normal, Duration: 22m 25s
+- Log: OOMPAH-594__20260730T152949Z.jsonl
+---
+author: oompah
+created: 2026-07-30 15:52
+---
+Agent completed without closing this issue (1345s (1125376 tokens)). Escalating from 'standard' to 'deep'. Retrying in 20s (2/3).
 ---
 <!-- COMMENTS:END -->
