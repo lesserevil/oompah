@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-426
 type: bug
-status: Merged
+status: In Validation
 priority: 1
 title: Block child task PRs from merging to main before their epic completes
 parent: null
@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T21:15:59.630196Z'
-updated_at: '2026-07-23T22:16:54.296362Z'
+updated_at: '2026-07-30T22:31:31.919571Z'
 work_branch: epic-OOMPAH-426
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/544
@@ -52,6 +52,28 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/544
 oompah.review_number: '544'
 oompah.work_branch: epic-OOMPAH-426
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-575bb8abedb1
+    project_id: proj-14849f1b
+    task_id: OOMPAH-426
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: bf44d364f900e1fb8bf6937ef794490226147dc789b6377da1e04a87ce8da92f
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-07-30T22:31:29.639181+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -226,5 +248,10 @@ created: 2026-07-23 22:16
 ---
 Auto-closed: all 2 children closed and merged to epic-OOMPAH-426.
 Children: OOMPAH-427 (closed without PR), OOMPAH-428 (closed without PR)
+---
+author: oompah
+created: 2026-07-30 22:31
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
