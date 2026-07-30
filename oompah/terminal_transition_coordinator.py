@@ -776,7 +776,11 @@ class TerminalTransitionCoordinator:
                 if (
                     record.target_state == requested_target
                     and record.request_state
-                    in (RequestState.PENDING, RequestState.COMPLETED)
+                    in (
+                        RequestState.PENDING,
+                        RequestState.IN_PROGRESS,
+                        RequestState.COMPLETED,
+                    )
                     and record.evidence_fingerprint != evidence_fingerprint
                 ):
                     updated_chain.append(
