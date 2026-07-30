@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-629
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Reject cross-task branch evidence before integration mutation
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T23:07:33.040594Z'
-updated_at: '2026-07-30T23:16:44.238445Z'
+updated_at: '2026-07-30T23:21:25.605204Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -19,12 +19,37 @@ review_number: null
 merged_at: null
 oompah.integration:
   version: 1
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-585--task-OOMPAH-629
+  base_branch: epic-OOMPAH-585
+  base_sha: d8d265b9a1957560206eec2b4da5d833942c82ea
   head_sha: 4510fb912aebc99dce90df1dc55e8ee952408401
+  integrated_sha: 4510fb912aebc99dce90df1dc55e8ee952408401
   submitted_at: '2026-07-30T23:16:41.615917+00:00'
-  updated_at: '2026-07-30T23:16:41.615917+00:00'
+  updated_at: '2026-07-30T23:21:22.209470+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-97cc9a57b420
+    project_id: proj-14849f1b
+    task_id: OOMPAH-629
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 52d425f1f9dc8576e99acbfc38ef7f991fe8839fbc7f09f7b839c5002f8e2e13
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-30T23:21:23.465705+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -62,5 +87,10 @@ author: oompah
 created: 2026-07-30 23:16
 ---
 Reject foreign branch evidence before durable mutation and keep mismatched integration worktrees unchanged.
+---
+author: oompah
+created: 2026-07-30 23:21
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
