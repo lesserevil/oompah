@@ -11,13 +11,13 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:13:49.613612Z'
-updated_at: '2026-07-30T18:16:15.663294Z'
+updated_at: '2026-07-30T18:16:42.272653Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-606
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 90434c78-7840-43c2-ba74-9d19a03704a5
+oompah.agent_run_id: af206cc1-cb70-4ae5-8200-575003e83f6e
 oompah.work_branch: epic-OOMPAH-460--task-OOMPAH-606
 oompah.integration:
   version: 1

@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-30T14:14:54.281403Z'
-updated_at: '2026-07-30T18:16:21.351756Z'
+updated_at: '2026-07-30T18:16:38.657392Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-593
 target_branch: null
 review_url: null
@@ -212,18 +212,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-593
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 64a3ea2fe7c425c2db0babd15797e447b48f9639016aae41f19307bb6f57a4d6
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-72bd38df00fe
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 64a3ea2fe7c425c2db0babd15797e447b48f9639016aae41f19307bb6f57a4d6
+      created_at: '2026-07-30T18:16:37.232714+00:00'
+      provider_id: prov-3c712bff
+      model: nvidia/nvidia/nemotron-3-ultra
+      started_at: '2026-07-30T18:16:37.232714+00:00'
+      branch_key: epic-OOMPAH-586--task-OOMPAH-593
     requested_by:
       version: 1
       identity: lesserevil
       source: api
     previous_state: Needs Human
     created_at: '2026-07-30T18:16:15.292504+00:00'
+    updated_at: '2026-07-30T18:16:37.232714+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-4db44537a773
@@ -241,6 +255,19 @@ oompah.terminal_audit:
     ended_at: '2026-07-30T16:27:03.967077+00:00'
     failure_reason: 'unknown url type: ''/chat/completions'''
     next_retry_at: '2026-07-30T16:27:13.967052+00:00'
+  - version: 1
+    attempt_id: attempt-72bd38df00fe
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 64a3ea2fe7c425c2db0babd15797e447b48f9639016aae41f19307bb6f57a4d6
+    created_at: '2026-07-30T18:16:37.232714+00:00'
+    provider_id: prov-3c712bff
+    model: nvidia/nvidia/nemotron-3-ultra
+    started_at: '2026-07-30T18:16:37.232714+00:00'
+    branch_key: epic-OOMPAH-586--task-OOMPAH-593
 ---
 ## Summary
 
