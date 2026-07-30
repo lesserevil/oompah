@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:22.194798Z'
-updated_at: '2026-07-30T14:32:40.043677Z'
+updated_at: '2026-07-30T14:34:20.808203Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-590
 target_branch: null
 review_url: null
@@ -160,5 +160,32 @@ Relevant code to modify:
 - Tests: Cover launch exception, transport exception, timeout, next-candidate, exhausted, restart, duplicate tick, successful retry
 
 Status: Exploring codebase to understand current failure handling.
+---
+author: oompah
+created: 2026-07-30 14:34
+---
+**Discovery Phase:**
+
+Found the audit dispatch infrastructure exists in orchestrator.py:
+- _dispatch_audit_lane (line 4334): Handles audit dispatch with recovery
+- Already catches launch exceptions (line 4458) and calls finish_attempt with backoff
+- _finish_audit_attempt (line 22831): Persists auditor exit failures
+- _on_worker_exit (line 22895): Handles auditor exit events
+
+Current state:
+✓ Auditor launch exceptions are caught and retried with backoff
+✓ Candidate rotation is implemented (lane.plan excludes attempted pairs)
+✓ Abandoned attempts detected via TTL in lane.recover()
+✓ Branch claims released on failure
+✓ Restart recovery implemented
+
+Gaps to address:
+✗ Transient failures NOT classified (failure_classification not set on audit_dispatch failure)
+✗ Only INFRASTRUCTURE_ERROR classification exists (may not be sufficient)
+✗ No specific classifications for: AUDITOR_LAUNCH_FAILURE, TRANSPORT_ERROR, AUDITOR_TIMEOUT, PROVIDER_SESSION_ERROR
+✗ Need to distinguish recoverable transient failures from terminal failures
+✗ Duplicate tick coalescing: deduplication of concurrent audit attempts not fully tested
+
+Next: Add specific failure classifications and ensure they're set on transient failures.
 ---
 <!-- COMMENTS:END -->
