@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:20.256845Z'
-updated_at: '2026-07-30T16:59:19.448418Z'
+updated_at: '2026-07-30T16:59:35.397543Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-589
 target_branch: null
 review_url: null
@@ -67,8 +67,8 @@ oompah.integration:
   submitted_at: '2026-07-30T16:59:11.598023+00:00'
   updated_at: '2026-07-30T16:59:11.598023+00:00'
 oompah.task_costs:
-  total_input_tokens: 37815032
-  total_output_tokens: 59288
+  total_input_tokens: 37815162
+  total_output_tokens: 62786
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -76,8 +76,8 @@ oompah.task_costs:
       output_tokens: 57559
       cost_usd: 0.0
     opus:
-      input_tokens: 189629
-      output_tokens: 1729
+      input_tokens: 189759
+      output_tokens: 5227
       cost_usd: 0.0
   runs:
   - profile: default
@@ -122,6 +122,12 @@ oompah.task_costs:
     output_tokens: 205
     cost_usd: 0.0
     recorded_at: '2026-07-30T15:42:50.545485+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 130
+    output_tokens: 3498
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T16:59:33.901088+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-589__20260730T141852Z
@@ -853,5 +859,15 @@ Root cause of the reopen: reserved auditor focus's model_role='auditor' caused _
 Fix: When forced_auditor=True and target is provided, both _run_api_worker and _run_acp_worker now bypass focus-based provider/model override resolution and honor target.provider/target.model directly.
 
 Added cross-mode regressions (API-with-ACP-focus-override, ACP-with-API-focus-override) alongside the earlier endpoint validation, credential redaction, and timeout-test determinism work. 614 focused tests passing.
+---
+author: oompah
+created: 2026-07-30 16:59
+---
+Run #2 [attempt=2, profile=deep, role=deep -> Claude/opus]
+- Turns: 0, Tool calls: 82
+- Tokens: 130 in / 3.5K out [3.6K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 10m 23s
+- Log: OOMPAH-589__20260730T164918Z.jsonl
 ---
 <!-- COMMENTS:END -->
