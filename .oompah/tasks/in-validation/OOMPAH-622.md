@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T21:26:15.242500Z'
-updated_at: '2026-07-30T21:42:23.627960Z'
+updated_at: '2026-07-30T21:43:04.518596Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-622
 target_branch: null
 review_url: null
@@ -280,5 +280,10 @@ author: oompah
 created: 2026-07-30 21:42
 ---
 Auditor environment note: the bare `pytest` command resolved to the operator root editable environment (`/home/shedwards/src/oompah` at old commit ce8a124fc), so that focused failure tested old code and is not valid branch evidence. The integration gate used an isolated task-worktree venv and passed before cleaning it. If a rerun is necessary, use `python -m pytest ... --import-mode=importlib` from this worktree so cwd sources win; otherwise rely on the successful exact gate.
+---
+author: oompah
+created: 2026-07-30 21:43
+---
+Operator re-ran the exact capability/authority nodes from the audit worktree with the worktree on PYTHONPATH (`python -m pytest --import-mode=importlib -p no:cacheprovider`): 8 passed in 0.63s. This confirms the earlier bare-pytest failure was root editable-install contamination, not a branch regression.
 ---
 <!-- COMMENTS:END -->
