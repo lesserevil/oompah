@@ -19,7 +19,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:31.119782Z'
-updated_at: '2026-07-30T03:21:22.596385Z'
+updated_at: '2026-07-30T03:21:36.203599Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-483
 target_branch: null
 review_url: null
@@ -110,23 +110,12 @@ oompah.task_costs:
     recorded_at: '2026-07-30T02:32:08.333773+00:00'
 oompah.integration:
   version: 1
-  state: integrated
-  attempts: 1
+  state: working
+  attempts: 0
   task_branch: epic-OOMPAH-459--task-OOMPAH-483
   base_branch: epic-OOMPAH-459
-  base_sha: f94236e267fecf7cf3549096665bedb79ea0d1a3
-  head_sha: 11ea824f7e61f78d1de758ca9062df842c0ce397
-  integrated_sha: 11ea824f7e61f78d1de758ca9062df842c0ce397
-  submitted_at: '2026-07-30T03:01:30.460167+00:00'
-  updated_at: '2026-07-30T03:05:54.654509+00:00'
-  dependency_heads:
-    OOMPAH-478: b68d7438fd5afee99b5e77688274478c748bdb3a
-    OOMPAH-482: d84ec54ce0173e8a41a93c180aa2b84dab299c88
-    OOMPAH-481: 0a7e06f144285b8d3309a9ae0aab1330aa54985f
-    OOMPAH-477: cfa5ca64f43aaa846f4ce7c153291390c5e0648c
-    OOMPAH-476: cfa5ca64f43aaa846f4ce7c153291390c5e0648c
-    OOMPAH-480: ee00485a0433381f5ec7d28647d44c93169f4ce2
-    OOMPAH-479: d61679dbe4d99414a6c941d425abfc3cd7109341
+  base_sha: 11ea824f7e61f78d1de758ca9062df842c0ce397
+  updated_at: '2026-07-30T03:21:34.093564+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
@@ -173,18 +162,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-483
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: f1e5c0df897c367bf9bf61fb3fd5fe22f91eb1b85a53dfd81645ff31d28bdc6a
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-571a73f432bd
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: f1e5c0df897c367bf9bf61fb3fd5fe22f91eb1b85a53dfd81645ff31d28bdc6a
+      created_at: '2026-07-30T03:21:28.925747+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-30T03:21:28.925747+00:00'
+      branch_key: epic-OOMPAH-459--task-OOMPAH-483
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-30T03:21:21.096407+00:00'
+    updated_at: '2026-07-30T03:21:28.925747+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-6ce2bc425063
@@ -198,6 +201,19 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: opus
     started_at: '2026-07-30T02:23:49.398456+00:00'
+    branch_key: epic-OOMPAH-459--task-OOMPAH-483
+  - version: 1
+    attempt_id: attempt-571a73f432bd
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f1e5c0df897c367bf9bf61fb3fd5fe22f91eb1b85a53dfd81645ff31d28bdc6a
+    created_at: '2026-07-30T03:21:28.925747+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-30T03:21:28.925747+00:00'
     branch_key: epic-OOMPAH-459--task-OOMPAH-483
 oompah.work_contributors:
   runs:
@@ -677,5 +693,15 @@ author: oompah
 created: 2026-07-30 03:01
 ---
 Terminal mutation CI enforcement and deterministic integration-gate regressions complete at 11ea824f7.
+---
+author: oompah
+created: 2026-07-30 03:21
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-07-30 03:21
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
