@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-579
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Prune branchless terminal legacy epic-task worktrees
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T03:54:54.485192Z'
-updated_at: '2026-07-30T04:12:14.623268Z'
+updated_at: '2026-07-30T04:20:16.011366Z'
 work_branch: OOMPAH-579
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/591
@@ -87,6 +87,72 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/591
 oompah.review_number: '591'
 oompah.work_branch: OOMPAH-579
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-8000b84dffe3
+    project_id: proj-14849f1b
+    task_id: OOMPAH-579
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b6e8fb4fba77b922ef08a752d764e4e91181eed333ccc726812affdc1ff0f1b1
+    attempts:
+    - version: 1
+      attempt_id: attempt-251e79e4565b
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: b6e8fb4fba77b922ef08a752d764e4e91181eed333ccc726812affdc1ff0f1b1
+      created_at: '2026-07-30T04:20:09.070799+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-30T04:20:09.070799+00:00'
+      branch_key: OOMPAH-579
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-30T04:20:02.983899+00:00'
+    updated_at: '2026-07-30T04:20:09.070799+00:00'
+  - version: 1
+    audit_id: audit-12a22c80c49c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-579
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b6e8fb4fba77b922ef08a752d764e4e91181eed333ccc726812affdc1ff0f1b1
+    attempts: []
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-30T04:20:02.983899+00:00'
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-251e79e4565b
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b6e8fb4fba77b922ef08a752d764e4e91181eed333ccc726812affdc1ff0f1b1
+    created_at: '2026-07-30T04:20:09.070799+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-30T04:20:09.070799+00:00'
+    branch_key: OOMPAH-579
 ---
 ## Summary
 
@@ -154,5 +220,20 @@ author: oompah
 created: 2026-07-30 04:10
 ---
 Implemented narrow fallback cleanup for terminal task records with missing branch metadata when an exact managed epic-<same-id> legacy worktree exists. Added real bare-remote coverage for recorded and branchless forms; full make test passes (13,619 passed, 7 skipped). Commit a994cad2c pushed.
+---
+author: oompah
+created: 2026-07-30 04:20
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-07-30 04:20
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-07-30 04:20
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
