@@ -1009,3 +1009,317 @@ def test_override_record_requires_authorized_by():
             authorized_by="not-an-identity",  # type: ignore
             reason="Test",
         )
+
+
+# ---------------------------------------------------------------------------
+# Tests: Multiple audit records with fingerprint supersession (OOMPAH-604)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_override_allowed_with_matching_current_record_among_superseded(
+    coordinator, tracker, project_id, task_id, owner_identity
+):
+    """Override succeeds when current record matches, even if superseded ones don't.
+    
+    This is the regression test for OOMPAH-604: after terminal-audit evidence
+    supersession, multiple Done audit records may exist with different
+    fingerprints. An authorized owner override should evaluate only the
+    current active record (non-superseded), allowing the override when it
+    matches even if historical superseded records have different fingerprints.
+    """
+    
+    # Create two fingerprints (old and current)
+    old_fingerprint = EvidenceFingerprint.from_evidence(
+        requirements_text="old evidence",
+        project_id=project_id,
+        task_id=task_id,
+    )
+    current_fingerprint = EvidenceFingerprint.from_evidence(
+        requirements_text="current evidence",
+        project_id=project_id,
+        task_id=task_id,
+    )
+    
+    issue = Issue(
+        id=task_id,
+        identifier=task_id,
+        state="In Validation",
+        title="Test task",
+        description="Test task with multiple audits",
+    )
+    
+    project = _MockProject(
+        status_label_authorized_logins=["owner"]
+    )
+    
+    # Create two audit records: old superseded, current active
+    old_record = TerminalAuditRecord(
+        audit_id="audit-old",
+        project_id=project_id,
+        task_id=task_id,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=old_fingerprint,
+        request_state=RequestState.SUPERSEDED,  # This one is superseded
+        requested_by=owner_identity,
+    )
+    
+    current_record = TerminalAuditRecord(
+        audit_id="audit-current",
+        project_id=project_id,
+        task_id=task_id,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=current_fingerprint,  # Matches the override
+        request_state=RequestState.PENDING,  # This one is current
+        requested_by=owner_identity,
+    )
+    
+    # Store metadata with both records
+    metadata = TerminalAuditMetadata(
+        pending_chain=[old_record, current_record],
+        unknown_fields={}
+    )
+    tracker.set_metadata(task_id, {METADATA_KEY: metadata.to_dict()})
+    
+    # Override with current fingerprint should succeed
+    result = await coordinator.override_transition(
+        current_issue=issue,
+        requested_target=TargetState.DONE,
+        authorized_actor=owner_identity,
+        project_id=project_id,
+        evidence_fingerprint=current_fingerprint,  # Matches current record
+        reason="Approved after evidence update",
+        project=project,
+    )
+    
+    assert result.success is True
+    assert result.applied_status == DONE
+    assert result.posted_comment is True
+    assert (task_id, DONE) in tracker.status_updates
+
+
+@pytest.mark.asyncio
+async def test_override_rejected_when_current_record_fingerprint_mismatch(
+    coordinator, tracker, project_id, task_id, owner_identity
+):
+    """Override is rejected when current record fingerprint doesn't match.
+    
+    Even if there are superseded records, we check only the current one.
+    If the current record's fingerprint doesn't match the override's
+    evidence_fingerprint, the override is rejected.
+    """
+    
+    # Create two fingerprints
+    old_fingerprint = EvidenceFingerprint.from_evidence(
+        requirements_text="old evidence",
+        project_id=project_id,
+        task_id=task_id,
+    )
+    current_fingerprint = EvidenceFingerprint.from_evidence(
+        requirements_text="current evidence",
+        project_id=project_id,
+        task_id=task_id,
+    )
+    stale_fingerprint = EvidenceFingerprint.from_evidence(
+        requirements_text="stale evidence",
+        project_id=project_id,
+        task_id=task_id,
+    )
+    
+    issue = Issue(
+        id=task_id,
+        identifier=task_id,
+        state="In Validation",
+        title="Test task",
+        description="Test task",
+    )
+    
+    project = _MockProject(
+        status_label_authorized_logins=["owner"]
+    )
+    
+    # Create two records: old superseded with one fingerprint, current with another
+    old_record = TerminalAuditRecord(
+        audit_id="audit-old",
+        project_id=project_id,
+        task_id=task_id,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=old_fingerprint,
+        request_state=RequestState.SUPERSEDED,
+        requested_by=owner_identity,
+    )
+    
+    current_record = TerminalAuditRecord(
+        audit_id="audit-current",
+        project_id=project_id,
+        task_id=task_id,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=current_fingerprint,
+        request_state=RequestState.PENDING,
+        requested_by=owner_identity,
+    )
+    
+    metadata = TerminalAuditMetadata(
+        pending_chain=[old_record, current_record],
+        unknown_fields={}
+    )
+    tracker.set_metadata(task_id, {METADATA_KEY: metadata.to_dict()})
+    
+    # Try to override with a fingerprint that doesn't match current record
+    result = await coordinator.override_transition(
+        current_issue=issue,
+        requested_target=TargetState.DONE,
+        authorized_actor=owner_identity,
+        project_id=project_id,
+        evidence_fingerprint=stale_fingerprint,  # Doesn't match current
+        reason="Should fail",
+        project=project,
+    )
+    
+    assert result.success is False
+    assert result.error_code == "fingerprint_mismatch"
+    assert tracker.comments == []
+    assert tracker.status_updates == []
+
+
+@pytest.mark.asyncio
+async def test_override_allowed_when_no_pending_record_exists(
+    coordinator, tracker, project_id, task_id, owner_identity
+):
+    """Override succeeds when no pending record exists for the target.
+    
+    If there's no current active record for the requested target (all are
+    superseded or none exist), the fingerprint check passes and the override
+    proceeds with authorization checks.
+    """
+    
+    fingerprint = EvidenceFingerprint.from_evidence(
+        requirements_text="some evidence",
+        project_id=project_id,
+        task_id=task_id,
+    )
+    
+    issue = Issue(
+        id=task_id,
+        identifier=task_id,
+        state="Open",
+        title="Test task",
+        description="Test task",
+    )
+    
+    project = _MockProject(
+        status_label_authorized_logins=["owner"]
+    )
+    
+    # Empty metadata (no pending records)
+    metadata = TerminalAuditMetadata(pending_chain=[], unknown_fields={})
+    tracker.set_metadata(task_id, {METADATA_KEY: metadata.to_dict()})
+    
+    result = await coordinator.override_transition(
+        current_issue=issue,
+        requested_target=TargetState.DONE,
+        authorized_actor=owner_identity,
+        project_id=project_id,
+        evidence_fingerprint=fingerprint,
+        reason="Override without existing audit",
+        project=project,
+    )
+    
+    assert result.success is True
+    assert result.applied_status == DONE
+
+
+@pytest.mark.asyncio
+async def test_override_with_multiple_records_different_targets(
+    coordinator, tracker, project_id, task_id, owner_identity
+):
+    """Override correctly handles multiple records for different targets.
+    
+    When the chain has records for different targets (e.g., Done and Merged),
+    only the record matching the requested_target is checked for fingerprint
+    mismatch.
+    """
+    
+    done_fingerprint = EvidenceFingerprint.from_evidence(
+        requirements_text="done evidence",
+        project_id=project_id,
+        task_id=task_id,
+    )
+    merged_fingerprint = EvidenceFingerprint.from_evidence(
+        requirements_text="merged evidence",
+        project_id=project_id,
+        task_id=task_id,
+    )
+    override_fingerprint = EvidenceFingerprint.from_evidence(
+        requirements_text="override evidence",
+        project_id=project_id,
+        task_id=task_id,
+    )
+    
+    issue = Issue(
+        id=task_id,
+        identifier=task_id,
+        state="In Validation",
+        title="Test task",
+        description="Test task",
+    )
+    
+    project = _MockProject(
+        status_label_authorized_logins=["owner"]
+    )
+    
+    # Create Done and Merged records with different fingerprints
+    done_record = TerminalAuditRecord(
+        audit_id="audit-done",
+        project_id=project_id,
+        task_id=task_id,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=done_fingerprint,
+        request_state=RequestState.PENDING,
+        requested_by=owner_identity,
+    )
+    
+    merged_record = TerminalAuditRecord(
+        audit_id="audit-merged",
+        project_id=project_id,
+        task_id=task_id,
+        target_state=TargetState.MERGED,
+        evidence_fingerprint=merged_fingerprint,
+        request_state=RequestState.PENDING,
+        requested_by=owner_identity,
+    )
+    
+    metadata = TerminalAuditMetadata(
+        pending_chain=[done_record, merged_record],
+        unknown_fields={}
+    )
+    tracker.set_metadata(task_id, {METADATA_KEY: metadata.to_dict()})
+    
+    # Override to Merged with a different fingerprint should fail
+    # (it should check against merged_fingerprint, not done_fingerprint)
+    result = await coordinator.override_transition(
+        current_issue=issue,
+        requested_target=TargetState.MERGED,
+        authorized_actor=owner_identity,
+        project_id=project_id,
+        evidence_fingerprint=override_fingerprint,  # Doesn't match merged
+        reason="Override to Merged",
+        project=project,
+    )
+    
+    assert result.success is False
+    assert result.error_code == "fingerprint_mismatch"
+    
+    # But override to Done should succeed since we're using a different fingerprint
+    # but will check only the Done record
+    result_done = await coordinator.override_transition(
+        current_issue=issue,
+        requested_target=TargetState.DONE,
+        authorized_actor=owner_identity,
+        project_id=project_id,
+        evidence_fingerprint=done_fingerprint,  # Matches the Done record
+        reason="Override to Done",
+        project=project,
+    )
+    
+    assert result_done.success is True
