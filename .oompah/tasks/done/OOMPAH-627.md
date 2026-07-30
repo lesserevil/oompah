@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T22:09:32.117751Z'
-updated_at: '2026-07-30T23:07:53.681084Z'
+updated_at: '2026-07-30T23:08:38.382612Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-627
 target_branch: null
 review_url: null
@@ -132,13 +132,13 @@ oompah.terminal_audit:
     branch_key: epic-OOMPAH-585--task-OOMPAH-627
 oompah.work_branch: epic-OOMPAH-585--task-OOMPAH-627
 oompah.task_costs:
-  total_input_tokens: 37
-  total_output_tokens: 5626
+  total_input_tokens: 43
+  total_output_tokens: 5755
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 37
-      output_tokens: 5626
+      input_tokens: 43
+      output_tokens: 5755
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -147,6 +147,12 @@ oompah.task_costs:
     output_tokens: 5626
     cost_usd: 0.0
     recorded_at: '2026-07-30T22:30:04.788596+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 6
+    output_tokens: 129
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T23:08:35.142284+00:00'
 ---
 ## Summary
 
@@ -257,5 +263,15 @@ Safe evidence:
 - adjacent_orchestrator_handlers_auditor_dispatch_contract: 302 passed
 - boundary_call_sites: oompah/orchestrator.py:20778 and 21298 pass persist_dispatch_metadata=not forced_auditor
 - guard_line: oompah/orchestrator.py:8245 wraps set_metadata_field with if persist_dispatch_metadata
+---
+author: oompah
+created: 2026-07-30 23:08
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 36, Tool calls: 17
+- Tokens: 6 in / 129 out [135 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 3m 46s
+- Log: OOMPAH-627__20260730T230456Z.jsonl
 ---
 <!-- COMMENTS:END -->
