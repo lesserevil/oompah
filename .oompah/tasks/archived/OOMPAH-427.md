@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-427
 type: task
-status: In Validation
+status: Archived
 priority: null
 title: Fix YOLO merge gate bypass for child tasks with stale work_branch (EXOCOMP-57
   regression)
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T21:33:43.808978Z'
-updated_at: '2026-07-30T22:32:00.362081Z'
+updated_at: '2026-07-30T22:34:49.617156Z'
 work_branch: epic-OOMPAH-426
 target_branch: null
 review_url: null
@@ -50,6 +50,8 @@ oompah.task_costs:
     recorded_at: '2026-07-23T22:10:46.567531+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-5b2785e93089: '2026-07-30T22:34:47.184022+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -57,7 +59,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-427
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -66,7 +68,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-5b2785e93089
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -76,13 +78,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-30T22:31:54.991288+00:00'
       branch_key: epic-OOMPAH-426
+      verdict: pass
+      completed_at: '2026-07-30T22:34:47.183861+00:00'
+      ended_at: '2026-07-30T22:34:47.183861+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-07-30T22:31:33.498448+00:00'
-    updated_at: '2026-07-30T22:31:54.991288+00:00'
+    updated_at: '2026-07-30T22:34:47.183861+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-5b2785e93089
@@ -400,5 +405,23 @@ author: oompah
 created: 2026-07-30 22:32
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 22:34
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- fix_commit_sha: 0574d9ecf70bfae48b1c574da9369ac4c9c0f497
+- merge_commit_sha: 5e0224564
+- pr_number: 544
+- in_main: true
+- code_line_yolo_gate: oompah/orchestrator.py:15856-15857 (parent_epic_branch check)
+- code_line_close_helper: oompah/orchestrator.py:15944-15945 (parent_epic_branch check)
+- tests_added: 4
+- tests_pass: 4 passed in 2.31s
+- head_matches_main: true
 ---
 <!-- COMMENTS:END -->
