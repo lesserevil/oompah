@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-30T14:14:54.281403Z'
-updated_at: '2026-07-30T16:09:11.769556Z'
+updated_at: '2026-07-30T16:12:17.875774Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-593
 target_branch: null
 review_url: null
@@ -498,5 +498,15 @@ author: oompah
 created: 2026-07-30 16:09
 ---
 Discovery: The failing test test_in_progress_refresh_timeout_uses_the_same_safe_boundary is a pre-existing flaky test caused by tight timing assertions (< 0.15s with 0.2s slow-tracker sleep) that fail under xdist parallel load. This exact issue was already fixed in commit c4644107f (OOMPAH-589: Make timeout tests deterministic under xdist) on branch epic-OOMPAH-585--task-OOMPAH-589. That fix: (1) changes the slow tracker sleep from 0.2s to 60s (making the 'timeout fired' vs 'timeout missed' distinction clear), (2) relaxes the timing boundary from 0.15s to 2.0s. The same fix is needed for the same two tests on this branch. Cherry-picking c4644107f onto epic-OOMPAH-586--task-OOMPAH-593.
+---
+author: oompah
+created: 2026-07-30 16:12
+---
+Implementation: Cherry-picked commit c4644107f (OOMPAH-589: Make timeout tests deterministic under xdist) onto this branch. The fix applies to two tests in tests/test_orchestrator_handlers.py::TestHandleDispatchNeeded: test_candidate_refresh_timeout_does_not_block_dispatch_loop and test_in_progress_refresh_timeout_uses_the_same_safe_boundary. Both tests had tight timing assertions (< 0.15s with 0.2s slow-tracker sleep) that failed under xdist parallel load when the asyncio timeout mechanism itself was working correctly. The fix: (1) increases the slow tracker sleep from 0.2s to 60s so the 'timeout worked' vs 'timeout missed' distinction is unambiguous (10ms timeout vs 60s sleep), (2) relaxes the timing boundary from 0.15s to 2.0s for xdist contention resilience, (3) preserves all structural invariants (results correct, timeout_count == 1). No changes to production code.
+---
+author: oompah
+created: 2026-07-30 16:12
+---
+Verification: uv run pytest tests/test_task_handoff.py tests/test_acp_codex_backend.py → 91 passed. uv run pytest tests/test_orchestrator_handlers.py::TestHandleDispatchNeeded → 15 passed. Both previously-failing tests (test_in_progress_refresh_timeout_uses_the_same_safe_boundary and test_candidate_refresh_timeout_does_not_block_dispatch_loop) now pass reliably. Branch pushed as 0a260f027.
 ---
 <!-- COMMENTS:END -->

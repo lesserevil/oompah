@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:00.331568Z'
-updated_at: '2026-07-30T16:04:41.992380Z'
+updated_at: '2026-07-30T16:12:17.083351Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-601
 target_branch: null
 review_url: null
@@ -293,5 +293,27 @@ Approach:
 4. Verify latency stays within configured budget
 
 Starting codebase exploration...
+---
+author: oompah
+created: 2026-07-30 16:12
+---
+**Discovery:**
+
+Found the warning flood source in oompah/projects.py:
+
+The _delete_owned_issue_branch_locked() function (line 1895+) emits warnings for every child task with a shared epic branch:
+- 'Skipping terminal branch not owned by issue' (line 1920-1925)
+- 'Skipping protected terminal branch' (line 1929-1935)
+- 'Skipping terminal branch still checked out in a worktree' (line 1945-1951)
+
+When multiple child tasks share an epic branch (e.g., epic-OOMPAH-588), each child cleanup on each maintenance tick triggers these warnings, creating a flood.
+
+Also confirmed by test test_terminal_child_cleanup_preserves_shared_epic_branch which shows that child tasks with epic branch names should be silently skipped without warnings.
+
+Fix approach:
+1. Distinguish between shared epic branches (silent skip) vs problematic cases (keep as warnings)
+2. Aggregate skip reasons instead of per-issue warnings
+3. Emit one structured summary per cleanup run with categorized counts
+4. Enhance cleanup logic to detect parent epic relationship
 ---
 <!-- COMMENTS:END -->
