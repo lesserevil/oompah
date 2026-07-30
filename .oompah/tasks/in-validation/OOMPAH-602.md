@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-602
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Repair project scope propagation in merged-label maintenance
 parent: OOMPAH-588
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:01.749200Z'
-updated_at: '2026-07-30T16:29:54.529063Z'
+updated_at: '2026-07-30T16:34:42.421689Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-602
 target_branch: null
 review_url: null
@@ -61,12 +61,12 @@ oompah.agent_run_id: 4708ddd2-7dde-4ed8-a44a-808c2c2afbcf
 oompah.work_branch: epic-OOMPAH-588--task-OOMPAH-602
 oompah.integration:
   version: 1
-  state: ready
+  state: working
   attempts: 0
   task_branch: epic-OOMPAH-588--task-OOMPAH-602
-  head_sha: a6fbb7f03b8a9aea5790cfc9bc6b6355490d6a97
-  submitted_at: '2026-07-30T16:29:29.568210+00:00'
-  updated_at: '2026-07-30T16:29:29.568210+00:00'
+  base_branch: epic-OOMPAH-588
+  base_sha: a6fbb7f03b8a9aea5790cfc9bc6b6355490d6a97
+  updated_at: '2026-07-30T16:34:40.160488+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-602__20260730T160131Z
@@ -113,6 +113,55 @@ oompah.task_costs:
     output_tokens: 454
     cost_usd: 0.0
     recorded_at: '2026-07-30T16:29:52.887731+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-9384bcdf728f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-602
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 367343c967ad34fb4b8a8e5ab208f8db69f98e46efd469347bc069015e569884
+    attempts:
+    - version: 1
+      attempt_id: attempt-a66782c834a3
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 367343c967ad34fb4b8a8e5ab208f8db69f98e46efd469347bc069015e569884
+      created_at: '2026-07-30T16:34:35.200231+00:00'
+      provider_id: prov-52e94e83
+      model: gpt-5.6-sol
+      started_at: '2026-07-30T16:34:35.200231+00:00'
+      branch_key: epic-OOMPAH-588--task-OOMPAH-602
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-30T16:34:29.743936+00:00'
+    updated_at: '2026-07-30T16:34:35.200231+00:00'
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-a66782c834a3
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 367343c967ad34fb4b8a8e5ab208f8db69f98e46efd469347bc069015e569884
+    created_at: '2026-07-30T16:34:35.200231+00:00'
+    provider_id: prov-52e94e83
+    model: gpt-5.6-sol
+    started_at: '2026-07-30T16:34:35.200231+00:00'
+    branch_key: epic-OOMPAH-588--task-OOMPAH-602
 ---
 ## Summary
 
@@ -230,5 +279,20 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 13m 45s
 - Log: OOMPAH-602__20260730T161613Z.jsonl
+---
+author: oompah
+created: 2026-07-30 16:34
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-07-30 16:34
+---
+Auditor dispatched (attempt #1, candidate: prov-52e94e83/gpt-5.6-sol)
+---
+author: oompah
+created: 2026-07-30 16:34
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-589
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Validate auditor provider endpoints before candidate dispatch
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:20.256845Z'
-updated_at: '2026-07-30T16:34:04.825934Z'
+updated_at: '2026-07-30T16:34:43.207008Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-589
 target_branch: null
 review_url: null
