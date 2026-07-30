@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-610
 type: bug
-status: Backlog
+status: In Progress
 priority: 1
 title: Release stale claimed_issues entries when completion auditors exit
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:53:05.632137Z'
-updated_at: '2026-07-30T18:53:05.632137Z'
+updated_at: '2026-07-30T18:53:16.161002Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -30,3 +30,11 @@ Implementation scope: Fix the completion-auditor worker-exit path in oompah/orch
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-30 18:53
+---
+Claimed by the interactive operator session for immediate self-hosting recovery. Root cause reproduced on OOMPAH-593: auditor exit clears state.claimed and the branch claim but leaves state.claimed_issues, causing _audit_branch_busy to suppress every retry after next_retry_at.
+---
+<!-- COMMENTS:END -->
