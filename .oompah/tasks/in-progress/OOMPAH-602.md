@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:01.749200Z'
-updated_at: '2026-07-30T16:23:35.748193Z'
+updated_at: '2026-07-30T16:26:44.107317Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-602
 target_branch: null
 review_url: null
@@ -194,5 +194,10 @@ author: oompah
 created: 2026-07-30 16:23
 ---
 DISCOVERY: Found the issue in _label_merged_issues and related merged-labels maintenance methods (oompah/orchestrator.py:11950). When issues lack project_id, they're being assigned to the current project without verification of canonical ownership. Need to use _find_tracker_for_issue to resolve actual ownership and expose conflicts. Also need similar fixes in _label_merged_epics, _reconcile_merged_epic_children, _reconcile_independently_merged_children, and related methods. The fix must handle: (1) issues missing project_id in iterations, (2) ambiguous identifiers across projects, (3) explicit mismatches, (4) GitHub/native routing.
+---
+author: oompah
+created: 2026-07-30 16:26
+---
+IMPLEMENTATION: Added _resolve_issue_project_id() helper method to safely resolve project ownership for issues missing project_id. Updated merged-labels maintenance methods to use this helper: _label_merged_issues, _open_deferred_done_reviews, _label_merged_epics (_all_merged_epics), _reconcile_in_review_pr_outcomes, _reconcile_terminal_open_reviews, _reconcile_stale_in_review_tasks. Each now: (1) resolves actual project ownership by searching all projects, (2) handles conflicts by logging and skipping, (3) uses project fallback when issue belongs to current project, (4) never falls back to unscoped legacy tracker.
 ---
 <!-- COMMENTS:END -->

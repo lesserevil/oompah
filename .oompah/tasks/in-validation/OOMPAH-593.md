@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-593
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Integrate and live-verify scoped Codex task CLI authentication
 parent: OOMPAH-586
@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-30T14:14:54.281403Z'
-updated_at: '2026-07-30T16:13:48.205432Z'
+updated_at: '2026-07-30T16:26:43.269905Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-593
 target_branch: null
 review_url: null
@@ -61,12 +61,15 @@ oompah.agent_run_id: eb60b117-2ef0-419a-9bff-6285abad1e1d
 oompah.work_branch: epic-OOMPAH-586--task-OOMPAH-593
 oompah.integration:
   version: 1
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-586--task-OOMPAH-593
+  base_branch: epic-OOMPAH-586
+  base_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
   head_sha: 0a260f0279690a12fb056da0c8becb6f492f8c26
+  integrated_sha: 0a260f0279690a12fb056da0c8becb6f492f8c26
   submitted_at: '2026-07-30T16:12:31.202913+00:00'
-  updated_at: '2026-07-30T16:12:31.202913+00:00'
+  updated_at: '2026-07-30T16:26:38.949077+00:00'
 oompah.task_costs:
   total_input_tokens: 281297
   total_output_tokens: 31173
@@ -155,6 +158,28 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-586--task-OOMPAH-593
     source_sha: fe52c187f844edf24afe1fcfc8b8ca576475d647
     completed_at: '2026-07-30T15:36:25.580623+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-9b099c38caba
+    project_id: proj-14849f1b
+    task_id: OOMPAH-593
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b108b3edb6ec24fb699a02be019f7a726a35ee5866d9700278038c15e226d2f9
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-30T16:26:40.994270+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -534,5 +559,10 @@ Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: terminated, Duration: 16m 40s
 - Log: OOMPAH-593__20260730T155721Z.jsonl
+---
+author: oompah
+created: 2026-07-30 16:26
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
