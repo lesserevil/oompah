@@ -5,13 +5,17 @@ status: Backlog
 priority: 1
 title: Drain integration queues and prevent stranded delivery states
 parent: OOMPAH-584
-children: []
+children:
+- OOMPAH-596
+- OOMPAH-597
+- OOMPAH-598
+- OOMPAH-599
 blocked_by: []
 start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:13:38.093049Z'
-updated_at: '2026-07-30T14:13:38.093049Z'
+updated_at: '2026-07-30T14:15:31.645001Z'
 work_branch: null
 target_branch: null
 review_url: null
