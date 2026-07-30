@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-604
 type: bug
-status: In Validation
+status: Done
 priority: 1
 title: Allow owner overrides after terminal-audit evidence supersession
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T17:07:44.032640Z'
-updated_at: '2026-07-30T18:18:32.497076Z'
+updated_at: '2026-07-30T18:26:04.022928Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-604
 target_branch: null
 review_url: null
@@ -103,6 +103,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     no-auditor-audit-c55cdf449369-1: '2026-07-30T18:13:33.817963+00:00'
+    attempt-4abb7df16260: '2026-07-30T18:26:01.660530+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -156,7 +157,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-604
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -165,7 +166,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-4abb7df16260
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -175,13 +176,16 @@ oompah.terminal_audit:
       model: nvidia/nvidia/nemotron-3-ultra
       started_at: '2026-07-30T18:18:18.535304+00:00'
       branch_key: epic-OOMPAH-585--task-OOMPAH-604
+      verdict: pass
+      completed_at: '2026-07-30T18:26:01.660419+00:00'
+      ended_at: '2026-07-30T18:26:01.660419+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: api
     previous_state: Needs Human
     created_at: '2026-07-30T18:16:28.150022+00:00'
-    updated_at: '2026-07-30T18:18:18.535304+00:00'
+    updated_at: '2026-07-30T18:26:01.660419+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-1c2185a9153a
@@ -376,5 +380,17 @@ author: oompah
 created: 2026-07-30 18:18
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 18:26
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- test_results: 13724 passed, 7 skipped
+- fix_location: oompah/terminal_transition_coordinator.py:_override_transition_locked
+- regression_tests: tests/test_terminal_override.py (4 new tests)
 ---
 <!-- COMMENTS:END -->
