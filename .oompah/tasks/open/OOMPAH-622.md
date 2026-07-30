@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-622
 type: task
-status: In Progress
+status: Open
 priority: null
 title: Reject verdict-incapable Codex CLI auditor sessions
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T21:26:15.242500Z'
-updated_at: '2026-07-30T21:26:29.800292Z'
+updated_at: '2026-07-30T21:27:41.061088Z'
 work_branch: null
 target_branch: null
 review_url: null
