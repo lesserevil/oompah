@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-612
 type: bug
-status: Backlog
+status: In Progress
 priority: 1
 title: Avoid ACP auditor result deadlock on the dispatch event loop
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T19:33:15.081209Z'
-updated_at: '2026-07-30T19:35:16.153394Z'
+updated_at: '2026-07-30T19:43:40.320181Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,5 +36,10 @@ author: oompah
 created: 2026-07-30 19:35
 ---
 Claimed by the interactive operator session. Keeping the task non-dispatchable while repairing the ACP submit bridge because the running service cannot safely self-audit this event-loop defect without reproducing the 60-second loop block. Root cause was live-reproduced by OOMPAH-610 audit attempt attempt-9ad0fa99a03f.
+---
+author: oompah
+created: 2026-07-30 19:43
+---
+Implemented the ACP bridge repair: Claude and OpenCode async submit_audit_result tools now offload the synchronous run_coroutine_threadsafe coordinator bridge, keeping the dispatch loop free to apply and return the actual result. Added same-loop success/idempotency regressions for both async ACP catalogs and a coordinator-rejection regression. Focused suite: 237 passed. Full make test: 13,729 passed, 7 skipped; terminal mutation scan and secret scan passed.
 ---
 <!-- COMMENTS:END -->
