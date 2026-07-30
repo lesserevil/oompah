@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T02:15:25.255613Z'
-updated_at: '2026-07-30T13:58:43.839414Z'
+updated_at: '2026-07-30T13:59:33.507507Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -132,5 +132,22 @@ author: oompah
 created: 2026-07-30 13:52
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-07-30 13:59
+---
+Understanding: The issue is that Codex repair/development sessions need working scoped task-CLI auth. After code exploration, I found:
+
+1. The CLI path (subscription billing) in codex.py DOES inject task_handoff_token into cli_env (lines 774-777). This part of the code looks correct.
+2. The in-process SDK path (per_token billing) doesn't inject the token, but doesn't need it since oompah task commands are intercepted in-process via _exec_oompah_task_command_async.
+3. The _issue_task_handoff_token in orchestrator.py correctly mints tokens with view/comment/submit/set-status/etc actions scoped to the exact project+task.
+
+The missing pieces appear to be:
+- Tests that prove a Codex CLI-session (subscription) agent can view, comment, and submit ONLY its assigned task via the CLI-provided env
+- Tests that missing/expired tokens fail closed (return 401/403)
+- Tests that unrelated tasks remain unauthorized
+- Possibly a code gap: the in-process SDK path builds agent_env but never passes it anywhere useful
+
+Security concerns: The code path looks correct but needs regression tests to prove the security boundary is enforced end-to-end.
 ---
 <!-- COMMENTS:END -->
