@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:20.256845Z'
-updated_at: '2026-07-30T16:37:53.758744Z'
+updated_at: '2026-07-30T16:48:48.032521Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-589
 target_branch: null
 review_url: null
@@ -776,5 +776,15 @@ author: oompah
 created: 2026-07-30 16:37
 ---
 Implemented forced-auditor candidate binding in both API and ACP worker paths. Reserved auditor focus can no longer replace the exact provider/model persisted by AuditDispatchPlan. Added API→ACP and ACP→API cross-mode regressions. Focused auditor/orchestrator/preflight suites: 391 passed. Running the configured full gate next.
+---
+author: oompah
+created: 2026-07-30 16:48
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 55
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 13m 43s
+- Log: OOMPAH-589__20260730T163513Z.jsonl
 ---
 <!-- COMMENTS:END -->
