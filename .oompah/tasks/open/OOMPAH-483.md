@@ -19,7 +19,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:31.119782Z'
-updated_at: '2026-07-30T02:47:11.695913Z'
+updated_at: '2026-07-30T02:54:41.192736Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-483
 target_branch: null
 review_url: null
@@ -112,49 +112,13 @@ oompah.integration:
   version: 1
   state: blocked
   attempts: 1
-  task_branch: epic-OOMPAH-459--task-OOMPAH-483
+  task_branch: main
   base_branch: epic-OOMPAH-459
   base_sha: f94236e267fecf7cf3549096665bedb79ea0d1a3
-  head_sha: fdc930aced06bc29ac126fc1f947b0ef1d356a62
-  submitted_at: '2026-07-30T02:41:36.410777+00:00'
-  updated_at: '2026-07-30T02:45:57.525823+00:00'
-  last_error: "Combined-tree quality gate failed: arning: the method passlib.context.CryptContext.encrypt()\
-    \ is deprecated as of Passlib 1.7, and will be removed in Passlib 2.0, use CryptContext.hash()\
-    \ instead.\n    return ctx.encrypt(\"password\")\n\ntests/test_mcp_gateway.py::test_mcp_client_can_initialize_list_allowed_tools_and_call_state\n\
-    tests/test_mcp_gateway.py::test_authenticated_mcp_client_can_initialize_list_and_call_protected_api\n\
-    \  /home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/contextlib.py:105:\
-    \ DeprecationWarning: Use `streamable_http_client` instead.\n    self.gen = func(*args,\
-    \ **kwds)\n\ntests/test_sdk_install_guards.py::TestClaudeSessionMcpServerGuard::test_no_tool_catalog_skips_mcp_server_path\n\
-    \  /home/shedwards/.oompah/worktrees/oompah/OOMPAH-483/oompah/acp_backends/claude.py:493:\
-    \ RuntimeWarning: coroutine 'AsyncMockMixin._execute_mock_call' was never awaited\n\
-    \    async for msg in client.receive_response():\n  Enable tracemalloc to get\
-    \ traceback where the object was allocated.\n  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
-    \ for more info.\n\ntests/test_server_release_picks.py::TestPatchReleasePicksEndpoint::test_returns_400_on_invalid_json\n\
-    tests/test_server_release_picks.py::TestPostApplyReleasePicksToAllChildren::test_returns_400_on_invalid_json\n\
-    \  /home/shedwards/.oompah/worktrees/oompah/OOMPAH-483/.venv/lib/python3.12/site-packages/httpx/_models.py:408:\
-    \ DeprecationWarning: Use 'content=<...>' to upload raw bytes/text content.\n\
-    \    headers, stream = encode_request(\n\ntests/test_webhooks.py::TestForwarderProcessFullLifecycle::test_exponential_backoff_capped_at_60s\n\
-    tests/test_work_contributors.py::TestCollectEpicContributors::test_commits_excluded_when_not_ancestor\n\
-    \  /home/shedwards/.oompah/worktrees/oompah/OOMPAH-483/.venv/lib/python3.12/site-packages/_pytest/unraisableexception.py:67:\
-    \ PytestUnraisableExceptionWarning: Exception ignored in: <function BaseSubprocessTransport.__del__\
-    \ at 0x701a746eb600>\n  \n  Traceback (most recent call last):\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
-    , line 126, in __del__\n      self.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
-    , line 104, in close\n      proto.pipe.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 568, in close\n      self._close(None)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 592, in _close\n      self._loop.call_soon(self._call_connection_lost,\
-    \ exc)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 799, in call_soon\n      self._check_closed()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 545, in _check_closed\n      raise RuntimeError('Event loop is closed')\n\
-    \  RuntimeError: Event loop is closed\n  \n  Enable tracemalloc to get traceback\
-    \ where the object was allocated.\n  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
-    \ for more info.\n    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))\n\
-    \n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n===========================\
-    \ short test summary info ============================\nFAILED tests/test_event_driven_loop.py::TestFullSyncIntervalConfig::test_from_workflow_zero_is_accepted\n\
-    FAILED tests/test_managed_tracker_state_branch_guard.py::test_server_error_watcher_and_scheduler_write_only_to_state_branch\n\
-    ===== 2 failed, 13682 passed, 7 skipped, 42 warnings in 248.09s (0:04:08) ======\n\
-    make[1]: Leaving directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-483'\n\
-    \nUninstalled 8 packages in 21ms\nInstalled 8 packages in 23ms\nmake[1]: *** [Makefile:225:\
-    \ test] Error 1\n"
+  head_sha: ad9a9f226da793f3bc5c1547b25742923c659079
+  submitted_at: '2026-07-30T02:54:29.611264+00:00'
+  updated_at: '2026-07-30T02:54:37.819749+00:00'
+  last_error: 'fatal: ''main'' is already used by worktree at ''/home/shedwards/.oompah/repos/oompah'''
 oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
@@ -588,5 +552,22 @@ created: 2026-07-30 02:47
 **Evidence:** Recent comment indicates CI is now passing or PR has been merged; safe to reopen for dispatch.
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-07-30 02:54
+---
+Gate repair pushed at bc448cf08. Root cause: the service quality-gate process intentionally inherits ordinary environment settings, including OOMPAH_FULL_SYNC_INTERVAL_MS=300000; the workflow-precedence tests did not isolate that valid override, so xdist worker assignment made the result inconsistent. The state-branch integration test also used the global five-second unit timeout despite creating/pushing multiple real local Git commits. Added explicit env isolation and a 15-second integration-test timeout. Verification: the full 13,684-test suite passed on the implementation head during diagnosis; all 5 affected tests pass with the service runtime variables reproduced; terminal mutation scan passes 6/6; diff check clean.
+---
+author: oompah
+created: 2026-07-30 02:54
+---
+Added and enforced the terminal mutation AST allowlist; stabilized the combined gate against inherited service config and parallel Git I/O at bc448cf08.
+---
+author: oompah
+created: 2026-07-30 02:54
+---
+Integration could not verify `main`: fatal: 'main' is already used by worktree at '/home/shedwards/.oompah/repos/oompah'
+
+Fetch the private branch, preserve its commits, push a clean current head, and submit it again.
 ---
 <!-- COMMENTS:END -->
