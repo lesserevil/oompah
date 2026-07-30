@@ -1,23 +1,30 @@
 ---
 id: OOMPAH-628
 type: bug
-status: Open
+status: Ready to Integrate
 priority: 1
 title: Rearm explicitly resubmitted integrated queue rows
 parent: OOMPAH-585
 children: []
 blocked_by: []
 start_blocked_by: []
-labels:
-- human-only
+labels: []
 assignee: null
 created_at: '2026-07-30T22:37:04.318940Z'
-updated_at: '2026-07-30T22:37:34.809247Z'
+updated_at: '2026-07-30T22:41:32.939890Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.integration:
+  version: 1
+  state: ready
+  attempts: 0
+  task_branch: epic-OOMPAH-585--task-OOMPAH-628
+  head_sha: b8c6817b12744e164a2de65b3c49ce8e3ce2b551
+  submitted_at: '2026-07-30T22:41:28.108593+00:00'
+  updated_at: '2026-07-30T22:41:28.108593+00:00'
 ---
 ## Summary
 
@@ -35,5 +42,20 @@ author: oompah
 created: 2026-07-30 22:37
 ---
 Claimed directly to repair the live same-head integration queue deadlock before completing the epic rollout.
+---
+author: oompah
+created: 2026-07-30 22:41
+---
+Implemented explicit same-head integrated-row rearming behind a fresh-ready evidence fence; background and active-row idempotency remain unchanged.
+---
+author: oompah
+created: 2026-07-30 22:41
+---
+Implementation complete at b8c6817b12744e164a2de65b3c49ce8e3ce2b551. Verification: 26 focused integration-queue/task-handoff tests passed; expanded queue/handoff/orchestrator suite reported 302 passed; terminal mutation scan passed. Regression covers integrated same-head explicit reflow, background synchronization idempotency, and ready/integrating lease preservation.
+---
+author: oompah
+created: 2026-07-30 22:41
+---
+Rearm only explicit fresh-ready same-head reflows while preserving automatic and active-row idempotency.
 ---
 <!-- COMMENTS:END -->
