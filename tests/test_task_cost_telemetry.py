@@ -822,6 +822,8 @@ class TestTerminateRunningWritesCostRecord:
         """A cancellation-resistant worker cannot wedge service shutdown."""
         orch = _make_orchestrator(tmp_path)
         orch.config.worker_termination_timeout_ms = 10
+        orch._fire_task_cost_record = MagicMock()
+        observed_timeouts = []
 
         async def _ignores_first_cancel():
             try:
@@ -829,19 +831,30 @@ class TestTerminateRunningWritesCostRecord:
             except asyncio.CancelledError:
                 await asyncio.sleep(0.1)
 
+        async def _timeout_pending(waitables, *, timeout):
+            observed_timeouts.append(timeout)
+            await asyncio.sleep(0)
+            return set(), set(waitables)
+
         async def _run():
             task = asyncio.create_task(_ignores_first_cancel())
             entry = _make_running_entry("stuck-worker")
             entry.worker_task = task
             orch.state.running["stuck-worker"] = entry
-            started = asyncio.get_running_loop().time()
-            await orch._terminate_running("stuck-worker", cleanup_workspace=False)
-            return asyncio.get_running_loop().time() - started
+            with patch(
+                "oompah.orchestrator.asyncio.wait",
+                side_effect=_timeout_pending,
+            ):
+                await orch._terminate_running(
+                    "stuck-worker",
+                    cleanup_workspace=False,
+                )
 
-        elapsed = asyncio.run(_run())
+        asyncio.run(_run())
 
-        assert elapsed < 0.08
+        assert observed_timeouts == [0.01]
         assert "stuck-worker" not in orch.state.running
+        orch._fire_task_cost_record.assert_called_once()
 
     @pytest.mark.skipif(os.name != "posix", reason="requires POSIX process groups")
     def test_terminate_kills_cli_tree_when_worker_resists_cancel(self, tmp_path):
