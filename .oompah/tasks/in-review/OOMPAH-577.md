@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T03:07:59.102017Z'
-updated_at: '2026-07-30T03:14:11.990824Z'
+updated_at: '2026-07-30T03:33:13.281054Z'
 work_branch: OOMPAH-577
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/588
@@ -32,3 +32,11 @@ Triggered by: OOMPAH-483\n\nImplementation scope: update TerminalTransitionCoord
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-30 03:33
+---
+Implemented changed-completed-evidence retry at 7fc9aa8ae and merged PR #588 to main as 70fa1de48 after required Python 3.11/3.12/3.13 CI passed. Focused coordinator/integration tests: 115 passed. Complete Makefile gate: 13,617 passed, 7 skipped. Live verification: OOMPAH-483 superseded its earlier failed completed audit, entered a fresh audit at integrated SHA 11ea824f7, received an independent PASS after 209 focused auditor tests, and reached Done. Service restarted gracefully and is healthy.
+---
+<!-- COMMENTS:END -->
