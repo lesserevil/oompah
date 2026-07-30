@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:53:05.632137Z'
-updated_at: '2026-07-30T19:03:57.901253Z'
+updated_at: '2026-07-30T19:06:47.472665Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -154,5 +154,10 @@ author: oompah
 created: 2026-07-30 19:03
 ---
 Focus: Refactoring Specialist
+---
+author: oompah
+created: 2026-07-30 19:06
+---
+Refactoring Specialist: understanding phase. The previous session's local changes did not get committed (worktree is clean, no diff vs main). Recreating the fix. Root cause confirmed at oompah/orchestrator.py:23069-23081 — the auditor exit path clears state.claimed and _audit_branch_claims but NOT state.claimed_issues. That leaves the entry in claimed_issues, and _audit_branch_busy at line 4279 treats any surviving claimed_issues entry with the same branch key as a live claim, silently suppressing every retry after retry_after. Plan: (1) add self.state.claimed_issues.pop(issue_id, None) to the auditor exit branch alongside the existing claimed.discard and audit_branch_claims.pop; (2) add defensive pruning in _audit_branch_busy so any claimed_issues entry whose ID is missing from state.claimed is discarded and warned about (idempotent belt-and-braces); (3) add regression tests exercising both auditor exit cleanup and the defensive pruning path.
 ---
 <!-- COMMENTS:END -->
