@@ -1233,7 +1233,18 @@ def build_tool_catalog(
         if session_denial is not None:
             return _wrap_text(session_denial)
         payload = args.get("result") if isinstance(args.get("result"), dict) else args
-        return _wrap_text(submit_auditor_result(payload, audit_target, audit_result_handler))
+        # The orchestrator's synchronous handler bridges back to its async
+        # coordinator with run_coroutine_threadsafe().  Running that handler
+        # on this async MCP tool's event-loop thread deadlocks the bridge until
+        # its timeout expires.  Offload the complete validation/submission
+        # call so the dispatch loop remains free to apply the result.
+        response = await asyncio.to_thread(
+            submit_auditor_result,
+            payload,
+            audit_target,
+            audit_result_handler,
+        )
+        return _wrap_text(response)
 
     if auditor_mode:
         return [
@@ -1841,7 +1852,15 @@ def build_opencode_tool_catalog(
         if session_denial is not None:
             return _wrap_text(session_denial)
         payload = args.get("result") if isinstance(args.get("result"), dict) else args
-        return _wrap_text(submit_auditor_result(payload, audit_target, audit_result_handler))
+        # Keep the event loop available while the synchronous orchestrator
+        # bridge waits for its coordinator coroutine to finish.
+        response = await asyncio.to_thread(
+            submit_auditor_result,
+            payload,
+            audit_target,
+            audit_result_handler,
+        )
+        return _wrap_text(response)
 
     if auditor_mode:
         return [
