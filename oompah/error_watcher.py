@@ -315,6 +315,10 @@ class ErrorWatcher:
                         "Could not post resolution comment on %s: %s",
                         task_id, exc,
                     )
+                # TERMINAL-AUDIT-ALLOW OOMPAH-483: this closes only an
+                # oompah-generated transient diagnostic after the correlated
+                # originating retry succeeds.  The tracker-local recovery path
+                # may not have managed-project coordinator context.
                 self._tracker.close_issue(
                     task_id,
                     reason="retry succeeded; transient (auto-closed by error_watcher)",

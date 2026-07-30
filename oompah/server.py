@@ -8666,7 +8666,11 @@ async def api_update_issue(identifier: str, request: Request):
         transition_to_status: str | None = None
         if new_status is not None:
             requested_status = canonicalize_status(new_status)
-            terminal_target = _terminal_target_for_status(requested_status)
+            terminal_target = (
+                TargetState.DONE
+                if str(new_status).strip().lower() == "closed"
+                else _terminal_target_for_status(requested_status)
+            )
             existing_status = canonicalize_status(
                 existing_issue.state if existing_issue is not None else None
             )
@@ -8800,17 +8804,19 @@ async def api_update_issue(identifier: str, request: Request):
             and new_status is not None
             and str(new_status).strip().lower() == "closed"
         ):
-            # Legacy close alias; apply other fields first if any.
-            update_fields: dict[str, str] = {}
-            if new_priority is not None:
-                update_fields["priority"] = str(new_priority)
-            if new_title is not None:
-                update_fields["title"] = new_title
-            if new_description is not None:
-                update_fields["description"] = new_description
-            if update_fields:
-                tracker.update_issue(identifier, **update_fields)
-            tracker.close_issue(identifier)
+            # ``closed`` is normalized to a Done coordinator request above.
+            # Reaching this branch means staging returned neither evidence nor
+            # an error, so fail closed instead of falling back to a direct
+            # tracker mutation.
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "terminal_transition",
+                        "message": "Legacy close alias was not staged for audit.",
+                    }
+                },
+                status_code=500,
+            )
         else:
             update_fields = {}
             needs_human_status: str | None = None

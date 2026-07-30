@@ -10936,6 +10936,9 @@ class Orchestrator:
                         else contextlib.nullcontext()
                     )
                     with _lock_ctx:
+                        # TERMINAL-AUDIT-ALLOW OOMPAH-483: reassert Done only
+                        # for an issue already present in the completed set.
+                        # The enforcement sweep still verifies audit metadata.
                         tracker.update_issue(issue.identifier, status=DONE)
                     logger.info(
                         "Preserved completed issue %s as Done during orphan reset",
@@ -11826,6 +11829,9 @@ class Orchestrator:
         if project_id:
             try:
                 tracker = self._tracker_for_project(project_id)
+                # TERMINAL-AUDIT-ALLOW OOMPAH-483: compatibility write for a
+                # completed branch whose review is deferred solely by the
+                # project review-capacity limit.
                 tracker.update_issue(entry.identifier, status=DONE)
             except Exception as exc:
                 logger.warning(
@@ -13261,6 +13267,8 @@ class Orchestrator:
         ``Merged`` until that epic branch lands on the target.
         """
         try:
+            # TERMINAL-AUDIT-ALLOW OOMPAH-483: Git containment has proved this
+            # shared child's work is present on the epic review branch.
             tracker.update_issue(issue.identifier, status=DONE)
             logger.info(
                 "Marked %s as Done during stale In Review reconciliation "
@@ -23160,6 +23168,9 @@ class Orchestrator:
                             )
                         except Exception:
                             pass
+                        # TERMINAL-AUDIT-ALLOW OOMPAH-483: compatibility close
+                        # after the merge-conflict repair gate succeeds.  The
+                        # enforcement sweep supplies the audit backstop.
                         tracker.close_issue(entry.identifier)
                         self.state.completed.add(issue_id)
                         self._clear_reopen_count(issue_id)

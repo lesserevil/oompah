@@ -15,8 +15,8 @@ These tracker methods are permitted **only** when called from the coordinator or
 |--------|-------|-----------------|
 | `tracker.close_issue(issue)` | Mark task Done | `TerminalTransitionCoordinator`, `TerminalAuditMetadata` |
 | `tracker.archive_issue(issue)` | Mark task Archived | `TerminalTransitionCoordinator`, `TerminalAuditMetadata` |
-| `tracker.set_status(issue, status="Done")` | Set terminal status | `TerminalTransitionCoordinator`, `TerminalAuditMetadata`, `auditor.py` |
-| `tracker.update_issue(issue, state="Done")` | Update terminal state | `TerminalTransitionCoordinator`, `TerminalAuditMetadata` |
+| `tracker.set_status(issue, status="Done")` | Set terminal status | Coordinator/persistence boundary |
+| `tracker.update_issue(issue, status="Done")` | Update terminal state | Coordinator/persistence boundary |
 
 ### Allowed Exception Paths
 
@@ -47,6 +47,27 @@ The following paths are exempt from the allowlist requirement:
    # See OOMPAH-466 for context
    tracker.set_status(issue, status="Done", metadata=audit_result)
    ```
+
+### Current Exact Exceptions
+
+The scanner allowlist is keyed by file, qualified function, and mutation
+method—not by whole module. The current compatibility exceptions are:
+
+| Call site | Method | Rationale |
+|-----------|--------|-----------|
+| `ErrorWatcher.auto_close_for_issue` | `close_issue` | Closes an oompah-generated transient diagnostic only after its originating retry succeeds |
+| `OompahMarkdownTracker.archive_issue` | `update_issue` | Implements the low-level tracker persistence boundary for Archived |
+| `Orchestrator._reset_orphaned_in_progress` | `update_issue` | Reasserts Done only for an issue already recorded in the completed set |
+| `Orchestrator._defer_review_handoff` | `update_issue` | Preserves completed work while review creation waits for capacity |
+| `Orchestrator._mark_stale_in_review_done` | `update_issue` | Uses Git containment evidence for shared epic-child work |
+| `Orchestrator._on_worker_exit` | `close_issue` | Compatibility close after a merge-conflict repair gate succeeds |
+| `TerminalTransitionCoordinator._apply_result_locked` | `update_issue` | Applies a validated and persisted audit result |
+| `TerminalTransitionCoordinator._override_transition_locked` | `update_issue` | Applies a validated project-owner override |
+
+Each production exception carries a `TERMINAL-AUDIT-ALLOW` source comment
+where a statically identifiable call currently exists. Adding a second call
+in one of these functions still fails, unless its exact key is reviewed and
+added deliberately.
 
 ## Static Analysis
 
@@ -122,14 +143,15 @@ async def my_feature(orchestrator):
 
 If the call **must** be direct (e.g., new persistence layer), add to the allowlist:
 
-1. **Update the scanner configuration** (`tests/test_terminal_audit_scanner.py`):
+1. **Update the scanner configuration** (`oompah/terminal_mutation_scanner.py`):
 
 ```python
 ALLOWLISTED_CALLS = {
-    "oompah.terminal_transition_coordinator",
-    "oompah.terminal_audit_metadata",
-    "oompah.auditor",  # If adding auditor as authorized
-    "oompah.my_new_module",  # NEW: Add your module here
+    (
+        "oompah/my_new_module.py",
+        "MyClass.replay_audit_result",
+        "update_issue",
+    ): "Applies a previously validated and persisted audit result.",
 }
 ```
 
@@ -275,11 +297,10 @@ The terminal-mutation allowlist is checked as part of the branch gate:
 ```makefile
 # Makefile
 
-test: lint unit-test integration-test terminal-audit-scan
+test: test-setup terminal-audit-scan
 
 terminal-audit-scan:
-	python -m pytest tests/test_terminal_audit_scanner.py -v \
-	  --tb=short
+	$(PYTHON) scripts/find_terminal_mutations.py oompah
 ```
 
 **Failure prevents merge**:
@@ -332,5 +353,7 @@ When you need to add a terminal mutation, use this checklist:
 
 - `plans/terminal-transition-coordinator.md` — Coordinator design and API
 - `plans/terminal-audit-enforcement.md` — Enforcement and bypass detection
-- `tests/test_terminal_audit_scanner.py` — Scanner tests and allowlist configuration
+- `oompah/terminal_mutation_scanner.py` — Scanner and exact-call allowlist
+- `tests/test_terminal_audit_scanner.py` — Scanner regression and repository guard
+- `scripts/find_terminal_mutations.py` — Standalone scanner CLI used by Make
 - `CODEOWNERS` — Code review owners for allowlist changes

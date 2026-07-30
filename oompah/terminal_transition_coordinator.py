@@ -1180,6 +1180,8 @@ class TerminalTransitionCoordinator:
         if decision.keep_in_validation:
             applied_status = IN_VALIDATION
         try:
+            # TERMINAL-AUDIT-ALLOW OOMPAH-483: apply a validated, persisted
+            # terminal-audit verdict (or its deterministic repair status).
             tracker.update_issue(identifier, status=applied_status)
         except Exception:
             logger.exception(
@@ -1343,6 +1345,8 @@ class TerminalTransitionCoordinator:
         # Step 6: Apply terminal status
         target_status = _target_state_to_status(requested_target)
         try:
+            # TERMINAL-AUDIT-ALLOW OOMPAH-483: apply a validated, persisted
+            # project-owner override.
             tracker.update_issue(identifier, status=target_status)
         except Exception:
             logger.exception(

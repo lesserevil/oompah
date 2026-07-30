@@ -61,7 +61,7 @@ define port_in_use
 	[ $$? -eq 0 ] || (command -v lsof >/dev/null 2>&1 && lsof -ti:"$1" -sTCP:LISTEN 2>/dev/null | grep -q .)
 endef
 
-.PHONY: help setup test-setup start stop restart graceful force-restart status logs test test-serial clean install-hooks check-secrets install-gh-extensions run-granian runner-setup runner-start runner-stop runner-status
+.PHONY: help setup test-setup start stop restart graceful force-restart status logs test test-serial terminal-audit-scan clean install-hooks check-secrets install-gh-extensions run-granian runner-setup runner-start runner-stop runner-status
 
 help:
 	@echo "oompah — make targets:"
@@ -75,6 +75,7 @@ help:
 	@echo "  logs           Tail $(LOG_FILE)"
 	@echo "  test           Run pytest in parallel (OOMPAH_PYTEST_WORKERS, default: 4)"
 	@echo "  test-serial    Run pytest serially for race/debug diagnostics"
+	@echo "  terminal-audit-scan  Reject unauthorized direct terminal tracker writes"
 	@echo "  run-granian    Run oompah in the foreground using the Granian ASGI server (opt-in; see TASK-472)"
 	@echo "  install-hooks  Install pre-commit hooks (idempotent) — runs gitleaks + secret scan on commit"
 	@echo "  check-secrets  Run the paranoid secret scan over the whole tree (use before pushing)"
@@ -220,7 +221,7 @@ status:
 		echo "oompah is not running"; \
 	fi
 
-test: test-setup
+test: test-setup terminal-audit-scan
 	@OOMPAH_PYTEST_WORKERS="$(PYTEST_WORKERS)" \
 		OOMPAH_PYTEST_TEMP_ROOT="$(PYTEST_TEMP_ROOT)" \
 		scripts/run-tests.sh parallel
@@ -228,6 +229,9 @@ test: test-setup
 test-serial: test-setup
 	@OOMPAH_PYTEST_TEMP_ROOT="$(PYTEST_TEMP_ROOT)" \
 		scripts/run-tests.sh serial
+
+terminal-audit-scan: test-setup
+	@$(PYTHON) scripts/find_terminal_mutations.py oompah
 
 logs:
 	@tail -f $(LOG_FILE)
