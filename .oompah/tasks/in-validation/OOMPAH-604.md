@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-604
 type: bug
-status: Needs Human
+status: In Validation
 priority: 1
 title: Allow owner overrides after terminal-audit evidence supersession
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T17:07:44.032640Z'
-updated_at: '2026-07-30T18:13:36.041530Z'
+updated_at: '2026-07-30T18:16:29.621222Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-604
 target_branch: null
 review_url: null
@@ -110,7 +110,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-604
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -151,6 +151,23 @@ oompah.terminal_audit:
     previous_state: Ready to Integrate
     created_at: '2026-07-30T17:23:37.458459+00:00'
     updated_at: '2026-07-30T18:13:33.817886+00:00'
+  - version: 1
+    audit_id: audit-8f5172bb44b8
+    project_id: proj-14849f1b
+    task_id: OOMPAH-604
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: faf6a681bc9c0fa7e1674b644c0b7db1e10324e0b7abe3468e1945ca485e75bd
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: api
+    previous_state: Needs Human
+    created_at: '2026-07-30T18:16:28.150022+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-1c2185a9153a

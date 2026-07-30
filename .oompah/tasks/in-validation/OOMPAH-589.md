@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-589
 type: bug
-status: Needs Human
+status: In Validation
 priority: 1
 title: Validate auditor provider endpoints before candidate dispatch
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:20.256845Z'
-updated_at: '2026-07-30T18:13:28.718845Z'
+updated_at: '2026-07-30T18:16:25.881366Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-589
 target_branch: null
 review_url: null
@@ -64,8 +64,8 @@ oompah.integration:
   attempts: 0
   task_branch: epic-OOMPAH-585--task-OOMPAH-589
   base_branch: epic-OOMPAH-585
-  base_sha: b252293d3fc950f79a342c74b51d3285f62ecf4c
-  updated_at: '2026-07-30T17:04:19.568599+00:00'
+  base_sha: 4cd5ddfae7384bbb7022d2562149468f0127a35e
+  updated_at: '2026-07-30T18:16:23.789542+00:00'
 oompah.task_costs:
   total_input_tokens: 37815162
   total_output_tokens: 62786
@@ -199,7 +199,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-589
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -240,6 +240,37 @@ oompah.terminal_audit:
     previous_state: Ready to Integrate
     created_at: '2026-07-30T17:04:01.831731+00:00'
     updated_at: '2026-07-30T18:13:26.422782+00:00'
+  - version: 1
+    audit_id: audit-a142ebf4b6d8
+    project_id: proj-14849f1b
+    task_id: OOMPAH-589
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 4e490d3dbf8746781376bbcf3a6b923c493c87dbaf97c614e2782aa4541fe82f
+    attempts:
+    - version: 1
+      attempt_id: attempt-658b335de44a
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 4e490d3dbf8746781376bbcf3a6b923c493c87dbaf97c614e2782aa4541fe82f
+      created_at: '2026-07-30T18:16:10.903597+00:00'
+      provider_id: prov-3c712bff
+      model: nvidia/nvidia/nemotron-3-ultra
+      started_at: '2026-07-30T18:16:10.903597+00:00'
+      branch_key: epic-OOMPAH-585--task-OOMPAH-589
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: api
+    previous_state: Needs Human
+    created_at: '2026-07-30T18:16:06.047394+00:00'
+    updated_at: '2026-07-30T18:16:10.903597+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-ec9f9aa129f8
@@ -273,6 +304,19 @@ oompah.terminal_audit:
     ended_at: '2026-07-30T17:04:27.420579+00:00'
     failure_reason: 'unknown url type: ''/chat/completions'''
     next_retry_at: '2026-07-30T17:04:37.420556+00:00'
+  - version: 1
+    attempt_id: attempt-658b335de44a
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 4e490d3dbf8746781376bbcf3a6b923c493c87dbaf97c614e2782aa4541fe82f
+    created_at: '2026-07-30T18:16:10.903597+00:00'
+    provider_id: prov-3c712bff
+    model: nvidia/nvidia/nemotron-3-ultra
+    started_at: '2026-07-30T18:16:10.903597+00:00'
+    branch_key: epic-OOMPAH-585--task-OOMPAH-589
 ---
 ## Summary
 
@@ -975,5 +1019,15 @@ created: 2026-07-30 18:13
 Needs Human — Done audit requires operator input.
 
 No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then move the task back to Open to retry.
+---
+author: oompah
+created: 2026-07-30 18:16
+---
+Auditor dispatched (attempt #1, candidate: prov-3c712bff/nvidia/nvidia/nemotron-3-ultra)
+---
+author: oompah
+created: 2026-07-30 18:16
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->

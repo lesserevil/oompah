@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-596
 type: bug
-status: Needs Human
+status: In Validation
 priority: 1
 title: Rearm conflict repairs after recoverable agent infrastructure failure
 parent: OOMPAH-587
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:26.248587Z'
-updated_at: '2026-07-30T18:13:33.566305Z'
+updated_at: '2026-07-30T18:16:27.408107Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-596
 target_branch: null
 review_url: null
@@ -207,7 +207,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-596
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -248,6 +248,23 @@ oompah.terminal_audit:
     previous_state: Ready to Integrate
     created_at: '2026-07-30T16:16:34.861687+00:00'
     updated_at: '2026-07-30T18:13:31.482294+00:00'
+  - version: 1
+    audit_id: audit-afbd767ad31c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-596
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f4b9b2382ec4dc4e1c8c56d0e35f584905f90b85a4ec1b775c220ba0a296293e
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: api
+    previous_state: Needs Human
+    created_at: '2026-07-30T18:16:25.348593+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-938f90fe8e83

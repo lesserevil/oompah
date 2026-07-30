@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-593
 type: task
-status: Needs Human
+status: In Validation
 priority: 1
 title: Integrate and live-verify scoped Codex task CLI authentication
 parent: OOMPAH-586
@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-30T14:14:54.281403Z'
-updated_at: '2026-07-30T18:13:31.203536Z'
+updated_at: '2026-07-30T18:16:21.351756Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-593
 target_branch: null
 review_url: null
@@ -166,7 +166,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-593
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -207,6 +207,23 @@ oompah.terminal_audit:
     previous_state: Ready to Integrate
     created_at: '2026-07-30T16:26:40.994270+00:00'
     updated_at: '2026-07-30T18:13:28.931384+00:00'
+  - version: 1
+    audit_id: audit-d1990b4a35cf
+    project_id: proj-14849f1b
+    task_id: OOMPAH-593
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 64a3ea2fe7c425c2db0babd15797e447b48f9639016aae41f19307bb6f57a4d6
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: api
+    previous_state: Needs Human
+    created_at: '2026-07-30T18:16:15.292504+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-4db44537a773
