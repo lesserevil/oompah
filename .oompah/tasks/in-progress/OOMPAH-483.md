@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-483
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Detect and block terminal-state writes that bypass the coordinator
 parent: OOMPAH-459
@@ -19,7 +19,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:31.119782Z'
-updated_at: '2026-07-30T02:31:23.793052Z'
+updated_at: '2026-07-30T02:31:44.286316Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-483
 target_branch: null
 review_url: null
@@ -64,7 +64,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: ee5ab94d-7dbc-4076-8693-1ab3c9972d9e
+oompah.agent_run_id: b3575c94-f727-479a-835e-a2db4fd06dd6
 oompah.work_branch: epic-OOMPAH-459--task-OOMPAH-483
 oompah.task_costs:
   total_input_tokens: 867
@@ -385,5 +385,10 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 7m 32s
 - Log: OOMPAH-483__20260730T022356Z.jsonl
+---
+author: oompah
+created: 2026-07-30 02:31
+---
+Agent dispatched (profile: standard)
 ---
 <!-- COMMENTS:END -->
