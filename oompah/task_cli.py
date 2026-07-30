@@ -83,6 +83,60 @@ def _task_handoff_project(payload: dict[str, Any]) -> str | None:
 
 
 # ---------------------------------------------------------------------------
+# Actor reconciliation (OOMPAH-624)
+# ---------------------------------------------------------------------------
+
+
+def _reconcile_actor_with_session(actor: str | None, *, flag: str = "--actor") -> str | None:
+    """Return an actor value safe to send to the server.
+
+    OOMPAH-624: when the CLI has resolved HTTP Basic credentials, the
+    server binds the authorization actor to the authenticated principal.
+    Passing an explicit ``--actor`` is:
+
+    * **Redundant** when it matches the authenticated username — we drop
+      it from the request body and print a stderr warning so the operator
+      knows the flag is no longer required.
+    * **Rejected** when it differs from the authenticated username — we
+      short-circuit before the network call to avoid mutating state or
+      surfacing an unhelpful 403 from the server.  The server would
+      reject the mismatch anyway; failing early gives a clearer message.
+
+    When no session auth is configured (backward-compatible
+    unauthenticated deployments) the caller-supplied *actor* is returned
+    unchanged.
+    """
+
+    if not actor:
+        return actor
+    session = _session_auth
+    if session is None:
+        return actor
+    session_username = str(session.username or "").strip()
+    if not session_username:
+        return actor
+    if actor.strip().lower() == session_username.lower():
+        # Silent no-op when explicitly opted out via env var; some CI
+        # scripts still pass --actor for legacy reasons.
+        if not os.environ.get("OOMPAH_ACTOR_DEPRECATION_SILENCE"):
+            print(
+                f"warning: {flag} is redundant when HTTP Basic credentials "
+                f"are configured; the server binds the actor to the "
+                f"authenticated principal ({session_username}).",
+                file=sys.stderr,
+            )
+        return None
+    print(
+        f"error: {flag}={actor!r} conflicts with the authenticated "
+        f"principal {session_username!r}.  The server would reject this "
+        "request with actor_mismatch (403).  Omit the flag to use the "
+        "authenticated identity, or authenticate as the intended actor.",
+        file=sys.stderr,
+    )
+    sys.exit(2)
+
+
+# ---------------------------------------------------------------------------
 # Server URL resolution
 # ---------------------------------------------------------------------------
 
@@ -489,6 +543,10 @@ def _cmd_set_status(base_url: str, args: argparse.Namespace) -> None:
     actor_arg = getattr(args, "actor", None)
     actor = actor_arg if isinstance(actor_arg, str) and actor_arg.strip() else None
     actor = actor or os.environ.get("OOMPAH_ACTOR_LOGIN")
+    # OOMPAH-624: When client credentials are configured, the server
+    # binds the actor to the authenticated principal.  Explicit --actor
+    # is deprecated: warn on match, hard-fail on conflict.
+    actor = _reconcile_actor_with_session(actor, flag="--actor")
     if actor:
         data["actor_login"] = str(actor).strip()
     # ``is True`` keeps older programmatic callers (and Namespace-like test
@@ -683,6 +741,8 @@ def _cmd_add_label(base_url: str, args: argparse.Namespace) -> None:
     actor_arg = getattr(args, "actor", None)
     actor = actor_arg if isinstance(actor_arg, str) and actor_arg.strip() else None
     actor = actor or os.environ.get("OOMPAH_ACTOR_LOGIN")
+    # OOMPAH-624: same actor reconciliation as set-status.
+    actor = _reconcile_actor_with_session(actor, flag="--actor")
     if actor:
         data["actor_login"] = str(actor).strip()
     _add_project_or_managed_repo(data, identifier, getattr(args, "project", None))

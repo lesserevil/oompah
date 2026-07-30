@@ -4,6 +4,10 @@ Oompah supports optional HTTP Basic authentication via Apache-style htpasswd
 files. This guide covers setup, configuration, user management, rotation,
 disablement, and recovery for operators.
 
+> Authorization decisions for owner-gated mutations bind to the authenticated
+> principal — see [authentication-identity-mapping.md](authentication-identity-mapping.md)
+> for the htpasswd-user → project-actor mapping model and CLI migration guide.
+
 > **HTTPS is mandatory.** HTTP Basic authentication only encodes credentials;
 > it does not encrypt them. Put Oompah behind a TLS-terminating reverse proxy
 > before enabling it for anything beyond a private local hop. Oompah does not

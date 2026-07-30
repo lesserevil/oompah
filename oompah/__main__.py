@@ -424,6 +424,11 @@ async def _run(
     # The uvicorn path does not run the embedded ASGI service lifespan, so
     # wire the credentials here before the server starts accepting requests.
     set_http_credentials(services.http_credentials)
+    # OOMPAH-624: bind the actor-mapping registry the same way the embedded
+    # lifespan does.
+    from oompah.server import set_actor_map
+
+    set_actor_map(getattr(services, "actor_map", None))
     set_api_event_loop(asyncio.get_running_loop())
 
     # Start webhook forwarder (runs gh webhook forward per project)

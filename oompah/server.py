@@ -16,6 +16,7 @@ import threading
 import time
 import urllib.parse
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
@@ -344,6 +345,7 @@ async def _service_lifespan(app: "FastAPI"):  # noqa: F821 – forward ref ok
     )
     set_gitlab_hook_manager(services.gitlab_hook_manager)
     set_http_credentials(services.http_credentials)
+    set_actor_map(getattr(services, "actor_map", None))
     await services.webhook_forwarder.start()
     await services.gitlab_hook_manager.start()
 
@@ -484,6 +486,102 @@ _MCP_INTERNAL_DISPATCH_CAPABILITY = object()
 _TASK_HANDOFF_SCOPE_CAPABILITY = object()
 _TASK_HANDOFF_PATH = "/api/v1/task-handoff"
 
+# OOMPAH-624: Private ASGI scope key that carries the authenticated server
+# principal from the Basic auth middleware into request handlers.  It is an
+# object identity, not a header value — no external client can plant it.
+_AUTH_PRINCIPAL_SCOPE_CAPABILITY = object()
+
+
+@dataclass(frozen=True)
+class AuthenticatedPrincipal:
+    """Server-trusted identity attached by :class:`_BasicAuthMiddleware`.
+
+    Attributes:
+        username: The exact htpasswd username that authenticated (case
+            preserved).  Never trust a client-supplied string in
+            preference to this value for authorization decisions.
+        actor_login: The project actor login resolved from *username*
+            through the configured actor map (identity mapping by
+            default).  This is the value fed to owner-gate checks like
+            :func:`oompah.transition_gate.is_project_owner` and
+            :func:`oompah.label_auth.is_authorized_status_actor`.
+        source: ``"basic"`` for htpasswd Basic auth, ``"handoff"`` for
+            a spawned-worker capability, ``"unauthenticated"`` when
+            no server principal is available.  Handlers that require a
+            trusted identity must reject any source other than
+            ``"basic"`` (handoff paths do not need actor gating —
+            they are already task-scoped).
+    """
+
+    username: str
+    actor_login: str
+    source: str
+
+    @property
+    def is_authenticated(self) -> bool:
+        """Return True when a real server principal is present."""
+
+        return self.source != "unauthenticated" and bool(self.username)
+
+
+# Module-level actor map installed at startup.  ``None`` means no
+# configuration has been loaded yet (identity mapping is used).  Set by
+# :func:`set_http_credentials`.
+_actor_map: Any = None  # oompah.actor_mapping.ActorMap | None
+
+
+def _resolve_authenticated_principal(username: str) -> AuthenticatedPrincipal:
+    """Build an :class:`AuthenticatedPrincipal` from a verified username.
+
+    OOMPAH-624 helper called by the Basic auth middleware after a
+    successful credential verification.  Consults the configured actor
+    map (see :mod:`oompah.actor_mapping`) to derive the project actor
+    login the request handlers should use for authorization.
+
+    When strict mode is on and the authenticated user has no mapping
+    entry, the returned principal has an empty ``actor_login``.  Owner-
+    gated handlers treat an empty ``actor_login`` as *not authorized*
+    and reject the request.
+    """
+
+    actor_map = _actor_map
+    if actor_map is None:
+        actor_login = username.strip()
+    else:
+        resolved = actor_map.resolve(username)
+        actor_login = resolved or ""
+    return AuthenticatedPrincipal(
+        username=username.strip(),
+        actor_login=actor_login,
+        source="basic",
+    )
+
+
+def _authenticated_principal(request: Any) -> AuthenticatedPrincipal | None:
+    """Return the :class:`AuthenticatedPrincipal` bound to *request*.
+
+    The middleware attaches the principal to the ASGI scope; this
+    helper is the sanctioned reader.  Returns ``None`` when no
+    principal is present (auth disabled or auth-exempt route).
+
+    Handlers use this value to:
+
+    1. Reject client-supplied ``actor_login`` fields that conflict with
+       the trusted identity.
+    2. Derive owner-gate actor identities when the caller did not
+       supply one (removes the redundant ``--actor`` flag).
+    """
+
+    if request is None:
+        return None
+    scope = getattr(request, "scope", None)
+    if scope is None:
+        return None
+    principal = scope.get(_AUTH_PRINCIPAL_SCOPE_CAPABILITY)
+    if isinstance(principal, AuthenticatedPrincipal):
+        return principal
+    return None
+
 
 def _mcp_authentication_enabled() -> bool:
     """Return whether the current server configuration requires Basic auth."""
@@ -603,13 +701,21 @@ class _BasicAuthMiddleware:
                     return
 
             # Check Authorization header.
-            if self._verify_scope(scope, creds):
+            authenticated_username = self._verify_scope(scope, creds)
+            if authenticated_username is not None:
                 authenticated_scope = self._redact_scope(scope)
+                # OOMPAH-624: Expose the server-trusted principal to
+                # request handlers via a private ASGI scope slot.  This
+                # is the only path that populates the key; the client
+                # cannot supply it via a header or path.
+                authenticated_scope = dict(authenticated_scope)
+                authenticated_scope[_AUTH_PRINCIPAL_SCOPE_CAPABILITY] = (
+                    _resolve_authenticated_principal(authenticated_username)
+                )
                 if _is_mcp_transport_scope(scope):
                     # Preserve authentication provenance for this request
                     # only.  The key/value identity is server-private and is
                     # deliberately absent from logs and HTTP headers.
-                    authenticated_scope = dict(authenticated_scope)
                     authenticated_scope[_MCP_AUTHENTICATED_SCOPE_CAPABILITY] = (
                         _MCP_AUTHENTICATED_SCOPE_CAPABILITY
                     )
@@ -640,8 +746,15 @@ class _BasicAuthMiddleware:
             # We must check auth *before* calling self._app (which calls
             # ws.accept() internally), so that an unauthenticated connection
             # is never added to _ws_clients.
-            if self._verify_scope(scope, creds):
-                await self._app(self._redact_scope(scope), receive, send)
+            ws_authenticated_username = self._verify_scope(scope, creds)
+            if ws_authenticated_username is not None:
+                ws_scope = dict(self._redact_scope(scope))
+                # OOMPAH-624: WebSocket handlers get the same server-trusted
+                # principal so that any WS-driven mutation can bind to it.
+                ws_scope[_AUTH_PRINCIPAL_SCOPE_CAPABILITY] = (
+                    _resolve_authenticated_principal(ws_authenticated_username)
+                )
+                await self._app(ws_scope, receive, send)
                 return
 
             # Consume the connect event, then close with Policy Violation (1008).
@@ -680,8 +793,13 @@ class _BasicAuthMiddleware:
         return redacted_scope
 
     @staticmethod
-    def _verify_scope(scope, creds) -> bool:
-        """Return True if the Authorization header in *scope* is valid."""
+    def _verify_scope(scope, creds) -> str | None:
+        """Return the authenticated username, or None when auth fails.
+
+        OOMPAH-624: The verified username is exposed so downstream
+        handlers can bind authorization to the server-trusted principal.
+        Callers must treat ``None`` as a hard 401 (no fall-through).
+        """
         auth_values = [
             value
             for key, value in scope.get("headers", [])
@@ -690,29 +808,30 @@ class _BasicAuthMiddleware:
         # Multiple Authorization fields are ambiguous.  Fail closed instead
         # of letting header ordering choose which credentials are verified.
         if len(auth_values) != 1:
-            return False
+            return None
         auth_bytes = auth_values[0]
         return _BasicAuthMiddleware._check_basic(auth_bytes, creds)
 
     @staticmethod
-    def _check_basic(auth_bytes: bytes, creds) -> bool:
+    def _check_basic(auth_bytes: bytes, creds) -> str | None:
         """Parse a Basic Authorization value and verify credentials.
 
-        Returns True on success, False for any failure condition
-        (missing header, wrong scheme, malformed base64, bad credentials).
-        The Authorization value is never logged or included in any error.
+        Returns the verified username on success (OOMPAH-624), or None
+        for any failure condition (missing header, wrong scheme,
+        malformed base64, bad credentials).  The Authorization value is
+        never logged or included in any error.
         """
         if not auth_bytes:
-            return False
+            return None
 
         try:
             auth_str = auth_bytes.decode("latin-1")
         except Exception:  # noqa: BLE001
-            return False
+            return None
 
         parts = auth_str.split(" ", 1)
         if len(parts) != 2 or parts[0].lower() != "basic":
-            return False
+            return None
 
         try:
             encoded = parts[1]
@@ -721,19 +840,19 @@ class _BasicAuthMiddleware:
             # the default b64decode behavior silently ignores non-alphabet
             # characters and could turn a malformed header into valid creds.
             if not encoded or not re.fullmatch(r"[A-Za-z0-9+/]*={0,2}", encoded):
-                return False
+                return None
             padding = len(encoded) % 4
             if padding == 1:
-                return False
+                return None
             if padding:
                 encoded += "=" * (4 - padding)
             decoded_bytes = base64.b64decode(encoded, validate=True)
             decoded = decoded_bytes.decode("utf-8")
         except Exception:  # noqa: BLE001
-            return False
+            return None
 
         if ":" not in decoded:
-            return False
+            return None
 
         username, _, password = decoded.partition(":")
 
@@ -741,14 +860,14 @@ class _BasicAuthMiddleware:
 
         try:
             creds.verifier(username, password)
-            return True
+            return username
         except VerificationError:
-            return False
+            return None
         except Exception:  # noqa: BLE001 — unexpected error → deny
             # Do not log exception details: a custom verifier's exception
             # could contain the supplied username or password.
             logger.debug("Unexpected error during credential verification")
-            return False
+            return None
 
 
 app = FastAPI(title="oompah", version="0.1.0", lifespan=_lifespan)
@@ -1200,6 +1319,25 @@ def _http_auth_reload_status() -> dict[str, object]:
             "retaining_last_known_good": False,
         },
     }
+
+
+def set_actor_map(actor_map: Any) -> None:
+    """Register the actor-mapping loaded at startup (OOMPAH-624).
+
+    Called from ``_service_lifespan`` after :func:`load_actor_map`.
+    *actor_map* is an :class:`~oompah.actor_mapping.ActorMap` instance
+    or ``None`` (identity mapping).
+    """
+
+    global _actor_map
+    _actor_map = actor_map
+    if actor_map is not None:
+        logger.info(
+            "Actor-mapping loaded (source=%s, entries=%d, strict=%s)",
+            getattr(actor_map, "source", "unset"),
+            len(getattr(actor_map, "entries", {}) or {}),
+            getattr(actor_map, "strict", False),
+        )
 
 
 def remove_draft_labels_from_epics(tracker) -> int:
@@ -3731,6 +3869,10 @@ async def api_task_handoff(request: Request):
                     record_task_handoff_failure(
                         token, "task handoff terminal transition rejected"
                     )
+                    # OOMPAH-624: A pre-built JSONResponse (e.g. actor
+                    # conflict) is forwarded verbatim.
+                    if isinstance(terminal_error, JSONResponse):
+                        return terminal_error
                     message, status_code = terminal_error
                     return JSONResponse(
                         {"error": {"code": "terminal_transition", "message": message}},
@@ -3833,6 +3975,8 @@ async def api_task_handoff(request: Request):
                 record_task_handoff_failure(
                     token, "task handoff terminal label transition rejected"
                 )
+                if isinstance(terminal_error, JSONResponse):
+                    return terminal_error
                 message, status_code = terminal_error
                 return JSONResponse(
                     {"error": {"code": "terminal_transition", "message": message}},
@@ -4049,8 +4193,13 @@ def _resolve_identifier(
     return urllib.parse.unquote(identifier)
 
 
-def _request_actor_login(body: dict | None, request: Request | None = None) -> str:
-    """Return the actor login supplied by an API client, if any."""
+def _client_supplied_actor(body: dict | None, request: Request | None = None) -> str:
+    """Return the raw actor value the API client supplied, if any.
+
+    OOMPAH-624: This is the untrusted string.  Do NOT use it directly for
+    authorization; use :func:`_request_actor_login` (which binds to the
+    server-trusted principal when auth is enabled).
+    """
 
     for key in ("actor_login", "actor", "owner_actor", "requested_by", "author"):
         value = (body or {}).get(key)
@@ -4062,6 +4211,112 @@ def _request_actor_login(body: dict | None, request: Request | None = None) -> s
             if value and value.strip():
                 return value.strip()
     return ""
+
+
+def _actor_conflict_response(
+    principal: AuthenticatedPrincipal,
+    client_actor: str,
+) -> JSONResponse:
+    """Build the 403 body returned when a client asserts a mismatched actor.
+
+    Every rejection is a *hard* denial — the request is not mutated, no
+    tracker call is issued, and no cache entry is invalidated.
+    """
+
+    logger.warning(
+        "Actor spoofing rejected: authenticated principal %r attempted to "
+        "assert actor %r",
+        principal.username,
+        client_actor,
+    )
+    return JSONResponse(
+        {
+            "error": {
+                "code": "actor_mismatch",
+                "message": (
+                    "The supplied actor identity does not match the "
+                    "authenticated server principal.  Omit the actor "
+                    "field or match the authenticated identity."
+                ),
+                "authenticated_actor": principal.actor_login,
+            }
+        },
+        status_code=403,
+    )
+
+
+def _no_authorized_actor_response() -> JSONResponse:
+    """Return a 403 for authenticated users with no mapped project actor."""
+
+    return JSONResponse(
+        {
+            "error": {
+                "code": "actor_unmapped",
+                "message": (
+                    "Authenticated user has no configured project actor "
+                    "mapping.  Configure OOMPAH_ACTOR_MAP or disable "
+                    "OOMPAH_ACTOR_MAP_STRICT."
+                ),
+            }
+        },
+        status_code=403,
+    )
+
+
+def _resolve_authorization_actor(
+    body: dict | None,
+    request: Request | None = None,
+) -> tuple[str, JSONResponse | None]:
+    """Return ``(actor_login, conflict_response)`` for an authorization decision.
+
+    OOMPAH-624: The trusted actor is derived from the server-side
+    :class:`AuthenticatedPrincipal` first.  When a client also supplies
+    an actor string, we compare it against the trusted identity:
+
+    * Equal (case-insensitive) → accept the request; the trusted actor
+      is used regardless.
+    * Different → return a 403 ``actor_mismatch`` response.  Callers
+      must return this response immediately without any mutation.
+
+    When no authenticated principal is present (auth disabled), the
+    client-supplied string is returned as today — read-only backward
+    compatibility.  Mutating handlers that require a trusted identity
+    check :meth:`AuthenticatedPrincipal.is_authenticated` explicitly.
+    """
+
+    client_actor = _client_supplied_actor(body, request)
+    principal = _authenticated_principal(request)
+    if principal is not None and principal.is_authenticated:
+        trusted_actor = principal.actor_login
+        if not trusted_actor:
+            # Strict mode: the authenticated username has no mapping.
+            # We already rejected client-supplied actors in the config
+            # branch; the caller must still fail closed at the
+            # authorization step.  Return an empty string and let the
+            # gate deny the operation.
+            if client_actor:
+                # Do not let the client override the missing mapping.
+                return "", _no_authorized_actor_response()
+            return "", None
+        if client_actor and client_actor.strip().lower() != trusted_actor.strip().lower():
+            return trusted_actor, _actor_conflict_response(principal, client_actor)
+        return trusted_actor, None
+    # Auth disabled: preserve today's behavior for read-only compatibility.
+    return client_actor, None
+
+
+def _request_actor_login(body: dict | None, request: Request | None = None) -> str:
+    """Return the actor login to use for authorization.
+
+    OOMPAH-624: When HTTP Basic auth is enabled, this returns the
+    server-trusted project actor login regardless of any client-
+    supplied value.  Callers that need to reject conflicting
+    client-supplied actors should use :func:`_resolve_authorization_actor`
+    instead so that the 403 response is surfaced.
+    """
+
+    actor, _ = _resolve_authorization_actor(body, request)
+    return actor
 
 
 _TERMINAL_TARGETS: dict[str, TargetState] = {
@@ -4153,12 +4408,16 @@ async def _stage_terminal_transition(
     target: TargetState,
     body: dict[str, Any],
     request: Request | None = None,
-) -> tuple[dict[str, Any] | None, tuple[str, int] | None]:
+) -> tuple[dict[str, Any] | None, tuple[str, int] | JSONResponse | None]:
     """Stage a project-aware terminal request or apply an owner override.
 
     The returned pair is ``(payload, error)``.  Keeping this boundary shared
     by PATCH and status-label mutations ensures neither endpoint can fall
     through to a direct terminal tracker write.
+
+    OOMPAH-624: ``error`` may be a :class:`JSONResponse` when the failure
+    already has a structured body (for example, an actor conflict).
+    Callers must forward such responses unchanged.
     """
 
     if not project_id:
@@ -4222,7 +4481,10 @@ async def _stage_terminal_transition(
         if callable(refresh):
             refresh()
 
-    actor = _request_actor_login(body, request)
+    actor, actor_conflict = _resolve_authorization_actor(body, request)
+    if actor_conflict is not None:
+        # Return the structured JSONResponse directly; callers forward it.
+        return None, actor_conflict
     if audit_override:
         reason = body.get("override_reason")
         if not isinstance(reason, str) or not reason.strip():
@@ -4427,12 +4689,26 @@ def _evaluate_api_intake_transition(
     body: dict | None,
     request: Request | None,
 ) -> tuple[TransitionGateResult, str, str | None, str | None, JSONResponse | None]:
-    """Check a REST/CLI status transition before writing it to the tracker."""
+    """Check a REST/CLI status transition before writing it to the tracker.
+
+    OOMPAH-624: The actor identity used for gate checks is derived from
+    the server-trusted authenticated principal.  A conflicting client-
+    supplied ``actor_login`` triggers a 403 ``actor_mismatch`` response
+    that the caller returns unchanged (no tracker mutation).
+    """
 
     raw_from_status = getattr(existing_issue, "state", None)
     from_status = canonicalize_status(raw_from_status) if raw_from_status else None
     to_status = canonicalize_status(target_status)
-    actor_login = _request_actor_login(body, request)
+    actor_login, actor_conflict = _resolve_authorization_actor(body, request)
+    if actor_conflict is not None:
+        return (
+            TransitionGateResult(allowed=False),
+            actor_login,
+            from_status,
+            to_status,
+            actor_conflict,
+        )
     project = _project_by_id(orch, project_id)
     tracker_kind = getattr(project, "tracker_kind", None) if project is not None else None
     if project is None or not (
@@ -9193,7 +9469,12 @@ async def api_update_issue(identifier: str, request: Request):
                 and requested_status == BACKLOG
                 and owner_override_requested
             ):
-                owner_override_actor = str(
+                # OOMPAH-624: The owner-override actor must be the
+                # authenticated principal when Basic auth is enabled.
+                # Any conflicting client-supplied string was already
+                # rejected by _evaluate_api_intake_transition above.
+                trusted_owner_actor = transition_actor or _request_actor_login(body, request)
+                owner_override_actor = trusted_owner_actor or str(
                     body.get("owner_actor")
                     or body.get("actor_login")
                     or body.get("actor")
@@ -9239,6 +9520,8 @@ async def api_update_issue(identifier: str, request: Request):
                     )
                 )
                 if terminal_error is not None:
+                    if isinstance(terminal_error, JSONResponse):
+                        return terminal_error
                     message, status_code = terminal_error
                     return JSONResponse(
                         {"error": {"code": "terminal_transition", "message": message}},
@@ -9502,13 +9785,22 @@ async def api_issue_intake_action(identifier: str, action: str, request: Request
                 status_code=400,
             )
 
-        actor_login = str(body.get("actor") or body.get("author") or "").strip()
+        # OOMPAH-624: derive the trusted actor from the authenticated
+        # principal.  A conflicting client-supplied `actor`/`author`
+        # value produces a 403 `actor_mismatch` response *before* any
+        # tracker lookup, so spoofing attempts cannot mutate state.
+        actor_login, actor_conflict = _resolve_authorization_actor(body, request)
+        if actor_conflict is not None:
+            return actor_conflict
         if not actor_login:
             return JSONResponse(
                 {
                     "error": {
                         "code": "validation",
-                        "message": "actor is required",
+                        "message": (
+                            "actor is required.  Authenticate with HTTP "
+                            "Basic credentials or supply an actor field."
+                        ),
                     }
                 },
                 status_code=400,
@@ -9746,6 +10038,8 @@ async def api_add_label(identifier: str, request: Request):
                     request=request,
                 )
                 if terminal_error is not None:
+                    if isinstance(terminal_error, JSONResponse):
+                        return terminal_error
                     message, status_code = terminal_error
                     return JSONResponse(
                         {"error": {"code": "terminal_transition", "message": message}},
@@ -10347,7 +10641,17 @@ async def api_issue_full_detail(identifier: str, request: Request):
     try:
         orch = _get_orchestrator()
         project_id = request.query_params.get("project_id")
-        actor_login = (request.query_params.get("actor") or "").strip()
+        # OOMPAH-624: The detail cache key is per-actor because the payload
+        # can include actor-scoped hints (e.g., action affordances).  When
+        # a Basic-authenticated principal is present, use its actor login
+        # so the cache is not polluted by a client asserting an arbitrary
+        # `?actor=` query parameter for a distinct user.  When auth is
+        # disabled, preserve today's behavior of using the query string.
+        principal = _authenticated_principal(request)
+        if principal is not None and principal.is_authenticated:
+            actor_login = principal.actor_login
+        else:
+            actor_login = (request.query_params.get("actor") or "").strip()
         # Resolve identifier: issue_key query param overrides path param to
         # support GitHub identifiers with slashes.
         resolved_identifier = _resolve_identifier(identifier, None, request.query_params)
