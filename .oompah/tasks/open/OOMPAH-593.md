@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-593
 type: task
-status: Backlog
+status: Open
 priority: 1
 title: Integrate and live-verify scoped Codex task CLI authentication
 parent: OOMPAH-586
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:54.281403Z'
-updated_at: '2026-07-30T14:17:28.285381Z'
+updated_at: '2026-07-30T14:18:44.241953Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,3 +38,12 @@ OOMPAH-575 reaches Merged; a newly launched Codex worker completes the documente
 - [ ] Define acceptance criteria.
 
 ## Notes
+
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-30 14:18
+---
+Project-owner-approved green recovery work; dispatch under recorded dependencies and acceptance criteria.
+---
+<!-- COMMENTS:END -->

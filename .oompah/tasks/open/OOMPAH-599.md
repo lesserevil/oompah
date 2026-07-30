@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-599
 type: task
-status: Backlog
+status: Open
 priority: 1
 title: Verify zero stranded delivery states and close recovery epics
 parent: OOMPAH-587
@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:31.072278Z'
-updated_at: '2026-07-30T14:17:16.877179Z'
+updated_at: '2026-07-30T14:19:07.632533Z'
 work_branch: null
 target_branch: null
 review_url: null

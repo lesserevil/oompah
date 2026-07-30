@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-597
 type: task
-status: Backlog
+status: Open
 priority: 1
 title: Recover and drain the OOMPAH-460 ordered integration chain
 parent: OOMPAH-587
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:28.342383Z'
-updated_at: '2026-07-30T14:17:09.750221Z'
+updated_at: '2026-07-30T14:19:01.243424Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,3 +41,11 @@ The five Ready children reach Done with integrated SHAs and passing audits, no q
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-30 14:19
+---
+Project-owner-approved green recovery work; dispatch under recorded dependencies and acceptance criteria.
+---
+<!-- COMMENTS:END -->

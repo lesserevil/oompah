@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-595
 type: feature
-status: Backlog
+status: Open
 priority: 1
 title: Expose separate operator and worker task-auth health signals
 parent: OOMPAH-586
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:56.897824Z'
-updated_at: '2026-07-30T14:17:04.561511Z'
+updated_at: '2026-07-30T14:18:53.405827Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,3 +40,11 @@ Operators can tell which authentication plane failed and how to recover it; secr
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-30 14:18
+---
+Project-owner-approved green recovery work; dispatch under recorded dependencies and acceptance criteria.
+---
+<!-- COMMENTS:END -->

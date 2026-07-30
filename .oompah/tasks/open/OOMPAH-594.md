@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-594
 type: feature
-status: Backlog
+status: Open
 priority: 1
 title: Reload HTTP Basic credentials safely after htpasswd rotation
 parent: OOMPAH-586
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:55.490677Z'
-updated_at: '2026-07-30T14:14:55.490677Z'
+updated_at: '2026-07-30T14:18:49.612332Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,3 +38,11 @@ Supported credential rotation does not require an unauthenticated force restart;
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-30 14:18
+---
+Project-owner-approved green recovery work; dispatch under recorded dependencies and acceptance criteria.
+---
+<!-- COMMENTS:END -->

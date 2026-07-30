@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-598
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Detect and deliver standalone Ready to Integrate tasks without PRs
 parent: OOMPAH-587
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:29.695490Z'
-updated_at: '2026-07-30T14:17:32.523546Z'
+updated_at: '2026-07-30T14:19:04.348181Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,5 +46,10 @@ author: oompah
 created: 2026-07-30 14:17
 ---
 Coordination: OOMPAH-593 exclusively owns delivery/live verification of OOMPAH-575. After OOMPAH-593 completes, this task owns stranded-ready reconciliation and delivery for OOMPAH-574, OOMPAH-576, and OOMPAH-581 plus the generic watchdog fix; do not duplicate OOMPAH-575 work.
+---
+author: oompah
+created: 2026-07-30 14:19
+---
+Project-owner-approved green recovery work; dispatch under recorded dependencies and acceptance criteria.
 ---
 <!-- COMMENTS:END -->
