@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-629
 type: bug
-status: Backlog
+status: Needs Human
 priority: 1
 title: Reject cross-task branch evidence before integration mutation
 parent: OOMPAH-585
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- needs:human
 assignee: null
 created_at: '2026-07-30T23:07:33.040594Z'
-updated_at: '2026-07-30T23:07:55.854844Z'
+updated_at: '2026-07-30T23:08:15.872319Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -34,5 +35,15 @@ author: oompah
 created: 2026-07-30 23:07
 ---
 Live corrupting-path reproducer was safely recovered before any foreign commit reached the epic. OOMPAH-602 is resubmitted from its canonical pushed branch; dispatch this child immediately as the final authority/race fix for OOMPAH-585.
+---
+author: oompah
+created: 2026-07-30 23:08
+---
+Moved to Needs Human from the dashboard/API. Human action required: inspect OOMPAH-629 (Reject cross-task branch evidence before integration mutation), add the specific decision, missing information, or manual fix needed, then move the task back to Open when it is ready for agents again.
+---
+author: oompah
+created: 2026-07-30 23:08
+---
+Claimed directly under the project owner's instruction to fix race bugs when the server cannot dispatch them. The needs-human marker is an ownership fence against duplicate dispatch while the operator branch is prepared.
 ---
 <!-- COMMENTS:END -->
