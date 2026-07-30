@@ -1,23 +1,30 @@
 ---
 id: OOMPAH-629
 type: bug
-status: Needs Human
+status: Ready to Integrate
 priority: 1
 title: Reject cross-task branch evidence before integration mutation
 parent: OOMPAH-585
 children: []
 blocked_by: []
 start_blocked_by: []
-labels:
-- needs:human
+labels: []
 assignee: null
 created_at: '2026-07-30T23:07:33.040594Z'
-updated_at: '2026-07-30T23:08:15.872319Z'
+updated_at: '2026-07-30T23:16:44.238445Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.integration:
+  version: 1
+  state: ready
+  attempts: 0
+  task_branch: epic-OOMPAH-585--task-OOMPAH-629
+  head_sha: 4510fb912aebc99dce90df1dc55e8ee952408401
+  submitted_at: '2026-07-30T23:16:41.615917+00:00'
+  updated_at: '2026-07-30T23:16:41.615917+00:00'
 ---
 ## Summary
 
@@ -45,5 +52,15 @@ author: oompah
 created: 2026-07-30 23:08
 ---
 Claimed directly under the project owner's instruction to fix race bugs when the server cannot dispatch them. The needs-human marker is an ownership fence against duplicate dispatch while the operator branch is prepared.
+---
+author: oompah
+created: 2026-07-30 23:16
+---
+Implemented canonical task-branch authority validation before tracker/queue writes and a pre-mutation executor worktree branch fence. Also made checkout failure return before reset. Exact pushed head: 4510fb912aebc99dce90df1dc55e8ee952408401. Verification: 27 focused submission/handoff/executor tests passed; complete Makefile gate passed 13,819 tests with 7 skipped; terminal mutation scan passed.
+---
+author: oompah
+created: 2026-07-30 23:16
+---
+Reject foreign branch evidence before durable mutation and keep mismatched integration worktrees unchanged.
 ---
 <!-- COMMENTS:END -->
