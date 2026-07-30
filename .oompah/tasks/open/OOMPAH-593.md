@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:54.281403Z'
-updated_at: '2026-07-30T15:00:01.205940Z'
+updated_at: '2026-07-30T15:04:46.052888Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-593
 target_branch: null
 review_url: null
@@ -28,7 +28,7 @@ oompah.duplicate_screening:
   claim_id: 46537354-a353-431e-ab09-87ea34c58167
   claim_owner: 9e3a680b-e68a-4d5a-ba2e-f9091834f9ec
   claimed_at: '2026-07-30T14:47:49.776663+00:00'
-  claim_expires_at: '2026-07-30T15:17:49.776663+00:00'
+  claim_expires_at: '2026-07-30T15:34:45.064180+00:00'
   retry_count: 0
   retry_after: null
 oompah.agent_run_id: fea80c25-e4d0-4bfb-aea0-d20edfaa7e21

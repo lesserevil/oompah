@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-592
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Alert on terminal-audit launch failures and backlog age
 parent: OOMPAH-585
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:28.755226Z'
-updated_at: '2026-07-30T14:47:50.071100Z'
+updated_at: '2026-07-30T15:04:58.298677Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-592
 target_branch: null
 review_url: null
@@ -45,7 +45,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 1cce0104-b4ac-4d43-b8dd-210408ca687a
+oompah.agent_run_id: 463377cb-eab2-474a-a96c-a2f722a376ae
 oompah.work_branch: epic-OOMPAH-585--task-OOMPAH-592
 oompah.integration:
   version: 1
@@ -54,7 +54,7 @@ oompah.integration:
   task_branch: epic-OOMPAH-585--task-OOMPAH-592
   base_branch: epic-OOMPAH-585
   base_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
-  updated_at: '2026-07-30T14:33:47.773679+00:00'
+  updated_at: '2026-07-30T15:04:56.344597+00:00'
 oompah.task_costs:
   total_input_tokens: 3151103
   total_output_tokens: 25005
@@ -128,5 +128,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 14m 0s
 - Log: OOMPAH-592__20260730T143353Z.jsonl
+---
+author: oompah
+created: 2026-07-30 15:04
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-30 15:04
+---
+Focus: Frontend Developer
 ---
 <!-- COMMENTS:END -->
