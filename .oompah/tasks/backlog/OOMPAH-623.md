@@ -7,16 +7,18 @@ title: Keep the canonical user CLI synchronized with the running server
 parent: OOMPAH-619
 children: []
 blocked_by: []
-start_blocked_by: []
+start_blocked_by: &id001
+- OOMPAH-621
 labels: []
 assignee: null
 created_at: '2026-07-30T21:32:18.734139Z'
-updated_at: '2026-07-30T21:32:18.734139Z'
+updated_at: '2026-07-30T21:32:50.020052Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.start_blocked_by: *id001
 ---
 ## Summary
 
@@ -28,3 +30,11 @@ System contract: /home/shedwards/.local/bin/oompah is the canonical CLI used by 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-30 21:32
+---
+Immediate bootstrap completed: the stale canonical CLI at commit 148184aa could not authenticate to the running server and returned HTTP 401. It was replaced through uv tool install with exact clean main revision 12f63352ba017c6ffe88b0ca730bf3f7f973304e, the revision active when the current server process started. ~/.local/bin/oompah now authenticates successfully. Permanent lifecycle synchronization remains the scope of this task.
+---
+<!-- COMMENTS:END -->

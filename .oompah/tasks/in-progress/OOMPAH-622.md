@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T21:26:15.242500Z'
-updated_at: '2026-07-30T21:31:58.762975Z'
+updated_at: '2026-07-30T21:33:10.404378Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-622
 target_branch: null
 review_url: null
@@ -35,24 +35,24 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 294fad7c-5c27-4b31-8ce2-e4ddcbe27241
+oompah.agent_run_id: dff267f8-746d-4da4-b01c-ad139e6facae
 oompah.work_branch: epic-OOMPAH-585--task-OOMPAH-622
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-585--task-OOMPAH-622
-  base_branch: epic-OOMPAH-585
-  base_sha: 58915e5f0b116cf4269f6bb882dd81aa4010ec03
-  updated_at: '2026-07-30T21:30:22.234651+00:00'
+  head_sha: ebb5b12d9bd9668458750ec38bee7d7216f186d7
+  submitted_at: '2026-07-30T21:32:55.246130+00:00'
+  updated_at: '2026-07-30T21:32:55.246130+00:00'
 oompah.task_costs:
-  total_input_tokens: 520552
-  total_output_tokens: 2888
+  total_input_tokens: 521022
+  total_output_tokens: 3008
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 520552
-      output_tokens: 2888
+      input_tokens: 521022
+      output_tokens: 3008
       cost_usd: 0.0
   runs:
   - profile: default
@@ -61,6 +61,12 @@ oompah.task_costs:
     output_tokens: 2888
     cost_usd: 0.0
     recorded_at: '2026-07-30T21:30:08.145232+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 470
+    output_tokens: 120
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T21:32:39.974629+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-622__20260730T212807Z
@@ -139,5 +145,36 @@ Planned implementation:
 - Filter subscription-backed Codex from eligible candidates in auditor selection
 - Force read_only=True for all auditor ACP sessions
 - Add tests for mixed candidates, subscription exhaustion, and token-backed Codex eligibility
+---
+author: oompah
+created: 2026-07-30 21:32
+---
+Agent failed: Exception: Command failed with exit code 143 (exit code: 143)
+Error output: Check stderr output for details. Retrying in 10s (attempt #1)
+---
+author: oompah
+created: 2026-07-30 21:32
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 58, Tool calls: 29
+- Tokens: 470 in / 120 out [590 total]
+- Cost: $0.0000
+- Exit: error, Duration: 2m 22s
+- Log: OOMPAH-622__20260730T213027Z.jsonl
+---
+author: oompah
+created: 2026-07-30 21:32
+---
+Implemented at ebb5b12d9: subscription-backed Codex native-CLI candidates are excluded from terminal audits with a missing_audit_capability diagnostic; Codex per-token/API and capable ACP backends remain eligible. Every ACP auditor now receives read_only=True at both catalog and session boundaries. Verification: 383 selector/Codex/orchestrator tests passed; 78 audit-dispatch/focus/project-tool tests passed; 10 focused capability/authority regressions passed; terminal mutation scan passed.
+---
+author: oompah
+created: 2026-07-30 21:32
+---
+Prevented verdict-incapable auditor dispatch and forced ACP auditors into read-only authority, with focused selection, propagation, catalog, and native-sandbox regressions.
+---
+author: oompah
+created: 2026-07-30 21:33
+---
+Agent dispatched (profile: standard)
 ---
 <!-- COMMENTS:END -->

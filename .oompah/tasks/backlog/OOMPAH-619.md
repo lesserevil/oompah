@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T21:24:41.452666Z'
-updated_at: '2026-07-30T21:32:18.985133Z'
+updated_at: '2026-07-30T21:32:50.886936Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -31,3 +31,11 @@ Deliver a standalone Oompah CLI whose HTTP Basic credentials can be supplied exp
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-30 21:32
+---
+Operator clarification: ~/.local/bin/oompah is the canonical system CLI, not the project virtualenv executable. This epic is incomplete until the canonical binary is installed from the same merged main revision as the deployed server and lifecycle automation prevents future drift.
+---
+<!-- COMMENTS:END -->
