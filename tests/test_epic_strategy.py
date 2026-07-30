@@ -4401,6 +4401,37 @@ class TestLabelMergedEpics:
             == 1
         )
 
+    def test_landed_epic_preserves_child_in_validation(self, tmp_path):
+        """Rollup maintenance must yield to active terminal ownership."""
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        epic = _make_issue(
+            identifier="OOMPAH-585",
+            issue_type="epic",
+            state=MERGED,
+            project_id=proj.id,
+        )
+        child = _make_issue(
+            identifier="OOMPAH-590",
+            state="In Validation",
+            parent_id=epic.identifier,
+            project_id=proj.id,
+            work_branch="child-work",
+        )
+        tracker = MagicMock()
+
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+        ):
+            orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-585")
+
+        tracker.mark_needs_human.assert_not_called()
+        assert (
+            orch.terminal_transition_coordinator.request_transition.call_count
+            == 1
+        )
+
     def test_fresh_target_still_escalates_genuinely_unlanded_child(self, tmp_path):
         managed = _make_landing_evidence_repo(tmp_path, land_child=False)
         proj = _make_project_record(epic_strategy="shared")

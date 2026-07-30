@@ -14622,6 +14622,13 @@ class Orchestrator:
                     expected_work_branch=epic_branch,
                     container_branches=containment_targets,
                 )
+            if child_status == IN_VALIDATION:
+                logger.info(
+                    "Leaving epic child %s In Validation while its terminal "
+                    "transition owns the task",
+                    child.identifier,
+                )
+                continue
             if child_status != DONE or landing_reason:
                 evidence_detail = (
                     f" Git evidence: {landing_reason}."
