@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-626
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Supersede in-flight terminal audits when evidence changes
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T22:02:35.998442Z'
-updated_at: '2026-07-30T22:06:07.454805Z'
+updated_at: '2026-07-30T22:11:27.898321Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -19,12 +19,37 @@ review_number: null
 merged_at: null
 oompah.integration:
   version: 1
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-585--task-OOMPAH-626
-  head_sha: 7576453f56c86edb05a9e49631056d4eb19c8878
+  base_branch: epic-OOMPAH-585
+  base_sha: 078bcd40c159a7906c30444ceae2e563b48e1ca3
+  head_sha: 5c45358226b238c1c9c2bdeee8bf9c85489d6f19
+  integrated_sha: 5c45358226b238c1c9c2bdeee8bf9c85489d6f19
   submitted_at: '2026-07-30T22:06:05.301194+00:00'
-  updated_at: '2026-07-30T22:06:05.301194+00:00'
+  updated_at: '2026-07-30T22:11:18.407047+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-f30cc257120d
+    project_id: proj-14849f1b
+    task_id: OOMPAH-626
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: bb45021285ea3083ae52600f71d87eeb03507a993e90fb38e27235ce2a4af9ee
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-30T22:11:25.573500+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -57,5 +82,10 @@ author: oompah
 created: 2026-07-30 22:06
 ---
 Supersede changed in-flight evidence, coalesce identical in-progress requests, and self-heal stale duplicate revisions.
+---
+author: oompah
+created: 2026-07-30 22:11
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
