@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-625
 type: bug
-status: Open
+status: Ready to Integrate
 priority: 1
 title: Release terminal-auditor branch claims on forced termination
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T21:58:34.567478Z'
-updated_at: '2026-07-30T21:59:44.436179Z'
+updated_at: '2026-07-30T22:01:34.823310Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-625
 target_branch: null
 review_url: null
@@ -24,23 +24,49 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: 63bf577e-3fa3-4046-8786-046af1cb2739
-  claim_owner: c1f4a4cb-217d-4c2a-aad6-f768a3cdbb4b
-  claimed_at: '2026-07-30T21:59:37.096681+00:00'
-  claim_expires_at: '2026-07-30T22:29:37.096681+00:00'
+  evidence: Task state or duplicate-relevant content changed while screening was running.
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
-  retry_after: null
+  retry_after: '2026-07-30T22:01:28.071817+00:00'
 oompah.agent_run_id: f71d790f-a7a4-40ef-be07-6ffa6a636594
 oompah.work_branch: epic-OOMPAH-585--task-OOMPAH-625
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-585--task-OOMPAH-625
-  base_branch: epic-OOMPAH-585
-  base_sha: ebb5b12d9bd9668458750ec38bee7d7216f186d7
-  updated_at: '2026-07-30T21:59:41.934289+00:00'
+  head_sha: 078bcd40c159a7906c30444ceae2e563b48e1ca3
+  submitted_at: '2026-07-30T22:01:25.519747+00:00'
+  updated_at: '2026-07-30T22:01:25.519747+00:00'
+oompah.task_costs:
+  total_input_tokens: 870000
+  total_output_tokens: 4588
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 870000
+      output_tokens: 4588
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 870000
+    output_tokens: 4588
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T22:01:28.070502+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-625__20260730T215946Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: epic-OOMPAH-585--task-OOMPAH-625
+    source_sha: ebb5b12d9bd9668458750ec38bee7d7216f186d7
+    completed_at: '2026-07-30T22:01:28.079969+00:00'
 ---
 ## Summary
 
@@ -68,5 +94,25 @@ author: oompah
 created: 2026-07-30 21:59
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-30 22:01
+---
+Implemented matching-owner release for completion-auditor branch fences across forced termination, normal exit, launch failure, paused dispatch, and pre-dispatch state-change cleanup. A terminating stale attempt cannot clear a newer replacement attempt claim. Verification: 58 focused auditor-dispatch/forced-termination/telemetry tests passed; terminal mutation scan passed.
+---
+author: oompah
+created: 2026-07-30 22:01
+---
+Release only the terminating auditor attempt branch fence and preserve newer owners; add forced-termination race regressions.
+---
+author: oompah
+created: 2026-07-30 22:01
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 15
+- Tokens: 870.0K in / 4.6K out [874.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 49s
+- Log: OOMPAH-625__20260730T215946Z.jsonl
 ---
 <!-- COMMENTS:END -->
