@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-629
 type: bug
-status: In Validation
+status: Done
 priority: 1
 title: Reject cross-task branch evidence before integration mutation
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T23:07:33.040594Z'
-updated_at: '2026-07-30T23:21:42.029394Z'
+updated_at: '2026-07-30T23:26:09.778787Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -30,6 +30,8 @@ oompah.integration:
   updated_at: '2026-07-30T23:21:22.209470+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-ae148de48645: '2026-07-30T23:26:07.576810+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -37,7 +39,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-629
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -46,7 +48,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-ae148de48645
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -56,13 +58,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-30T23:21:36.685160+00:00'
       branch_key: OOMPAH-629
+      verdict: pass
+      completed_at: '2026-07-30T23:26:07.576638+00:00'
+      ended_at: '2026-07-30T23:26:07.576638+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-30T23:21:23.465705+00:00'
-    updated_at: '2026-07-30T23:21:36.685160+00:00'
+    updated_at: '2026-07-30T23:26:07.576638+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-ae148de48645
@@ -129,5 +134,21 @@ author: oompah
 created: 2026-07-30 23:21
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 23:26
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- pushed_head: 4510fb912aebc99dce90df1dc55e8ee952408401
+- remote_ref: refs/heads/epic-OOMPAH-585--task-OOMPAH-629
+- focused_tests_passed: 27/27
+- changed_files: oompah/acp_tools.py, oompah/integration.py, oompah/integration_executor.py, oompah/server.py, tests/test_integration_executor.py, tests/test_task_handoff.py, tests/test_worker_submission.py
+- server_validation_call_site: oompah/server.py:2807 (inside _submission_record, called before set_metadata_field/update_issue/enqueue at 3045-3054)
+- acp_validation_call_site: oompah/acp_tools.py:711 (before set_metadata_field/update_issue at 739-753)
+- executor_fence_call_site: oompah/integration_executor.py:69 (returns wrong_worktree before fetch/checkout/reset)
 ---
 <!-- COMMENTS:END -->
