@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-601
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Aggregate branch-ownership cleanup skips without warning floods
 parent: OOMPAH-588
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:00.331568Z'
-updated_at: '2026-07-30T16:27:06.367824Z'
+updated_at: '2026-07-30T16:27:21.987866Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-601
 target_branch: null
 review_url: null
@@ -61,12 +61,12 @@ oompah.agent_run_id: fb8a4b0c-63ba-495d-ab14-f9ef02a9a941
 oompah.work_branch: epic-OOMPAH-588--task-OOMPAH-601
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-588--task-OOMPAH-601
-  base_branch: epic-OOMPAH-588
-  base_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
-  updated_at: '2026-07-30T16:03:15.971571+00:00'
+  head_sha: 787385c6aad4f27d38edccec4ef98a598604dcb7
+  submitted_at: '2026-07-30T16:27:18.904392+00:00'
+  updated_at: '2026-07-30T16:27:18.904392+00:00'
 oompah.task_costs:
   total_input_tokens: 776439
   total_output_tokens: 8578
@@ -378,5 +378,17 @@ All changes implemented and tested:
 Branch: epic-OOMPAH-588--task-OOMPAH-601
 Commits: faa012787, 787385c6a
 Status: Ready for integration
+---
+author: oompah
+created: 2026-07-30 16:27
+---
+Fixed warning flood for shared epic branch cleanup by:
+1. Silently skipping 'epic-*' branches (shared epic branches) without per-issue warnings
+2. Aggregating all skip reasons into categorized counters
+3. Emitting one structured summary log message per cleanup run instead of warnings per child per tick
+4. Preserving actionable warnings for protected/checked-out branches
+5. Adding skip reason tracking to maintenance status for observability
+
+No warning flood for normal shared-branch ownership, cleanup remains safe, categorized skip evidence visible in status, and maintenance tick latency unaffected. All 357 tests pass.
 ---
 <!-- COMMENTS:END -->
