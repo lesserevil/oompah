@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-596
 type: bug
-status: In Progress
+status: Needs Human
 priority: 1
 title: Rearm conflict repairs after recoverable agent infrastructure failure
 parent: OOMPAH-587
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:26.248587Z'
-updated_at: '2026-07-30T15:34:41.021597Z'
+updated_at: '2026-07-30T15:36:09.079584Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-596
 target_branch: null
 review_url: null
@@ -113,13 +113,13 @@ oompah.integration:
   base_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
   updated_at: '2026-07-30T15:34:38.961656+00:00'
 oompah.task_costs:
-  total_input_tokens: 111711
-  total_output_tokens: 6734
+  total_input_tokens: 160074
+  total_output_tokens: 7442
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 53511
-      output_tokens: 5904
+      input_tokens: 101874
+      output_tokens: 6612
       cost_usd: 0.0
     opus:
       input_tokens: 58200
@@ -144,6 +144,12 @@ oompah.task_costs:
     output_tokens: 830
     cost_usd: 0.0
     recorded_at: '2026-07-30T15:34:21.864357+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 48363
+    output_tokens: 708
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T15:36:03.189018+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-596__20260730T153052Z
@@ -170,6 +176,14 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-587--task-OOMPAH-596
     source_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
     completed_at: '2026-07-30T15:34:21.867901+00:00'
+  - run_id: OOMPAH-596__20260730T153442Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: frontend
+    source_branch: epic-OOMPAH-587--task-OOMPAH-596
+    source_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
+    completed_at: '2026-07-30T15:36:03.195888+00:00'
 ---
 ## Summary
 
@@ -282,5 +296,25 @@ author: oompah
 created: 2026-07-30 15:34
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-07-30 15:36
+---
+Agent completed successfully in 87s (49071 tokens)
+---
+author: oompah
+created: 2026-07-30 15:36
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 1
+- Tokens: 48.4K in / 708 out [49.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 27s
+- Log: OOMPAH-596__20260730T153442Z.jsonl
+---
+author: oompah
+created: 2026-07-30 15:36
+---
+Agent completed 3 times without closing this issue. Human action required: review the agent run history and task state, then either close the task if the work is done or add specific guidance and move it back to Open.
 ---
 <!-- COMMENTS:END -->

@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:56.897824Z'
-updated_at: '2026-07-30T15:31:30.484702Z'
+updated_at: '2026-07-30T15:36:10.572275Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-595
 target_branch: null
 review_url: null
@@ -205,5 +205,18 @@ author: oompah
 created: 2026-07-30 15:31
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-07-30 15:36
+---
+Understanding: Implementing separate operator and worker task-auth health signals. Plan:
+1. New oompah/auth_health.py module: thread-safe counters for operator Basic-auth 401s and worker task-handoff 401/403/minted/accepted events
+2. Instrument server.py middleware to count operator 401s (without leaking credentials or auth details)
+3. Instrument task-handoff endpoint to count worker failures (scope denials excluded from alerts per spec)
+4. Expose auth_health dict in orchestrator get_snapshot()
+5. Add auth health UI panel in dashboard.html showing separate operator/worker health with recovery guidance
+6. Tests in test_auth_health.py and test_task_handoff.py
+
+Key design: operator plane = HTTP Basic failures; worker plane = task-capability failures; intentional scope denials (wrong action) never alert.
 ---
 <!-- COMMENTS:END -->
