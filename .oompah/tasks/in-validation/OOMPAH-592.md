@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:28.755226Z'
-updated_at: '2026-07-30T23:50:25.010039Z'
+updated_at: '2026-07-30T23:51:06.236703Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-592
 target_branch: null
 review_url: null
@@ -146,18 +146,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-592
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 7cd854b0950d689b3e9fee4500fcbb6ef4dc1f6779fb4cebe28f84bd495efae3
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-04adcc5ea409
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 7cd854b0950d689b3e9fee4500fcbb6ef4dc1f6779fb4cebe28f84bd495efae3
+      created_at: '2026-07-30T23:51:02.406057+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-30T23:51:02.406057+00:00'
+      branch_key: epic-OOMPAH-585--task-OOMPAH-592
     requested_by:
       version: 1
       identity: api-client
       source: api
     previous_state: Needs Human
     created_at: '2026-07-30T23:50:21.503390+00:00'
+    updated_at: '2026-07-30T23:51:02.406057+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-2b3803f5ac37
@@ -171,6 +185,19 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: opus
     started_at: '2026-07-30T18:57:42.401889+00:00'
+    branch_key: epic-OOMPAH-585--task-OOMPAH-592
+  - version: 1
+    attempt_id: attempt-04adcc5ea409
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7cd854b0950d689b3e9fee4500fcbb6ef4dc1f6779fb4cebe28f84bd495efae3
+    created_at: '2026-07-30T23:51:02.406057+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-30T23:51:02.406057+00:00'
     branch_key: epic-OOMPAH-585--task-OOMPAH-592
 ---
 ## Summary

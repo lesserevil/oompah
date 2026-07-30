@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:26.620047Z'
-updated_at: '2026-07-30T23:50:18.243305Z'
+updated_at: '2026-07-30T23:51:05.391143Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-591
 target_branch: null
 review_url: null
@@ -338,18 +338,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-591
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: adf4621b89554d4e1307449b835b508f646e096aa0b34f11dc760eb32096aea6
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-6c1474abf31c
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: adf4621b89554d4e1307449b835b508f646e096aa0b34f11dc760eb32096aea6
+      created_at: '2026-07-30T23:51:01.327457+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-30T23:51:01.327457+00:00'
+      branch_key: epic-OOMPAH-585--task-OOMPAH-591
     requested_by:
       version: 1
       identity: api-client
       source: api
     previous_state: Needs Human
     created_at: '2026-07-30T23:50:16.510765+00:00'
+    updated_at: '2026-07-30T23:51:01.327457+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-870b1c4d15ed
@@ -428,6 +442,19 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: opus
     started_at: '2026-07-30T22:30:50.043695+00:00'
+    branch_key: epic-OOMPAH-585--task-OOMPAH-591
+  - version: 1
+    attempt_id: attempt-6c1474abf31c
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: adf4621b89554d4e1307449b835b508f646e096aa0b34f11dc760eb32096aea6
+    created_at: '2026-07-30T23:51:01.327457+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-30T23:51:01.327457+00:00'
     branch_key: epic-OOMPAH-585--task-OOMPAH-591
 ---
 ## Summary
@@ -855,5 +882,15 @@ author: oompah
 created: 2026-07-30 23:50
 ---
 Operator revalidation after OOMPAH-630 diagnosis: origin/epic-OOMPAH-585--task-OOMPAH-591 is a direct ancestor of merged target origin/epic-OOMPAH-584 at c45e47bb3. The prior Needs Human transition was caused by a stale remote-tracking target ref, not missing work. Requesting a fresh audited Done transition.
+---
+author: oompah
+created: 2026-07-30 23:51
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-07-30 23:51
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
