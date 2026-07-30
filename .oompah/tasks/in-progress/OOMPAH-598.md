@@ -12,7 +12,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:29.695490Z'
-updated_at: '2026-07-30T15:42:39.659006Z'
+updated_at: '2026-07-30T15:44:27.390723Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-598
 target_branch: null
 review_url: null
@@ -156,5 +156,27 @@ Planned approach:
 7. Verify all four rows obtain valid delivery path or actionable failure
 
 Starting code exploration now.
+---
+author: oompah
+created: 2026-07-30 15:44
+---
+**DISCOVERY**
+
+Located reconciliation code in `oompah/orchestrator.py`:
+- `_sync_ready_integration_submissions()` (line 4707) syncs Ready to Integrate tasks into integration queue
+- BUT: Only handles tasks WITH epic_id (epic children) that have integration metadata
+
+Issue: Standalone Ready to Integrate tasks (no parent_id, no epic_id) with pushed branches remain invisible:
+- Not enqueued in integration queue (missing epic_id check)
+- No open PR created  
+- No queue activity beyond reconciliation interval
+
+Key files:
+- orchestrator.py: Main reconciliation, integration handling
+- integration_queue.py: Queue store and claim logic
+- scm.py: PR creation via provider.create_review()
+- statuses.py: READY_TO_INTEGRATE status constant
+
+Next: Implement standalone task detection + delivery (PR creation for standalone, idempotent)
 ---
 <!-- COMMENTS:END -->
