@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:35:07.041991Z'
-updated_at: '2026-07-30T04:39:12.573802Z'
+updated_at: '2026-07-30T04:44:02.555567Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -179,5 +179,10 @@ author: oompah
 created: 2026-07-30 04:39
 ---
 Understanding: This task requires extending the terminal maintenance cleanup in oompah/projects.py to recognize and prune epic repair workspaces. When an epic is terminal (merged/archived) with work_branch=epic-<id>, any auxiliary repair worktree at <worktree_root>/<id> on branch <id> should be auto-cleaned if: (1) it is the managed registered path, (2) it has the exact same-identifier branch, (3) it is clean and ancestor-safe (merged into main). Guards: never touch dirty worktrees, unmerged heads, shared branches, or different-identifier branches. Plan: explore oompah/projects.py cleanup logic, understand existing worktree cleanup guards, then add the auxiliary repair workspace cleanup as a narrowly-scoped extension with tests covering the real bare-remote scenario.
+---
+author: oompah
+created: 2026-07-30 04:44
+---
+Discovery: Found the key code. In projects.py, cleanup_terminal_issue() removes the epic-<id> worktree (epic_worktree_path_for) and branch. But it does NOT handle an auxiliary task-style repair workspace at <worktree_root>/<project>/<id> on branch <id> left by epic repair/planner runs. The fix: add _cleanup_epic_repair_workspace_locked() method to projects.py that, when called for terminal epics, finds and removes the exact managed task-style path/branch with guards: registered worktree, exact same-identifier branch, clean (git status --porcelain empty), ancestor-safe (git merge-base --is-ancestor). Tests will use a real bare-remote git repo with: (1) terminal epic having canonical epic work_branch + auxiliary <id> repair worktree/branch; (2) dirty worktree preserved; (3) unmerged head preserved; (4) shared branch (checked out elsewhere) preserved; (5) different-identifier branch preserved.
 ---
 <!-- COMMENTS:END -->
