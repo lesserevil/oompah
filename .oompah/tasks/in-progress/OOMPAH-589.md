@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-589
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Validate auditor provider endpoints before candidate dispatch
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:20.256845Z'
-updated_at: '2026-07-30T15:21:20.888849Z'
+updated_at: '2026-07-30T15:21:40.683961Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-589
 target_branch: null
 review_url: null
@@ -56,7 +56,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 0fc9638e-6798-4833-bfc2-38e8d3467f1a
+oompah.agent_run_id: 4a5dc853-b7f8-4aac-992d-180270962f56
 oompah.work_branch: epic-OOMPAH-585--task-OOMPAH-589
 oompah.integration:
   version: 1
@@ -286,5 +286,10 @@ Run #2 [attempt=2, profile=deep, role=deep -> Codex/gpt-5.6-sol]
 - Cost: $0.0000
 - Exit: normal, Duration: 27s
 - Log: OOMPAH-589__20260730T152054Z.jsonl
+---
+author: oompah
+created: 2026-07-30 15:21
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
