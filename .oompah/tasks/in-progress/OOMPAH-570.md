@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T23:53:31.874608Z'
-updated_at: '2026-07-30T00:05:46.804642Z'
+updated_at: '2026-07-30T00:07:57.448071Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -221,5 +221,33 @@ Tests added (7 new tests, all passing):
 - test_quality_gate_cleans_up_on_timeout
 
 All existing tests passing (19 total integration_queue + quality_gate tests, 266 orchestrator_handlers + 3 integration_executor).
+---
+author: oompah
+created: 2026-07-30 00:07
+---
+**Verification:** All tests passing.
+
+Test Results:
+- test_integration_queue.py: 7 tests (4 existing + 3 new) PASSED
+- test_quality_gate.py: 12 tests (9 existing + 3 new) PASSED  
+- test_integration_executor.py: 3 tests PASSED
+- test_worker_submission.py: 3 tests PASSED
+- test_orchestrator_handlers.py: 266 tests PASSED
+
+Total: 291 tests PASSED
+
+Implementation addresses all requirements:
+✓ Explicit retry flag distinguishes user submissions from background sync
+✓ Explicit retries clear blocked state for same head/branch
+✓ Background sync remains idempotent (doesn't unblock blocked rows)
+✓ Abandoned leases recovered at startup via recover_abandoned()
+✓ Quality gate process groups tracked and cleaned up on shutdown
+✓ All existing behavior preserved - no breaking changes
+
+Acceptance criteria met:
+✓ Operator never waits for hour-long lease after restart (abandoned recovery)
+✓ Same-head explicit resubmit clears blocked row (explicit_retry flag)
+✓ Background sync remains idempotent (explicit_retry=False)
+✓ Focused and orchestrator tests pass
 ---
 <!-- COMMENTS:END -->
