@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:20.256845Z'
-updated_at: '2026-07-30T16:52:13.574797Z'
+updated_at: '2026-07-30T16:58:49.543842Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-589
 target_branch: null
 review_url: null
@@ -809,5 +809,16 @@ Fix plan:
 2. Keep independent/whitelist filtering and preflight validation upstream (already implemented in earlier commits).
 3. Add regression tests exercising both cross-modes: (a) API worker with InferenceAPI target + auditor focus — provider must remain InferenceAPI; (b) ACP worker with Claude ACP target + auditor focus + non-default candidate — model/provider must remain the target's.
 4. Focused suites: orchestrator handlers, auditor dispatch, auditor candidate selector, focus triage.
+---
+author: oompah
+created: 2026-07-30 16:58
+---
+**Discovery**
+
+Confirmed the previous continuation run (16:37–16:53) already committed \`b252293d3 OOMPAH-589: Preserve forced auditor candidate binding\` — but never pushed. The commit was ahead of origin by 1. On re-verification, the intended edits I made to \`oompah/orchestrator.py\` matched the committed change exactly (working tree stayed clean after edits).
+
+Root cause / fix locations:
+- \`oompah/orchestrator.py :: _run_api_worker\` (~L20313) and \`_run_acp_worker\` (~L20967): both applied \`_resolve_focus_provider_override\` and \`_resolve_model\` after picking the target. Reserved auditor focus's \`model_role='auditor'\` re-resolves to the first auditor role candidate (default Claude ACP with blank base_url), silently replacing the InferenceAPI target — producing \`urljoin('', 'chat/completions') = '/chat/completions'\`.
+- Fix: when \`forced_auditor=True\` and \`target\` is supplied, both workers now bypass focus override resolution entirely. \`target.provider\` and \`target.model\` (from \`AuditDispatchPlan.candidate\`) are authoritative.
 ---
 <!-- COMMENTS:END -->
