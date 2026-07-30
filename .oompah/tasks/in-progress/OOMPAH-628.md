@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-628
 type: bug
-status: Backlog
+status: In Progress
 priority: 1
 title: Rearm explicitly resubmitted integrated queue rows
 parent: OOMPAH-585
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- human-only
 assignee: null
 created_at: '2026-07-30T22:37:04.318940Z'
-updated_at: '2026-07-30T22:37:04.318940Z'
+updated_at: '2026-07-30T22:37:16.503794Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -28,3 +29,11 @@ Implementation scope: distinguish an explicit operator resubmission of a task wh
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-30 22:37
+---
+Claimed directly to repair the live same-head integration queue deadlock before completing the epic rollout.
+---
+<!-- COMMENTS:END -->
