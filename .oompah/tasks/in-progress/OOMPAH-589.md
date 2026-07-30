@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:20.256845Z'
-updated_at: '2026-07-30T16:58:49.543842Z'
+updated_at: '2026-07-30T16:59:02.835940Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-589
 target_branch: null
 review_url: null
@@ -820,5 +820,27 @@ Confirmed the previous continuation run (16:37–16:53) already committed \`b252
 Root cause / fix locations:
 - \`oompah/orchestrator.py :: _run_api_worker\` (~L20313) and \`_run_acp_worker\` (~L20967): both applied \`_resolve_focus_provider_override\` and \`_resolve_model\` after picking the target. Reserved auditor focus's \`model_role='auditor'\` re-resolves to the first auditor role candidate (default Claude ACP with blank base_url), silently replacing the InferenceAPI target — producing \`urljoin('', 'chat/completions') = '/chat/completions'\`.
 - Fix: when \`forced_auditor=True\` and \`target\` is supplied, both workers now bypass focus override resolution entirely. \`target.provider\` and \`target.model\` (from \`AuditDispatchPlan.candidate\`) are authoritative.
+---
+author: oompah
+created: 2026-07-30 16:59
+---
+**Implementation & Verification**
+
+Pushed commit \`b252293d3\` to origin (was ahead by 1). Head commits on branch for OOMPAH-589:
+- \`b252293d3\` Preserve forced auditor candidate binding
+- \`c4644107f\` Make timeout tests deterministic under xdist
+- \`88d46cabb\` Harden provider diagnostic redaction
+- \`f2ffeaf47\` Validate auditor provider endpoints
+
+Focused test results:
+- \`tests/test_orchestrator_handlers.py\`: 272 passed (includes new \`TestRunApiWorkerWithTarget::test_forced_auditor_api_target_ignores_acp_focus_override\` and \`test_forced_auditor_acp_target_ignores_api_focus_override\` cross-mode regressions)
+- \`tests/test_auditor_dispatch.py\`, \`test_auditor_candidate_selector.py\`, \`test_auditor_focus.py\`, \`test_auditor_contract.py\`, \`test_provider_health.py\`, \`test_candidate_preflight.py\`, \`test_focus_triage.py\`: 230 passed total
+- \`tests/test_completion_verifier.py\`, \`test_issue_enhancer.py\`: 112 passed
+
+Total: 614 focused regression tests passing. Cross-mode regressions verify that when \`forced_auditor=True\` with an explicit \`DispatchTarget\`:
+1. API worker holds InferenceAPI target even when auditor role points to blank-URL ACP provider.
+2. ACP worker holds independent ACP target even when auditor role points to a per-token API provider.
+
+\`_resolve_focus_provider_override\` is never called (MagicMock.assert_not_called()) in the forced-auditor path, proving the guard is in the correct place.
 ---
 <!-- COMMENTS:END -->
