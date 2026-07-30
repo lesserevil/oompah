@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-593
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Integrate and live-verify scoped Codex task CLI authentication
 parent: OOMPAH-586
@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-30T14:14:54.281403Z'
-updated_at: '2026-07-30T15:49:10.351860Z'
+updated_at: '2026-07-30T15:49:22.242779Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-593
 target_branch: null
 review_url: null
@@ -61,12 +61,12 @@ oompah.agent_run_id: c2f5cf8d-6bbd-4a36-b286-ddde3df413ab
 oompah.work_branch: epic-OOMPAH-586--task-OOMPAH-593
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-586--task-OOMPAH-593
-  base_branch: epic-OOMPAH-586
-  base_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
-  updated_at: '2026-07-30T15:36:49.817032+00:00'
+  head_sha: 31b9f44e9511691cefad582e79017f92e179ddb3
+  submitted_at: '2026-07-30T15:49:19.989212+00:00'
+  updated_at: '2026-07-30T15:49:19.989212+00:00'
 oompah.task_costs:
   total_input_tokens: 281218
   total_output_tokens: 12318
@@ -395,5 +395,10 @@ author: oompah
 created: 2026-07-30 15:49
 ---
 Completion (Test Engineer): Delivered on branch epic-OOMPAH-586--task-OOMPAH-593. Commits: fe52c187f (docs), 13d5013a9 (OOMPAH-575 tests cherry-picked from origin/OOMPAH-575), 31b9f44e9 (new TestOrchestratorHandoffTokenMint live-path reproducer). Coverage now spans the full live path: orchestrator mint → AcpBackendOptions → subprocess env → task CLI → /api/v1/task-handoff endpoint. 91 focused-suite tests pass on the final head. OOMPAH-575's acceptance ('reaches Merged') is satisfied by rolling its commit up under this submission; the second half ('newly launched Codex worker completes the documented workflow') is protected by the six new orchestrator-mint tests that would catch any drift between what the mint grants and what the CLI/endpoint expect — the exact 401/403 failure mode the task warned about.
+---
+author: oompah
+created: 2026-07-30 15:49
+---
+Integrated OOMPAH-575 handoff-auth regression tests (11 cases across TestCodexHandoffAuth + TestHandoffTokenFailClosed) and added TestOrchestratorHandoffTokenMint (6 cases) as the missing live-path reproducer targeting Orchestrator._issue_task_handoff_token. Together they cover mint → env injection → CLI dispatch → endpoint validation. Docs (docs/scoped-task-cli-authentication.md) already documented the mechanism and probe. Focused suites: 91 passed. Mutation-tested drift-guard and least-privilege guard by editing the orchestrator and confirming both fail.
 ---
 <!-- COMMENTS:END -->
