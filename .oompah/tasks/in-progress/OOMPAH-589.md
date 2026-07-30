@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:20.256845Z'
-updated_at: '2026-07-30T15:34:02.501659Z'
+updated_at: '2026-07-30T15:40:46.731843Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-589
 target_branch: null
 review_url: null
@@ -578,5 +578,29 @@ author: oompah
 created: 2026-07-30 15:34
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-07-30 15:40
+---
+**Verification & Fix: Test Flakiness**
+
+The quality gate reported a single test failure: test_candidate_refresh_timeout_does_not_block_dispatch_loop. Root cause analysis:
+
+**Issue**: Timing-sensitive test with < 0.15s assertion failed under xdist CPU contention. The timeout mechanism was working correctly, but system load caused the timing threshold to be exceeded.
+
+**Pattern**: Same issue and fix pattern as OOMPAH-459 (maintenance-lane tick test).
+
+**Solution**: 
+- Increased blocking duration in test from 0.2s to 60s (sharpen distinction between 'timeout worked' and 'timeout failed')
+- Replaced strict timing assertion with loose assertion (< 2s vs. full 60s wait)
+- Added structural invariants (results only from fast project, metrics record timeout)
+- Applied same fix to related test_in_progress_refresh_timeout_uses_the_same_safe_boundary
+
+**Verification**:
+✅ Both timeout tests now pass individually and in full orchestrator handler suite (270 tests)
+✅ All focused provider health, auditor candidate selector, and dispatch tests pass (117 tests)
+✅ Tests deterministic under xdist parallelization
+
+Branch committed and pushed. Ready for full test suite run.
 ---
 <!-- COMMENTS:END -->
