@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-483
 type: feature
-status: Needs Human
+status: Ready to Integrate
 priority: 1
 title: Detect and block terminal-state writes that bypass the coordinator
 parent: OOMPAH-459
@@ -19,7 +19,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:31.119782Z'
-updated_at: '2026-07-30T02:32:49.512105Z'
+updated_at: '2026-07-30T02:41:38.516285Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-483
 target_branch: null
 review_url: null
@@ -110,12 +110,12 @@ oompah.task_costs:
     recorded_at: '2026-07-30T02:32:08.333773+00:00'
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-459--task-OOMPAH-483
-  base_branch: epic-OOMPAH-459
-  base_sha: f94236e267fecf7cf3549096665bedb79ea0d1a3
-  updated_at: '2026-07-30T02:32:35.528578+00:00'
+  head_sha: fdc930aced06bc29ac126fc1f947b0ef1d356a62
+  submitted_at: '2026-07-30T02:41:36.410777+00:00'
+  updated_at: '2026-07-30T02:41:36.410777+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
@@ -465,5 +465,15 @@ Run #2 [attempt=2, profile=deep, role=deep -> Codex/gpt-5.6-sol]
 - Cost: $0.0000
 - Exit: terminated, Duration: 18s
 - Log: OOMPAH-483__20260730T023240Z.jsonl
+---
+author: oompah
+created: 2026-07-30 02:41
+---
+Operator repair complete at pushed head fdc930aced. Added reusable AST terminal-mutation scanner, exact one-call allowlist with documented reasons, standalone CLI, Makefile gate, repository guard and positive/negative fixtures; routed the legacy API closed alias through a Done audit instead of tracker.close_issue. Verification: make terminal-audit-scan passed (6 identified/6 explicitly allowlisted); 150 focused terminal scanner/API/enforcement/coordinator tests passed; git diff --check clean; branch matches origin.
+---
+author: oompah
+created: 2026-07-30 02:41
+---
+Implemented the missing terminal-mutation CI guard and tests at fdc930aced; 150 focused tests pass and branch is pushed.
 ---
 <!-- COMMENTS:END -->
