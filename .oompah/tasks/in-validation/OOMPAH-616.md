@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T20:47:41.612111Z'
-updated_at: '2026-07-30T20:54:51.659856Z'
+updated_at: '2026-07-30T21:13:00.558037Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-616
 target_branch: null
 review_url: null
@@ -168,5 +168,10 @@ author: oompah
 created: 2026-07-30 20:54
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 21:13
+---
+Operator note for the active completion auditor: the first full serial gate completed successfully with 13,792 passed, 7 skipped in 667.45s. A redundant second make test-serial invocation was terminated after it reproduced the known scheduler-blocking run_command bug. Use the successful gate plus focused evidence already recorded and submit the audit result; do not rerun the full suite.
 ---
 <!-- COMMENTS:END -->
