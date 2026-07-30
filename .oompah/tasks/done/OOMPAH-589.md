@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-589
 type: bug
-status: In Validation
+status: Done
 priority: 1
 title: Validate auditor provider endpoints before candidate dispatch
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:20.256845Z'
-updated_at: '2026-07-30T18:27:18.096305Z'
+updated_at: '2026-07-30T18:29:04.466684Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-589
 target_branch: null
 review_url: null
@@ -168,6 +168,26 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     no-auditor-audit-aa20d9640624-1: '2026-07-30T18:13:26.422940+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-c5a87bf2a6d8
+    project_id: proj-14849f1b
+    task_id: OOMPAH-589
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 4e490d3dbf8746781376bbcf3a6b923c493c87dbaf97c614e2782aa4541fe82f
+    authorized_by:
+      version: 1
+      identity: lesserevil
+      source: api
+    reason: Break-glass completion after the fresh independent audit reviewed the
+      current evidence and concluded PASS, but its result could not be persisted because
+      the credential-safety task triggered a deterministic false-positive in verdict-message
+      validation. OOMPAH-608 tracks that boundary bug; the exact implementation head
+      passed the configured full gate and is deployed via OOMPAH-605.
+    created_at: '2026-07-30T18:29:02.219103+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -1064,5 +1084,12 @@ author: oompah
 created: 2026-07-30 18:27
 ---
 Auditor attempt ended: Stalled after 3 identical tool errors: submit_audit_result:Error: auditor result message contains a value that matches a known credential pattern; remove it before submitting. A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-07-30 18:29
+---
+Override by lesserevil: terminal transition to Done applied by project owner.
+
+Reason: Break-glass completion after the fresh independent audit reviewed the current evidence and concluded PASS, but its result could not be persisted because the credential-safety task triggered a deterministic false-positive in verdict-message validation. OOMPAH-608 tracks that boundary bug; the exact implementation head passed the configured full gate and is deployed via OOMPAH-605.
 ---
 <!-- COMMENTS:END -->
