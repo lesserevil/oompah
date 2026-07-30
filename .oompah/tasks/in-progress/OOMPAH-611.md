@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T19:15:55.237083Z'
-updated_at: '2026-07-30T19:39:28.353875Z'
+updated_at: '2026-07-30T19:40:52.635826Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-611
 target_branch: null
 review_url: null
@@ -213,5 +213,16 @@ author: oompah
 created: 2026-07-30 19:39
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-30 19:40
+---
+Understanding: The epic branch epic-OOMPAH-460 needs to be rebased onto origin/main to catch up with recent changes. I will:
+1. Checkout the epic-OOMPAH-460 branch
+2. Rebase it onto origin/main
+3. Resolve any conflicts that arise
+4. Force-push with git push --force-with-lease
+
+Currently on worktree branch epic-OOMPAH-460--task-OOMPAH-611. Will switch to epic-OOMPAH-460 to perform the rebase.
 ---
 <!-- COMMENTS:END -->
