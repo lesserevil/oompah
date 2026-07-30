@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-579
 type: task
-status: In Review
+status: Ready to Integrate
 priority: null
 title: Prune branchless terminal legacy epic-task worktrees
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T03:54:54.485192Z'
-updated_at: '2026-07-30T04:03:12.613877Z'
+updated_at: '2026-07-30T04:10:56.061698Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -75,6 +75,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-579
     source_sha: 98c6189d302507cd77248d1fd54ad723e0166fde
     completed_at: '2026-07-30T03:57:15.524576+00:00'
+oompah.integration:
+  version: 1
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-579
+  head_sha: a994cad2c31d26067b8942c58b15b02e9b457a13
+  submitted_at: '2026-07-30T04:10:53.032640+00:00'
+  updated_at: '2026-07-30T04:10:53.032640+00:00'
 ---
 ## Summary
 
@@ -137,5 +145,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 5m 46s
 - Log: OOMPAH-579__20260730T035729Z.jsonl
+---
+author: oompah
+created: 2026-07-30 04:10
+---
+Implemented narrow fallback cleanup for terminal task records with missing branch metadata when an exact managed epic-<same-id> legacy worktree exists. Added real bare-remote coverage for recorded and branchless forms; full make test passes (13,619 passed, 7 skipped). Commit a994cad2c pushed.
 ---
 <!-- COMMENTS:END -->
