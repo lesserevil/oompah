@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:20.256845Z'
-updated_at: '2026-07-30T16:35:11.357215Z'
+updated_at: '2026-07-30T16:37:53.758744Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-589
 target_branch: null
 review_url: null
@@ -771,5 +771,10 @@ author: oompah
 created: 2026-07-30 16:35
 ---
 Focus: Auth Http Default Specialist
+---
+author: oompah
+created: 2026-07-30 16:37
+---
+Implemented forced-auditor candidate binding in both API and ACP worker paths. Reserved auditor focus can no longer replace the exact provider/model persisted by AuditDispatchPlan. Added API→ACP and ACP→API cross-mode regressions. Focused auditor/orchestrator/preflight suites: 391 passed. Running the configured full gate next.
 ---
 <!-- COMMENTS:END -->
