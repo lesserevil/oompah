@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:01.749200Z'
-updated_at: '2026-07-30T18:45:17.759296Z'
+updated_at: '2026-07-30T18:45:31.202447Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-602
 target_branch: null
 review_url: null
@@ -94,13 +94,13 @@ oompah.work_contributors:
     source_sha: a6fbb7f03b8a9aea5790cfc9bc6b6355490d6a97
     completed_at: '2026-07-30T16:43:28.146242+00:00'
 oompah.task_costs:
-  total_input_tokens: 61041
-  total_output_tokens: 9901
+  total_input_tokens: 24987669
+  total_output_tokens: 44295
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 1850
-      output_tokens: 6581
+      input_tokens: 24928478
+      output_tokens: 40975
       cost_usd: 0.0
     unknown:
       input_tokens: 77
@@ -141,6 +141,12 @@ oompah.task_costs:
     output_tokens: 714
     cost_usd: 0.0
     recorded_at: '2026-07-30T16:43:28.141826+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 24926628
+    output_tokens: 34394
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T18:45:29.796366+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
@@ -391,5 +397,15 @@ author: oompah
 created: 2026-07-30 18:45
 ---
 Implemented fail-closed project scope resolution for merged-label maintenance. Legacy records are resolved through managed project ownership, ambiguous and explicit cross-project mismatches are skipped safely, and every maintenance lane uses the owning project tracker. Added regression coverage for ambiguity, mismatch, GitHub/native routing, restart safety, idempotency, and unscoped-tracker isolation. Commit 9e7f5328 pushed. Focused tests: 174 passed; terminal mutation scan passed. The Makefile gate could not enter uv setup because of the environment DBus transient-scope error; worktree-qualified fallback completed 13,705 passed, 7 skipped, with 3 unrelated baseline/environment failures.
+---
+author: oompah
+created: 2026-07-30 18:45
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 151
+- Tokens: 24.9M in / 34.4K out [25.0M total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 31m 49s
+- Log: OOMPAH-602__20260730T181348Z.jsonl
 ---
 <!-- COMMENTS:END -->
