@@ -188,6 +188,22 @@ class TestCandidatePreflight:
 
         assert result == "", f"Expected '', got {result!r}"
 
+    @pytest.mark.parametrize("endpoint", ["", "/v1", "ftp://provider.example/v1"])
+    def test_invalid_openai_endpoint_is_skipped_before_worker_start(self, tmp_path, endpoint):
+        provider = _api_provider()
+        provider.base_url = endpoint
+        orch = _make_orchestrator(tmp_path)
+        target = _make_target(provider=provider, model="m1")
+
+        assert orch._candidate_preflight(target) == "invalid_base_url"
+
+    def test_acp_dispatch_can_skip_openai_endpoint_check(self, tmp_path):
+        provider = _acp_provider()
+        orch = _make_orchestrator(tmp_path)
+        target = _make_target(provider=provider, model=None)
+
+        assert orch._candidate_preflight(target) == ""
+
     def test_usable_candidate_with_budget_under_limit(self, tmp_path):
         """When budget is under limit, a paid model returns '' (usable)."""
         prov = _api_provider(

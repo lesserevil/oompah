@@ -357,6 +357,20 @@ class TestEnhanceIssue:
                 model="m",
             )
 
+    def test_rejects_relative_base_url_before_http_call(self, tmp_path):
+        (tmp_path / "AGENTS.md").write_text("rules")
+        provider = _make_provider(base_url="/v1")
+        with patch("oompah.api_agent._http_post") as mock_post:
+            with pytest.raises(IssueEnhancerError, match="absolute"):
+                enhance_issue(
+                    title="t",
+                    description=None,
+                    repo_path=str(tmp_path),
+                    provider=provider,
+                    model="m",
+                )
+        mock_post.assert_not_called()
+
     def test_http_failure_propagates_as_enhancer_error(self, tmp_path):
         (tmp_path / "AGENTS.md").write_text("rules")
         with patch("oompah.api_agent._http_post", side_effect=RuntimeError("boom")):

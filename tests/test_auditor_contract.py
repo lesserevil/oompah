@@ -182,6 +182,28 @@ def test_api_auditor_policy_intersects_caller_tool_selection():
     } == {"read_file", AUDITOR_RESULT_TOOL_NAME}
 
 
+@pytest.mark.parametrize("endpoint", ["", "/v1", "ftp://provider.example/v1"])
+def test_api_session_rejects_invalid_openai_base_before_url_construction(endpoint):
+    with pytest.raises(ValueError, match="base_url"):
+        ApiAgentSession(
+            base_url=endpoint,
+            api_key="key",
+            model="model",
+            workspace_path=".",
+        )
+
+
+def test_api_session_constructs_only_absolute_chat_endpoint():
+    session = ApiAgentSession(
+        base_url="https://provider.example/v1/",
+        api_key="key",
+        model="model",
+        workspace_path=".",
+    )
+
+    assert session._url == "https://provider.example/v1/chat/completions"
+
+
 def test_auditor_dynamic_metadata_cannot_escape_trusted_json_block():
     prompt = render_auditor_prompt(
         _issue(),

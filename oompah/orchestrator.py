@@ -36,6 +36,7 @@ from oompah.authority_boundary import (
     operator_policy,
 )
 from oompah.completion_verifier import VerifierResult, verify_completion
+from oompah.provider_health import openai_base_url_error
 from oompah.coordination import CoordinationStore, derive_peer_suggestions
 from oompah.dependency_graph import (
     dependency_parent_has_landed,
@@ -17591,7 +17592,12 @@ class Orchestrator:
 
         return []
 
-    def _candidate_preflight(self, target: "DispatchTarget") -> str:
+    def _candidate_preflight(
+        self,
+        target: "DispatchTarget",
+        *,
+        require_openai_endpoint: bool | None = None,
+    ) -> str:
         """Check whether a candidate can reasonably be used before starting a worker.
 
         Returns an empty string when the candidate is usable, or a normalized
@@ -17609,6 +17615,9 @@ class Orchestrator:
           providers and explicitly-free models are allowed through.
         * ``"invalid_model"`` — ``target.model`` is set but absent from
           ``provider.models`` (and not equal to ``provider.default_model``).
+        * ``"invalid_base_url"`` — an OpenAI-compatible candidate does not
+          have an absolute HTTP(S) base URL. ACP candidates do not use this
+          transport and are excluded from this check.
 
         Log lines produced here must not include ``provider.api_key`` or any
         other secret value.  Only the normalized reason and the
@@ -17620,6 +17629,21 @@ class Orchestrator:
         provider = target.provider
         model = target.model
         provider_mode = (getattr(provider, "mode", "api") or "api").lower()
+
+        if require_openai_endpoint is None:
+            require_openai_endpoint = provider_mode != "acp"
+        if require_openai_endpoint:
+            endpoint_error = openai_base_url_error(
+                getattr(provider, "base_url", "")
+            )
+            if endpoint_error is not None:
+                logger.warning(
+                    "Preflight skip candidate %s (role=%s, provider=%s): invalid_base_url",
+                    target.candidate_key,
+                    target.role_name or "legacy",
+                    getattr(provider, "name", target.candidate_key),
+                )
+                return "invalid_base_url"
 
         # 1. Missing credentials. ACP providers are SDK-managed and do not need
         #    an API key in the provider record. API providers may point at
@@ -20164,7 +20188,24 @@ class Orchestrator:
         last_startup_error: ProviderStartupError | None = None
         for target in targets:
             # --- Preflight: check availability before starting the worker ---
-            preflight_skip = self._candidate_preflight(target)
+            require_openai_endpoint = not (
+                mode == "acp"
+                or str(getattr(target.provider, "mode", "api") or "api").casefold()
+                == "acp"
+            )
+            try:
+                preflight_skip = self._candidate_preflight(
+                    target,
+                    require_openai_endpoint=require_openai_endpoint,
+                )
+            except TypeError as exc:
+                # Keep compatibility with integrations that replace the
+                # preflight hook with the original one-argument callable.
+                # Only the signature mismatch is retried; real TypeErrors
+                # from a preflight implementation still propagate.
+                if "require_openai_endpoint" not in str(exc):
+                    raise
+                preflight_skip = self._candidate_preflight(target)
             if preflight_skip:
                 skip_reasons.append(f"{target.candidate_key}: {preflight_skip}")
                 continue
@@ -20403,6 +20444,21 @@ class Orchestrator:
                     "Model %s is provider.default_model but not in provider.models; proceeding with dispatch",
                     model,
                 )
+
+        # Re-check after focus/provider overrides and immediately before
+        # setup/session construction. Provider records can change at runtime
+        # after the dispatch target was selected; a stale valid target must
+        # never make the API agent construct a relative or malformed URL.
+        endpoint_error = openai_base_url_error(getattr(provider, "base_url", ""))
+        if endpoint_error is not None:
+            msg = f"Invalid OpenAI-compatible provider endpoint: {endpoint_error}"
+            if target is not None:
+                raise ProviderStartupError(
+                    msg,
+                    candidate_key=target.candidate_key,
+                    reason="invalid_base_url",
+                )
+            raise ValueError(msg)
 
         # Resolve modality capabilities for the (provider, model) pair.
         # Used by the prompt renderer to decide whether to embed
@@ -24007,9 +24063,10 @@ Return ONLY a JSON object (no markdown fences, no commentary):
 
             # Make API call (single turn, no tools)
             from oompah.api_agent import _build_ssl_context, _http_post
+            from oompah.provider_health import openai_chat_completions_url
 
             ssl_ctx = _build_ssl_context()
-            url = f"{provider.base_url}/chat/completions"
+            url = openai_chat_completions_url(provider.base_url)
             headers = {
                 "Content-Type": "application/json",
                 "Authorization": f"Bearer {provider.api_key}",

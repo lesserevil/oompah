@@ -518,6 +518,7 @@ def run_stage2_sync(
     if not base_url:
         result.error = "no base_url on provider"
         return result
+    from oompah.provider_health import openai_chat_completions_url
 
     model = (getattr(provider, "model_roles", None) or {}).get("fast")
     if not model:
@@ -543,7 +544,11 @@ def run_stage2_sync(
         "Authorization": f"Bearer {getattr(provider, 'api_key', None) or ''}",
         "User-Agent": "oompah/0.1 completion-verifier",
     }
-    url = f"{base_url}/chat/completions"
+    try:
+        url = openai_chat_completions_url(getattr(provider, "base_url", ""))
+    except ValueError as exc:
+        result.error = str(exc)
+        return result
 
     try:
         from oompah.api_agent import _build_ssl_context, _http_post  # lazy

@@ -5477,3 +5477,54 @@ class TestRunApiWorkerWithTarget:
                                 # No target — legacy path
                             )
                         )
+
+    def test_runtime_endpoint_mutation_fails_before_worker_setup(self, tmp_path):
+        """A target selected with a valid URL cannot use a later invalid one."""
+        from oompah.orchestrator import DispatchTarget, ProviderStartupError
+        from oompah.roles import Candidate
+
+        prov = MagicMock()
+        prov.name = "TestProv"
+        prov.id = "p1"
+        prov.base_url = "https://provider.example/v1"
+        prov.api_key = "sk-runtime-secret"
+        prov.mode = "api"
+        prov.models = ["m-valid"]
+        prov.default_model = "m-valid"
+        prov.model_roles = {}
+        prov.get_model_context = MagicMock(return_value=None)
+
+        orch = _make_orchestrator(tmp_path)
+        orch._on_worker_exit = AsyncMock()
+
+        target = DispatchTarget(
+            role_name="fast",
+            provider=prov,
+            model="m-valid",
+            candidate_key="p1/m-valid",
+            source="role:fast[0]",
+            candidate=Candidate(provider_id="p1", model="m-valid"),
+        )
+
+        with patch("oompah.orchestrator.select_focus_async") as mock_focus:
+            def mutate_runtime_provider(*args, **kwargs):
+                prov.base_url = "/v1"
+                return Focus(name="f", role="r", description="d")
+
+            mock_focus.side_effect = mutate_runtime_provider
+            with patch.object(orch, "_create_workspace_for_issue") as setup:
+                with pytest.raises(ProviderStartupError) as exc_info:
+                    asyncio.run(
+                        orch._run_api_worker(
+                            _make_issue("runtime-url"),
+                            attempt=1,
+                            profile=_profile(mode="api", model_role="fast"),
+                            provider=prov,
+                            target=target,
+                        )
+                    )
+
+        assert exc_info.value.reason == "invalid_base_url"
+        assert exc_info.value.candidate_key == "p1/m-valid"
+        assert "sk-runtime-secret" not in str(exc_info.value)
+        setup.assert_not_called()

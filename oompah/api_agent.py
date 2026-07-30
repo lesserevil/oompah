@@ -34,6 +34,7 @@ from oompah.auditor import (
     check_auditor_session_target,
     submit_auditor_result,
 )
+from oompah.provider_health import openai_chat_completions_url
 
 logger = logging.getLogger(__name__)
 
@@ -1129,8 +1130,12 @@ class ApiAgentSession:
         audit_target: Any = None,
         audit_result_handler: Any = None,
     ):
-        # Strip trailing slash for clean URL joining
-        self.base_url = base_url.rstrip("/")
+        # Validate before joining.  In particular, an absent base must never
+        # turn into the relative path ``/chat/completions``.  This constructor
+        # is also the last guard for runtime provider mutations after
+        # candidate selection.
+        self.base_url = base_url.strip().rstrip("/") if isinstance(base_url, str) else base_url
+        self._url = openai_chat_completions_url(self.base_url)
         self._api_key = api_key
         self.model = model
         self.workspace = Path(workspace_path).resolve()
@@ -1178,7 +1183,6 @@ class ApiAgentSession:
         self.audit_target = audit_target
         self.audit_result_handler = audit_result_handler
         self._ssl_ctx = _build_ssl_context()
-        self._url = f"{self.base_url}/chat/completions"
 
     def _log_event(self, kind: str, **fields: Any) -> None:
         """Append one JSONL record to ``self.log_path`` (best-effort).

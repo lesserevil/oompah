@@ -441,6 +441,11 @@ def enhance_issue(
     base_url = (getattr(provider, "base_url", "") or "").rstrip("/")
     if not base_url:
         raise IssueEnhancerError("provider has no base_url configured")
+    from oompah.provider_health import openai_chat_completions_url
+    try:
+        url = openai_chat_completions_url(getattr(provider, "base_url", ""))
+    except ValueError as exc:
+        raise IssueEnhancerError(str(exc)) from exc
     if not model:
         raise IssueEnhancerError("no model resolved for the 'default' role")
 
@@ -457,8 +462,6 @@ def enhance_issue(
         "Authorization": f"Bearer {getattr(provider, 'api_key', None) or ''}",
         "User-Agent": "oompah/0.1 issue-enhancer",
     }
-    url = f"{base_url}/chat/completions"
-
     try:
         from oompah.api_agent import _build_ssl_context, _http_post  # lazy
 

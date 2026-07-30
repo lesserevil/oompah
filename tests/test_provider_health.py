@@ -29,6 +29,9 @@ from oompah.provider_health import (
     _normalize_acp_error,
     _normalize_http_error,
     _normalize_url_error,
+    openai_base_url_error,
+    openai_chat_completions_url,
+    validate_openai_base_url,
     _pick_model,
     run_acp_health_check,
     run_health_check,
@@ -454,6 +457,53 @@ class TestTestProviderUnit:
         result = run_health_check(p)
         assert result.success is False
         assert result.error_reason == "provider_unavailable"
+
+    @pytest.mark.parametrize(
+        "endpoint",
+        ["/v1", "ftp://provider.example/v1", "https:///v1", "https://bad port/v1"],
+    )
+    def test_relative_or_malformed_base_url_is_rejected_before_network(self, endpoint):
+        p = _make_provider(base_url=endpoint)
+        with patch("urllib.request.urlopen") as mock_open:
+            result = run_health_check(p)
+
+        assert result.success is False
+        assert result.error_reason == "invalid_base_url"
+        assert "http://" in result.error_detail or "credentials" in result.error_detail
+        mock_open.assert_not_called()
+
+    def test_valid_base_url_builds_absolute_chat_endpoint(self):
+        assert validate_openai_base_url("https://provider.example/v1/")
+        assert openai_base_url_error("https://provider.example/v1/") is None
+        assert openai_chat_completions_url("https://provider.example/v1/") == (
+            "https://provider.example/v1/chat/completions"
+        )
+
+    def test_embedded_credentials_are_rejected_without_echoing_secret(self):
+        secret = "very-secret-password"
+        result = run_health_check(
+            _make_provider(base_url=f"https://user:{secret}@provider.example/v1")
+        )
+
+        assert result.error_reason == "invalid_base_url"
+        serialized = str(result.to_dict())
+        assert secret not in serialized
+
+    def test_health_serialization_redacts_credentials_from_upstream_text(self):
+        result = ProviderTestResult(
+            provider_id="p",
+            provider_name="provider",
+            model="model",
+            success=False,
+            latency_ms=0,
+            response_text="api_key=sk-secret",
+            error_reason="provider_unavailable",
+            error_detail="Authorization: Bearer sk-secret",
+        )
+
+        serialized = result.to_dict()
+        assert "sk-secret" not in str(serialized)
+        assert "[REDACTED]" in str(serialized)
 
     def test_acp_provider_sync_guard_returns_provider_unavailable(self):
         """The synchronous path can't drive a session — it returns a guard
