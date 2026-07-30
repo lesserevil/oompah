@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:25:29.809048Z'
-updated_at: '2026-07-30T22:24:11.164856Z'
+updated_at: '2026-07-30T22:24:51.150788Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-621
 target_branch: null
 review_url: null
@@ -118,5 +118,38 @@ author: oompah
 created: 2026-07-30 22:24
 ---
 Focus: Technical Writer
+---
+author: oompah
+created: 2026-07-30 22:24
+---
+**Understanding & Plan:**
+
+Task is to document and integration-test CLI credential precedence. I've identified the implementation in oompah/client_auth.py which already has clear credential resolution logic.
+
+**Key findings:**
+1. Credential resolver (client_auth.py) has complete precedence:
+   - Username: CLI --username > OOMPAH_SERVER_USERNAME env
+   - Password: CLI --password-file > OOMPAH_SERVER_PASSWORD_FILE env > OOMPAH_SERVER_PASSWORD env
+   - Mutually exclusive: both password sources cannot be set
+   - Username required if password is set; password required if username is set
+
+2. Current docs (authentication.md, cli-install.md) cover basics but lack:
+   - Explicit credential precedence rules in a clear table/list format
+   - Examples using CLI flags, environment variables, password files, and netrc
+   - Secure usage warnings about process visibility
+   - Documentation contract test
+   - End-to-end install-from-revision integration test
+
+3. .env.example already has placeholder documentation
+
+**Implementation plan:**
+1. Update docs/authentication.md with explicit precedence and examples
+2. Update docs/cli-install.md with credential precedence section
+3. Create test_docs_authentication_contract.py to verify docs/help alignment
+4. Create integration test for install-from-revision compatibility
+5. Run focused tests before handoff
+6. Commit and submit
+
+Starting with discovery of existing test structure and doc references.
 ---
 <!-- COMMENTS:END -->
