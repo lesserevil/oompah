@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-30T14:14:54.281403Z'
-updated_at: '2026-07-30T20:21:20.587950Z'
+updated_at: '2026-07-30T20:21:32.997899Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-593
 target_branch: null
 review_url: null
@@ -68,13 +68,13 @@ oompah.integration:
   submitted_at: '2026-07-30T20:21:18.258383+00:00'
   updated_at: '2026-07-30T20:21:18.258383+00:00'
 oompah.task_costs:
-  total_input_tokens: 1808769
-  total_output_tokens: 32444
+  total_input_tokens: 1809303
+  total_output_tokens: 32591
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 130
-      output_tokens: 4252
+      input_tokens: 664
+      output_tokens: 4399
       cost_usd: 0.0
     sonnet:
       input_tokens: 281088
@@ -131,6 +131,12 @@ oompah.task_costs:
     output_tokens: 1271
     cost_usd: 0.0
     recorded_at: '2026-07-30T18:19:20.562426+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 534
+    output_tokens: 147
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T20:21:31.454457+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-593__20260730T150438Z
@@ -780,5 +786,15 @@ author: oompah
 created: 2026-07-30 20:21
 ---
 Scoped task CLI authentication fully implemented and tested. Documentation complete. OOMPAH-575 handoff-auth regression tests integrated. Full test suite passes (13711 tests). Branch ready for merge.
+---
+author: oompah
+created: 2026-07-30 20:21
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 28
+- Tokens: 534 in / 147 out [681 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 7m 36s
+- Log: OOMPAH-593__20260730T201404Z.jsonl
 ---
 <!-- COMMENTS:END -->
