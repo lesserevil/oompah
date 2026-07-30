@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-479
 type: feature
-status: In Validation
+status: Done
 priority: 1
 title: Route webhook, YOLO, and merged-branch reconciliation through Merged audits
 parent: OOMPAH-459
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:27.240594Z'
-updated_at: '2026-07-30T02:08:51.312114Z'
+updated_at: '2026-07-30T02:17:50.376286Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-479
 target_branch: null
 review_url: null
@@ -113,6 +113,8 @@ oompah.work_contributors:
     completed_at: '2026-07-30T01:54:22.666303+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-96784c9d8f70: '2026-07-30T02:17:47.650713+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -120,7 +122,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-479
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -129,7 +131,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-96784c9d8f70
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -139,13 +141,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-30T02:07:43.511844+00:00'
       branch_key: epic-OOMPAH-459--task-OOMPAH-479
+      verdict: pass
+      completed_at: '2026-07-30T02:17:47.650547+00:00'
+      ended_at: '2026-07-30T02:17:47.650547+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-30T02:07:33.872646+00:00'
-    updated_at: '2026-07-30T02:07:43.511844+00:00'
+    updated_at: '2026-07-30T02:17:47.650547+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-96784c9d8f70
@@ -570,5 +575,20 @@ author: oompah
 created: 2026-07-30 02:08
 ---
 Fresh combined-tree gate passed at integrated head d61679dbe: 13,669 passed, 7 skipped, 40 warnings in 245.21s (BranchQualityGate duration 249.34s, cached=false). Queue row is integrated and terminal audit is active.
+---
+author: oompah
+created: 2026-07-30 02:17
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: d61679dbe4d99414a6c941d425abfc3cd7109341
+- focused_tests: test_orchestrator_merged.py 160 passed; test_epic_strategy+test_epic_auto_close+test_merge_queue 337 passed; test_server_webhooks+test_terminal_transition_coordinator+test_orchestrator_handlers 501 passed; test_intake_promotion.py 16 passed
+- direct_tracker_merged_writes_remaining_in_orchestrator: 0
+- helper_added: _request_merged_via_coordinator (sync wrapper around request_terminal_transition)
+- coordinator_call_sites: done-review-reconciliation x2, merged-label-maintenance, stale-in-review-reconciliation, epic-rollup-reconciliation x2, yolo-merge
+- flake_fix_commit: d61679dbe4d99414a6c941d425abfc3cd7109341
 ---
 <!-- COMMENTS:END -->
