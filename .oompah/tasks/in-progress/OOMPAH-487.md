@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:26.170630Z'
-updated_at: '2026-07-30T05:27:20.999914Z'
+updated_at: '2026-07-30T05:27:38.446359Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-487
 target_branch: null
 review_url: null
@@ -281,5 +281,10 @@ author: oompah
 created: 2026-07-30 05:27
 ---
 Focus: Technical Writer
+---
+author: oompah
+created: 2026-07-30 05:27
+---
+Understanding: This task requires documenting the auditor system in oompah. I will: (1) explore existing code to understand the auditor implementation, (2) add OOMPAH_AUDIT_MAX_ATTEMPTS to .env.example and ServiceConfig, (3) write docs/auditor-configuration.md covering role, independence rules, whitelist effects, target-specific audits, In Validation state, failure routing, owner override, no-candidate recovery, upgrade grandfathering, and restart behavior with Mermaid diagrams, (4) deprecate OOMPAH_VERIFY_COMPLETION and OOMPAH_VERIFY_COMPLETION_LLM with startup warnings, (5) add tests for config parsing, deprecation warnings, and doc content. Starting exploration now.
 ---
 <!-- COMMENTS:END -->
