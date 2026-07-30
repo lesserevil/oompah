@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:26.170630Z'
-updated_at: '2026-07-30T05:27:38.446359Z'
+updated_at: '2026-07-30T05:29:19.325057Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-487
 target_branch: null
 review_url: null
@@ -286,5 +286,10 @@ author: oompah
 created: 2026-07-30 05:27
 ---
 Understanding: This task requires documenting the auditor system in oompah. I will: (1) explore existing code to understand the auditor implementation, (2) add OOMPAH_AUDIT_MAX_ATTEMPTS to .env.example and ServiceConfig, (3) write docs/auditor-configuration.md covering role, independence rules, whitelist effects, target-specific audits, In Validation state, failure routing, owner override, no-candidate recovery, upgrade grandfathering, and restart behavior with Mermaid diagrams, (4) deprecate OOMPAH_VERIFY_COMPLETION and OOMPAH_VERIFY_COMPLETION_LLM with startup warnings, (5) add tests for config parsing, deprecation warnings, and doc content. Starting exploration now.
+---
+author: oompah
+created: 2026-07-30 05:29
+---
+Discovery: Reviewed the branch HEAD commit (3c6e5a8). All required work is already committed and pushed. The branch contains: docs/auditor-dispatch-operations.md (333 lines, comprehensive operator guide with Mermaid lifecycle diagram), updates to docs/task-epic-workflow.md (In Validation state, auditor verdict flows), docs/operator-runbook.md (deprecation migration steps), .env.example (OOMPAH_AUDIT_MAX_ATTEMPTS section + DEPRECATED notices for VERIFY_COMPLETION vars), oompah/config.py (audit fields in ServiceConfig, warn_deprecated_verify_completion_vars()), and tests/test_config.py (19 tests in TestAuditDispatchConfiguration).
 ---
 <!-- COMMENTS:END -->
