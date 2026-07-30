@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-604
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Allow owner overrides after terminal-audit evidence supersession
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T17:07:44.032640Z'
-updated_at: '2026-07-30T17:19:12.269609Z'
+updated_at: '2026-07-30T17:23:40.211792Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-604
 target_branch: null
 review_url: null
@@ -47,12 +47,15 @@ oompah.agent_run_id: f5298e77-99d4-4298-8f50-76eb05df55f4
 oompah.work_branch: epic-OOMPAH-585--task-OOMPAH-604
 oompah.integration:
   version: 1
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-585--task-OOMPAH-604
+  base_branch: epic-OOMPAH-585
+  base_sha: b252293d3fc950f79a342c74b51d3285f62ecf4c
   head_sha: 4cd5ddfae7384bbb7022d2562149468f0127a35e
+  integrated_sha: 4cd5ddfae7384bbb7022d2562149468f0127a35e
   submitted_at: '2026-07-30T17:18:47.380173+00:00'
-  updated_at: '2026-07-30T17:18:47.380173+00:00'
+  updated_at: '2026-07-30T17:23:36.023801+00:00'
 oompah.task_costs:
   total_input_tokens: 1840201
   total_output_tokens: 12108
@@ -99,6 +102,28 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-585--task-OOMPAH-604
     source_sha: b252293d3fc950f79a342c74b51d3285f62ecf4c
     completed_at: '2026-07-30T17:14:34.922459+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-c55cdf449369
+    project_id: proj-14849f1b
+    task_id: OOMPAH-604
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0f613657d486fa940f53b02ce2189b529f124964715d216756a0e0ddb4956f35
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-30T17:23:37.458459+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -216,5 +241,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 4m 17s
 - Log: OOMPAH-604__20260730T171500Z.jsonl
+---
+author: oompah
+created: 2026-07-30 17:23
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
