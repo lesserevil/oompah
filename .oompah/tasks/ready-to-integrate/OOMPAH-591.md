@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-591
 type: task
-status: In Validation
+status: Ready to Integrate
 priority: 1
 title: Reconcile the pending audit backlog and stale In Validation tasks
 parent: OOMPAH-585
@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:26.620047Z'
-updated_at: '2026-07-30T21:17:38.625551Z'
+updated_at: '2026-07-30T22:15:06.653200Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-591
 target_branch: null
 review_url: null
@@ -721,5 +721,10 @@ author: oompah
 created: 2026-07-30 20:54
 ---
 Corrected the stale queue/work-branch identity by resubmitting the existing implementation from canonical branch epic-OOMPAH-585--task-OOMPAH-591 at 3af9b8104. No new implementation changes; wait for hard prerequisite OOMPAH-616.
+---
+author: oompah
+created: 2026-07-30 22:15
+---
+Reflowing the already-integrated implementation through the normal integration lane after repairing the two observed audit races. This produces one fresh evidence revision that supersedes both stale pending Done audits. Do not dispatch implementation work; the branch is already contained in epic-OOMPAH-585 and needs audit only.
 ---
 <!-- COMMENTS:END -->
