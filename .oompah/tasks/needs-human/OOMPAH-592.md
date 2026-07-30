@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-592
 type: feature
-status: Done
+status: Needs Human
 priority: 1
 title: Alert on terminal-audit launch failures and backlog age
 parent: OOMPAH-585
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:28.755226Z'
-updated_at: '2026-07-30T19:06:26.616406Z'
+updated_at: '2026-07-30T23:32:44.020148Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-592
 target_branch: null
 review_url: null
@@ -347,5 +347,10 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 8m 38s
 - Log: OOMPAH-592__20260730T185845Z.jsonl
+---
+author: oompah
+created: 2026-07-30 23:32
+---
+The parent epic OOMPAH-585 merged from epic-OOMPAH-585, but this task was Done with work branch epic-OOMPAH-585--task-OOMPAH-592. Its work is not proven to be in the merged epic. Git evidence: OOMPAH-592 branch epic-OOMPAH-585--task-OOMPAH-592 has 3 unlanded commit(s), including cc261493377c. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
 ---
 <!-- COMMENTS:END -->

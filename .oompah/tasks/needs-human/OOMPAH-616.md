@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-616
 type: bug
-status: Done
+status: Needs Human
 priority: 1
 title: Integrate terminal-audit retry ownership fencing
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T20:47:41.612111Z'
-updated_at: '2026-07-30T21:31:15.643708Z'
+updated_at: '2026-07-30T23:32:45.581662Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-616
 target_branch: null
 review_url: null
@@ -351,5 +351,10 @@ Run #3 [attempt=3, profile=auditor, role=auditor -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: terminated, Duration: 3m 23s
 - Log: OOMPAH-616__20260730T212757Z.jsonl
+---
+author: oompah
+created: 2026-07-30 23:32
+---
+The parent epic OOMPAH-585 merged from epic-OOMPAH-585, but this task was Done with work branch epic-OOMPAH-585--task-OOMPAH-616. Its work is not proven to be in the merged epic. Git evidence: OOMPAH-616 branch epic-OOMPAH-585--task-OOMPAH-616 has 4 unlanded commit(s), including cc261493377c. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
 ---
 <!-- COMMENTS:END -->

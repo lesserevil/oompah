@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-591
 type: task
-status: Done
+status: Needs Human
 priority: 1
 title: Reconcile the pending audit backlog and stale In Validation tasks
 parent: OOMPAH-585
@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:26.620047Z'
-updated_at: '2026-07-30T22:39:00.860114Z'
+updated_at: '2026-07-30T23:32:42.375222Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-591
 target_branch: null
 review_url: null
@@ -828,5 +828,10 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 8m 8s
 - Log: OOMPAH-591__20260730T223057Z.jsonl
+---
+author: oompah
+created: 2026-07-30 23:32
+---
+The parent epic OOMPAH-585 merged from epic-OOMPAH-585, but this task was Done with work branch epic-OOMPAH-585--task-OOMPAH-591. Its work is not proven to be in the merged epic. Git evidence: OOMPAH-591 branch epic-OOMPAH-585--task-OOMPAH-591 has 9 unlanded commit(s), including cc261493377c. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
 ---
 <!-- COMMENTS:END -->
