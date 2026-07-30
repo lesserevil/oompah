@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:31.072278Z'
-updated_at: '2026-07-30T14:19:07.632533Z'
+updated_at: '2026-07-30T14:19:12.127680Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,3 +42,11 @@ The project reports zero unexplained Ready/In Validation/blocked rows, OOMPAH-46
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-30 14:19
+---
+Project-owner-approved green recovery work; dispatch under recorded dependencies and acceptance criteria.
+---
+<!-- COMMENTS:END -->

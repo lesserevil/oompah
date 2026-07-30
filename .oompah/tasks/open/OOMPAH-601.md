@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-601
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Aggregate branch-ownership cleanup skips without warning floods
 parent: OOMPAH-588
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:00.331568Z'
-updated_at: '2026-07-30T14:17:19.955265Z'
+updated_at: '2026-07-30T14:19:19.315800Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,3 +39,11 @@ Normal shared-branch ownership produces no warning flood, cleanup remains safe, 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-30 14:19
+---
+Project-owner-approved green recovery work; dispatch under recorded dependencies and acceptance criteria.
+---
+<!-- COMMENTS:END -->

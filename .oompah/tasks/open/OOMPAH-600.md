@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-600
 type: task
-status: Backlog
+status: Open
 priority: 1
 title: Integrate OOMPAH-581 and prune current safe terminal workspaces
 parent: OOMPAH-588
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:58.634342Z'
-updated_at: '2026-07-30T14:17:34.729739Z'
+updated_at: '2026-07-30T14:19:14.650248Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -47,5 +47,10 @@ author: oompah
 created: 2026-07-30 14:17
 ---
 Coordination: OOMPAH-598 owns delivery of OOMPAH-581. This task hard-starts after OOMPAH-598 and owns only deployment verification plus live safe cleanup/pruning; do not independently open or merge a second OOMPAH-581 delivery path.
+---
+author: oompah
+created: 2026-07-30 14:19
+---
+Project-owner-approved green recovery work; dispatch under recorded dependencies and acceptance criteria.
 ---
 <!-- COMMENTS:END -->

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-602
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Repair project scope propagation in merged-label maintenance
 parent: OOMPAH-588
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:01.749200Z'
-updated_at: '2026-07-30T14:16:01.749200Z'
+updated_at: '2026-07-30T14:19:23.941344Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,3 +38,11 @@ The merged_labels maintenance lane completes with last_error null; OOMPAH-476 is
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-30 14:19
+---
+Project-owner-approved green recovery work; dispatch under recorded dependencies and acceptance criteria.
+---
+<!-- COMMENTS:END -->
