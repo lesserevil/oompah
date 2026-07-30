@@ -1132,8 +1132,9 @@ class TestRemoveWorktreeCleanup:
             == ""
         )
 
+    @pytest.mark.parametrize("recorded_branch", ["epic-TASK-42", None])
     def test_terminal_cleanup_deletes_legacy_epic_named_task_workspace(
-        self, tmp_path
+        self, tmp_path, recorded_branch
     ):
         remote = tmp_path / "origin.git"
         repo = tmp_path / "checkout"
@@ -1221,7 +1222,7 @@ class TestRemoveWorktreeCleanup:
         changed = store.cleanup_terminal_issue(
             project.id,
             "TASK-42",
-            branch_name=legacy_branch,
+            branch_name=recorded_branch,
             is_epic=False,
         )
 
