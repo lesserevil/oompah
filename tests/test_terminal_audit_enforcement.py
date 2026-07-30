@@ -323,3 +323,261 @@ def test_new_orchestrator_recovers_after_operator_repairs_corrupt_state(tmp_path
     assert result["baseline_initialized"] is True
     assert result["quarantined"] is False
     assert result["errors"] == []
+
+
+# Recovery tests for pending audit backlog
+class TestAuditBacklogRecovery:
+    """Test idempotent recovery of pending audit backlog."""
+
+    def test_multi_request_audit_chain_deduplicates_on_recovery(self, tmp_path):
+        """Multiple pending records in the same chain are deduplicated."""
+        tracker = _Tracker([_issue("TASK-1", "In Validation", "evidence-a")])
+        fingerprint_a = compute_evidence_fingerprint(
+            requirements_text="requirements v1", project_id="project-a", task_id="TASK-1"
+        )
+        fingerprint_b = compute_evidence_fingerprint(
+            requirements_text="requirements v2", project_id="project-a", task_id="TASK-1"
+        )
+        
+        # Create two pending records in the chain (different fingerprints)
+        attempt_1 = AuditAttempt(
+            attempt_id="attempt-1",
+            target_state=TargetState.DONE,
+            evidence_fingerprint=fingerprint_a,
+            request_state=RequestState.PENDING,
+        )
+        attempt_2 = AuditAttempt(
+            attempt_id="attempt-2",
+            target_state=TargetState.DONE,
+            evidence_fingerprint=fingerprint_b,
+            request_state=RequestState.PENDING,
+        )
+        
+        record_1 = TerminalAuditRecord(
+            audit_id="audit-1",
+            project_id="project-a",
+            task_id="TASK-1",
+            target_state=TargetState.DONE,
+            evidence_fingerprint=fingerprint_a,
+            request_state=RequestState.PENDING,
+            attempts=[attempt_1],
+        )
+        record_2 = TerminalAuditRecord(
+            audit_id="audit-2",
+            project_id="project-a",
+            task_id="TASK-1",
+            target_state=TargetState.DONE,
+            evidence_fingerprint=fingerprint_b,
+            request_state=RequestState.PENDING,
+            attempts=[attempt_2],
+        )
+        
+        tracker.metadata["TASK-1"] = {
+            METADATA_KEY: TerminalAuditMetadata(pending_chain=[record_1, record_2]).to_dict()
+        }
+
+        enforcer = _enforcer(tmp_path)
+        enforcer.initialize([("project-a", tracker)])
+        
+        # Both audits should be recovered
+        assert len(enforcer.pending_audits) == 2
+        audit_ids = {item.audit_id for item in enforcer.pending_audits}
+        assert audit_ids == {"audit-1", "audit-2"}
+        
+        # Recovery is idempotent: repeated pass doesn't duplicate
+        restarted = _enforcer(tmp_path)
+        restarted.initialize([("project-a", tracker)])
+        assert len(restarted.pending_audits) == 2
+        assert {item.audit_id for item in restarted.pending_audits} == {"audit-1", "audit-2"}
+
+    def test_stale_fingerprint_superseded_record_not_requeued(self, tmp_path):
+        """Superseded records with old evidence are not requeued."""
+        tracker = _Tracker([_issue("TASK-1", "In Validation", "evidence-b")])
+        fingerprint_a = compute_evidence_fingerprint(
+            requirements_text="requirements", project_id="project-a", task_id="TASK-1"
+        )
+        fingerprint_b = compute_evidence_fingerprint(
+            requirements_text="requirements updated", project_id="project-a", task_id="TASK-1"
+        )
+        
+        # First record is superseded (old evidence)
+        record_old = TerminalAuditRecord(
+            audit_id="audit-old",
+            project_id="project-a",
+            task_id="TASK-1",
+            target_state=TargetState.DONE,
+            evidence_fingerprint=fingerprint_a,
+            request_state=RequestState.SUPERSEDED,
+            attempts=[],
+        )
+        
+        # Second record is pending with new evidence
+        attempt_new = AuditAttempt(
+            attempt_id="attempt-new",
+            target_state=TargetState.DONE,
+            evidence_fingerprint=fingerprint_b,
+            request_state=RequestState.PENDING,
+        )
+        record_new = TerminalAuditRecord(
+            audit_id="audit-new",
+            project_id="project-a",
+            task_id="TASK-1",
+            target_state=TargetState.DONE,
+            evidence_fingerprint=fingerprint_b,
+            request_state=RequestState.PENDING,
+            attempts=[attempt_new],
+        )
+        
+        tracker.metadata["TASK-1"] = {
+            METADATA_KEY: TerminalAuditMetadata(pending_chain=[record_old, record_new]).to_dict()
+        }
+
+        enforcer = _enforcer(tmp_path)
+        enforcer.initialize([("project-a", tracker)])
+        
+        # Only the new audit should be recovered
+        assert len(enforcer.pending_audits) == 1
+        assert enforcer.pending_audits[0].audit_id == "audit-new"
+
+    def test_completed_audit_leaves_no_pending(self, tmp_path):
+        """A task with only completed audits has zero pending audits."""
+        tracker = _Tracker([_issue("TASK-1", "In Validation", "evidence-a")])
+        fingerprint_a = compute_evidence_fingerprint(
+            requirements_text="requirements", project_id="project-a", task_id="TASK-1"
+        )
+        
+        # Record is already completed
+        attempt_completed = AuditAttempt(
+            attempt_id="attempt-done",
+            target_state=TargetState.DONE,
+            evidence_fingerprint=fingerprint_a,
+            request_state=RequestState.COMPLETED,
+            verdict="pass",
+        )
+        record_done = TerminalAuditRecord(
+            audit_id="audit-done",
+            project_id="project-a",
+            task_id="TASK-1",
+            target_state=TargetState.DONE,
+            evidence_fingerprint=fingerprint_a,
+            request_state=RequestState.COMPLETED,
+            attempts=[attempt_completed],
+        )
+        
+        tracker.metadata["TASK-1"] = {
+            METADATA_KEY: TerminalAuditMetadata(pending_chain=[record_done]).to_dict()
+        }
+
+        enforcer = _enforcer(tmp_path)
+        enforcer.initialize([("project-a", tracker)])
+        
+        # Completed audits are not recovered as pending
+        assert len(enforcer.pending_audits) == 0
+
+    def test_restart_recovery_preserves_attempt_chain(self, tmp_path):
+        """Restarting mid-recovery preserves all attempt history without duplication."""
+        tracker = _Tracker([_issue("TASK-1", "In Validation", "evidence-a")])
+        fingerprint = compute_evidence_fingerprint(
+            requirements_text="requirements", project_id="project-a", task_id="TASK-1"
+        )
+        
+        # Simulate a failed attempt that will be retried
+        attempt_1 = AuditAttempt(
+            attempt_id="attempt-1",
+            target_state=TargetState.DONE,
+            evidence_fingerprint=fingerprint,
+            request_state=RequestState.IN_PROGRESS,
+        )
+        record = TerminalAuditRecord(
+            audit_id="audit-1",
+            project_id="project-a",
+            task_id="TASK-1",
+            target_state=TargetState.DONE,
+            evidence_fingerprint=fingerprint,
+            request_state=RequestState.PENDING,
+            attempts=[attempt_1],
+        )
+        
+        tracker.metadata["TASK-1"] = {
+            METADATA_KEY: TerminalAuditMetadata(pending_chain=[record]).to_dict()
+        }
+
+        # First recovery
+        enforcer = _enforcer(tmp_path)
+        enforcer.initialize([("project-a", tracker)])
+        assert len(enforcer.pending_audits) == 1
+        assert enforcer.pending_audits[0].attempt_ids == ["attempt-1"]
+
+        # Simulate additional attempt after restart
+        attempt_2 = AuditAttempt(
+            attempt_id="attempt-2",
+            target_state=TargetState.DONE,
+            evidence_fingerprint=fingerprint,
+            request_state=RequestState.IN_PROGRESS,
+        )
+        record_updated = TerminalAuditRecord(
+            audit_id="audit-1",
+            project_id="project-a",
+            task_id="TASK-1",
+            target_state=TargetState.DONE,
+            evidence_fingerprint=fingerprint,
+            request_state=RequestState.PENDING,
+            attempts=[attempt_1, attempt_2],
+        )
+        tracker.metadata["TASK-1"] = {
+            METADATA_KEY: TerminalAuditMetadata(pending_chain=[record_updated]).to_dict()
+        }
+
+        # Second recovery after restart
+        restarted = _enforcer(tmp_path)
+        restarted.initialize([("project-a", tracker)])
+        assert len(restarted.pending_audits) == 1
+        assert restarted.pending_audits[0].attempt_ids == ["attempt-1", "attempt-2"]
+
+    def test_repeated_recovery_pass_is_idempotent(self, tmp_path):
+        """Multiple recovery passes don't change state or duplicate work."""
+        tracker = _Tracker([_issue("TASK-1", "In Validation", "evidence-a")])
+        fingerprint = compute_evidence_fingerprint(
+            requirements_text="requirements", project_id="project-a", task_id="TASK-1"
+        )
+        
+        attempt = AuditAttempt(
+            attempt_id="attempt-1",
+            target_state=TargetState.DONE,
+            evidence_fingerprint=fingerprint,
+            request_state=RequestState.PENDING,
+        )
+        record = TerminalAuditRecord(
+            audit_id="audit-1",
+            project_id="project-a",
+            task_id="TASK-1",
+            target_state=TargetState.DONE,
+            evidence_fingerprint=fingerprint,
+            request_state=RequestState.PENDING,
+            attempts=[attempt],
+        )
+        
+        tracker.metadata["TASK-1"] = {
+            METADATA_KEY: TerminalAuditMetadata(pending_chain=[record]).to_dict()
+        }
+
+        # First pass
+        enforcer_1 = _enforcer(tmp_path)
+        result_1 = enforcer_1.initialize([("project-a", tracker)])
+        assert result_1["pending_audits"] == 1
+
+        # Second pass (identical metadata)
+        enforcer_2 = _enforcer(tmp_path)
+        result_2 = enforcer_2.initialize([("project-a", tracker)])
+        assert result_2["pending_audits"] == 1
+        assert result_2["first_startup"] is False
+
+        # Third pass (still identical)
+        enforcer_3 = _enforcer(tmp_path)
+        result_3 = enforcer_3.initialize([("project-a", tracker)])
+        assert result_3["pending_audits"] == 1
+        assert result_3["first_startup"] is False
+
+        # All passes recover the same audit exactly once
+        assert enforcer_1.pending_audits[0].audit_id == enforcer_2.pending_audits[0].audit_id
+        assert enforcer_2.pending_audits[0].audit_id == enforcer_3.pending_audits[0].audit_id
