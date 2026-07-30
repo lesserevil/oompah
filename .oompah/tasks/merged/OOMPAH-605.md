@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-605
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Bootstrap reviewed terminal-audit fixes through a standalone recovery delivery
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T17:58:44.309909Z'
-updated_at: '2026-07-30T19:34:25.971190Z'
+updated_at: '2026-07-30T19:40:28.273914Z'
 work_branch: OOMPAH-605
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/593
@@ -94,6 +94,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-9e1fc07668b1: '2026-07-30T18:20:54.953530+00:00'
+    attempt-5fc96a15b7da: '2026-07-30T19:40:25.722852+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -135,7 +136,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-605
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -144,7 +145,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-5fc96a15b7da
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -154,13 +155,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-30T19:34:23.355653+00:00'
       branch_key: OOMPAH-605
+      verdict: pass
+      completed_at: '2026-07-30T19:40:25.722566+00:00'
+      ended_at: '2026-07-30T19:40:25.722566+00:00'
     requested_by:
       version: 1
       identity: NVShawn
       source: forge
     previous_state: In Review
     created_at: '2026-07-30T18:12:21.379930+00:00'
-    updated_at: '2026-07-30T19:34:23.355653+00:00'
+    updated_at: '2026-07-30T19:40:25.722566+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-9e1fc07668b1
@@ -332,5 +336,32 @@ author: oompah
 created: 2026-07-30 19:34
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 19:40
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- pr_merge_commit_on_main: b4fa5db81322ae24b90a5c80689d94d1a49a1f30
+- recovery_branch_tip_on_main: cfe2916c5174b42f88a1f72f45f4f6d0104b3a47
+- ooompah_589_endpoints_commit: 8194d3a3b
+- ooompah_589_redaction_commit: 127673375
+- ooompah_589_timeout_xdist_commit: 313b5f7b7
+- ooompah_589_forced_binding_commit: 4bca61f1b
+- ooompah_604_override_commit: a751eaef0
+- runbook_section_6_4_1_present: docs/operator-runbook.md contains section '6.4.1 The control-plane fix is blocked behind the broken control plane' on origin/main (verified via git show origin/main:docs/operator-runbook.md)
+- epic_585_branch_ref: refs/heads/epic-OOMPAH-585 -> 64b9b00c55f34d164d4eca2dd6071887ea5b5bb3 (also refs/remotes/origin/epic-OOMPAH-585)
+- epic_585_child_589: refs/heads/epic-OOMPAH-585--task-OOMPAH-589 -> b252293d3fc950f79a342c74b51d3285f62ecf4c (origin ref present)
+- epic_585_child_590: refs/heads/epic-OOMPAH-585--task-OOMPAH-590 -> cc261493377c48796574c954e4ca89b65ff7afc1 (origin ref present)
+- epic_585_child_591: refs/heads/epic-OOMPAH-585--task-OOMPAH-591 -> 3af9b8104c091984dee8d7f9066b2e14ef275691 (origin ref present)
+- epic_585_child_592: refs/heads/epic-OOMPAH-585--task-OOMPAH-592 -> 64b9b00c55f34d164d4eca2dd6071887ea5b5bb3 (origin ref present)
+- epic_585_child_604: refs/heads/epic-OOMPAH-585--task-OOMPAH-604 -> 4cd5ddfae7384bbb7022d2562149468f0127a35e (origin ref present)
+- current_main_tip: e1e4e0c9fee2a17b5a9b02002fcaa2d3cc7793ec (Merge PR #594 OOMPAH-610, downstream of PR #593 merge)
+- full_gate_result_recorded: 13,724 passed, 7 skipped on cfe2916c5 (per operator handoff 2026-07-30 18:07)
+- live_recovery_recorded: Post-merge restart as instance ac40770c-37a8-4b2c-b040-7a7ae948f467 with fresh auditors launching against persisted providers with absolute endpoints; OOMPAH-596 completed a fresh independent audit to Done (per 2026-07-30 18:23 operator verification)
+- prior_audit_result: Audit PASS Done recorded 2026-07-30 18:20 for the same recovery head
 ---
 <!-- COMMENTS:END -->
