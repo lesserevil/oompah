@@ -112,6 +112,31 @@ def test_patch_terminal_status_stages_and_does_not_write_terminal(client):
     assert response.json()["audit_id"] == "audit-request-1"
     assert tracker.status_updates == []
     assert coordinator.requests[0]["requested_target"] is TargetState.DONE
+    assert issue.id in orch.state.completed
+    orch.request_refresh.assert_called_once_with()
+
+
+def test_patch_terminal_status_rolls_back_dispatch_fence_when_staging_fails(client):
+    issue = Issue("task-stage-fails", "task-stage-fails", "Task", description="work", state="Open")
+    orch, tracker, coordinator = _orchestrator(issue)
+    coordinator.request_transition = AsyncMock(
+        return_value=TransitionResult(success=False, reason="metadata unavailable")
+    )
+    with (
+        patch.object(server_module, "_get_orchestrator", return_value=orch),
+        patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+    ):
+        response = client.patch(
+            "/api/v1/issues/task-stage-fails",
+            json={"project_id": "proj-1", "status": "Done"},
+        )
+
+    assert response.status_code == 503
+    assert tracker.status_updates == []
+    assert issue.id not in orch.state.completed
+    # A retry may have observed the temporary fence. Wake ordinary dispatch
+    # after rollback so a failed staging request cannot strand the task.
+    orch.request_refresh.assert_called_once_with()
 
 
 def test_patch_nonterminal_status_keeps_direct_behavior(client):

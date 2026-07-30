@@ -840,6 +840,11 @@ class Orchestrator:
             tracker=self._tracker_for_project,
             project_store=self.project_store,
         )
+        # Serializes the final implementation status claim with terminal-audit
+        # staging for one task.  The terminal path installs its in-memory fence
+        # before waiting for this lock, so a slow dispatch setup cannot starve
+        # an audit request, while the tracker writes themselves cannot cross.
+        self._issue_transition_locks: dict[str, asyncio.Lock] = {}
         # Per-project branch-to-issue index: maps work_branch → identifier.
         # Built lazily the first time _resolve_task_for_branch needs it for
         # a project and cleared with tracker read caches each tick so the
@@ -2548,6 +2553,11 @@ class Orchestrator:
             project_id=str(effective_project_id),
             evidence_fingerprint=evidence_fingerprint,
         )
+
+    def issue_transition_lock(self, issue_id: str) -> asyncio.Lock:
+        """Return the event-loop lock for dispatch/audit ownership of a task."""
+
+        return self._issue_transition_locks.setdefault(issue_id, asyncio.Lock())
 
     def _request_terminal_transition_from_maintenance(self, **kwargs: Any):
         """Bridge a synchronous maintenance observation to terminal auditing.
@@ -4358,6 +4368,22 @@ class Orchestrator:
             project_config=project,
         )
 
+    def _record_audit_outcome_ownership(self, issue_id: str, outcome: Any) -> None:
+        """Keep ordinary-dispatch fencing aligned with an applied audit result."""
+
+        if not getattr(outcome, "success", False):
+            return
+        applied_status = str(getattr(outcome, "applied_status", "") or "")
+        if is_dispatchable_status(applied_status):
+            # An incomplete audit intentionally returns work to Open.  Release
+            # the terminal-transition fence so the implementation lane can
+            # repair the findings after the auditor exits.
+            self.state.completed.discard(issue_id)
+            return
+        # Passed, Needs Human, and other non-dispatchable outcomes must remain
+        # unavailable to ordinary implementation dispatch.
+        self.state.completed.add(issue_id)
+
     async def _route_no_auditor(
         self,
         issue: Issue,
@@ -4386,6 +4412,7 @@ class Orchestrator:
         outcome = await self.terminal_transition_coordinator.apply_audit_result(
             issue, result, str(issue.project_id or "legacy")
         )
+        self._record_audit_outcome_ownership(issue.id, outcome)
         if outcome.success:
             self._audit_metrics["exhaustion_count"] += 1
         else:
@@ -19635,6 +19662,7 @@ class Orchestrator:
     ) -> None:
         """Dispatch a worker for an issue."""
         duplicate_preflight = duplicate_preflight_claim is not None
+        implementation_dispatch = auditor_plan is None and not duplicate_preflight
 
         async def _release_preflight(reason: str) -> None:
             if duplicate_preflight_claim is None or not duplicate_preflight_claim.claim_id:
@@ -19663,6 +19691,17 @@ class Orchestrator:
             await _release_preflight("dispatch aborted because orchestrator is paused")
             if auditor_plan:
                 self._audit_branch_claims.pop(auditor_plan.branch_key, None)
+            return
+        # A terminal transition places this marker before awaiting durable audit
+        # staging.  Retry callbacks may already have popped their RetryEntry, so
+        # this fence is the only state visible to an in-flight dispatch.
+        if implementation_dispatch and issue.id in self.state.completed:
+            logger.info(
+                "Skipping implementation dispatch of %s: terminal transition owns task",
+                issue.identifier,
+            )
+            self.state.claimed.discard(issue.id)
+            self.state.claimed_issues.pop(issue.id, None)
             return
         self.state.reject_streak.pop(issue.id, None)
 
@@ -19796,9 +19835,17 @@ class Orchestrator:
         if refreshed:
             cur_state = _state_key(refreshed[0].state)
             terminal = {_state_key(s) for s in self.config.tracker_terminal_states}
-            if cur_state in terminal:
+            implementation_blocked = (
+                implementation_dispatch
+                and (
+                    issue.id in self.state.completed
+                    or cur_state not in self._retryable_state_keys()
+                )
+            )
+            if cur_state in terminal or implementation_blocked:
                 logger.info(
-                    "Aborting dispatch of %s: state moved to %r since fetch",
+                    "Aborting dispatch of %s: state moved to %r or terminal "
+                    "transition took ownership since fetch",
                     issue.identifier,
                     cur_state,
                 )
@@ -19806,11 +19853,13 @@ class Orchestrator:
                 self.state.claimed_issues.pop(issue.id, None)
                 if auditor_plan:
                     self._audit_branch_claims.pop(auditor_plan.branch_key, None)
-                self.state.completed.add(issue.id)
+                if cur_state in terminal or implementation_blocked:
+                    self.state.completed.add(issue.id)
                 await _release_preflight(
-                    "dispatch aborted because task became terminal"
+                    "dispatch aborted because task left the implementation lane"
                 )
-                # Drop any pending retry too — the issue is done.
+                # Drop any pending retry too — implementation no longer owns
+                # this task.
                 rt = self.state.retry_attempts.pop(issue.id, None)
                 if rt and rt.timer_handle and not rt.timer_handle.cancelled():
                     rt.timer_handle.cancel()
@@ -19856,21 +19905,65 @@ class Orchestrator:
         # Implementation work moves to In Progress. Duplicate preflight is a
         # qualification lane, so its tracker state remains Open. Auditors
         # are read-only and never mutate the task's status either.
-        if not duplicate_preflight and auditor_plan is None:
-            try:
-                await asyncio.get_event_loop().run_in_executor(
-                    self._tick_pool,
-                    lambda: tracker.update_issue(issue.identifier, status=IN_PROGRESS),
-                )
-            except Exception as exc:
-                logger.warning(
-                    "Failed to set in_progress for %s: %s — aborting dispatch",
-                    issue.identifier,
-                    exc,
-                )
-                self.state.claimed.discard(issue.id)
-                self.state.claimed_issues.pop(issue.id, None)
-                return
+        if implementation_dispatch:
+            async with self.issue_transition_lock(issue.id):
+                # The first recheck above protects against stale candidate
+                # snapshots.  Repeat it while holding the ownership lock so a
+                # concurrent non-terminal UI move also cannot be overwritten
+                # between that read and the In Progress write.
+                if issue.id in self.state.completed:
+                    logger.info(
+                        "Aborting implementation dispatch of %s before tracker "
+                        "write: terminal transition acquired ownership",
+                        issue.identifier,
+                    )
+                    self.state.claimed.discard(issue.id)
+                    self.state.claimed_issues.pop(issue.id, None)
+                    return
+                try:
+                    locked_state = await asyncio.get_event_loop().run_in_executor(
+                        self._tick_pool,
+                        lambda: tracker.fetch_issue_states_by_ids([issue.id]),
+                    )
+                except Exception as exc:
+                    logger.debug(
+                        "Locked pre-write state recheck failed for %s: %s — "
+                        "using the prior validated snapshot",
+                        issue.identifier,
+                        exc,
+                    )
+                    locked_state = []
+                if locked_state and (
+                    issue.id in self.state.completed
+                    or _state_key(locked_state[0].state)
+                    not in self._retryable_state_keys()
+                ):
+                    logger.info(
+                        "Aborting implementation dispatch of %s before tracker "
+                        "write: state moved to %r",
+                        issue.identifier,
+                        _state_key(locked_state[0].state),
+                    )
+                    self.state.claimed.discard(issue.id)
+                    self.state.claimed_issues.pop(issue.id, None)
+                    self.state.completed.add(issue.id)
+                    return
+                try:
+                    await asyncio.get_event_loop().run_in_executor(
+                        self._tick_pool,
+                        lambda: tracker.update_issue(
+                            issue.identifier, status=IN_PROGRESS
+                        ),
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to set in_progress for %s: %s — aborting dispatch",
+                        issue.identifier,
+                        exc,
+                    )
+                    self.state.claimed.discard(issue.id)
+                    self.state.claimed_issues.pop(issue.id, None)
+                    return
 
         # Shared tracker claim-and-verify protocol (TASK-461.2).
         # For trackers with an external/default-branch source of truth, stamp a
@@ -19960,6 +20053,29 @@ class Orchestrator:
                     None,
                 ):
                     setattr(running_issue, attr, getattr(issue, attr))
+            post_state = _state_key(running_issue.state)
+            if implementation_dispatch and (
+                issue.id in self.state.completed
+                or post_state not in self._retryable_state_keys()
+            ):
+                logger.info(
+                    "Aborting implementation dispatch of %s before worker start: "
+                    "post-update state=%r terminal_fence=%s",
+                    issue.identifier,
+                    post_state,
+                    issue.id in self.state.completed,
+                )
+                self.state.claimed.discard(issue.id)
+                self.state.claimed_issues.pop(issue.id, None)
+                self.state.completed.add(issue.id)
+                retry = self.state.retry_attempts.pop(issue.id, None)
+                if (
+                    retry
+                    and retry.timer_handle
+                    and not retry.timer_handle.cancelled()
+                ):
+                    retry.timer_handle.cancel()
+                return
             if (
                 auditor_plan is None
                 and not duplicate_preflight
@@ -19971,6 +20087,20 @@ class Orchestrator:
                         self.config.tracker_active_states
                     ),
                 )
+
+        # The terminal fence may have been installed while the post-update
+        # tracker read was in flight.  There are no awaits between this check
+        # and worker registration, so a successful check is the final ownership
+        # boundary before an implementation worker can start.
+        if implementation_dispatch and issue.id in self.state.completed:
+            logger.info(
+                "Aborting implementation dispatch of %s before worker start: "
+                "terminal transition fence appeared during state refresh",
+                issue.identifier,
+            )
+            self.state.claimed.discard(issue.id)
+            self.state.claimed_issues.pop(issue.id, None)
+            return
 
         # Remove from retry if present
         retry = self.state.retry_attempts.pop(issue.id, None)
@@ -20790,6 +20920,7 @@ class Orchestrator:
                         _loop,
                     )
                     outcome = future.result(timeout=60)
+                    self._record_audit_outcome_ownership(_issue.id, outcome)
                     return {
                         "accepted": outcome.success,
                         "audit_id": outcome.audit_id,
@@ -21294,6 +21425,7 @@ class Orchestrator:
                         _loop,
                     )
                     outcome = future.result(timeout=60)
+                    self._record_audit_outcome_ownership(_issue.id, outcome)
                     return {
                         "accepted": outcome.success,
                         "audit_id": outcome.audit_id,
@@ -23300,6 +23432,29 @@ class Orchestrator:
                         entry,
                         current,
                         project_id,
+                    )
+                elif (
+                    current
+                    and canonicalize_status(current.state) == IN_VALIDATION
+                ):
+                    # A successful terminal handoff stages the task in the
+                    # audit lane before the worker exits.  That is a completed
+                    # implementation handoff, not an incomplete session.  In
+                    # particular, never schedule an implementation retry that
+                    # can race the independent auditor for ownership.
+                    self.state.completed.add(issue_id)
+                    self._clear_reopen_count(issue_id)
+                    retry = self.state.retry_attempts.pop(issue_id, None)
+                    if (
+                        retry
+                        and retry.timer_handle
+                        and not retry.timer_handle.cancelled()
+                    ):
+                        retry.timer_handle.cancel()
+                    logger.info(
+                        "Worker handed %s to terminal audit; suppressing "
+                        "implementation retry",
+                        entry.identifier,
                     )
                 elif current and not _is_terminal_state(
                     current.state, self.config.tracker_terminal_states

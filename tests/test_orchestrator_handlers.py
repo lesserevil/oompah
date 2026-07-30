@@ -4479,6 +4479,41 @@ class TestRateLimitAlertIncludesProviderAndModel:
 
 
 class TestNeedsHumanTransitions:
+    def test_normal_exit_in_validation_does_not_schedule_implementation_retry(
+        self, tmp_path
+    ):
+        project = _make_project("proj-1")
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        issue = _make_issue(
+            "TASK-1",
+            state="In Validation",
+            project_id="proj-1",
+        )
+        entry = RunningEntry(
+            worker_task=None,
+            identifier=issue.identifier,
+            issue=issue,
+            session=None,
+            retry_attempt=0,
+            started_at=datetime.now(timezone.utc),
+            agent_profile_name="deep",
+        )
+        orch.state.running[issue.id] = entry
+        orch.state.reopen_counts[issue.id] = 1
+        orch._fire_task_cost_record = MagicMock()
+        orch._fire_telemetry_comment = MagicMock()
+        orch._post_comment = MagicMock()
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+
+        asyncio.run(orch._on_worker_exit(issue.id, "normal", None))
+
+        tracker.update_issue.assert_not_called()
+        assert issue.id in orch.state.completed
+        assert issue.id not in orch.state.retry_attempts
+        assert issue.id not in orch.state.reopen_counts
+
     def test_completed_without_closing_marks_needs_human_with_comment(self, tmp_path):
         project = _make_project("proj-1")
         orch = _make_orchestrator(tmp_path, projects=[project])
