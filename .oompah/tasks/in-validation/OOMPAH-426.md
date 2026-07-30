@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T21:15:59.630196Z'
-updated_at: '2026-07-30T23:02:45.718423Z'
+updated_at: '2026-07-30T23:02:51.116575Z'
 work_branch: epic-OOMPAH-426
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/544
@@ -144,18 +144,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-426
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 30c593f5708bbd99b6c89487531ed1052d5e96d670b29465a57f0eec5a62231c
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-c5370e9496cf
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 30c593f5708bbd99b6c89487531ed1052d5e96d670b29465a57f0eec5a62231c
+      created_at: '2026-07-30T23:02:47.076206+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-30T23:02:47.076206+00:00'
+      branch_key: epic-OOMPAH-426
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
       source: oompah
     previous_state: In Validation
     created_at: '2026-07-30T22:31:59.622558+00:00'
+    updated_at: '2026-07-30T23:02:47.076206+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-0a53a873c97d
@@ -182,6 +196,19 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: opus
     started_at: '2026-07-30T22:58:46.296846+00:00'
+    branch_key: epic-OOMPAH-426
+  - version: 1
+    attempt_id: attempt-c5370e9496cf
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 30c593f5708bbd99b6c89487531ed1052d5e96d670b29465a57f0eec5a62231c
+    created_at: '2026-07-30T23:02:47.076206+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-30T23:02:47.076206+00:00'
     branch_key: epic-OOMPAH-426
 ---
 ## Summary
@@ -448,5 +475,15 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: normal, Duration: 3m 54s
 - Log: OOMPAH-426__20260730T225849Z.jsonl
+---
+author: oompah
+created: 2026-07-30 23:02
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-07-30 23:02
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
