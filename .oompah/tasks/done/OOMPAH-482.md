@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-482
 type: feature
-status: In Validation
+status: Done
 priority: 1
 title: Dispatch one repair-planner run for an epic that fails audit
 parent: OOMPAH-459
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:30.191340Z'
-updated_at: '2026-07-30T00:15:01.884289Z'
+updated_at: '2026-07-30T00:50:03.708760Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-482
 target_branch: null
 review_url: null
@@ -104,6 +104,8 @@ oompah.work_contributors:
     completed_at: '2026-07-29T23:09:01.733563+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-9cc927e41823: '2026-07-30T00:50:01.588007+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -111,7 +113,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-482
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -135,7 +137,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-9cc927e41823
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -146,13 +148,16 @@ oompah.terminal_audit:
       started_at: '2026-07-30T00:14:51.443663+00:00'
       branch_key: epic-OOMPAH-459--task-OOMPAH-482
       candidate_rotation_count: 1
+      verdict: pass
+      completed_at: '2026-07-30T00:50:01.587786+00:00'
+      ended_at: '2026-07-30T00:50:01.587786+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-29T23:55:41.204680+00:00'
-    updated_at: '2026-07-30T00:14:51.443663+00:00'
+    updated_at: '2026-07-30T00:50:01.587786+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-cd36a06721f6
@@ -511,5 +516,29 @@ author: oompah
 created: 2026-07-30 00:15
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 00:50
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: 101dcbb3a7d0f0b219c0f8ec224e8e9dc830c359
+- commit_title: OOMPAH-482: Dispatch one repair-planner run for an epic that fails audit
+- files_changed: oompah/focus.py, oompah/models.py, oompah/orchestrator.py, oompah/terminal_transition_coordinator.py, tests/test_epic_planning.py
+- insertions_deletions: 654 insertions(+), 5 deletions(-)
+- epic_planning_tests: 59 passed
+- terminal_coordinator_tests: 100 passed
+- focus_tests: 171 passed
+- epic_strategy_and_models_tests: 238 passed
+- orchestrator_tests: 420 passed
+- label_constant: audit:repair-needed
+- metadata_key: oompah.epic_audit_repair
+- focus_name: epic_repair_planner
+- focus_priority: 9
+- dedup_mechanism: claimed flag in tracker metadata set atomically before dispatch
+- acceptance_criteria: failed epic audit becomes actionable via label+metadata stamp; exactly one repair-planner run reconciles findings via child reopen/create/deps then removes label; ordinary planned epics without the label remain nondispatchable
 ---
 <!-- COMMENTS:END -->
