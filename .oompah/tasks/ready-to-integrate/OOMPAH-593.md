@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-30T14:14:54.281403Z'
-updated_at: '2026-07-30T16:12:34.668301Z'
+updated_at: '2026-07-30T16:13:48.205432Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-593
 target_branch: null
 review_url: null
@@ -68,8 +68,8 @@ oompah.integration:
   submitted_at: '2026-07-30T16:12:31.202913+00:00'
   updated_at: '2026-07-30T16:12:31.202913+00:00'
 oompah.task_costs:
-  total_input_tokens: 281291
-  total_output_tokens: 30106
+  total_input_tokens: 281297
+  total_output_tokens: 31173
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -77,8 +77,8 @@ oompah.task_costs:
       output_tokens: 4252
       cost_usd: 0.0
     sonnet:
-      input_tokens: 281082
-      output_tokens: 7428
+      input_tokens: 281088
+      output_tokens: 8495
       cost_usd: 0.0
     opus:
       input_tokens: 79
@@ -115,6 +115,12 @@ oompah.task_costs:
     output_tokens: 17788
     cost_usd: 0.0
     recorded_at: '2026-07-30T15:49:48.265902+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 6
+    output_tokens: 1067
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T16:13:46.711003+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-593__20260730T150438Z
@@ -518,5 +524,15 @@ author: oompah
 created: 2026-07-30 16:12
 ---
 Fixed quality gate failure: cherry-picked OOMPAH-589 deterministic-timeout fix onto this branch (test_in_progress_refresh_timeout_uses_the_same_safe_boundary was flaky under xdist due to tight timing). All prior deliverables preserved: docs/scoped-task-cli-authentication.md, OOMPAH-575 handoff-auth regression tests (11 cases), TestOrchestratorHandoffTokenMint live-path reproducer (6 cases). Focused suites 91+15 pass.
+---
+author: oompah
+created: 2026-07-30 16:13
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 0, Tool calls: 55
+- Tokens: 6 in / 1.1K out [1.1K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 16m 40s
+- Log: OOMPAH-593__20260730T155721Z.jsonl
 ---
 <!-- COMMENTS:END -->
