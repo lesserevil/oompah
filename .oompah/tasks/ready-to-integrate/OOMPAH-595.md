@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-595
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Expose separate operator and worker task-auth health signals
 parent: OOMPAH-586
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:56.897824Z'
-updated_at: '2026-07-30T15:36:10.572275Z'
+updated_at: '2026-07-30T15:50:18.053588Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-595
 target_branch: null
 review_url: null
@@ -52,12 +52,12 @@ oompah.agent_run_id: bba6dc8b-569b-4934-85c6-4ee1dcf641e9
 oompah.work_branch: epic-OOMPAH-586--task-OOMPAH-595
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-586--task-OOMPAH-595
-  base_branch: epic-OOMPAH-586
-  base_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
-  updated_at: '2026-07-30T15:31:28.406505+00:00'
+  head_sha: a3505cc11ef2a696dca47912083a9e54b9d7bafd
+  submitted_at: '2026-07-30T15:50:15.824542+00:00'
+  updated_at: '2026-07-30T15:50:15.824542+00:00'
 oompah.task_costs:
   total_input_tokens: 46973
   total_output_tokens: 1360
@@ -218,5 +218,27 @@ Understanding: Implementing separate operator and worker task-auth health signal
 6. Tests in test_auth_health.py and test_task_handoff.py
 
 Key design: operator plane = HTTP Basic failures; worker plane = task-capability failures; intentional scope denials (wrong action) never alert.
+---
+author: oompah
+created: 2026-07-30 15:50
+---
+Implementation complete. Delivered:
+
+**oompah/auth_health.py** (new): Thread-safe OperatorAuthHealth and WorkerAuthHealth counters with 15-min sliding window. Separate tracking for: operator 401s; worker token minting, acceptance, 401s, 403-scope rejections, and 403-action intentional denials. auth_health_snapshot() and auth_health_alerts() for API consumption.
+
+**oompah/server.py**: Wired record_operator_401() in BasicAuthMiddleware on 401 deny; wired record_worker_401/403_scope/403_action/token_accepted() at each outcome in api_task_handoff(). Intentional action denials counted separately, never alert.
+
+**oompah/orchestrator.py**: _issue_task_handoff_token() calls record_worker_token_minted() on success; get_snapshot() includes auth_health dict and auth_health_alerts() merged into alerts list.
+
+**oompah/templates/dashboard.html**: New .auth-health-banner with plane badge styles (ok/degraded/never-minted); renderAuthHealthBanner() shows two compact badges, expands on degradation with actionable recovery guidance; auth_health: alerts excluded from generic banner. Accessible: role=status, aria-live.
+
+**docs/authentication.md**: New 'Auth Health Dashboard Signals' section documenting both planes and scope denial clarification.
+
+**Tests**: 28 unit tests (test_auth_health.py) + 6 integration tests (test_server_auth.py). 159 total related tests pass.
+---
+author: oompah
+created: 2026-07-30 15:50
+---
+Add separate operator and worker task-auth health signals with dashboard UI. New oompah/auth_health.py module tracks HTTP Basic 401s (operator plane) and task-handoff token minting/acceptance/401/403-scope/403-action (worker plane) in thread-safe sliding windows. Instrumented server middleware and task-handoff endpoint. Orchestrator get_snapshot() exposes auth_health dict and auth_health_alerts() in alerts. Dashboard shows two plane badges with actionable recovery guidance when degraded; intentional action denials never alert. 34 new tests; 159 related tests pass.
 ---
 <!-- COMMENTS:END -->

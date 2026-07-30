@@ -12,7 +12,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:29.695490Z'
-updated_at: '2026-07-30T15:44:27.390723Z'
+updated_at: '2026-07-30T15:50:13.457346Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-598
 target_branch: null
 review_url: null
@@ -178,5 +178,37 @@ Key files:
 - statuses.py: READY_TO_INTEGRATE status constant
 
 Next: Implement standalone task detection + delivery (PR creation for standalone, idempotent)
+---
+author: oompah
+created: 2026-07-30 15:50
+---
+**IMPLEMENTATION**
+
+Added standalone Ready to Integrate task reconciliation.
+
+Changes:
+1. **orchestrator.py**: New function _reconcile_standalone_ready_to_integrate_tasks()
+   - Detects standalone (no parent_id) tasks in Ready to Integrate status
+   - Validates branch is pushed via SCM
+   - Checks for existing open PR (idempotent)
+   - Creates PR if missing, marks task In Review
+   - Logs all errors (undeliverable, SCM failures) without crashing
+   - Called in _process_integration_queues() after epic submissions sync
+
+2. **tests/test_standalone_ready_to_integrate.py**: 8 comprehensive tests
+   - Pushed branch with no PR → creates PR
+   - Missing (unpushed) branch → skipped
+   - Existing open PR → marked In Review idempotently
+   - Duplicate ticks → no duplicate PRs
+   - SCM unavailable → gracefully skipped
+   - Epic children excluded → only standalones processed
+   - PR creation failures → logged, non-fatal
+   - Status filtering → only Ready tasks processed
+
+All tests passing. Execution flow:
+  Orchestrator._process_integration_queues()
+    → _sync_ready_integration_submissions() (epic children)
+    → _reconcile_standalone_ready_to_integrate_tasks() (standalone)
+    → Integration queue claiming/execution loop
 ---
 <!-- COMMENTS:END -->

@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:31.072278Z'
-updated_at: '2026-07-30T15:46:52.924332Z'
+updated_at: '2026-07-30T15:50:21.557500Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-599
 target_branch: null
 review_url: null
@@ -25,14 +25,17 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 85385809d982d6e2e97220d318cf16ab0a39b9aa223e84085fbcb15813aa13b0
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-07-30T15:50:18.589627+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 30db042a-c208-4302-bbb3-06e528367c36
-  claim_owner: 9e3a680b-e68a-4d5a-ba2e-f9091834f9ec
-  claimed_at: '2026-07-30T15:46:17.859716+00:00'
-  claim_expires_at: '2026-07-30T16:16:17.859716+00:00'
+  evidence: "Focus handoff: duplicate_detector  \nDuplicate preflight verdict: no_duplicate\
+    \  \nMatches: none  \nEvidence: Active OOMPAH-281 and OOMPAH-282 are unrelated.\
+    \ Closest delivery/recovery tasks (OOMPAH-177, 192, 195, 202, 214, 216, 237, 248\u2013\
+    251) are Archived and therefore excluded."
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
 oompah.agent_run_id: 94c03fd9-f4c9-487a-af0f-8015cecdb1a3
@@ -45,6 +48,32 @@ oompah.integration:
   base_branch: epic-OOMPAH-587
   base_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
   updated_at: '2026-07-30T15:46:50.290422+00:00'
+oompah.task_costs:
+  total_input_tokens: 614841
+  total_output_tokens: 4092
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 614841
+      output_tokens: 4092
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 614841
+    output_tokens: 4092
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T15:50:18.588284+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-599__20260730T154832Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: epic-OOMPAH-587--task-OOMPAH-599
+    source_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
+    completed_at: '2026-07-30T15:50:18.598020+00:00'
 ---
 ## Summary
 
@@ -82,5 +111,15 @@ author: oompah
 created: 2026-07-30 15:46
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-30 15:50
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 9
+- Tokens: 614.8K in / 4.1K out [618.9K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 3m 32s
+- Log: OOMPAH-599__20260730T154832Z.jsonl
 ---
 <!-- COMMENTS:END -->
