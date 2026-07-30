@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-421
 type: task
-status: Merged
+status: In Validation
 priority: 2
 title: Add OpenAPI MCP integration tests and operator documentation
 parent: OOMPAH-418
@@ -11,12 +11,34 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-23T19:41:56.160094Z'
-updated_at: '2026-07-23T20:46:31.403818Z'
+updated_at: '2026-07-30T20:54:53.908102Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-6c7704f8ae1b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-421
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f5666d57de9c139ece73c55f95eb70e1cc75fc073055a234b49cd26d6e5534db
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-07-30T20:54:51.046670+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -28,3 +50,11 @@ Add end-to-end and unit coverage for oompah's embedded OpenAPI MCP endpoint: dis
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-30 20:54
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
+---
+<!-- COMMENTS:END -->
