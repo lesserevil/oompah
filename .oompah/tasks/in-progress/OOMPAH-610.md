@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-610
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Release stale claimed_issues entries when completion auditors exit
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:53:05.632137Z'
-updated_at: '2026-07-30T19:01:44.527796Z'
+updated_at: '2026-07-30T19:03:57.901253Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,7 +42,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 7cfdf01f-b254-4b46-bd7b-9c752596fcaf
+oompah.agent_run_id: 3514c39c-c179-4c65-a97c-34fc1997be79
 oompah.task_costs:
   total_input_tokens: 2400917
   total_output_tokens: 10209
@@ -144,5 +144,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 2m 38s
 - Log: OOMPAH-610__20260730T185908Z.jsonl
+---
+author: oompah
+created: 2026-07-30 19:03
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-30 19:03
+---
+Focus: Refactoring Specialist
 ---
 <!-- COMMENTS:END -->
