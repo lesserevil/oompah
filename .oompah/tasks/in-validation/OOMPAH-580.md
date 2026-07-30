@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-580
 type: task
-status: Needs Human
+status: In Validation
 priority: 0
 title: Rebase epic-OOMPAH-460 onto main
 parent: OOMPAH-460
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:15:45.628870Z'
-updated_at: '2026-07-30T04:36:03.215641Z'
+updated_at: '2026-07-30T04:38:05.040763Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-580
 target_branch: null
 review_url: null
@@ -162,6 +162,28 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 1
   retry_after: null
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-010f4c5c61f5
+    project_id: proj-14849f1b
+    task_id: OOMPAH-580
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ffec049844313a422a82af8eebe52e6f09ac578242f7dd22ff80cbfacf4021df
+    attempts: []
+    requested_by:
+      version: 1
+      identity: api-client
+      source: api
+    previous_state: Needs Human
+    created_at: '2026-07-30T04:38:02.706803+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -361,5 +383,15 @@ author: oompah
 created: 2026-07-30 04:36
 ---
 Agent completed 3 times without closing this issue. Human action required: review the agent run history and task state, then either close the task if the work is done or add specific guidance and move it back to Open.
+---
+author: oompah
+created: 2026-07-30 04:38
+---
+Operator completed the safe rebase directly after all three agent attempts stopped on missing scoped task-CLI credentials (tracked by OOMPAH-575). The epic branch had no unique commits and was 77 commits behind origin/main, so rebase was a clean fast-forward from b0ceda264 to 3aa2bd65b. Published origin/epic-OOMPAH-460 with an exact SHA lease and verified local/remote equality plus clean worktree. Administrative rebase helper is complete; archive it so it does not count as an implementation child.
+---
+author: oompah
+created: 2026-07-30 04:38
+---
+Queued for terminal transition to Archived. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
