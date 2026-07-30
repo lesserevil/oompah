@@ -3122,24 +3122,31 @@ class Orchestrator:
         self,
         project: Any,
         issue: Issue,
-    ) -> bool:
-        """Remove one terminal issue's owned worktree/branch when supported."""
+    ) -> tuple[bool, str | None]:
+        """Remove one terminal issue's owned worktree/branch when supported.
+        
+        Returns (changed, skip_reason). skip_reason is None if the branch was
+        removed or attempted, or a category string if skipped.
+        """
 
         cleanup = getattr(type(self.project_store), "cleanup_terminal_issue", None)
         if cleanup is not None:
-            return bool(
-                self.project_store.cleanup_terminal_issue(
-                    project.id,
-                    issue.identifier,
-                    branch_name=str(issue.work_branch or "").strip() or None,
-                    is_epic=_is_epic_issue(issue),
-                    issue_number=(
-                        str(issue.issue_number).strip()
-                        if issue.issue_number
-                        else None
-                    ),
-                )
+            result = self.project_store.cleanup_terminal_issue(
+                project.id,
+                issue.identifier,
+                branch_name=str(issue.work_branch or "").strip() or None,
+                is_epic=_is_epic_issue(issue),
+                issue_number=(
+                    str(issue.issue_number).strip()
+                    if issue.issue_number
+                    else None
+                ),
             )
+            # Handle both old bool return and new (bool, skip_reason) tuple
+            if isinstance(result, tuple):
+                return result
+            else:
+                return bool(result), None
 
         # Compatibility for third-party/custom stores that only implement the
         # older worktree API. A successful call retains its historical
@@ -3157,7 +3164,7 @@ class Orchestrator:
                 project.id,
                 issue.identifier,
             )
-        return True
+        return True, None
 
     def _cleanup_terminal_worktrees(self, projects: list | None = None) -> int:
         """Remove worktrees and branches for issues safe to discard.
@@ -3171,6 +3178,13 @@ class Orchestrator:
         cleanup for other projects.
         """
         cleaned = 0
+        # Track categorized skip reasons to avoid warning floods
+        skip_reasons: dict[str, int] = {
+            "shared_epic_branch": 0,
+            "protected_branch": 0,
+            "checked_out_in_worktree": 0,
+            "not_owned": 0,
+        }
         limit = getattr(self.config, "worktree_cleanup_batch_size", 100)
         if limit <= 0:
             self._maintenance_status["worktree_cleanup"] = {
@@ -3212,7 +3226,7 @@ class Orchestrator:
                             }
                             return cleaned
                         try:
-                            changed = self._cleanup_terminal_project_issue(
+                            changed, skip_reason = self._cleanup_terminal_project_issue(
                                 project,
                                 issue,
                             )
@@ -3224,6 +3238,9 @@ class Orchestrator:
                                     project.name,
                                     issue.identifier,
                                 )
+                            elif skip_reason:
+                                # Track categorized skip for aggregated summary
+                                skip_reasons[skip_reason] = skip_reasons.get(skip_reason, 0) + 1
                         except Exception as exc:
                             logger.warning(
                                 "Failed to clean worktree/branch "
@@ -3321,12 +3338,28 @@ class Orchestrator:
             except TrackerError as exc:
                 logger.warning("Terminal workspace cleanup failed: %s", exc)
         self._set_maintenance_cursor("worktree_cleanup", None)
+        
+        # Emit structured summary of skipped branches (aggregated, not per-issue warnings)
+        skipped_total = sum(skip_reasons.values())
+        if skipped_total > 0:
+            skip_summary = ", ".join(
+                f"{reason}={count}"
+                for reason, count in sorted(skip_reasons.items())
+                if count > 0
+            )
+            logger.info(
+                "Terminal branch cleanup skipped branches: %s (total=%d)",
+                skip_summary,
+                skipped_total,
+            )
+        
         self._maintenance_status["worktree_cleanup"] = {
             "last_run_at": datetime.now(timezone.utc).isoformat(),
             "cleaned": cleaned,
             "limit": limit,
             "deferred": False,
             "cursor": None,
+            "skipped_branches": skip_reasons,
         }
         return cleaned
 
