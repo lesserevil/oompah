@@ -1,8 +1,15 @@
 """Tests for durable private-branch integration metadata."""
 
+from types import SimpleNamespace
+
 import pytest
 
-from oompah.integration import IntegrationRecord, parse_integration_record
+from oompah.integration import (
+    IntegrationRecord,
+    expected_submission_branch,
+    parse_integration_record,
+    validate_submission_branch,
+)
 
 
 def test_integration_record_round_trips_all_supported_evidence():
@@ -50,3 +57,25 @@ def test_integration_record_ignores_unknown_future_keys():
     assert record is not None
     assert record.state == "queued"
     assert "future_field" not in record.to_dict()
+
+
+def test_expected_submission_branch_uses_persisted_work_branch():
+    issue = SimpleNamespace(
+        identifier="TASK-1",
+        work_branch="epic-EPIC-1--task-TASK-1",
+        branch_name="stale-branch",
+    )
+
+    assert expected_submission_branch(issue) == "epic-EPIC-1--task-TASK-1"
+
+
+def test_submission_branch_validation_uses_native_task_branch_fallback():
+    issue = SimpleNamespace(
+        identifier="owner/repo#1234",
+        work_branch=None,
+        branch_name=None,
+    )
+
+    assert validate_submission_branch(issue, "owner_repo_1234") == "owner_repo_1234"
+    with pytest.raises(ValueError, match="expected work branch"):
+        validate_submission_branch(issue, "main")

@@ -42,6 +42,11 @@ def _sha(repo_path: str, ref: str) -> str | None:
     return result.stdout.strip() if result.returncode == 0 else None
 
 
+def _current_branch(repo_path: str) -> str | None:
+    result = _git(repo_path, "symbolic-ref", "--short", "HEAD", timeout=15)
+    return result.stdout.strip() if result.returncode == 0 else None
+
+
 def execute_integration(
     *,
     project_lock: ContextManager[object],
@@ -53,6 +58,7 @@ def execute_integration(
     quality_gate: BranchQualityGate,
     quality_command: str,
     repo_identity: str,
+    retry_forced: bool = False,
 ) -> IntegrationExecutionResult:
     """Rebase, test, and compare-and-swap one task onto an epic branch."""
 
@@ -60,6 +66,16 @@ def execute_integration(
     rebased_sha: str | None = None
     try:
         with project_lock:
+            registered_task_branch = _current_branch(task_worktree)
+            if registered_task_branch != task_branch:
+                return IntegrationExecutionResult(
+                    status="branch_mismatch",
+                    message=(
+                        "task worktree is on "
+                        f"{registered_task_branch or 'a detached HEAD'}, not "
+                        f"queued branch {task_branch}; refusing to reset it"
+                    ),
+                )
             for worktree in (epic_worktree, task_worktree):
                 fetched = _git(worktree, "fetch", "--prune", "origin")
                 if fetched.returncode != 0:
@@ -152,6 +168,7 @@ def execute_integration(
         target_branch=epic_branch,
         work_branch=task_branch,
         command=quality_command,
+        retry_forced=retry_forced,
     )
     if not quality.passed:
         if quality.status == "interrupted":

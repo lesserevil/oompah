@@ -681,7 +681,10 @@ def _exec_oompah_task_command(
         if args.subcommand == "submit":
             from datetime import datetime, timezone
 
-            from oompah.integration import IntegrationRecord
+            from oompah.integration import (
+                IntegrationRecord,
+                validate_submission_branch,
+            )
             from oompah.statuses import READY_TO_INTEGRATE
             from oompah.task_cli import _git_submission_evidence
 
@@ -691,7 +694,16 @@ def _exec_oompah_task_command(
                     "workspace"
                 )
             evidence = _git_submission_evidence(cwd=workspace_path)
-            branch = str(evidence.get("task_branch") or "").strip()
+            issue = task_tracker.fetch_issue_detail(args.identifier)
+            if issue is None:
+                return f"Error: Issue {args.identifier!r} not found"
+            try:
+                branch = validate_submission_branch(
+                    issue,
+                    evidence.get("task_branch"),
+                )
+            except ValueError as exc:
+                return f"Error: {exc}"
             head_sha = str(evidence.get("head_sha") or "").strip().lower()
             remote_head_sha = str(
                 evidence.get("remote_head_sha") or ""
@@ -1234,7 +1246,18 @@ def build_tool_catalog(
         if session_denial is not None:
             return _wrap_text(session_denial)
         payload = args.get("result") if isinstance(args.get("result"), dict) else args
-        return _wrap_text(submit_auditor_result(payload, audit_target, audit_result_handler))
+        # The orchestrator's synchronous handler bridges back to its async
+        # coordinator with run_coroutine_threadsafe().  Running that handler
+        # on this async MCP tool's event-loop thread deadlocks the bridge until
+        # its timeout expires.  Offload the complete validation/submission
+        # call so the dispatch loop remains free to apply the result.
+        response = await asyncio.to_thread(
+            submit_auditor_result,
+            payload,
+            audit_target,
+            audit_result_handler,
+        )
+        return _wrap_text(response)
 
     if auditor_mode:
         return [
@@ -1844,7 +1867,15 @@ def build_opencode_tool_catalog(
         if session_denial is not None:
             return _wrap_text(session_denial)
         payload = args.get("result") if isinstance(args.get("result"), dict) else args
-        return _wrap_text(submit_auditor_result(payload, audit_target, audit_result_handler))
+        # Keep the event loop available while the synchronous orchestrator
+        # bridge waits for its coordinator coroutine to finish.
+        response = await asyncio.to_thread(
+            submit_auditor_result,
+            payload,
+            audit_target,
+            audit_result_handler,
+        )
+        return _wrap_text(response)
 
     if auditor_mode:
         return [

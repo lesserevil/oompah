@@ -11,11 +11,30 @@ Configure the commands on the project:
 - `test_command_full`, when present, is the complete branch command and takes
   precedence over `test_command`.
 
+## Caching and reuse
+
 The gate is keyed by repository, target branch, work branch, exact HEAD SHA,
 and command. An outcome is reused for concurrent or later readiness checks of
 that exact head, including after a service restart. This avoids repeatedly
 running or commenting on the same failure. A new commit, rebase, target
 branch, or command causes a new run.
+
+**Important:** Passed results are always safely reused. Failed, timed_out, and
+error results are cached but can be explicitly retried (see below).
+
+## Explicit retry on unchanged head
+
+When an integration row is explicitly retried from a blocked state (same head
+SHA and branch), the quality gate cache is invalidated **only for that row's
+failed, timed_out, or error results**. Passed results remain cached and are
+reused. This allows operators and agents to force a fresh quality gate check
+without requiring a new commit, while still benefiting from proven cached
+passes.
+
+Duplicate concurrent quality gates for the same row and head are prevented by
+oompah's per-instance single-flight locking mechanism.
+
+## Configuration and timeouts
 
 Set the timeout in `.env`:
 

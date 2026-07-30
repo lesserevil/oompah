@@ -4367,7 +4367,17 @@ class Orchestrator:
             # auditors; ordinary claims are intentionally left to the normal
             # shared-epic gate so its established P0 semantics are preserved.
             return False
-        for claimed_issue in getattr(self.state, "claimed_issues", {}).values():
+        claimed_issues = getattr(self.state, "claimed_issues", {})
+        for issue_id, claimed_issue in list(claimed_issues.items()):
+            if issue_id not in self.state.claimed:
+                claimed_issues.pop(issue_id, None)
+                logger.warning(
+                    "Released stale in-memory claim for %s while checking "
+                    "audit branch %s",
+                    claimed_issue.identifier,
+                    branch_key,
+                )
+                continue
             if audit_branch_key(claimed_issue) == branch_key:
                 return True
         return False
@@ -5089,6 +5099,7 @@ class Orchestrator:
             quality_gate=self._branch_quality_gate,
             quality_command=self._quality_gate_command(project),
             repo_identity=project.repo_url or project.repo_path or project.id,
+            retry_forced=item.retry_forced,
         )
 
     def _route_integration_failure(
@@ -23353,6 +23364,7 @@ class Orchestrator:
             # machine: a normal exit is meaningful only when the structured
             # result tool has already completed the durable audit record.
             self.state.claimed.discard(issue_id)
+            self.state.claimed_issues.pop(issue_id, None)
             self._release_audit_branch_claim(
                 entry.branch_key,
                 entry.audit_attempt_id,
