@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-615
 type: bug
-status: Backlog
+status: In Progress
 priority: 1
 title: Fence implementation retries when terminal audits take ownership
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T20:22:18.934506Z'
-updated_at: '2026-07-30T20:22:18.934506Z'
+updated_at: '2026-07-30T20:22:28.248343Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -30,3 +30,11 @@ Implementation scope: Fix the reproduced ownership races between ordinary worker
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-30 20:22
+---
+Claimed directly by the operator Codex session after live reproduction on OOMPAH-591. I will implement and verify this task locally; do not dispatch a separate implementation agent.
+---
+<!-- COMMENTS:END -->
