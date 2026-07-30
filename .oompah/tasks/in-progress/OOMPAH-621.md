@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-621
 type: task
-status: Open
+status: In Progress
 priority: 1
 title: Document and integration-test CLI credential precedence
 parent: OOMPAH-619
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:25:29.809048Z'
-updated_at: '2026-07-30T21:49:56.535362Z'
+updated_at: '2026-07-30T22:24:11.164856Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-621
 target_branch: null
 review_url: null
@@ -40,7 +40,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 10e83b92-afc5-497f-b349-824d45829745
+oompah.agent_run_id: 78c2b97e-7b73-4cb9-93a9-cd83c1a21fb5
 oompah.work_branch: epic-OOMPAH-619--task-OOMPAH-621
 oompah.integration:
   version: 1
@@ -48,8 +48,8 @@ oompah.integration:
   attempts: 0
   task_branch: epic-OOMPAH-619--task-OOMPAH-621
   base_branch: epic-OOMPAH-619
-  base_sha: c048ba706cbe9b1342b80a67576a49b82887e84a
-  updated_at: '2026-07-30T21:35:26.024048+00:00'
+  base_sha: 11dc483f0c80b9adb33fb5f55ca3946bbe31ec72
+  updated_at: '2026-07-30T22:24:07.806958+00:00'
 oompah.task_costs:
   total_input_tokens: 871086
   total_output_tokens: 3139
@@ -108,5 +108,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 23s
 - Log: OOMPAH-621__20260730T213528Z.jsonl
+---
+author: oompah
+created: 2026-07-30 22:24
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-30 22:24
+---
+Focus: Technical Writer
 ---
 <!-- COMMENTS:END -->

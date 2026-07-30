@@ -12,7 +12,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-30T21:37:57.526368Z'
-updated_at: '2026-07-30T22:23:34.724624Z'
+updated_at: '2026-07-30T22:24:00.844679Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-624
 target_branch: null
 review_url: null
@@ -46,8 +46,8 @@ oompah.integration:
   base_sha: 11dc483f0c80b9adb33fb5f55ca3946bbe31ec72
   updated_at: '2026-07-30T22:16:32.010053+00:00'
 oompah.task_costs:
-  total_input_tokens: 178280
-  total_output_tokens: 13430
+  total_input_tokens: 178286
+  total_output_tokens: 13797
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -57,6 +57,10 @@ oompah.task_costs:
     opus:
       input_tokens: 281
       output_tokens: 7922
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 6
+      output_tokens: 367
       cost_usd: 0.0
   runs:
   - profile: default
@@ -77,6 +81,12 @@ oompah.task_costs:
     output_tokens: 7922
     cost_usd: 0.0
     recorded_at: '2026-07-30T22:10:34.209681+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 6
+    output_tokens: 367
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T22:23:57.527517+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-624__20260730T213853Z
@@ -347,5 +357,15 @@ Safe evidence:
 - regression_scenarios_covered: owner-passes-without-actor, non-owner-denied, actor-spoofing-rejected, conflicting-actor-rejected-no-mutation, mapping-resolves-owner, strict-unmapped-denied, unauthenticated-compat
 - focused_suites_status: all passing (no regressions across server/auth/actor/transition/webhook/mcp/cli surface)
 - acceptance_criteria: authorization-uses-server-trusted-identity=met; owner-without-second-flag=met; actor-spoofing-regression-test=met; operator-docs=met (docs/authentication-identity-mapping.md linked from docs/authentication.md); focused-tests-pass=met
+---
+author: oompah
+created: 2026-07-30 22:23
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 159, Tool calls: 128
+- Tokens: 6 in / 367 out [373 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 7m 29s
+- Log: OOMPAH-624__20260730T221636Z.jsonl
 ---
 <!-- COMMENTS:END -->
