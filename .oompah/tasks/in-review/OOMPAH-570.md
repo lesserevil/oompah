@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-570
 type: bug
-status: Done
+status: In Review
 priority: 1
 title: Recover interrupted integration leases and explicit blocked-head retries
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T23:53:31.874608Z'
-updated_at: '2026-07-30T00:10:38.222452Z'
+updated_at: '2026-07-30T00:20:13.209500Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -303,5 +303,10 @@ author: oompah
 created: 2026-07-30 00:09
 ---
 Hardening the submitted implementation before review.
+---
+author: oompah
+created: 2026-07-30 00:20
+---
+Branch quality gate passed for `bec579e966af1e43550d890629b8e34fed4a7fcb` using `make test` in 267.1s. Review creation may proceed.
 ---
 <!-- COMMENTS:END -->
