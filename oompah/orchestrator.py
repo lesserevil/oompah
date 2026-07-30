@@ -4936,6 +4936,183 @@ class Orchestrator:
             # Invalid timestamp format, treat as no backoff
             return False
 
+    def _reconcile_standalone_ready_to_integrate_tasks(self) -> None:
+        """Detect and deliver standalone Ready to Integrate tasks without PRs.
+        
+        Reconciliation for tasks that:
+        - Are in "Ready to Integrate" status
+        - Are standalone (no parent_id/epic)
+        - Have pushed branches
+        - Have no open PR
+        - Have no active integration execution (queue entry)
+        
+        Creates PRs idempotently and marks tasks In Review.
+        Logs actionable failures when delivery is impossible.
+        """
+        for project in self.project_store.list_all():
+            tracker = self._tracker_for_project(project.id)
+            try:
+                ready = tracker.fetch_issues_by_states([READY_TO_INTEGRATE])
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "Could not scan Ready to Integrate submissions for %s: %s",
+                    project.name,
+                    exc,
+                )
+                continue
+            
+            # Filter to standalone tasks only (no parent_id)
+            standalone = [
+                issue for issue in ready
+                if not str(issue.parent_id or "").strip()
+            ]
+            
+            if not standalone:
+                continue
+            
+            # Get project config
+            try:
+                scm = self.provider_store.get_scm_for_project(project.id)
+                if not scm or not scm.is_available():
+                    logger.warning(
+                        "No available SCM for project %s; skipping standalone "
+                        "Ready to Integrate delivery",
+                        project.name,
+                    )
+                    continue
+            except Exception as exc:
+                logger.warning(
+                    "Could not get SCM for project %s: %s",
+                    project.name,
+                    exc,
+                )
+                continue
+            
+            repo_slug = getattr(project, "repo_slug", None)
+            if not repo_slug:
+                logger.warning(
+                    "Project %s has no repo_slug configured; skipping standalone "
+                    "Ready to Integrate delivery",
+                    project.name,
+                )
+                continue
+            
+            default_branch = getattr(project, "default_branch", "main")
+            
+            for issue in standalone:
+                issue.project_id = project.id
+                task_id = issue.identifier
+                
+                # Get task branch name (typically matches task identifier)
+                task_branch = getattr(issue, "work_branch", None) or task_id
+                
+                # Check if branch exists on origin
+                try:
+                    ls_result = scm.get_branch_head_sha(repo_slug, task_branch)
+                    if not ls_result:
+                        logger.warning(
+                            "Standalone Ready task %s branch %s not found on origin",
+                            task_id,
+                            task_branch,
+                        )
+                        continue
+                except Exception as exc:
+                    logger.warning(
+                        "Could not check if branch exists for %s: %s",
+                        task_id,
+                        exc,
+                    )
+                    continue
+                
+                # Check if PR already exists for this branch
+                try:
+                    existing_pr = scm.find_pr_for_branch(repo_slug, task_branch)
+                    if existing_pr:
+                        logger.debug(
+                            "Standalone Ready task %s already has open PR %s",
+                            task_id,
+                            getattr(existing_pr, "id", "?"),
+                        )
+                        # PR already exists and is open; mark task In Review if not already
+                        try:
+                            current_status = tracker.get_issue(task_id).state
+                            if current_status != IN_REVIEW:
+                                tracker.update_issue(task_id, status=IN_REVIEW)
+                                # Also update review metadata
+                                self._write_review_metadata(
+                                    tracker,
+                                    task_id,
+                                    review_id=getattr(existing_pr, "id", None),
+                                    review_url=getattr(existing_pr, "url", None),
+                                    source_branch=task_branch,
+                                    target_branch=default_branch,
+                                )
+                        except Exception as exc:
+                            logger.warning(
+                                "Could not update %s to In Review: %s",
+                                task_id,
+                                exc,
+                            )
+                        continue
+                except Exception as exc:
+                    logger.warning(
+                        "Could not check for existing PR for %s: %s",
+                        task_id,
+                        exc,
+                    )
+                    continue
+                
+                # Create a new PR for this standalone Ready task
+                title = f"{task_id}: {issue.title}" if issue.title else task_id
+                description = issue.description or ""
+                
+                try:
+                    result = scm.create_review(
+                        repo_slug,
+                        title,
+                        task_branch,
+                        target_branch=default_branch,
+                        description=description,
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to create PR for standalone Ready task %s: %s",
+                        task_id,
+                        exc,
+                    )
+                    continue
+                
+                if result is None:
+                    logger.warning(
+                        "Failed to create PR for standalone Ready task %s "
+                        "(provider returned None)",
+                        task_id,
+                    )
+                    continue
+                
+                # Successfully created PR; update task state
+                try:
+                    tracker.update_issue(task_id, status=IN_REVIEW)
+                    self._write_review_metadata(
+                        tracker,
+                        task_id,
+                        review_id=getattr(result, "id", None),
+                        review_url=getattr(result, "url", None),
+                        source_branch=task_branch,
+                        target_branch=default_branch,
+                    )
+                    logger.info(
+                        "Created PR for standalone Ready task %s (PR #%s)",
+                        task_id,
+                        getattr(result, "id", "?"),
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to update %s to In Review after PR creation: %s",
+                        task_id,
+                        exc,
+                    )
+
     def _integration_satisfied_dependencies(
         self,
         issues: list[Issue],
@@ -5612,6 +5789,11 @@ class Orchestrator:
         await loop.run_in_executor(
             self._tick_pool,
             self._sync_ready_integration_submissions,
+        )
+        # Reconcile standalone Ready to Integrate tasks (no epic parent)
+        await loop.run_in_executor(
+            self._tick_pool,
+            self._reconcile_standalone_ready_to_integrate_tasks,
         )
         self.integration_queue.recover_expired()
         all_items = self.integration_queue.items()
