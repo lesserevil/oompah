@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-590
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Retry terminal audits after auditor launch or transport failure
 parent: OOMPAH-585
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:22.194798Z'
-updated_at: '2026-07-30T14:16:52.388289Z'
+updated_at: '2026-07-30T14:18:30.497749Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,3 +39,11 @@ A transient auditor-session failure cannot leave a request silently Pending fore
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-30 14:18
+---
+Project-owner-approved green recovery work; dispatch under recorded dependencies and acceptance criteria.
+---
+<!-- COMMENTS:END -->

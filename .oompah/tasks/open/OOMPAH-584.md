@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-584
 type: epic
-status: Backlog
+status: Open
 priority: 1
 title: Return the oompah delivery control plane to green
 parent: null
@@ -15,7 +15,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:13:01.872040Z'
-updated_at: '2026-07-30T14:13:46.652340Z'
+updated_at: '2026-07-30T14:18:10.993766Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -47,3 +47,11 @@ The service had 54 pending terminal audits; OOMPAH-580 and OOMPAH-582 were stale
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-30 14:18
+---
+Project-owner-approved green recovery work; dispatch under recorded dependencies and acceptance criteria.
+---
+<!-- COMMENTS:END -->

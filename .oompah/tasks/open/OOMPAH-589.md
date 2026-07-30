@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-589
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Validate auditor provider endpoints before candidate dispatch
 parent: OOMPAH-585
@@ -11,12 +11,26 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:20.256845Z'
-updated_at: '2026-07-30T14:14:20.256845Z'
+updated_at: '2026-07-30T14:18:39.159218Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 5959c896665e6c4f26f1aecbff8cf62fb2974c3e9536790adddc03a5eb144815
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 6444f301-e3d2-404e-9821-322f9b175ef5
+  claim_owner: 9e3a680b-e68a-4d5a-ba2e-f9091834f9ec
+  claimed_at: '2026-07-30T14:18:37.219393+00:00'
+  claim_expires_at: '2026-07-30T14:48:37.219393+00:00'
+  retry_count: 0
+  retry_after: null
 ---
 ## Summary
 
@@ -38,3 +52,11 @@ No auditor launch can reach unknown URL type /chat/completions; valid independen
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-30 14:18
+---
+Project-owner-approved green recovery work; dispatch under recorded dependencies and acceptance criteria.
+---
+<!-- COMMENTS:END -->

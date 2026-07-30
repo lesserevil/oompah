@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-587
 type: epic
-status: Backlog
+status: Open
 priority: 1
 title: Drain integration queues and prevent stranded delivery states
 parent: OOMPAH-584
@@ -15,7 +15,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:13:38.093049Z'
-updated_at: '2026-07-30T14:15:31.645001Z'
+updated_at: '2026-07-30T14:18:20.040793Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,3 +42,11 @@ Blocked conflict repairs can be rearmed after recoverable infrastructure/auth fa
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-30 14:18
+---
+Project-owner-approved green recovery work; dispatch under recorded dependencies and acceptance criteria.
+---
+<!-- COMMENTS:END -->

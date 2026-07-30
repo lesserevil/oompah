@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-591
 type: task
-status: Backlog
+status: Open
 priority: 1
 title: Reconcile the pending audit backlog and stale In Validation tasks
 parent: OOMPAH-585
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:26.620047Z'
-updated_at: '2026-07-30T14:16:57.347368Z'
+updated_at: '2026-07-30T14:18:34.126120Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,3 +41,11 @@ Pending audit count reaches zero or every remainder has a specific actionable te
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-30 14:18
+---
+Project-owner-approved green recovery work; dispatch under recorded dependencies and acceptance criteria.
+---
+<!-- COMMENTS:END -->
