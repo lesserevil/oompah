@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-590
 type: bug
-status: In Validation
+status: Done
 priority: 1
 title: Retry terminal audits after auditor launch or transport failure
 parent: OOMPAH-585
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:22.194798Z'
-updated_at: '2026-07-30T18:35:29.691283Z'
+updated_at: '2026-07-30T18:39:45.510270Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-590
 target_branch: null
 review_url: null
@@ -88,6 +88,8 @@ oompah.work_contributors:
     completed_at: '2026-07-30T14:31:23.771017+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-95f921448d19: '2026-07-30T18:39:43.069467+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -95,7 +97,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-590
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -104,7 +106,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-95f921448d19
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -114,13 +116,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-30T18:35:21.202702+00:00'
       branch_key: epic-OOMPAH-585--task-OOMPAH-590
+      verdict: pass
+      completed_at: '2026-07-30T18:39:43.069349+00:00'
+      ended_at: '2026-07-30T18:39:43.069349+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-30T18:35:04.619172+00:00'
-    updated_at: '2026-07-30T18:35:21.202702+00:00'
+    updated_at: '2026-07-30T18:39:43.069349+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-95f921448d19
@@ -332,5 +337,24 @@ author: oompah
 created: 2026-07-30 18:35
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 18:39
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- branch: epic-OOMPAH-585--task-OOMPAH-590
+- head_sha: cc261493377c48796574c954e4ca89b65ff7afc1
+- task_commit: cc2614933 OOMPAH-590: Retry terminal audits after auditor launch or transport failure
+- changed_files: oompah/auditor_dispatch.py, oompah/orchestrator.py, tests/test_auditor_dispatch.py (+256/-3)
+- dispatch_launch_classification_site: oompah/orchestrator.py:4471
+- dispatch_exit_classification_site: oompah/orchestrator.py:22972
+- finish_attempt_signature: oompah/auditor_dispatch.py:301 accepts failure_classification and persists it via replace()
+- recover_backoff_check: oompah/auditor_dispatch.py: recover() honors next_retry_at and active_attempt_ids for restart/dup coalescing
+- plan_exhaustion_reason: NoCandidateReason('all_attempted') returned once record.attempts >= max_attempts
+- focused_tests_pass: pytest tests/test_auditor_dispatch.py -> 13 passed; tests/test_terminal_audit.py + tests/test_terminal_transition_coordinator.py -> 131 passed; broader terminal/auditor set -> 336 passed
 ---
 <!-- COMMENTS:END -->
