@@ -11,12 +11,27 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:39:46.196812Z'
-updated_at: '2026-07-30T04:39:56.636652Z'
+updated_at: '2026-07-30T04:40:37.018499Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 25c9271d788a889a3576cb8aba9615a008b7c63f4bc224e416c9f3dd289047de
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 6d1e87e4-3ba5-4563-967a-a462dd99460a
+  claim_owner: 4e500792-3d44-4947-bbef-0f678c7beafb
+  claimed_at: '2026-07-30T04:40:32.997499+00:00'
+  claim_expires_at: '2026-07-30T05:10:32.997499+00:00'
+  retry_count: 0
+  retry_after: null
+oompah.agent_run_id: 73a55790-95c9-4004-bd80-bee8fb12cc99
 ---
 ## Summary
 
@@ -28,3 +43,16 @@ Live reproduction: after OOMPAH-459 merged and epic-OOMPAH-460 was rebased to cu
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-30 04:40
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-07-30 04:40
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
