@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-572
 type: task
-status: In Progress
+status: Done
 priority: 0
 title: Rebase epic-OOMPAH-459 onto main
 parent: OOMPAH-459
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T00:10:44.905550Z'
-updated_at: '2026-07-30T00:21:28.185676Z'
+updated_at: '2026-07-30T00:21:36.784130Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-572
 target_branch: null
 review_url: null
@@ -184,5 +184,10 @@ author: oompah
 created: 2026-07-30 00:19
 ---
 Operator handoff: rebase only refs/heads/epic-OOMPAH-459. Verified pre-rebase epic tip is 2e2005cba and current origin/main is bd5f23f53 (PR #586 auditor reconciliation). Replay the nine epic-only commits onto origin/main, verify the rewritten commit series with range-diff, and force-push epic-OOMPAH-459 with an exact force-with-lease. Do not modify or append the OOMPAH-483, OOMPAH-479, or OOMPAH-480 task branches; they remain separate Ready queue inputs. Report the new epic tip.
+---
+author: oompah
+created: 2026-07-30 00:21
+---
+Rebased epic-OOMPAH-459 directly from 2e2005cba5b9106029e706db699ca7cfdaa6e3bd onto origin/main bd5f23f53161c8b2722f445d9c62c7f39cf61d98. Range-diff preserved all nine commits; force-pushed with an exact lease. New epic tip: bd5f23f53161c8b2722f445d9c62c7f39cf61d98. The Ready task branches were not modified.
 ---
 <!-- COMMENTS:END -->
