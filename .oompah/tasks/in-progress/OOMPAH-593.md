@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-30T14:14:54.281403Z'
-updated_at: '2026-07-30T15:46:40.347796Z'
+updated_at: '2026-07-30T15:49:10.351860Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-593
 target_branch: null
 review_url: null
@@ -390,5 +390,10 @@ author: oompah
 created: 2026-07-30 15:46
 ---
 Verification: uv run pytest tests/test_task_handoff.py tests/test_acp_codex_backend.py -q → 91 passed, 1 warning (unrelated starlette deprecation notice). Breakdown: 28 in test_task_handoff.py (16 pre-existing + 6 OOMPAH-575 TestHandoffTokenFailClosed + 6 new TestOrchestratorHandoffTokenMint), 63 in test_acp_codex_backend.py (58 pre-existing + 5 OOMPAH-575 TestCodexHandoffAuth). Drift-guard mutation-testing performed and confirmed both fail-modes are actually caught.
+---
+author: oompah
+created: 2026-07-30 15:49
+---
+Completion (Test Engineer): Delivered on branch epic-OOMPAH-586--task-OOMPAH-593. Commits: fe52c187f (docs), 13d5013a9 (OOMPAH-575 tests cherry-picked from origin/OOMPAH-575), 31b9f44e9 (new TestOrchestratorHandoffTokenMint live-path reproducer). Coverage now spans the full live path: orchestrator mint → AcpBackendOptions → subprocess env → task CLI → /api/v1/task-handoff endpoint. 91 focused-suite tests pass on the final head. OOMPAH-575's acceptance ('reaches Merged') is satisfied by rolling its commit up under this submission; the second half ('newly launched Codex worker completes the documented workflow') is protected by the six new orchestrator-mint tests that would catch any drift between what the mint grants and what the CLI/endpoint expect — the exact 401/403 failure mode the task warned about.
 ---
 <!-- COMMENTS:END -->
