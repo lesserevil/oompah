@@ -120,3 +120,21 @@ def parse_integration_record(value: object) -> IntegrationRecord | None:
         return IntegrationRecord.from_dict(value)
     except ValueError:
         return None
+
+
+def validate_task_branch_authority(issue: object, task_branch: str) -> None:
+    """Reject submission evidence from a branch owned by another task."""
+
+    canonical_branch = _optional_text(
+        getattr(issue, "work_branch", None)
+        or getattr(issue, "branch_name", None)
+    )
+    if canonical_branch is None:
+        existing = getattr(issue, "integration", None)
+        canonical_branch = _optional_text(
+            getattr(existing, "task_branch", None)
+        )
+    if canonical_branch is not None and task_branch != canonical_branch:
+        raise ValueError(
+            "task_branch does not match the task's canonical work branch"
+        )

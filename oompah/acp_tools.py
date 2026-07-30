@@ -681,7 +681,10 @@ def _exec_oompah_task_command(
         if args.subcommand == "submit":
             from datetime import datetime, timezone
 
-            from oompah.integration import IntegrationRecord
+            from oompah.integration import (
+                IntegrationRecord,
+                validate_task_branch_authority,
+            )
             from oompah.statuses import READY_TO_INTEGRATE
             from oompah.task_cli import _git_submission_evidence
 
@@ -701,6 +704,13 @@ def _exec_oompah_task_command(
                     "Error: task submission requires a checked-out branch "
                     "with a committed HEAD"
                 )
+            issue = task_tracker.fetch_issue_detail(args.identifier)
+            if issue is None:
+                return f"Error: Issue {args.identifier!r} not found"
+            try:
+                validate_task_branch_authority(issue, branch)
+            except ValueError as exc:
+                return f"Error: {exc}"
             if not remote_head_sha:
                 return (
                     "Error: push the task branch to origin before submission"

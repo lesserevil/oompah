@@ -111,3 +111,35 @@ def test_submit_endpoint_rejects_invalid_git_object_id_without_writing():
     assert response.status_code == 400
     tracker.set_metadata_field.assert_not_called()
     tracker.update_issue.assert_not_called()
+
+
+def test_submit_endpoint_rejects_foreign_task_branch_without_writing():
+    issue = _issue()
+    tracker = MagicMock()
+    tracker.fetch_issue_detail.return_value = issue
+    orch = MagicMock()
+    orch._tracker_for_project.return_value = tracker
+
+    with (
+        patch.object(server_module, "_get_orchestrator", return_value=orch),
+        TestClient(app, raise_server_exceptions=False) as client,
+    ):
+        response = client.post(
+            "/api/v1/issues/TASK-2/submit",
+            json={
+                "project_id": "proj-1",
+                "task_branch": "oompah/task/TASK-OTHER",
+                "head_sha": "a" * 40,
+                "remote_head_sha": "a" * 40,
+                "worktree_clean": True,
+                "summary": "Wrong worktree",
+            },
+        )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["message"] == (
+        "task_branch does not match the task's canonical work branch"
+    )
+    tracker.set_metadata_field.assert_not_called()
+    tracker.update_issue.assert_not_called()
+    orch.integration_queue.enqueue.assert_not_called()
