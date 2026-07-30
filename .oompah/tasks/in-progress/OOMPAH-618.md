@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-618
 type: bug
-status: Backlog
+status: In Progress
 priority: 1
 title: Keep ACP shell commands off the scheduler event loop
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T21:03:01.411786Z'
-updated_at: '2026-07-30T21:03:01.411786Z'
+updated_at: '2026-07-30T21:04:33.600646Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -28,3 +28,11 @@ Implementation scope: fix the live scheduler stall reproduced while the OOMPAH-6
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-30 21:04
+---
+Claimed for direct operator implementation. This child fixes the event-loop stall observed during the OOMPAH-616 audit; implementation, regression tests, branch integration, and audit handoff will be completed here.
+---
+<!-- COMMENTS:END -->
