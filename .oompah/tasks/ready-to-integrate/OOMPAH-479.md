@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-479
 type: feature
-status: Needs Human
+status: Ready to Integrate
 priority: 1
 title: Route webhook, YOLO, and merged-branch reconciliation through Merged audits
 parent: OOMPAH-459
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:27.240594Z'
-updated_at: '2026-07-30T02:01:27.693502Z'
+updated_at: '2026-07-30T02:03:16.232859Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-479
 target_branch: null
 review_url: null
@@ -95,12 +95,12 @@ oompah.task_costs:
     recorded_at: '2026-07-30T02:01:26.289278+00:00'
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-459--task-OOMPAH-479
-  base_branch: epic-OOMPAH-459
-  base_sha: 0b84b7b6d6a1ef0d77ad0de7e6dc51ef2676792c
-  updated_at: '2026-07-30T01:56:06.198039+00:00'
+  head_sha: d61679dbe4d99414a6c941d425abfc3cd7109341
+  submitted_at: '2026-07-30T02:03:13.037575+00:00'
+  updated_at: '2026-07-30T02:03:13.037575+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-479__20260730T015348Z
@@ -491,5 +491,15 @@ Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: terminated, Duration: 5m 23s
 - Log: OOMPAH-479__20260730T015611Z.jsonl
+---
+author: oompah
+created: 2026-07-30 02:03
+---
+Stabilized the pre-existing intake-promotion gate race at new head d61679dbe. The test now waits on an Event fired by the background worker's final audit comment, instead of polling its first update for only one second. Verification: exact regression 20/20 passes; complete 16-test module 5/5 parallel runs (80/80); git diff --check clean. Branch pushed and up to date.
+---
+author: oompah
+created: 2026-07-30 02:03
+---
+Repaired rebase conflict and stabilized the unrelated full-gate intake thread race. New pushed head d61679dbe; 887 coordinator-focused tests previously passed, plus exact flake 20/20 and full intake module 80/80 in parallel.
 ---
 <!-- COMMENTS:END -->
