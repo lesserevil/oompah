@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-613
 type: task
-status: In Validation
+status: Done
 priority: 0
 title: Rebase epic-OOMPAH-460 onto main
 parent: OOMPAH-460
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T19:34:40.947096Z'
-updated_at: '2026-07-30T19:58:26.355406Z'
+updated_at: '2026-07-30T19:59:49.563719Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-613
 target_branch: null
 review_url: null
@@ -122,6 +122,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-182c18c7b66f: '2026-07-30T19:59:47.141708+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -129,7 +131,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-613
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -138,7 +140,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-182c18c7b66f
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -148,13 +150,16 @@ oompah.terminal_audit:
       model: nvidia/nvidia/nemotron-3-ultra
       started_at: '2026-07-30T19:58:17.183417+00:00'
       branch_key: epic-OOMPAH-460--task-OOMPAH-613
+      verdict: pass
+      completed_at: '2026-07-30T19:59:47.141559+00:00'
+      ended_at: '2026-07-30T19:59:47.141559+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-30T19:57:59.513905+00:00'
-    updated_at: '2026-07-30T19:58:17.183417+00:00'
+    updated_at: '2026-07-30T19:59:47.141559+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-182c18c7b66f
@@ -346,5 +351,19 @@ author: oompah
 created: 2026-07-30 19:58
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 19:59
+---
+Audit PASS — Done
+
+Rebase verified successfully. The epic branch epic-OOMPAH-460 (868f1e391) has been cleanly rebased onto origin/main (c048ba706) with 4 additional commits (OOMPAH-486 work) applied linearly on top. No conflicts, no merge commits introduced, and force-push with --force-with-lease confirmed (remote matches local). origin/main is a verified ancestor of origin/epic-OOMPAH-460.
+
+Safe evidence:
+- epic_head: 868f1e391
+- main_head: c048ba706
+- commits_ahead: 4
+- commits_behind: 0
+- rebase_conflicts: none
 ---
 <!-- COMMENTS:END -->
