@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T23:53:31.874608Z'
-updated_at: '2026-07-30T00:08:08.316865Z'
+updated_at: '2026-07-30T00:08:26.393853Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,13 +37,13 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 2b30c2f1-f99c-49a8-9c98-96e3b2ec536d
 oompah.task_costs:
-  total_input_tokens: 618966
-  total_output_tokens: 10122
+  total_input_tokens: 619546
+  total_output_tokens: 34475
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 618966
-      output_tokens: 10122
+      input_tokens: 619546
+      output_tokens: 34475
       cost_usd: 0.0
   runs:
   - profile: default
@@ -58,6 +58,12 @@ oompah.task_costs:
     output_tokens: 3483
     cost_usd: 0.0
     recorded_at: '2026-07-29T23:58:31.978665+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 580
+    output_tokens: 24353
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T00:08:22.718611+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-570__20260729T235353Z
@@ -76,14 +82,24 @@ oompah.work_contributors:
     source_branch: OOMPAH-570
     source_sha: 8483db2e3e718c1f5f6476018d954574ce5d42f9
     completed_at: '2026-07-29T23:58:31.982681+00:00'
+  - run_id: OOMPAH-570__20260729T235841Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: refactor
+    source_branch: OOMPAH-570
+    source_sha: 64b9c6d81a851da760225299c6df082d70ead338
+    completed_at: '2026-07-30T00:08:22.723297+00:00'
 oompah.integration:
   version: 1
   state: ready
   attempts: 0
   task_branch: OOMPAH-570
+  base_branch: main
+  base_sha: 8483db2e3e718c1f5f6476018d954574ce5d42f9
   head_sha: 64b9c6d81a851da760225299c6df082d70ead338
   submitted_at: '2026-07-30T00:08:06.189040+00:00'
-  updated_at: '2026-07-30T00:08:06.189040+00:00'
+  updated_at: '2026-07-30T00:08:24.100902+00:00'
 ---
 ## Summary
 
@@ -262,5 +278,20 @@ author: oompah
 created: 2026-07-30 00:08
 ---
 Recovered interrupted integration leases and implemented explicit blocked-head retries. Added explicit_retry flag to distinguish user submissions from background sync, recover_abandoned() for startup lease recovery, quality gate process group cleanup on shutdown. All 291 tests passing.
+---
+author: oompah
+created: 2026-07-30 00:08
+---
+Agent completed successfully in 583s (24933 tokens)
+---
+author: oompah
+created: 2026-07-30 00:08
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 215, Tool calls: 71
+- Tokens: 580 in / 24.4K out [24.9K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 9m 43s
+- Log: OOMPAH-570__20260729T235841Z.jsonl
 ---
 <!-- COMMENTS:END -->
