@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-477
 type: feature
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Replace the post-worker completion verifier with Done audit staging
 parent: OOMPAH-459
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:25.383734Z'
-updated_at: '2026-07-29T23:44:50.230746Z'
+updated_at: '2026-07-30T00:05:32.113187Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-477
 target_branch: null
 review_url: null
@@ -68,12 +68,37 @@ oompah.task_costs:
     recorded_at: '2026-07-29T18:29:40.147105+00:00'
 oompah.integration:
   version: 1
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-459--task-OOMPAH-477
-  head_sha: cfa5ca64f43aaa846f4ce7c153291390c5e0648c
+  base_branch: epic-OOMPAH-459
+  base_sha: 2e2005cba5b9106029e706db699ca7cfdaa6e3bd
+  head_sha: 2e2005cba5b9106029e706db699ca7cfdaa6e3bd
+  integrated_sha: 2e2005cba5b9106029e706db699ca7cfdaa6e3bd
   submitted_at: '2026-07-29T23:44:48.106968+00:00'
-  updated_at: '2026-07-29T23:44:48.106968+00:00'
+  updated_at: '2026-07-30T00:05:28.957367+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-670cd85a6957
+    project_id: proj-14849f1b
+    task_id: OOMPAH-477
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6b742c0d562af6d5cd240ac8731fb1a475ab0838d7fd91c2c80a4cabd3674a4a
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-30T00:05:29.961007+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -496,5 +521,10 @@ author: oompah
 created: 2026-07-29 23:44
 ---
 Re-run repaired canonical epic head from OOMPAH-477 task branch under sanitized quality-gate environment; prior sole failure was inherited service authentication.
+---
+author: oompah
+created: 2026-07-30 00:05
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
