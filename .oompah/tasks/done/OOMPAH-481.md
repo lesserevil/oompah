@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-481
 type: feature
-status: In Validation
+status: Done
 priority: 1
 title: Route automatic archive and intake retirement through Archived audits
 parent: OOMPAH-459
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:29.211296Z'
-updated_at: '2026-07-30T00:14:55.957717Z'
+updated_at: '2026-07-30T00:48:59.875995Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-481
 target_branch: null
 review_url: null
@@ -101,6 +101,8 @@ oompah.integration:
   updated_at: '2026-07-30T00:14:53.849765+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-0a0b17cd406c: '2026-07-30T00:48:56.683557+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -108,7 +110,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-481
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -132,7 +134,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-0a0b17cd406c
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -143,13 +145,16 @@ oompah.terminal_audit:
       started_at: '2026-07-30T00:14:45.850859+00:00'
       branch_key: epic-OOMPAH-459--task-OOMPAH-481
       candidate_rotation_count: 1
+      verdict: pass
+      completed_at: '2026-07-30T00:48:56.683354+00:00'
+      ended_at: '2026-07-30T00:48:56.683354+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-30T00:00:17.284993+00:00'
-    updated_at: '2026-07-30T00:14:45.850859+00:00'
+    updated_at: '2026-07-30T00:48:56.683354+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-987beac3b8e9
@@ -482,5 +487,28 @@ author: oompah
 created: 2026-07-30 00:14
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 00:48
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: 2e2005cba5b9106029e706db699ca7cfdaa6e3bd
+- origin_branch_head: 2e2005cba5b9106029e706db699ca7cfdaa6e3bd
+- epic_head: 65df7489f845e7def17ee6612060a0bc6130ba82
+- task_commits: f793f91f4, 2e2005cba
+- archived_audit_requests_tests: 6 passed
+- github_intake_bridge_tests: 57 passed
+- release_pick_migration_tests: 58 passed
+- stalled_task_watchdog_tests: 79 passed
+- terminal_transition_coordinator_tests: 102 passed
+- terminal_audit_tests: 69 passed
+- orchestrator_handlers_tests: 267 passed
+- error_watcher_tests: 130 passed
+- managed_tracker_state_branch_guard_tests: 19 passed
+- callsites: orchestrator._do_auto_archive; stalled_task_watchdog; release_pick_migration; github_intake_bridge (close + cancel)
 ---
 <!-- COMMENTS:END -->
