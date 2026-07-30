@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-416
 type: task
-status: Merged
+status: In Validation
 priority: 0
 title: Post REFRESH_REQUESTED after orphan resets to wake dispatch immediately
 parent: OOMPAH-414
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-23T19:34:30.939292Z'
-updated_at: '2026-07-23T21:07:59.170311Z'
+updated_at: '2026-07-30T21:55:13.234774Z'
 work_branch: epic-OOMPAH-414
 target_branch: null
 review_url: null
@@ -42,6 +42,28 @@ oompah.task_costs:
     output_tokens: 4221
     cost_usd: 0.0
     recorded_at: '2026-07-23T20:24:14.898021+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-fa12549f489d
+    project_id: proj-14849f1b
+    task_id: OOMPAH-416
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a02db6c249605b2552da3ed0da671a4148a6393d0e328dd741a3ee643a89c597
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-07-30T21:55:10.555620+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -241,5 +263,10 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Codex/
 - Cost: $0.0000
 - Exit: terminated, Duration: 15m 51s
 - Log: OOMPAH-416__20260723T205209Z.jsonl
+---
+author: oompah
+created: 2026-07-30 21:55
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
