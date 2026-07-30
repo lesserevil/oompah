@@ -390,10 +390,16 @@ def test_auto_archive_and_shutdown_leave_code_branch_untouched(
     _assert_no_live_owned_pool_threads(orch)
 
 
+@pytest.mark.timeout(15)
 def test_server_error_watcher_and_scheduler_write_only_to_state_branch(
     tmp_path: Path,
 ) -> None:
-    """Server startup and background archive mutations share the state tracker."""
+    """Server startup and background archive mutations share the state tracker.
+
+    This test creates and pushes several real local Git commits.  Give it
+    headroom beyond the suite's five-second unit-test default when four xdist
+    workers contend for disk I/O.
+    """
     repo, remote, state_branch = _init_remote_with_state_branch(tmp_path)
     project = _make_project(repo)
     orch = _make_orchestrator(tmp_path, project)
