@@ -11,7 +11,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-23T20:43:29.346291Z'
-updated_at: '2026-07-30T21:58:17.172293Z'
+updated_at: '2026-07-30T21:58:37.767489Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -19,13 +19,13 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: 50ca3563-bebc-4d3c-9fd8-5e4e7a74dfbb
 oompah.task_costs:
-  total_input_tokens: 4894559
-  total_output_tokens: 13693
+  total_input_tokens: 4894592
+  total_output_tokens: 18798
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 4894559
-      output_tokens: 13693
+      input_tokens: 4894592
+      output_tokens: 18798
       cost_usd: 0.0
   runs:
   - profile: standard
@@ -34,6 +34,12 @@ oompah.task_costs:
     output_tokens: 13693
     cost_usd: 0.0
     recorded_at: '2026-07-23T21:12:50.293208+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 33
+    output_tokens: 5105
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T21:58:36.373005+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
@@ -228,5 +234,15 @@ Safe evidence:
 - pr_number: 543
 - source_branch: epic-OOMPAH-414
 - audit_reason: Aged Merged auto-archive (closed ~7 days ago)
+---
+author: oompah
+created: 2026-07-30 21:58
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 36, Tool calls: 27
+- Tokens: 33 in / 5.1K out [5.1K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 2m 38s
+- Log: OOMPAH-424__20260730T215608Z.jsonl
 ---
 <!-- COMMENTS:END -->
