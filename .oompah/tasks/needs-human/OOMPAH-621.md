@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-621
 type: task
-status: In Progress
+status: Needs Human
 priority: 1
 title: Document and integration-test CLI credential precedence
 parent: OOMPAH-619
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:25:29.809048Z'
-updated_at: '2026-07-30T22:51:20.447698Z'
+updated_at: '2026-07-30T22:56:17.155454Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-621
 target_branch: null
 review_url: null
@@ -51,8 +51,8 @@ oompah.integration:
   base_sha: 9d11014204d3a8a07b339c9e3627ae500064638d
   updated_at: '2026-07-30T22:51:18.236542+00:00'
 oompah.task_costs:
-  total_input_tokens: 871540
-  total_output_tokens: 23452
+  total_input_tokens: 2243823
+  total_output_tokens: 37175
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -62,6 +62,10 @@ oompah.task_costs:
     unknown:
       input_tokens: 76
       output_tokens: 3042
+      cost_usd: 0.0
+    sonnet:
+      input_tokens: 1372283
+      output_tokens: 13723
       cost_usd: 0.0
   runs:
   - profile: default
@@ -82,6 +86,12 @@ oompah.task_costs:
     output_tokens: 3042
     cost_usd: 0.0
     recorded_at: '2026-07-30T22:50:00.213229+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 1372283
+    output_tokens: 13723
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T22:56:13.254358+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-621__20260730T213528Z
@@ -100,6 +110,14 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-619--task-OOMPAH-621
     source_sha: 9d11014204d3a8a07b339c9e3627ae500064638d
     completed_at: '2026-07-30T22:29:48.996637+00:00'
+  - run_id: OOMPAH-621__20260730T225122Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-terra
+    focus: docs
+    source_branch: epic-OOMPAH-619--task-OOMPAH-621
+    source_sha: b2191c92f124fdb33e5f0383e3eb458c22ff030d
+    completed_at: '2026-07-30T22:56:13.259089+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
@@ -418,5 +436,20 @@ author: oompah
 created: 2026-07-30 22:51
 ---
 Focus: Technical Writer
+---
+author: oompah
+created: 2026-07-30 22:56
+---
+Run #2 [attempt=2, profile=standard, role=standard -> Codex/gpt-5.6-terra]
+- Turns: 1, Tool calls: 33
+- Tokens: 1.4M in / 13.7K out [1.4M total]
+- Cost: $0.0000
+- Exit: normal, Duration: 4m 58s
+- Log: OOMPAH-621__20260730T225122Z.jsonl
+---
+author: oompah
+created: 2026-07-30 22:56
+---
+Task handoff failed after the worker ran: the server-owned, task-scoped tracker capability could not update this task. The task is held in Needs Human and will not be redispatched automatically; verify the handoff service and reconcile the worker's branch before resuming it.
 ---
 <!-- COMMENTS:END -->
