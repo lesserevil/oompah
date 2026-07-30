@@ -24,7 +24,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:13:32.577860Z'
-updated_at: '2026-07-30T23:48:32.340729Z'
+updated_at: '2026-07-30T23:57:15.739156Z'
 work_branch: epic-OOMPAH-585
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/596
@@ -43,7 +43,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-585
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -52,7 +52,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-49359e458701
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -62,13 +62,17 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-30T23:48:25.680746+00:00'
       branch_key: epic-OOMPAH-585
+      failure_classification: infrastructure_error
+      ended_at: '2026-07-30T23:57:12.903573+00:00'
+      failure_reason: normal
+      next_retry_at: '2026-07-30T23:57:22.903546+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-07-30T23:32:29.243227+00:00'
-    updated_at: '2026-07-30T23:48:25.680746+00:00'
+    updated_at: '2026-07-30T23:57:12.903573+00:00'
   - version: 1
     audit_id: audit-6806c4fdb604
     project_id: proj-14849f1b
@@ -90,7 +94,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-49359e458701
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -100,6 +104,26 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-07-30T23:48:25.680746+00:00'
     branch_key: epic-OOMPAH-585
+    failure_classification: infrastructure_error
+    ended_at: '2026-07-30T23:57:12.903573+00:00'
+    failure_reason: normal
+    next_retry_at: '2026-07-30T23:57:22.903546+00:00'
+oompah.task_costs:
+  total_input_tokens: 6
+  total_output_tokens: 89
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 6
+      output_tokens: 89
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 6
+    output_tokens: 89
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T23:57:12.421230+00:00'
 ---
 ## Summary
 
@@ -142,5 +166,20 @@ author: oompah
 created: 2026-07-30 23:48
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 23:57
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 81, Tool calls: 56
+- Tokens: 6 in / 89 out [95 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 8m 46s
+- Log: OOMPAH-585__20260730T234834Z.jsonl
+---
+author: oompah
+created: 2026-07-30 23:57
+---
+Auditor attempt ended: auditor exited (normal) without a result. A different independent auditor will be tried on the next scheduler tick.
 ---
 <!-- COMMENTS:END -->
