@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-605
 type: bug
-status: Backlog
+status: In Progress
 priority: 1
 title: Bootstrap reviewed terminal-audit fixes through a standalone recovery delivery
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T17:58:44.309909Z'
-updated_at: '2026-07-30T17:58:44.309909Z'
+updated_at: '2026-07-30T17:58:55.296888Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,3 +40,11 @@ The reviewed OOMPAH-589 and OOMPAH-604 fixes are present on main and in the runn
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-30 17:58
+---
+Direct operator implementation claimed because the running terminal-audit control plane cannot deliver its own reviewed repair epic. This is the explicit bootstrap recovery; OOMPAH-599 remains the permanent liveness invariant check.
+---
+<!-- COMMENTS:END -->
