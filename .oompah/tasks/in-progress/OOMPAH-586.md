@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-586
 type: epic
-status: Open
+status: In Progress
 priority: 1
 title: Restore least-privilege task and lifecycle access
 parent: OOMPAH-584
@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:13:33.901470Z'
-updated_at: '2026-07-30T14:18:16.909694Z'
+updated_at: '2026-07-30T15:20:13.232096Z'
 work_branch: null
 target_branch: null
 review_url: null
