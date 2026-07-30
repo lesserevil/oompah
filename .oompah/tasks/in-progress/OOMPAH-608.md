@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:28:42.855708Z'
-updated_at: '2026-07-30T18:34:20.313578Z'
+updated_at: '2026-07-30T18:34:34.494830Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -128,5 +128,22 @@ author: oompah
 created: 2026-07-30 18:34
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-07-30 18:34
+---
+**Understanding & Plan**: 
+
+Issue: Auditors submitting verdicts for credential-safety tasks get rejected by credential-pattern detection when their verdict prose discusses credential syntax with inert examples. OOMPAH-589 attempted to pass 3 times and got deterministic rejection.
+
+Approach:
+1. Find the auditor result submission handler and credential-pattern validator
+2. Locate credential redaction helpers
+3. Implement field-aware redaction on message/safe-evidence before persistence
+4. Add actionable field-specific feedback to help auditors correct results
+5. Ensure real credentials remain fail-closed (never echoed or logged)
+6. Test: reproduce PASS verdict with inert examples, verify safe redaction, confirm actual secrets stay rejected
+
+Key areas to investigate: completion auditor tool validation, redaction helpers, audit result persistence, retry behavior.
 ---
 <!-- COMMENTS:END -->
