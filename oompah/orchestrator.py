@@ -8170,13 +8170,18 @@ class Orchestrator:
     def _create_workspace_for_issue(
         self,
         issue: Issue,
+        *,
+        persist_dispatch_metadata: bool = True,
     ) -> tuple[str, Issue | None]:
         """Resolve and create the workspace path used to dispatch ``issue``.
 
         Returns ``(workspace_path, epic_for_shared_mode)``. Parallel epic
         children receive private branches cut from the newest clean published
         epic head and return None as the second element. Legacy shared mode
-        returns the parent epic as the second element.
+        returns the parent epic as the second element. Completion auditors set
+        ``persist_dispatch_metadata=False`` because their workspace is a
+        read-only view of already-integrated evidence, not a new implementation
+        attempt.
         """
         if not issue.project_id:
             workspace = self.workspace_mgr.create_for_issue(issue.identifier)
@@ -8227,29 +8232,30 @@ class Orchestrator:
                             parent_epic.identifier,
                         )
                     )
-                    try:
-                        tracker = self._tracker_for_issue(issue)
-                        tracker.set_metadata_field(
-                            issue.identifier,
-                            "oompah.work_branch",
-                            private_branch,
-                        )
-                        tracker.set_metadata_field(
-                            issue.identifier,
-                            "oompah.integration",
-                            IntegrationRecord(
-                                state="working",
-                                task_branch=private_branch,
-                                base_branch=epic_branch,
-                                base_sha=base_sha,
-                                updated_at=datetime.now(timezone.utc).isoformat(),
-                            ).to_dict(),
-                        )
-                    except Exception as exc:  # noqa: BLE001
-                        raise ProjectError(
-                            f"Could not persist private branch for "
-                            f"{issue.identifier}: {exc}"
-                        ) from exc
+                    if persist_dispatch_metadata:
+                        try:
+                            tracker = self._tracker_for_issue(issue)
+                            tracker.set_metadata_field(
+                                issue.identifier,
+                                "oompah.work_branch",
+                                private_branch,
+                            )
+                            tracker.set_metadata_field(
+                                issue.identifier,
+                                "oompah.integration",
+                                IntegrationRecord(
+                                    state="working",
+                                    task_branch=private_branch,
+                                    base_branch=epic_branch,
+                                    base_sha=base_sha,
+                                    updated_at=datetime.now(timezone.utc).isoformat(),
+                                ).to_dict(),
+                            )
+                        except Exception as exc:  # noqa: BLE001
+                            raise ProjectError(
+                                f"Could not persist private branch for "
+                                f"{issue.identifier}: {exc}"
+                            ) from exc
                     wp = self.project_store.create_worktree(
                         issue.project_id,
                         issue.identifier,
@@ -20757,7 +20763,10 @@ class Orchestrator:
                 # Resolve workspace via the epic_strategy-aware helper:
                 # under epic_strategy='shared' a child of an epic uses
                 # the shared epic worktree; otherwise per-task path.
-                wp, _epic = self._create_workspace_for_issue(issue)
+                wp, _epic = self._create_workspace_for_issue(
+                    issue,
+                    persist_dispatch_metadata=not forced_auditor,
+                )
 
                 self._post_comment(
                     issue.identifier,
@@ -21274,7 +21283,10 @@ class Orchestrator:
 
             def _setup_worker():
                 # Resolve workspace via the epic_strategy-aware helper.
-                wp, _epic = self._create_workspace_for_issue(issue)
+                wp, _epic = self._create_workspace_for_issue(
+                    issue,
+                    persist_dispatch_metadata=not forced_auditor,
+                )
 
                 self._post_comment(
                     issue.identifier,
