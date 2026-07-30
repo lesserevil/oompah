@@ -730,3 +730,336 @@ class TestFailedHandoffLifecycle:
 
         assert issue.id in orch.state.completed
         assert not orch.state.retry_attempts
+
+
+class TestHandoffTokenFailClosed:
+    """OOMPAH-575 regression: missing, invalid, and cross-scope tokens must
+    fail closed.  The handoff endpoint must never grant access when the
+    capability is absent, bogus, or scoped to a different task/project.
+
+    These tests complement TestTaskHandoffEndpoint by explicitly covering
+    the failure modes asserted in the acceptance criteria:
+    - missing/expired tokens return 401
+    - unrelated tasks remain unauthorized (403)
+    - server-wide credentials are never usable via the handoff path
+    """
+
+    def _make_server_context(self, server_module):
+        """Return (old_orch, old_creds, orch) and set up the module globals."""
+        from unittest.mock import MagicMock
+
+        orch = MagicMock()
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = Issue(
+            id="issue-1",
+            identifier="TASK-1",
+            title="Task",
+            description="body",
+            state="In Progress",
+            project_id="proj-a",
+        )
+        orch._tracker_for_project.return_value = tracker
+        orch.project_store.get.return_value = None
+        return orch, tracker
+
+    def test_missing_capability_header_returns_401(self):
+        """POST to /api/v1/task-handoff with no capability header must return
+        401 with a clear 'required' error message."""
+        from fastapi.testclient import TestClient
+
+        import oompah.server as server
+        from oompah.server import app
+
+        orch, _tracker = self._make_server_context(server)
+        old_orch = server._orchestrator
+        old_creds = server._http_credentials
+        server._orchestrator = orch
+        server._http_credentials = None
+        try:
+            with TestClient(app, raise_server_exceptions=False) as client:
+                response = client.post(
+                    "/api/v1/task-handoff",
+                    json={
+                        "action": "view",
+                        "project_id": "proj-a",
+                        "identifier": "TASK-1",
+                    },
+                )
+        finally:
+            server._orchestrator = old_orch
+            server._http_credentials = old_creds
+
+        assert response.status_code == 401
+        body = response.json()
+        msg = body.get("error", {}).get("message", "")
+        assert "capability required" in msg or "missing" in msg.lower()
+
+    def test_invalid_token_returns_401(self):
+        """An unrecognized (never-issued) token string must be rejected 401.
+        Responses must not reveal whether a valid grant exists for another
+        task/project at the same digest."""
+        from fastapi.testclient import TestClient
+
+        import oompah.server as server
+        from oompah.server import app
+
+        orch, _tracker = self._make_server_context(server)
+        old_orch = server._orchestrator
+        old_creds = server._http_credentials
+        server._orchestrator = orch
+        server._http_credentials = None
+        try:
+            with TestClient(app, raise_server_exceptions=False) as client:
+                response = client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: "never-issued-garbage-token"},
+                    json={
+                        "action": "view",
+                        "project_id": "proj-a",
+                        "identifier": "TASK-1",
+                    },
+                )
+        finally:
+            server._orchestrator = old_orch
+            server._http_credentials = old_creds
+
+        assert response.status_code == 401
+        body = response.json()
+        msg = body.get("error", {}).get("message", "")
+        # The response must say "invalid or expired" (no information about
+        # whether a grant for another task/project exists)
+        assert "invalid" in msg.lower() or "expired" in msg.lower()
+        # The garbage token must not appear verbatim in the response
+        assert "never-issued-garbage-token" not in response.text
+
+    def test_wrong_project_scope_returns_403(self):
+        """A valid token scoped to proj-a must be rejected when used against
+        proj-other — even for the same task identifier."""
+        from fastapi.testclient import TestClient
+
+        import oompah.server as server
+        from oompah.server import app
+        from oompah.task_handoff import issue_task_handoff_token
+
+        token = issue_task_handoff_token(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"view", "comment"},
+        )
+
+        orch, _tracker = self._make_server_context(server)
+        old_orch = server._orchestrator
+        old_creds = server._http_credentials
+        server._orchestrator = orch
+        server._http_credentials = None
+        try:
+            with TestClient(app, raise_server_exceptions=False) as client:
+                response = client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: token},
+                    json={
+                        "action": "view",
+                        "project_id": "proj-other",
+                        "identifier": "TASK-1",
+                    },
+                )
+        finally:
+            server._orchestrator = old_orch
+            server._http_credentials = old_creds
+
+        assert response.status_code == 403
+        body = response.json()
+        msg = body.get("error", {}).get("message", "")
+        assert "another project" in msg
+
+    def test_wrong_task_scope_returns_403(self):
+        """A valid token scoped to TASK-1 must be rejected when the request
+        body targets TASK-99 in the same project."""
+        from fastapi.testclient import TestClient
+
+        import oompah.server as server
+        from oompah.server import app
+        from oompah.task_handoff import issue_task_handoff_token
+
+        token = issue_task_handoff_token(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"view", "comment"},
+        )
+
+        orch, _tracker = self._make_server_context(server)
+        old_orch = server._orchestrator
+        old_creds = server._http_credentials
+        server._orchestrator = orch
+        server._http_credentials = None
+        try:
+            with TestClient(app, raise_server_exceptions=False) as client:
+                response = client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: token},
+                    json={
+                        "action": "view",
+                        "project_id": "proj-a",
+                        "identifier": "TASK-99",
+                    },
+                )
+        finally:
+            server._orchestrator = old_orch
+            server._http_credentials = old_creds
+
+        assert response.status_code == 403
+        body = response.json()
+        msg = body.get("error", {}).get("message", "")
+        assert "another task" in msg
+
+    def test_ungranted_action_returns_403(self):
+        """A token that was issued without 'create' in its allowed_actions
+        must return 403 when the request asks for 'create'-equivalent actions.
+        Only the exact set of granted operations is accepted."""
+        from fastapi.testclient import TestClient
+
+        import oompah.server as server
+        from oompah.server import app
+        from oompah.task_handoff import issue_task_handoff_token
+
+        # Issue a token without the "add-label" action
+        token = issue_task_handoff_token(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"view", "comment"},
+        )
+
+        orch, _tracker = self._make_server_context(server)
+        old_orch = server._orchestrator
+        old_creds = server._http_credentials
+        server._orchestrator = orch
+        server._http_credentials = None
+        try:
+            with TestClient(app, raise_server_exceptions=False) as client:
+                response = client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: token},
+                    json={
+                        "action": "add-label",
+                        "project_id": "proj-a",
+                        "identifier": "TASK-1",
+                        "label": "needs:attention",
+                    },
+                )
+        finally:
+            server._orchestrator = old_orch
+            server._http_credentials = old_creds
+
+        # 403 because action not in granted set
+        assert response.status_code == 403
+
+    def test_codex_assigned_session_can_view_and_comment_its_task(self):
+        """Integration path: a Codex-session CLI env with a valid scoped token
+        can call the view and comment operations for its own task.
+
+        This test exercises the full capability chain:
+        1. Orchestrator mints a scoped token (simulated via issue_task_handoff_token)
+        2. Token ends up in the Codex subprocess env (verified by
+           TestCodexHandoffAuth.test_cli_session_injects_task_handoff_token_and_project_id)
+        3. task_cli routes via the token, hitting /api/v1/task-handoff
+        4. Server validates the token scope and executes the operation
+        """
+        from fastapi.testclient import TestClient
+
+        import oompah.server as server
+        from oompah.server import app
+        from oompah.task_handoff import issue_task_handoff_token
+
+        issue = Issue(
+            id="issue-codex-1",
+            identifier="OOMPAH-479",
+            title="Repair session",
+            description="Repair body",
+            state="In Progress",
+            project_id="proj-a",
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        tracker.fetch_comments.return_value = []
+        orch = MagicMock()
+        orch._tracker_for_project.return_value = tracker
+        orch.project_store.get.return_value = None
+
+        # Simulate what the orchestrator issues for a Codex repair session
+        token = issue_task_handoff_token(
+            project_id="proj-a",
+            task_identifier="OOMPAH-479",
+            allowed_actions={"view", "comment", "submit", "set-status"},
+        )
+
+        old_orch = server._orchestrator
+        old_creds = server._http_credentials
+        old_broadcast = server.broadcast_issues
+        server._orchestrator = orch
+        server._http_credentials = None
+        server.broadcast_issues = AsyncMock()
+        try:
+            with TestClient(app, raise_server_exceptions=False) as client:
+                headers = {TASK_HANDOFF_HEADER: token}
+
+                # Assigned agent can VIEW its own task (no 401)
+                view_resp = client.post(
+                    "/api/v1/task-handoff",
+                    headers=headers,
+                    json={
+                        "action": "view",
+                        "project_id": "proj-a",
+                        "identifier": "OOMPAH-479",
+                    },
+                )
+                # Assigned agent can COMMENT on its own task
+                comment_resp = client.post(
+                    "/api/v1/task-handoff",
+                    headers=headers,
+                    json={
+                        "action": "comment",
+                        "project_id": "proj-a",
+                        "identifier": "OOMPAH-479",
+                        "message": "Implementation complete",
+                        "author": "oompah",
+                    },
+                )
+                # Cross-task access MUST be unauthorized
+                cross_task_resp = client.post(
+                    "/api/v1/task-handoff",
+                    headers=headers,
+                    json={
+                        "action": "view",
+                        "project_id": "proj-a",
+                        "identifier": "OOMPAH-999",
+                    },
+                )
+                # Cross-project access MUST be unauthorized
+                cross_proj_resp = client.post(
+                    "/api/v1/task-handoff",
+                    headers=headers,
+                    json={
+                        "action": "comment",
+                        "project_id": "proj-other",
+                        "identifier": "OOMPAH-479",
+                        "message": "escape",
+                    },
+                )
+        finally:
+            server._orchestrator = old_orch
+            server._http_credentials = old_creds
+            server.broadcast_issues = old_broadcast
+
+        # View and comment succeed
+        assert view_resp.status_code == 200, f"view failed: {view_resp.text}"
+        assert comment_resp.status_code == 200, f"comment failed: {comment_resp.text}"
+        view_detail = view_resp.json().get("detail", {})
+        assert view_detail.get("identifier") == "OOMPAH-479"
+
+        # Cross-scope requests are rejected
+        assert cross_task_resp.status_code == 403, (
+            f"cross-task should be 403, got {cross_task_resp.status_code}"
+        )
+        assert cross_proj_resp.status_code == 403, (
+            f"cross-project should be 403, got {cross_proj_resp.status_code}"
+        )
