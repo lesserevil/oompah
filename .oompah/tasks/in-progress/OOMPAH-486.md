@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:25.195304Z'
-updated_at: '2026-07-30T04:57:18.702926Z'
+updated_at: '2026-07-30T05:13:29.825998Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-486
 target_branch: null
 review_url: null
@@ -347,5 +347,10 @@ author: oompah
 created: 2026-07-30 04:57
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-07-30 05:13
+---
+Rebase conflict resolved: Epic branch added top-level 'audits' key at the same snapshot location where this branch adds 'terminal_audit'. Resolved by keeping both keys — 'audits' for legacy _audit_metrics compatibility, 'terminal_audit' for the stable API consumer shape. All 122 focused tests pass (9 observability, 104 coordinator, 9 status interfaces). Branch rebased onto epic-OOMPAH-460 at 12f63352b and force-pushed.
 ---
 <!-- COMMENTS:END -->
