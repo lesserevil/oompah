@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-614
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: 0
 title: Rebase epic-OOMPAH-460 onto main
 parent: OOMPAH-460
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T19:51:07.651359Z'
-updated_at: '2026-07-30T20:12:56.058936Z'
+updated_at: '2026-07-30T20:19:36.509093Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-614
 target_branch: null
 review_url: null
@@ -21,14 +21,15 @@ oompah.agent_run_id: 912935df-1d3c-44c3-a8aa-711ce846b932
 oompah.work_branch: epic-OOMPAH-460--task-OOMPAH-614
 oompah.integration:
   version: 1
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-460--task-OOMPAH-614
-  base_branch: main
-  base_sha: c048ba706cbe9b1342b80a67576a49b82887e84a
+  base_branch: epic-OOMPAH-460
+  base_sha: 868f1e391361f315198995b0569688f0142e1062
   head_sha: 868f1e391361f315198995b0569688f0142e1062
+  integrated_sha: 868f1e391361f315198995b0569688f0142e1062
   submitted_at: '2026-07-30T20:12:39.089818+00:00'
-  updated_at: '2026-07-30T20:12:53.778022+00:00'
+  updated_at: '2026-07-30T20:19:32.901038+00:00'
 oompah.task_costs:
   total_input_tokens: 2379345
   total_output_tokens: 30254
@@ -130,6 +131,28 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-9f2e7219eb96
+    project_id: proj-14849f1b
+    task_id: OOMPAH-614
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9757a156089b644f6f2b1d3016c31dafa4671e8f16a87459a368b16a8953167c
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-30T20:19:34.337712+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -359,5 +382,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 4m 18s
 - Log: OOMPAH-614__20260730T200841Z.jsonl
+---
+author: oompah
+created: 2026-07-30 20:19
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
