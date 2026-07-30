@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T17:58:44.309909Z'
-updated_at: '2026-07-30T18:01:39.465695Z'
+updated_at: '2026-07-30T18:01:57.986716Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -129,5 +129,10 @@ author: oompah
 created: 2026-07-30 18:01
 ---
 Focus: Auth Http Default Specialist
+---
+author: oompah
+created: 2026-07-30 18:01
+---
+**Understanding**: This is a bootstrap recovery task to break the self-hosting control-plane deadlock. The terminal-audit control plane cannot deliver its own reviewed repairs, so we need to create a standalone recovery branch from main containing the already-reviewed OOMPAH-589 (auditor candidate/endpoint fixes) and OOMPAH-604 (owner-override fix) from origin/epic-OOMPAH-585. After delivery and restart, the terminal-audit lane should resume. My approach: (1) Explore epic-OOMPAH-585 to find the reviewed fixes, (2) Extract and apply those fixes to a recovery branch from main, (3) Run focused tests and full make test gate, (4) Document the bootstrap procedure in docs/operator-runbook.md, (5) Verify the fixes work after restart.
 ---
 <!-- COMMENTS:END -->
