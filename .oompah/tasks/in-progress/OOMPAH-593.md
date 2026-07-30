@@ -13,7 +13,7 @@ labels:
 - needs:devops
 assignee: null
 created_at: '2026-07-30T14:14:54.281403Z'
-updated_at: '2026-07-30T15:32:14.381786Z'
+updated_at: '2026-07-30T15:32:52.050430Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-593
 target_branch: null
 review_url: null
@@ -274,5 +274,10 @@ c. If step (b) yields a 401 on the worker's own task, DO NOT paper over it with 
 Risk: the live probe requires operator access to a running service and the ability to launch a real worker. This is outside a docs specialist's scope.
 
 4. Recommended next focus: devops (or test if the launch path is already exercised in a working test harness). The next agent needs operator-shell access to dispatch a worker and observe its log; the docs I shipped give them the exact fail-closed matrix to compare against.
+---
+author: oompah
+created: 2026-07-30 15:32
+---
+Coordination note (post-handoff): OOMPAH-594 (epic-sibling) started implementation. My docs focus is already handed off (focus-complete:docs + needs:devops applied, commit fe52c187f pushed). No overlap with the new docs/scoped-task-cli-authentication.md — that file is task-CLI capability documentation, not part of any sibling task's changed-path set that I'm aware of. If OOMPAH-594's implementation touches oompah/task_handoff.py, oompah/task_cli.py, or the /api/v1/task-handoff endpoint, the incoming devops specialist should re-verify the doc's identifier and endpoint claims before running the live probe.
 ---
 <!-- COMMENTS:END -->
