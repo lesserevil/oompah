@@ -5308,6 +5308,7 @@ class Orchestrator:
             quality_gate=self._branch_quality_gate,
             quality_command=self._quality_gate_command(project),
             repo_identity=project.repo_url or project.repo_path or project.id,
+            retry_forced=item.retry_forced,
         )
 
     def _route_integration_failure(
