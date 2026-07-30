@@ -67,7 +67,7 @@ from oompah.issue_enhancer import (
     has_quality_source,
 )
 from oompah.intake_summary import build_intake_summary
-from oompah.integration import IntegrationRecord, validate_task_branch_authority
+from oompah.integration import IntegrationRecord, validate_submission_branch
 from oompah.coordination import CoordinationStore
 from oompah.dependency_graph import (
     dependency_parent_has_landed,
@@ -2837,14 +2837,7 @@ def _submission_record(issue, body: dict[str, Any]) -> IntegrationRecord:
     summary = str(body.get("summary") or "").strip()
     if not summary:
         raise ValueError("summary is required for task submission")
-    task_branch = (
-        str(body.get("task_branch") or "").strip()
-        or getattr(issue, "work_branch", None)
-        or getattr(issue, "branch_name", None)
-    )
-    if not task_branch:
-        raise ValueError("task_branch is required for task submission")
-    validate_task_branch_authority(issue, task_branch)
+    task_branch = validate_submission_branch(issue, body.get("task_branch"))
     head_sha = str(body.get("head_sha") or "").strip().lower() or None
     if head_sha is None:
         raise ValueError("head_sha is required for task submission")

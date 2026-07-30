@@ -70,8 +70,9 @@ def execute_integration(
                 return IntegrationExecutionResult(
                     status="wrong_worktree",
                     message=(
-                        "task worktree branch does not match the submitted "
-                        "task branch"
+                        "task worktree is on "
+                        f"{current_task_branch or 'a detached HEAD'}, not "
+                        f"queued branch {task_branch}; refusing to reset it"
                     ),
                 )
             for worktree in (epic_worktree, task_worktree):

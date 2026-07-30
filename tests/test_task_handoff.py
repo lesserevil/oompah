@@ -247,7 +247,10 @@ class TestTaskScopeDirectPath:
         from oompah.acp_tools import _exec_oompah_task_command
 
         tracker = MagicMock()
-        tracker.fetch_issue_detail.return_value = SimpleNamespace(
+        tracker.fetch_issue_detail.return_value = Issue(
+            id="TASK-1",
+            identifier="TASK-1",
+            title="Task",
             work_branch="epic-TASK-0--task-TASK-1",
         )
         coordination = MagicMock()
@@ -281,36 +284,37 @@ class TestTaskScopeDirectPath:
         )
         coordination.coordination_checkpoint.assert_called_once()
 
-    def test_direct_acp_submit_rejects_foreign_task_branch_before_writes(
+    def test_direct_acp_submit_rejects_evidence_from_the_wrong_checkout(
         self,
         tmp_path,
     ):
         from oompah.acp_tools import _exec_oompah_task_command
 
         tracker = MagicMock()
-        tracker.fetch_issue_detail.return_value = SimpleNamespace(
+        tracker.fetch_issue_detail.return_value = Issue(
+            id="TASK-1",
+            identifier="TASK-1",
+            title="Task",
             work_branch="epic-TASK-0--task-TASK-1",
         )
         with patch(
             "oompah.task_cli._git_submission_evidence",
             return_value={
-                "task_branch": "epic-TASK-0--task-TASK-2",
+                "task_branch": "main",
                 "head_sha": "a" * 40,
                 "remote_head_sha": "a" * 40,
                 "worktree_clean": True,
             },
         ):
             result = _exec_oompah_task_command(
-                "oompah task submit TASK-1 --summary 'Wrong worktree'",
+                "oompah task submit TASK-1 --summary 'Completed and tested'",
                 tracker,
                 "proj-a",
                 task_identifier="TASK-1",
                 workspace_path=tmp_path,
             )
 
-        assert result == (
-            "Error: task_branch does not match the task's canonical work branch"
-        )
+        assert result.startswith("Error: submitted branch 'main'")
         tracker.set_metadata_field.assert_not_called()
         tracker.update_issue.assert_not_called()
 
@@ -321,7 +325,10 @@ class TestTaskScopeDirectPath:
         from oompah.acp_tools import _exec_oompah_task_command
 
         tracker = MagicMock()
-        tracker.fetch_issue_detail.return_value = SimpleNamespace(
+        tracker.fetch_issue_detail.return_value = Issue(
+            id="TASK-1",
+            identifier="TASK-1",
+            title="Task",
             work_branch="epic-TASK-0--task-TASK-1",
         )
         coordination = MagicMock()

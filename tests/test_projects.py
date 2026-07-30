@@ -703,6 +703,72 @@ class TestCreateWorktreeAlreadyUsedFallback:
         assert os.path.isdir(wt_path)
 
 
+class TestExistingWorktreeBranchValidation:
+    def test_wrong_branch_refuses_to_reset_registered_task_worktree(self, tmp_path):
+        repo = tmp_path / "repo"
+        subprocess.run(["git", "init", str(repo)], check=True)
+        subprocess.run(
+            ["git", "-C", str(repo), "config", "user.name", "Test"],
+            check=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(repo), "config", "user.email", "test@example.com"],
+            check=True,
+        )
+        (repo / "base.txt").write_text("base\n")
+        subprocess.run(["git", "-C", str(repo), "add", "base.txt"], check=True)
+        subprocess.run(["git", "-C", str(repo), "commit", "-m", "base"], check=True)
+        subprocess.run(["git", "-C", str(repo), "branch", "-M", "main"], check=True)
+
+        store = _store(tmp_path)
+        project = Project(
+            id="proj-worktree-branch",
+            name="worktree-branch",
+            repo_url=str(repo),
+            repo_path=str(repo),
+            branch="main",
+            default_branch="main",
+        )
+        store._projects[project.id] = project
+        worktree = store.worktree_path_for(project.id, "TASK-1")
+        worktree_branch = "epic-EPIC-1--task-TASK-1"
+        os.makedirs(os.path.dirname(worktree), exist_ok=True)
+        subprocess.run(
+            ["git", "-C", str(repo), "worktree", "add", "-b", worktree_branch, worktree],
+            check=True,
+        )
+        original_head = subprocess.run(
+            ["git", "-C", worktree, "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        unsaved = os.path.join(worktree, "unsaved.txt")
+        with open(unsaved, "w", encoding="utf-8") as handle:
+            handle.write("must not be cleaned\n")
+
+        with pytest.raises(ProjectError, match="refusing to reset"):
+            store.create_worktree(
+                project.id,
+                "TASK-1",
+                branch_name="main",
+            )
+
+        assert subprocess.run(
+            ["git", "-C", worktree, "branch", "--show-current"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip() == worktree_branch
+        assert subprocess.run(
+            ["git", "-C", worktree, "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip() == original_head
+        assert open(unsaved, encoding="utf-8").read() == "must not be cleaned\n"
+
+
 class TestGithubWorkBranchName:
     """Tests for :func:`github_work_branch_name` (TASK-461.3 AC#1)."""
 
