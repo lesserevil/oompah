@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-602
 type: bug
-status: Ready to Integrate
+status: In Progress
 priority: 1
 title: Repair project scope propagation in merged-label maintenance
 parent: OOMPAH-588
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:01.749200Z'
-updated_at: '2026-07-30T20:50:46.377489Z'
+updated_at: '2026-07-30T23:06:20.235248Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-602
 target_branch: null
 review_url: null
@@ -57,7 +57,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 1
   retry_after: null
-oompah.agent_run_id: b7d74aa5-f21e-41ca-8243-44edd7344c33
+oompah.agent_run_id: 0ef23ba4-9a93-4757-96f0-0c81a5ad0946
 oompah.work_branch: epic-OOMPAH-588--task-OOMPAH-602
 oompah.integration:
   version: 1
@@ -66,7 +66,7 @@ oompah.integration:
   task_branch: epic-OOMPAH-588--task-OOMPAH-602
   base_branch: epic-OOMPAH-588
   base_sha: 9e7f53286913f34b40cdc52a56b734d31c91e8aa
-  updated_at: '2026-07-30T20:14:06.462827+00:00'
+  updated_at: '2026-07-30T23:06:18.395730+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-602__20260730T160131Z
@@ -544,5 +544,27 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 36m 41s
 - Log: OOMPAH-602__20260730T201409Z.jsonl
+---
+author: oompah
+created: 2026-07-30 23:06
+---
+Submit the current pushed scope-propagation repair head and restore its canonical integration record for validation.
+---
+author: oompah
+created: 2026-07-30 23:06
+---
+Integration could not verify `epic-OOMPAH-586--task-OOMPAH-593`: fatal: 'epic-OOMPAH-586--task-OOMPAH-593' is already used by worktree at '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-593'
+
+Fetch the private branch, preserve its commits, push a clean current head, and submit it again.
+---
+author: oompah
+created: 2026-07-30 23:06
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-30 23:06
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
