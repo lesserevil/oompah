@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:25:29.809048Z'
-updated_at: '2026-07-30T21:35:28.344662Z'
+updated_at: '2026-07-30T21:36:45.483588Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-621
 target_branch: null
 review_url: null
@@ -23,14 +23,20 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 68fdf53f98a9611a0720923e0f8379c33be3aeea57435594c0cf11ee3a964fdd
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-07-30T21:36:41.217821+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 093af3e6-426a-41f0-b684-e6fcc71d6ff6
-  claim_owner: c1f4a4cb-217d-4c2a-aad6-f768a3cdbb4b
-  claimed_at: '2026-07-30T21:35:16.226837+00:00'
-  claim_expires_at: '2026-07-30T22:05:16.226837+00:00'
+  evidence: "Focus handoff: duplicate_detector\n\nDuplicate preflight verdict: no_duplicate\n\
+    \nMatches: none\n\nEvidence: Searched `.oompah/tasks`, docs, and plans for CLI\
+    \ authentication, credentials, netrc, password-file, and precedence terms. The\
+    \ only active candidate, OOMPAH-281, concerns self-hosted CI runners. Archived\
+    \ OOMPAH-26, OOMPAH-8, OOMPAH-42, and OOMPAH-6 cover general CLI compatibility,\
+    \ installation smoke tests, release verification, or GitHub intake authentication\u2014\
+    not direct CLI credential precedence."
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
 oompah.agent_run_id: 10e83b92-afc5-497f-b349-824d45829745
@@ -43,6 +49,32 @@ oompah.integration:
   base_branch: epic-OOMPAH-619
   base_sha: c048ba706cbe9b1342b80a67576a49b82887e84a
   updated_at: '2026-07-30T21:35:26.024048+00:00'
+oompah.task_costs:
+  total_input_tokens: 871086
+  total_output_tokens: 3139
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 871086
+      output_tokens: 3139
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 871086
+    output_tokens: 3139
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T21:36:41.216663+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-621__20260730T213528Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: epic-OOMPAH-619--task-OOMPAH-621
+    source_sha: c048ba706cbe9b1342b80a67576a49b82887e84a
+    completed_at: '2026-07-30T21:36:41.227519+00:00'
 ---
 ## Summary
 
@@ -65,5 +97,15 @@ author: oompah
 created: 2026-07-30 21:35
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-30 21:36
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 17
+- Tokens: 871.1K in / 3.1K out [874.2K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 23s
+- Log: OOMPAH-621__20260730T213528Z.jsonl
 ---
 <!-- COMMENTS:END -->
