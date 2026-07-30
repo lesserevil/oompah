@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-575
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Propagate scoped task CLI auth to Codex agent sessions
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T02:15:25.255613Z'
-updated_at: '2026-07-30T14:11:32.835779Z'
+updated_at: '2026-07-30T14:11:43.423242Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -61,6 +61,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-575
     source_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
     completed_at: '2026-07-30T13:34:22.420413+00:00'
+oompah.integration:
+  version: 1
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-575
+  head_sha: e404d6eb71998904a7a3e6bea4ef4c3320e43116
+  submitted_at: '2026-07-30T14:11:41.342937+00:00'
+  updated_at: '2026-07-30T14:11:41.342937+00:00'
 ---
 ## Summary
 
@@ -219,5 +227,10 @@ Security review summary:
 - Missing/invalid/cross-scope tokens fail closed (401/403)
 - No operator credentials are ever leaked to agent subprocesses
 - The token is not logged, not stored beyond the service's lifetime, and is revoked on worker exit
+---
+author: oompah
+created: 2026-07-30 14:11
+---
+Added Codex session task-handoff auth regression tests proving: (1) scoped token and project_id are injected into Codex CLI subprocess env; (2) operator credentials are always stripped; (3) missing/invalid tokens fail closed with 401; (4) cross-task and cross-project access is rejected with 403; (5) an assigned Codex repair session can view and comment on its own task without operator credentials. No code changes required - the underlying fix was already implemented in OOMPAH-538. Tests added to tests/test_acp_codex_backend.py (TestCodexHandoffAuth) and tests/test_task_handoff.py (TestHandoffTokenFailClosed).
 ---
 <!-- COMMENTS:END -->
