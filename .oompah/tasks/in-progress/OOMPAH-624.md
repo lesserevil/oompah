@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T21:37:57.526368Z'
-updated_at: '2026-07-30T21:39:43.705357Z'
+updated_at: '2026-07-30T21:39:59.502669Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-624
 target_branch: null
 review_url: null
@@ -135,5 +135,10 @@ author: oompah
 created: 2026-07-30 21:39
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-07-30 21:39
+---
+**Understanding**: This issue requires fixing the authentication/authorization boundary for task mutations. The server currently accepts client-supplied actor_login independently of HTTP authentication, allowing owner spoofing and forcing authenticated owners to use --actor. Core work involves: (1) exposing authenticated principal from auth middleware, (2) deriving authorization actor from trusted identity, (3) implementing username-to-actor mapping, (4) removing redundant --actor in CLIs, (5) comprehensive authorization tests. However, I notice this is categorized as 'Frontend Developer' role. This appears to be backend/security work affecting server auth middleware, API handlers, and CLI tools - not user-facing UI. I'm exploring the codebase to determine if there's a frontend component or if I should handoff to a backend/security specialist.
 ---
 <!-- COMMENTS:END -->

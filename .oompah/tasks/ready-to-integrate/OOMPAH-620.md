@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-620
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Resolve CLI Basic-auth credentials from argv, environment, and netrc
 parent: OOMPAH-619
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T21:25:27.860280Z'
-updated_at: '2026-07-30T21:39:45.376376Z'
+updated_at: '2026-07-30T21:40:05.626092Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-620
 target_branch: null
 review_url: null
@@ -46,12 +46,12 @@ oompah.agent_run_id: b27bd62c-d95e-4deb-8ba9-362a947cb297
 oompah.work_branch: epic-OOMPAH-619--task-OOMPAH-620
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-619--task-OOMPAH-620
-  base_branch: epic-OOMPAH-619
-  base_sha: c048ba706cbe9b1342b80a67576a49b82887e84a
-  updated_at: '2026-07-30T21:35:19.744827+00:00'
+  head_sha: 6fee72d5725e4341c580c91577533d15ba97df62
+  submitted_at: '2026-07-30T21:40:03.828225+00:00'
+  updated_at: '2026-07-30T21:40:03.828225+00:00'
 oompah.task_costs:
   total_input_tokens: 276881
   total_output_tokens: 2266
