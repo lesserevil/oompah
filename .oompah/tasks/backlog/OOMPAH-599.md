@@ -7,16 +7,20 @@ title: Verify zero stranded delivery states and close recovery epics
 parent: OOMPAH-587
 children: []
 blocked_by: []
-start_blocked_by: []
+start_blocked_by: &id001
+- OOMPAH-591
+- OOMPAH-597
+- OOMPAH-598
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:31.072278Z'
-updated_at: '2026-07-30T14:15:31.072278Z'
+updated_at: '2026-07-30T14:17:16.877179Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.start_blocked_by: *id001
 ---
 ## Summary
 

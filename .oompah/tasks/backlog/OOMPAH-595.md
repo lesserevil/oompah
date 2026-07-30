@@ -6,12 +6,14 @@ priority: 1
 title: Expose separate operator and worker task-auth health signals
 parent: OOMPAH-586
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-593
+- OOMPAH-594
 start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:56.897824Z'
-updated_at: '2026-07-30T14:14:56.897824Z'
+updated_at: '2026-07-30T14:17:04.561511Z'
 work_branch: null
 target_branch: null
 review_url: null

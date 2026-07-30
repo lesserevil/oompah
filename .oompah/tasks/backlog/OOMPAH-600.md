@@ -7,16 +7,18 @@ title: Integrate OOMPAH-581 and prune current safe terminal workspaces
 parent: OOMPAH-588
 children: []
 blocked_by: []
-start_blocked_by: []
+start_blocked_by: &id001
+- OOMPAH-598
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:58.634342Z'
-updated_at: '2026-07-30T14:15:58.634342Z'
+updated_at: '2026-07-30T14:17:18.477539Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.start_blocked_by: *id001
 ---
 ## Summary
 

@@ -6,12 +6,13 @@ priority: 1
 title: Retry terminal audits after auditor launch or transport failure
 parent: OOMPAH-585
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-589
 start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:22.194798Z'
-updated_at: '2026-07-30T14:14:22.194798Z'
+updated_at: '2026-07-30T14:16:52.388289Z'
 work_branch: null
 target_branch: null
 review_url: null

@@ -6,17 +6,20 @@ priority: 1
 title: Recover and drain the OOMPAH-460 ordered integration chain
 parent: OOMPAH-587
 children: []
-blocked_by: []
-start_blocked_by: []
+blocked_by:
+- OOMPAH-596
+start_blocked_by: &id001
+- OOMPAH-593
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:28.342383Z'
-updated_at: '2026-07-30T14:15:28.342383Z'
+updated_at: '2026-07-30T14:17:09.750221Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.start_blocked_by: *id001
 ---
 ## Summary
 

@@ -6,12 +6,14 @@ priority: 1
 title: Alert on terminal-audit launch failures and backlog age
 parent: OOMPAH-585
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-589
+- OOMPAH-590
 start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:28.755226Z'
-updated_at: '2026-07-30T14:14:28.755226Z'
+updated_at: '2026-07-30T14:17:01.235471Z'
 work_branch: null
 target_branch: null
 review_url: null

@@ -7,16 +7,19 @@ title: Reconcile the pending audit backlog and stale In Validation tasks
 parent: OOMPAH-585
 children: []
 blocked_by: []
-start_blocked_by: []
+start_blocked_by: &id001
+- OOMPAH-589
+- OOMPAH-590
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:26.620047Z'
-updated_at: '2026-07-30T14:14:26.620047Z'
+updated_at: '2026-07-30T14:16:57.347368Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.start_blocked_by: *id001
 ---
 ## Summary
 

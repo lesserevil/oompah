@@ -6,12 +6,13 @@ priority: 1
 title: Aggregate branch-ownership cleanup skips without warning floods
 parent: OOMPAH-588
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-600
 start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:00.331568Z'
-updated_at: '2026-07-30T14:16:00.331568Z'
+updated_at: '2026-07-30T14:17:19.955265Z'
 work_branch: null
 target_branch: null
 review_url: null
