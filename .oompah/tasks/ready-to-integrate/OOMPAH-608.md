@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:28:42.855708Z'
-updated_at: '2026-07-30T18:38:42.722413Z'
+updated_at: '2026-07-30T18:39:59.980094Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,13 +44,13 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: c9137319-e474-4adb-b050-5bf7f3fbf150
 oompah.task_costs:
-  total_input_tokens: 368201
-  total_output_tokens: 2330
+  total_input_tokens: 369191
+  total_output_tokens: 2591
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 368201
-      output_tokens: 2330
+      input_tokens: 369191
+      output_tokens: 2591
       cost_usd: 0.0
   runs:
   - profile: default
@@ -59,6 +59,12 @@ oompah.task_costs:
     output_tokens: 2330
     cost_usd: 0.0
     recorded_at: '2026-07-30T18:34:08.944034+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 990
+    output_tokens: 261
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T18:39:57.447553+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-608__20260730T183314Z
@@ -252,5 +258,15 @@ author: oompah
 created: 2026-07-30 18:38
 ---
 Implemented credential-pattern redaction for auditor verdicts. Inert credential-pattern examples in verdict prose are now safely redacted rather than rejected, allowing credential-safety tasks like OOMPAH-589 to pass terminal audit without copying credential-shaped examples into durable state. Real credentials remain fail-closed. Redaction is deterministic and idempotent. All 71 auditor result tests passing.
+---
+author: oompah
+created: 2026-07-30 18:39
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 41
+- Tokens: 990 in / 261 out [1.3K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 5m 40s
+- Log: OOMPAH-608__20260730T183420Z.jsonl
 ---
 <!-- COMMENTS:END -->
