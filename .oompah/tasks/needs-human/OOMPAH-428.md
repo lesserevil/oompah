@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-428
 type: task
-status: In Validation
+status: Needs Human
 priority: null
 title: Harden PR creation gate and work_branch reconciliation for shared-epic child
   tasks
@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T21:34:08.303204Z'
-updated_at: '2026-07-30T22:36:19.005605Z'
+updated_at: '2026-07-30T22:37:01.379392Z'
 work_branch: epic-OOMPAH-426
 target_branch: null
 review_url: null
@@ -284,5 +284,10 @@ author: oompah
 created: 2026-07-30 22:36
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 22:37
+---
+The parent epic OOMPAH-426 merged from epic-OOMPAH-426, but this task was In Validation with work branch epic-OOMPAH-426. Its work is not proven to be in the merged epic. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
 ---
 <!-- COMMENTS:END -->
