@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-483
 type: feature
-status: Needs CI Fix
+status: Open
 priority: 1
 title: Detect and block terminal-state writes that bypass the coordinator
 parent: OOMPAH-459
@@ -19,7 +19,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:31.119782Z'
-updated_at: '2026-07-30T02:45:59.915563Z'
+updated_at: '2026-07-30T02:47:11.695913Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-483
 target_branch: null
 review_url: null
@@ -576,5 +576,17 @@ Installed 8 packages in 23ms
 make[1]: *** [Makefile:225: test] Error 1
 
 ```
+---
+author: oompah
+created: 2026-07-30 02:47
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #14)
+
+**State audited:** `Needs CI Fix`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** Recent comment indicates CI is now passing or PR has been merged; safe to reopen for dispatch.
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
 ---
 <!-- COMMENTS:END -->
