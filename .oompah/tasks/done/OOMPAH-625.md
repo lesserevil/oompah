@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-625
 type: bug
-status: In Validation
+status: Done
 priority: 1
 title: Release terminal-auditor branch claims on forced termination
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T21:58:34.567478Z'
-updated_at: '2026-07-30T22:07:49.817680Z'
+updated_at: '2026-07-30T22:11:51.332456Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-625
 target_branch: null
 review_url: null
@@ -69,6 +69,8 @@ oompah.work_contributors:
     completed_at: '2026-07-30T22:01:28.079969+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-4ecb52e715e9: '2026-07-30T22:11:49.091543+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -76,7 +78,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-625
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -85,7 +87,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-4ecb52e715e9
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -95,13 +97,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-30T22:06:42.800313+00:00'
       branch_key: epic-OOMPAH-585--task-OOMPAH-625
+      verdict: pass
+      completed_at: '2026-07-30T22:11:49.091258+00:00'
+      ended_at: '2026-07-30T22:11:49.091258+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-30T22:06:15.939614+00:00'
-    updated_at: '2026-07-30T22:06:42.800313+00:00'
+    updated_at: '2026-07-30T22:11:49.091258+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-4ecb52e715e9
@@ -183,5 +188,27 @@ author: oompah
 created: 2026-07-30 22:07
 ---
 Auditor handoff: exact submitted head 078bcd40c passed the complete integration Makefile gate before absorption into epic-OOMPAH-585. Focused operator evidence is 58 passing auditor-dispatch/forced-termination/telemetry tests plus a passing terminal mutation scan. The read-only policy is expected to reject pytest/cache-writing shell commands; inspect the committed regression and existing gate evidence, then submit the structured verdict without rerunning the full suite.
+---
+author: oompah
+created: 2026-07-30 22:11
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- head_commit: 078bcd40c159a7906c30444ceae2e563b48e1ca3
+- commit_title: OOMPAH-625: release forced auditor branch claims
+- diff_stat: oompah/orchestrator.py +36/-6, tests/test_auditor_termination_cleanup.py +91 new
+- release_helper_line: oompah/orchestrator.py:4375 _release_audit_branch_claim(branch_key, attempt_id) — pops fence only when _audit_branch_claims[branch_key] == attempt_id
+- callsites_updated: orchestrator.py:4536 (dispatch schedule), 4599 (launch failure), 19727 (paused dispatch abort), 19892 (pre-dispatch state-change), 23344 (normal audit exit), 25341 (forced _terminate_running)
+- terminate_running_guard: orchestrator.py:25340 `if entry.is_auditor:` gates release; survivor-process check at 25299 returns False before release path, preserving survivor safety
+- regression_tests: tests/test_auditor_termination_cleanup.py: 2 passed
+- focused_auditor_terminal_suites: tests/test_auditor_dispatch.py, test_auditor_contract.py, test_terminal_audit.py, test_terminal_audit_enforcement.py, test_terminal_transition_coordinator.py: 175 passed
+- handler_race_health_suites: tests/test_orchestrator_handlers.py, test_dispatch_close_race.py, test_terminal_audit_health.py, test_auditor_termination_cleanup.py: 332 passed
+- auditor_result_status_suites: tests/test_auditor_focus.py, test_terminal_audit_scanner.py, test_terminal_audit_metadata.py, test_auditor_result_api.py, test_terminal_audit_health_api.py, test_terminal_status_interfaces.py, test_terminal_override.py: 153 passed
+- preflight_verifier_selector_suites: tests/test_candidate_preflight.py, test_completion_verifier.py, test_auditor_candidate_selector.py, test_dashboard_terminal_audit_health.py: 180 passed
+- git_status: working tree clean; branch up to date with origin/epic-OOMPAH-585--task-OOMPAH-625
+- direct_pop_scan: grep -n '_audit_branch_claims\.pop' oompah: only match is inside _release_audit_branch_claim itself (line 4386), no bypassing callsites remain
 ---
 <!-- COMMENTS:END -->
