@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-430
 type: task
-status: Merged
+status: In Validation
 priority: null
 title: Provide focus agents a supported tracker-handoff mutation path
 parent: null
@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-23T22:26:45.549947Z'
-updated_at: '2026-07-23T23:23:43.354589Z'
+updated_at: '2026-07-30T23:49:17.917461Z'
 work_branch: OOMPAH-430
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/549
@@ -69,6 +69,28 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/549
 oompah.review_number: '549'
 oompah.work_branch: OOMPAH-430
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-b82cbb00bd89
+    project_id: proj-14849f1b
+    task_id: OOMPAH-430
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: e9abb4c283f94e85d55661e480d2d963ca0058ab0ec1f225ea3ae4262940d457
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-07-30T23:49:14.436006+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -443,5 +465,10 @@ author: oompah
 created: 2026-07-23 23:23
 ---
 YOLO: merged PR #549.
+---
+author: oompah
+created: 2026-07-30 23:49
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
