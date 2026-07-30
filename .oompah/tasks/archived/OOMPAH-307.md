@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-307
 type: bug
-status: Merged
+status: Archived
 priority: 1
 title: Keep shared-epic child work and merge state on the epic branch
 parent: null
@@ -19,7 +19,7 @@ labels:
 - epic:stale
 assignee: null
 created_at: '2026-07-21T16:27:57.025790Z'
-updated_at: '2026-07-23T00:19:55.888101Z'
+updated_at: '2026-07-30T01:16:14.954553Z'
 work_branch: epic-OOMPAH-307
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/541
