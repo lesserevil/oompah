@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T17:58:44.309909Z'
-updated_at: '2026-07-30T19:40:28.273914Z'
+updated_at: '2026-07-30T19:41:04.552150Z'
 work_branch: OOMPAH-605
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/593
@@ -45,8 +45,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: f601b8e9-a776-4b45-b5b7-10c8337cdb36
 oompah.task_costs:
-  total_input_tokens: 1205203
-  total_output_tokens: 24408
+  total_input_tokens: 1205262
+  total_output_tokens: 26281
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -54,8 +54,8 @@ oompah.task_costs:
       output_tokens: 5491
       cost_usd: 0.0
     unknown:
-      input_tokens: 70
-      output_tokens: 18917
+      input_tokens: 129
+      output_tokens: 20790
       cost_usd: 0.0
   runs:
   - profile: default
@@ -76,6 +76,12 @@ oompah.task_costs:
     output_tokens: 18917
     cost_usd: 0.0
     recorded_at: '2026-07-30T18:32:18.023475+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 59
+    output_tokens: 1873
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T19:41:02.006078+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-605__20260730T175922Z
@@ -363,5 +369,15 @@ Safe evidence:
 - full_gate_result_recorded: 13,724 passed, 7 skipped on cfe2916c5 (per operator handoff 2026-07-30 18:07)
 - live_recovery_recorded: Post-merge restart as instance ac40770c-37a8-4b2c-b040-7a7ae948f467 with fresh auditors launching against persisted providers with absolute endpoints; OOMPAH-596 completed a fresh independent audit to Done (per 2026-07-30 18:23 operator verification)
 - prior_audit_result: Audit PASS Done recorded 2026-07-30 18:20 for the same recovery head
+---
+author: oompah
+created: 2026-07-30 19:41
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 35
+- Tokens: 59 in / 1.9K out [1.9K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 6m 38s
+- Log: OOMPAH-605__20260730T193426Z.jsonl
 ---
 <!-- COMMENTS:END -->
