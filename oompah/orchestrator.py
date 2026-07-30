@@ -141,6 +141,13 @@ from oompah.terminal_audit import (
 )
 from oompah.terminal_audit_metadata import TerminalAuditMetadataStore
 from oompah.terminal_audit_enforcement import TerminalAuditEnforcement
+from oompah.terminal_audit_health import (
+    AuditHealthObservation,
+    HEALTH_ALERT_PREFIX,
+    TerminalAuditHealth,
+    build_terminal_audit_health,
+    terminal_audit_health_alerts,
+)
 from oompah.terminal_transition_coordinator import (
     TerminalTransitionCoordinator,
     TransitionResult,
@@ -970,8 +977,15 @@ class Orchestrator:
             "exhaustion_count": 0,
             "pending_count": 0,
             "in_progress_count": 0,
+            "launch_failure_count": 0,
+            "transport_failure_count": 0,
+            "retry_exhausted_count": 0,
+            "oldest_pending_age_seconds": None,
+            "stale_in_validation_count": 0,
             "last_error": None,
         }
+        # Aggregated terminal-audit health, rebuilt after every lane scan.
+        self._audit_health: TerminalAuditHealth = TerminalAuditHealth()
         # Maintenance lane scheduling state (TASK-466.4).
         # Maps job name → MaintenanceJobState for in-flight coalescing,
         # skip counters, throttle timestamps, and observability.
@@ -1401,6 +1415,56 @@ class Orchestrator:
         finally:
             self._terminal_audit_started = True
             self._terminal_audit_last_scan = time.monotonic()
+
+    def _refresh_terminal_audit_health(
+        self,
+        observations: list[AuditHealthObservation],
+        *,
+        scan_complete: bool,
+        scan_error_count: int,
+    ) -> None:
+        """Replace the derived audit-health alerts after a queue scan.
+
+        A failed or partial scan never clears an existing audit alert: the
+        service cannot claim recovery while tracker state is unknown.  A
+        complete scan derives all alert state from the durable records, which
+        makes clearing deterministic after recovery and restart.
+        """
+        stale_after = getattr(self.config, "audit_stale_pending_seconds", 3600)
+        max_attempts = getattr(self.config, "audit_max_attempts", 3)
+        health = build_terminal_audit_health(
+            observations,
+            now=datetime.now(timezone.utc),
+            stale_after_seconds=stale_after,
+            max_attempts=max_attempts,
+            scan_complete=scan_complete,
+            scan_error_count=scan_error_count,
+        )
+        self._audit_health = health
+        # Update the raw metrics so callers reading _audit_metrics still work.
+        self._audit_metrics.update({
+            "pending_count": health.pending_count,
+            "in_progress_count": health.in_progress_count,
+            "launch_failure_count": health.launch_failure_count,
+            "transport_failure_count": health.transport_failure_count,
+            "retry_exhausted_count": health.retry_exhausted_count,
+            "oldest_pending_age_seconds": health.oldest_pending_age_seconds,
+            "stale_in_validation_count": health.stale_in_validation_count,
+            "health_scan_complete": scan_complete,
+            "health_scan_error_count": scan_error_count,
+        })
+        # Remove stale health alerts and replace them from the current facts.
+        # A partial scan preserves existing alerts rather than clearing them.
+        if not scan_complete:
+            return
+        self._alerts = [
+            a for a in self._alerts
+            if not str(a.get("source", "")).startswith(HEALTH_ALERT_PREFIX)
+            and a.get("source") != "terminal_audit_health"
+        ]
+        self._alerts.extend(terminal_audit_health_alerts(health))
+        if health.degraded:
+            self._save_state(terminal_audit_health=health.to_dict())
 
     def _load_paused_state(self) -> bool:
         """Load persisted paused state from disk. Returns False if not found."""
@@ -4362,6 +4426,9 @@ class Orchestrator:
             candidates = candidates[:limit]
         metrics["pending_count"] = len(candidates)
         dispatched = 0
+        # Health-scan state: one observation per In Validation issue.
+        observations: list[AuditHealthObservation] = []
+        _audit_scan_error_count: int = 0
 
         for issue in candidates:
             if self._available_slots() <= 0:
@@ -4372,6 +4439,19 @@ class Orchestrator:
                     self._tick_pool, store.read, issue.identifier
                 )
                 record = AuditorDispatchLane.pending_record(document.pending_chain)
+                # Collect a health observation for this In Validation task regardless
+                # of whether it has a pending record.  The observation is used by
+                # _refresh_terminal_audit_health() to compute backlog age and stale-
+                # validation metrics without exposing provider details or model output.
+                observations.append(
+                    AuditHealthObservation(
+                        project_id=str(issue.project_id) if issue.project_id else None,
+                        issue_identifier=str(issue.identifier),
+                        issue_created_at=issue.created_at,
+                        record=record,
+                        quarantined=document.is_quarantined,
+                    )
+                )
                 if record is None:
                     continue
                 selector = self._audit_selector(issue)
@@ -4485,6 +4565,7 @@ class Orchestrator:
                 if plan.rotation_count:
                     metrics["rotation_count"] += 1
             except Exception as exc:  # noqa: BLE001 - one audit must not starve all work
+                _audit_scan_error_count += 1
                 metrics["last_error"] = f"{type(exc).__name__}: {exc}"
                 logger.exception("Audit dispatch failed for %s", issue.identifier)
 
@@ -4492,6 +4573,15 @@ class Orchestrator:
             1 for entry in self.state.running.values() if entry.is_auditor
         )
         metrics["last_dispatched_count"] = dispatched
+        # Rebuild health metrics and alerts from the durable audit observations.
+        # A scan that processed all candidates (no early slot exhaustion) is
+        # considered complete for alert-clearing purposes.
+        scan_complete = self._available_slots() > 0 or not candidates
+        self._refresh_terminal_audit_health(
+            observations,
+            scan_complete=scan_complete and _audit_scan_error_count == 0,
+            scan_error_count=_audit_scan_error_count,
+        )
         return {
             "audit_scan": (time.monotonic() - started) * 1000,
             "audit_dispatch": (time.monotonic() - started) * 1000,
@@ -25294,6 +25384,11 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 getattr(self._terminal_audit_enforcement, "last_result", {}) or {}
             ),
             "audits": dict(getattr(self, "_audit_metrics", {}) or {}),
+            "terminal_audit_health": getattr(self, "_audit_health", TerminalAuditHealth()).to_dict(),
+            "health": {
+                "status": "degraded" if getattr(self, "_audit_health", TerminalAuditHealth()).degraded else "healthy",
+                "terminal_audit": getattr(self, "_audit_health", TerminalAuditHealth()).to_dict(),
+            },
             "alerts": list(self._alerts) + self._credential_error_alerts(),
             "reviews_summary": self._reviews_summary(),
             "orchestrator_metrics": {

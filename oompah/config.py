@@ -426,6 +426,9 @@ class ServiceConfig:
     audit_attempt_ttl_seconds: int = 3600
     audit_priority: int = 100
     audit_lane_scan_limit: int = 32
+    # Seconds after which a pending or In Validation audit record is considered
+    # stale and surfaces a dashboard alert.  Defaults to one hour.
+    audit_stale_pending_seconds: int = 3600
     max_concurrent_agents_by_state: dict[str, int] = field(default_factory=dict)
     agent_command: str = "claude --dangerously-skip-permissions"
     turn_timeout_ms: int = 3_600_000
@@ -947,6 +950,9 @@ class ServiceConfig:
             audit_lane_scan_limit=_env_int(
                 "OOMPAH_AUDIT_LANE_SCAN_LIMIT", None, 32
             ),
+            audit_stale_pending_seconds=_parse_positive_env_int(
+                "OOMPAH_AUDIT_STALE_PENDING_SECONDS", 3600
+            ),
             max_concurrent_agents_by_state=by_state,
             agent_command=_env_str("OOMPAH_AGENT_COMMAND", codex.get("command"), "claude --dangerously-skip-permissions"),
             turn_timeout_ms=_env_int("OOMPAH_TURN_TIMEOUT_MS", codex.get("turn_timeout_ms"), 3_600_000),
@@ -1165,5 +1171,7 @@ def validate_dispatch_config(config: ServiceConfig) -> list[str]:
         errors.append("audit_attempt_ttl_seconds must be positive")
     if config.audit_lane_scan_limit < 0:
         errors.append("audit_lane_scan_limit must be non-negative")
+    if config.audit_stale_pending_seconds <= 0:
+        errors.append("audit_stale_pending_seconds must be positive")
 
     return errors
