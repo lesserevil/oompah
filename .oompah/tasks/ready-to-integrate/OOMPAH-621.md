@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:25:29.809048Z'
-updated_at: '2026-07-30T22:29:40.294129Z'
+updated_at: '2026-07-30T22:29:52.934318Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-621
 target_branch: null
 review_url: null
@@ -47,17 +47,19 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: epic-OOMPAH-619--task-OOMPAH-621
+  base_branch: main
+  base_sha: c048ba706cbe9b1342b80a67576a49b82887e84a
   head_sha: 9d11014204d3a8a07b339c9e3627ae500064638d
   submitted_at: '2026-07-30T22:29:17.965399+00:00'
-  updated_at: '2026-07-30T22:29:17.965399+00:00'
+  updated_at: '2026-07-30T22:29:50.568496+00:00'
 oompah.task_costs:
-  total_input_tokens: 871086
-  total_output_tokens: 3139
+  total_input_tokens: 871464
+  total_output_tokens: 20410
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 871086
-      output_tokens: 3139
+      input_tokens: 871464
+      output_tokens: 20410
       cost_usd: 0.0
   runs:
   - profile: default
@@ -66,6 +68,12 @@ oompah.task_costs:
     output_tokens: 3139
     cost_usd: 0.0
     recorded_at: '2026-07-30T21:36:41.216663+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 378
+    output_tokens: 17271
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T22:29:48.992807+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-621__20260730T213528Z
@@ -76,6 +84,14 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-619--task-OOMPAH-621
     source_sha: c048ba706cbe9b1342b80a67576a49b82887e84a
     completed_at: '2026-07-30T21:36:41.227519+00:00'
+  - run_id: OOMPAH-621__20260730T222411Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: docs
+    source_branch: epic-OOMPAH-619--task-OOMPAH-621
+    source_sha: 9d11014204d3a8a07b339c9e3627ae500064638d
+    completed_at: '2026-07-30T22:29:48.996637+00:00'
 ---
 ## Summary
 
@@ -275,5 +291,20 @@ created: 2026-07-30 22:29
 **Branch:** epic-OOMPAH-619--task-OOMPAH-621 (1 commit, pushed, submitted)
 
 Task is ready for integration.
+---
+author: oompah
+created: 2026-07-30 22:29
+---
+Agent completed successfully in 344s (17649 tokens)
+---
+author: oompah
+created: 2026-07-30 22:29
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 110, Tool calls: 49
+- Tokens: 378 in / 17.3K out [17.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 5m 44s
+- Log: OOMPAH-621__20260730T222411Z.jsonl
 ---
 <!-- COMMENTS:END -->
