@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:28:42.855708Z'
-updated_at: '2026-07-30T18:33:11.186256Z'
+updated_at: '2026-07-30T18:33:14.522914Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -61,5 +61,15 @@ author: oompah
 created: 2026-07-30 18:28
 ---
 Owner-approved liveness blocker discovered from OOMPAH-589 fresh audit attempt audit-a142ebf4b6d8. Let the oompah server implement it while the scheduler is healthy.
+---
+author: oompah
+created: 2026-07-30 18:33
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-07-30 18:33
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
