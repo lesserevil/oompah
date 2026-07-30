@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-596
 type: bug
-status: Needs Human
+status: Open
 priority: 1
 title: Rearm conflict repairs after recoverable agent infrastructure failure
 parent: OOMPAH-587
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:26.248587Z'
-updated_at: '2026-07-30T15:36:09.079584Z'
+updated_at: '2026-07-30T15:40:01.745530Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-596
 target_branch: null
 review_url: null
@@ -316,5 +316,17 @@ author: oompah
 created: 2026-07-30 15:36
 ---
 Agent completed 3 times without closing this issue. Human action required: review the agent run history and task state, then either close the task if the work is done or add specific guidance and move it back to Open.
+---
+author: oompah
+created: 2026-07-30 15:40
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #11)
+
+**State audited:** `Needs Human`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** Last agent comment signals completion without a human question; the Needs Human transition appears accidental.
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
 ---
 <!-- COMMENTS:END -->
