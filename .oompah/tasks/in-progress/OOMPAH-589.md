@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:20.256845Z'
-updated_at: '2026-07-30T16:49:16.493965Z'
+updated_at: '2026-07-30T16:52:13.574797Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-589
 target_branch: null
 review_url: null
@@ -796,5 +796,18 @@ author: oompah
 created: 2026-07-30 16:49
 ---
 Focus: Auth Http Default Specialist
+---
+author: oompah
+created: 2026-07-30 16:52
+---
+**Understanding**
+
+Reopen root cause (from operator diagnosis at 16:34): the independent scheduler correctly selects a valid InferenceAPI candidate as \`AuditDispatchPlan.candidate\`, but the worker path re-applies focus provider/model overrides after target dispatch. Because the reserved auditor focus has \`model_role='auditor'\`, \`_resolve_focus_provider_override(focus)\` re-resolves the *first* auditor role candidate (default Claude ACP with blank base URL) and replaces the target's InferenceAPI provider. The API worker then sends against Claude ACP as OpenAI-compatible; urljoin('', 'chat/completions') → '/chat/completions' — the exact error reported.
+
+Fix plan:
+1. In both \`_run_api_worker\` and \`_run_acp_worker\`, when \`forced_auditor=True\` and \`target\` is provided (auditor_plan candidate binding), skip \`_resolve_focus_provider_override\` and skip \`_resolve_model\` — use \`target.provider\` and \`target.model\` directly. The \`AuditDispatchPlan.candidate\` is authoritative.
+2. Keep independent/whitelist filtering and preflight validation upstream (already implemented in earlier commits).
+3. Add regression tests exercising both cross-modes: (a) API worker with InferenceAPI target + auditor focus — provider must remain InferenceAPI; (b) ACP worker with Claude ACP target + auditor focus + non-default candidate — model/provider must remain the target's.
+4. Focused suites: orchestrator handlers, auditor dispatch, auditor candidate selector, focus triage.
 ---
 <!-- COMMENTS:END -->
