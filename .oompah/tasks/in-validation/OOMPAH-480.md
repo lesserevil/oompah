@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-480
 type: feature
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Route release-delivery and release-pick terminal updates through audits
 parent: OOMPAH-459
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:28.235708Z'
-updated_at: '2026-07-30T00:30:55.847109Z'
+updated_at: '2026-07-30T01:38:53.214910Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-480
 target_branch: null
 review_url: null
@@ -86,12 +86,15 @@ oompah.task_costs:
     recorded_at: '2026-07-29T23:19:40.993325+00:00'
 oompah.integration:
   version: 1
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-459--task-OOMPAH-480
-  head_sha: ee00485a0433381f5ec7d28647d44c93169f4ce2
+  base_branch: epic-OOMPAH-459
+  base_sha: 55d4c57e9364a787764f56995ce4112d5afb33fc
+  head_sha: 0b84b7b6d6a1ef0d77ad0de7e6dc51ef2676792c
+  integrated_sha: 0b84b7b6d6a1ef0d77ad0de7e6dc51ef2676792c
   submitted_at: '2026-07-30T00:30:53.890942+00:00'
-  updated_at: '2026-07-30T00:30:53.890942+00:00'
+  updated_at: '2026-07-30T01:38:49.903664+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-480__20260729T182912Z
@@ -110,6 +113,28 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-459--task-OOMPAH-480
     source_sha: f2812fda7d0bf4511612a8219723297802ec2e71
     completed_at: '2026-07-29T19:02:59.322134+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-3d6d19c4aaea
+    project_id: proj-14849f1b
+    task_id: OOMPAH-480
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 1cc98a721de9b0513c3ca125d165fc2add04a813be8873276a714968fb9394f1
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-30T01:38:51.031669+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -470,5 +495,10 @@ author: oompah
 created: 2026-07-30 00:30
 ---
 Rearmed after confirming the sole combined-tree failure was transient; exact failing test passed five consecutive reruns, epic worktree reconciled to 65df7489f, task head ee00485a0 remains pushed.
+---
+author: oompah
+created: 2026-07-30 01:38
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
