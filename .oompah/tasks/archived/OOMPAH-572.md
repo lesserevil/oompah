@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T00:10:44.905550Z'
-updated_at: '2026-07-30T04:01:13.704860Z'
+updated_at: '2026-07-30T04:01:16.306753Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-572
 target_branch: null
 review_url: null
@@ -194,5 +194,10 @@ author: oompah
 created: 2026-07-30 00:22
 ---
 Correction completed: an unset temp-directory variable made the initial direct push point the epic ref at main without replaying its commits. Restored from recorded tip 2e2005cba, rebased its exact nine-commit range from old base 8483db2e3 onto bd5f23f53, verified all nine as equivalent with range-diff, and force-pushed using an exact lease against bd5f23f53. Correct new epic tip: 65df7489f845e7def17ee6612060a0bc6130ba82. No task branch was changed.
+---
+author: oompah
+created: 2026-07-30 04:01
+---
+Administrative epic-rebase helper completed and superseded by the final verified epic head 95581aca5; archive so it does not masquerade as an independently merged implementation child in epic rollup.
 ---
 <!-- COMMENTS:END -->
