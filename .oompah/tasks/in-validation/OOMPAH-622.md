@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T21:26:15.242500Z'
-updated_at: '2026-07-30T21:40:10.502027Z'
+updated_at: '2026-07-30T21:42:23.627960Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-622
 target_branch: null
 review_url: null
@@ -275,5 +275,10 @@ author: oompah
 created: 2026-07-30 21:40
 ---
 Auditor note: the shell authority allowlist is intentionally narrow. Use the read_file tool directly for source inspection (for example oompah/orchestrator.py and oompah/auditor_candidate_selector.py), not sed/awk/grep/python shell commands.
+---
+author: oompah
+created: 2026-07-30 21:42
+---
+Auditor environment note: the bare `pytest` command resolved to the operator root editable environment (`/home/shedwards/src/oompah` at old commit ce8a124fc), so that focused failure tested old code and is not valid branch evidence. The integration gate used an isolated task-worktree venv and passed before cleaning it. If a rerun is necessary, use `python -m pytest ... --import-mode=importlib` from this worktree so cwd sources win; otherwise rely on the successful exact gate.
 ---
 <!-- COMMENTS:END -->

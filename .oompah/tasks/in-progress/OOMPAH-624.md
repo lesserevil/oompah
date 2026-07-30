@@ -12,7 +12,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-30T21:37:57.526368Z'
-updated_at: '2026-07-30T21:41:33.187097Z'
+updated_at: '2026-07-30T21:42:20.212543Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-624
 target_branch: null
 review_url: null
@@ -205,5 +205,10 @@ author: oompah
 created: 2026-07-30 21:41
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-07-30 21:42
+---
+**Understanding**: I'll implement the server-trusted authenticated principal binding. Approach: (1) Expose the authenticated username from _BasicAuthMiddleware into the ASGI scope via a private capability, mirroring existing _MCP_AUTHENTICATED_SCOPE_CAPABILITY. (2) Add a request helper that returns the authenticated principal (or None when auth is disabled). (3) Add explicit, validated OOMPAH_ACTOR_MAP config (JSON map or per-project override) with fail-closed semantics for unknown/ambiguous mappings. (4) Refactor _request_actor_login and mutating endpoints (transitions, terminal overrides, intake actions, handoff) to derive actor from the authenticated principal instead of client-supplied strings. Reject conflicting actor_login values. (5) Update task_cli.py + admin_cli.py to omit --actor when authenticated principal is sufficient; reject on conflict. (6) Regression tests covering the six scenarios listed in the issue. Investigating existing tests and the transition_gate/intake_actions authorization surfaces now.
 ---
 <!-- COMMENTS:END -->
