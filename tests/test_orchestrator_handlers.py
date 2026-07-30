@@ -216,6 +216,39 @@ class TestHandleReconcile:
         orch._reconcile.assert_awaited_once_with()
 
 
+class TestIntegrationRestartCleanup:
+    def test_startup_cleanup_recovers_abandoned_integration_leases(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        orch.integration_queue.recover_abandoned = MagicMock(return_value=2)
+
+        asyncio.run(orch.startup_cleanup())
+
+        orch.integration_queue.recover_abandoned.assert_called_once_with()
+        assert (
+            orch._maintenance_status["startup_cleanup"][
+                "abandoned_leases_recovered"
+            ]
+            == 2
+        )
+
+    def test_stop_interrupts_quality_gates_before_draining_workers(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        events: list[str] = []
+        orch._branch_quality_gate.cleanup_active_processes = MagicMock(
+            side_effect=lambda: events.append("quality") or 1
+        )
+        orch._post_event = MagicMock(
+            side_effect=lambda _event: events.append("shutdown")
+        )
+        orch._drain_background_work = AsyncMock(
+            side_effect=lambda: events.append("drain")
+        )
+
+        asyncio.run(orch.stop())
+
+        assert events == ["quality", "shutdown", "drain"]
+
+
 # ---------------------------------------------------------------------------
 # _handle_review_check
 # ---------------------------------------------------------------------------

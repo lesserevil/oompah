@@ -305,6 +305,30 @@ class TestTaskScopeDirectPath:
 
 
 class TestTaskHandoffEndpoint:
+    def test_api_submission_marks_queue_enqueue_as_explicit_retry(self):
+        from oompah.server import _enqueue_worker_submission
+
+        orch = MagicMock()
+        orch.config.parallel_epic_children_enabled = True
+        issue = SimpleNamespace(
+            identifier="TASK-1",
+            parent_id="EPIC-1",
+            priority=1,
+        )
+        record = SimpleNamespace(
+            task_branch="epic-EPIC-1--task-TASK-1",
+            head_sha="a" * 40,
+            base_sha="b" * 40,
+            submitted_at="2026-07-30T00:00:00+00:00",
+        )
+
+        _enqueue_worker_submission(orch, "proj-a", issue, record)
+
+        assert (
+            orch.integration_queue.enqueue.call_args.kwargs["explicit_retry"]
+            is True
+        )
+
     def test_authenticated_worker_can_comment_and_transition_own_task(self):
         from fastapi.testclient import TestClient
 

@@ -130,9 +130,10 @@ class IntegrationQueueStore:
         explicit_retry: bool = False,
     ) -> IntegrationQueueItem:
         """Insert or refresh a submission; identical resubmits are idempotent.
-        
-        When explicit_retry=True, clears blocked state even for unchanged head/branch,
-        allowing explicit user retries while background sync remains idempotent.
+
+        ``explicit_retry`` only revives an identical blocked submission.
+        Ready, integrating, and integrated rows remain idempotent so an
+        operator retry cannot duplicate active or completed integration.
         """
 
         values = {
@@ -154,12 +155,17 @@ class IntegrationQueueStore:
                 """,
                 (values["project_id"], values["task_id"]),
             ).fetchone()
-            if (
+            identical = (
                 existing is not None
                 and existing["head_sha"] == values["head_sha"]
                 and existing["task_branch"] == values["task_branch"]
-                and not explicit_retry
-            ):
+            )
+            retry_blocked = bool(
+                identical
+                and explicit_retry
+                and existing["state"] == "blocked"
+            )
+            if identical and not retry_blocked:
                 return self._from_row(existing)
             self._conn.execute(
                 """
@@ -224,7 +230,7 @@ class IntegrationQueueStore:
 
     def recover_abandoned(self) -> int:
         """Recover all integrating leases as abandoned (e.g., after restart).
-        
+
         Called at orchestrator startup to clear any integrating rows that
         were left behind by a crashed or shutdown service instance.
         """

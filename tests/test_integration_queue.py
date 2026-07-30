@@ -105,14 +105,8 @@ def test_concurrent_claimers_only_receive_one_lease(tmp_path):
 
 
 def test_explicit_retry_unblocks_blocked_row_with_same_head(tmp_path):
-    """Test that explicit user retry clears blocked state for same head/branch."""
     store = IntegrationQueueStore(str(tmp_path / "queue.sqlite3"))
-    
-    # Enqueue a task (explicit submission)
-    item = _enqueue(store, "A")
-    assert item.state == "ready"
-    
-    # Claim and fail it (non-retryable, becomes blocked)
+    original = _enqueue(store, "A")
     claimed = store.claim_next(
         project_id="p1",
         epic_id="E-1",
@@ -121,48 +115,51 @@ def test_explicit_retry_unblocks_blocked_row_with_same_head(tmp_path):
         satisfied=set(),
     )
     assert claimed is not None
-    store.fail(
-        "p1", "A",
+    assert store.fail(
+        "p1",
+        "A",
         lease_owner="worker-1",
         error="permanent failure",
-        retryable=False,  # This makes it blocked, not ready
+        retryable=False,
     )
-    
-    # Verify it's blocked
     blocked = store.items(project_id="p1", epic_id="E-1")[0]
     assert blocked.state == "blocked"
-    assert blocked.head_sha == blocked.head_sha  # Same head
-    assert blocked.task_branch == blocked.task_branch  # Same branch
-    
-    # Background sync should NOT unblock it (idempotent)
-    resubmitted = store.enqueue(
+
+    synced = store.enqueue(
         project_id="p1",
         epic_id="E-1",
         task_id="A",
-        task_branch="task/A",
-        head_sha=blocked.head_sha,
-        explicit_retry=False,  # Background sync
+        task_branch=original.task_branch,
+        head_sha=original.head_sha,
     )
-    assert resubmitted.state == "blocked"  # Still blocked
-    
-    # Explicit retry SHOULD unblock it
+    assert synced.state == "blocked"
+
     retried = store.enqueue(
         project_id="p1",
         epic_id="E-1",
         task_id="A",
-        task_branch="task/A",
-        head_sha=blocked.head_sha,
-        explicit_retry=True,  # Explicit user retry
+        task_branch=original.task_branch,
+        head_sha=original.head_sha,
+        explicit_retry=True,
     )
-    assert retried.state == "ready"  # Now ready
+    assert retried.state == "ready"
+    assert retried.attempts == 0
+    assert retried.last_error is None
 
 
-def test_background_sync_is_idempotent_for_blocked_rows(tmp_path):
-    """Test that background sync (periodic Ready-to-Integrate) doesn't unblock."""
+def test_explicit_retry_preserves_nonblocked_identical_rows(tmp_path):
     store = IntegrationQueueStore(str(tmp_path / "queue.sqlite3"))
-    
-    # Create a blocked item manually (simulating failed integration)
-    item = _enqueue(store, "A")
+
+    ready = _enqueue(store, "A")
+    assert store.enqueue(
+        project_id="p1",
+        epic_id="E-1",
+        task_id="A",
+        task_branch=ready.task_branch,
+        head_sha=ready.head_sha,
+        explicit_retry=True,
+    ) == ready
+
     claimed = store.claim_next(
         project_id="p1",
         epic_id="E-1",
@@ -170,53 +167,49 @@ def test_background_sync_is_idempotent_for_blocked_rows(tmp_path):
         dependency_map={"A": []},
         satisfied=set(),
     )
-    store.fail("p1", "A", lease_owner="worker-1", error="failure", retryable=False)
-    
-    # Background sync with same head/branch should NOT change blocked state
-    synced = store.enqueue(
+    assert claimed is not None
+    still_integrating = store.enqueue(
         project_id="p1",
         epic_id="E-1",
         task_id="A",
-        task_branch="task/A",
-        head_sha="aaaaaaaa",  # From _enqueue (task.lower() * 8)[:8]
-        explicit_retry=False,  # This is background sync
+        task_branch=ready.task_branch,
+        head_sha=ready.head_sha,
+        explicit_retry=True,
     )
-    assert synced.state == "blocked"  # Remains blocked
+    assert still_integrating.state == "integrating"
+    assert still_integrating.lease_owner == "worker-1"
+
+    assert store.complete("p1", "A", lease_owner="worker-1")
+    integrated = store.items(project_id="p1", epic_id="E-1")[0]
+    repeated = store.enqueue(
+        project_id="p1",
+        epic_id="E-1",
+        task_id="A",
+        task_branch=ready.task_branch,
+        head_sha=ready.head_sha,
+        explicit_retry=True,
+    )
+    assert repeated == integrated
+    assert repeated.state == "integrated"
 
 
 def test_recover_abandoned_leases_at_startup(tmp_path):
-    """Test that recover_abandoned() resets all integrating leases."""
     store = IntegrationQueueStore(str(tmp_path / "queue.sqlite3"))
-    
-    # Enqueue multiple tasks
-    _enqueue(store, "A")
-    _enqueue(store, "B")
-    _enqueue(store, "C")
-    
-    # Claim and move them to integrating state
-    for task_id in ["A", "B", "C"]:
-        claimed = store.claim_next(
-            project_id="p1",
-            epic_id="E-1",
-            lease_owner="dead-instance",
-            dependency_map={"A": [], "B": ["A"], "C": ["A", "B"]},
-            satisfied={"A"} if task_id in ["B", "C"] else set(),
-        )
-        if claimed is not None:
-            pass  # Now they're in integrating state
-    
-    # Verify they're integrating
-    items = store.items(project_id="p1", epic_id="E-1")
-    integrating_count = sum(1 for item in items if item.state == "integrating")
-    assert integrating_count > 0  # At least one is integrating
-    
-    # Recover abandoned leases
-    recovered = store.recover_abandoned()
-    assert recovered > 0
-    
-    # Verify all are now ready
-    items = store.items(project_id="p1", epic_id="E-1")
-    for item in items:
-        assert item.state == "ready"
-        assert item.lease_owner is None
-        assert item.lease_expires_at is None
+    original = _enqueue(store, "A")
+    claimed = store.claim_next(
+        project_id="p1",
+        epic_id="E-1",
+        lease_owner="dead-instance",
+        dependency_map={"A": []},
+        satisfied=set(),
+    )
+    assert claimed is not None
+
+    assert store.recover_abandoned() == 1
+    recovered = store.items(project_id="p1", epic_id="E-1")[0]
+    assert recovered.state == "ready"
+    assert recovered.head_sha == original.head_sha
+    assert recovered.attempts == 1
+    assert recovered.lease_owner is None
+    assert recovered.lease_expires_at is None
+    assert store.recover_abandoned() == 0

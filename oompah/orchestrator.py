@@ -4850,7 +4850,7 @@ class Orchestrator:
         # that this executor already pushed. A task-branch push race means a
         # worker or operator changed the private branch concurrently; require
         # a fresh explicit submission instead of guessing which head wins.
-        retryable = result.status == "epic_head_race"
+        retryable = result.status in {"epic_head_race", "interrupted"}
         self.integration_queue.fail(
             item.project_id,
             item.task_id,
@@ -4894,7 +4894,7 @@ class Orchestrator:
                     explicit_retry=False,  # Automatic background retry
                 )
             logger.info(
-                "Integration race for %s will retry automatically: %s",
+                "Retryable integration interruption for %s will retry automatically: %s",
                 item.task_id,
                 result.message,
             )

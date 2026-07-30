@@ -4,7 +4,7 @@ from contextlib import nullcontext
 import subprocess
 
 from oompah.integration_executor import execute_integration
-from oompah.quality_gate import BranchQualityGate
+from oompah.quality_gate import BranchQualityGate, QualityGateResult
 
 
 def _git(path, *args):
@@ -93,6 +93,34 @@ def test_executor_preserves_rebased_task_when_quality_fails(tmp_path):
         repo_identity=str(remote),
     )
     assert result.status == "ci_failure"
+    assert result.rebased_task_sha
+    assert _git(epic, "rev-parse", "HEAD") != result.rebased_task_sha
+
+
+def test_executor_preserves_retryable_quality_gate_interruption(tmp_path):
+    remote, epic, task, task_head = _repo(tmp_path)
+
+    class InterruptedGate:
+        def run(self, **_kwargs):
+            return QualityGateResult(
+                status="interrupted",
+                head_sha=task_head,
+                command="make test",
+            )
+
+    result = execute_integration(
+        project_lock=nullcontext(),
+        epic_worktree=str(epic),
+        task_worktree=str(task),
+        epic_branch="epic-E-1",
+        task_branch="epic-E-1--task-T-1",
+        submitted_head_sha=task_head,
+        quality_gate=InterruptedGate(),
+        quality_command="make test",
+        repo_identity=str(remote),
+    )
+
+    assert result.status == "interrupted"
     assert result.rebased_task_sha
     assert _git(epic, "rev-parse", "HEAD") != result.rebased_task_sha
 

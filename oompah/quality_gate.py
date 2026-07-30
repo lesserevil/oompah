@@ -67,33 +67,58 @@ class BranchQualityGate:
     @classmethod
     def cleanup_active_processes(cls) -> int:
         """Terminate all active quality gate process groups.
-        
+
         Called during orchestrator shutdown to ensure process groups are
         cleaned up before leases become reclaimable. Returns count terminated.
         """
         terminated_count = 0
         with cls._processes_lock:
-            # Create a copy to avoid modifying dict during iteration
-            pids_to_clean = list(cls._active_processes.keys())
-        
-        for pid in pids_to_clean:
-            with cls._processes_lock:
-                process = cls._active_processes.get(pid)
-                if process is None:
-                    continue
-            
+            processes = list(cls._active_processes.items())
+            for _pid, process in processes:
+                # The run thread uses this marker to return a non-cached
+                # interruption instead of recording a false CI failure.
+                setattr(process, "_oompah_interrupted", True)
+
+        for pid, process in processes:
             try:
-                # Terminate the process group (all children)
                 os.killpg(pid, signal.SIGTERM)
                 terminated_count += 1
-                logger.info("Terminated quality gate process group %d", pid)
-            except (OSError, ProcessLookupError) as exc:
-                logger.debug("Failed to terminate process group %d: %s", pid, exc)
-            
-            # Clean up from tracking
+            except ProcessLookupError:
+                pass
+            except OSError as exc:
+                logger.warning(
+                    "Failed to terminate quality gate process group %d: %s",
+                    pid,
+                    exc,
+                )
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                try:
+                    os.killpg(pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                except OSError as exc:
+                    logger.warning(
+                        "Failed to kill quality gate process group %d: %s",
+                        pid,
+                        exc,
+                    )
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    logger.warning(
+                        "Quality gate process group %d did not stop after SIGKILL",
+                        pid,
+                    )
             with cls._processes_lock:
                 cls._active_processes.pop(pid, None)
-        
+
+        if terminated_count:
+            logger.info(
+                "Interrupted %d active quality gate process group(s)",
+                terminated_count,
+            )
         return terminated_count
 
     @staticmethod
@@ -245,6 +270,7 @@ class BranchQualityGate:
                 )
 
             started = time.monotonic()
+            process: subprocess.Popen[str] | None = None
             try:
                 process = subprocess.Popen(  # noqa: S602 - operator-owned command
                     command,
@@ -259,12 +285,7 @@ class BranchQualityGate:
                 # Track process group for graceful shutdown cleanup
                 with self._processes_lock:
                     self._active_processes[process.pid] = process
-                try:
-                    stdout, stderr = process.communicate(timeout=self.timeout_seconds)
-                finally:
-                    # Remove from tracking after completion
-                    with self._processes_lock:
-                        self._active_processes.pop(process.pid, None)
+                stdout, stderr = process.communicate(timeout=self.timeout_seconds)
                 duration = time.monotonic() - started
                 combined = "\n".join(
                     part for part in (stdout, stderr) if part
@@ -272,6 +293,19 @@ class BranchQualityGate:
                 output_tail = combined.encode("utf-8", errors="replace")[
                     -self.output_tail_bytes :
                 ].decode("utf-8", errors="replace")
+                with self._processes_lock:
+                    interrupted = bool(
+                        getattr(process, "_oompah_interrupted", False)
+                    )
+                    self._active_processes.pop(process.pid, None)
+                if interrupted:
+                    return QualityGateResult(
+                        status="interrupted",
+                        head_sha=head_sha,
+                        command=command,
+                        duration_seconds=duration,
+                        output_tail=output_tail,
+                    )
                 if process.returncode != 0:
                     result = QualityGateResult(
                         status="failed",
@@ -290,13 +324,11 @@ class BranchQualityGate:
                     )
                     return result
             except subprocess.TimeoutExpired as exc:
+                assert process is not None
                 try:
                     os.killpg(process.pid, signal.SIGKILL)
-                except (OSError, UnboundLocalError):
+                except OSError:
                     pass
-                # Clean up from tracking even on timeout
-                with self._processes_lock:
-                    self._active_processes.pop(process.pid, None)
                 stdout, stderr = process.communicate()
                 duration = time.monotonic() - started
                 combined = "\n".join(
@@ -307,6 +339,19 @@ class BranchQualityGate:
                     )
                     if part
                 )
+                with self._processes_lock:
+                    interrupted = bool(
+                        getattr(process, "_oompah_interrupted", False)
+                    )
+                    self._active_processes.pop(process.pid, None)
+                if interrupted:
+                    return QualityGateResult(
+                        status="interrupted",
+                        head_sha=head_sha,
+                        command=command,
+                        duration_seconds=duration,
+                        output_tail=combined[-self.output_tail_bytes :],
+                    )
                 result = QualityGateResult(
                     status="timed_out",
                     head_sha=head_sha,
@@ -340,6 +385,10 @@ class BranchQualityGate:
                     work_branch=work_branch,
                 )
                 return result
+            finally:
+                if process is not None:
+                    with self._processes_lock:
+                        self._active_processes.pop(process.pid, None)
 
             result = QualityGateResult(
                 status="passed",
