@@ -13,7 +13,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:26.620047Z'
-updated_at: '2026-07-30T20:20:11.423612Z'
+updated_at: '2026-07-30T20:20:39.186677Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-591
 target_branch: null
 review_url: null
@@ -51,12 +51,14 @@ oompah.agent_run_id: 5892163a-631a-48b1-9440-57520ef51137
 oompah.work_branch: epic-OOMPAH-585--task-OOMPAH-591
 oompah.integration:
   version: 1
-  state: working
-  attempts: 0
-  task_branch: epic-OOMPAH-585--task-OOMPAH-591
+  state: blocked
+  attempts: 1
+  task_branch: main
   base_branch: epic-OOMPAH-585
   base_sha: 64b9b00c55f34d164d4eca2dd6071887ea5b5bb3
-  updated_at: '2026-07-30T20:20:09.209691+00:00'
+  head_sha: c048ba706cbe9b1342b80a67576a49b82887e84a
+  updated_at: '2026-07-30T20:20:33.990272+00:00'
+  last_error: 'fatal: ''main'' is already used by worktree at ''/home/shedwards/.oompah/repos/oompah'''
 oompah.task_costs:
   total_input_tokens: 5295164
   total_output_tokens: 35745
@@ -242,6 +244,23 @@ oompah.terminal_audit:
     previous_state: Ready to Integrate
     created_at: '2026-07-30T20:17:13.120383+00:00'
     updated_at: '2026-07-30T20:20:05.103415+00:00'
+  - version: 1
+    audit_id: audit-3ff18fc87371
+    project_id: proj-14849f1b
+    task_id: OOMPAH-591
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: adf4621b89554d4e1307449b835b508f646e096aa0b34f11dc760eb32096aea6
+    attempts: []
+    requested_by:
+      version: 1
+      identity: api-client
+      source: api
+    previous_state: In Validation
+    created_at: '2026-07-30T20:20:28.362682+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-870b1c4d15ed
