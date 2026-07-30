@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-575
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Propagate scoped task CLI auth to Codex agent sessions
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T02:15:25.255613Z'
-updated_at: '2026-07-30T13:32:58.066689Z'
+updated_at: '2026-07-30T13:34:37.927896Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -21,17 +21,46 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 161ed12e153fe52f6201c32494aa9699b3e730445a34d9fc929cf8f3982e45d4
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-07-30T13:34:22.411780+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: ea370a01-8ad7-4517-9047-76284e88002a
-  claim_owner: 42623072-9e4e-4956-a81f-a5c79aedc624
-  claimed_at: '2026-07-30T13:32:52.576051+00:00'
-  claim_expires_at: '2026-07-30T14:02:52.576051+00:00'
+  evidence: "Focus handoff: duplicate_detector  \nDuplicate preflight verdict: no_duplicate\
+    \  \nMatches: none  \nEvidence: Reviewed active OOMPAH-281 and OOMPAH-282 plus\
+    \ closest terminal tasks OOMPAH-186, OOMPAH-211, OOMPAH-217, and OOMPAH-6; none\
+    \ cover scoped task-CLI authentication propagation to Codex sessions."
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
 oompah.agent_run_id: 173e46e2-0e50-49a4-b448-5cf9616e314b
+oompah.task_costs:
+  total_input_tokens: 642758
+  total_output_tokens: 3111
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 642758
+      output_tokens: 3111
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 642758
+    output_tokens: 3111
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T13:34:22.410428+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-575__20260730T133259Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: OOMPAH-575
+    source_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
+    completed_at: '2026-07-30T13:34:22.420413+00:00'
 ---
 ## Summary
 
@@ -64,5 +93,15 @@ author: oompah
 created: 2026-07-30 13:32
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-30 13:34
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 12
+- Tokens: 642.8K in / 3.1K out [645.9K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 27s
+- Log: OOMPAH-575__20260730T133259Z.jsonl
 ---
 <!-- COMMENTS:END -->

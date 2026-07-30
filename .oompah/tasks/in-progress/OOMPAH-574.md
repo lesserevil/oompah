@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T02:15:22.112289Z'
-updated_at: '2026-07-30T13:33:10.316226Z'
+updated_at: '2026-07-30T13:34:19.671376Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -133,5 +133,30 @@ Planned approach:
 6. Implement deduplication of concurrent quality gates for same row/head
 7. Add comprehensive tests for all scenarios
 8. Verify focused tests pass before submission
+---
+author: oompah
+created: 2026-07-30 13:34
+---
+**Discovery**
+
+Understanding the current implementation:
+
+1. **integration_queue.py**: Already supports explicit_retry flag in enqueue() - when True and row is blocked, it resets to 'ready' state.
+
+2. **quality_gate.py**: Cache key is based on (repo_identity, target_branch, work_branch, head_sha, command). Cached results are returned without re-execution regardless of retry intent.
+
+3. **integration_executor.py**: Calls quality_gate.run() but no explicit_retry context passed through.
+
+4. **Tests**: Existing tests show idempotent resubmit behavior but no tests for quality gate re-execution on explicit retry.
+
+**Root Issue**: No mechanism to distinguish explicit retry from normal cache hit. When integration_queue resets a blocked row to 'ready', the quality gate executor still returns cached failed results.
+
+**Solution approach**:
+1. Add retry_forced parameter to quality_gate.run() method
+2. When retry_forced=True: bypass cache for failed/timeout/error statuses, re-execute
+3. When retry_forced=False (default): use existing cache logic (reuse passed, skip failed)
+4. Wire explicit_retry flag from integration_queue through task handoff to executor
+5. Add comprehensive tests for all scenarios
+6. Ensure concurrent gate deduplication still works
 ---
 <!-- COMMENTS:END -->
