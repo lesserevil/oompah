@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:15:45.628870Z'
-updated_at: '2026-07-30T04:19:09.762023Z'
+updated_at: '2026-07-30T04:20:49.974613Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-580
 target_branch: null
 review_url: null
@@ -28,13 +28,17 @@ oompah.integration:
   base_sha: b0ceda2643cbc37c166ac58bed9a9b6f3898b681
   updated_at: '2026-07-30T04:19:07.804559+00:00'
 oompah.task_costs:
-  total_input_tokens: 15
-  total_output_tokens: 7492
+  total_input_tokens: 341823
+  total_output_tokens: 11716
   total_cost_usd: 0.0
   by_model:
     sonnet:
       input_tokens: 15
       output_tokens: 7492
+      cost_usd: 0.0
+    haiku:
+      input_tokens: 341808
+      output_tokens: 4224
       cost_usd: 0.0
   runs:
   - profile: standard
@@ -43,6 +47,12 @@ oompah.task_costs:
     output_tokens: 7492
     cost_usd: 0.0
     recorded_at: '2026-07-30T04:18:49.314077+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 341808
+    output_tokens: 4224
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T04:20:44.426577+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-580__20260730T041600Z
@@ -53,6 +63,14 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-460--task-OOMPAH-580
     source_sha: b0ceda2643cbc37c166ac58bed9a9b6f3898b681
     completed_at: '2026-07-30T04:18:49.318259+00:00'
+  - run_id: OOMPAH-580__20260730T041910Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: epic-OOMPAH-460--task-OOMPAH-580
+    source_sha: b0ceda2643cbc37c166ac58bed9a9b6f3898b681
+    completed_at: '2026-07-30T04:20:44.431921+00:00'
 oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 04ce92916ff7e3e48e86aaf90629a7d27feb1844a88781b35f92d48131db7aa4
@@ -60,13 +78,13 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: 22b397ed-3e7b-4e5c-beb1-38aa3d215d3a
-  claim_owner: 54d10d6f-839b-42e9-afb0-df66524e5b73
-  claimed_at: '2026-07-30T04:19:02.476937+00:00'
-  claim_expires_at: '2026-07-30T04:49:02.476937+00:00'
-  retry_count: 0
-  retry_after: null
+  evidence: Duplicate-screening worker exited with reason normal.
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
+  retry_count: 1
+  retry_after: '2026-07-30T04:21:44.427207+00:00'
 ---
 ## Summary
 
@@ -146,5 +164,15 @@ author: oompah
 created: 2026-07-30 04:19
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-30 04:20
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 14
+- Tokens: 341.8K in / 4.2K out [346.0K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 40s
+- Log: OOMPAH-580__20260730T041910Z.jsonl
 ---
 <!-- COMMENTS:END -->
