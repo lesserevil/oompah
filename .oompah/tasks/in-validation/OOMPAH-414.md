@@ -17,7 +17,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-23T19:20:53.199562Z'
-updated_at: '2026-07-30T21:58:55.595629Z'
+updated_at: '2026-07-30T22:01:04.633260Z'
 work_branch: epic-OOMPAH-414
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/543
@@ -60,6 +60,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-d0ebf75eb257: '2026-07-30T21:58:33.242916+00:00'
+    attempt-2fe61af3577e: '2026-07-30T22:01:02.376871+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -101,7 +102,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-414
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -110,7 +111,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-2fe61af3577e
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -120,13 +121,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-30T21:58:50.780180+00:00'
       branch_key: epic-OOMPAH-414
+      verdict: pass
+      completed_at: '2026-07-30T22:01:02.376651+00:00'
+      ended_at: '2026-07-30T22:01:02.376651+00:00'
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
       source: oompah
     previous_state: In Validation
     created_at: '2026-07-30T21:56:03.489670+00:00'
-    updated_at: '2026-07-30T21:58:50.780180+00:00'
+    updated_at: '2026-07-30T22:01:02.376651+00:00'
   - version: 1
     audit_id: audit-65683f29d5de
     project_id: proj-14849f1b
@@ -380,5 +384,24 @@ author: oompah
 created: 2026-07-30 21:58
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 22:01
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit: c563be791 Merge pull request #543 from lesserevil/epic-OOMPAH-414
+- merge_date_utc: 2026-07-23T21:05:38Z
+- on_main: yes (git log main --grep=OOMPAH-414 returns c563be791)
+- child_commits: e8dca97b4 OOMPAH-415 decouple dispatch stale recovery timing; c9b72babb OOMPAH-415 docs+.env.example; c19f47ca4 OOMPAH-416 wake dispatch after orphan resets
+- config_change: oompah/config.py adds dispatch_stale_threshold_ms=120000 and dispatch_stale_grace_ms=30000 dataclass fields plus OOMPAH_DISPATCH_STALE_THRESHOLD_MS / OOMPAH_DISPATCH_STALE_GRACE_MS env parsing; dispatch_loop_stale_factor retained as legacy fallback when threshold==0
+- orchestrator_change: oompah/orchestrator.py is_dispatch_loop_stale/_arm_dispatch_stale_alert/check_and_recover_dispatch_loop use the new threshold+grace; _reset_orphaned_in_progress posts REFRESH_REQUESTED after reset_count>=1
+- test_evidence: tests/test_dispatch_loop_heartbeat.py extended in e8dca97b4; new tests/test_orphan_reset_dispatch_wake.py 94 lines in c19f47ca4 with 4 test cases
+- docs_evidence: docs/tick-latency-diagnostics.md +32 lines with Scenario 3 for dispatch loop stall detection; .env.example documents new env vars
+- reverts_check: no revert commit affecting these files found on main
+- prior_archive_audit: prior Archived audit 2026-07-30 passed with same evidence
 ---
 <!-- COMMENTS:END -->
