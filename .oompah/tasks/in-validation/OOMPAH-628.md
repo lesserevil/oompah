@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T22:37:04.318940Z'
-updated_at: '2026-07-30T22:47:17.753618Z'
+updated_at: '2026-07-30T22:50:10.471966Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,19 +37,46 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-628
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 87eacfec78bca7a0b9e1ded75ba2ff0de471743246c18e3bd452045c916b811d
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-62700fcd7450
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 87eacfec78bca7a0b9e1ded75ba2ff0de471743246c18e3bd452045c916b811d
+      created_at: '2026-07-30T22:50:02.911008+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-30T22:50:02.911008+00:00'
+      branch_key: OOMPAH-628
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-30T22:46:51.130292+00:00'
-  attempt_history: []
+    updated_at: '2026-07-30T22:50:02.911008+00:00'
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-62700fcd7450
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 87eacfec78bca7a0b9e1ded75ba2ff0de471743246c18e3bd452045c916b811d
+    created_at: '2026-07-30T22:50:02.911008+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-30T22:50:02.911008+00:00'
+    branch_key: OOMPAH-628
 ---
 ## Summary
 
@@ -92,5 +119,15 @@ author: oompah
 created: 2026-07-30 22:47
 ---
 Audit handoff: exact integrated task/epic head is b8c6817b12744e164a2de65b3c49ce8e3ce2b551 and passed the complete Makefile gate. Focused verification: 26 queue/handoff tests passed; expanded queue/handoff/orchestrator run reported 302 passed; terminal mutation scan passed. Review the fresh-ready rearm fence, background idempotency, and active lease preservation, then submit the structured verdict without reimplementation.
+---
+author: oompah
+created: 2026-07-30 22:50
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-07-30 22:50
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-621
 type: task
-status: Open
+status: In Progress
 priority: 1
 title: Document and integration-test CLI credential precedence
 parent: OOMPAH-619
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:25:29.809048Z'
-updated_at: '2026-07-30T22:43:22.106898Z'
+updated_at: '2026-07-30T22:50:17.167568Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-621
 target_branch: null
 review_url: null
@@ -40,7 +40,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 78c2b97e-7b73-4cb9-93a9-cd83c1a21fb5
+oompah.agent_run_id: 18c4e4c1-36eb-4021-90b9-b3684d60696f
 oompah.work_branch: epic-OOMPAH-619--task-OOMPAH-621
 oompah.integration:
   version: 1
@@ -54,13 +54,17 @@ oompah.integration:
   submitted_at: '2026-07-30T22:29:17.965399+00:00'
   updated_at: '2026-07-30T22:35:54.859296+00:00'
 oompah.task_costs:
-  total_input_tokens: 871464
-  total_output_tokens: 20410
+  total_input_tokens: 871540
+  total_output_tokens: 23452
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 871464
       output_tokens: 20410
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 76
+      output_tokens: 3042
       cost_usd: 0.0
   runs:
   - profile: default
@@ -75,6 +79,12 @@ oompah.task_costs:
     output_tokens: 17271
     cost_usd: 0.0
     recorded_at: '2026-07-30T22:29:48.992807+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 76
+    output_tokens: 3042
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T22:50:00.213229+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-621__20260730T213528Z
@@ -391,5 +401,15 @@ Instructions:
 - Add a netrc-source example under 'Environment credentials' in .env.example and cross-link authentication.md.
 - Extend tests/test_docs_authentication_contract.py to require ~/.netrc to appear in the documented CLI precedence (both docs) so the docs/help mismatch cannot recur.
 - Deliver the end-to-end compatibility check advertised by test_cli_install_revision_compatibility.py: install oompah from an exact git revision into an isolated venv, run a live matching-revision server with htpasswd auth, and assert both `oompah task view` and a safe admin read succeed.
+---
+author: oompah
+created: 2026-07-30 22:50
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 53
+- Tokens: 76 in / 3.0K out [3.1K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 13m 43s
+- Log: OOMPAH-621__20260730T223627Z.jsonl
 ---
 <!-- COMMENTS:END -->
