@@ -3842,6 +3842,51 @@ def _get_tracker(orch, project_id: str | None = None):
     return orch._tracker_for_project(project_id)
 
 
+def _canonical_managed_project_id(orch, project_id: str) -> str:
+    """Resolve a managed project ID or name to its canonical project ID.
+
+    The orchestrator accepts project names as a convenience when resolving a
+    tracker, but project-aware authorization and audit metadata must always
+    use the persisted project ID.  Unknown names are rejected without
+    echoing the caller's value so project configuration is not disclosed.
+
+    An empty project store is the legacy single-tracker mode.  Preserve its
+    existing behavior because there is no managed project ID to canonicalize.
+    """
+    requested = str(project_id or "").strip()
+    if not requested:
+        return requested
+
+    try:
+        projects = list(orch.project_store.list_all())
+    except Exception:
+        # Let the existing tracker resolution path report an unavailable
+        # project-store failure; do not manufacture a project identity here.
+        return requested
+
+    for project in projects:
+        canonical = getattr(project, "id", None)
+        if isinstance(canonical, str) and canonical == requested:
+            return canonical
+
+    for project in projects:
+        canonical = getattr(project, "id", None)
+        name = getattr(project, "name", None)
+        if (
+            isinstance(canonical, str)
+            and canonical
+            and isinstance(name, str)
+            and name == requested
+        ):
+            return canonical
+
+    if projects:
+        # Keep the failure generic: project IDs and names are configuration
+        # data and should not be reflected in an API error response.
+        raise ProjectError("Unknown project")
+    return requested
+
+
 def _find_tracker_for_issue(orch, identifier: str, project_id: str | None = None):
     """Get a tracker for an issue, searching all projects if project_id is missing.
 
@@ -3886,6 +3931,7 @@ def _get_tracker_for_issue_or_project(
     orch, identifier: str, project_id: str
 ) -> tuple[object, str]:
     """Resolve a tracker for a known project."""
+    project_id = _canonical_managed_project_id(orch, project_id)
     tracker, resolved_project_id, issue = _find_tracker_for_issue(
         orch, identifier, project_id
     )
@@ -4054,6 +4100,10 @@ async def _stage_terminal_transition(
             "A managed project is required for terminal status transitions.",
             400,
         )
+    try:
+        project_id = _canonical_managed_project_id(orch, str(project_id))
+    except ProjectError:
+        return None, ("The managed project could not be resolved.", 404)
     if issue is None:
         return None, ("Issue not found; terminal status was not changed.", 404)
 

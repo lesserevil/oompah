@@ -791,6 +791,57 @@ def test_patch_owner_override_requires_reason_and_uses_coordinator(client):
     assert tracker.status_updates == []
 
 
+def test_patch_owner_override_accepts_project_name_alias(client):
+    """Project-name aliases must use the managed project's canonical ID."""
+    issue = Issue("task-alias", "task-alias", "Task", description="work", state="Open")
+    orch, tracker, coordinator = _orchestrator(issue)
+    with (
+        patch.object(server_module, "_get_orchestrator", return_value=orch),
+        patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+    ):
+        response = client.patch(
+            "/api/v1/issues/task-alias",
+            json={
+                "project_id": "Project",
+                "status": "Done",
+                "audit_override": True,
+                "override_reason": "Emergency release approval",
+                "actor_login": "owner",
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json()["audit_override"] is True
+    assert coordinator.overrides[0]["project_id"] == "proj-1"
+    assert coordinator.overrides[0]["project"].id == "proj-1"
+    orch._tracker_for_project.assert_called_with("proj-1")
+    assert tracker.status_updates == []
+
+
+def test_patch_terminal_alias_stages_with_canonical_project_id(client):
+    """Ordinary terminal staging must also carry the canonical project ID."""
+    issue = Issue(
+        "task-staged-alias",
+        "task-staged-alias",
+        "Task",
+        description="work",
+        state="Open",
+    )
+    orch, tracker, coordinator = _orchestrator(issue)
+    with (
+        patch.object(server_module, "_get_orchestrator", return_value=orch),
+        patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+    ):
+        response = client.patch(
+            "/api/v1/issues/task-staged-alias",
+            json={"project_id": "Project", "status": "Done"},
+        )
+
+    assert response.status_code == 200
+    assert coordinator.requests[0]["project_id"] == "proj-1"
+    assert tracker.status_updates == []
+
+
 def test_patch_owner_override_rejects_non_owner_without_metadata_details(client):
     issue = Issue("task-unauthorized", "task-unauthorized", "Task", state="Open")
     orch, tracker, coordinator = _orchestrator(issue)
@@ -816,6 +867,61 @@ def test_patch_owner_override_rejects_non_owner_without_metadata_details(client)
     assert response.status_code == 403
     assert "owner" in response.json()["error"]["message"].lower()
     assert "metadata" not in response.text.lower()
+    assert tracker.status_updates == []
+
+
+def test_patch_owner_override_alias_rejects_unauthorized_actor(client):
+    """Canonicalization must not weaken owner authorization."""
+    issue = Issue("task-unauthorized-alias", "task-unauthorized-alias", "Task", state="Open")
+    orch, tracker, coordinator = _orchestrator(issue)
+    coordinator.override_result = OverrideResult(
+        success=False,
+        error_code=OverrideRejection.UNAUTHORIZED_ACTOR,
+    )
+    with (
+        patch.object(server_module, "_get_orchestrator", return_value=orch),
+        patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+    ):
+        response = client.patch(
+            "/api/v1/issues/task-unauthorized-alias",
+            json={
+                "project_id": "Project",
+                "status": "Done",
+                "audit_override": True,
+                "override_reason": "Emergency release approval",
+                "actor_login": "not-owner",
+            },
+        )
+
+    assert response.status_code == 403
+    assert "owner" in response.json()["error"]["message"].lower()
+    assert "Project" not in response.text
+    assert coordinator.overrides[0]["project_id"] == "proj-1"
+    assert tracker.status_updates == []
+
+
+def test_patch_unknown_project_alias_fails_closed_without_configuration_details(client):
+    """Unknown project aliases must not reach terminal authorization."""
+    issue = Issue("task-unknown-alias", "task-unknown-alias", "Task", state="Open")
+    orch, tracker, coordinator = _orchestrator(issue)
+    with (
+        patch.object(server_module, "_get_orchestrator", return_value=orch),
+        patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+    ):
+        response = client.patch(
+            "/api/v1/issues/task-unknown-alias",
+            json={
+                "project_id": "not-a-project",
+                "status": "Done",
+                "audit_override": True,
+                "override_reason": "Emergency release approval",
+                "actor_login": "owner",
+            },
+        )
+
+    assert response.status_code >= 400
+    assert "not-a-project" not in response.text
+    assert coordinator.overrides == []
     assert tracker.status_updates == []
 
 
