@@ -11,8 +11,8 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-23T19:41:56.160094Z'
-updated_at: '2026-07-30T20:54:53.908102Z'
-work_branch: null
+updated_at: '2026-07-30T20:55:07.618650Z'
+work_branch: epic-OOMPAH-418--task-OOMPAH-421
 target_branch: null
 review_url: null
 review_number: null
@@ -26,19 +26,55 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-421
     target_state: Archived
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: f5666d57de9c139ece73c55f95eb70e1cc75fc073055a234b49cd26d6e5534db
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-40261aad3d68
+      target_state: Archived
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: f5666d57de9c139ece73c55f95eb70e1cc75fc073055a234b49cd26d6e5534db
+      created_at: '2026-07-30T20:55:00.393644+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-30T20:55:00.393644+00:00'
+      branch_key: OOMPAH-421
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-07-30T20:54:51.046670+00:00'
-  attempt_history: []
+    updated_at: '2026-07-30T20:55:00.393644+00:00'
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-40261aad3d68
+    target_state: Archived
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f5666d57de9c139ece73c55f95eb70e1cc75fc073055a234b49cd26d6e5534db
+    created_at: '2026-07-30T20:55:00.393644+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-30T20:55:00.393644+00:00'
+    branch_key: OOMPAH-421
+oompah.work_branch: epic-OOMPAH-418--task-OOMPAH-421
+oompah.integration:
+  version: 1
+  state: working
+  attempts: 0
+  task_branch: epic-OOMPAH-418--task-OOMPAH-421
+  base_branch: epic-OOMPAH-418
+  base_sha: c048ba706cbe9b1342b80a67576a49b82887e84a
+  updated_at: '2026-07-30T20:55:05.394483+00:00'
 ---
 ## Summary
 
@@ -56,5 +92,15 @@ author: oompah
 created: 2026-07-30 20:54
 ---
 Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
+---
+author: oompah
+created: 2026-07-30 20:55
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-07-30 20:55
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
