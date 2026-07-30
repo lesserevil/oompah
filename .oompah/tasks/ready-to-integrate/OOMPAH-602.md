@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-602
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Repair project scope propagation in merged-label maintenance
 parent: OOMPAH-588
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:01.749200Z'
-updated_at: '2026-07-30T20:14:08.496146Z'
+updated_at: '2026-07-30T20:50:34.238983Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-602
 target_branch: null
 review_url: null
@@ -523,5 +523,10 @@ author: oompah
 created: 2026-07-30 20:14
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-30 20:50
+---
+The implementation head is already integrated into epic-OOMPAH-588. Stopping this stale implementation retry now; terminal audit will be restaged only after OOMPAH-616 deploys the retry/auditor ownership fix.
 ---
 <!-- COMMENTS:END -->
