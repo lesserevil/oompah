@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:03.538398Z'
-updated_at: '2026-07-30T16:32:57.875142Z'
+updated_at: '2026-07-30T16:33:41.938578Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-603
 target_branch: null
 review_url: null
@@ -186,5 +186,24 @@ This is an API/health feature, so I need to:
 As an Auth/Http specialist, I'll focus on API design, state transitions, configuration validation, and integration point definitions.
 
 Let me explore the existing codebase structure.
+---
+author: oompah
+created: 2026-07-30 16:33
+---
+DISCOVERY: Found existing cleanup infrastructure in orchestrator.py:
+- MaintenanceJobState tracks scheduling state
+- _cleanup_terminal_worktrees() removes MERGED/ARCHIVED worktrees
+- _do_cleanup_worktrees() with batch limits and error tracking
+- _maintenance_status exposed in get_snapshot() for dashboard
+
+Current state: cleanup is binary (removed or not), not categorized by health.
+
+Need to implement:
+1. New repo_hygiene.py module for health categorization
+2. .env configuration for thresholds
+3. Integration into maintenance_status to expose health
+4. Documentation for operators
+
+Starting implementation now.
 ---
 <!-- COMMENTS:END -->
