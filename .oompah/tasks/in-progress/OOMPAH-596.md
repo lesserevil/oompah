@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:26.248587Z'
-updated_at: '2026-07-30T15:43:17.704823Z'
+updated_at: '2026-07-30T15:44:02.209051Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-596
 target_branch: null
 review_url: null
@@ -358,5 +358,34 @@ PLAN:
 4. Detect recoverable failures (401, provider errors) vs real conflicts
 5. Route infrastructure failures to retryable state after bounded wait
 6. Add tests for conflict + 401, provider failure, successful retry, repeated failure, restart scenarios
+---
+author: oompah
+created: 2026-07-30 15:44
+---
+DISCOVERY: Found the current architecture:
+
+1. integration_executor.py returns status='conflict' when rebase fails
+2. orchestrator._route_integration_failure() marks as 'blocked' permanently  
+3. Issue gets NEEDS_REBASE status, dispatches merge-conflict agent
+4. If repair worker exits with infrastructure failure, no retry mechanism exists
+
+Key code sections:
+- integration_queue.py: tracks 'ready'/'blocked' states with simple fail() method
+- integration.py: IntegrationRecord has 'attempts' counter but no backoff tracking
+- provider_health.py: defines recoverable failures (auth_failed, rate_limited, overloaded, timeout)
+- orchestrator.py:4944-5050: _route_integration_failure() and _execute_integration_item()
+
+IMPLEMENTATION PLAN:
+1. Add backoff_until timestamp to IntegrationRecord to track retry cooldown
+2. Add infrastructure_failure_reason field to track failure classification
+3. Add max_repair_attempts limit to configuration
+4. Implement repair attempt counter and exhaustion detection
+5. Add 'needs_human' state to INTEGRATION_STATES
+6. Modify _route_integration_failure() to:
+   - Detect infrastructure failures from error messages
+   - Route to 'ready' with backoff_until for retryable failures
+   - Route to 'needs_human' after max attempts exhausted
+7. Update integration queue recovery logic to respect backoff_until
+8. Add tests for: real conflict, 401, provider failure, successful retry, repeated failure/backoff, restart, no duplicate workers, needs_human exhaustion
 ---
 <!-- COMMENTS:END -->
