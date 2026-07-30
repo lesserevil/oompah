@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-593
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Integrate and live-verify scoped Codex task CLI authentication
 parent: OOMPAH-586
@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-30T14:14:54.281403Z'
-updated_at: '2026-07-30T20:21:32.997899Z'
+updated_at: '2026-07-30T23:06:33.544545Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-593
 target_branch: null
 review_url: null
@@ -61,12 +61,15 @@ oompah.agent_run_id: 11c75df3-20a0-46d2-b0dc-6cee3c2f181e
 oompah.work_branch: epic-OOMPAH-586--task-OOMPAH-593
 oompah.integration:
   version: 1
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-586--task-OOMPAH-593
+  base_branch: epic-OOMPAH-586
+  base_sha: 0a260f0279690a12fb056da0c8becb6f492f8c26
   head_sha: 0a260f0279690a12fb056da0c8becb6f492f8c26
+  integrated_sha: 0a260f0279690a12fb056da0c8becb6f492f8c26
   submitted_at: '2026-07-30T20:21:18.258383+00:00'
-  updated_at: '2026-07-30T20:21:18.258383+00:00'
+  updated_at: '2026-07-30T23:06:30.523779+00:00'
 oompah.task_costs:
   total_input_tokens: 1809303
   total_output_tokens: 32591
@@ -229,7 +232,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-593
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -270,6 +273,23 @@ oompah.terminal_audit:
     previous_state: Needs Human
     created_at: '2026-07-30T18:16:15.292504+00:00'
     updated_at: '2026-07-30T19:34:16.475173+00:00'
+  - version: 1
+    audit_id: audit-83e35cd1eb7b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-593
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b108b3edb6ec24fb699a02be019f7a726a35ee5866d9700278038c15e226d2f9
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-30T23:06:31.783803+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-4db44537a773
