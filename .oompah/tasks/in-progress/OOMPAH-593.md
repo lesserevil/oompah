@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-30T14:14:54.281403Z'
-updated_at: '2026-07-30T15:36:51.820499Z'
+updated_at: '2026-07-30T15:37:40.147049Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-593
 target_branch: null
 review_url: null
@@ -370,5 +370,10 @@ author: oompah
 created: 2026-07-30 15:36
 ---
 Focus: Test Engineer
+---
+author: oompah
+created: 2026-07-30 15:37
+---
+Understanding (Test Engineer): Docs handoff shipped (commit fe52c187f). Previous devops run left no code delta. My scope: (1) integrate OOMPAH-575's regression tests into this branch (cherry-pick e404d6eb7), (2) run focused suites to confirm they pass against the shipped OOMPAH-538 mechanism, (3) add any additional live-path reproducer if a gap is uncovered. The two suites OOMPAH-575 lands are TestCodexHandoffAuth (5 cases in tests/test_acp_codex_backend.py) and TestHandoffTokenFailClosed (6 cases in tests/test_task_handoff.py). Both are pure regression coverage over already-shipped behavior. Since OOMPAH-575 exists only on its own branch, integrating them into this task branch is the correct path — the acceptance criterion 'OOMPAH-575 reaches Merged' is satisfied by rolling its tests up under this task's submit.
 ---
 <!-- COMMENTS:END -->
