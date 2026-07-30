@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-622
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: null
 title: Reject verdict-incapable Codex CLI auditor sessions
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T21:26:15.242500Z'
-updated_at: '2026-07-30T21:33:44.293335Z'
+updated_at: '2026-07-30T21:37:53.740145Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-622
 target_branch: null
 review_url: null
@@ -39,12 +39,15 @@ oompah.agent_run_id: dff267f8-746d-4da4-b01c-ad139e6facae
 oompah.work_branch: epic-OOMPAH-585--task-OOMPAH-622
 oompah.integration:
   version: 1
-  state: working
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-585--task-OOMPAH-622
   base_branch: epic-OOMPAH-585
   base_sha: 58915e5f0b116cf4269f6bb882dd81aa4010ec03
-  updated_at: '2026-07-30T21:33:13.753946+00:00'
+  head_sha: ebb5b12d9bd9668458750ec38bee7d7216f186d7
+  integrated_sha: ebb5b12d9bd9668458750ec38bee7d7216f186d7
+  submitted_at: '2026-07-30T21:32:55.246130+00:00'
+  updated_at: '2026-07-30T21:37:50.108334+00:00'
 oompah.task_costs:
   total_input_tokens: 521031
   total_output_tokens: 3032
@@ -87,6 +90,28 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-585--task-OOMPAH-622
     source_sha: 58915e5f0b116cf4269f6bb882dd81aa4010ec03
     completed_at: '2026-07-30T21:30:08.153718+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-fde13b7ef5ed
+    project_id: proj-14849f1b
+    task_id: OOMPAH-622
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 98c119264a7564b3e91e8662ce38bee51e3259f779f73f6f68273c47eff11192
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-30T21:37:51.513794+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -201,5 +226,10 @@ Run #2 [attempt=2, profile=standard, role=standard -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: terminated, Duration: 32s
 - Log: OOMPAH-622__20260730T213317Z.jsonl
+---
+author: oompah
+created: 2026-07-30 21:37
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
