@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T20:52:01.122820Z'
-updated_at: '2026-07-30T21:15:53.895149Z'
+updated_at: '2026-07-30T21:16:05.540650Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-617
 target_branch: null
 review_url: null
@@ -80,6 +80,22 @@ oompah.terminal_audit:
     started_at: '2026-07-30T21:08:10.734806+00:00'
     branch_key: OOMPAH-617
 oompah.work_branch: epic-OOMPAH-587--task-OOMPAH-617
+oompah.task_costs:
+  total_input_tokens: 29
+  total_output_tokens: 4853
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 29
+      output_tokens: 4853
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 29
+    output_tokens: 4853
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T21:16:02.482857+00:00'
 ---
 ## Summary
 
@@ -141,5 +157,15 @@ Safe evidence:
 - focused_tests: 125 passed in 4.56s across test_projects.py, test_integration_executor.py, test_integration_record.py, test_task_handoff.py, test_worker_submission.py
 - source_commit: 6f5a859b2 (origin/OOMPAH-576) — transplanted content matches on OOMPAH-576 files
 - git_status: up to date with origin/epic-OOMPAH-587; working tree clean
+---
+author: oompah
+created: 2026-07-30 21:16
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 31, Tool calls: 23
+- Tokens: 29 in / 4.9K out [4.9K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 7m 50s
+- Log: OOMPAH-617__20260730T211250Z.jsonl
 ---
 <!-- COMMENTS:END -->
