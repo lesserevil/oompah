@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-427
 type: task
-status: Merged
+status: In Validation
 priority: null
 title: Fix YOLO merge gate bypass for child tasks with stale work_branch (EXOCOMP-57
   regression)
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T21:33:43.808978Z'
-updated_at: '2026-07-23T22:16:45.704873Z'
+updated_at: '2026-07-30T22:31:36.783772Z'
 work_branch: epic-OOMPAH-426
 target_branch: null
 review_url: null
@@ -48,6 +48,28 @@ oompah.task_costs:
     output_tokens: 781
     cost_usd: 0.0
     recorded_at: '2026-07-23T22:10:46.567531+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-cb5bd21692fa
+    project_id: proj-14849f1b
+    task_id: OOMPAH-427
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 4b374251a9cb2801f860be4afce1c71978234e85ff9a9cb69ef7b785d215d1aa
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-07-30T22:31:33.498448+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -336,5 +358,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
 - Cost: $0.0000
 - Exit: terminated, Duration: 3m 7s
 - Log: OOMPAH-427__20260723T220742Z.jsonl
+---
+author: oompah
+created: 2026-07-30 22:31
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->

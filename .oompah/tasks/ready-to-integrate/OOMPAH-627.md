@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-627
 type: bug
-status: Done
+status: Ready to Integrate
 priority: 1
 title: Preserve integrated evidence when creating auditor worktrees
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T22:09:32.117751Z'
-updated_at: '2026-07-30T22:30:06.461124Z'
+updated_at: '2026-07-30T22:31:37.487243Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-627
 target_branch: null
 review_url: null
@@ -169,5 +169,10 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 4m 9s
 - Log: OOMPAH-627__20260730T222602Z.jsonl
+---
+author: oompah
+created: 2026-07-30 22:31
+---
+Reflow after pre-deployment auditor reproduced the fixed metadata race; restore canonical integrated evidence under the deployed protection.
 ---
 <!-- COMMENTS:END -->
