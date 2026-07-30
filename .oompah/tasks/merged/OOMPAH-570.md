@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-570
 type: bug
-status: In Review
+status: Merged
 priority: 1
 title: Recover interrupted integration leases and explicit blocked-head retries
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-29T23:53:31.874608Z'
-updated_at: '2026-07-30T00:22:54.919836Z'
+updated_at: '2026-07-30T00:27:10.337127Z'
 work_branch: OOMPAH-570
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/587
