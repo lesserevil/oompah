@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:22.194798Z'
-updated_at: '2026-07-30T23:50:59.681534Z'
+updated_at: '2026-07-30T23:51:45.765881Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-590
 target_branch: null
 review_url: null
@@ -455,5 +455,10 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 25s
 - Log: OOMPAH-590__20260730T235045Z.jsonl
+---
+author: oompah
+created: 2026-07-30 23:51
+---
+The parent epic OOMPAH-585 merged from epic-OOMPAH-585, but this task was Needs Human with work branch epic-OOMPAH-585--task-OOMPAH-590. Its work is not proven to be in the merged epic. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
 ---
 <!-- COMMENTS:END -->

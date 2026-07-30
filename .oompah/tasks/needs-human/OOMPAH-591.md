@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-591
 type: task
-status: In Validation
+status: Needs Human
 priority: 1
 title: Reconcile the pending audit backlog and stale In Validation tasks
 parent: OOMPAH-585
@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:26.620047Z'
-updated_at: '2026-07-30T23:51:05.391143Z'
+updated_at: '2026-07-30T23:51:48.017392Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-591
 target_branch: null
 review_url: null
@@ -892,5 +892,10 @@ author: oompah
 created: 2026-07-30 23:51
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 23:51
+---
+The parent epic OOMPAH-585 merged from epic-OOMPAH-585, but this task was In Validation with work branch epic-OOMPAH-585--task-OOMPAH-591. Its work is not proven to be in the merged epic. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
 ---
 <!-- COMMENTS:END -->
