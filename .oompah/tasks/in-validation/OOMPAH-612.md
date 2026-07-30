@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T19:33:15.081209Z'
-updated_at: '2026-07-30T19:55:54.782579Z'
+updated_at: '2026-07-30T19:56:11.272149Z'
 work_branch: OOMPAH-612
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/595
@@ -74,18 +74,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-612
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 367b643b0dc201fcb00b364e5dc51b3683d583e00500e1adc5dd32e0749d2628
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-f25bce183791
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 367b643b0dc201fcb00b364e5dc51b3683d583e00500e1adc5dd32e0749d2628
+      created_at: '2026-07-30T19:56:07.467799+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-30T19:56:07.467799+00:00'
+      branch_key: OOMPAH-612
     requested_by:
       version: 1
       identity: NVShawn
       source: forge
     previous_state: In Review
     created_at: '2026-07-30T19:50:48.280429+00:00'
+    updated_at: '2026-07-30T19:56:07.467799+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-9b5e2b06fe84
@@ -100,6 +114,35 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-07-30T19:53:23.492952+00:00'
     branch_key: OOMPAH-612
+  - version: 1
+    attempt_id: attempt-f25bce183791
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 367b643b0dc201fcb00b364e5dc51b3683d583e00500e1adc5dd32e0749d2628
+    created_at: '2026-07-30T19:56:07.467799+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-30T19:56:07.467799+00:00'
+    branch_key: OOMPAH-612
+oompah.task_costs:
+  total_input_tokens: 44
+  total_output_tokens: 6990
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 44
+      output_tokens: 6990
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 44
+    output_tokens: 6990
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T19:56:02.157151+00:00'
 ---
 ## Summary
 
@@ -161,5 +204,25 @@ Safe evidence:
 - regression_tests: tests/test_acp_auditor_result_bridge.py::test_claude_acp_submission_does_not_block_its_dispatch_loop, tests/test_acp_auditor_result_bridge.py::test_opencode_acp_submission_does_not_block_its_dispatch_loop, tests/test_acp_auditor_result_bridge.py::test_claude_acp_submission_surfaces_coordinator_rejection
 - focused_suite_result: 187 passed (test_auditor_contract + test_auditor_result_api + test_terminal_transition_coordinator + test_acp_auditor_result_bridge)
 - worktree_status: clean; up to date with origin/main
+---
+author: oompah
+created: 2026-07-30 19:56
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 45, Tool calls: 38
+- Tokens: 44 in / 7.0K out [7.0K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 38s
+- Log: OOMPAH-612__20260730T195327Z.jsonl
+---
+author: oompah
+created: 2026-07-30 19:56
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-07-30 19:56
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
