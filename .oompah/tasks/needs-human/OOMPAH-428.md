@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T21:34:08.303204Z'
-updated_at: '2026-07-30T22:37:22.721189Z'
+updated_at: '2026-07-30T22:39:42.569404Z'
 work_branch: epic-OOMPAH-426
 target_branch: null
 review_url: null
@@ -305,5 +305,10 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 1m 8s
 - Log: OOMPAH-428__20260730T223622Z.jsonl
+---
+author: oompah
+created: 2026-07-30 22:39
+---
+The parent epic OOMPAH-426 merged from epic-OOMPAH-426, but this task was Needs Human with work branch epic-OOMPAH-426. Its work is not proven to be in the merged epic. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
 ---
 <!-- COMMENTS:END -->
