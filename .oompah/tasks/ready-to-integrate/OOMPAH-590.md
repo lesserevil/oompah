@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:22.194798Z'
-updated_at: '2026-07-30T14:41:43.078379Z'
+updated_at: '2026-07-30T14:41:55.683876Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-590
 target_branch: null
 review_url: null
@@ -55,13 +55,13 @@ oompah.integration:
   submitted_at: '2026-07-30T14:41:39.513289+00:00'
   updated_at: '2026-07-30T14:41:39.513289+00:00'
 oompah.task_costs:
-  total_input_tokens: 3976570
-  total_output_tokens: 13609
+  total_input_tokens: 3977496
+  total_output_tokens: 13826
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 3976570
-      output_tokens: 13609
+      input_tokens: 3977496
+      output_tokens: 13826
       cost_usd: 0.0
   runs:
   - profile: default
@@ -70,6 +70,12 @@ oompah.task_costs:
     output_tokens: 13609
     cost_usd: 0.0
     recorded_at: '2026-07-30T14:31:23.761710+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 926
+    output_tokens: 217
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T14:41:54.118219+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-590__20260730T142055Z
@@ -252,5 +258,15 @@ author: oompah
 created: 2026-07-30 14:41
 ---
 Implemented retry mechanism for terminal audits after transient failures. Transient auditor-session failures (launch, transport, timeout, provider-session) are now classified as INFRASTRUCTURE_ERROR, triggering automatic retry with the next eligible independent candidate and bounded exponential backoff. When all candidates are exhausted, the audit is routed to Needs Human with actionable instructions. The implementation prevents duplicate concurrent attempts, preserves terminal-state idempotency, and maintains complete audit history. All acceptance criteria met: 144 tests passing (13 new tests + 131 existing), covering launch exception, transport exception, timeout, next-candidate fallback, exhausted candidates, restart recovery, duplicate tick coalescing, and successful later completion.
+---
+author: oompah
+created: 2026-07-30 14:41
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 50
+- Tokens: 926 in / 217 out [1.1K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 9m 55s
+- Log: OOMPAH-590__20260730T143206Z.jsonl
 ---
 <!-- COMMENTS:END -->

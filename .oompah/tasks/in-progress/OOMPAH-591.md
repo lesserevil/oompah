@@ -13,7 +13,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:26.620047Z'
-updated_at: '2026-07-30T14:39:40.271793Z'
+updated_at: '2026-07-30T14:41:51.652942Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-591
 target_branch: null
 review_url: null
@@ -158,5 +158,24 @@ PLAN:
 3. Implement recovery mechanism as needed
 4. Add comprehensive tests
 5. Verify acceptance criteria are met
+---
+author: oompah
+created: 2026-07-30 14:41
+---
+DISCOVERY: Analysis of the codebase shows:
+
+1. Terminal-audit enforcement system is implemented with recovery_pending_audits() 
+2. OOMPAH-590 just added retry/backoff logic for auditor failures
+3. OOMPAH-577 added superseding for completed records with changed evidence
+4. OOMPAH-582 added support for unblocking stale cross-epic dependencies
+
+Missing: A recovery mechanism to handle pending audit backlog that:
+- Scans stale In Validation tasks
+- Distinguishes superseded vs. active audits
+- Requeues eligible requests with appropriate state
+- Marks exhausted audits with actionable failures
+- Handles multi-request tasks, stale fingerprints, and repeated passes idempotently
+
+Will implement recovery method in TerminalAuditEnforcement, then add comprehensive tests for all acceptance criteria.
 ---
 <!-- COMMENTS:END -->
