@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:00.331568Z'
-updated_at: '2026-07-30T16:23:28.393099Z'
+updated_at: '2026-07-30T16:27:06.367824Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-601
 target_branch: null
 review_url: null
@@ -344,5 +344,39 @@ Completed core fix for warning flood issue:
    - test_terminal_child_cleanup_preserves_shared_epic_branch verifies skip_reason='shared_epic_branch'
 
 Next: Add orchestrator-level integration tests, verify latency budget
+---
+author: oompah
+created: 2026-07-30 16:27
+---
+**Implementation Complete:**
+
+All changes implemented and tested:
+
+1. **Core Fix - Silence Shared Epic Branch Skips** (projects.py):
+   - Modified _delete_owned_issue_branch_locked to return (bool, skip_reason) tuple
+   - Silently skips branches matching 'epic-*' pattern (shared epic branches)
+   - Categorizes skip reasons: 'shared_epic_branch', 'protected_branch', 'checked_out_in_worktree', 'not_owned'
+
+2. **Aggregation** (orchestrator.py):
+   - Enhanced _cleanup_terminal_worktrees to track skip_reasons dictionary
+   - Collects categorized skip counts across all terminal issues in cleanup run
+   - Emits one structured summary log message instead of per-issue warnings
+   - Adds 'skipped_branches' categorized counts to maintenance_status
+
+3. **Test Coverage**:
+   - All 87 existing projects.py tests pass
+   - All 270 orchestrator handler tests pass
+   - Added new integration test: test_cleanup_terminal_worktrees_aggregates_skip_reasons_without_per_issue_warnings
+   - Verifies skip reason aggregation and no warning floods for shared epic branches
+
+4. **Results**:
+   - Eliminates warning flood for legitimate shared epic branch scenarios
+   - Preserves visibility via structured summary in maintenance status
+   - No per-issue warnings logged (only one aggregate summary)
+   - Backward compatible with existing code
+
+Branch: epic-OOMPAH-588--task-OOMPAH-601
+Commits: faa012787, 787385c6a
+Status: Ready for integration
 ---
 <!-- COMMENTS:END -->
