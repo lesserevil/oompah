@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-574
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Rerun failed cached quality gates on explicit same-head retry
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T02:15:22.112289Z'
-updated_at: '2026-07-30T13:39:04.391388Z'
+updated_at: '2026-07-30T13:39:54.511680Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -61,6 +61,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-574
     source_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
     completed_at: '2026-07-30T13:32:44.985927+00:00'
+oompah.integration:
+  version: 1
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-574
+  head_sha: af72cf7ccae31fbd264e8fc1907864e47e82c115
+  submitted_at: '2026-07-30T13:39:52.505077+00:00'
+  updated_at: '2026-07-30T13:39:52.505077+00:00'
 ---
 ## Summary
 
@@ -211,5 +219,46 @@ Changes made to enable forced re-execution of failed quality gates on explicit r
 
 All 27 tests in test_quality_gate.py and test_integration_queue.py pass.
 All 4 tests in test_integration_executor.py pass.
+---
+author: oompah
+created: 2026-07-30 13:39
+---
+**Verification & Completion**
+
+All implementation complete and tested:
+
+✅ **Test Results:**
+- 17/17 quality_gate tests passing (including 5 new tests)
+- 10/10 integration_queue tests passing (including 3 new tests)
+- 4/4 integration_executor tests passing
+- 9/9 integration_record tests passing
+- Total: 40/40 tests passing
+
+✅ **Acceptance Criteria Met:**
+1. Explicit retry of unchanged blocked integration row performs fresh quality gate ✓
+2. Cached failed/timed_out/error results are bypassed on forced retry ✓
+3. Successful evidence remains safely reusable ✓
+4. No duplicate concurrent gates (existing single-flight locking) ✓
+5. Retry intent wired through task handoff without weakening cache ✓
+
+✅ **Implementation Quality:**
+- No breaking changes to existing APIs
+- Backward-compatible database migrations
+- Proper deduplication of concurrent retries
+- Comprehensive edge case test coverage
+- Updated user-facing documentation
+
+**Key Design Decisions:**
+- retry_forced flag is temporary (cleared when claimed for integration)
+- Passed results ALWAYS bypass forced retry check (preserved caching)
+- Failed/timeout/error results re-execute only when retry_forced=True
+- Existing per-instance lock ensures no concurrent duplicates
+
+Ready for integration.
+---
+author: oompah
+created: 2026-07-30 13:39
+---
+Implemented forced retry for quality gates with failed/timed_out/error results while preserving passed result caching. Added retry_forced flag through integration queue to executor without weakening normal cache reuse. Comprehensive test coverage added with 8 new tests. Concurrent gate deduplication preserved via existing locking. Documentation updated.
 ---
 <!-- COMMENTS:END -->
