@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-602
 type: bug
-status: In Validation
+status: Done
 priority: 1
 title: Repair project scope propagation in merged-label maintenance
 parent: OOMPAH-588
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:01.749200Z'
-updated_at: '2026-07-30T23:11:42.947904Z'
+updated_at: '2026-07-30T23:19:48.102061Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-602
 target_branch: null
 review_url: null
@@ -167,6 +167,7 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-a66782c834a3: '2026-07-30T16:42:16.986663+00:00'
     no-auditor-audit-34aa65be3c6d-1: '2026-07-30T19:34:20.535346+00:00'
+    attempt-ff192778bf18: '2026-07-30T23:19:45.719183+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -255,7 +256,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-602
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -264,7 +265,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-ff192778bf18
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -274,13 +275,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-30T23:11:38.818860+00:00'
       branch_key: epic-OOMPAH-588--task-OOMPAH-602
+      verdict: pass
+      completed_at: '2026-07-30T23:19:45.719021+00:00'
+      ended_at: '2026-07-30T23:19:45.719021+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-30T23:11:33.883022+00:00'
-    updated_at: '2026-07-30T23:11:38.818860+00:00'
+    updated_at: '2026-07-30T23:19:45.719021+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-a66782c834a3
@@ -638,5 +642,23 @@ author: oompah
 created: 2026-07-30 23:11
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 23:19
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- commits_ahead_of_main: 3
+- commits: a6fbb7f03 9e7f53286 89dfc1881
+- diff_stat: oompah/orchestrator.py +287/-6; tests/test_merged_labels_scope.py +402/-12; 671 insertions, 18 deletions
+- focused_tests: tests/test_merged_labels_scope.py: 17 passed
+- neighboring_tests: tests/test_orchestrator_merged.py+handlers+independently_merged+merged_labels_scope: 458 passed
+- scope_helper_locations: _resolve_issue_project_id oompah/orchestrator.py:2575; _scope_issue_for_maintenance oompah/orchestrator.py:2661
+- safe_scope_callsites: 12151, 12597, 12719, 12833, 13062, 14485, 14577
+- merged_labels_lane_last_error: state.last_error cleared to None on completion at oompah/orchestrator.py:11247-11248
+- worktree_status: clean; up to date with origin
 ---
 <!-- COMMENTS:END -->
