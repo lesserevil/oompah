@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:55.490677Z'
-updated_at: '2026-07-30T15:54:01.531084Z'
+updated_at: '2026-07-30T15:57:47.818154Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-594
 target_branch: null
 review_url: null
@@ -318,5 +318,36 @@ author: oompah
 created: 2026-07-30 15:54
 ---
 Focus: Auth Http Default Specialist
+---
+author: oompah
+created: 2026-07-30 15:57
+---
+UNDERSTANDING: The task requires safe reload of HTTP Basic credentials after htpasswd rotation. Analysis:
+
+COMPLETED WORK:
+- http_auth.py: Implements _HtpasswdReloader with atomic reload logic
+  * detect file changes via fingerprinting (device, inode, mtime, ctime, size, digest)
+  * parse replacement completely before publication
+  * preserve last-known-good on parse/read failure
+  * symlink/path protection via lstat checks
+  * thread-safe credential swapping with generation tracking
+
+- client_auth.py: Implements safe credential resolution
+  * load_client_environment() refreshes .env credentials
+  * prevents credentials in process args/logs
+  * validates password files, rejects symlinks
+  * CONFIG ISSUE: Inherited credentials not cleared from spawned workers (NEEDS FIX)
+
+- scripts/oompah_http.py: Calls load_client_environment(include_server_url=False) to refresh
+
+- test coverage: Comprehensive tests for rotation, invalid replacement, symlinks, concurrency, etc.
+
+ACCEPTANCE CRITERIA CHECK:
+✓ Credential rotation doesn't require unauthenticated restart
+✓ Redacted reload_status() exposed
+? Operator/task/admin commands authenticate after rotation - NEEDS VERIFICATION
+✗ Workers inherit credentials - security issue identified
+
+NEXT: Verify that inherited credentials are NOT passed to spawned agents
 ---
 <!-- COMMENTS:END -->
