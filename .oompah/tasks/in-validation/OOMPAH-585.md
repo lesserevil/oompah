@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-585
 type: epic
-status: In Review
+status: In Validation
 priority: 1
 title: Restore terminal-audit execution and truthful health reporting
 parent: OOMPAH-584
@@ -24,7 +24,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:13:32.577860Z'
-updated_at: '2026-07-30T23:31:10.572883Z'
+updated_at: '2026-07-30T23:32:31.823258Z'
 work_branch: epic-OOMPAH-585
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/596
@@ -34,6 +34,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/596
 oompah.review_number: '596'
 oompah.work_branch: epic-OOMPAH-585
 oompah.target_branch: epic-OOMPAH-584
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-0b310adb4fa7
+    project_id: proj-14849f1b
+    task_id: OOMPAH-585
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0cfb98eafc768e5e2b01af3fc05a46d57c2174f15a248e0583518caca77a559e
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-30T23:32:29.243227+00:00'
+  - version: 1
+    audit_id: audit-6806c4fdb604
+    project_id: proj-14849f1b
+    task_id: OOMPAH-585
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0cfb98eafc768e5e2b01af3fc05a46d57c2174f15a248e0583518caca77a559e
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-30T23:32:29.243227+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -61,5 +100,10 @@ author: oompah
 created: 2026-07-30 23:31
 ---
 Branch quality gate passed for `4510fb912aebc99dce90df1dc55e8ee952408401` using `make test` in 255.7s. Review creation may proceed.
+---
+author: oompah
+created: 2026-07-30 23:32
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
