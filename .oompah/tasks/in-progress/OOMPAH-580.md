@@ -11,13 +11,13 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:15:45.628870Z'
-updated_at: '2026-07-30T04:33:45.869412Z'
+updated_at: '2026-07-30T04:34:08.476775Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-580
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 68b7821a-574e-4d61-8267-e0da35fb8090
+oompah.agent_run_id: 99c48ad3-fdad-4076-b124-cd49fbbf459c
 oompah.work_branch: epic-OOMPAH-460--task-OOMPAH-580
 oompah.integration:
   version: 1
@@ -269,5 +269,10 @@ author: oompah
 created: 2026-07-30 04:33
 ---
 Agent completed without closing this issue (32s (116535 tokens)). Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-30 04:34
+---
+Agent dispatched (profile: standard)
 ---
 <!-- COMMENTS:END -->
