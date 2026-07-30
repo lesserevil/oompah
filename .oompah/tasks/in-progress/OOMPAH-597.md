@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-597
 type: task
-status: Open
+status: In Progress
 priority: 1
 title: Recover and drain the OOMPAH-460 ordered integration chain
 parent: OOMPAH-587
@@ -13,7 +13,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:28.342383Z'
-updated_at: '2026-07-30T15:46:07.470374Z'
+updated_at: '2026-07-30T15:46:21.972806Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-597
 target_branch: null
 review_url: null
@@ -38,7 +38,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 1
   retry_after: null
-oompah.agent_run_id: d88cf609-e52c-4d8d-823f-fe5abc53e6d5
+oompah.agent_run_id: 4a50f740-f87d-4845-8eff-a79b5f74352f
 oompah.work_branch: epic-OOMPAH-587--task-OOMPAH-597
 oompah.integration:
   version: 1
@@ -47,7 +47,7 @@ oompah.integration:
   task_branch: epic-OOMPAH-587--task-OOMPAH-597
   base_branch: epic-OOMPAH-587
   base_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
-  updated_at: '2026-07-30T15:40:44.170563+00:00'
+  updated_at: '2026-07-30T15:46:20.102934+00:00'
 oompah.task_costs:
   total_input_tokens: 1269013
   total_output_tokens: 11654
@@ -155,5 +155,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 5m 27s
 - Log: OOMPAH-597__20260730T154050Z.jsonl
+---
+author: oompah
+created: 2026-07-30 15:46
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-30 15:46
+---
+Focus: Auth Http Default Specialist
 ---
 <!-- COMMENTS:END -->
