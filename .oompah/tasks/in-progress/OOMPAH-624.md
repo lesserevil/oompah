@@ -12,7 +12,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-30T21:37:57.526368Z'
-updated_at: '2026-07-30T22:04:14.210765Z'
+updated_at: '2026-07-30T22:07:53.839072Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-624
 target_branch: null
 review_url: null
@@ -215,5 +215,24 @@ author: oompah
 created: 2026-07-30 22:04
 ---
 **Discovery**: Root cause is in \`oompah/server.py\` — the Basic auth middleware verifies credentials via \`_verify_scope\` but throws the username away. \`_request_actor_login(body, request)\` then reads \`actor_login\`/\`actor\`/\`x-oompah-actor\` from the client with no cross-check, so any authenticated user can claim any actor login. Owner gates (\`transition_gate.is_project_owner\`, \`intake_actions.check_permission\`, \`label_auth.is_authorized_status_actor\`) all consume that string, which propagates to \`_evaluate_api_intake_transition\`, \`_stage_terminal_transition\`, and \`api_issue_intake_action\`. **Implementation**: (1) New \`oompah/actor_mapping.py\` — validated htpasswd_user→project_actor map with fail-closed strict mode. (2) Middleware now stashes an \`AuthenticatedPrincipal\` in a private ASGI scope slot (\`_AUTH_PRINCIPAL_SCOPE_CAPABILITY\`) after verification. (3) New helpers \`_authenticated_principal\`, \`_resolve_authorization_actor\` — return \`(actor, JSONResponse|None)\` so callers can return 403 \`actor_mismatch\` before any tracker mutation. Wired into \`_evaluate_api_intake_transition\`, \`_stage_terminal_transition\`, \`api_issue_intake_action\`, PATCH owner-override branch, and issue-detail cache-key derivation. (4) \`task_cli._reconcile_actor_with_session\` warns on redundant \`--actor\` (matching principal) and hard-exits before network on conflict — added to \`_cmd_set_status\` and \`_cmd_add_label\`. (5) Bootstrap loads and validates the actor map at startup; invalid config aborts startup. **Verification**: All new tests pass — 19 tests in \`test_actor_mapping.py\`, 11 in \`test_task_cli_actor.py\`, 7 in \`test_server_actor_binding.py\` (all 6 issue-required regression cases + unauthenticated compat). Focused suites clean: \`test_server_auth\` (65), \`test_server_intake_actions\` (8), \`test_transition_gate\`+\`test_intake_actions\`+\`test_label_auth\` (75), \`test_task_cli\` (134), \`test_task_handoff\` (regression) and \`test_server_webhooks\` (130) — no regressions. Broader server/auth/actor/transition surface: 1891 passed, 0 failed.
+---
+author: oompah
+created: 2026-07-30 22:07
+---
+**Verification**: Focused suites all clean.
+- \`tests/test_actor_mapping.py\` — 19/19 passed (env/file parsing, ambiguous mapping fail-closed, strict-mode fail-closed, empty/invalid values rejected)
+- \`tests/test_server_actor_binding.py\` — 7/7 passed (owner without --actor, non-owner denied, spoofing rejected + no mutation, conflicting actor rejected + no mutation, mapping resolves owner, strict-unmapped denied, unauth compat)
+- \`tests/test_task_cli_actor.py\` — 11/11 passed (matching→warn+drop, conflict→exit 2 pre-network, no-session→passthrough)
+- \`tests/test_server_auth.py\` (65), \`test_http_auth.py\` (29), \`test_server_intake_actions.py\` (8), \`test_transition_gate.py\`+\`test_intake_actions.py\`+\`test_label_auth.py\` (75), \`test_task_cli.py\` (134), \`test_task_handoff.py\` (16), \`test_server_webhooks.py\` (130), \`test_authority_boundary.py\` (136), \`test_dashboard_intake_actions.py\` (22), \`test_terminal_audit_enforcement.py\`+\`test_terminal_transition_coordinator.py\` (116), \`test_docs_authentication_contract.py\` (5), \`test_client_auth.py\` (all after rebase) — no regressions.
+- Broader server/auth/actor/transition surface: **1891 passed, 0 failed, 7 skipped**.
+
+**Completion**: Delivered:
+1. \`oompah/actor_mapping.py\` — validated htpasswd_user→project_actor map with strict mode & fail-closed ambiguity/duplication checks.
+2. \`oompah/server.py\` middleware exposes \`AuthenticatedPrincipal\` in a private ASGI scope slot; helpers \`_authenticated_principal\`, \`_resolve_authorization_actor\`, \`_actor_conflict_response\` implement the trusted-principal contract.
+3. Mutating endpoints (intake actions, PATCH issue, add/remove label, terminal transitions including handoff) now derive the actor from the principal; conflicting client-supplied \`actor_login\` → 403 \`actor_mismatch\` with no tracker mutation.
+4. \`oompah/task_cli.py\` deprecates \`--actor\` when creds are configured (silent drop on match, exit-2 short-circuit on conflict).
+5. \`oompah/bootstrap.py\` + \`oompah/__main__.py\` load and register the map at startup; invalid config aborts.
+6. \`docs/authentication-identity-mapping.md\` — user-facing operator guide with Mermaid auth flow diagram, migration path, troubleshooting table; linked from \`docs/authentication.md\`.
+Pushed to \`epic-OOMPAH-619--task-OOMPAH-624\`; submitting for integration.
 ---
 <!-- COMMENTS:END -->
