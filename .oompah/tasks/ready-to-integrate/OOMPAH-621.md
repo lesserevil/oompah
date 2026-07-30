@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-621
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Document and integration-test CLI credential precedence
 parent: OOMPAH-619
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:25:29.809048Z'
-updated_at: '2026-07-30T22:29:11.351478Z'
+updated_at: '2026-07-30T22:29:20.284869Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-621
 target_branch: null
 review_url: null
@@ -44,12 +44,12 @@ oompah.agent_run_id: 78c2b97e-7b73-4cb9-93a9-cd83c1a21fb5
 oompah.work_branch: epic-OOMPAH-619--task-OOMPAH-621
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-619--task-OOMPAH-621
-  base_branch: epic-OOMPAH-619
-  base_sha: 11dc483f0c80b9adb33fb5f55ca3946bbe31ec72
-  updated_at: '2026-07-30T22:24:07.806958+00:00'
+  head_sha: 9d11014204d3a8a07b339c9e3627ae500064638d
+  submitted_at: '2026-07-30T22:29:17.965399+00:00'
+  updated_at: '2026-07-30T22:29:17.965399+00:00'
 oompah.task_costs:
   total_input_tokens: 871086
   total_output_tokens: 3139
@@ -226,5 +226,10 @@ Documentation and integration tests for CLI credential precedence complete and v
 - Examples cover all precedence tiers with copy-safe placeholders
 - Security warnings are prominent (process visibility, netrc/file recommendations)
 - Integration tests verify docs/code/help alignment
+---
+author: oompah
+created: 2026-07-30 22:29
+---
+Documented CLI credential precedence and added comprehensive integration tests. Updated docs/authentication.md and docs/cli-install.md with explicit precedence documentation covering username and password resolution priority, configuration rules, and practical examples across all tiers. Added contract tests in test_docs_authentication_contract.py to verify documentation alignment with implementation. Created test_cli_install_revision_compatibility.py with 18 integration tests covering precedence, password file security, URL sanitization, password redaction, configuration examples, and mutual exclusion errors. All 25 focused tests pass plus existing 60 tests unaffected.
 ---
 <!-- COMMENTS:END -->
