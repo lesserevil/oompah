@@ -11,11 +11,11 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T03:38:06.370836Z'
-updated_at: '2026-07-30T03:45:01.181241Z'
-work_branch: null
-target_branch: null
-review_url: null
-review_number: null
+updated_at: '2026-07-30T03:45:08.533971Z'
+work_branch: OOMPAH-578
+target_branch: main
+review_url: https://github.com/lesserevil/oompah/pull/589
+review_number: '589'
 merged_at: null
 oompah.duplicate_screening:
   schema_version: 1
@@ -32,6 +32,10 @@ oompah.duplicate_screening:
   retry_count: 0
   retry_after: null
 oompah.agent_run_id: a0ccc9a8-23ed-4903-bc6c-3201c8da1776
+oompah.review_url: https://github.com/lesserevil/oompah/pull/589
+oompah.review_number: '589'
+oompah.work_branch: OOMPAH-578
+oompah.target_branch: main
 ---
 ## Summary
 
@@ -59,5 +63,10 @@ author: oompah
 created: 2026-07-30 03:42
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-30 03:45
+---
+Implemented exact legacy ownership compatibility at commit d02fec346 and opened PR #589. Focused cleanup safety tests: 18 passed. Full make test: 13,618 passed, 7 skipped. The cleanup continues to reject child/shared epic branches that do not exactly match the terminal task identifier.
 ---
 <!-- COMMENTS:END -->
