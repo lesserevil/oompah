@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T02:55:54.699694Z'
-updated_at: '2026-07-30T13:37:26.903600Z'
+updated_at: '2026-07-30T13:37:46.557048Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -56,7 +56,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: fe0c8089-1d0a-40a9-8703-61ca1962ae6c
+oompah.agent_run_id: 4332a750-942c-4bb5-8ebb-03e7753608fe
 oompah.task_costs:
   total_input_tokens: 129304
   total_output_tokens: 6328
@@ -159,5 +159,15 @@ author: oompah
 created: 2026-07-30 13:37
 ---
 Agent completed without landing — no commits found on origin for branch `OOMPAH-576`. Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-30 13:37
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-30 13:37
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
