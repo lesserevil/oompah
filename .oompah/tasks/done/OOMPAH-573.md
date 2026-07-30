@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-573
 type: task
-status: Needs Rebase
+status: Done
 priority: 0
 title: Rebase epic-OOMPAH-459 onto main
 parent: OOMPAH-459
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T00:29:07.099384Z'
-updated_at: '2026-07-30T00:29:07.099384Z'
+updated_at: '2026-07-30T01:34:26.439253Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -30,3 +30,11 @@ This task was auto-filed because epic OOMPAH-459 was detected as stale. Do NOT c
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-30 01:34
+---
+Rebased the clean managed epic-OOMPAH-459 worktree from 65df7489f845e7def17ee6612060a0bc6130ba82 onto origin/main ad9a9f226da793f3bc5c1547b25742923c659079. Range-diff preserved all nine epic commits; exact-lease force-push succeeded. New epic tip: 55d4c57e9364a787764f56995ce4112d5afb33fc. Ready child branches were not modified.
+---
+<!-- COMMENTS:END -->
