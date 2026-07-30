@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-577
 type: task
-status: Backlog
+status: In Review
 priority: null
 title: Allow a changed integrated head to retry a failed completed terminal audit
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T03:07:59.102017Z'
-updated_at: '2026-07-30T03:07:59.102017Z'
+updated_at: '2026-07-30T03:14:07.722266Z'
 work_branch: null
 target_branch: null
 review_url: null
