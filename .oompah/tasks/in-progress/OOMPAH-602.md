@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-602
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Repair project scope propagation in merged-label maintenance
 parent: OOMPAH-588
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:01.749200Z'
-updated_at: '2026-07-30T16:13:05.141428Z'
+updated_at: '2026-07-30T16:16:12.985734Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-602
 target_branch: null
 review_url: null
@@ -57,7 +57,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 1
   retry_after: null
-oompah.agent_run_id: 9d8eeacf-bc88-4884-bd3a-7e88bbf12f3d
+oompah.agent_run_id: 4708ddd2-7dde-4ed8-a44a-808c2c2afbcf
 oompah.work_branch: epic-OOMPAH-588--task-OOMPAH-602
 oompah.integration:
   version: 1
@@ -66,7 +66,7 @@ oompah.integration:
   task_branch: epic-OOMPAH-588--task-OOMPAH-602
   base_branch: epic-OOMPAH-588
   base_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
-  updated_at: '2026-07-30T16:09:06.859350+00:00'
+  updated_at: '2026-07-30T16:16:10.994641+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-602__20260730T160131Z
@@ -174,5 +174,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 4m 5s
 - Log: OOMPAH-602__20260730T160911Z.jsonl
+---
+author: oompah
+created: 2026-07-30 16:16
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-30 16:16
+---
+Focus: Auth Http Default Specialist
 ---
 <!-- COMMENTS:END -->
