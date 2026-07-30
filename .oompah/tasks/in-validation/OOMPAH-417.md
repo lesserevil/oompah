@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-417
 type: task
-status: Merged
+status: In Validation
 priority: null
 title: 'Regression tests: stall-to-recovery path and orphan-reset dispatch integration'
 parent: OOMPAH-414
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-23T19:34:44.997439Z'
-updated_at: '2026-07-23T21:09:13.856119Z'
+updated_at: '2026-07-30T21:55:21.105903Z'
 work_branch: epic-OOMPAH-414
 target_branch: null
 review_url: null
@@ -20,6 +20,28 @@ review_number: null
 merged_at: null
 oompah.agent_run_id: cfdf3167-0a32-448c-a1a5-ea7807fc0d0a
 oompah.work_branch: epic-OOMPAH-414
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-c99213bdc59f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-417
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 1fc57444ac3d0a0247c6626edeb7d6f5f33f2a22b2281a4208c6b7eee70aca74
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-07-30T21:55:16.148863+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -87,5 +109,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/default]
 - Cost: $0.0000
 - Exit: terminated, Duration: 1m 10s
 - Log: OOMPAH-417__20260723T210806Z.jsonl
+---
+author: oompah
+created: 2026-07-30 21:55
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
