@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-596
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Rearm conflict repairs after recoverable agent infrastructure failure
 parent: OOMPAH-587
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:26.248587Z'
-updated_at: '2026-07-30T16:11:58.994594Z'
+updated_at: '2026-07-30T16:16:47.780113Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-596
 target_branch: null
 review_url: null
@@ -106,12 +106,12 @@ oompah.agent_run_id: f29dabb1-aca6-434b-8521-da78cd10b3a4
 oompah.work_branch: epic-OOMPAH-587--task-OOMPAH-596
 oompah.integration:
   version: 1
-  state: ready
+  state: working
   attempts: 0
   task_branch: epic-OOMPAH-587--task-OOMPAH-596
-  head_sha: da86acf64b292122653b68f7bfaa71775111f237
-  submitted_at: '2026-07-30T16:10:33.148869+00:00'
-  updated_at: '2026-07-30T16:10:33.148869+00:00'
+  base_branch: epic-OOMPAH-587
+  base_sha: da86acf64b292122653b68f7bfaa71775111f237
+  updated_at: '2026-07-30T16:16:43.434129+00:00'
 oompah.task_costs:
   total_input_tokens: 160879
   total_output_tokens: 41872
@@ -196,6 +196,55 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-587--task-OOMPAH-596
     source_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
     completed_at: '2026-07-30T15:36:03.195888+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-2367df3b033e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-596
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 18c433ed652f762ac134f57dd24ea91747e6b340ba0309e1f3be00f3e774b447
+    attempts:
+    - version: 1
+      attempt_id: attempt-938f90fe8e83
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 18c433ed652f762ac134f57dd24ea91747e6b340ba0309e1f3be00f3e774b447
+      created_at: '2026-07-30T16:16:39.933215+00:00'
+      provider_id: prov-3c712bff
+      model: nvidia/nvidia/nemotron-3-ultra
+      started_at: '2026-07-30T16:16:39.933215+00:00'
+      branch_key: epic-OOMPAH-587--task-OOMPAH-596
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-30T16:16:34.861687+00:00'
+    updated_at: '2026-07-30T16:16:39.933215+00:00'
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-938f90fe8e83
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 18c433ed652f762ac134f57dd24ea91747e6b340ba0309e1f3be00f3e774b447
+    created_at: '2026-07-30T16:16:39.933215+00:00'
+    provider_id: prov-3c712bff
+    model: nvidia/nvidia/nemotron-3-ultra
+    started_at: '2026-07-30T16:16:39.933215+00:00'
+    branch_key: epic-OOMPAH-587--task-OOMPAH-596
 ---
 ## Summary
 
@@ -734,5 +783,20 @@ Run #1 [attempt=1, profile=deep, role=deep -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 10m 47s
 - Log: OOMPAH-596__20260730T160120Z.jsonl
+---
+author: oompah
+created: 2026-07-30 16:16
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-07-30 16:16
+---
+Auditor dispatched (attempt #1, candidate: prov-3c712bff/nvidia/nvidia/nemotron-3-ultra)
+---
+author: oompah
+created: 2026-07-30 16:16
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
