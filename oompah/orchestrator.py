@@ -15666,6 +15666,7 @@ class Orchestrator:
                             pid,
                             exc,
                         )
+                        continue
                 if canonicalize_status(issue.state) != MERGED:
                     continue
                 is_declared_epic = (
@@ -15805,6 +15806,9 @@ class Orchestrator:
             if EPIC_INDEPENDENTLY_MERGED_LABEL.lower() in existing_labels:
                 # Already annotated — idempotent skip.
                 continue
+            source_project_id = str(
+                getattr(parent_epic, "project_id", None) or ""
+            ).strip()
             logger.warning(
                 "Child %s (branch=%s) was merged to main independently, "
                 "bypassing parent epic %s (expected branch=%s). "
@@ -15816,13 +15820,22 @@ class Orchestrator:
                 EPIC_INDEPENDENTLY_MERGED_LABEL,
             )
             try:
-                tracker = self._tracker_for_issue(child)
+                if source_project_id:
+                    _resolved_project_id, _scoped_child_tracker = (
+                        self._scope_issue_for_maintenance(
+                            child,
+                            source_project_id,
+                        )
+                    )
+                    tracker = self._tracker_for_issue(parent_epic)
+                else:
+                    tracker = self._tracker_for_issue(child)
                 tracker.update_issue(
                     child.identifier,
                     add_label=EPIC_INDEPENDENTLY_MERGED_LABEL,
                 )
                 annotated += 1
-            except TrackerError as exc:
+            except (ProjectError, TrackerError) as exc:
                 logger.debug(
                     "Failed to annotate independently-merged child %s: %s",
                     child.identifier,
@@ -15949,6 +15962,37 @@ class Orchestrator:
         for child in children:
             if self._job_deadline_exceeded("merged_labels"):
                 return
+            child_project_id = str(
+                getattr(child, "project_id", None) or project_id or ""
+            ).strip()
+            child_tracker = tracker
+            if project_id:
+                try:
+                    child_project_id, _scoped_child_tracker = (
+                        self._scope_issue_for_maintenance(
+                            child,
+                            project_id,
+                        )
+                    )
+                except ProjectError as exc:
+                    logger.warning(
+                        "Skipping epic child %s due to scope conflict in project "
+                        "%s: %s",
+                        child.identifier,
+                        project_id,
+                        exc,
+                    )
+                    continue
+            elif child_project_id:
+                try:
+                    child_tracker = self._tracker_for_issue(child)
+                except ProjectError as exc:
+                    logger.warning(
+                        "Skipping legacy epic child %s due to scope conflict: %s",
+                        child.identifier,
+                        exc,
+                    )
+                    continue
             if canonicalize_status(child.state) in (MERGED, ARCHIVED):
                 self._cleanup_landed_private_child_branch(epic, child)
                 continue
@@ -16003,7 +16047,7 @@ class Orchestrator:
                 if (
                     child_status == NEEDS_HUMAN
                     and self._tracker_comment_matches(
-                        tracker,
+                        child_tracker,
                         child.identifier,
                         instruction,
                     )
@@ -16016,7 +16060,7 @@ class Orchestrator:
                     continue
                 try:
                     self._mark_needs_human(
-                        tracker,
+                        child_tracker,
                         child.identifier,
                         instruction,
                     )
@@ -16044,10 +16088,9 @@ class Orchestrator:
                     epic.identifier,
                 )
                 continue
-            project_id = getattr(child, "project_id", None) or ""
             result = self._request_merged_via_coordinator(
                 child,
-                project_id,
+                child_project_id,
                 trigger_identity="epic-rollup-reconciliation",
                 trigger_source="oompah",
             )
