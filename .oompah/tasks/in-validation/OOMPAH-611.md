@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T19:15:55.237083Z'
-updated_at: '2026-07-30T19:46:54.563268Z'
+updated_at: '2026-07-30T19:47:20.067058Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-611
 target_branch: null
 review_url: null
@@ -21,15 +21,12 @@ oompah.agent_run_id: 3def64e7-dc12-48e7-b59a-bb8439c093cf
 oompah.work_branch: epic-OOMPAH-460--task-OOMPAH-611
 oompah.integration:
   version: 1
-  state: integrated
-  attempts: 1
+  state: working
+  attempts: 0
   task_branch: epic-OOMPAH-460--task-OOMPAH-611
   base_branch: epic-OOMPAH-460
   base_sha: 4c2be1a099a914f1776cb11948c81ec95ee9f624
-  head_sha: 4c2be1a099a914f1776cb11948c81ec95ee9f624
-  integrated_sha: 4c2be1a099a914f1776cb11948c81ec95ee9f624
-  submitted_at: '2026-07-30T19:42:11.406750+00:00'
-  updated_at: '2026-07-30T19:46:51.174914+00:00'
+  updated_at: '2026-07-30T19:47:14.178281+00:00'
 oompah.task_costs:
   total_input_tokens: 825629
   total_output_tokens: 6142
@@ -132,19 +129,46 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-611
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 0b1b3f38cba3fcadec651b24114ffea19743c7524e3707d78ae90b7da62d5b39
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-fc740f247608
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 0b1b3f38cba3fcadec651b24114ffea19743c7524e3707d78ae90b7da62d5b39
+      created_at: '2026-07-30T19:47:08.930113+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-30T19:47:08.930113+00:00'
+      branch_key: epic-OOMPAH-460--task-OOMPAH-611
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-30T19:46:52.313942+00:00'
-  attempt_history: []
+    updated_at: '2026-07-30T19:47:08.930113+00:00'
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-fc740f247608
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0b1b3f38cba3fcadec651b24114ffea19743c7524e3707d78ae90b7da62d5b39
+    created_at: '2026-07-30T19:47:08.930113+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-30T19:47:08.930113+00:00'
+    branch_key: epic-OOMPAH-460--task-OOMPAH-611
 ---
 ## Summary
 
@@ -295,5 +319,15 @@ author: oompah
 created: 2026-07-30 19:46
 ---
 Queued for terminal transition to Done. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-07-30 19:47
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-07-30 19:47
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
