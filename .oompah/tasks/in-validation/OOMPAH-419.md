@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-419
 type: task
-status: Merged
+status: In Validation
 priority: 1
 title: Define the oompah OpenAPI-to-MCP exposure policy
 parent: OOMPAH-418
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T19:41:54.055851Z'
-updated_at: '2026-07-23T20:45:06.183069Z'
+updated_at: '2026-07-30T20:54:45.722405Z'
 work_branch: epic-OOMPAH-418
 target_branch: null
 review_url: null
@@ -59,6 +59,28 @@ oompah.task_costs:
     output_tokens: 801
     cost_usd: 0.0
     recorded_at: '2026-07-23T20:33:33.936416+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-aa0347c9a6cf
+    project_id: proj-14849f1b
+    task_id: OOMPAH-419
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: da0424ef48ae386846d7e4c2091b7a8d3af70df6ce1078e1f275632f436152aa
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-07-30T20:54:43.321941+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -474,5 +496,10 @@ author: oompah
 created: 2026-07-23 20:44
 ---
 Defined and security-audited the fail-closed OpenAPI-to-MCP exposure policy, covered all current API operations with allowed/denied tests, documented endpoint/discovery/token behavior, fixed blocking CI regressions, and pushed PR #542.
+---
+author: oompah
+created: 2026-07-30 20:54
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
