@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-610
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Release stale claimed_issues entries when completion auditors exit
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:53:05.632137Z'
-updated_at: '2026-07-30T19:08:49.126195Z'
+updated_at: '2026-07-30T19:15:42.175225Z'
 work_branch: OOMPAH-610
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/594
@@ -97,6 +97,72 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/594
 oompah.review_number: '594'
 oompah.work_branch: OOMPAH-610
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-490436c776e7
+    project_id: proj-14849f1b
+    task_id: OOMPAH-610
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8a45e32e03bb6f6616011264ecddde94b139adfb31d38a5a5649a12743cbd557
+    attempts:
+    - version: 1
+      attempt_id: attempt-9ad0fa99a03f
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 8a45e32e03bb6f6616011264ecddde94b139adfb31d38a5a5649a12743cbd557
+      created_at: '2026-07-30T19:15:41.439054+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-30T19:15:41.439054+00:00'
+      branch_key: OOMPAH-610
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-30T19:15:33.898604+00:00'
+    updated_at: '2026-07-30T19:15:41.439054+00:00'
+  - version: 1
+    audit_id: audit-e8bbf3386cc7
+    project_id: proj-14849f1b
+    task_id: OOMPAH-610
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8a45e32e03bb6f6616011264ecddde94b139adfb31d38a5a5649a12743cbd557
+    attempts: []
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-30T19:15:33.898604+00:00'
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-9ad0fa99a03f
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8a45e32e03bb6f6616011264ecddde94b139adfb31d38a5a5649a12743cbd557
+    created_at: '2026-07-30T19:15:41.439054+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-30T19:15:41.439054+00:00'
+    branch_key: OOMPAH-610
 ---
 ## Summary
 
@@ -201,5 +267,10 @@ Run #2 [attempt=2, profile=deep, role=deep -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 4m 27s
 - Log: OOMPAH-610__20260730T190400Z.jsonl
+---
+author: oompah
+created: 2026-07-30 19:15
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
