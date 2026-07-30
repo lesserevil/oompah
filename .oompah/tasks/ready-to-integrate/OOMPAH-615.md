@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-615
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Fence implementation retries when terminal audits take ownership
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T20:22:18.934506Z'
-updated_at: '2026-07-30T20:40:13.537969Z'
+updated_at: '2026-07-30T20:45:29.579379Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -83,6 +83,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-615
     source_sha: c048ba706cbe9b1342b80a67576a49b82887e84a
     completed_at: '2026-07-30T20:24:55.071313+00:00'
+oompah.integration:
+  version: 1
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-615
+  head_sha: ce8a124fc76e1c97e666714503cdb599deb5e6b7
+  submitted_at: '2026-07-30T20:45:26.045620+00:00'
+  updated_at: '2026-07-30T20:45:26.045620+00:00'
 ---
 ## Summary
 
@@ -137,5 +145,10 @@ author: oompah
 created: 2026-07-30 20:40
 ---
 Implemented terminal-audit ownership fencing across API staging, retry dispatch, and worker exit. Added per-task serialization so In Progress writes cannot cross audit staging, immediate audit-lane wakeups after ownership cleanup, and fence release after failed/incomplete audits. Focused regression suite: 408 passed.
+---
+author: oompah
+created: 2026-07-30 20:45
+---
+Fenced terminal-audit ownership against stale implementation retries, serialized audit staging with In Progress tracker writes, suppressed retries after In Validation handoff, woke the audit lane after cleanup, and added deterministic race regressions. Full gate: terminal mutation scan passed; 13,736 passed, 7 skipped.
 ---
 <!-- COMMENTS:END -->
