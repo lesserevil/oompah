@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:17:13.371379Z'
-updated_at: '2026-07-30T18:52:47.810782Z'
+updated_at: '2026-07-30T18:54:07.452055Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -229,5 +229,17 @@ author: oompah
 created: 2026-07-30 18:52
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-30 18:54
+---
+Understanding: The issue is that terminal status requests (set-status, set-status via label) with project aliases (e.g., 'oompah') don't properly authorize configured owners. When an alias is used, _stage_terminal_transition receives it, and although it calls _canonical_managed_project_id to convert it to a canonical ID, _project_by_id may fail to find the project, resulting in HTTP 403 for valid owners.
+
+Approach: 
+1. Examine _get_tracker_for_issue_or_project to confirm it canonicalizes project aliases and returns canonical IDs
+2. Check all code paths that call _stage_terminal_transition to ensure canonical IDs are passed
+3. Verify the terminal status CLI/API endpoints properly canonicalize before passing to _stage_terminal_transition
+4. Add tests to ensure both project IDs and aliases work equally for terminal owner authorization
+5. Run focused tests on terminal override and CLI endpoints
 ---
 <!-- COMMENTS:END -->
