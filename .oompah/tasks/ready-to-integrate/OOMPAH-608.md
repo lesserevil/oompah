@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:28:42.855708Z'
-updated_at: '2026-07-30T18:38:40.038700Z'
+updated_at: '2026-07-30T18:38:42.722413Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -247,5 +247,10 @@ Key test coverage:
 - Real credentials stay fail-closed (security maintained)
 
 All changes are committed and pushed to OOMPAH-608 branch.
+---
+author: oompah
+created: 2026-07-30 18:38
+---
+Implemented credential-pattern redaction for auditor verdicts. Inert credential-pattern examples in verdict prose are now safely redacted rather than rejected, allowing credential-safety tasks like OOMPAH-589 to pass terminal audit without copying credential-shaped examples into durable state. Real credentials remain fail-closed. Redaction is deterministic and idempotent. All 71 auditor result tests passing.
 ---
 <!-- COMMENTS:END -->
