@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-618
 type: bug
-status: In Validation
+status: Done
 priority: 1
 title: Keep ACP shell commands off the scheduler event loop
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T21:03:01.411786Z'
-updated_at: '2026-07-30T21:22:32.796855Z'
+updated_at: '2026-07-30T21:26:09.985272Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-618
 target_branch: null
 review_url: null
@@ -27,6 +27,8 @@ oompah.integration:
   updated_at: '2026-07-30T21:22:30.155761+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-10c30103c602: '2026-07-30T21:26:07.485406+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -34,7 +36,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-618
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -43,7 +45,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-10c30103c602
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -53,13 +55,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-30T21:22:26.182799+00:00'
       branch_key: OOMPAH-618
+      verdict: pass
+      completed_at: '2026-07-30T21:26:07.485224+00:00'
+      ended_at: '2026-07-30T21:26:07.485224+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-30T21:22:10.374704+00:00'
-    updated_at: '2026-07-30T21:22:26.182799+00:00'
+    updated_at: '2026-07-30T21:26:07.485224+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-10c30103c602
@@ -122,5 +127,20 @@ author: oompah
 created: 2026-07-30 21:22
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 21:26
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- head_commit: 58915e5f0b116cf4269f6bb882dd81aa4010ec03
+- integration_branch_head: 58915e5f0b116cf4269f6bb882dd81aa4010ec03
+- files_changed: oompah/acp_tools.py, tests/test_acp_project_tools.py
+- to_thread_call_sites: oompah/acp_tools.py:1124 (Claude), 1431 (Codex), 1734 (OpenCode)
+- regression_tests: tests/test_acp_project_tools.py:633 (Claude), 1017 (Codex), 1043 (OpenCode)
+- focused_tests_passed: 53 acp_project_tools + 240 combined acp + 18 server_blocking_off_loop + 140 authority/dispatch
 ---
 <!-- COMMENTS:END -->
