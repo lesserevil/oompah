@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-30T14:14:54.281403Z'
-updated_at: '2026-07-30T15:57:34.111208Z'
+updated_at: '2026-07-30T16:09:11.769556Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-593
 target_branch: null
 review_url: null
@@ -493,5 +493,10 @@ author: oompah
 created: 2026-07-30 15:57
 ---
 Understanding (Auth Http Default Specialist): The combined-tree quality gate failed on this branch with a single test failure: tests/test_orchestrator_handlers.py::TestHandleDispatchNeeded::test_in_progress_refresh_timeout_uses_the_same_safe_boundary. The previous test engineer's work (91 focused-suite tests green) was correct but something in the orchestrator handler test conflicts with changes on this branch. My scope: (1) read the failing test and the orchestrator handler code, (2) find the root cause, (3) fix it without breaking any of the scoped-auth test coverage already on this branch, (4) run focused tests and the full gate, (5) commit, push, submit.
+---
+author: oompah
+created: 2026-07-30 16:09
+---
+Discovery: The failing test test_in_progress_refresh_timeout_uses_the_same_safe_boundary is a pre-existing flaky test caused by tight timing assertions (< 0.15s with 0.2s slow-tracker sleep) that fail under xdist parallel load. This exact issue was already fixed in commit c4644107f (OOMPAH-589: Make timeout tests deterministic under xdist) on branch epic-OOMPAH-585--task-OOMPAH-589. That fix: (1) changes the slow tracker sleep from 0.2s to 60s (making the 'timeout fired' vs 'timeout missed' distinction clear), (2) relaxes the timing boundary from 0.15s to 2.0s. The same fix is needed for the same two tests on this branch. Cherry-picking c4644107f onto epic-OOMPAH-586--task-OOMPAH-593.
 ---
 <!-- COMMENTS:END -->

@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:03.538398Z'
-updated_at: '2026-07-30T16:04:48.114248Z'
+updated_at: '2026-07-30T16:08:48.090349Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-603
 target_branch: null
 review_url: null
@@ -27,13 +27,13 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: 661d86ba-56f8-4c9b-b380-2a29ba17f468
-  claim_owner: 9e3a680b-e68a-4d5a-ba2e-f9091834f9ec
-  claimed_at: '2026-07-30T16:04:38.819299+00:00'
-  claim_expires_at: '2026-07-30T16:34:38.819299+00:00'
-  retry_count: 0
-  retry_after: null
+  evidence: Duplicate-screening worker exited with reason normal.
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
+  retry_count: 1
+  retry_after: '2026-07-30T16:09:42.196761+00:00'
 oompah.agent_run_id: 2f2fbd3c-e73d-483d-8a4f-08e8e21d769a
 oompah.work_branch: epic-OOMPAH-588--task-OOMPAH-603
 oompah.integration:
@@ -44,6 +44,32 @@ oompah.integration:
   base_branch: epic-OOMPAH-588
   base_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
   updated_at: '2026-07-30T16:04:45.759569+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-603__20260730T160448Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: epic-OOMPAH-588--task-OOMPAH-603
+    source_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
+    completed_at: '2026-07-30T16:08:42.204644+00:00'
+oompah.task_costs:
+  total_input_tokens: 627394
+  total_output_tokens: 2871
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 627394
+      output_tokens: 2871
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 627394
+    output_tokens: 2871
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T16:08:42.195397+00:00'
 ---
 ## Summary
 
@@ -81,5 +107,15 @@ author: oompah
 created: 2026-07-30 16:04
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-30 16:08
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 10
+- Tokens: 627.4K in / 2.9K out [630.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 4m 0s
+- Log: OOMPAH-603__20260730T160448Z.jsonl
 ---
 <!-- COMMENTS:END -->
