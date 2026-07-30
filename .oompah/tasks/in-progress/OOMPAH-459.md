@@ -28,7 +28,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:46.877390Z'
-updated_at: '2026-07-30T03:34:09.273219Z'
+updated_at: '2026-07-30T03:50:46.286062Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -206,5 +206,10 @@ author: oompah
 created: 2026-07-30 03:34
 ---
 Understanding: The failing gate at 11ea824f7 shows 'make[1]: *** [Makefile:225: test] Terminated' — a SIGTERM kill during pytest startup, not a test failure. Prior comments indicate transient/non-reproducible failures. I'll run focused tests on the epic worktree (OOMPAH-459-fix branch tracks origin/epic-OOMPAH-459 at 11ea824f7) to identify any real regression. Plan: (1) run pytest -x on tests likely affected by recent OOMPAH-483 changes (integration gate, terminal mutation scanner, worker timeout), (2) if all pass, verify the previously-flaky intake_promotion test survives multiple runs, (3) commit a determinism fix if needed and force-push to origin/epic-OOMPAH-459.
+---
+author: oompah
+created: 2026-07-30 03:50
+---
+Discovery: Reproduced a real (not just SIGTERM-timeout) test failure under 4-worker xdist parallel load: tests/test_orchestrator_handlers.py::TestMaintenanceLaneNonBlocking::test_tick_does_not_await_maintenance_heal fails with the 1.0s asyncio.wait_for tripping before _tick() has a chance to schedule its handlers under CPU contention. In isolation the test passes in <1s; under full-suite parallel load it exceeds the 1.0s guard even though _tick() is genuinely non-blocking. Root cause: wall-clock threshold too tight for CI parallel load — the same class of regression OOMPAH-483 fixed in test_task_cost_telemetry.py.
 ---
 <!-- COMMENTS:END -->
