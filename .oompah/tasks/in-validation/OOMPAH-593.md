@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-30T14:14:54.281403Z'
-updated_at: '2026-07-30T18:17:55.280119Z'
+updated_at: '2026-07-30T18:19:23.826768Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-593
 target_branch: null
 review_url: null
@@ -68,8 +68,8 @@ oompah.integration:
   base_sha: 0a260f0279690a12fb056da0c8becb6f492f8c26
   updated_at: '2026-07-30T18:17:51.913270+00:00'
 oompah.task_costs:
-  total_input_tokens: 281297
-  total_output_tokens: 31173
+  total_input_tokens: 1808769
+  total_output_tokens: 32444
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -83,6 +83,10 @@ oompah.task_costs:
     opus:
       input_tokens: 79
       output_tokens: 18426
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 1527472
+      output_tokens: 1271
       cost_usd: 0.0
   runs:
   - profile: default
@@ -121,6 +125,12 @@ oompah.task_costs:
     output_tokens: 1067
     cost_usd: 0.0
     recorded_at: '2026-07-30T16:13:46.711003+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 1527472
+    output_tokens: 1271
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T18:19:20.562426+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-593__20260730T150438Z
@@ -212,7 +222,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-593
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -221,7 +231,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-72bd38df00fe
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -231,13 +241,16 @@ oompah.terminal_audit:
       model: nvidia/nvidia/nemotron-3-ultra
       started_at: '2026-07-30T18:16:37.232714+00:00'
       branch_key: epic-OOMPAH-586--task-OOMPAH-593
+      ended_at: '2026-07-30T18:19:20.563848+00:00'
+      failure_reason: Stalled after 10 turns without productive action
+      next_retry_at: '2026-07-30T18:19:30.563812+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: api
     previous_state: Needs Human
     created_at: '2026-07-30T18:16:15.292504+00:00'
-    updated_at: '2026-07-30T18:16:37.232714+00:00'
+    updated_at: '2026-07-30T18:19:20.563848+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-4db44537a773
@@ -258,7 +271,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-72bd38df00fe
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -268,6 +281,9 @@ oompah.terminal_audit:
     model: nvidia/nvidia/nemotron-3-ultra
     started_at: '2026-07-30T18:16:37.232714+00:00'
     branch_key: epic-OOMPAH-586--task-OOMPAH-593
+    ended_at: '2026-07-30T18:19:20.563848+00:00'
+    failure_reason: Stalled after 10 turns without productive action
+    next_retry_at: '2026-07-30T18:19:30.563812+00:00'
 ---
 ## Summary
 
@@ -694,5 +710,20 @@ author: oompah
 created: 2026-07-30 18:17
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 18:19
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> InferenceAPI/nvidia/nvidia/nemotron-3-ultra]
+- Turns: 14, Tool calls: 14
+- Tokens: 1.5M in / 1.3K out [1.5M total]
+- Cost: $0.0000
+- Exit: stalled, Duration: 1m 32s
+- Log: OOMPAH-593__20260730T181757Z.jsonl
+---
+author: oompah
+created: 2026-07-30 18:19
+---
+Auditor attempt ended: Stalled after 10 turns without productive action. A different independent auditor will be tried on the next scheduler tick.
 ---
 <!-- COMMENTS:END -->
