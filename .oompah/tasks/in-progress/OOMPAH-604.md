@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-604
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Allow owner overrides after terminal-audit evidence supersession
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T17:07:44.032640Z'
-updated_at: '2026-07-30T17:14:39.852310Z'
+updated_at: '2026-07-30T17:14:58.724848Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-604
 target_branch: null
 review_url: null
@@ -43,7 +43,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 1
   retry_after: null
-oompah.agent_run_id: 81684a6e-a795-4548-ae01-0db3e31727f5
+oompah.agent_run_id: f5298e77-99d4-4298-8f50-76eb05df55f4
 oompah.work_branch: epic-OOMPAH-585--task-OOMPAH-604
 oompah.integration:
   version: 1
@@ -52,7 +52,7 @@ oompah.integration:
   task_branch: epic-OOMPAH-585--task-OOMPAH-604
   base_branch: epic-OOMPAH-585
   base_sha: b252293d3fc950f79a342c74b51d3285f62ecf4c
-  updated_at: '2026-07-30T17:11:54.364649+00:00'
+  updated_at: '2026-07-30T17:14:56.680702+00:00'
 oompah.task_costs:
   total_input_tokens: 1839603
   total_output_tokens: 11956
@@ -160,5 +160,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 2m 44s
 - Log: OOMPAH-604__20260730T171158Z.jsonl
+---
+author: oompah
+created: 2026-07-30 17:14
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-30 17:14
+---
+Focus: Auth Http Default Specialist
 ---
 <!-- COMMENTS:END -->
