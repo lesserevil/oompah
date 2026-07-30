@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-596
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Rearm conflict repairs after recoverable agent infrastructure failure
 parent: OOMPAH-587
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:26.248587Z'
-updated_at: '2026-07-30T15:33:54.941854Z'
+updated_at: '2026-07-30T15:34:26.158442Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-596
 target_branch: null
 review_url: null
@@ -113,13 +113,17 @@ oompah.integration:
   base_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
   updated_at: '2026-07-30T15:33:50.832998+00:00'
 oompah.task_costs:
-  total_input_tokens: 53511
-  total_output_tokens: 5904
+  total_input_tokens: 111711
+  total_output_tokens: 6734
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 53511
       output_tokens: 5904
+      cost_usd: 0.0
+    opus:
+      input_tokens: 58200
+      output_tokens: 830
       cost_usd: 0.0
   runs:
   - profile: default
@@ -134,6 +138,12 @@ oompah.task_costs:
     output_tokens: 1034
     cost_usd: 0.0
     recorded_at: '2026-07-30T15:33:18.378030+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 58200
+    output_tokens: 830
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T15:34:21.864357+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-596__20260730T153052Z
@@ -152,6 +162,14 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-587--task-OOMPAH-596
     source_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
     completed_at: '2026-07-30T15:33:18.386183+00:00'
+  - run_id: OOMPAH-596__20260730T153357Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-sol
+    focus: frontend
+    source_branch: epic-OOMPAH-587--task-OOMPAH-596
+    source_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
+    completed_at: '2026-07-30T15:34:21.867901+00:00'
 ---
 ## Summary
 
@@ -239,5 +257,20 @@ author: oompah
 created: 2026-07-30 15:33
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-07-30 15:34
+---
+Agent completed successfully in 35s (59030 tokens)
+---
+author: oompah
+created: 2026-07-30 15:34
+---
+Run #2 [attempt=2, profile=deep, role=deep -> Codex/gpt-5.6-sol]
+- Turns: 1, Tool calls: 5
+- Tokens: 58.2K in / 830 out [59.0K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 35s
+- Log: OOMPAH-596__20260730T153357Z.jsonl
 ---
 <!-- COMMENTS:END -->
