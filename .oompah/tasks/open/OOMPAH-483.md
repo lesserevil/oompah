@@ -19,7 +19,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:31.119782Z'
-updated_at: '2026-07-30T02:54:41.192736Z'
+updated_at: '2026-07-30T02:54:57.546304Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-483
 target_branch: null
 review_url: null
@@ -569,5 +569,10 @@ created: 2026-07-30 02:54
 Integration could not verify `main`: fatal: 'main' is already used by worktree at '/home/shedwards/.oompah/repos/oompah'
 
 Fetch the private branch, preserve its commits, push a clean current head, and submit it again.
+---
+author: oompah
+created: 2026-07-30 02:54
+---
+Correcting the integration submission context: the prior submit command was launched from the service checkout and therefore resolved branch main. Resubmitting from the verified task worktree so the queue records epic-OOMPAH-459--task-OOMPAH-483 at bc448cf08.
 ---
 <!-- COMMENTS:END -->
