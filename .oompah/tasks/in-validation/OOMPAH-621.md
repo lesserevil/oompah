@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-621
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Document and integration-test CLI credential precedence
 parent: OOMPAH-619
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:25:29.809048Z'
-updated_at: '2026-07-30T22:30:09.248456Z'
+updated_at: '2026-07-30T22:35:59.194799Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-621
 target_branch: null
 review_url: null
@@ -44,15 +44,15 @@ oompah.agent_run_id: 78c2b97e-7b73-4cb9-93a9-cd83c1a21fb5
 oompah.work_branch: epic-OOMPAH-619--task-OOMPAH-621
 oompah.integration:
   version: 1
-  state: ready
-  attempts: 1
+  state: integrated
+  attempts: 2
   task_branch: epic-OOMPAH-619--task-OOMPAH-621
   base_branch: epic-OOMPAH-619
   base_sha: 11dc483f0c80b9adb33fb5f55ca3946bbe31ec72
   head_sha: 9d11014204d3a8a07b339c9e3627ae500064638d
+  integrated_sha: 9d11014204d3a8a07b339c9e3627ae500064638d
   submitted_at: '2026-07-30T22:29:17.965399+00:00'
-  updated_at: '2026-07-30T22:30:08.079817+00:00'
-  last_error: Combined-tree quality gate interrupted by service shutdown
+  updated_at: '2026-07-30T22:35:54.859296+00:00'
 oompah.task_costs:
   total_input_tokens: 871464
   total_output_tokens: 20410
@@ -93,6 +93,28 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-619--task-OOMPAH-621
     source_sha: 9d11014204d3a8a07b339c9e3627ae500064638d
     completed_at: '2026-07-30T22:29:48.996637+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-ca6488a95a63
+    project_id: proj-14849f1b
+    task_id: OOMPAH-621
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: da7536275b78418878a43818f884c4635b81e73782971c6862b97d7bfbfb7cea
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-30T22:35:56.651693+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -307,5 +329,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 5m 44s
 - Log: OOMPAH-621__20260730T222411Z.jsonl
+---
+author: oompah
+created: 2026-07-30 22:35
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
