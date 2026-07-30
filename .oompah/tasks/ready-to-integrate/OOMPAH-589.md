@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-589
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Validate auditor provider endpoints before candidate dispatch
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:20.256845Z'
-updated_at: '2026-07-30T16:59:02.835940Z'
+updated_at: '2026-07-30T16:59:19.448418Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-589
 target_branch: null
 review_url: null
@@ -60,12 +60,12 @@ oompah.agent_run_id: e33554dd-e192-4703-98fc-ed2cca44e3ac
 oompah.work_branch: epic-OOMPAH-585--task-OOMPAH-589
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-585--task-OOMPAH-589
-  base_branch: epic-OOMPAH-585
-  base_sha: c4644107f13bdb747e8f19fe3fe7456db546b458
-  updated_at: '2026-07-30T16:49:14.049782+00:00'
+  head_sha: b252293d3fc950f79a342c74b51d3285f62ecf4c
+  submitted_at: '2026-07-30T16:59:11.598023+00:00'
+  updated_at: '2026-07-30T16:59:11.598023+00:00'
 oompah.task_costs:
   total_input_tokens: 37815032
   total_output_tokens: 59288
@@ -842,5 +842,16 @@ Total: 614 focused regression tests passing. Cross-mode regressions verify that 
 2. ACP worker holds independent ACP target even when auditor role points to a per-token API provider.
 
 \`_resolve_focus_provider_override\` is never called (MagicMock.assert_not_called()) in the forced-auditor path, proving the guard is in the correct place.
+---
+author: oompah
+created: 2026-07-30 16:59
+---
+Validate auditor provider endpoints before candidate dispatch — plus preserve AuditDispatchPlan.candidate binding through both API and ACP worker paths.
+
+Root cause of the reopen: reserved auditor focus's model_role='auditor' caused _resolve_focus_provider_override to replace the target's InferenceAPI provider with the default ACP provider (blank base URL), producing urljoin('', 'chat/completions') = '/chat/completions'.
+
+Fix: When forced_auditor=True and target is provided, both _run_api_worker and _run_acp_worker now bypass focus-based provider/model override resolution and honor target.provider/target.model directly.
+
+Added cross-mode regressions (API-with-ACP-focus-override, ACP-with-API-focus-override) alongside the earlier endpoint validation, credential redaction, and timeout-test determinism work. 614 focused tests passing.
 ---
 <!-- COMMENTS:END -->
