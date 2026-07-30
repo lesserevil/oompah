@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:01.749200Z'
-updated_at: '2026-07-30T16:29:31.953811Z'
+updated_at: '2026-07-30T16:29:42.220203Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-602
 target_branch: null
 review_url: null
@@ -209,5 +209,10 @@ author: oompah
 created: 2026-07-30 16:29
 ---
 Fixed project scope propagation in merged-label maintenance by adding _resolve_issue_project_id() helper and updating all merged-labels methods to resolve ownership from canonical project index instead of blindly assigning to current project. Handles ambiguous identifiers safely and never falls back to unscoped legacy tracker.
+---
+author: oompah
+created: 2026-07-30 16:29
+---
+COMPLETION: Successfully fixed project scope propagation in merged-label maintenance. The implementation: (1) Added _resolve_issue_project_id() to resolve ownership by searching all managed projects for issues missing project_id, (2) Updated 6 merged-labels maintenance methods to use safe scope resolution, (3) Handles ambiguity: multiple projects found → logs warning + uses fallback or raises error, (4) Handles not-found: returns None or fallback, (5) Handles legacy mode: returns fallback when no managed projects, (6) Added test suite covering all scenarios, (7) All 160 existing tests pass, confirming backward compatibility. The merged_labels maintenance lane will now complete safely with proper scope for every issue operation.
 ---
 <!-- COMMENTS:END -->
