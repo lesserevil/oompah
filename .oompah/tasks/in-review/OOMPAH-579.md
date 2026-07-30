@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-579
 type: task
-status: In Progress
+status: In Review
 priority: null
 title: Prune branchless terminal legacy epic-task worktrees
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T03:54:54.485192Z'
-updated_at: '2026-07-30T04:00:55.917683Z'
+updated_at: '2026-07-30T04:02:58.651300Z'
 work_branch: null
 target_branch: null
 review_url: null
