@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-459
 type: epic
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Route all terminal-state producers through independent auditing
 parent: null
@@ -28,13 +28,21 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:46.877390Z'
-updated_at: '2026-07-30T03:51:29.254482Z'
+updated_at: '2026-07-30T03:52:05.852027Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
 oompah.agent_run_id: c74020f8-72a8-4537-b791-6bead1249e3e
+oompah.integration:
+  version: 1
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-459
+  head_sha: 95581aca5772d59c8c23d5b7288b92836f1abbf6
+  submitted_at: '2026-07-30T03:52:03.745703+00:00'
+  updated_at: '2026-07-30T03:52:03.745703+00:00'
 ---
 ## Summary
 
@@ -216,5 +224,10 @@ author: oompah
 created: 2026-07-30 03:51
 ---
 Implementation & Verification: Applied the OOMPAH-483-style structural-timing fix to tests/test_orchestrator_handlers.py::TestMaintenanceLaneNonBlocking::test_tick_does_not_await_maintenance_heal — block maintenance for 60s (vs. 5s) and extend tick's wait_for to 15s (vs. 1.0s). The distinguishing signal (60s block > 15s wait) still deterministically detects a regression where _tick() awaits maintenance, while the assertion remains structural (\`not _maintenance_future.done()\` after tick returns).\n\nVerification: full parallel gate under 4 xdist workers now passes: **13684 passed, 7 skipped in 246s**. Previously this same run failed with 1 flaky failure in the same test.\n\nPushed 95581aca5 to origin/epic-OOMPAH-459. Ready for the orchestrator to rerun the branch gate.
+---
+author: oompah
+created: 2026-07-30 03:52
+---
+CI fix: made TestMaintenanceLaneNonBlocking::test_tick_does_not_await_maintenance_heal deterministic under 4-worker xdist load. Extended maintenance-block window to 60s and tick wait_for to 15s (structural assertion unchanged: _maintenance_future must still be pending after _tick returns). Full parallel gate now clean at 13684 passed on origin/epic-OOMPAH-459 head 95581aca5.
 ---
 <!-- COMMENTS:END -->
