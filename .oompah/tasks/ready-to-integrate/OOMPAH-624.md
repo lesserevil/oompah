@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-624
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Bind owner authorization to the authenticated server principal
 parent: OOMPAH-619
@@ -12,7 +12,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-30T21:37:57.526368Z'
-updated_at: '2026-07-30T22:07:53.839072Z'
+updated_at: '2026-07-30T22:08:07.996987Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-624
 target_branch: null
 review_url: null
@@ -39,12 +39,12 @@ oompah.agent_run_id: 47663369-3e13-44da-8640-38c73995dbec
 oompah.work_branch: epic-OOMPAH-619--task-OOMPAH-624
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-619--task-OOMPAH-624
-  base_branch: epic-OOMPAH-619
-  base_sha: c048ba706cbe9b1342b80a67576a49b82887e84a
-  updated_at: '2026-07-30T21:41:29.105543+00:00'
+  head_sha: 11dc483f0c80b9adb33fb5f55ca3946bbe31ec72
+  submitted_at: '2026-07-30T22:08:05.631919+00:00'
+  updated_at: '2026-07-30T22:08:05.631919+00:00'
 oompah.task_costs:
   total_input_tokens: 177999
   total_output_tokens: 5508
@@ -234,5 +234,10 @@ created: 2026-07-30 22:07
 5. \`oompah/bootstrap.py\` + \`oompah/__main__.py\` load and register the map at startup; invalid config aborts.
 6. \`docs/authentication-identity-mapping.md\` — user-facing operator guide with Mermaid auth flow diagram, migration path, troubleshooting table; linked from \`docs/authentication.md\`.
 Pushed to \`epic-OOMPAH-619--task-OOMPAH-624\`; submitting for integration.
+---
+author: oompah
+created: 2026-07-30 22:08
+---
+Bound owner authorization to the authenticated server principal. Middleware exposes AuthenticatedPrincipal via private ASGI scope; new validated actor_mapping module (fail-closed strict mode, ambiguous-mapping rejection); _resolve_authorization_actor returns 403 actor_mismatch on client/principal conflict with no tracker mutation. Wired into intake actions, PATCH issue, add/remove label, terminal transitions, task handoff, and detail cache. CLI (--actor) deprecated: silent-drop-on-match, exit-2-on-conflict short-circuit. Docs added at docs/authentication-identity-mapping.md with auth-flow Mermaid diagram and migration guide. Full regression coverage in tests/test_actor_mapping.py (19), tests/test_server_actor_binding.py (7, covers all 6 issue scenarios), tests/test_task_cli_actor.py (11); no regressions across 1891 tests on server/auth/actor/transition surface.
 ---
 <!-- COMMENTS:END -->
