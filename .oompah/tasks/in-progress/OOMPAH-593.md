@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:54.281403Z'
-updated_at: '2026-07-30T15:31:12.025142Z'
+updated_at: '2026-07-30T15:31:19.258007Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-593
 target_branch: null
 review_url: null
@@ -238,5 +238,10 @@ author: oompah
 created: 2026-07-30 15:31
 ---
 Implementation (docs-only): Added docs/scoped-task-cli-authentication.md — an operator-facing reference for the shipped scoped task capability mechanism (env vars, endpoint, action allowlist, fail-closed matrix), plus a step-by-step live least-privilege probe procedure that captures only safe evidence (public identifiers, expected status codes) and never the opaque token or any operator credentials. Added an entry to docs/README.md and a cross-link from docs/authentication.md. All identifier and env var names verified against oompah/task_handoff.py, oompah/task_cli.py, oompah/server.py (POST /api/v1/task-handoff), oompah/orchestrator.py::_issue_task_handoff_token, and oompah/acp_backends/codex.py + opencode.py. No code behavior changes.
+---
+author: oompah
+created: 2026-07-30 15:31
+---
+Verification: uv run pytest tests/test_task_handoff.py → 16 passed, 1 warning (the deprecation warning is unrelated to this doc). tests/test_acp_codex_backend.py has 0 handoff-named tests on the current head — expected; those land with OOMPAH-575. Doc claims cross-checked against source: TASK_HANDOFF_HEADER='x-oompah-task-capability', TASK_HANDOFF_TOKEN_ENV='OOMPAH_TASK_HANDOFF_TOKEN', TASK_HANDOFF_PROJECT_ENV='OOMPAH_TASK_HANDOFF_PROJECT_ID', endpoint path '/api/v1/task-handoff', allowed actions {view, comment, set-status, submit, add-label, remove-label, coordination-peers, coordination-inbox, coordination-send, coordination-checkpoint} — all consistent between orchestrator grant, endpoint allowlist, and CLI dispatch.
 ---
 <!-- COMMENTS:END -->
