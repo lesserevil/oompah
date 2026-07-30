@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-580
 type: task
-status: In Progress
+status: Open
 priority: 0
 title: Rebase epic-OOMPAH-460 onto main
 parent: OOMPAH-460
@@ -12,7 +12,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-30T04:15:45.628870Z'
-updated_at: '2026-07-30T04:18:40.935292Z'
+updated_at: '2026-07-30T04:18:53.581331Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-580
 target_branch: null
 review_url: null
@@ -28,6 +28,32 @@ oompah.integration:
   base_branch: epic-OOMPAH-460
   base_sha: b0ceda2643cbc37c166ac58bed9a9b6f3898b681
   updated_at: '2026-07-30T04:15:55.689753+00:00'
+oompah.task_costs:
+  total_input_tokens: 15
+  total_output_tokens: 7492
+  total_cost_usd: 0.0
+  by_model:
+    sonnet:
+      input_tokens: 15
+      output_tokens: 7492
+      cost_usd: 0.0
+  runs:
+  - profile: standard
+    model: sonnet
+    input_tokens: 15
+    output_tokens: 7492
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T04:18:49.314077+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-580__20260730T041600Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: sonnet
+    focus: duplicate_detector
+    source_branch: epic-OOMPAH-460--task-OOMPAH-580
+    source_sha: b0ceda2643cbc37c166ac58bed9a9b6f3898b681
+    completed_at: '2026-07-30T04:18:49.318259+00:00'
 ---
 ## Summary
 
@@ -77,5 +103,25 @@ Focus handoff: duplicate_detector
 **Remaining work:** Perform the actual git rebase of epic-OOMPAH-460 onto origin/main, resolve any conflicts, and force-push with --force-with-lease.
 
 **Recommended next focus:** devops — git rebase operation
+---
+author: oompah
+created: 2026-07-30 04:18
+---
+Agent completed successfully in 176s (7507 tokens)
+---
+author: oompah
+created: 2026-07-30 04:18
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 35, Tool calls: 21
+- Tokens: 15 in / 7.5K out [7.5K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 56s
+- Log: OOMPAH-580__20260730T041600Z.jsonl
+---
+author: oompah
+created: 2026-07-30 04:18
+---
+Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
 ---
 <!-- COMMENTS:END -->
