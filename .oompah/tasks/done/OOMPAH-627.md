@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-627
 type: bug
-status: In Validation
+status: Done
 priority: 1
 title: Preserve integrated evidence when creating auditor worktrees
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T22:09:32.117751Z'
-updated_at: '2026-07-30T23:04:53.322402Z'
+updated_at: '2026-07-30T23:07:53.681084Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-627
 target_branch: null
 review_url: null
@@ -32,6 +32,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-26df5a1390dc: '2026-07-30T22:29:35.606594+00:00'
+    attempt-54ab762046bd: '2026-07-30T23:07:51.453451+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -73,7 +74,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-627
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -82,7 +83,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-54ab762046bd
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -92,13 +93,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-30T23:04:48.270691+00:00'
       branch_key: epic-OOMPAH-585--task-OOMPAH-627
+      verdict: pass
+      completed_at: '2026-07-30T23:07:51.453303+00:00'
+      ended_at: '2026-07-30T23:07:51.453303+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-30T23:04:36.015893+00:00'
-    updated_at: '2026-07-30T23:04:48.270691+00:00'
+    updated_at: '2026-07-30T23:07:51.453303+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-26df5a1390dc
@@ -236,5 +240,22 @@ author: oompah
 created: 2026-07-30 23:04
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 23:07
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: d8d265b9a1957560206eec2b4da5d833942c82ea
+- fix_commit: 2a8fc4a4b3a101c15e2fea0608480f783f9f3e28
+- files_changed: oompah/orchestrator.py, tests/test_acp_agent.py, tests/test_parallel_epic_children.py
+- focused_parallel_epic_children: 22 passed
+- focused_acp_agent: 49 passed
+- adjacent_orchestrator_handlers_auditor_dispatch_contract: 302 passed
+- boundary_call_sites: oompah/orchestrator.py:20778 and 21298 pass persist_dispatch_metadata=not forced_auditor
+- guard_line: oompah/orchestrator.py:8245 wraps set_metadata_field with if persist_dispatch_metadata
 ---
 <!-- COMMENTS:END -->
