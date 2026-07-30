@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T20:47:41.612111Z'
-updated_at: '2026-07-30T21:27:33.082446Z'
+updated_at: '2026-07-30T21:27:55.764725Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-616
 target_branch: null
 review_url: null
@@ -39,8 +39,8 @@ oompah.integration:
   attempts: 0
   task_branch: epic-OOMPAH-585--task-OOMPAH-616
   base_branch: epic-OOMPAH-585
-  base_sha: 45838987c7435c344c39cf77d0dd3ed1c135834c
-  updated_at: '2026-07-30T21:16:13.563032+00:00'
+  base_sha: 58915e5f0b116cf4269f6bb882dd81aa4010ec03
+  updated_at: '2026-07-30T21:27:53.961828+00:00'
 oompah.task_costs:
   total_input_tokens: 688700
   total_output_tokens: 11192
@@ -82,7 +82,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-616
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -121,13 +121,27 @@ oompah.terminal_audit:
       ended_at: '2026-07-30T21:27:26.974713+00:00'
       failure_reason: normal
       next_retry_at: '2026-07-30T21:27:46.974683+00:00'
+    - version: 1
+      attempt_id: attempt-9c05f83f34c2
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 0964ac8afc3b37e150cae341bca6d514ab7a10549b3e048759c6627ce31a2224
+      created_at: '2026-07-30T21:27:47.752286+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-07-30T21:27:47.752286+00:00'
+      branch_key: epic-OOMPAH-585--task-OOMPAH-616
+      candidate_rotation_count: 2
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-30T20:54:24.446967+00:00'
-    updated_at: '2026-07-30T21:27:26.974713+00:00'
+    updated_at: '2026-07-30T21:27:47.752286+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-e22d7c6e350a
@@ -162,6 +176,20 @@ oompah.terminal_audit:
     ended_at: '2026-07-30T21:27:26.974713+00:00'
     failure_reason: normal
     next_retry_at: '2026-07-30T21:27:46.974683+00:00'
+  - version: 1
+    attempt_id: attempt-9c05f83f34c2
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0964ac8afc3b37e150cae341bca6d514ab7a10549b3e048759c6627ce31a2224
+    created_at: '2026-07-30T21:27:47.752286+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-07-30T21:27:47.752286+00:00'
+    branch_key: epic-OOMPAH-585--task-OOMPAH-616
+    candidate_rotation_count: 2
 ---
 ## Summary
 
@@ -275,5 +303,15 @@ author: oompah
 created: 2026-07-30 21:27
 ---
 Auditor attempt ended: auditor exited (normal) without a result. A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-07-30 21:27
+---
+Auditor dispatched (attempt #3, candidate: prov-651d553c/sonnet)
+---
+author: oompah
+created: 2026-07-30 21:27
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
