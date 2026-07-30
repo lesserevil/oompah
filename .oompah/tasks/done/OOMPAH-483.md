@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-483
 type: feature
-status: In Validation
+status: Done
 priority: 1
 title: Detect and block terminal-state writes that bypass the coordinator
 parent: OOMPAH-459
@@ -19,7 +19,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:31.119782Z'
-updated_at: '2026-07-30T03:21:36.203599Z'
+updated_at: '2026-07-30T03:31:11.820855Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-483
 target_branch: null
 review_url: null
@@ -120,6 +120,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-6ce2bc425063: '2026-07-30T02:31:09.238453+00:00'
+    attempt-571a73f432bd: '2026-07-30T03:31:09.572255+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -162,7 +163,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-483
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -171,7 +172,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-571a73f432bd
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -181,13 +182,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-30T03:21:28.925747+00:00'
       branch_key: epic-OOMPAH-459--task-OOMPAH-483
+      verdict: pass
+      completed_at: '2026-07-30T03:31:09.572002+00:00'
+      ended_at: '2026-07-30T03:31:09.572002+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-30T03:21:21.096407+00:00'
-    updated_at: '2026-07-30T03:21:28.925747+00:00'
+    updated_at: '2026-07-30T03:31:09.572002+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-6ce2bc425063
@@ -703,5 +707,29 @@ author: oompah
 created: 2026-07-30 03:21
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 03:31
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- head_sha: 11ea824f7e61f78d1de758ca9062df842c0ce397
+- branch_matches_origin: true
+- scanner_module: oompah/terminal_mutation_scanner.py
+- scanner_cli: scripts/find_terminal_mutations.py
+- scanner_test_file: tests/test_terminal_audit_scanner.py
+- enforcement_module: oompah/terminal_audit_enforcement.py
+- enforcement_test_file: tests/test_terminal_audit_enforcement.py
+- makefile_gate: test: test-setup terminal-audit-scan (Makefile line ~225 with terminal-audit-scan recipe running scripts/find_terminal_mutations.py oompah)
+- allowlist_entries: 8 (2 coordinator + 4 orchestrator + 1 error_watcher + 1 oompah_md_tracker)
+- allowlist_comment_tag: TERMINAL-AUDIT-ALLOW OOMPAH-483
+- focused_terminal_tests: 209 passed (scanner, enforcement, audit core, metadata, coordinator, override, status interfaces)
+- auditor_api_related_tests: 277 passed including tests/test_auditor_result_api.py
+- previous_gate_failures_now_pass: test_event_driven_loop::TestFullSyncIntervalConfig 4/4, test_managed_tracker_state_branch_guard::test_server_error_watcher_and_scheduler_write_only_to_state_branch, test_task_cost_telemetry::TestTerminateRunningWritesCostRecord::test_terminate_does_not_wait_forever_for_cancelled_worker
+- docs_present: plans/terminal-audit-enforcement.md, docs/terminal-audit-enforcement-operations.md, docs/terminal-state-coordinator-allowlist.md
+- periodic_reconciliation_call_sites: oompah/orchestrator.py:3582 (startup) and 3843 (full-sync tick)
 ---
 <!-- COMMENTS:END -->
