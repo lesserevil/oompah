@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:23.210919Z'
-updated_at: '2026-07-30T05:14:44.595912Z'
+updated_at: '2026-07-30T05:15:07.811332Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-484
 target_branch: null
 review_url: null
@@ -46,13 +46,13 @@ oompah.duplicate_screening:
 oompah.agent_run_id: 74115672-0190-4f6d-b24e-4b04727f9b6c
 oompah.work_branch: epic-OOMPAH-460--task-OOMPAH-484
 oompah.task_costs:
-  total_input_tokens: 667946
-  total_output_tokens: 12015
+  total_input_tokens: 667956
+  total_output_tokens: 12741
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 391727
-      output_tokens: 1848
+      input_tokens: 391737
+      output_tokens: 2574
       cost_usd: 0.0
     sonnet:
       input_tokens: 217112
@@ -87,14 +87,22 @@ oompah.task_costs:
     output_tokens: 560
     cost_usd: 0.0
     recorded_at: '2026-07-30T05:12:52.046637+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 10
+    output_tokens: 726
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T05:15:04.399380+00:00'
 oompah.integration:
   version: 1
   state: ready
   attempts: 0
   task_branch: epic-OOMPAH-460--task-OOMPAH-484
+  base_branch: main
+  base_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
   head_sha: 28208fdb229f7ec8c9b12c81eebc3dd693185521
   submitted_at: '2026-07-30T05:14:42.629031+00:00'
-  updated_at: '2026-07-30T05:14:42.629031+00:00'
+  updated_at: '2026-07-30T05:15:05.768423+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-484__20260730T045702Z
@@ -113,6 +121,14 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-460--task-OOMPAH-484
     source_sha: 28208fdb229f7ec8c9b12c81eebc3dd693185521
     completed_at: '2026-07-30T05:12:52.050176+00:00'
+  - run_id: OOMPAH-484__20260730T051306Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: frontend
+    source_branch: epic-OOMPAH-460--task-OOMPAH-484
+    source_sha: 28208fdb229f7ec8c9b12c81eebc3dd693185521
+    completed_at: '2026-07-30T05:15:04.402839+00:00'
 ---
 ## Summary
 
@@ -355,5 +371,20 @@ author: oompah
 created: 2026-07-30 05:14
 ---
 OOMPAH-484: Expose safe terminal-audit state in project, task, and activity APIs. Implemented _issue_terminal_audit_summary() and _terminal_audit_phase() in server.py exposing safe audit state (phase, attempt_count, verdict, override status, etc.) across list, detail, and activity endpoints. Added renderTerminalAuditSummary() and renderTerminalAuditDetail() to dashboard.html with per-phase CSS styling. Created 38 comprehensive tests verifying all audit phases, redaction contract, API field agreement, and accessibility. All 231+ adjacent tests pass with no regressions. Acceptance criteria met: UI and operators can understand audit state from stable safe APIs without parsing tracker metadata, and no sensitive content is exposed.
+---
+author: oompah
+created: 2026-07-30 05:15
+---
+Agent completed successfully in 125s (736 tokens)
+---
+author: oompah
+created: 2026-07-30 05:15
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 50, Tool calls: 19
+- Tokens: 10 in / 726 out [736 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 5s
+- Log: OOMPAH-484__20260730T051306Z.jsonl
 ---
 <!-- COMMENTS:END -->
