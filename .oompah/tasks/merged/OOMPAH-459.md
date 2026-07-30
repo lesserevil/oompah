@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-459
 type: epic
-status: In Review
+status: Merged
 priority: 1
 title: Route all terminal-state producers through independent auditing
 parent: null
@@ -28,7 +28,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-28T13:03:46.877390Z'
-updated_at: '2026-07-30T04:08:20.044365Z'
+updated_at: '2026-07-30T04:14:54.675640Z'
 work_branch: epic-OOMPAH-459
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/590
