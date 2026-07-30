@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:53:05.632137Z'
-updated_at: '2026-07-30T19:32:34.257473Z'
+updated_at: '2026-07-30T19:33:33.340035Z'
 work_branch: OOMPAH-610
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/594
@@ -44,8 +44,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 3514c39c-c179-4c65-a97c-34fc1997be79
 oompah.task_costs:
-  total_input_tokens: 2400981
-  total_output_tokens: 11854
+  total_input_tokens: 2401064
+  total_output_tokens: 32789
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -55,6 +55,10 @@ oompah.task_costs:
     opus:
       input_tokens: 64
       output_tokens: 1645
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 83
+      output_tokens: 20935
       cost_usd: 0.0
   runs:
   - profile: default
@@ -75,6 +79,12 @@ oompah.task_costs:
     output_tokens: 1645
     cost_usd: 0.0
     recorded_at: '2026-07-30T19:08:23.056668+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 83
+    output_tokens: 20935
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T19:33:31.731439+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-610__20260730T185400Z
@@ -316,5 +326,15 @@ author: oompah
 created: 2026-07-30 19:32
 ---
 Operator handoff: your first PASS was durably accepted. Audit audit-490436c776e7 is completed, attempt attempt-9ad0fa99a03f is recorded, and the next Merged audit is pending. The tool's rejection text came from a 60-second ACP handler timeout after the successful write. Do not retry this completed Done audit; end this auditor session now so the graceful restart can deploy the fix.
+---
+author: oompah
+created: 2026-07-30 19:33
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 103, Tool calls: 77
+- Tokens: 83 in / 20.9K out [21.0K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 17m 49s
+- Log: OOMPAH-610__20260730T191549Z.jsonl
 ---
 <!-- COMMENTS:END -->
