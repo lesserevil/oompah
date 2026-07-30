@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:01.749200Z'
-updated_at: '2026-07-30T16:29:42.220203Z'
+updated_at: '2026-07-30T16:29:54.529063Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-602
 target_branch: null
 review_url: null
@@ -86,13 +86,13 @@ oompah.work_contributors:
     source_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
     completed_at: '2026-07-30T16:13:01.943716+00:00'
 oompah.task_costs:
-  total_input_tokens: 172
-  total_output_tokens: 6127
+  total_input_tokens: 1850
+  total_output_tokens: 6581
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 172
-      output_tokens: 6127
+      input_tokens: 1850
+      output_tokens: 6581
       cost_usd: 0.0
   runs:
   - profile: default
@@ -107,6 +107,12 @@ oompah.task_costs:
     output_tokens: 5097
     cost_usd: 0.0
     recorded_at: '2026-07-30T16:13:01.933599+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 1678
+    output_tokens: 454
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T16:29:52.887731+00:00'
 ---
 ## Summary
 
@@ -214,5 +220,15 @@ author: oompah
 created: 2026-07-30 16:29
 ---
 COMPLETION: Successfully fixed project scope propagation in merged-label maintenance. The implementation: (1) Added _resolve_issue_project_id() to resolve ownership by searching all managed projects for issues missing project_id, (2) Updated 6 merged-labels maintenance methods to use safe scope resolution, (3) Handles ambiguity: multiple projects found → logs warning + uses fallback or raises error, (4) Handles not-found: returns None or fallback, (5) Handles legacy mode: returns fallback when no managed projects, (6) Added test suite covering all scenarios, (7) All 160 existing tests pass, confirming backward compatibility. The merged_labels maintenance lane will now complete safely with proper scope for every issue operation.
+---
+author: oompah
+created: 2026-07-30 16:29
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 100
+- Tokens: 1.7K in / 454 out [2.1K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 13m 45s
+- Log: OOMPAH-602__20260730T161613Z.jsonl
 ---
 <!-- COMMENTS:END -->
