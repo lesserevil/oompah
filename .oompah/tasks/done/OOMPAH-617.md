@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-617
 type: bug
-status: In Validation
+status: Done
 priority: 1
 title: Integrate wrong-checkout submission protection
 parent: OOMPAH-587
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T20:52:01.122820Z'
-updated_at: '2026-07-30T21:15:08.504507Z'
+updated_at: '2026-07-30T21:15:53.895149Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-617
 target_branch: null
 review_url: null
@@ -27,6 +27,8 @@ oompah.integration:
   updated_at: '2026-07-30T21:08:18.043310+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-8a965b580c4e: '2026-07-30T21:15:51.532400+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -34,7 +36,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-617
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -43,7 +45,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-8a965b580c4e
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -53,13 +55,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-30T21:08:10.734806+00:00'
       branch_key: OOMPAH-617
+      verdict: pass
+      completed_at: '2026-07-30T21:15:51.532259+00:00'
+      ended_at: '2026-07-30T21:15:51.532259+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-30T21:08:02.464799+00:00'
-    updated_at: '2026-07-30T21:08:10.734806+00:00'
+    updated_at: '2026-07-30T21:15:51.532259+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-8a965b580c4e
@@ -122,5 +127,19 @@ author: oompah
 created: 2026-07-30 21:15
 ---
 Operator note for the active completion auditor: the exact combined-tree integration gate already passed before a678afc20 was pushed onto origin/epic-OOMPAH-587 and the queue was marked integrated at 21:08:01. The focused branch verification was 125 passed. Do not invoke make test-serial: the currently deployed run_command wrapper blocks the scheduler until OOMPAH-618 lands. Inspect the committed diff/evidence and submit the audit result.
+---
+author: oompah
+created: 2026-07-30 21:15
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: a678afc20f9c2c97e9dd5bb54c09c2c10903d84c
+- branch_name: epic-OOMPAH-587--task-OOMPAH-617
+- focused_tests: 125 passed in 4.56s across test_projects.py, test_integration_executor.py, test_integration_record.py, test_task_handoff.py, test_worker_submission.py
+- source_commit: 6f5a859b2 (origin/OOMPAH-576) — transplanted content matches on OOMPAH-576 files
+- git_status: up to date with origin/epic-OOMPAH-587; working tree clean
 ---
 <!-- COMMENTS:END -->
