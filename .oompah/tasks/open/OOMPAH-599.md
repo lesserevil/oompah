@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:31.072278Z'
-updated_at: '2026-07-30T15:50:21.557500Z'
+updated_at: '2026-07-30T18:25:31.106034Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-599
 target_branch: null
 review_url: null
@@ -121,5 +121,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 3m 32s
 - Log: OOMPAH-599__20260730T154832Z.jsonl
+---
+author: oompah
+created: 2026-07-30 18:25
+---
+Owner liveness invariant (2026-07-30): a stable scheduler state with nonterminal runnable or review-ready work but no legal transition is a product bug. The invariant checker must distinguish healthy bounded waiting from deadlock, identify the blocking wait-graph edge, attempt a safe bounded recovery, and otherwise emit an actionable durable alert plus a deduplicated bug/recovery task. Zero active workers is healthy only when there is no eligible work or every wait has an explicit external/human reason. OOMPAH-605 documents and exercises the standalone bootstrap path for self-hosting control-plane deadlocks; OOMPAH-607 covers the project-alias override regression found during recovery.
 ---
 <!-- COMMENTS:END -->
