@@ -2796,6 +2796,65 @@ class Orchestrator:
             )
         return self.tracker
 
+    def _resolve_issue_project_id(self, issue: Issue, fallback_project_id: str | None = None) -> str | None:
+        """Resolve an issue's owning project when project_id is missing.
+
+        When an issue lacks project_id, searches all managed projects for canonical
+        ownership. If found in exactly one project, returns that project_id. If found
+        in multiple projects or not found, returns the fallback_project_id (if any).
+        Raises an error if a conflict is detected and no fallback is provided.
+
+        Args:
+            issue: The issue to resolve project for.
+            fallback_project_id: Project to use if resolution is ambiguous or not found.
+
+        Returns:
+            Resolved project_id, or None if not found and no fallback provided.
+
+        Raises:
+            ProjectError: If ownership is ambiguous and no fallback is provided.
+        """
+        if issue.project_id:
+            return issue.project_id
+
+        projects = self.project_store.list_all()
+        if not projects:
+            # Legacy mode — no managed projects
+            return fallback_project_id
+
+        # Search all projects to find where this issue belongs
+        found_projects = []
+        for project in projects:
+            try:
+                tracker = self._tracker_for_project(project.id)
+                fetched_issue = tracker.fetch_issue_detail(issue.identifier)
+                if fetched_issue is not None:
+                    found_projects.append(project.id)
+            except Exception:
+                pass
+
+        if len(found_projects) == 1:
+            # Canonical ownership found
+            return found_projects[0]
+        elif len(found_projects) > 1:
+            # Ambiguous ownership
+            if fallback_project_id:
+                logger.warning(
+                    "Issue %r found in multiple projects %r; using fallback %r",
+                    issue.identifier,
+                    found_projects,
+                    fallback_project_id,
+                )
+                return fallback_project_id
+            raise ProjectError(
+                f"Ambiguous ownership: issue {issue.identifier!r} found in "
+                f"projects {found_projects!r}; refusing to mutate without "
+                f"explicit scope"
+            )
+        else:
+            # Not found in any project
+            return fallback_project_id
+
     def _invalidate_tracker_read_caches(self) -> None:
         """Clear the per-tick task-record cache on every tracker.
 
@@ -13355,7 +13414,28 @@ class Orchestrator:
                 if self._project_review_capacity(project_id)[2]:
                     break
                 if not issue.project_id:
-                    issue.project_id = project_id
+                    # Resolve project_id from canonical ownership; fallback to current project
+                    try:
+                        resolved_id = self._resolve_issue_project_id(issue, fallback_project_id=project_id)
+                        if resolved_id:
+                            issue.project_id = resolved_id
+                        else:
+                            logger.warning(
+                                "Issue %s in project %s lacks project_id and could not be resolved",
+                                issue.identifier,
+                                project_id,
+                            )
+                            # Skip processing this issue if we can't resolve its scope
+                            continue
+                    except ProjectError as exc:
+                        logger.error(
+                            "Scope conflict while processing done-review issue %s in project %s: %s",
+                            issue.identifier,
+                            project_id,
+                            exc,
+                        )
+                        # Skip processing this issue if there's a scope conflict
+                        continue
                 if canonicalize_status(issue.state) != DONE:
                     continue
                 if (issue.issue_type or "").strip().lower() == "epic":
@@ -13791,7 +13871,28 @@ class Orchestrator:
                 if self._job_deadline_exceeded("merged_labels"):
                     return
                 if not issue.project_id:
-                    issue.project_id = project_id
+                    # Resolve project_id from canonical ownership; fallback to current project
+                    try:
+                        resolved_id = self._resolve_issue_project_id(issue, fallback_project_id=project_id)
+                        if resolved_id:
+                            issue.project_id = resolved_id
+                        else:
+                            logger.warning(
+                                "Issue %s in project %s lacks project_id and could not be resolved",
+                                issue.identifier,
+                                project_id,
+                            )
+                            # Skip processing this issue if we can't resolve its scope
+                            continue
+                    except ProjectError as exc:
+                        logger.error(
+                            "Scope conflict while processing merged issue %s in project %s: %s",
+                            issue.identifier,
+                            project_id,
+                            exc,
+                        )
+                        # Skip processing this issue if there's a scope conflict
+                        continue
                 issue_status = canonicalize_status(issue.state)
                 labels = set(issue.labels or [])
                 if (
@@ -13903,7 +14004,28 @@ class Orchestrator:
                 if self._job_deadline_exceeded("merged_labels"):
                     return
                 if not issue.project_id:
-                    issue.project_id = project_id
+                    # Resolve project_id from canonical ownership; fallback to current project
+                    try:
+                        resolved_id = self._resolve_issue_project_id(issue, fallback_project_id=project_id)
+                        if resolved_id:
+                            issue.project_id = resolved_id
+                        else:
+                            logger.warning(
+                                "Issue %s in project %s lacks project_id and could not be resolved",
+                                issue.identifier,
+                                project_id,
+                            )
+                            # Skip processing this issue if we can't resolve its scope
+                            continue
+                    except ProjectError as exc:
+                        logger.error(
+                            "Scope conflict while processing stale-in-review issue %s in project %s: %s",
+                            issue.identifier,
+                            project_id,
+                            exc,
+                        )
+                        # Skip processing this issue if there's a scope conflict
+                        continue
                 if canonicalize_status(issue.state) != IN_REVIEW:
                     continue
 
@@ -14007,7 +14129,28 @@ class Orchestrator:
                 if self._job_deadline_exceeded("merged_labels"):
                     return
                 if not issue.project_id:
-                    issue.project_id = project_id
+                    # Resolve project_id from canonical ownership; fallback to current project
+                    try:
+                        resolved_id = self._resolve_issue_project_id(issue, fallback_project_id=project_id)
+                        if resolved_id:
+                            issue.project_id = resolved_id
+                        else:
+                            logger.warning(
+                                "Issue %s in project %s lacks project_id and could not be resolved",
+                                issue.identifier,
+                                project_id,
+                            )
+                            # Skip processing this issue if we can't resolve its scope
+                            continue
+                    except ProjectError as exc:
+                        logger.error(
+                            "Scope conflict while processing terminal-open-review issue %s in project %s: %s",
+                            issue.identifier,
+                            project_id,
+                            exc,
+                        )
+                        # Skip processing this issue if there's a scope conflict
+                        continue
                 if canonicalize_status(issue.state) != MERGED:
                     continue
 
@@ -15456,7 +15599,22 @@ class Orchestrator:
                 if (issue.parent_id or "").strip()
             }
             for issue in issues:
-                if pid:
+                if pid and not issue.project_id:
+                    # Resolve project_id from canonical ownership; fallback to current project
+                    try:
+                        resolved_id = self._resolve_issue_project_id(issue, fallback_project_id=pid)
+                        if resolved_id:
+                            issue.project_id = resolved_id
+                    except ProjectError as exc:
+                        logger.warning(
+                            "Scope conflict for merged epic %s in project %s: %s",
+                            issue.identifier,
+                            pid,
+                            exc,
+                        )
+                        # Still use fallback for merged epic processing
+                        issue.project_id = pid
+                elif pid:
                     issue.project_id = pid
                 if canonicalize_status(issue.state) != MERGED:
                     continue
