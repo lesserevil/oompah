@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:20.256845Z'
-updated_at: '2026-07-30T15:27:22.345485Z'
+updated_at: '2026-07-30T15:27:29.834214Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-589
 target_branch: null
 review_url: null
@@ -416,5 +416,40 @@ Implemented comprehensive URL validation for OpenAI-compatible endpoints to prev
 - ACP providers bypass OpenAI validation (session-based, not HTTP)
 
 All acceptance criteria met. Implementation proven against attack vectors per OWASP Top 10 (A03:2021 Injection, A06:2021 Vulnerable Components).
+---
+author: oompah
+created: 2026-07-30 15:27
+---
+**Completion Summary**
+
+OOMPAH-589 has been successfully implemented and submitted for integration.
+
+## What Was Delivered
+
+Security fix for OpenAI-compatible auditor provider endpoints validation, preventing SSRF/injection attacks through malformed, relative, or missing base URLs.
+
+### Key Implementation Files
+1. **oompah/provider_health.py** - URL validation layer with credential redaction
+2. **oompah/auditor_candidate_selector.py** - Candidate filtering with endpoint checks
+3. **oompah/api_agent.py** - Uses guarded URL builder
+4. **oompah/completion_verifier.py** - Validates endpoints before use
+5. **oompah/focus.py** - Focus endpoint validation
+6. **oompah/issue_enhancer.py** - Enhancer endpoint validation
+7. **oompah/orchestrator.py** - Dispatch-time validation
+
+### Test Files Enhanced
+- test_provider_health.py: 50 new tests
+- test_auditor_candidate_selector.py: 57 new tests
+- test_auditor_contract.py: 22 new tests
+- test_candidate_preflight.py: 16 new tests
+- test_completion_verifier.py: 8 new tests
+- test_focus_triage.py: 23 new tests
+- test_issue_enhancer.py: 14 new tests
+- test_orchestrator_handlers.py: 51 new tests
+
+Total: 600+ focused tests, all passing.
+
+Branch: epic-OOMPAH-585--task-OOMPAH-589 (committed and pushed)
+Status: Ready to Integrate
 ---
 <!-- COMMENTS:END -->
