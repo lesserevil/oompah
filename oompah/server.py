@@ -3491,6 +3491,22 @@ async def api_task_handoff(request: Request):
             {"error": {"code": "validation", "message": "project_id and identifier are required"}},
             status_code=400,
         )
+
+    # Canonicalize project aliases before validation and tracker resolution.
+    # This ensures that handoff tokens created with canonical project IDs work
+    # correctly when callers use project name aliases.
+    orch = _get_orchestrator()
+    try:
+        canonical_project_id = _canonical_managed_project_id(orch, project_id)
+    except ProjectError:
+        # Unknown project: use fail-closed behavior
+        record_task_handoff_failure(token, "task handoff project resolution failed")
+        return JSONResponse(
+            {"error": {"code": "validation", "message": "project_id and identifier are required"}},
+            status_code=400,
+        )
+    project_id = canonical_project_id
+
     allowed, reason = validate_task_handoff_token(
         token,
         project_id=project_id,
@@ -3514,7 +3530,6 @@ async def api_task_handoff(request: Request):
     record_worker_token_accepted()
 
     try:
-        orch = _get_orchestrator()
         tracker = _get_tracker(orch, project_id)
         issue = await _run_api_io(tracker.fetch_issue_detail, identifier)
         if issue is None:

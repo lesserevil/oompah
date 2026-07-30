@@ -1083,3 +1083,84 @@ def test_task_handoff_terminal_label_rejects_override_fields(client):
     assert "override" in response.json()["error"]["message"].lower()
     assert coordinator.overrides == []
     assert tracker.status_updates == []
+
+
+def test_task_handoff_set_status_with_project_alias_succeeds_for_authorized_owner(client):
+    """Project aliases must be canonicalized for task handoff terminal authorization."""
+    from oompah.task_handoff import issue_task_handoff_token
+
+    issue = Issue("task-alias-override", "task-alias-override", "Task", state="Open")
+    orch, tracker, coordinator = _orchestrator(issue)
+    # Handoff token created with canonical project ID
+    token = issue_task_handoff_token(
+        project_id="proj-1",
+        task_identifier="task-alias-override",
+        allowed_actions={"set-status"},
+    )
+    with (
+        patch.object(server_module, "_get_orchestrator", return_value=orch),
+        patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+    ):
+        # Request uses project name alias "Project" instead of canonical "proj-1"
+        response = client.post(
+            "/api/v1/task-handoff",
+            headers={"x-oompah-task-capability": token},
+            json={
+                "action": "set-status",
+                "project_id": "Project",  # Using project name alias
+                "identifier": "task-alias-override",
+                "status": "Done",
+                "audit_override": True,
+                "override_reason": "Emergency release approval",
+                "actor_login": "owner",
+            },
+        )
+
+    # Should succeed because the alias is canonicalized before validation
+    assert response.status_code == 200
+    assert response.json()["ok"] is True
+    assert response.json()["status"] == "Done"  # applied_status
+    assert response.json()["audit_override"] is True
+    assert response.json()["audit_id"] == "audit-override-1"
+    assert len(coordinator.overrides) == 1
+    # Verify coordinator received canonical project ID
+    assert coordinator.overrides[0]["project_id"] == "proj-1"
+    assert tracker.status_updates == []
+
+
+def test_task_handoff_set_status_with_unknown_project_alias_fails_closed(client):
+    """Unknown project aliases must not reach terminal authorization."""
+    from oompah.task_handoff import issue_task_handoff_token
+
+    issue = Issue("task-unknown-alias", "task-unknown-alias", "Task", state="Open")
+    orch, tracker, coordinator = _orchestrator(issue)
+    # Handoff token created with canonical project ID
+    token = issue_task_handoff_token(
+        project_id="proj-1",
+        task_identifier="task-unknown-alias",
+        allowed_actions={"set-status"},
+    )
+    with (
+        patch.object(server_module, "_get_orchestrator", return_value=orch),
+        patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+    ):
+        # Request uses unknown project alias
+        response = client.post(
+            "/api/v1/task-handoff",
+            headers={"x-oompah-task-capability": token},
+            json={
+                "action": "set-status",
+                "project_id": "unknown-project",
+                "identifier": "task-unknown-alias",
+                "status": "Done",
+                "audit_override": True,
+                "override_reason": "Emergency release approval",
+                "actor_login": "owner",
+            },
+        )
+
+    # Should fail with 400 because project alias cannot be resolved
+    assert response.status_code == 400
+    assert "project_id" in response.json()["error"]["message"].lower()
+    assert coordinator.overrides == []
+    assert tracker.status_updates == []
