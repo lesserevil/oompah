@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-608
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Let auditors submit redacted verdicts for credential-safety tasks
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:28:42.855708Z'
-updated_at: '2026-07-30T18:33:14.522914Z'
+updated_at: '2026-07-30T18:34:20.313578Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -21,17 +21,54 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: ef12ac2904da500cd91278580a257ce30ddc47870aa7b46535ed56f7ecbd6334
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-07-30T18:34:08.944612+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 3e21d1c9-33f3-4fe7-8228-2bfbf4c78a4e
-  claim_owner: ac40770c-37a8-4b2c-b040-7a7ae948f467
-  claimed_at: '2026-07-30T18:33:02.591697+00:00'
-  claim_expires_at: '2026-07-30T19:03:02.591697+00:00'
+  evidence: 'Focus handoff: duplicate_detector
+
+
+    Duplicate preflight verdict: no_duplicate
+
+
+    Matches: none
+
+
+    Evidence: Searched `.oompah/tasks`, docs, and plans. Active OOMPAH-281 is unrelated;
+    archived OOMPAH-6 and OOMPAH-36 concern different credential/documentation issues
+    and are terminal. No active task covers auditor verdict redaction or `submit_audit_result`.'
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 3e8c12b5-d36a-4b8a-b493-1c4f9ef29a4d
+oompah.agent_run_id: c9137319-e474-4adb-b050-5bf7f3fbf150
+oompah.task_costs:
+  total_input_tokens: 368201
+  total_output_tokens: 2330
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 368201
+      output_tokens: 2330
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 368201
+    output_tokens: 2330
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T18:34:08.944034+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-608__20260730T183314Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: OOMPAH-608
+    source_sha: b4fa5db81322ae24b90a5c80689d94d1a49a1f30
+    completed_at: '2026-07-30T18:34:08.951247+00:00'
 ---
 ## Summary
 
@@ -71,5 +108,25 @@ author: oompah
 created: 2026-07-30 18:33
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-30 18:34
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 5
+- Tokens: 368.2K in / 2.3K out [370.5K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 57s
+- Log: OOMPAH-608__20260730T183314Z.jsonl
+---
+author: oompah
+created: 2026-07-30 18:34
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-30 18:34
+---
+Focus: Security Auditor
 ---
 <!-- COMMENTS:END -->
