@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-625
 type: bug
-status: Backlog
+status: In Progress
 priority: 1
 title: Release terminal-auditor branch claims on forced termination
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T21:58:34.567478Z'
-updated_at: '2026-07-30T21:58:34.567478Z'
+updated_at: '2026-07-30T21:58:58.019531Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -28,3 +28,11 @@ Implementation scope: update the orchestrator forced/manual worker termination p
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-30 21:58
+---
+Confirmed reproducer: Orchestrator._terminate_running removes the RunningEntry and ordinary claimed/claimed_issues ownership but does not remove the matching entry.branch_key from Orchestrator._audit_branch_claims. The leaked key epic-OOMPAH-585--task-OOMPAH-591 has blocked its fresh audit since the forced UI-transition termination. Preserve a newer owner by releasing only when the recorded attempt ID matches the terminating entry.
+---
+<!-- COMMENTS:END -->
