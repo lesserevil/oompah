@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-625
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Release terminal-auditor branch claims on forced termination
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T21:58:34.567478Z'
-updated_at: '2026-07-30T22:01:34.823310Z'
+updated_at: '2026-07-30T22:06:18.508507Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-625
 target_branch: null
 review_url: null
@@ -35,12 +35,15 @@ oompah.agent_run_id: f71d790f-a7a4-40ef-be07-6ffa6a636594
 oompah.work_branch: epic-OOMPAH-585--task-OOMPAH-625
 oompah.integration:
   version: 1
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-585--task-OOMPAH-625
+  base_branch: epic-OOMPAH-585
+  base_sha: ebb5b12d9bd9668458750ec38bee7d7216f186d7
   head_sha: 078bcd40c159a7906c30444ceae2e563b48e1ca3
+  integrated_sha: 078bcd40c159a7906c30444ceae2e563b48e1ca3
   submitted_at: '2026-07-30T22:01:25.519747+00:00'
-  updated_at: '2026-07-30T22:01:25.519747+00:00'
+  updated_at: '2026-07-30T22:06:14.666552+00:00'
 oompah.task_costs:
   total_input_tokens: 870000
   total_output_tokens: 4588
@@ -67,6 +70,28 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-585--task-OOMPAH-625
     source_sha: ebb5b12d9bd9668458750ec38bee7d7216f186d7
     completed_at: '2026-07-30T22:01:28.079969+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-1bceaba36854
+    project_id: proj-14849f1b
+    task_id: OOMPAH-625
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f11179dfe4c6c18227a18d75264163171378e638fd4f7ad0e9bd32fff809f99e
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-30T22:06:15.939614+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -114,5 +139,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 49s
 - Log: OOMPAH-625__20260730T215946Z.jsonl
+---
+author: oompah
+created: 2026-07-30 22:06
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
