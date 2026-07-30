@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:22.194798Z'
-updated_at: '2026-07-30T18:39:45.510270Z'
+updated_at: '2026-07-30T18:40:09.191570Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-590
 target_branch: null
 review_url: null
@@ -55,13 +55,17 @@ oompah.integration:
   base_sha: cc261493377c48796574c954e4ca89b65ff7afc1
   updated_at: '2026-07-30T18:35:27.444292+00:00'
 oompah.task_costs:
-  total_input_tokens: 3977496
-  total_output_tokens: 13826
+  total_input_tokens: 3977553
+  total_output_tokens: 15915
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 3977496
       output_tokens: 13826
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 57
+      output_tokens: 2089
       cost_usd: 0.0
   runs:
   - profile: default
@@ -76,6 +80,12 @@ oompah.task_costs:
     output_tokens: 217
     cost_usd: 0.0
     recorded_at: '2026-07-30T14:41:54.118219+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 57
+    output_tokens: 2089
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T18:40:07.658014+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-590__20260730T142055Z
@@ -356,5 +366,15 @@ Safe evidence:
 - recover_backoff_check: oompah/auditor_dispatch.py: recover() honors next_retry_at and active_attempt_ids for restart/dup coalescing
 - plan_exhaustion_reason: NoCandidateReason('all_attempted') returned once record.attempts >= max_attempts
 - focused_tests_pass: pytest tests/test_auditor_dispatch.py -> 13 passed; tests/test_terminal_audit.py + tests/test_terminal_transition_coordinator.py -> 131 passed; broader terminal/auditor set -> 336 passed
+---
+author: oompah
+created: 2026-07-30 18:40
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 38
+- Tokens: 57 in / 2.1K out [2.1K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 4m 46s
+- Log: OOMPAH-590__20260730T183530Z.jsonl
 ---
 <!-- COMMENTS:END -->
