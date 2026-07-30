@@ -1132,6 +1132,126 @@ class TestRemoveWorktreeCleanup:
             == ""
         )
 
+    def test_terminal_cleanup_deletes_legacy_epic_named_task_workspace(
+        self, tmp_path
+    ):
+        remote = tmp_path / "origin.git"
+        repo = tmp_path / "checkout"
+        subprocess.run(
+            ["git", "init", "--bare", str(remote)],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            ["git", "init", "-b", "main", str(repo)],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        for args in (
+            ["config", "user.name", "Oompah Test"],
+            ["config", "user.email", "oompah@example.test"],
+            ["remote", "add", "origin", str(remote)],
+        ):
+            subprocess.run(
+                ["git", *args],
+                cwd=repo,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        (repo / "README.md").write_text("test\n", encoding="utf-8")
+        subprocess.run(
+            ["git", "add", "README.md"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "initial"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            ["git", "push", "-u", "origin", "main"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        store = _store(tmp_path)
+        project = Project(
+            id="proj-legacy-clean",
+            name="legacy-clean",
+            repo_url=str(remote),
+            repo_path=str(repo),
+            branch="main",
+            default_branch="main",
+        )
+        store._projects[project.id] = project
+        legacy_branch = "epic-TASK-42"
+        legacy_worktree = store.epic_worktree_path_for(project.id, "TASK-42")
+        subprocess.run(
+            ["git", "branch", legacy_branch],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            ["git", "push", "-u", "origin", legacy_branch],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            ["git", "worktree", "add", legacy_worktree, legacy_branch],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        changed = store.cleanup_terminal_issue(
+            project.id,
+            "TASK-42",
+            branch_name=legacy_branch,
+            is_epic=False,
+        )
+
+        assert changed is True
+        assert not os.path.exists(legacy_worktree)
+        assert (
+            subprocess.run(
+                [
+                    "git",
+                    "show-ref",
+                    "--verify",
+                    "--quiet",
+                    f"refs/heads/{legacy_branch}",
+                ],
+                cwd=repo,
+                check=False,
+            ).returncode
+            == 1
+        )
+        assert (
+            subprocess.run(
+                ["git", "ls-remote", "--heads", "origin", legacy_branch],
+                cwd=repo,
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout
+            == ""
+        )
+
     def test_terminal_child_cleanup_preserves_shared_epic_branch(self, tmp_path):
         store, project = self._store_and_project(tmp_path)
         calls = []
@@ -1150,6 +1270,18 @@ class TestRemoveWorktreeCleanup:
         assert changed is False
         assert not any(call[:2] == ["git", "push"] for call in calls)
         assert not any(call[:3] == ["git", "branch", "-D"] for call in calls)
+        assert store._is_owned_issue_branch(
+            project,
+            "TASK-42",
+            "epic-TASK-42",
+            is_epic=False,
+        )
+        assert not store._is_owned_issue_branch(
+            project,
+            "TASK-42",
+            "epic-TASK-EPIC",
+            is_epic=False,
+        )
 
     def test_terminal_cleanup_requires_exact_github_issue_branch(self, tmp_path):
         store, project = self._store_and_project(tmp_path)

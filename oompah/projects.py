@@ -1856,6 +1856,11 @@ class ProjectStore:
             return branch_name == self.epic_branch_name(issue_identifier)
         if branch_name == identifier:
             return True
+        # Older Oompah releases allocated some non-epic task workspaces using
+        # the epic-named shape.  The exact same-identifier form remains
+        # unambiguous: a child can never claim its parent's ``epic-*`` branch.
+        if branch_name == self.epic_branch_name(issue_identifier):
+            return True
         if issue_number:
             expected_github_branch = github_work_branch_name(
                 project.name,
@@ -2645,9 +2650,13 @@ class ProjectStore:
                 if is_epic
                 else _sanitize_identifier(issue_identifier)
             )
+        legacy_epic_task = (
+            not is_epic
+            and candidate == self.epic_branch_name(issue_identifier)
+        )
 
         with self.project_write_lock(project_id):
-            if is_epic:
+            if is_epic or legacy_epic_task:
                 worktree_removed = self._remove_epic_worktree_locked(
                     project_id,
                     issue_identifier,
