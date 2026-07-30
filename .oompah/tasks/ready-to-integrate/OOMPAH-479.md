@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:27.240594Z'
-updated_at: '2026-07-30T01:55:33.443868Z'
+updated_at: '2026-07-30T01:55:45.286555Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-479
 target_branch: null
 review_url: null
@@ -40,8 +40,8 @@ oompah.duplicate_screening:
 oompah.agent_run_id: 95cc5a5d-fa80-410c-a5a6-158d6edd4153
 oompah.work_branch: epic-OOMPAH-459--task-OOMPAH-479
 oompah.task_costs:
-  total_input_tokens: 545959
-  total_output_tokens: 6814
+  total_input_tokens: 545978
+  total_output_tokens: 7097
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -51,6 +51,10 @@ oompah.task_costs:
     sonnet:
       input_tokens: 85750
       output_tokens: 3096
+      cost_usd: 0.0
+    opus:
+      input_tokens: 19
+      output_tokens: 283
       cost_usd: 0.0
   runs:
   - profile: default
@@ -77,6 +81,12 @@ oompah.task_costs:
     output_tokens: 879
     cost_usd: 0.0
     recorded_at: '2026-07-30T01:54:22.662956+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 19
+    output_tokens: 283
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T01:55:43.816519+00:00'
 oompah.integration:
   version: 1
   state: ready
@@ -356,5 +366,15 @@ author: oompah
 created: 2026-07-30 01:55
 ---
 Rearmed unchanged repaired head 9c38ddd1d after the sole unrelated gate failure proved non-reproducible: exact test 10/10 passes; full intake-promotion module 3/3 parallel passes. Prior conflict-resolution verification remains 887 passing tests.
+---
+author: oompah
+created: 2026-07-30 01:55
+---
+Run #2 [attempt=2, profile=deep, role=deep -> Claude/opus]
+- Turns: 0, Tool calls: 6
+- Tokens: 19 in / 283 out [302 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 56s
+- Log: OOMPAH-479__20260730T015459Z.jsonl
 ---
 <!-- COMMENTS:END -->
