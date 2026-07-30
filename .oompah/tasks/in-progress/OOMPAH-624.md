@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-624
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Bind owner authorization to the authenticated server principal
 parent: OOMPAH-619
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T21:37:57.526368Z'
-updated_at: '2026-07-30T21:38:51.744616Z'
+updated_at: '2026-07-30T21:39:43.705357Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-624
 target_branch: null
 review_url: null
@@ -21,17 +21,20 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 008d12b488f0809330dcf4f75bc405d6d55a0607d8cbfcb384809cc5882d63f0
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-07-30T21:39:26.128500+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: f1237724-86ea-4f53-8e2e-ea9e449ab84d
-  claim_owner: c1f4a4cb-217d-4c2a-aad6-f768a3cdbb4b
-  claimed_at: '2026-07-30T21:38:40.284887+00:00'
-  claim_expires_at: '2026-07-30T22:08:40.284887+00:00'
+  evidence: "Focus handoff: duplicate_detector  \nDuplicate preflight verdict: no_duplicate\
+    \  \nMatches: none  \n\nEvidence: Reviewed active tasks OOMPAH-281 and OOMPAH-282;\
+    \ neither concerns authorization identity binding. Archived OOMPAH-13 covers dashboard\
+    \ actor fallback only and is terminal, so it cannot be a duplicate target."
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 6adfe7ed-720c-4965-a4cb-ec15083df517
+oompah.agent_run_id: 804a9eec-8c81-4284-8ff0-eb0398455190
 oompah.work_branch: epic-OOMPAH-619--task-OOMPAH-624
 oompah.integration:
   version: 1
@@ -40,7 +43,33 @@ oompah.integration:
   task_branch: epic-OOMPAH-619--task-OOMPAH-624
   base_branch: epic-OOMPAH-619
   base_sha: c048ba706cbe9b1342b80a67576a49b82887e84a
-  updated_at: '2026-07-30T21:38:48.473577+00:00'
+  updated_at: '2026-07-30T21:39:38.647956+00:00'
+oompah.task_costs:
+  total_input_tokens: 177845
+  total_output_tokens: 1184
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 177845
+      output_tokens: 1184
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 177845
+    output_tokens: 1184
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T21:39:26.126861+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-624__20260730T213853Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: epic-OOMPAH-619--task-OOMPAH-624
+    source_sha: c048ba706cbe9b1342b80a67576a49b82887e84a
+    completed_at: '2026-07-30T21:39:26.134357+00:00'
 ---
 ## Summary
 
@@ -86,5 +115,25 @@ author: oompah
 created: 2026-07-30 21:38
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-30 21:39
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 5
+- Tokens: 177.8K in / 1.2K out [179.0K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 43s
+- Log: OOMPAH-624__20260730T213853Z.jsonl
+---
+author: oompah
+created: 2026-07-30 21:39
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-30 21:39
+---
+Focus: Frontend Developer
 ---
 <!-- COMMENTS:END -->
