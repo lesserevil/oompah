@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T21:15:59.630196Z'
-updated_at: '2026-07-30T22:37:29.847733Z'
+updated_at: '2026-07-30T22:47:55.882299Z'
 work_branch: epic-OOMPAH-426
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/544
@@ -54,6 +54,8 @@ oompah.work_branch: epic-OOMPAH-426
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-0a53a873c97d: '2026-07-30T22:47:53.487853+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -61,7 +63,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-426
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -70,7 +72,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-0a53a873c97d
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -80,13 +82,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-30T22:37:23.618140+00:00'
       branch_key: epic-OOMPAH-426
+      verdict: pass
+      completed_at: '2026-07-30T22:47:53.487743+00:00'
+      ended_at: '2026-07-30T22:47:53.487743+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-07-30T22:31:29.639181+00:00'
-    updated_at: '2026-07-30T22:37:23.618140+00:00'
+    updated_at: '2026-07-30T22:47:53.487743+00:00'
   - version: 1
     audit_id: audit-eafb8d6091bf
     project_id: proj-14849f1b
@@ -324,5 +329,26 @@ author: oompah
 created: 2026-07-30 22:37
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 22:47
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- fix_commit_sha: 0574d9ecf70bfae48b1c574da9369ac4c9c0f497
+- merge_commit_sha: 5e0224564ab63aed4bb39481125a32e08dcd61be
+- pr_number: 544
+- fix_reachable_from_origin_main: true
+- epic_branch: epic-OOMPAH-426
+- child_OOMPAH-427_state: Archived (audit passed 2026-07-30T22:34:47Z)
+- child_OOMPAH-428_state: auto-closed without PR (covered by OOMPAH-427)
+- orchestrator_diff_summary: 27 lines changed in oompah/orchestrator.py + 161 lines added in tests/test_epic_strategy.py
+- regression_tests_added: test_blocks_child_with_stale_own_work_branch_exocomp57, test_allows_nested_epic_rollup_pr_with_parent_id, test_closes_child_pr_with_stale_own_work_branch_exocomp57, test_does_not_close_epic_rollup_pr_whose_source_matches_parent_epic_branch
+- prior_agent_make_test: 12063 passed, 38 skipped (per OOMPAH-427 verification comment)
+- prior_auditor_focused_test_run: 4 passed in 2.31s (per OOMPAH-427 auditor evidence)
+- task_review_url: https://github.com/lesserevil/oompah/pull/544
 ---
 <!-- COMMENTS:END -->
