@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-610
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Release stale claimed_issues entries when completion auditors exit
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:53:05.632137Z'
-updated_at: '2026-07-30T19:08:24.691690Z'
+updated_at: '2026-07-30T19:08:43.897039Z'
 work_branch: null
 target_branch: null
 review_url: null
