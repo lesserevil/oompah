@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-628
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Rearm explicitly resubmitted integrated queue rows
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T22:37:04.318940Z'
-updated_at: '2026-07-30T22:41:32.939890Z'
+updated_at: '2026-07-30T22:46:53.453174Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -19,12 +19,37 @@ review_number: null
 merged_at: null
 oompah.integration:
   version: 1
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-585--task-OOMPAH-628
+  base_branch: epic-OOMPAH-585
+  base_sha: 2a8fc4a4b3a101c15e2fea0608480f783f9f3e28
   head_sha: b8c6817b12744e164a2de65b3c49ce8e3ce2b551
+  integrated_sha: b8c6817b12744e164a2de65b3c49ce8e3ce2b551
   submitted_at: '2026-07-30T22:41:28.108593+00:00'
-  updated_at: '2026-07-30T22:41:28.108593+00:00'
+  updated_at: '2026-07-30T22:46:48.872338+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-2f03e5509604
+    project_id: proj-14849f1b
+    task_id: OOMPAH-628
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 87eacfec78bca7a0b9e1ded75ba2ff0de471743246c18e3bd452045c916b811d
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-30T22:46:51.130292+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -57,5 +82,10 @@ author: oompah
 created: 2026-07-30 22:41
 ---
 Rearm only explicit fresh-ready same-head reflows while preserving automatic and active-row idempotency.
+---
+author: oompah
+created: 2026-07-30 22:46
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
