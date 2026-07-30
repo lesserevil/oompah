@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-591
 type: task
-status: In Validation
+status: Open
 priority: 1
 title: Reconcile the pending audit backlog and stale In Validation tasks
 parent: OOMPAH-585
@@ -13,7 +13,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:26.620047Z'
-updated_at: '2026-07-30T20:20:39.186677Z'
+updated_at: '2026-07-30T20:20:48.529108Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-591
 target_branch: null
 review_url: null
@@ -60,8 +60,8 @@ oompah.integration:
   updated_at: '2026-07-30T20:20:33.990272+00:00'
   last_error: 'fatal: ''main'' is already used by worktree at ''/home/shedwards/.oompah/repos/oompah'''
 oompah.task_costs:
-  total_input_tokens: 5295164
-  total_output_tokens: 35745
+  total_input_tokens: 5295179
+  total_output_tokens: 35829
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -69,8 +69,8 @@ oompah.task_costs:
       output_tokens: 1361
       cost_usd: 0.0
     unknown:
-      input_tokens: 5244402
-      output_tokens: 34384
+      input_tokens: 5244417
+      output_tokens: 34468
       cost_usd: 0.0
   runs:
   - profile: default
@@ -109,6 +109,12 @@ oompah.task_costs:
     output_tokens: 735
     cost_usd: 0.0
     recorded_at: '2026-07-30T20:14:26.970559+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 15
+    output_tokens: 84
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T20:20:42.864248+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-591__20260730T143142Z
@@ -656,5 +662,27 @@ author: oompah
 created: 2026-07-30 20:20
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 20:20
+---
+Integration could not verify `main`: fatal: 'main' is already used by worktree at '/home/shedwards/.oompah/repos/oompah'
+
+Fetch the private branch, preserve its commits, push a clean current head, and submit it again.
+---
+author: oompah
+created: 2026-07-30 20:20
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 3
+- Tokens: 15 in / 84 out [99 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 36s
+- Log: OOMPAH-591__20260730T202011Z.jsonl
+---
+author: oompah
+created: 2026-07-30 20:20
+---
+Existing integrated implementation resubmitted for completion audit; cancel stale implementation retry and hand ownership to the auditor lane.
 ---
 <!-- COMMENTS:END -->
