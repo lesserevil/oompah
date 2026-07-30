@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-593
 type: task
-status: In Validation
+status: Done
 priority: 1
 title: Integrate and live-verify scoped Codex task CLI authentication
 parent: OOMPAH-586
@@ -12,7 +12,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-07-30T14:14:54.281403Z'
-updated_at: '2026-07-30T23:06:46.401961Z'
+updated_at: '2026-07-30T23:10:59.710059Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-593
 target_branch: null
 review_url: null
@@ -179,6 +179,7 @@ oompah.terminal_audit:
   applied_result_attempts:
     no-auditor-audit-9b099c38caba-1: '2026-07-30T18:13:28.931470+00:00'
     no-auditor-audit-d1990b4a35cf-1: '2026-07-30T19:34:16.475288+00:00'
+    attempt-a3efe887e71c: '2026-07-30T23:10:57.452842+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -278,7 +279,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-593
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -287,7 +288,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-a3efe887e71c
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -297,13 +298,16 @@ oompah.terminal_audit:
       model: sonnet
       started_at: '2026-07-30T23:06:42.323963+00:00'
       branch_key: epic-OOMPAH-586--task-OOMPAH-593
+      verdict: pass
+      completed_at: '2026-07-30T23:10:57.452737+00:00'
+      ended_at: '2026-07-30T23:10:57.452737+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-30T23:06:31.783803+00:00'
-    updated_at: '2026-07-30T23:06:42.323963+00:00'
+    updated_at: '2026-07-30T23:10:57.452737+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-4db44537a773
@@ -853,5 +857,26 @@ author: oompah
 created: 2026-07-30 23:06
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 23:10
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- branch: epic-OOMPAH-586--task-OOMPAH-593
+- head_sha: 0a260f0279690a12fb056da0c8becb6f492f8c26
+- commits_above_main: 4
+- docs_file_present: docs/scoped-task-cli-authentication.md (302 lines)
+- docs_auth_crosslink_line: docs/authentication.md:834
+- docs_readme_entry_line: docs/README.md:19
+- test_handoff_failclosed_class_line: tests/test_task_handoff.py:659 (TestHandoffTokenFailClosed, 6 tests)
+- test_orchestrator_mint_class_line: tests/test_task_handoff.py:992 (TestOrchestratorHandoffTokenMint, 6 tests)
+- test_codex_handoff_auth_class_line: tests/test_acp_codex_backend.py:1374 (TestCodexHandoffAuth, 5 tests)
+- prior_full_gate_result: 13711 passed, 7 skipped, 0 failed
+- prior_focused_suite_result: 91 passed (test_task_handoff.py + test_acp_codex_backend.py)
+- working_tree_status: clean, up to date with origin
 ---
 <!-- COMMENTS:END -->
