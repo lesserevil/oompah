@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-596
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Rearm conflict repairs after recoverable agent infrastructure failure
 parent: OOMPAH-587
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:26.248587Z'
-updated_at: '2026-07-30T16:09:16.501553Z'
+updated_at: '2026-07-30T16:10:35.312931Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-596
 target_branch: null
 review_url: null
@@ -106,12 +106,12 @@ oompah.agent_run_id: f29dabb1-aca6-434b-8521-da78cd10b3a4
 oompah.work_branch: epic-OOMPAH-587--task-OOMPAH-596
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-587--task-OOMPAH-596
-  base_branch: epic-OOMPAH-587
-  base_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
-  updated_at: '2026-07-30T16:01:14.429259+00:00'
+  head_sha: da86acf64b292122653b68f7bfaa71775111f237
+  submitted_at: '2026-07-30T16:10:33.148869+00:00'
+  updated_at: '2026-07-30T16:10:33.148869+00:00'
 oompah.task_costs:
   total_input_tokens: 160808
   total_output_tokens: 39795
@@ -701,5 +701,22 @@ Focused verification (broad slice):
 - tests/test_server_issue_snapshot.py tests/test_integration_record.py tests/test_integration_conflict_repair.py tests/test_orchestrator_conflict_repair.py: 49 passed
 
 Commit da86acf64 pushed to epic-OOMPAH-587--task-OOMPAH-596. The xdist worker KeyError in the previous gate was collateral damage from the assertion failure (loadscope scheduler bug); with the failing test fixed the gate should pass cleanly.
+---
+author: oompah
+created: 2026-07-30 16:10
+---
+Conflict repair backoff & infrastructure failure recovery — gate fix for v2 schema
+
+Prior work (commits 27d737df4, db9a68c11):
+- IntegrationRecord v2 with backoff_until and repair_failure_reason
+- classify_conflict_repair_failure() distinguishes real conflicts from auth/rate/timeout/overload/provider/credential/model failures
+- Exponential backoff (5m, 15m, 45m) then needs_human transition with exact operator instructions
+- Queue processor skips items in active backoff (no duplicate workers)
+- v1 records auto-migrate to v2 on load
+
+This dispatch (commit da86acf64):
+- Fixed the single failing snapshot test (test_ready_to_integrate_board_entry_includes_integration_evidence) that still expected version=1 in the serialized IntegrationRecord. The xdist worker KeyError in the previous gate was collateral from that assertion failure.
+
+Focused verification: 2221 tests passed across integration/orchestrator/server/snapshot slices.
 ---
 <!-- COMMENTS:END -->
