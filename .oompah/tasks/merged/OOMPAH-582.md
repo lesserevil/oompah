@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:39:46.196812Z'
-updated_at: '2026-07-30T17:14:30.746228Z'
+updated_at: '2026-07-30T17:14:33.578222Z'
 work_branch: OOMPAH-582
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/592
@@ -413,5 +413,10 @@ created: 2026-07-30 17:14
 Override by lesserevil: terminal transition to Merged applied by project owner.
 
 Reason: Operator re-evaluation confirmed implementation commit bbd48ada7 is an ancestor of origin/main and the task branch has already been consumed. The prior terminal audit failed only because of the forced-auditor transport bug; reopening implementation would duplicate landed work.
+---
+author: oompah
+created: 2026-07-30 17:14
+---
+Re-evaluated against current git ancestry. Commit bbd48ada7 is already on main, so the landed task is marked Merged by project-owner override.
 ---
 <!-- COMMENTS:END -->
