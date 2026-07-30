@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:25.383734Z'
-updated_at: '2026-07-30T00:14:44.871952Z'
+updated_at: '2026-07-30T01:15:02.629981Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-477
 target_branch: null
 review_url: null
@@ -39,13 +39,17 @@ oompah.duplicate_screening:
 oompah.agent_run_id: e0aa4e06-e82b-459e-9e3e-fd49b6848fb2
 oompah.work_branch: epic-OOMPAH-459--task-OOMPAH-477
 oompah.task_costs:
-  total_input_tokens: 1310143
-  total_output_tokens: 43303
+  total_input_tokens: 1310458
+  total_output_tokens: 57247
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 1310143
       output_tokens: 43303
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 315
+      output_tokens: 13944
       cost_usd: 0.0
   runs:
   - profile: default
@@ -66,6 +70,12 @@ oompah.task_costs:
     output_tokens: 77
     cost_usd: 0.0
     recorded_at: '2026-07-29T18:29:40.147105+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 315
+    output_tokens: 13944
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T01:14:57.002666+00:00'
 oompah.integration:
   version: 1
   state: working
@@ -83,7 +93,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-477
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -107,7 +117,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-4e835f333d67
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -118,13 +128,16 @@ oompah.terminal_audit:
       started_at: '2026-07-30T00:14:35.261037+00:00'
       branch_key: epic-OOMPAH-459--task-OOMPAH-477
       candidate_rotation_count: 1
+      ended_at: '2026-07-30T01:14:57.177530+00:00'
+      failure_reason: ACP turn timeout exceeded
+      next_retry_at: '2026-07-30T01:15:17.177498+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-30T00:05:29.961007+00:00'
-    updated_at: '2026-07-30T00:14:35.261037+00:00'
+    updated_at: '2026-07-30T01:14:57.177530+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-a3d95e6d1295
@@ -144,7 +157,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-4e835f333d67
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -155,6 +168,9 @@ oompah.terminal_audit:
     started_at: '2026-07-30T00:14:35.261037+00:00'
     branch_key: epic-OOMPAH-459--task-OOMPAH-477
     candidate_rotation_count: 1
+    ended_at: '2026-07-30T01:14:57.177530+00:00'
+    failure_reason: ACP turn timeout exceeded
+    next_retry_at: '2026-07-30T01:15:17.177498+00:00'
 ---
 ## Summary
 
@@ -612,5 +628,20 @@ author: oompah
 created: 2026-07-30 00:14
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 01:14
+---
+Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 305, Tool calls: 250
+- Tokens: 315 in / 13.9K out [14.3K total]
+- Cost: $0.0000
+- Exit: stalled, Duration: 1h 0m 17s
+- Log: OOMPAH-477__20260730T001445Z.jsonl
+---
+author: oompah
+created: 2026-07-30 01:15
+---
+Auditor attempt ended: ACP turn timeout exceeded. A different independent auditor will be tried on the next scheduler tick.
 ---
 <!-- COMMENTS:END -->
