@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-592
 type: feature
-status: Needs Human
+status: Done
 priority: 1
 title: Alert on terminal-audit launch failures and backlog age
 parent: OOMPAH-585
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:28.755226Z'
-updated_at: '2026-07-30T23:51:50.092743Z'
+updated_at: '2026-07-30T23:52:38.804292Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-592
 target_branch: null
 review_url: null
@@ -105,6 +105,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-2b3803f5ac37: '2026-07-30T19:06:01.255993+00:00'
+    attempt-04adcc5ea409: '2026-07-30T23:52:36.211664+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -146,7 +147,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-592
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -155,7 +156,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-04adcc5ea409
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -165,13 +166,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-30T23:51:02.406057+00:00'
       branch_key: epic-OOMPAH-585--task-OOMPAH-592
+      verdict: pass
+      completed_at: '2026-07-30T23:52:36.211519+00:00'
+      ended_at: '2026-07-30T23:52:36.211519+00:00'
     requested_by:
       version: 1
       identity: api-client
       source: api
     previous_state: Needs Human
     created_at: '2026-07-30T23:50:21.503390+00:00'
-    updated_at: '2026-07-30T23:51:02.406057+00:00'
+    updated_at: '2026-07-30T23:52:36.211519+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-2b3803f5ac37
@@ -416,5 +420,29 @@ author: oompah
 created: 2026-07-30 23:51
 ---
 The parent epic OOMPAH-585 merged from epic-OOMPAH-585, but this task was In Validation with work branch epic-OOMPAH-585--task-OOMPAH-592. Its work is not proven to be in the merged epic. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
+---
+author: oompah
+created: 2026-07-30 23:52
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- commit: 64b9b00c55f34d164d4eca2dd6071887ea5b5bb3
+- branch: epic-OOMPAH-585--task-OOMPAH-592
+- branch_up_to_date_with_origin: true
+- landed_in_merged_target: origin/epic-OOMPAH-584 contains 64b9b00c (verified via git branch -r --contains)
+- landed_in_parent_epic: origin/epic-OOMPAH-585 contains 64b9b00c
+- stale_ref_diagnosis_resolved: OOMPAH-630 fixed the stale target-ref rollup race; operator revalidation confirms branch is ancestor of merged target c45e47bb3
+- prior_alleged_unlanded_commit: cc261493377c is also contained in origin/epic-OOMPAH-584 and origin/epic-OOMPAH-585
+- new_module: oompah/terminal_audit_health.py (16291 bytes)
+- config_field: audit_stale_pending_seconds default 3600 with OOMPAH_AUDIT_STALE_PENDING_SECONDS env var
+- dashboard_banner: oompah/templates/dashboard.html #terminal-audit-health banner: role=status, aria-live=polite, hidden by default; renderTerminalAuditHealth uses only numeric fields
+- alert_types: launch_failures, retry_exhausted, backlog_age, stale_validation, scan, metadata_quarantine (prefix terminal_audit_health:)
+- redaction_mechanism: phrase-matched classification via LAUNCH_PHRASES/TRANSPORT_PHRASES; raw reason strings excluded from alert titles/details
+- focused_tests: 50 passed in tests/test_terminal_audit_health.py, tests/test_terminal_audit_health_api.py, tests/test_dashboard_terminal_audit_health.py
+- acceptance_criterion_1: Verified: terminal_audit_health_alerts() returns non-empty when any degraded counter is non-zero; scan_complete=false preserves prior alerts
+- acceptance_criterion_2: Verified: on a complete scan, prior terminal_audit_health: alerts are replaced from durable numeric facts; empty backlog yields zero alerts
 ---
 <!-- COMMENTS:END -->
