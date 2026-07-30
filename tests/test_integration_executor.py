@@ -144,3 +144,31 @@ def test_executor_rejects_changed_remote_task_head(tmp_path):
         repo_identity=str(remote),
     )
     assert result.status == "stale_head"
+
+
+def test_executor_rejects_foreign_branch_without_moving_task_worktree(tmp_path):
+    remote, epic, task, task_head = _repo(tmp_path)
+    seed = tmp_path / "seed"
+    foreign_branch = "epic-E-2--task-T-2"
+    _git(seed, "branch", foreign_branch, task_head)
+    _git(seed, "push", "origin", foreign_branch)
+    original_branch = _git(task, "branch", "--show-current")
+    original_head = _git(task, "rev-parse", "HEAD")
+    original_task_ref = _git(task, "rev-parse", "epic-E-1--task-T-1")
+
+    result = execute_integration(
+        project_lock=nullcontext(),
+        epic_worktree=str(epic),
+        task_worktree=str(task),
+        epic_branch="epic-E-1",
+        task_branch=foreign_branch,
+        submitted_head_sha=task_head,
+        quality_gate=BranchQualityGate(str(tmp_path / "quality.json")),
+        quality_command="true",
+        repo_identity=str(remote),
+    )
+
+    assert result.status == "wrong_worktree"
+    assert _git(task, "branch", "--show-current") == original_branch
+    assert _git(task, "rev-parse", "HEAD") == original_head
+    assert _git(task, "rev-parse", "epic-E-1--task-T-1") == original_task_ref

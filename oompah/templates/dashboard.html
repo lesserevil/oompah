@@ -1206,6 +1206,36 @@
     .alerts-banner .alert-action {
       color: var(--text);
     }
+    .terminal-audit-health-banner {
+      margin: 0.6rem 1.5rem 0;
+      padding: 0.65rem 0.8rem;
+      border: 1px solid rgba(248, 166, 46, 0.55);
+      border-radius: 6px;
+      background: rgba(248, 166, 46, 0.08);
+      color: var(--text);
+      font-size: 0.82rem;
+      display: flex;
+      gap: 0.5rem;
+      align-items: flex-start;
+    }
+    .terminal-audit-health-banner[hidden] { display: none; }
+    .terminal-audit-health-banner .tah-icon {
+      font-size: 1rem;
+      color: var(--yellow, #f0a000);
+      flex-shrink: 0;
+    }
+    .terminal-audit-health-banner .tah-body {
+      flex: 1;
+    }
+    .terminal-audit-health-banner .tah-title {
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 0.2rem;
+    }
+    .terminal-audit-health-banner .tah-detail {
+      color: var(--text-muted);
+      font-size: 0.8rem;
+    }
     .board-error {
       margin: 0.6rem 1.5rem 0;
       padding: 0.65rem 0.8rem;
@@ -2070,6 +2100,14 @@
       <ul class="alerts-list" id="alerts-list"></ul>
     </div>
   </div>
+  <div class="terminal-audit-health-banner" id="terminal-audit-health" hidden
+       role="status" aria-live="polite" aria-label="Terminal-audit health">
+    <span class="tah-icon" aria-hidden="true">&#9888;</span>
+    <div class="tah-body">
+      <div class="tah-title">Terminal-audit health</div>
+      <div class="tah-detail" id="terminal-audit-health-detail"></div>
+    </div>
+  </div>
   <div class="task-state-stale-banner" id="task-state-stale-banner" hidden
        role="alert" aria-live="polite" aria-label="Task state data may be stale">
     <span class="stale-icon" aria-hidden="true">&#9888;</span>
@@ -2449,6 +2487,46 @@ function renderAlertItem(alert) {
     '</li>';
 }
 
+function renderTerminalAuditHealth(health) {
+  // Build a compact, redacted health summary from durable numeric facts only.
+  // This function deliberately does NOT render provider names, model output, or
+  // exception text — those live in the alert list which is filtered server-side.
+  const banner = document.getElementById('terminal-audit-health');
+  const detail = document.getElementById('terminal-audit-health-detail');
+  if (!banner || !detail) return;
+  if (!health || typeof health !== 'object') {
+    banner.hidden = true;
+    detail.textContent = '';
+    return;
+  }
+  const parts = [];
+  if (health.launch_failure_count > 0 || health.transport_failure_count > 0) {
+    parts.push(
+      health.launch_failure_count + ' launch, ' +
+      health.transport_failure_count + ' transport failure(s)'
+    );
+  }
+  if (health.retry_exhausted_count > 0) {
+    parts.push(health.retry_exhausted_count + ' audit(s) with exhausted retries');
+  }
+  if (health.oldest_pending_age_seconds != null && health.oldest_pending_age_seconds > 0) {
+    parts.push('oldest pending: ' + health.oldest_pending_age_seconds + 's');
+  }
+  if (health.stale_in_validation_count > 0) {
+    parts.push(health.stale_in_validation_count + ' stale In Validation record(s)');
+  }
+  if (!health.scan_complete) {
+    parts.push('health scan incomplete');
+  }
+  if (parts.length > 0) {
+    detail.textContent = parts.join(' · ');
+    banner.hidden = false;
+  } else {
+    detail.textContent = '';
+    banner.hidden = true;
+  }
+}
+
 function handleStateUpdate(state) {
   // Update pause state
   orchPaused = state.paused || false;
@@ -2488,6 +2566,13 @@ function handleStateUpdate(state) {
     alertsBanner.hidden = true;
     alertsList.innerHTML = '';
   }
+
+  // Render terminal-audit health banner using safe numeric facts only.
+  renderTerminalAuditHealth(
+    state.terminal_audit_health ||
+    (state.health && state.health.terminal_audit) ||
+    null
+  );
 
   // Render credential-error banner above the board.
   const credBanner = document.getElementById('cred-error-banner');

@@ -193,6 +193,79 @@ def test_explicit_retry_preserves_nonblocked_identical_rows(tmp_path):
     assert repeated.state == "integrated"
 
 
+def test_explicit_ready_reflow_rearms_identical_integrated_row(tmp_path):
+    store = IntegrationQueueStore(str(tmp_path / "queue.sqlite3"))
+    original = _enqueue(store, "A")
+    claimed = store.claim_next(
+        project_id="p1",
+        epic_id="E-1",
+        lease_owner="worker-1",
+        dependency_map={"A": []},
+        satisfied=set(),
+    )
+    assert claimed is not None
+    assert store.complete("p1", "A", lease_owner="worker-1")
+
+    background_sync = store.enqueue(
+        project_id="p1",
+        epic_id="E-1",
+        task_id="A",
+        task_branch=original.task_branch,
+        head_sha=original.head_sha,
+    )
+    assert background_sync.state == "integrated"
+
+    reflowed = store.enqueue(
+        project_id="p1",
+        epic_id="E-1",
+        task_id="A",
+        task_branch=original.task_branch,
+        head_sha=original.head_sha,
+        explicit_retry=True,
+        rearm_integrated=True,
+    )
+    assert reflowed.state == "ready"
+    assert reflowed.attempts == 0
+    assert reflowed.lease_owner is None
+    assert reflowed.last_error is None
+
+
+def test_explicit_ready_reflow_does_not_reset_active_row(tmp_path):
+    store = IntegrationQueueStore(str(tmp_path / "queue.sqlite3"))
+    original = _enqueue(store, "A")
+
+    repeated_ready = store.enqueue(
+        project_id="p1",
+        epic_id="E-1",
+        task_id="A",
+        task_branch=original.task_branch,
+        head_sha=original.head_sha,
+        explicit_retry=True,
+        rearm_integrated=True,
+    )
+    assert repeated_ready == original
+
+    claimed = store.claim_next(
+        project_id="p1",
+        epic_id="E-1",
+        lease_owner="worker-1",
+        dependency_map={"A": []},
+        satisfied=set(),
+    )
+    assert claimed is not None
+    repeated_integrating = store.enqueue(
+        project_id="p1",
+        epic_id="E-1",
+        task_id="A",
+        task_branch=original.task_branch,
+        head_sha=original.head_sha,
+        explicit_retry=True,
+        rearm_integrated=True,
+    )
+    assert repeated_integrating == claimed
+    assert repeated_integrating.lease_owner == "worker-1"
+
+
 def test_recover_abandoned_leases_at_startup(tmp_path):
     store = IntegrationQueueStore(str(tmp_path / "queue.sqlite3"))
     original = _enqueue(store, "A")

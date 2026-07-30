@@ -141,6 +141,13 @@ from oompah.terminal_audit import (
 )
 from oompah.terminal_audit_metadata import TerminalAuditMetadataStore
 from oompah.terminal_audit_enforcement import TerminalAuditEnforcement
+from oompah.terminal_audit_health import (
+    AuditHealthObservation,
+    HEALTH_ALERT_PREFIX,
+    TerminalAuditHealth,
+    build_terminal_audit_health,
+    terminal_audit_health_alerts,
+)
 from oompah.terminal_transition_coordinator import (
     TerminalTransitionCoordinator,
     TransitionResult,
@@ -251,6 +258,23 @@ logger = logging.getLogger(__name__)
 # compilers, or browser tooling in addition to the model client itself.
 _AUTO_CONCURRENCY_CPU_THREADS_PER_AGENT = 4
 _AUTO_CONCURRENCY_MEMORY_BYTES_PER_AGENT = 4 * 1024**3
+
+
+def _acp_session_is_read_only(focus: Any, running_entry: Any | None) -> bool:
+    """Return the authority mode for an ACP dispatch.
+
+    Completion auditors are always read-only, independently of duplicate
+    preflight state.  This matters for ACP backends with native tools (most
+    notably the subscription Codex CLI), where the action-policy catalog
+    cannot constrain the subprocess sandbox.
+    """
+    return (
+        str(getattr(focus, "name", "")).casefold() == AUDITOR_FOCUS_NAME
+        or bool(
+            running_entry
+            and getattr(running_entry, "duplicate_preflight", False)
+        )
+    )
 
 
 def _available_memory_bytes() -> int | None:
@@ -833,6 +857,11 @@ class Orchestrator:
             tracker=self._tracker_for_project,
             project_store=self.project_store,
         )
+        # Serializes the final implementation status claim with terminal-audit
+        # staging for one task.  The terminal path installs its in-memory fence
+        # before waiting for this lock, so a slow dispatch setup cannot starve
+        # an audit request, while the tracker writes themselves cannot cross.
+        self._issue_transition_locks: dict[str, asyncio.Lock] = {}
         # Per-project branch-to-issue index: maps work_branch → identifier.
         # Built lazily the first time _resolve_task_for_branch needs it for
         # a project and cleared with tracker read caches each tick so the
@@ -970,8 +999,15 @@ class Orchestrator:
             "exhaustion_count": 0,
             "pending_count": 0,
             "in_progress_count": 0,
+            "launch_failure_count": 0,
+            "transport_failure_count": 0,
+            "retry_exhausted_count": 0,
+            "oldest_pending_age_seconds": None,
+            "stale_in_validation_count": 0,
             "last_error": None,
         }
+        # Aggregated terminal-audit health, rebuilt after every lane scan.
+        self._audit_health: TerminalAuditHealth = TerminalAuditHealth()
         # Maintenance lane scheduling state (TASK-466.4).
         # Maps job name → MaintenanceJobState for in-flight coalescing,
         # skip counters, throttle timestamps, and observability.
@@ -1401,6 +1437,56 @@ class Orchestrator:
         finally:
             self._terminal_audit_started = True
             self._terminal_audit_last_scan = time.monotonic()
+
+    def _refresh_terminal_audit_health(
+        self,
+        observations: list[AuditHealthObservation],
+        *,
+        scan_complete: bool,
+        scan_error_count: int,
+    ) -> None:
+        """Replace the derived audit-health alerts after a queue scan.
+
+        A failed or partial scan never clears an existing audit alert: the
+        service cannot claim recovery while tracker state is unknown.  A
+        complete scan derives all alert state from the durable records, which
+        makes clearing deterministic after recovery and restart.
+        """
+        stale_after = getattr(self.config, "audit_stale_pending_seconds", 3600)
+        max_attempts = getattr(self.config, "audit_max_attempts", 3)
+        health = build_terminal_audit_health(
+            observations,
+            now=datetime.now(timezone.utc),
+            stale_after_seconds=stale_after,
+            max_attempts=max_attempts,
+            scan_complete=scan_complete,
+            scan_error_count=scan_error_count,
+        )
+        self._audit_health = health
+        # Update the raw metrics so callers reading _audit_metrics still work.
+        self._audit_metrics.update({
+            "pending_count": health.pending_count,
+            "in_progress_count": health.in_progress_count,
+            "launch_failure_count": health.launch_failure_count,
+            "transport_failure_count": health.transport_failure_count,
+            "retry_exhausted_count": health.retry_exhausted_count,
+            "oldest_pending_age_seconds": health.oldest_pending_age_seconds,
+            "stale_in_validation_count": health.stale_in_validation_count,
+            "health_scan_complete": scan_complete,
+            "health_scan_error_count": scan_error_count,
+        })
+        # Remove stale health alerts and replace them from the current facts.
+        # A partial scan preserves existing alerts rather than clearing them.
+        if not scan_complete:
+            return
+        self._alerts = [
+            a for a in self._alerts
+            if not str(a.get("source", "")).startswith(HEALTH_ALERT_PREFIX)
+            and a.get("source") != "terminal_audit_health"
+        ]
+        self._alerts.extend(terminal_audit_health_alerts(health))
+        if health.degraded:
+            self._save_state(terminal_audit_health=health.to_dict())
 
     def _load_paused_state(self) -> bool:
         """Load persisted paused state from disk. Returns False if not found."""
@@ -2484,6 +2570,11 @@ class Orchestrator:
             project_id=str(effective_project_id),
             evidence_fingerprint=evidence_fingerprint,
         )
+
+    def issue_transition_lock(self, issue_id: str) -> asyncio.Lock:
+        """Return the event-loop lock for dispatch/audit ownership of a task."""
+
+        return self._issue_transition_locks.setdefault(issue_id, asyncio.Lock())
 
     def _request_terminal_transition_from_maintenance(self, **kwargs: Any):
         """Bridge a synchronous maintenance observation to terminal auditing.
@@ -4291,6 +4382,20 @@ class Orchestrator:
                 return True
         return False
 
+    def _release_audit_branch_claim(
+        self,
+        branch_key: str | None,
+        attempt_id: str | None,
+    ) -> bool:
+        """Release an audit branch fence only when *attempt_id* still owns it."""
+
+        if not branch_key or not attempt_id:
+            return False
+        if self._audit_branch_claims.get(branch_key) != attempt_id:
+            return False
+        self._audit_branch_claims.pop(branch_key, None)
+        return True
+
     def _audit_selector(self, issue: Issue) -> AuditorCandidateSelector:
         project = None
         if issue.project_id:
@@ -4303,6 +4408,22 @@ class Orchestrator:
             self.provider_store,
             project_config=project,
         )
+
+    def _record_audit_outcome_ownership(self, issue_id: str, outcome: Any) -> None:
+        """Keep ordinary-dispatch fencing aligned with an applied audit result."""
+
+        if not getattr(outcome, "success", False):
+            return
+        applied_status = str(getattr(outcome, "applied_status", "") or "")
+        if is_dispatchable_status(applied_status):
+            # An incomplete audit intentionally returns work to Open.  Release
+            # the terminal-transition fence so the implementation lane can
+            # repair the findings after the auditor exits.
+            self.state.completed.discard(issue_id)
+            return
+        # Passed, Needs Human, and other non-dispatchable outcomes must remain
+        # unavailable to ordinary implementation dispatch.
+        self.state.completed.add(issue_id)
 
     async def _route_no_auditor(
         self,
@@ -4332,6 +4453,7 @@ class Orchestrator:
         outcome = await self.terminal_transition_coordinator.apply_audit_result(
             issue, result, str(issue.project_id or "legacy")
         )
+        self._record_audit_outcome_ownership(issue.id, outcome)
         if outcome.success:
             self._audit_metrics["exhaustion_count"] += 1
         else:
@@ -4372,6 +4494,9 @@ class Orchestrator:
             candidates = candidates[:limit]
         metrics["pending_count"] = len(candidates)
         dispatched = 0
+        # Health-scan state: one observation per In Validation issue.
+        observations: list[AuditHealthObservation] = []
+        _audit_scan_error_count: int = 0
 
         for issue in candidates:
             if self._available_slots() <= 0:
@@ -4382,6 +4507,19 @@ class Orchestrator:
                     self._tick_pool, store.read, issue.identifier
                 )
                 record = AuditorDispatchLane.pending_record(document.pending_chain)
+                # Collect a health observation for this In Validation task regardless
+                # of whether it has a pending record.  The observation is used by
+                # _refresh_terminal_audit_health() to compute backlog age and stale-
+                # validation metrics without exposing provider details or model output.
+                observations.append(
+                    AuditHealthObservation(
+                        project_id=str(issue.project_id) if issue.project_id else None,
+                        issue_identifier=str(issue.identifier),
+                        issue_created_at=issue.created_at,
+                        record=record,
+                        quarantined=document.is_quarantined,
+                    )
+                )
                 if record is None:
                     continue
                 selector = self._audit_selector(issue)
@@ -4405,7 +4543,10 @@ class Orchestrator:
                     running = self.state.running.get(issue.id)
                     if running and running.is_auditor:
                         await self._terminate_running(issue.id, cleanup_workspace=False)
-                        self._audit_branch_claims.pop(branch_key, None)
+                        self._release_audit_branch_claim(
+                            branch_key,
+                            running.audit_attempt_id,
+                        )
                         active.discard(running.audit_attempt_id)
                         recovery = lane.recover(
                             record, active_attempt_ids=active
@@ -4465,7 +4606,7 @@ class Orchestrator:
                     # creation must release the branch claim and leave the
                     # attempt retryable. Otherwise a scheduler exception can
                     # strand the audit indefinitely in ``in_progress``.
-                    self._audit_branch_claims.pop(branch_key, None)
+                    self._release_audit_branch_claim(branch_key, plan.attempt_id)
                     failed = AuditorDispatchLane.finish_attempt(
                         persisted,
                         plan.attempt_id,
@@ -4478,6 +4619,7 @@ class Orchestrator:
                                 )
                             )
                         ),
+                        failure_classification=FailureClassification.INFRASTRUCTURE_ERROR,
                     )
                     await asyncio.get_running_loop().run_in_executor(
                         self._tick_pool,
@@ -4494,6 +4636,7 @@ class Orchestrator:
                 if plan.rotation_count:
                     metrics["rotation_count"] += 1
             except Exception as exc:  # noqa: BLE001 - one audit must not starve all work
+                _audit_scan_error_count += 1
                 metrics["last_error"] = f"{type(exc).__name__}: {exc}"
                 logger.exception("Audit dispatch failed for %s", issue.identifier)
 
@@ -4501,6 +4644,15 @@ class Orchestrator:
             1 for entry in self.state.running.values() if entry.is_auditor
         )
         metrics["last_dispatched_count"] = dispatched
+        # Rebuild health metrics and alerts from the durable audit observations.
+        # A scan that processed all candidates (no early slot exhaustion) is
+        # considered complete for alert-clearing purposes.
+        scan_complete = self._available_slots() > 0 or not candidates
+        self._refresh_terminal_audit_health(
+            observations,
+            scan_complete=scan_complete and _audit_scan_error_count == 0,
+            scan_error_count=_audit_scan_error_count,
+        )
         return {
             "audit_scan": (time.monotonic() - started) * 1000,
             "audit_dispatch": (time.monotonic() - started) * 1000,
@@ -8028,13 +8180,18 @@ class Orchestrator:
     def _create_workspace_for_issue(
         self,
         issue: Issue,
+        *,
+        persist_dispatch_metadata: bool = True,
     ) -> tuple[str, Issue | None]:
         """Resolve and create the workspace path used to dispatch ``issue``.
 
         Returns ``(workspace_path, epic_for_shared_mode)``. Parallel epic
         children receive private branches cut from the newest clean published
         epic head and return None as the second element. Legacy shared mode
-        returns the parent epic as the second element.
+        returns the parent epic as the second element. Completion auditors set
+        ``persist_dispatch_metadata=False`` because their workspace is a
+        read-only view of already-integrated evidence, not a new implementation
+        attempt.
         """
         if not issue.project_id:
             workspace = self.workspace_mgr.create_for_issue(issue.identifier)
@@ -8085,29 +8242,30 @@ class Orchestrator:
                             parent_epic.identifier,
                         )
                     )
-                    try:
-                        tracker = self._tracker_for_issue(issue)
-                        tracker.set_metadata_field(
-                            issue.identifier,
-                            "oompah.work_branch",
-                            private_branch,
-                        )
-                        tracker.set_metadata_field(
-                            issue.identifier,
-                            "oompah.integration",
-                            IntegrationRecord(
-                                state="working",
-                                task_branch=private_branch,
-                                base_branch=epic_branch,
-                                base_sha=base_sha,
-                                updated_at=datetime.now(timezone.utc).isoformat(),
-                            ).to_dict(),
-                        )
-                    except Exception as exc:  # noqa: BLE001
-                        raise ProjectError(
-                            f"Could not persist private branch for "
-                            f"{issue.identifier}: {exc}"
-                        ) from exc
+                    if persist_dispatch_metadata:
+                        try:
+                            tracker = self._tracker_for_issue(issue)
+                            tracker.set_metadata_field(
+                                issue.identifier,
+                                "oompah.work_branch",
+                                private_branch,
+                            )
+                            tracker.set_metadata_field(
+                                issue.identifier,
+                                "oompah.integration",
+                                IntegrationRecord(
+                                    state="working",
+                                    task_branch=private_branch,
+                                    base_branch=epic_branch,
+                                    base_sha=base_sha,
+                                    updated_at=datetime.now(timezone.utc).isoformat(),
+                                ).to_dict(),
+                            )
+                        except Exception as exc:  # noqa: BLE001
+                            raise ProjectError(
+                                f"Could not persist private branch for "
+                                f"{issue.identifier}: {exc}"
+                            ) from exc
                     wp = self.project_store.create_worktree(
                         issue.project_id,
                         issue.identifier,
@@ -19554,6 +19712,7 @@ class Orchestrator:
     ) -> None:
         """Dispatch a worker for an issue."""
         duplicate_preflight = duplicate_preflight_claim is not None
+        implementation_dispatch = auditor_plan is None and not duplicate_preflight
 
         async def _release_preflight(reason: str) -> None:
             if duplicate_preflight_claim is None or not duplicate_preflight_claim.claim_id:
@@ -19581,7 +19740,21 @@ class Orchestrator:
             self.state.claimed_issues.pop(issue.id, None)
             await _release_preflight("dispatch aborted because orchestrator is paused")
             if auditor_plan:
-                self._audit_branch_claims.pop(auditor_plan.branch_key, None)
+                self._release_audit_branch_claim(
+                    auditor_plan.branch_key,
+                    auditor_plan.attempt_id,
+                )
+            return
+        # A terminal transition places this marker before awaiting durable audit
+        # staging.  Retry callbacks may already have popped their RetryEntry, so
+        # this fence is the only state visible to an in-flight dispatch.
+        if implementation_dispatch and issue.id in self.state.completed:
+            logger.info(
+                "Skipping implementation dispatch of %s: terminal transition owns task",
+                issue.identifier,
+            )
+            self.state.claimed.discard(issue.id)
+            self.state.claimed_issues.pop(issue.id, None)
             return
         self.state.reject_streak.pop(issue.id, None)
 
@@ -19715,21 +19888,34 @@ class Orchestrator:
         if refreshed:
             cur_state = _state_key(refreshed[0].state)
             terminal = {_state_key(s) for s in self.config.tracker_terminal_states}
-            if cur_state in terminal:
+            implementation_blocked = (
+                implementation_dispatch
+                and (
+                    issue.id in self.state.completed
+                    or cur_state not in self._retryable_state_keys()
+                )
+            )
+            if cur_state in terminal or implementation_blocked:
                 logger.info(
-                    "Aborting dispatch of %s: state moved to %r since fetch",
+                    "Aborting dispatch of %s: state moved to %r or terminal "
+                    "transition took ownership since fetch",
                     issue.identifier,
                     cur_state,
                 )
                 self.state.claimed.discard(issue.id)
                 self.state.claimed_issues.pop(issue.id, None)
                 if auditor_plan:
-                    self._audit_branch_claims.pop(auditor_plan.branch_key, None)
-                self.state.completed.add(issue.id)
+                    self._release_audit_branch_claim(
+                        auditor_plan.branch_key,
+                        auditor_plan.attempt_id,
+                    )
+                if cur_state in terminal or implementation_blocked:
+                    self.state.completed.add(issue.id)
                 await _release_preflight(
-                    "dispatch aborted because task became terminal"
+                    "dispatch aborted because task left the implementation lane"
                 )
-                # Drop any pending retry too — the issue is done.
+                # Drop any pending retry too — implementation no longer owns
+                # this task.
                 rt = self.state.retry_attempts.pop(issue.id, None)
                 if rt and rt.timer_handle and not rt.timer_handle.cancelled():
                     rt.timer_handle.cancel()
@@ -19775,21 +19961,65 @@ class Orchestrator:
         # Implementation work moves to In Progress. Duplicate preflight is a
         # qualification lane, so its tracker state remains Open. Auditors
         # are read-only and never mutate the task's status either.
-        if not duplicate_preflight and auditor_plan is None:
-            try:
-                await asyncio.get_event_loop().run_in_executor(
-                    self._tick_pool,
-                    lambda: tracker.update_issue(issue.identifier, status=IN_PROGRESS),
-                )
-            except Exception as exc:
-                logger.warning(
-                    "Failed to set in_progress for %s: %s — aborting dispatch",
-                    issue.identifier,
-                    exc,
-                )
-                self.state.claimed.discard(issue.id)
-                self.state.claimed_issues.pop(issue.id, None)
-                return
+        if implementation_dispatch:
+            async with self.issue_transition_lock(issue.id):
+                # The first recheck above protects against stale candidate
+                # snapshots.  Repeat it while holding the ownership lock so a
+                # concurrent non-terminal UI move also cannot be overwritten
+                # between that read and the In Progress write.
+                if issue.id in self.state.completed:
+                    logger.info(
+                        "Aborting implementation dispatch of %s before tracker "
+                        "write: terminal transition acquired ownership",
+                        issue.identifier,
+                    )
+                    self.state.claimed.discard(issue.id)
+                    self.state.claimed_issues.pop(issue.id, None)
+                    return
+                try:
+                    locked_state = await asyncio.get_event_loop().run_in_executor(
+                        self._tick_pool,
+                        lambda: tracker.fetch_issue_states_by_ids([issue.id]),
+                    )
+                except Exception as exc:
+                    logger.debug(
+                        "Locked pre-write state recheck failed for %s: %s — "
+                        "using the prior validated snapshot",
+                        issue.identifier,
+                        exc,
+                    )
+                    locked_state = []
+                if locked_state and (
+                    issue.id in self.state.completed
+                    or _state_key(locked_state[0].state)
+                    not in self._retryable_state_keys()
+                ):
+                    logger.info(
+                        "Aborting implementation dispatch of %s before tracker "
+                        "write: state moved to %r",
+                        issue.identifier,
+                        _state_key(locked_state[0].state),
+                    )
+                    self.state.claimed.discard(issue.id)
+                    self.state.claimed_issues.pop(issue.id, None)
+                    self.state.completed.add(issue.id)
+                    return
+                try:
+                    await asyncio.get_event_loop().run_in_executor(
+                        self._tick_pool,
+                        lambda: tracker.update_issue(
+                            issue.identifier, status=IN_PROGRESS
+                        ),
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to set in_progress for %s: %s — aborting dispatch",
+                        issue.identifier,
+                        exc,
+                    )
+                    self.state.claimed.discard(issue.id)
+                    self.state.claimed_issues.pop(issue.id, None)
+                    return
 
         # Shared tracker claim-and-verify protocol (TASK-461.2).
         # For trackers with an external/default-branch source of truth, stamp a
@@ -19879,6 +20109,29 @@ class Orchestrator:
                     None,
                 ):
                     setattr(running_issue, attr, getattr(issue, attr))
+            post_state = _state_key(running_issue.state)
+            if implementation_dispatch and (
+                issue.id in self.state.completed
+                or post_state not in self._retryable_state_keys()
+            ):
+                logger.info(
+                    "Aborting implementation dispatch of %s before worker start: "
+                    "post-update state=%r terminal_fence=%s",
+                    issue.identifier,
+                    post_state,
+                    issue.id in self.state.completed,
+                )
+                self.state.claimed.discard(issue.id)
+                self.state.claimed_issues.pop(issue.id, None)
+                self.state.completed.add(issue.id)
+                retry = self.state.retry_attempts.pop(issue.id, None)
+                if (
+                    retry
+                    and retry.timer_handle
+                    and not retry.timer_handle.cancelled()
+                ):
+                    retry.timer_handle.cancel()
+                return
             if (
                 auditor_plan is None
                 and not duplicate_preflight
@@ -19890,6 +20143,20 @@ class Orchestrator:
                         self.config.tracker_active_states
                     ),
                 )
+
+        # The terminal fence may have been installed while the post-update
+        # tracker read was in flight.  There are no awaits between this check
+        # and worker registration, so a successful check is the final ownership
+        # boundary before an implementation worker can start.
+        if implementation_dispatch and issue.id in self.state.completed:
+            logger.info(
+                "Aborting implementation dispatch of %s before worker start: "
+                "terminal transition fence appeared during state refresh",
+                issue.identifier,
+            )
+            self.state.claimed.discard(issue.id)
+            self.state.claimed_issues.pop(issue.id, None)
+            return
 
         # Remove from retry if present
         retry = self.state.retry_attempts.pop(issue.id, None)
@@ -20506,7 +20773,10 @@ class Orchestrator:
                 # Resolve workspace via the epic_strategy-aware helper:
                 # under epic_strategy='shared' a child of an epic uses
                 # the shared epic worktree; otherwise per-task path.
-                wp, _epic = self._create_workspace_for_issue(issue)
+                wp, _epic = self._create_workspace_for_issue(
+                    issue,
+                    persist_dispatch_metadata=not forced_auditor,
+                )
 
                 self._post_comment(
                     issue.identifier,
@@ -20709,6 +20979,7 @@ class Orchestrator:
                         _loop,
                     )
                     outcome = future.result(timeout=60)
+                    self._record_audit_outcome_ownership(_issue.id, outcome)
                     return {
                         "accepted": outcome.success,
                         "audit_id": outcome.audit_id,
@@ -21022,7 +21293,10 @@ class Orchestrator:
 
             def _setup_worker():
                 # Resolve workspace via the epic_strategy-aware helper.
-                wp, _epic = self._create_workspace_for_issue(issue)
+                wp, _epic = self._create_workspace_for_issue(
+                    issue,
+                    persist_dispatch_metadata=not forced_auditor,
+                )
 
                 self._post_comment(
                     issue.identifier,
@@ -21189,6 +21463,7 @@ class Orchestrator:
                 running_entry
                 and getattr(running_entry, "duplicate_preflight", False)
             )
+            read_only_session = _acp_session_is_read_only(focus, running_entry)
 
             # Wire the same coordinator handler for ACP sessions that use
             # the Claude Agent SDK.  The handler shape and threading model
@@ -21213,6 +21488,7 @@ class Orchestrator:
                         _loop,
                     )
                     outcome = future.result(timeout=60)
+                    self._record_audit_outcome_ownership(_issue.id, outcome)
                     return {
                         "accepted": outcome.success,
                         "audit_id": outcome.audit_id,
@@ -21229,7 +21505,7 @@ class Orchestrator:
                 coordination_service=self,
                 task_identifier=issue.identifier,
                 terminal_transition_coordinator=self.terminal_transition_coordinator,
-                read_only=read_only_preflight,
+                read_only=read_only_session,
                 focus=focus,
                 auditor=focus.name.lower() == AUDITOR_FOCUS_NAME,
                 audit_target=audit_target,
@@ -21443,7 +21719,7 @@ class Orchestrator:
                 model=acp_model,
                 max_turns=max_turns,
                 tool_catalog=tool_catalog,
-                read_only=read_only_preflight,
+                read_only=read_only_session,
                 on_event=_on_event,
                 backend_name=acp_backend_name,
                 billing_model=acp_billing_model,
@@ -22933,7 +23209,12 @@ class Orchestrator:
         reason: str,
         error: str | None,
     ) -> bool:
-        """Persist an auditor exit only if no structured result won the race."""
+        """Persist an auditor exit only if no structured result won the race.
+        
+        Transient failures (crash, timeout, transport error) are classified as
+        INFRASTRUCTURE_ERROR to distinguish them from terminal audit failures.
+        The attempt is marked for retry with the next candidate.
+        """
 
         if not entry.audit_attempt_id:
             return False
@@ -22973,6 +23254,7 @@ class Orchestrator:
                         milliseconds=self._backoff_delay(rotation + 1)
                     )
                 ),
+                failure_classification=FailureClassification.INFRASTRUCTURE_ERROR,
             )
             self._audit_update_record(
                 store,
@@ -23082,8 +23364,10 @@ class Orchestrator:
             # result tool has already completed the durable audit record.
             self.state.claimed.discard(issue_id)
             self.state.claimed_issues.pop(issue_id, None)
-            if entry.branch_key:
-                self._audit_branch_claims.pop(entry.branch_key, None)
+            self._release_audit_branch_claim(
+                entry.branch_key,
+                entry.audit_attempt_id,
+            )
             ended = await asyncio.to_thread(
                 self._finish_audit_attempt,
                 entry,
@@ -23214,6 +23498,29 @@ class Orchestrator:
                         entry,
                         current,
                         project_id,
+                    )
+                elif (
+                    current
+                    and canonicalize_status(current.state) == IN_VALIDATION
+                ):
+                    # A successful terminal handoff stages the task in the
+                    # audit lane before the worker exits.  That is a completed
+                    # implementation handoff, not an incomplete session.  In
+                    # particular, never schedule an implementation retry that
+                    # can race the independent auditor for ownership.
+                    self.state.completed.add(issue_id)
+                    self._clear_reopen_count(issue_id)
+                    retry = self.state.retry_attempts.pop(issue_id, None)
+                    if (
+                        retry
+                        and retry.timer_handle
+                        and not retry.timer_handle.cancelled()
+                    ):
+                        retry.timer_handle.cancel()
+                    logger.info(
+                        "Worker handed %s to terminal audit; suppressing "
+                        "implementation retry",
+                        entry.identifier,
                     )
                 elif current and not _is_terminal_state(
                     current.state, self.config.tracker_terminal_states
@@ -25053,6 +25360,11 @@ Return ONLY a JSON object (no markdown fences, no commentary):
 
             self.state.claimed.discard(issue_id)
             self.state.claimed_issues.pop(issue_id, None)
+            if entry.is_auditor:
+                self._release_audit_branch_claim(
+                    entry.branch_key,
+                    entry.audit_attempt_id,
+                )
 
             if (
                 getattr(entry, "duplicate_preflight", False)
@@ -25298,6 +25610,11 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 getattr(self._terminal_audit_enforcement, "last_result", {}) or {}
             ),
             "audits": dict(getattr(self, "_audit_metrics", {}) or {}),
+            "terminal_audit_health": getattr(self, "_audit_health", TerminalAuditHealth()).to_dict(),
+            "health": {
+                "status": "degraded" if getattr(self, "_audit_health", TerminalAuditHealth()).degraded else "healthy",
+                "terminal_audit": getattr(self, "_audit_health", TerminalAuditHealth()).to_dict(),
+            },
             "alerts": list(self._alerts) + self._credential_error_alerts(),
             "reviews_summary": self._reviews_summary(),
             "orchestrator_metrics": {

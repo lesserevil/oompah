@@ -21,6 +21,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import threading
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -131,6 +132,132 @@ class TestDispatchRecheckSkipsClosedIssue:
             f"Expected one in_progress write, got: {mock_tracker.update_issue.call_args_list!r}"
         )
 
+    def test_awakened_retry_aborts_when_audit_wins_after_in_progress_write(
+        self, tmp_path, event_loop
+    ):
+        """A retry already inside _dispatch must yield to In Validation."""
+
+        orch = _make_orchestrator(tmp_path)
+        stale = _issue(state="In Progress")
+        before_audit = _issue(state="In Progress")
+        after_audit = _issue(state="In Validation")
+
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_issue_states_by_ids.side_effect = [
+            [before_audit],
+            [before_audit],
+            [after_audit],
+        ]
+        orch._run_worker = AsyncMock()
+
+        with patch.object(orch, "_tracker_for_issue", return_value=mock_tracker):
+            event_loop.run_until_complete(
+                orch._dispatch(stale, attempt=1, override_profile="standard")
+            )
+
+        assert any(
+            call.kwargs.get("status") == "In Progress"
+            for call in mock_tracker.update_issue.call_args_list
+        )
+        orch._run_worker.assert_not_awaited()
+        assert stale.id not in orch.state.running
+        assert stale.id not in orch.state.claimed
+        assert stale.id in orch.state.completed
+
+    def test_terminal_transition_fence_aborts_in_flight_retry_before_tracker_write(
+        self, tmp_path, event_loop
+    ):
+        orch = _make_orchestrator(tmp_path)
+        stale = _issue(state="In Progress")
+        orch.state.completed.add(stale.id)
+        mock_tracker = MagicMock()
+
+        with patch.object(orch, "_tracker_for_issue", return_value=mock_tracker):
+            event_loop.run_until_complete(
+                orch._dispatch(stale, attempt=1, override_profile="standard")
+            )
+
+        mock_tracker.update_issue.assert_not_called()
+        assert stale.id not in orch.state.running
+        assert stale.id not in orch.state.claimed
+
+    def test_terminal_staging_cannot_cross_in_progress_tracker_write(
+        self, tmp_path, event_loop
+    ):
+        """The later owner wins without leaving a staged audit In Progress."""
+
+        import oompah.server as server_module
+
+        orch = _make_orchestrator(tmp_path)
+        stale = _issue(state="In Progress", project_id="proj-1")
+        tracker_state = {"status": "In Progress"}
+        update_started = threading.Event()
+        release_update = threading.Event()
+        mock_tracker = MagicMock()
+
+        def _fetch(_issue_ids):
+            return [
+                _issue(
+                    state=tracker_state["status"],
+                    project_id="proj-1",
+                )
+            ]
+
+        def _update(_identifier, *, status):
+            if status == "In Progress" and not update_started.is_set():
+                update_started.set()
+                assert release_update.wait(timeout=3)
+            tracker_state["status"] = status
+
+        async def _stage(**_kwargs):
+            mock_tracker.update_issue(stale.identifier, status="In Validation")
+            return TransitionResult(
+                success=True,
+                audit_id="audit-serialized",
+                queued_targets=[TargetState.DONE],
+            )
+
+        mock_tracker.fetch_issue_states_by_ids.side_effect = _fetch
+        mock_tracker.update_issue.side_effect = _update
+        orch.terminal_transition_coordinator.request_transition = AsyncMock(
+            side_effect=_stage
+        )
+        orch._run_worker = AsyncMock()
+
+        async def _run_race():
+            with patch.object(
+                orch, "_tracker_for_issue", return_value=mock_tracker
+            ):
+                dispatch = asyncio.create_task(
+                    orch._dispatch(
+                        stale,
+                        attempt=1,
+                        override_profile="standard",
+                    )
+                )
+                started = await asyncio.to_thread(update_started.wait, 3)
+                assert started
+                transition = asyncio.create_task(
+                    server_module._stage_terminal_transition(
+                        orch=orch,
+                        tracker=mock_tracker,
+                        project_id="proj-1",
+                        issue=stale,
+                        target=TargetState.DONE,
+                        body={},
+                    )
+                )
+                await asyncio.sleep(0)
+                assert stale.id in orch.state.completed
+                release_update.set()
+                await asyncio.gather(dispatch, transition)
+
+        event_loop.run_until_complete(_run_race())
+
+        assert tracker_state["status"] == "In Validation"
+        orch._run_worker.assert_not_awaited()
+        assert stale.id not in orch.state.running
+
     def test_running_entry_uses_post_update_backlog_status(self, tmp_path, event_loop):
         orch = _make_orchestrator(tmp_path)
         orch.config.tracker_active_states = ["To Do", "In Progress"]
@@ -141,6 +268,7 @@ class TestDispatchRecheckSkipsClosedIssue:
         mock_tracker = MagicMock()
         mock_tracker.fetch_issue_states_by_ids.side_effect = [
             [pre_update],
+            [post_update],
             [post_update],
         ]
         with (
@@ -236,6 +364,25 @@ class TestUiCloseCancelsPendingRetry:
         # The task remains In Validation until the coordinator audit is
         # completed; no direct terminal tracker write is allowed.
         mock_tracker.close_issue.assert_not_called()
+
+
+class TestAuditOwnershipFence:
+    def test_incomplete_audit_releases_fence_for_repair_dispatch(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        orch.state.completed.add("i-abc")
+        outcome = MagicMock(success=True, applied_status="Open")
+
+        orch._record_audit_outcome_ownership("i-abc", outcome)
+
+        assert "i-abc" not in orch.state.completed
+
+    def test_non_dispatchable_audit_outcome_keeps_fence(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        outcome = MagicMock(success=True, applied_status="Needs Human")
+
+        orch._record_audit_outcome_ownership("i-abc", outcome)
+
+        assert "i-abc" in orch.state.completed
 
 
 # ---------------------------------------------------------------------------

@@ -247,6 +247,9 @@ class TestTaskScopeDirectPath:
         from oompah.acp_tools import _exec_oompah_task_command
 
         tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = SimpleNamespace(
+            work_branch="epic-TASK-0--task-TASK-1",
+        )
         coordination = MagicMock()
         with patch(
             "oompah.task_cli._git_submission_evidence",
@@ -278,6 +281,39 @@ class TestTaskScopeDirectPath:
         )
         coordination.coordination_checkpoint.assert_called_once()
 
+    def test_direct_acp_submit_rejects_foreign_task_branch_before_writes(
+        self,
+        tmp_path,
+    ):
+        from oompah.acp_tools import _exec_oompah_task_command
+
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = SimpleNamespace(
+            work_branch="epic-TASK-0--task-TASK-1",
+        )
+        with patch(
+            "oompah.task_cli._git_submission_evidence",
+            return_value={
+                "task_branch": "epic-TASK-0--task-TASK-2",
+                "head_sha": "a" * 40,
+                "remote_head_sha": "a" * 40,
+                "worktree_clean": True,
+            },
+        ):
+            result = _exec_oompah_task_command(
+                "oompah task submit TASK-1 --summary 'Wrong worktree'",
+                tracker,
+                "proj-a",
+                task_identifier="TASK-1",
+                workspace_path=tmp_path,
+            )
+
+        assert result == (
+            "Error: task_branch does not match the task's canonical work branch"
+        )
+        tracker.set_metadata_field.assert_not_called()
+        tracker.update_issue.assert_not_called()
+
     def test_direct_acp_submission_survives_coordination_outage(
         self,
         tmp_path,
@@ -285,6 +321,9 @@ class TestTaskScopeDirectPath:
         from oompah.acp_tools import _exec_oompah_task_command
 
         tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = SimpleNamespace(
+            work_branch="epic-TASK-0--task-TASK-1",
+        )
         coordination = MagicMock()
         coordination.coordination_checkpoint.side_effect = RuntimeError(
             "coordination database temporarily unavailable"
@@ -350,6 +389,7 @@ class TestTaskHandoffEndpoint:
             priority=1,
         )
         record = SimpleNamespace(
+            state="ready",
             task_branch="epic-EPIC-1--task-TASK-1",
             head_sha="a" * 40,
             base_sha="b" * 40,
@@ -361,6 +401,35 @@ class TestTaskHandoffEndpoint:
         assert (
             orch.integration_queue.enqueue.call_args.kwargs["explicit_retry"]
             is True
+        )
+        assert (
+            orch.integration_queue.enqueue.call_args.kwargs["rearm_integrated"]
+            is True
+        )
+
+    def test_api_submission_does_not_rearm_without_fresh_ready_record(self):
+        from oompah.server import _enqueue_worker_submission
+
+        orch = MagicMock()
+        orch.config.parallel_epic_children_enabled = True
+        issue = SimpleNamespace(
+            identifier="TASK-1",
+            parent_id="EPIC-1",
+            priority=1,
+        )
+        record = SimpleNamespace(
+            state="integrated",
+            task_branch="epic-EPIC-1--task-TASK-1",
+            head_sha="a" * 40,
+            base_sha="b" * 40,
+            submitted_at="2026-07-30T00:00:00+00:00",
+        )
+
+        _enqueue_worker_submission(orch, "proj-a", issue, record)
+
+        assert (
+            orch.integration_queue.enqueue.call_args.kwargs["rearm_integrated"]
+            is False
         )
 
     def test_authenticated_worker_can_comment_and_transition_own_task(self):
