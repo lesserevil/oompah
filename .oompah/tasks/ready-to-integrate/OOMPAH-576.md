@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T02:55:54.699694Z'
-updated_at: '2026-07-30T13:48:58.475304Z'
+updated_at: '2026-07-30T13:49:14.367293Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -58,8 +58,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: efdafb9f-1316-4c86-8661-f667cb1c7e8c
 oompah.task_costs:
-  total_input_tokens: 5596576
-  total_output_tokens: 30690
+  total_input_tokens: 5596613
+  total_output_tokens: 31549
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -69,6 +69,10 @@ oompah.task_costs:
     sonnet:
       input_tokens: 5467272
       output_tokens: 24362
+      cost_usd: 0.0
+    opus:
+      input_tokens: 37
+      output_tokens: 859
       cost_usd: 0.0
   runs:
   - profile: default
@@ -89,6 +93,12 @@ oompah.task_costs:
     output_tokens: 24362
     cost_usd: 0.0
     recorded_at: '2026-07-30T13:46:49.494063+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 37
+    output_tokens: 859
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T13:49:12.678149+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-576__20260730T133433Z
@@ -240,5 +250,15 @@ author: oompah
 created: 2026-07-30 13:48
 ---
 Harden task submission branch validation: reject wrong-checkout submits before mutating tracker/queue/worktree, and fail-closed on branch mismatch in ProjectStore._reset_existing_worktree and execute_integration. Adds validate_submission_branch used by both the ACP direct-submit path and the HTTP submit endpoint, and covers regression scenarios (wrong-checkout ACP+HTTP rejection with unchanged queue, correct submission still enqueues, worktree preparation refuses to reset a divergent registered worktree, executor returns branch_mismatch without reset).
+---
+author: oompah
+created: 2026-07-30 13:49
+---
+Run #3 [attempt=3, profile=deep, role=deep -> Claude/opus]
+- Turns: 0, Tool calls: 18
+- Tokens: 37 in / 859 out [896 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 1m 48s
+- Log: OOMPAH-576__20260730T134728Z.jsonl
 ---
 <!-- COMMENTS:END -->
