@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-414
 type: task
-status: Merged
+status: In Validation
 priority: 0
 title: Prevent scheduler stalls from delaying task dispatch
 parent: null
@@ -17,7 +17,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-23T19:20:53.199562Z'
-updated_at: '2026-07-23T21:08:17.903145Z'
+updated_at: '2026-07-30T21:55:03.970559Z'
 work_branch: epic-OOMPAH-414
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/543
@@ -50,6 +50,28 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/543
 oompah.review_number: '543'
 oompah.work_branch: epic-OOMPAH-414
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-07ff221474de
+    project_id: proj-14849f1b
+    task_id: OOMPAH-414
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7007d7702e26eef3f48f000211c4b280389c5f4246667a38cd6118258e36f5cf
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-07-30T21:55:01.486675+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -205,5 +227,10 @@ author: oompah
 created: 2026-07-23 21:05
 ---
 YOLO: merged PR #543.
+---
+author: oompah
+created: 2026-07-30 21:55
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
