@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-616
 type: bug
-status: In Validation
+status: Done
 priority: 1
 title: Integrate terminal-audit retry ownership fencing
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T20:47:41.612111Z'
-updated_at: '2026-07-30T21:27:55.764725Z'
+updated_at: '2026-07-30T21:31:01.850142Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-616
 target_branch: null
 review_url: null
@@ -75,6 +75,8 @@ oompah.task_costs:
     recorded_at: '2026-07-30T21:27:26.672382+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-9c05f83f34c2: '2026-07-30T21:30:59.511374+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -82,7 +84,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-616
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -124,7 +126,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-9c05f83f34c2
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -135,13 +137,16 @@ oompah.terminal_audit:
       started_at: '2026-07-30T21:27:47.752286+00:00'
       branch_key: epic-OOMPAH-585--task-OOMPAH-616
       candidate_rotation_count: 2
+      verdict: pass
+      completed_at: '2026-07-30T21:30:59.511210+00:00'
+      ended_at: '2026-07-30T21:30:59.511210+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-30T20:54:24.446967+00:00'
-    updated_at: '2026-07-30T21:27:47.752286+00:00'
+    updated_at: '2026-07-30T21:30:59.511210+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-e22d7c6e350a
@@ -313,5 +318,22 @@ author: oompah
 created: 2026-07-30 21:27
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 21:31
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- head_commit: 58915e5f0
+- oompah615_commit: 45838987c
+- branch: epic-OOMPAH-585--task-OOMPAH-616
+- focused_tests: 305 passed in 60.38s
+- full_gate: 13792 passed, 7 skipped
+- files_changed: oompah/orchestrator.py oompah/server.py tests/test_dispatch_close_race.py tests/test_orchestrator_handlers.py tests/test_terminal_status_interfaces.py
+- git_diff_check: clean
+- working_tree: clean
 ---
 <!-- COMMENTS:END -->
