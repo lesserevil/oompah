@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:28.755226Z'
-updated_at: '2026-07-30T19:06:03.481562Z'
+updated_at: '2026-07-30T19:06:26.616406Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-592
 target_branch: null
 review_url: null
@@ -56,8 +56,8 @@ oompah.integration:
   base_sha: 64b9b00c55f34d164d4eca2dd6071887ea5b5bb3
   updated_at: '2026-07-30T18:57:45.619687+00:00'
 oompah.task_costs:
-  total_input_tokens: 3151115
-  total_output_tokens: 25551
+  total_input_tokens: 3151192
+  total_output_tokens: 29252
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -67,6 +67,10 @@ oompah.task_costs:
     sonnet:
       input_tokens: 12
       output_tokens: 546
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 77
+      output_tokens: 3701
       cost_usd: 0.0
   runs:
   - profile: default
@@ -81,6 +85,12 @@ oompah.task_costs:
     output_tokens: 546
     cost_usd: 0.0
     recorded_at: '2026-07-30T15:52:22.322471+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 77
+    output_tokens: 3701
+    cost_usd: 0.0
+    recorded_at: '2026-07-30T19:06:21.163229+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-592__20260730T143353Z
@@ -327,5 +337,15 @@ Safe evidence:
 - focused_tests_neighboring: 155 passed in terminal_audit + terminal_audit_enforcement + terminal_audit_scanner + terminal_audit_metadata + terminal_transition_coordinator; 362 passed in orchestrator_handlers + config; dashboard refresh + state read warnings pass
 - acceptance_criterion_1: Verified: terminal_audit_health_alerts() returns non-empty list whenever any degraded counter is non-zero; scan_complete=false preserves prior alerts.
 - acceptance_criterion_2: Verified: on a complete scan, prior terminal_audit_health: alerts are filtered and replaced from durable numeric facts; empty backlog yields zero alerts.
+---
+author: oompah
+created: 2026-07-30 19:06
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 61
+- Tokens: 77 in / 3.7K out [3.8K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 8m 38s
+- Log: OOMPAH-592__20260730T185845Z.jsonl
 ---
 <!-- COMMENTS:END -->
