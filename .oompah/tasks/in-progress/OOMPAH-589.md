@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:20.256845Z'
-updated_at: '2026-07-30T15:21:47.807148Z'
+updated_at: '2026-07-30T15:22:03.706248Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-589
 target_branch: null
 review_url: null
@@ -296,5 +296,24 @@ author: oompah
 created: 2026-07-30 15:21
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-07-30 15:22
+---
+**Understanding & Planned Approach**
+
+Security Issue: OpenAI-compatible auditor endpoints must validate base URLs before dispatch to prevent SSRF/injection attacks.
+
+Planned approach:
+1. Create a URL validation utility to check for absolute HTTP(S) base URLs
+2. Integrate validation into provider creation/loading and auditor dispatch paths  
+3. Ensure invalid candidates are safely excluded from dispatch with redacted error reasons
+4. Implement health state tracking for excluded invalid candidates
+5. Add comprehensive unit/integration tests for absent/relative/malformed/valid URLs
+6. Verify credential redaction in all error paths
+
+Working areas: provider configuration, auditor_dispatch.py, completion-auditor session factory, health state serialization.
+
+Starting implementation...
 ---
 <!-- COMMENTS:END -->
