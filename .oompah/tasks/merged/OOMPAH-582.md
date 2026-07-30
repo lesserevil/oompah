@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-582
 type: task
-status: Needs Human
+status: Merged
 priority: null
 title: Satisfy legacy Done cross-epic dependencies after parent merge
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:39:46.196812Z'
-updated_at: '2026-07-30T14:12:34.606971Z'
+updated_at: '2026-07-30T17:14:30.746228Z'
 work_branch: OOMPAH-582
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/592
@@ -141,6 +141,25 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     no-auditor-audit-ba83e71f4e4d-1: '2026-07-30T14:12:32.507045+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-7520c8d7f6ad
+    project_id: proj-14849f1b
+    task_id: OOMPAH-582
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 720675a14cf2539cbbb8bf0aa1f078001c629588e8a2c121b2416760785dd739
+    authorized_by:
+      version: 1
+      identity: lesserevil
+      source: api
+    reason: Operator re-evaluation confirmed implementation commit bbd48ada7 is an
+      ancestor of origin/main and the task branch has already been consumed. The prior
+      terminal audit failed only because of the forced-auditor transport bug; reopening
+      implementation would duplicate landed work.
+    created_at: '2026-07-30T17:14:28.511854+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -387,5 +406,12 @@ created: 2026-07-30 14:12
 Needs Human — Done audit requires operator input.
 
 No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then move the task back to Open to retry.
+---
+author: oompah
+created: 2026-07-30 17:14
+---
+Override by lesserevil: terminal transition to Merged applied by project owner.
+
+Reason: Operator re-evaluation confirmed implementation commit bbd48ada7 is an ancestor of origin/main and the task branch has already been consumed. The prior terminal audit failed only because of the forced-auditor transport bug; reopening implementation would duplicate landed work.
 ---
 <!-- COMMENTS:END -->
