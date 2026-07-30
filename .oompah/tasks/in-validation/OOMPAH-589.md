@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:20.256845Z'
-updated_at: '2026-07-30T17:04:03.398179Z'
+updated_at: '2026-07-30T17:04:31.820365Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-589
 target_branch: null
 review_url: null
@@ -60,15 +60,12 @@ oompah.agent_run_id: e33554dd-e192-4703-98fc-ed2cca44e3ac
 oompah.work_branch: epic-OOMPAH-585--task-OOMPAH-589
 oompah.integration:
   version: 1
-  state: integrated
-  attempts: 1
+  state: working
+  attempts: 0
   task_branch: epic-OOMPAH-585--task-OOMPAH-589
   base_branch: epic-OOMPAH-585
-  base_sha: c4644107f13bdb747e8f19fe3fe7456db546b458
-  head_sha: b252293d3fc950f79a342c74b51d3285f62ecf4c
-  integrated_sha: b252293d3fc950f79a342c74b51d3285f62ecf4c
-  submitted_at: '2026-07-30T16:59:11.598023+00:00'
-  updated_at: '2026-07-30T17:04:00.526475+00:00'
+  base_sha: b252293d3fc950f79a342c74b51d3285f62ecf4c
+  updated_at: '2026-07-30T17:04:19.568599+00:00'
 oompah.task_costs:
   total_input_tokens: 37815162
   total_output_tokens: 62786
@@ -205,13 +202,30 @@ oompah.terminal_audit:
       version: 1
       algorithm: sha256
       digest: 3f0665135cea26b25da04d2ed8735fa950a380f004e8e55b7204fcf3eff91e99
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-982a638c93d2
+      target_state: Done
+      request_state: pending
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 3f0665135cea26b25da04d2ed8735fa950a380f004e8e55b7204fcf3eff91e99
+      created_at: '2026-07-30T17:04:15.886717+00:00'
+      provider_id: prov-3c712bff
+      model: nvidia/nvidia/nemotron-3-ultra
+      started_at: '2026-07-30T17:04:15.886717+00:00'
+      branch_key: epic-OOMPAH-585--task-OOMPAH-589
+      ended_at: '2026-07-30T17:04:27.420579+00:00'
+      failure_reason: 'unknown url type: ''/chat/completions'''
+      next_retry_at: '2026-07-30T17:04:37.420556+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-30T17:04:01.831731+00:00'
+    updated_at: '2026-07-30T17:04:27.420579+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-ec9f9aa129f8
@@ -229,6 +243,22 @@ oompah.terminal_audit:
     ended_at: '2026-07-30T15:49:04.209887+00:00'
     failure_reason: 'unknown url type: ''/chat/completions'''
     next_retry_at: '2026-07-30T15:49:14.209862+00:00'
+  - version: 1
+    attempt_id: attempt-982a638c93d2
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 3f0665135cea26b25da04d2ed8735fa950a380f004e8e55b7204fcf3eff91e99
+    created_at: '2026-07-30T17:04:15.886717+00:00'
+    provider_id: prov-3c712bff
+    model: nvidia/nvidia/nemotron-3-ultra
+    started_at: '2026-07-30T17:04:15.886717+00:00'
+    branch_key: epic-OOMPAH-585--task-OOMPAH-589
+    ended_at: '2026-07-30T17:04:27.420579+00:00'
+    failure_reason: 'unknown url type: ''/chat/completions'''
+    next_retry_at: '2026-07-30T17:04:37.420556+00:00'
 ---
 ## Summary
 
@@ -894,5 +924,30 @@ author: oompah
 created: 2026-07-30 16:59
 ---
 Fixed the terminal-audit dispatch bug at commit b252293d3: forced auditors now retain the exact independent provider/model persisted in AuditDispatchPlan in both API and ACP worker paths, so Completion Auditor focus cannot switch transport modes after dispatch. Added API-to-ACP and ACP-to-API regressions. Focused regression: 3 passed. Exact committed full gate: 13,720 passed, 7 skipped. Branch is pushed and synchronized with origin.
+---
+author: oompah
+created: 2026-07-30 17:04
+---
+Auditor dispatched (attempt #1, candidate: prov-3c712bff/nvidia/nvidia/nemotron-3-ultra)
+---
+author: oompah
+created: 2026-07-30 17:04
+---
+Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-30 17:04
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 1, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 10s
+- Log: OOMPAH-589__20260730T170426Z.jsonl
+---
+author: oompah
+created: 2026-07-30 17:04
+---
+Auditor attempt ended: unknown url type: '/chat/completions'. A different independent auditor will be tried on the next scheduler tick.
 ---
 <!-- COMMENTS:END -->
