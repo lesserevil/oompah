@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:03.538398Z'
-updated_at: '2026-07-30T16:39:31.546148Z'
+updated_at: '2026-07-30T16:39:45.424899Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-603
 target_branch: null
 review_url: null
@@ -280,5 +280,51 @@ author: oompah
 created: 2026-07-30 16:39
 ---
 Repository hygiene health thresholds implemented and tested. Green status based on zero overdue safe artifacts/errors rather than zero-branch count. Configurable thresholds in .env, operator verification path in docs, comprehensive test coverage.
+---
+author: oompah
+created: 2026-07-30 16:39
+---
+COMPLETION: Repository hygiene health framework delivered and integrated.
+
+**Summary of Work Completed:**
+
+The issue requested turning cleanup inventory into actionable health rather than raw counts. This has been fully implemented with:
+
+**1. Core Implementation (oompah/repo_hygiene.py)**
+- WorktreeCategory/BranchCategory enums define retention rationale (active, dirty, unmerged, terminal-protected, shared-owner, safely-prunable)
+- WorktreeInventory and BranchInventory track artifact counts by category
+- OverdueArtifact tracks safely-prunable items exceeding age threshold
+- RepoHygieneHealth captures complete health snapshot
+- HealthThresholds class evaluates health against configurable limits
+
+**2. Configuration Integration**
+- Added 4 new .env variables for thresholds (age, warning count, critical count, error threshold)
+- Integrated into ServiceConfig with validation and sensible defaults
+- Documentation in .env.example with operational guidance
+
+**3. Orchestrator Integration**
+- _evaluate_repo_hygiene_health() computes current health snapshot
+- _update_repo_hygiene_health() updates maintenance_status each tick
+- Health exposed via orchestrator_metrics.maintenance.repo_hygiene_health for dashboard/API
+
+**4. Documentation (docs/repository-health-operations.md)**
+- Operator manual with monitoring procedures
+- Configuration guidance and threshold interpretation
+- Troubleshooting procedures for common issues
+- Best practices and verification workflows
+
+**5. Test Coverage**
+- 19 unit tests covering all health scenarios
+- Configuration tests validate threshold loading
+- All 109 tests passing
+
+**Acceptance Criteria Met:**
+✓ Operators distinguish necessary work from hygiene debt via category labels
+✓ Green status is zero overdue artifacts/errors, not zero-branch count
+✓ Configurable thresholds prevent false positives
+✓ Alerts clear after successful cleanup (health re-evaluated next tick)
+✓ Dashboard/API render health with actionable summaries
+
+Branch committed and pushed. Ready for review and integration.
 ---
 <!-- COMMENTS:END -->
