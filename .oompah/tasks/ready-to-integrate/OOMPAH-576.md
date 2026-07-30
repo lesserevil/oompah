@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-576
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Reject integration submissions from the wrong checkout before mutating task
   worktrees
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T02:55:54.699694Z'
-updated_at: '2026-07-30T13:48:47.239260Z'
+updated_at: '2026-07-30T13:48:58.475304Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -115,6 +115,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-576
     source_sha: 6f5a859b215c0a9a4744984e89b27e3fe990050d
     completed_at: '2026-07-30T13:46:49.498181+00:00'
+oompah.integration:
+  version: 1
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-576
+  head_sha: 6f5a859b215c0a9a4744984e89b27e3fe990050d
+  submitted_at: '2026-07-30T13:48:56.421801+00:00'
+  updated_at: '2026-07-30T13:48:56.421801+00:00'
 ---
 ## Summary
 
@@ -227,5 +235,10 @@ author: oompah
 created: 2026-07-30 13:48
 ---
 Verification: ran focused pytest suite for tests/test_projects.py, tests/test_integration_executor.py, tests/test_integration_record.py, tests/test_task_handoff.py, and tests/test_worker_submission.py — 125 passed, 0 failures. All acceptance criteria (wrong-checkout submission rejected before tracker/queue/worktree mutation, correct submissions still integrate, malformed queue rows cannot rewrite a registered worktree) are covered.
+---
+author: oompah
+created: 2026-07-30 13:48
+---
+Harden task submission branch validation: reject wrong-checkout submits before mutating tracker/queue/worktree, and fail-closed on branch mismatch in ProjectStore._reset_existing_worktree and execute_integration. Adds validate_submission_branch used by both the ACP direct-submit path and the HTTP submit endpoint, and covers regression scenarios (wrong-checkout ACP+HTTP rejection with unchanged queue, correct submission still enqueues, worktree preparation refuses to reset a divergent registered worktree, executor returns branch_mismatch without reset).
 ---
 <!-- COMMENTS:END -->
