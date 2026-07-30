@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-580
 type: task
-status: Needs Human
+status: Archived
 priority: 0
 title: Rebase epic-OOMPAH-460 onto main
 parent: OOMPAH-460
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:15:45.628870Z'
-updated_at: '2026-07-30T14:12:36.979982Z'
+updated_at: '2026-07-30T17:14:24.582895Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-580
 target_branch: null
 review_url: null
@@ -166,6 +166,25 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     no-auditor-audit-010f4c5c61f5-1: '2026-07-30T14:12:34.837603+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-e137d3f07d4f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-580
+    target_state: Archived
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ffec049844313a422a82af8eebe52e6f09ac578242f7dd22ff80cbfacf4021df
+    authorized_by:
+      version: 1
+      identity: lesserevil
+      source: api
+    reason: 'Operator re-evaluation confirmed the administrative rebase remains complete:
+      origin/epic-OOMPAH-460 is 0 commits behind origin/main and 4 commits ahead.
+      The prior terminal audit failed only because of the now-diagnosed forced-auditor
+      transport bug; rerunning implementation would be incorrect.'
+    created_at: '2026-07-30T17:14:22.329443+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -472,5 +491,12 @@ created: 2026-07-30 14:12
 Needs Human — Archived audit requires operator input.
 
 No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then move the task back to Open to retry.
+---
+author: oompah
+created: 2026-07-30 17:14
+---
+Override by lesserevil: terminal transition to Archived applied by project owner.
+
+Reason: Operator re-evaluation confirmed the administrative rebase remains complete: origin/epic-OOMPAH-460 is 0 commits behind origin/main and 4 commits ahead. The prior terminal audit failed only because of the now-diagnosed forced-auditor transport bug; rerunning implementation would be incorrect.
 ---
 <!-- COMMENTS:END -->
