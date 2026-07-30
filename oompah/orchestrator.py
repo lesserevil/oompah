@@ -160,6 +160,11 @@ from oompah.task_handoff import (
     issue_task_handoff_token,
     revoke_task_handoff_token,
 )
+from oompah.auth_health import (
+    auth_health_alerts,
+    auth_health_snapshot,
+    record_worker_token_minted,
+)
 from oompah.auditor import (
     AUDITOR_ALLOWED_TOOLS,
     AUDITOR_FOCUS_NAME,
@@ -20379,7 +20384,7 @@ class Orchestrator:
         if not issue.project_id:
             return None
         try:
-            return issue_task_handoff_token(
+            token = issue_task_handoff_token(
                 project_id=issue.project_id,
                 task_identifier=issue.identifier,
                 allowed_actions={
@@ -20395,6 +20400,8 @@ class Orchestrator:
                     "remove-label",
                 },
             )
+            record_worker_token_minted()
+            return token
         except Exception as exc:
             logger.warning(
                 "Unable to mint task handoff capability for %s: %s",
@@ -25716,7 +25723,8 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 "status": "degraded" if getattr(self, "_audit_health", TerminalAuditHealth()).degraded else "healthy",
                 "terminal_audit": getattr(self, "_audit_health", TerminalAuditHealth()).to_dict(),
             },
-            "alerts": list(self._alerts) + self._credential_error_alerts(),
+            "auth_health": auth_health_snapshot(),
+            "alerts": list(self._alerts) + self._credential_error_alerts() + auth_health_alerts(),
             "reviews_summary": self._reviews_summary(),
             "orchestrator_metrics": {
                 "last_tick": dict(getattr(self, "_last_tick_metrics", {}) or {}),

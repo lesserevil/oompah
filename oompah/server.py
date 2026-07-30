@@ -115,6 +115,13 @@ from oompah.task_handoff import (
     record_task_handoff_failure,
     validate_task_handoff_token,
 )
+from oompah.auth_health import (
+    record_operator_401,
+    record_worker_401,
+    record_worker_403_scope,
+    record_worker_403_action,
+    record_worker_token_accepted,
+)
 from oompah.projects import ProjectError, ProjectStore
 from oompah.integration_queue import IntegrationQueueStore
 from oompah.tracker import TrackerError, normalize_priority_int
@@ -604,6 +611,7 @@ class _BasicAuthMiddleware:
                 return
 
             # Deny with 401 Basic challenge — no credential disclosure.
+            record_operator_401()
             body = self._DENY_BODY
             await send({
                 "type": "http.response.start",
@@ -3287,6 +3295,7 @@ async def api_task_handoff(request: Request):
     """
     token = request.scope.get(_TASK_HANDOFF_SCOPE_CAPABILITY)
     if not isinstance(token, str) or not token:
+        record_worker_401()
         return JSONResponse(
             {"error": {"code": "handoff_unauthorized", "message": "task handoff capability required"}},
             status_code=401,
@@ -3321,6 +3330,8 @@ async def api_task_handoff(request: Request):
         "add-label",
         "remove-label",
     }:
+        # Intentional least-privilege denial — not a health signal.
+        record_worker_403_action()
         return JSONResponse(
             {"error": {"code": "handoff_forbidden", "message": "task handoff action is not granted"}},
             status_code=403,
@@ -3341,10 +3352,17 @@ async def api_task_handoff(request: Request):
         # Do not expose whether a token exists for another task/project.
         record_task_handoff_failure(token, "task handoff scope validation failed")
         status_code = 401 if "invalid" in reason or "missing" in reason else 403
+        # Count by auth-plane failure type for health signals.
+        if status_code == 401:
+            record_worker_401()
+        else:
+            record_worker_403_scope()
         return JSONResponse(
             {"error": {"code": "handoff_forbidden", "message": reason}},
             status_code=status_code,
         )
+    # Token presented and scope validated — record acceptance before dispatch.
+    record_worker_token_accepted()
 
     try:
         orch = _get_orchestrator()
