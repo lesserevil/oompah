@@ -8,12 +8,13 @@ parent: null
 children:
 - OOMPAH-620
 - OOMPAH-621
+- OOMPAH-623
 blocked_by: []
 start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T21:24:41.452666Z'
-updated_at: '2026-07-30T21:25:30.036751Z'
+updated_at: '2026-07-30T21:32:18.985133Z'
 work_branch: null
 target_branch: null
 review_url: null
