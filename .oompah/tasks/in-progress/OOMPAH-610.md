@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-610
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Release stale claimed_issues entries when completion auditors exit
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:53:05.632137Z'
-updated_at: '2026-07-30T18:58:55.308432Z'
+updated_at: '2026-07-30T18:59:07.208195Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,7 +42,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 4db1411f-cfb9-4104-bba9-bc0122ff5e83
+oompah.agent_run_id: 7cfdf01f-b254-4b46-bd7b-9c752596fcaf
 oompah.task_costs:
   total_input_tokens: 2400319
   total_output_tokens: 10074
@@ -113,5 +113,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 4m 47s
 - Log: OOMPAH-610__20260730T185400Z.jsonl
+---
+author: oompah
+created: 2026-07-30 18:59
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-30 18:59
+---
+Focus: Refactoring Specialist
 ---
 <!-- COMMENTS:END -->
