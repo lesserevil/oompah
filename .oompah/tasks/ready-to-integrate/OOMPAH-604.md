@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T17:07:44.032640Z'
-updated_at: '2026-07-30T17:18:49.655039Z'
+updated_at: '2026-07-30T17:18:56.863075Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-604
 target_branch: null
 review_url: null
@@ -195,5 +195,10 @@ author: oompah
 created: 2026-07-30 17:18
 ---
 Fixed TerminalTransitionCoordinator._override_transition_locked to check only the current active (non-superseded) audit record's fingerprint, allowing owner overrides after evidence fingerprint updates. Added 4 regression tests. All existing tests pass.
+---
+author: oompah
+created: 2026-07-30 17:18
+---
+COMPLETION: Fixed the terminal-audit evidence supersession bug (OOMPAH-604). A project owner can now apply an auditable override to a terminal request even when historical superseded records use older fingerprints, provided the current active record matches. The fix preserves all safety guarantees: authorization is re-checked at the owner layer, metadata is atomically persisted before status changes, secrets are redacted, and stale overrides (where the current record doesn't match) are still rejected. Task is ready for integration.
 ---
 <!-- COMMENTS:END -->
