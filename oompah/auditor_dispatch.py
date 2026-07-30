@@ -11,7 +11,7 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any, Callable
 
 from oompah.auditor_candidate_selector import (
     AuditorCandidateSelector,
@@ -25,6 +25,9 @@ from oompah.terminal_audit import (
     TargetState,
     TerminalAuditRecord,
 )
+
+if TYPE_CHECKING:
+    from oompah.terminal_audit import FailureClassification
 
 
 def utc_now() -> datetime:
@@ -302,8 +305,17 @@ class AuditorDispatchLane:
         reason: str | None = None,
         ended_at: str | None = None,
         retry_after: str | None = None,
+        failure_classification: "FailureClassification | None" = None,
     ) -> TerminalAuditRecord:
-        """Mark a launched attempt ended without changing the audit verdict."""
+        """Mark a launched attempt ended without changing the audit verdict.
+        
+        When a transient failure occurs (launch error, transport error, timeout, etc.),
+        set failure_classification to indicate the error type. The attempt is marked
+        PENDING with next_retry_at to enable automatic rotation to the next candidate.
+        The failure_classification persists for audit history even if the next attempt
+        succeeds.
+        """
+        from oompah.terminal_audit import FailureClassification
 
         end = ended_at or timestamp()
         changed = False
@@ -313,6 +325,10 @@ class AuditorDispatchLane:
                 attempts.append(attempt)
                 continue
             changed = True
+            # Ensure failure_classification is set for transient failures
+            classification = failure_classification
+            if classification is not None and not isinstance(classification, FailureClassification):
+                classification = FailureClassification.from_raw(classification)
             attempts.append(
                 replace(
                     attempt,
@@ -320,6 +336,7 @@ class AuditorDispatchLane:
                     ended_at=end,
                     failure_reason=reason or attempt.failure_reason,
                     next_retry_at=retry_after,
+                    failure_classification=classification or attempt.failure_classification,
                 )
             )
         if not changed:

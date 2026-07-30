@@ -759,6 +759,60 @@ def test_parallel_workspace_persists_private_branch_and_integration_record(
     assert record["base_sha"] == "a" * 40
 
 
+def test_parallel_auditor_workspace_preserves_integrated_metadata(tmp_path):
+    project = _make_project_record(epic_strategy="shared")
+    orchestrator = _make_orch(tmp_path, projects=[project])
+    orchestrator.config.parallel_epic_children_enabled = True
+    orchestrator.project_store.prepare_epic_branch_for_private_dispatch.return_value = (
+        "/wt/epic",
+        "a" * 40,
+    )
+    orchestrator.project_store.create_worktree.return_value = "/wt/private"
+    orchestrator.project_store.epic_child_branch_name.return_value = (
+        "epic-EPIC-1--task-TASK-1"
+    )
+    epic = _make_issue(
+        identifier="EPIC-1",
+        issue_type="epic",
+        project_id=project.id,
+    )
+    child = _make_issue(
+        identifier="TASK-1",
+        parent_id=epic.identifier,
+        project_id=project.id,
+        state="In Validation",
+    )
+    child.integration = IntegrationRecord(
+        state="integrated",
+        task_branch="epic-EPIC-1--task-TASK-1",
+        base_branch="epic-EPIC-1",
+        base_sha="9" * 40,
+        head_sha="b" * 40,
+        integrated_sha="c" * 40,
+    )
+    tracker = MagicMock()
+    tracker.fetch_issue_detail.return_value = epic
+
+    with patch.object(orchestrator, "_tracker_for_issue", return_value=tracker):
+        workspace, shared_epic = orchestrator._create_workspace_for_issue(
+            child,
+            persist_dispatch_metadata=False,
+        )
+
+    assert workspace == "/wt/private"
+    assert shared_epic is None
+    assert child.work_branch == "epic-EPIC-1--task-TASK-1"
+    orchestrator.project_store.create_worktree.assert_called_once_with(
+        project.id,
+        child.identifier,
+        base_branch="epic-EPIC-1",
+        branch_name="epic-EPIC-1--task-TASK-1",
+    )
+    tracker.set_metadata_field.assert_not_called()
+    assert child.integration.state == "integrated"
+    assert child.integration.integrated_sha == "c" * 40
+
+
 def test_epic_head_race_requeues_the_rebased_remote_head(tmp_path):
     project = _make_project_record(epic_strategy="shared")
     orchestrator = _make_orch(tmp_path, projects=[project])

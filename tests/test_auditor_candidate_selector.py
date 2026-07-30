@@ -51,6 +51,7 @@ def _make_provider(
     api_key: str = "test-key",
     base_url: str = "http://localhost:8000",
     billing_model: str = "per_token",
+    backend: str | None = None,
 ) -> ModelProvider:
     """Create a test ModelProvider."""
     if models is None:
@@ -64,6 +65,7 @@ def _make_provider(
         api_key=api_key,
         base_url=base_url,
         billing_model=billing_model,
+        backend=backend,
     )
 
 
@@ -151,6 +153,7 @@ class TestNoCandidateReason:
             "all_unhealthy",
             "all_over_budget",
             "all_are_contributors",
+            "missing_audit_capability",
             "unknown_acp_models_only",
             "unknown_error",
         }
@@ -715,6 +718,99 @@ class TestAuditorCandidateSelector_Budget:
         auditor_role, reason = selector.seed_auditor_role(contributors=[])
 
         assert auditor_role is not None
+
+
+class TestAuditorCandidateSelector_AuditCapability:
+    """Only transports with a durable audit-verdict channel are eligible."""
+
+    @staticmethod
+    def _role(*candidates: Candidate) -> Role:
+        return Role(
+            name=AUDITOR_ROLE_NAME,
+            strategy="priority",
+            candidates=list(candidates),
+            updated_at=datetime.now(timezone.utc),
+        )
+
+    def test_subscription_codex_is_skipped_for_capable_candidate(self):
+        codex = _make_provider(
+            "codex-subscription",
+            "Codex Subscription",
+            mode="acp",
+            api_key="",
+            billing_model="subscription",
+            backend="codex",
+            models=["gpt-5.6-sol"],
+        )
+        claude = _make_provider(
+            "claude-subscription",
+            "Claude Subscription",
+            mode="acp",
+            api_key="",
+            billing_model="subscription",
+            backend="claude",
+            models=["sonnet"],
+        )
+        role = self._role(
+            Candidate(provider_id=codex.id, model="gpt-5.6-sol"),
+            Candidate(provider_id=claude.id, model="sonnet"),
+        )
+        selector = AuditorCandidateSelector(
+            _make_role_store_with_roles({AUDITOR_ROLE_NAME: role}),
+            _make_provider_store({codex.id: codex, claude.id: claude}),
+        )
+
+        candidates, reason = selector.select_candidates()
+
+        assert reason is None
+        assert [(item.provider_id, item.model) for item in candidates] == [
+            (claude.id, "sonnet")
+        ]
+
+    def test_subscription_codex_only_reports_missing_capability(self):
+        codex = _make_provider(
+            "codex-subscription",
+            "Codex Subscription",
+            mode="acp",
+            api_key="",
+            billing_model="subscription",
+            backend="codex",
+            models=["gpt-5.6-sol"],
+        )
+        role = self._role(Candidate(provider_id=codex.id, model="gpt-5.6-sol"))
+        selector = AuditorCandidateSelector(
+            _make_role_store_with_roles({AUDITOR_ROLE_NAME: role}),
+            _make_provider_store({codex.id: codex}),
+        )
+
+        candidates, reason = selector.select_candidates()
+
+        assert candidates == []
+        assert reason is not None
+        assert reason.reason == "missing_audit_capability"
+        assert "Codex Subscription" in reason.detail
+
+    def test_per_token_codex_remains_eligible(self):
+        codex = _make_provider(
+            "codex-api",
+            "Codex API",
+            mode="acp",
+            billing_model="per_token",
+            backend="codex",
+            models=["gpt-5.6-sol"],
+        )
+        role = self._role(Candidate(provider_id=codex.id, model="gpt-5.6-sol"))
+        selector = AuditorCandidateSelector(
+            _make_role_store_with_roles({AUDITOR_ROLE_NAME: role}),
+            _make_provider_store({codex.id: codex}),
+        )
+
+        candidates, reason = selector.select_candidates()
+
+        assert reason is None
+        assert [(item.provider_id, item.model) for item in candidates] == [
+            (codex.id, "gpt-5.6-sol")
+        ]
 
 
 # ---------------------------------------------------------------------------

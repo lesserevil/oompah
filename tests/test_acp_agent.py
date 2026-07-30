@@ -755,7 +755,14 @@ class TestRunWorkerRouting:
 
 
 class TestAcpWorkerModelHandoff:
-    def _run_handoff(self, tmp_path, *, backend: str, model: str):
+    def _run_handoff(
+        self,
+        tmp_path,
+        *,
+        backend: str,
+        model: str,
+        forced_auditor: bool = False,
+    ):
         from oompah.config import ServiceConfig
         from oompah.orchestrator import DispatchTarget, Orchestrator
 
@@ -849,6 +856,7 @@ class TestAcpWorkerModelHandoff:
                     attempt=None,
                     profile=profile,
                     target=target,
+                    forced_auditor=forced_auditor,
                 )
             )
 
@@ -887,6 +895,24 @@ class TestAcpWorkerModelHandoff:
         assert captured["model"] == model
         assert captured["billing_model"] == "subscription"
         orch._on_worker_exit.assert_awaited_once()
+
+    def test_forced_auditor_workspace_skips_implementation_metadata(
+        self,
+        tmp_path,
+    ):
+        _captured, orch = self._run_handoff(
+            tmp_path,
+            backend="claude",
+            model="opus",
+            forced_auditor=True,
+        )
+
+        assert (
+            orch._create_workspace_for_issue.call_args.kwargs[
+                "persist_dispatch_metadata"
+            ]
+            is False
+        )
 
 
 # ----------------------------------------------------------------------

@@ -1133,7 +1133,8 @@ def build_tool_catalog(
         if direct is not None:
             return _wrap_text(direct)
         return _wrap_text(
-            _exec_run_command(
+            await asyncio.to_thread(
+                _exec_run_command,
                 workspace,
                 args,
                 timeout=run_command_timeout_s,
@@ -1450,7 +1451,8 @@ def build_codex_tool_catalog(
         )
         if direct is not None:
             return direct
-        return _exec_run_command(
+        return await asyncio.to_thread(
+            _exec_run_command,
             workspace,
             {"command": command},
             timeout=run_command_timeout_s,
@@ -1752,7 +1754,8 @@ def build_opencode_tool_catalog(
         if direct is not None:
             return _wrap_text(direct)
         return _wrap_text(
-            _exec_run_command(
+            await asyncio.to_thread(
+                _exec_run_command,
                 workspace,
                 args,
                 timeout=run_command_timeout_s,

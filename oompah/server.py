@@ -2924,6 +2924,10 @@ def _enqueue_worker_submission(
         priority=getattr(issue, "priority", None),
         submitted_at=record.submitted_at,
         explicit_retry=explicit_retry,
+        rearm_integrated=(
+            explicit_retry
+            and str(getattr(record, "state", "")).strip().lower() == "ready"
+        ),
     )
 
 
@@ -3493,6 +3497,8 @@ async def api_task_handoff(request: Request):
             )
             _api_cache.invalidate("issues:all")
             _api_cache.invalidate_prefix(f"detail:{project_id}:{identifier}")
+            if terminal_payload is not None:
+                orch.request_refresh()
             await broadcast_issues()
             return JSONResponse(terminal_payload or {"ok": True})
 
@@ -3567,6 +3573,8 @@ async def api_task_handoff(request: Request):
             await _run_api_io(tracker.remove_label, identifier, label)
         _api_cache.invalidate("issues:all")
         _api_cache.invalidate_prefix(f"detail:{project_id}:{identifier}")
+        if terminal_payload is not None:
+            orch.request_refresh()
         await broadcast_issues()
         return JSONResponse(terminal_payload or {"ok": True})
     except ValueError as exc:
@@ -3859,33 +3867,73 @@ async def _stage_terminal_transition(
     ):
         return None, ("Terminal transition service is unavailable.", 503)
 
+    # Fence ordinary dispatch before the first await below.  A retry timer
+    # removes its RetryEntry before fetching tracker state, so the generic
+    # retry-cancellation pass cannot see a callback that is already in flight.
+    # ``state.completed`` is also consulted by dispatch immediately before it
+    # mutates tracker state and starts a worker.  Keeping the fence through a
+    # successful staged transition makes terminal-audit ownership authoritative;
+    # a later explicit reopen clears the marker through the existing API path.
+    issue_id = str(getattr(issue, "id", "") or "")
+    completed = getattr(getattr(orch, "state", None), "completed", None)
+    was_completed = bool(
+        issue_id and completed is not None and issue_id in completed
+    )
+    if issue_id and completed is not None:
+        completed.add(issue_id)
+
+    async def _with_issue_ownership_lock(operation):
+        lock_factory = getattr(orch, "issue_transition_lock", None)
+        if not issue_id or not callable(lock_factory):
+            return await operation()
+        async with lock_factory(issue_id):
+            return await operation()
+
+    def _rollback_dispatch_fence() -> None:
+        if issue_id and completed is not None and not was_completed:
+            completed.discard(issue_id)
+        # A retry callback may have observed the temporary fence and exited.
+        # Wake ordinary dispatch so a failed terminal request cannot strand
+        # otherwise-dispatchable work.
+        refresh = getattr(orch, "request_refresh", None)
+        if callable(refresh):
+            refresh()
+
     actor = _request_actor_login(body, request)
     if audit_override:
         reason = body.get("override_reason")
         if not isinstance(reason, str) or not reason.strip():
+            _rollback_dispatch_fence()
             return None, (
                 "override_reason is required when audit_override=true.",
                 400,
             )
         if not actor:
+            _rollback_dispatch_fence()
             return None, (
                 "An actor identity is required when audit_override=true.",
                 400,
             )
         try:
-            result = await coordinator.override_transition(
-                current_issue=issue,
-                requested_target=target,
-                authorized_actor=ContributorIdentity(actor, "api"),
-                project_id=str(project_id),
-                evidence_fingerprint=_terminal_evidence_fingerprint(issue, str(project_id)),
-                reason=reason,
-                project=_project_by_id(orch, str(project_id)),
+            result = await _with_issue_ownership_lock(
+                lambda: coordinator.override_transition(
+                    current_issue=issue,
+                    requested_target=target,
+                    authorized_actor=ContributorIdentity(actor, "api"),
+                    project_id=str(project_id),
+                    evidence_fingerprint=_terminal_evidence_fingerprint(
+                        issue, str(project_id)
+                    ),
+                    reason=reason,
+                    project=_project_by_id(orch, str(project_id)),
+                )
             )
         except (TypeError, ValueError) as exc:
+            _rollback_dispatch_fence()
             logger.info("Rejected terminal override request: %s", exc)
             return None, ("The terminal override request is invalid.", 400)
         except Exception:
+            _rollback_dispatch_fence()
             logger.exception("Terminal override request failed")
             return None, (
                 "The terminal transition could not be staged. Retry the request or "
@@ -3893,21 +3941,28 @@ async def _stage_terminal_transition(
                 503,
             )
         if not result.success:
+            _rollback_dispatch_fence()
             return None, _safe_terminal_transition_error(result, override=True)
         return _terminal_transition_payload(target, result), None
 
     try:
-        result = await coordinator.request_transition(
-            current_issue=issue,
-            requested_target=target,
-            trigger_identity=ContributorIdentity(actor or "api-client", "api"),
-            project_id=str(project_id),
-            evidence_fingerprint=_terminal_evidence_fingerprint(issue, str(project_id)),
+        result = await _with_issue_ownership_lock(
+            lambda: coordinator.request_transition(
+                current_issue=issue,
+                requested_target=target,
+                trigger_identity=ContributorIdentity(actor or "api-client", "api"),
+                project_id=str(project_id),
+                evidence_fingerprint=_terminal_evidence_fingerprint(
+                    issue, str(project_id)
+                ),
+            )
         )
     except (TypeError, ValueError) as exc:
+        _rollback_dispatch_fence()
         logger.info("Rejected terminal transition request: %s", exc)
         return None, ("The terminal transition request is invalid.", 400)
     except Exception:
+        _rollback_dispatch_fence()
         logger.exception("Terminal transition request failed")
         return None, (
             "The terminal transition could not be staged. Retry the request or ask "
@@ -3915,6 +3970,7 @@ async def _stage_terminal_transition(
             503,
         )
     if not result.success:
+        _rollback_dispatch_fence()
         return None, _safe_terminal_transition_error(result)
     return _terminal_transition_payload(target, result), None
 
@@ -8968,7 +9024,13 @@ async def api_update_issue(identifier: str, request: Request):
         # event-driven scheduler.  Without this, a task moved from Backlog or
         # Needs Human to Open waits for the long safety-net poll even when
         # capacity is immediately available.
-        if (
+        if terminal_transition_payload is not None:
+            # Wake only after the terminal fence, running-worker termination,
+            # and retry cancellation above are all visible. Waking while the
+            # old branch owner is still registered can make the audit lane skip
+            # this request until the periodic safety-net poll.
+            orch.request_refresh()
+        elif (
             new_status is not None
             and is_dispatchable_status(new_status)
             and (
@@ -9304,6 +9366,8 @@ async def api_add_label(identifier: str, request: Request):
         )
         _api_cache.invalidate("issues:all")
         _api_cache.invalidate_prefix(f"detail:{project_id}:{resolved_identifier}")
+        if terminal_payload is not None:
+            orch.request_refresh()
         await broadcast_issues()
         return JSONResponse(terminal_payload or {"ok": True}, status_code=201)
     except Exception as exc:

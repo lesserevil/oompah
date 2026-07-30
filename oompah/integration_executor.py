@@ -43,7 +43,7 @@ def _sha(repo_path: str, ref: str) -> str | None:
 
 
 def _current_branch(repo_path: str) -> str | None:
-    result = _git(repo_path, "symbolic-ref", "--short", "HEAD", timeout=15)
+    result = _git(repo_path, "branch", "--show-current", timeout=15)
     return result.stdout.strip() if result.returncode == 0 else None
 
 
@@ -66,13 +66,13 @@ def execute_integration(
     rebased_sha: str | None = None
     try:
         with project_lock:
-            registered_task_branch = _current_branch(task_worktree)
-            if registered_task_branch != task_branch:
+            current_task_branch = _current_branch(task_worktree)
+            if current_task_branch != task_branch:
                 return IntegrationExecutionResult(
-                    status="branch_mismatch",
+                    status="wrong_worktree",
                     message=(
                         "task worktree is on "
-                        f"{registered_task_branch or 'a detached HEAD'}, not "
+                        f"{current_task_branch or 'a detached HEAD'}, not "
                         f"queued branch {task_branch}; refusing to reset it"
                     ),
                 )
@@ -105,18 +105,22 @@ def execute_integration(
                     message=f"remote epic branch {epic_branch} does not exist",
                 )
             checkout = _git(task_worktree, "checkout", task_branch)
+            if checkout.returncode != 0:
+                return IntegrationExecutionResult(
+                    status="error",
+                    message=checkout.stderr.strip()[:1000],
+                    expected_epic_sha=expected_epic_sha,
+                )
             reset_task = _git(
                 task_worktree,
                 "reset",
                 "--hard",
                 f"origin/{task_branch}",
             )
-            if checkout.returncode != 0 or reset_task.returncode != 0:
+            if reset_task.returncode != 0:
                 return IntegrationExecutionResult(
                     status="error",
-                    message=(
-                        checkout.stderr.strip() or reset_task.stderr.strip()
-                    )[:1000],
+                    message=reset_task.stderr.strip()[:1000],
                     expected_epic_sha=expected_epic_sha,
                 )
             rebased = _git(task_worktree, "rebase", expected_epic_sha, timeout=600)

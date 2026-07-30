@@ -144,12 +144,15 @@ class IntegrationQueueStore:
         priority: int | None = None,
         submitted_at: str | None = None,
         explicit_retry: bool = False,
+        rearm_integrated: bool = False,
     ) -> IntegrationQueueItem:
         """Insert or refresh a submission; identical resubmits are idempotent.
 
         ``explicit_retry`` only revives an identical blocked submission.
-        Ready, integrating, and integrated rows remain idempotent so an
-        operator retry cannot duplicate active or completed integration.
+        ``rearm_integrated`` additionally revives an identical integrated row
+        when the explicit submission carries a fresh canonical ``ready``
+        integration record. Ready and integrating rows remain idempotent so
+        an operator retry cannot reset active integration.
         """
 
         values = {
@@ -181,7 +184,13 @@ class IntegrationQueueStore:
                 and explicit_retry
                 and existing["state"] == "blocked"
             )
-            if identical and not retry_blocked:
+            retry_integrated = bool(
+                identical
+                and explicit_retry
+                and rearm_integrated
+                and existing["state"] == "integrated"
+            )
+            if identical and not retry_blocked and not retry_integrated:
                 return self._from_row(existing)
             # Set retry_forced=1 only when explicit_retry resets a blocked row
             retry_forced_val = 1 if retry_blocked else 0
