@@ -30,7 +30,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:03:47.776498Z'
-updated_at: '2026-07-31T04:36:13.246153Z'
+updated_at: '2026-07-31T04:36:28.609880Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -89,6 +89,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-07-31T04:24:57.796303+00:00'
     branch_key: OOMPAH-460
+oompah.task_costs:
+  total_input_tokens: 185
+  total_output_tokens: 7463
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 185
+      output_tokens: 7463
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 185
+    output_tokens: 7463
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T04:36:26.861632+00:00'
 ---
 ## Summary
 
@@ -163,5 +179,15 @@ Safe evidence:
 - override_authorizer: lesserevil (project owner)
 - blocked_by_status: OOMPAH-459 integrated on origin/main at 6be5c8910
 - evidence_fingerprint_match: state branch pending_chain digest fd0747b9bdba754f77a8fc86c71d70ecdff91f8b3cbad76a463dd53d3644e757 matches trusted scheduler input
+---
+author: oompah
+created: 2026-07-31 04:36
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 141
+- Tokens: 185 in / 7.5K out [7.6K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 11m 28s
+- Log: OOMPAH-460__20260731T042504Z.jsonl
 ---
 <!-- COMMENTS:END -->
