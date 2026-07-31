@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-664
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 0
 title: Make issue-list snapshots advance with canonical state-branch task changes
 parent: null
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:06.140108Z'
-updated_at: '2026-07-31T21:42:18.835544Z'
+updated_at: '2026-07-31T21:45:49.592556Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -114,9 +114,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-664
-  head_sha: 9b0696866c9f186649076773e213cd4f2890bd99
-  submitted_at: '2026-07-31T21:33:31.547613+00:00'
-  updated_at: '2026-07-31T21:33:31.547613+00:00'
+  head_sha: 7fb6cb96dc2674d79c77aeb8763fbf1dc6dc5015
+  submitted_at: '2026-07-31T21:45:46.764091+00:00'
+  updated_at: '2026-07-31T21:45:46.764091+00:00'
 ---
 ## Summary
 
@@ -343,5 +343,18 @@ author: oompah
 created: 2026-07-31 21:42
 ---
 Understanding: The CI gate failure is 'make: uv: No such file or directory'. Root cause: the quality gate sandbox (quality_gate.py:_sandbox_command) sets PATH=/usr/bin:/bin:/usr/sbin:/sbin (no ~/.local/bin) and mounts the operator venv read-only at repo/.venv. Git archive assigns all snapshot files the commit timestamp (2026-07-31T21:32:43), which is NEWER than .venv/.uv-test-setup mtime (2026-07-29T22:49:39), so Make tries to rebuild the sentinel by running 'uv pip install' — which fails because uv is not in the restricted PATH and the venv is read-only. Fix: in _sandbox_command, after mounting the venv ro-bind, create writable sentinel files in run_root with current mtime and bind-mount them over the read-only venv sentinels. Make then sees sentinels as current and skips uv invocations entirely.
+---
+author: oompah
+created: 2026-07-31 21:45
+---
+Implementation: Fixed CI gate failure 'make: uv: No such file or directory' in oompah/quality_gate.py _sandbox_command().
+
+Root cause: git archive stamps all snapshot files with the HEAD commit timestamp (2026-07-31T21:32:43). The operator's .venv/.uv-test-setup sentinel had an older mtime (2026-07-29T22:49:39), so Make tried to rebuild it via 'uv pip install'. But the sandbox restricts PATH to /usr/bin:/bin:/usr/sbin:/sbin (no ~/.local/bin where uv lives), and the venv is mounted read-only, so uv fails.
+
+Fix: after mounting the operator venv read-only in the bwrap sandbox, create writable sentinel files in run_root with current mtime and bind-mount them over the read-only venv sentinel paths (.uv-setup, .uv-test-setup). Bubblewrap applies mounts in order, so the --bind for each sentinel overrides the earlier --ro-bind, making Make see them as current.
+
+Test added: test_sandbox_command_overlays_writable_uv_sentinels_over_ro_venv verifies that both sentinels are created in run_root and bound at the correct venv paths.
+
+Results: 47/47 quality gate tests pass, 59/59 original focused tests pass.
 ---
 <!-- COMMENTS:END -->

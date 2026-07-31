@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-668
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Use the trusted test virtualenv without reinstalling inside quality-gate sandbox
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T21:35:20.853943Z'
-updated_at: '2026-07-31T21:44:13.484654Z'
+updated_at: '2026-07-31T21:45:42.609283Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -61,6 +61,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-668
     source_sha: 16362384be835d1485d1121ce3c8329743391c79
     completed_at: '2026-07-31T21:38:04.362153+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-668
+  head_sha: 1fe2181a2c26b792fa3e6e15e16398f2dcddf34c
+  submitted_at: '2026-07-31T21:45:37.292015+00:00'
+  updated_at: '2026-07-31T21:45:37.292015+00:00'
 ---
 ## Summary
 
@@ -232,5 +240,15 @@ Run #6 [attempt=6, profile=deep, role=— -> Claude/opus]
 - Tokens: 0 in / 0 out [0 total]
 - Cost: $0.0000
 - Exit: error, Duration: 2s
+---
+author: oompah
+created: 2026-07-31 21:45
+---
+Implemented the quality-gate deadlock fix at commit 1fe2181a2. Gate mode now validates and uses the service-owned read-only test virtualenv without invoking uv or mutating the trusted runtime; normal developer/operator test setup remains uv-managed. Regression coverage includes success without uv, missing/incomplete runtime fail-closed behavior, normal-mode installation, and the real bubblewrap gate path. Focused checks: 58 passed. Complete gate: 14,540 passed, 7 skipped, 1 xfailed in 388.07s. Branch is pushed.
+---
+author: oompah
+created: 2026-07-31 21:45
+---
+Quality gates now use the trusted projected test runtime without reinstalling inside the read-only sandbox; regression and complete test gates pass.
 ---
 <!-- COMMENTS:END -->
