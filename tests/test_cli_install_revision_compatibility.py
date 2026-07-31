@@ -87,6 +87,7 @@ def _running_matching_server(
     package_root: Path,
     repo_path: Path,
     htpasswd_path: Path,
+    handoff_token_path: Path | None = None,
     forbidden_output: tuple[str, ...] = (),
 ) -> "object":
     """Run the current checkout's server code with a real bcrypt auth file.
@@ -145,6 +146,9 @@ project = SimpleNamespace(
 class _Tracker:
     state_branch_enabled = False
 
+    def __init__(self):
+        self.comments = []
+
     def fetch_issue_detail(self, identifier):
         return task if identifier == task.identifier else None
 
@@ -153,6 +157,10 @@ class _Tracker:
 
     def fetch_comments(self, identifier):
         return []
+
+    def add_comment(self, identifier, text, author="oompah"):
+        self.comments.append((identifier, text, author))
+        return {"ok": True}
 
 
 class _ProjectStore:
@@ -184,6 +192,19 @@ server.set_http_credentials(
     load_credentials(os.environ["E2E_HTPASSWD_PATH"], os.environ["E2E_REPO_PATH"])
 )
 
+handoff_token_path = os.environ.get("E2E_HANDOFF_TOKEN_FILE", "")
+if handoff_token_path:
+    from oompah.task_handoff import issue_task_handoff_token
+
+    handoff_token = issue_task_handoff_token(
+        project_id=os.environ["E2E_PROJECT_ID"],
+        task_identifier=os.environ["E2E_TASK_ID"],
+        allowed_actions={"view", "comment"},
+    )
+    token_path = Path(handoff_token_path)
+    token_path.write_text(handoff_token, encoding="utf-8")
+    token_path.chmod(0o600)
+
 uvicorn.run(
     server.app,
     host="127.0.0.1",
@@ -212,6 +233,7 @@ uvicorn.run(
             "E2E_HTPASSWD_PATH": str(htpasswd_path),
             "E2E_PORT": str(port),
             "E2E_PACKAGE_ROOT": str(package_root),
+            "E2E_HANDOFF_TOKEN_FILE": str(handoff_token_path or ""),
             # Import the exact package tree installed from the pinned git
             # revision, rather than the possibly dirty checkout.
             "PYTHONPATH": str(package_root),
@@ -349,6 +371,7 @@ def test_installed_cli_from_exact_revision_reads_matching_authenticated_server(t
         capture_output=True,
         text=True,
     )
+    handoff_token_path = tmp_path / "task-handoff-token"
 
     client_env = os.environ.copy()
     for name in (
@@ -374,6 +397,7 @@ def test_installed_cli_from_exact_revision_reads_matching_authenticated_server(t
         package_root=installed_package_root,
         repo_path=repo_path,
         htpasswd_path=htpasswd_file,
+        handoff_token_path=handoff_token_path,
         forbidden_output=(username, password),
     ) as base_url:
         cli_version = subprocess.run(
@@ -424,6 +448,64 @@ def test_installed_cli_from_exact_revision_reads_matching_authenticated_server(t
         assert task_id in task_result.stdout
         assert "Revision-compatible task" in task_result.stdout
 
+        # Exercise the spawned-worker path with the exact installed CLI.  In
+        # particular, comment must preserve both the positional identifier
+        # and project scope required by /api/v1/task-handoff; a prior stale
+        # canonical CLI let view succeed but returned HTTP 400 for comment.
+        handoff_env = dict(client_env)
+        handoff_env.pop("OOMPAH_SERVER_USERNAME", None)
+        handoff_env.pop("OOMPAH_SERVER_PASSWORD_FILE", None)
+        handoff_env["OOMPAH_TASK_HANDOFF_TOKEN"] = handoff_token_path.read_text(
+            encoding="utf-8"
+        ).strip()
+        handoff_env["OOMPAH_TASK_HANDOFF_PROJECT_ID"] = project_id
+        scoped_view = subprocess.run(
+            [
+                str(cli_binary),
+                "task",
+                "--server",
+                base_url,
+                "view",
+                task_id,
+                "--project-id",
+                project_id,
+            ],
+            cwd=str(tmp_path),
+            env=handoff_env,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert scoped_view.returncode == 0, (
+            "scoped installed task view failed:\n"
+            f"stdout: {scoped_view.stdout}\nstderr: {scoped_view.stderr}"
+        )
+        assert task_id in scoped_view.stdout
+        scoped_comment = subprocess.run(
+            [
+                str(cli_binary),
+                "task",
+                "--server",
+                base_url,
+                "comment",
+                task_id,
+                "--project",
+                project_id,
+                "--message",
+                "scoped compatibility comment",
+            ],
+            cwd=str(tmp_path),
+            env=handoff_env,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert scoped_comment.returncode == 0, (
+            "scoped installed task comment failed:\n"
+            f"stdout: {scoped_comment.stdout}\nstderr: {scoped_comment.stderr}"
+        )
+        assert "Comment posted." in scoped_comment.stdout
+
         admin_env = dict(client_env)
         admin_env["OOMPAH_SERVER_URL"] = base_url
         admin_result = subprocess.run(
@@ -443,6 +525,10 @@ def test_installed_cli_from_exact_revision_reads_matching_authenticated_server(t
         for output in (
             task_result.stdout,
             task_result.stderr,
+            scoped_view.stdout,
+            scoped_view.stderr,
+            scoped_comment.stdout,
+            scoped_comment.stderr,
             admin_result.stdout,
             admin_result.stderr,
         ):
