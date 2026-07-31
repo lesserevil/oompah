@@ -24,7 +24,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:13:32.577860Z'
-updated_at: '2026-07-31T00:03:55.852622Z'
+updated_at: '2026-07-31T00:12:19.864078Z'
 work_branch: epic-OOMPAH-585
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/596
@@ -36,6 +36,8 @@ oompah.work_branch: epic-OOMPAH-585
 oompah.target_branch: epic-OOMPAH-584
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-b4197d025ad2: '2026-07-31T00:12:17.042224+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -43,7 +45,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-585
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -69,7 +71,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-b4197d025ad2
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -80,13 +82,16 @@ oompah.terminal_audit:
       started_at: '2026-07-31T00:03:51.620034+00:00'
       branch_key: epic-OOMPAH-585
       candidate_rotation_count: 1
+      verdict: pass
+      completed_at: '2026-07-31T00:12:17.042050+00:00'
+      ended_at: '2026-07-31T00:12:17.042050+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-07-30T23:32:29.243227+00:00'
-    updated_at: '2026-07-31T00:03:51.620034+00:00'
+    updated_at: '2026-07-31T00:12:17.042050+00:00'
   - version: 1
     audit_id: audit-6806c4fdb604
     project_id: proj-14849f1b
@@ -219,5 +224,28 @@ author: oompah
 created: 2026-07-31 00:03
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 00:12
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit: c45e47bb3bdf8f3424357dd499010d52322bd7cc
+- gate_commit: 4510fb912aebc99dce90df1dc55e8ee952408401
+- gate_result: make test passed in 255.7s
+- pr: 596
+- focused_tests_terminal_audit_health: 50 passed
+- focused_tests_terminal_audit_suite: 332 passed
+- focused_tests_candidate_selector: 49 passed
+- focused_tests_dispatch: 13 passed
+- focused_tests_enforcement: 18 passed
+- focused_tests_close_race_cleanup: 24 passed
+- focused_tests_integration_orchestrator: 365 passed
+- focused_tests_provider_health: 167 passed
+- new_module: oompah/terminal_audit_health.py (460 lines)
+- changed_files: 31 files, 3388 insertions, 94 deletions
 ---
 <!-- COMMENTS:END -->
