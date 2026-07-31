@@ -25119,7 +25119,14 @@ class Orchestrator:
                 s.output_tokens = result.output_tokens
                 s.total_tokens = result.total_tokens
                 s.turn_count = result.turns
-                s.last_message = result.last_message[:200]
+                # SECURITY: last_message is exposed via the state API and
+                # the operator HTML. The API-agent result.last_message is
+                # raw assistant content; it can carry a URL with userinfo
+                # or an echoed bearer token. Redact before recording.
+                _redacted_last = redact_sensitive_data(result.last_message or "")
+                if not isinstance(_redacted_last, str):
+                    _redacted_last = str(_redacted_last)
+                s.last_message = _redacted_last[:200]
                 s.last_event = f"api_{result.status}"
 
             if result.status == "ask_question":
@@ -26209,7 +26216,16 @@ class Orchestrator:
         entry.session.last_timestamp = datetime.fromtimestamp(
             event.timestamp, tz=timezone.utc
         )
-        entry.session.last_message = event.payload.get("message", "")
+        # SECURITY: The legacy agent's AgentEvent.payload["message"] is
+        # derived from the agent subprocess stdout and may contain a
+        # bearer token, HTTP Basic password, or URL with userinfo when
+        # the model quotes something back. Redact before storing on
+        # session state (which is exposed via the state API + HTML).
+        _raw_last = event.payload.get("message", "") if event.payload else ""
+        _redacted_last = redact_sensitive_data(_raw_last)
+        if not isinstance(_redacted_last, str):
+            _redacted_last = str(_redacted_last)
+        entry.session.last_message = _redacted_last
         entry.session.agent_pid = event.agent_pid
 
         # Update token counts from absolute totals

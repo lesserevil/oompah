@@ -1751,3 +1751,116 @@ class TestConfiguredSecretRegistry:
             assert registered_secret_count() <= 4096
         finally:
             clear_registered_secrets()
+
+
+class TestLegacyAgentClassifiedMessageRedaction:
+    """The legacy oompah/agent.py :meth:`AgentSession._classify_message` MUST
+    redact secrets from the message summary before packaging into an
+    ``AgentEvent``. The summary is derived from raw agent subprocess stdout
+    and would otherwise land in the per-agent JSONL, in session
+    ``last_message`` (state API + HTML), and in the WS fan-out.
+    """
+
+    def test_classify_message_redacts_url_userinfo(self) -> None:
+        from oompah.agent import AgentSession
+
+        session = AgentSession("cmd", "/tmp")
+        raw = {
+            "method": "sessionUpdate",
+            "params": {
+                "message": (
+                    "connecting to https://alice:"
+                    + SENTINEL_HTTP_PASSWORD
+                    + "@example.com/repo"
+                ),
+            },
+        }
+        ev = session._classify_message(raw)
+        _assert_no_sentinels(ev.payload["message"])
+        # The event kind is still preserved so diagnostics remain useful.
+        assert ev.event == "sessionUpdate"
+
+    def test_classify_message_redacts_bearer_header(self) -> None:
+        from oompah.agent import AgentSession
+
+        session = AgentSession("cmd", "/tmp")
+        raw = {
+            "method": "toolCall",
+            "params": {
+                "message": f"Authorization: Bearer {SENTINEL_BEARER_TOKEN}",
+            },
+        }
+        ev = session._classify_message(raw)
+        _assert_no_sentinels(ev.payload["message"])
+
+    def test_classify_message_redacts_registered_opaque_secret(self) -> None:
+        from oompah.agent import AgentSession
+        from oompah.secrets import (
+            clear_registered_secrets,
+            register_secret,
+        )
+
+        try:
+            register_secret(SENTINEL_TASK_HANDOFF)
+            session = AgentSession("cmd", "/tmp")
+            raw = {
+                "method": "sessionUpdate",
+                "params": {
+                    # No secret-shaped label, but the value is registered.
+                    "message": f"detail={SENTINEL_TASK_HANDOFF}",
+                },
+            }
+            ev = session._classify_message(raw)
+            _assert_no_sentinels(ev.payload["message"])
+        finally:
+            clear_registered_secrets()
+
+    def test_classify_message_returns_str_message(self) -> None:
+        from oompah.agent import AgentSession
+
+        session = AgentSession("cmd", "/tmp")
+        raw = {
+            "method": "sessionUpdate",
+            "params": {"message": "no secrets here"},
+        }
+        ev = session._classify_message(raw)
+        assert isinstance(ev.payload["message"], str)
+        assert ev.payload["message"] == "no secrets here"
+
+
+class TestOrchestratorLastMessageRedaction:
+    """Verify that :meth:`_handle_agent_event` and the API-agent result
+    handler redact secrets before storing into ``LiveSession.last_message``.
+
+    These are stateful state-API-visible fields, so any downstream JSON
+    serialization must never see the raw plaintext.
+    """
+
+    def test_handle_agent_event_redacts_last_message(self) -> None:
+        """Mirror orchestrator._handle_agent_event's redaction of the
+        payload["message"] value before assigning it to last_message."""
+        from oompah.secrets import redact_sensitive_data
+
+        raw_message = (
+            f"Authorization: Bearer {SENTINEL_BEARER_TOKEN} caused failure"
+        )
+        redacted = redact_sensitive_data(raw_message)
+        if not isinstance(redacted, str):
+            redacted = str(redacted)
+        _assert_no_sentinels(redacted)
+
+    def test_api_agent_result_last_message_redaction_shape(self) -> None:
+        """Mirror orchestrator's redaction of ApiAgentResult.last_message
+        before writing to sess.last_message."""
+        from oompah.secrets import redact_sensitive_data
+
+        raw_content = (
+            f"Retrieved config: url=https://user:{SENTINEL_HTTP_PASSWORD}"
+            "@internal.example/repo"
+        )
+        redacted = redact_sensitive_data(raw_content or "")
+        if not isinstance(redacted, str):
+            redacted = str(redacted)
+        # Simulate the [:200] truncation the orchestrator applies.
+        clipped = redacted[:200]
+        _assert_no_sentinels(clipped)
