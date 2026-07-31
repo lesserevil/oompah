@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:06:15.542774Z'
-updated_at: '2026-07-31T12:26:28.532795Z'
+updated_at: '2026-07-31T12:32:20.680184Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -492,5 +492,10 @@ author: oompah
 created: 2026-07-31 12:26
 ---
 Operator stopped two additional repository-wide make test invocations (12:24 and 12:25 UTC) while the exact durable integration-lease authority fix remains outstanding. These are review holds, not CI failures. Do not relaunch make test manually; run only focused quality-gate/integration tests until operator acceptance.
+---
+author: oompah
+created: 2026-07-31 12:32
+---
+Dirty lease-owner direction is correct, but owns_active_lease currently omits lease_expires_at. An integrating row with the same owner/head remains authorized after its lease deadline until some later claim_next/recover call rewrites the row; the stale executor can finish and mutate during that gap. Expiry itself must withdraw authority (compare the durable lease deadline to the store clock, fail closed on missing/malformed/expired), not only replacement. Add a direct expires-without-reclaim assertion and the requested deterministic integration/gate barrier: old generation is running, deadline passes (or is reclaimed), liveness interrupts/discards it before epic mutation, and only a newly claimed exact owner can proceed. If long gates are expected to exceed the lease, either renew the exact lease server-side or make the configured claim lifetime safely encompass the gate; never silently treat an expired lease as current.
 ---
 <!-- COMMENTS:END -->
