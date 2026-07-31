@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-437
 type: task
-status: In Validation
+status: Archived
 priority: null
 title: Promote YOLO decomposition children after application
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-24T02:42:07.784157Z'
-updated_at: '2026-07-31T03:11:37.869210Z'
+updated_at: '2026-07-31T03:19:14.046638Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,6 +35,8 @@ oompah.task_costs:
     recorded_at: '2026-07-24T02:44:54.701520+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-b2bec492ab17: '2026-07-31T03:19:09.722896+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -42,7 +44,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-437
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -51,7 +53,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-b2bec492ab17
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -61,13 +63,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T03:11:34.464955+00:00'
       branch_key: OOMPAH-437
+      verdict: pass
+      completed_at: '2026-07-31T03:19:09.722780+00:00'
+      ended_at: '2026-07-31T03:19:09.722780+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-07-31T03:09:25.417445+00:00'
-    updated_at: '2026-07-31T03:11:34.464955+00:00'
+    updated_at: '2026-07-31T03:19:09.722780+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-b2bec492ab17
@@ -139,5 +144,24 @@ author: oompah
 created: 2026-07-31 03:11
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 03:19
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit_sha: 5d724c34cded8f70d003843049a41cab2e77fd20
+- merge_commit_subject: Open YOLO decomposition children after finalization
+- merge_commit_branches_containing_include_main: true
+- task_file_prev_state_path: .oompah/tasks/merged/OOMPAH-437.md (commit 00a59a2dd)
+- task_file_current_path: .oompah/tasks/in-validation/OOMPAH-437.md (commit e8817f1b3)
+- impl_file: oompah/epic_proposal.py
+- impl_symbols: _promote_decomposition_children_to_open, apply_epic_proposal(promote_children_to_open=False), process_epic_proposal_issue passes True
+- tests_added_or_updated: tests/test_epic_proposal.py::test_apply_yolo_proposal_opens_children_only_after_complete_decomposition, tests/test_epic_proposal.py::test_apply_yolo_proposal_does_not_open_partially_linked_children, tests/test_epic_proposal.py::test_process_epic_proposal_auto_decomposes_yolo_project_without_approval
+- task_topology: parent=null, children=[], blocked_by=[]
+- auto_archive_trigger: Aged Merged auto-archive (closed 7 days ago)
 ---
 <!-- COMMENTS:END -->
