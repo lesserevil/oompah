@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-586
 type: epic
-status: In Review
+status: In Validation
 priority: 0
 title: Restore least-privilege task and lifecycle access
 parent: OOMPAH-584
@@ -11,11 +11,10 @@ children:
 - OOMPAH-595
 blocked_by: []
 start_blocked_by: []
-labels:
-- epic:rebasing
+labels: []
 assignee: null
 created_at: '2026-07-30T14:13:33.901470Z'
-updated_at: '2026-07-31T01:15:18.263010Z'
+updated_at: '2026-07-31T01:16:57.686144Z'
 work_branch: epic-OOMPAH-586
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/597
@@ -273,5 +272,10 @@ author: oompah
 created: 2026-07-31 01:15
 ---
 Operator re-armed the merged-epic terminal audit after the pre-OOMPAH-631 runtime coalesced the scheduler request without restoring validation ownership. PR #597 is merged and OOMPAH-593/594/595 are Done.
+---
+author: oompah
+created: 2026-07-31 01:16
+---
+Restored validation ownership for the already-pending Merged audit audit-0ed1029671bd; this is a temporary operator workaround for the pre-OOMPAH-630/631 runtime race.
 ---
 <!-- COMMENTS:END -->
