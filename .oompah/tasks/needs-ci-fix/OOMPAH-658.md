@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-658
 type: bug
-status: Ready to Integrate
+status: Needs CI Fix
 priority: 2
 title: Deduplicate duplicate-preflight runs across deferred dispatch ticks
 parent: null
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-07-31T12:05:38.532596Z'
+updated_at: '2026-07-31T12:07:08.389124Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -487,5 +487,57 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 12m 7s
 - Log: OOMPAH-658__20260731T115338Z.jsonl
+---
+author: oompah
+created: 2026-07-31 12:07
+---
+Branch quality gate blocked review creation.
+
+Branch: `OOMPAH-658`
+Target: `main`
+Head: `1b49ab0f4732ca40bfb7355f726a8da6bacc234f`
+Command: `make test`
+Result: `failed`
+
+Required: run the command in the task worktree, fix the failure, commit and push the repair, then leave the task in Done. Oompah will rerun the gate for the new head before creating the PR/MR.
+
+Output tail:
+```text
+default_first_dispatch.py::TestNeedsLabelDoesNotAffectProfile::test_multiple_needs_labels_still_bypasses 
+tests/test_default_first_dispatch.py::TestFindAcpProfile::test_returns_none_when_no_acp_profile 
+[gw0] [ 24%] PASSED tests/test_default_first_dispatch.py::TestEscalationAfterDefaultFirstDispatch::test_task_full_escalation_path_with_flag 
+tests/test_default_first_dispatch.py::TestFindAcpProfile::test_returns_default_when_default_is_acp 
+[gw2] [ 24%] PASSED tests/test_default_first_dispatch.py::TestFindAcpProfile::test_returns_first_acp_when_default_is_not_acp 
+tests/test_default_first_dispatch.py::TestFindAcpProfile::test_profile_is_acp_helper 
+[gw3] [ 24%] PASSED tests/test_default_first_dispatch.py::TestNeedsLabelDoesNotAffectProfile::test_non_needs_labels_dont_bypass 
+tests/test_default_first_dispatch.py::TestSafetyCriticalAcpRouting::test_carve_out_with_non_acp_natural_swaps_to_acp 
+[gw1] [ 24%] PASSED tests/test_default_first_dispatch.py::TestFindAcpProfile::test_returns_none_when_no_acp_profile 
+tests/test_default_first_dispatch.py::TestSafetyCriticalAcpRouting::test_carve_out_with_merge_conflict_label 
+[gw0] [ 24%] PASSED tests/test_default_first_dispatch.py::TestFindAcpProfile::test_returns_default_when_default_is_acp 
+tests/test_default_first_dispatch.py::TestFindAcpProfile::test_returns_none_when_no_profiles 
+[gw2] [ 24%] PASSED tests/test_default_first_dispatch.py::TestFindAcpProfile::test_profile_is_acp_helper 
+tests/test_default_first_dispatch.py::TestSafetyCriticalAcpRouting::test_carve_out_with_no_acp_profile_falls_through 
+[gw3] [ 24%] PASSED tests/test_default_first_dispatch.py::TestSafetyCriticalAcpRouting::test_carve_out_with_non_acp_natural_swaps_to_acp 
+tests/test_default_first_dispatch.py::TestSafetyCriticalAcpRouting::test_non_carved_out_task_is_unaffected 
+[gw1] [ 24%] PASSED tests/test_default_first_dispatch.py::TestSafetyCriticalAcpRouting::test_carve_out_with_merge_conflict_label 
+tests/test_default_first_dispatch.py::TestSafetyCriticalAcpRouting::test_carve_out_logs_both_profile_names 
+[gw0] [ 24%] PASSED tests/test_default_first_dispatch.py::TestFindAcpProfile::test_returns_none_when_no_profiles 
+tests/test_default_first_dispatch.py::TestSafetyCriticalAcpRouting::test_carve_out_with_acp_natural_unchanged 
+[gw3] [ 24%] PASSED tests/test_default_first_dispatch.py::TestSafetyCriticalAcpRouting::test_non_carved_out_task_is_unaffected 
+tests/test_default_first_dispatch.py::TestSafetyCriticalAcpRouting::test_explicit_handoff_label_skips_swap 
+[gw2] [ 24%] PASSED tests/test_default_first_dispatch.py::TestSafetyCriticalAcpRouting::test_carve_out_with_no_acp_profile_falls_through 
+tests/test_default_first_dispatch.py::TestSafetyCriticalAcpRouting::test_retry_does_not_swap_to_acp 
+[gw0] [ 24%] PASSED tests/test_default_first_dispatch.py::TestSafetyCriticalAcpRouting::test_carve_out_with_acp_natural_unchanged 
+tests/test_default_first_dispatch.py::TestSafetyCriticalAcpRouting::test_carve_out_skipped_when_default_first_dispatch_off 
+[gw3] [ 24%] PASSED tests/test_default_first_dispatch.py::TestSafetyCriticalAcpRouting::test_explicit_handoff_label_skips_swap 
+tests/test_delivery_plane_recovery.py::test_ready_retry_metadata_rearms_identical_blocked_queue_row 
+[gw1] [ 24%] PASSED tests/test_default_first_dispatch.py::TestSafetyCriticalAcpRouting::test_carve_out_logs_both_profile_names 
+tests/test_default_first_dispatch.py::TestSafetyCriticalAcpRouting::test_would_dispatch_via_acp_agrees_with_dispatch 
+[gw2] [ 24%] PASSED tests/test_default_first_dispatch.py::TestSafetyCriticalAcpRouting::test_retry_does_not_swap_to_acp 
+tests/test_delivery_plane_recovery.py::test_blocked_row_alerts_clear_after_row_and_scan_recover 
+[gw0] [ 24%] PASSED tests/test_default_first_dispatch.py::TestSafetyCriticalAcpRouting::test_carve_out_skipped_when_default_first_dispatch_off 
+tests/test_default_first_dispatch.py::TestSafetyCriticalAcpRouting::test_would_dispatch_via_acp_no_acp_profile 
+make[1]: *** [Makefile:295: test] Terminated
+```
 ---
 <!-- COMMENTS:END -->
