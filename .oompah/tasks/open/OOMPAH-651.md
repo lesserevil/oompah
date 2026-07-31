@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-651
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Redact secrets from agent tool inputs, outputs, and JSONL event logs
 parent: null
@@ -10,12 +10,14 @@ blocked_by:
 - OOMPAH-652
 - OOMPAH-657
 - OOMPAH-650
-start_blocked_by: []
+start_blocked_by: &id001
+- OOMPAH-650
+- OOMPAH-657
 labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T12:16:08.615955Z'
+updated_at: '2026-07-31T12:16:20.676663Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -178,6 +180,7 @@ oompah.integration:
   head_sha: e4e36c44ecceb87ea28b5f1871d8c3e256588ec2
   submitted_at: '2026-07-31T12:14:41.051361+00:00'
   updated_at: '2026-07-31T12:14:41.051361+00:00'
+oompah.start_blocked_by: *id001
 ---
 ## Summary
 
