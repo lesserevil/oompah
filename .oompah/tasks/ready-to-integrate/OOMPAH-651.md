@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-651
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Redact secrets from agent tool inputs, outputs, and JSONL event logs
 parent: null
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T09:19:13.489925Z'
+updated_at: '2026-07-31T09:19:26.260915Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -79,6 +79,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-651
     source_sha: 8fd133e26aa2823ab68cde2a42b446933142b614
     completed_at: '2026-07-31T09:02:29.895786+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-651
+  head_sha: 1bea7c39dd0a64593284c59209f55a8e84f41fca
+  submitted_at: '2026-07-31T09:19:23.550789+00:00'
+  updated_at: '2026-07-31T09:19:23.550789+00:00'
 ---
 ## Summary
 
@@ -202,5 +210,10 @@ VERIFICATION & COMPLETION
 2. Fix over-aggressive substring matching (18 edits)
 
 Ready for orchestrator integration and review.
+---
+author: oompah
+created: 2026-07-31 09:19
+---
+Implemented centralized secret redaction for logs and events. All secrets (passwords, tokens, API keys, bearer credentials, URLs with userinfo) are now redacted from tool inputs/outputs, JSONL logs, and state before persistence. Comprehensive test coverage (38 tests) verifies zero plaintext persistence while preserving non-secret diagnostic context. Existing redaction contracts remain compatible (console tests pass).
 ---
 <!-- COMMENTS:END -->
