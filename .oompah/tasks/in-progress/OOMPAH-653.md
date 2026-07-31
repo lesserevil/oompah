@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-653
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Make terminal-audit success and owner override retire every duplicate record
   and alert
@@ -15,7 +15,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T12:25:25.833032Z'
+updated_at: '2026-07-31T12:26:04.730840Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,7 +39,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 6e4fc30c-e2d6-451b-90ae-92df711cf9ec
+oompah.agent_run_id: e1d18ffb-6ac8-45f3-881f-1a7674c1423e
 oompah.task_costs:
   total_input_tokens: 20632216
   total_output_tokens: 89340
@@ -851,5 +851,15 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Codex/gpt-5.6-
 - Cost: $0.0000
 - Exit: normal, Duration: 27m 14s
 - Log: OOMPAH-653__20260731T115808Z.jsonl
+---
+author: oompah
+created: 2026-07-31 12:26
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-31 12:26
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
