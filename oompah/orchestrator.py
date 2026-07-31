@@ -5826,6 +5826,14 @@ class Orchestrator:
         for project in self.project_store.list_all():
             project_id = str(project.id)
             tracker = self._tracker_for_project(project_id)
+            # Tracker status is the source of truth even when a task has
+            # already left the Ready query.  Reopen/rejection callbacks and
+            # dashboard edits can otherwise leave an old standalone claim,
+            # its gate, and its stranded-delivery alert alive indefinitely.
+            self._revoke_inactive_standalone_delivery_authorities(
+                project_id,
+                tracker,
+            )
             try:
                 ready = tracker.fetch_issues_by_states([READY_TO_INTEGRATE])
             except Exception as exc:  # noqa: BLE001
@@ -6476,6 +6484,7 @@ class Orchestrator:
 
         key = (project_id, task_id)
         revision = self._standalone_delivery_evidence_revision(issue)
+        superseded_generation: str | None = None
         with self._standalone_delivery_authority_lock:
             existing = self._standalone_delivery_authorities.get(key)
             if (
@@ -6489,6 +6498,7 @@ class Orchestrator:
                 return existing
             if existing is not None:
                 existing.revoked = True
+                superseded_generation = existing.generation
             authority = StandaloneDeliveryAuthority(
                 project_id=project_id,
                 task_id=task_id,
@@ -6500,7 +6510,11 @@ class Orchestrator:
                 generation=uuid.uuid4().hex,
             )
             self._standalone_delivery_authorities[key] = authority
-            return authority
+        if superseded_generation is not None:
+            # The replacement authority has a distinct generation.  Fence
+            # only the old command, including one that is still pre-spawn.
+            self._branch_quality_gate.cancel_generation(superseded_generation)
+        return authority
 
     def _set_standalone_delivery_head(
         self,
@@ -6671,6 +6685,43 @@ class Orchestrator:
             self._alerts = [
                 alert for alert in self._alerts if alert.get("source") != source
             ]
+
+    def _revoke_inactive_standalone_delivery_authorities(
+        self,
+        project_id: str,
+        tracker: TrackerProtocol,
+    ) -> None:
+        """Withdraw standalone delivery claims for tasks no longer Ready.
+
+        The Ready-to-Integrate scan cannot see a task after an operator moves
+        it to Open or a replacement worker moves it to In Progress.  Inspect
+        each currently claimed task directly so that transition immediately
+        fences its exact quality-gate generation and removes its alert.
+        """
+        with self._standalone_delivery_authority_lock:
+            authorities = [
+                authority
+                for authority in self._standalone_delivery_authorities.values()
+                if authority.project_id == str(project_id)
+            ]
+        for authority in authorities:
+            current = self._fresh_standalone_delivery_issue(authority, tracker)
+            if current is None:
+                # A read failure is handled by the gate's live authority
+                # callback.  Do not erase a valid alert without knowing the
+                # authoritative tracker state.
+                continue
+            if (
+                canonicalize_status(current.state) != READY_TO_INTEGRATE
+                or str(current.parent_id or "").strip()
+                or _is_epic_issue(current)
+                or self._standalone_delivery_evidence_revision(current)
+                != authority.evidence_revision
+            ):
+                self._revoke_standalone_delivery_authority(
+                    authority.project_id,
+                    authority.task_id,
+                )
 
     @staticmethod
     def _record_superseded_standalone_delivery(
@@ -10082,6 +10133,14 @@ class Orchestrator:
                 command=command,
                 expected_head_sha=expected_head,
                 generation=authority.generation if authority is not None else None,
+                # Re-read task state/head throughout snapshot creation and
+                # command execution.  A Ready-to-Open rejection must stop a
+                # standalone gate before its result can create a review.
+                is_current=(
+                    (lambda: self._standalone_delivery_authorized(authority))
+                    if authority is not None
+                    else None
+                ),
             )
         if result.passed:
             # The snapshot protects the command inputs.  This final ref check

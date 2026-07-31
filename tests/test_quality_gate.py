@@ -9,9 +9,12 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import MagicMock
 
+import pytest
+
 from oompah.models import Issue, Project
 from oompah.orchestrator import Orchestrator
 from oompah.quality_gate import BranchQualityGate, QualityGateResult
+from oompah.statuses import OPEN, READY_TO_INTEGRATE
 
 
 def _git_repo(tmp_path):
@@ -469,6 +472,58 @@ def test_orchestrator_discards_a_pass_when_the_branch_advances_during_gate(tmp_p
     tracker.add_comment.assert_not_called()
 
 
+def test_standalone_review_gate_receives_live_delivery_authority(tmp_path):
+    """Standalone gates re-read authority until their exact command finishes."""
+    repo = _git_repo(tmp_path)
+    head = BranchQualityGate._head_sha(str(repo))
+    project = Project(
+        id="project-1",
+        name="project",
+        repo_url="https://example.test/org/repo",
+        repo_path=str(repo),
+        test_command="true",
+    )
+    issue = Issue(
+        id="task-1",
+        identifier="task-1",
+        title="Task",
+        project_id=project.id,
+        state=READY_TO_INTEGRATE,
+        work_branch="work",
+    )
+    tracker = MagicMock()
+    tracker.fetch_issue_detail.return_value = issue
+    project_store = MagicMock()
+    project_store.get.return_value = project
+
+    class RecordingGate:
+        def run(self, **kwargs):
+            self.kwargs = kwargs
+            return QualityGateResult(
+                status="passed",
+                head_sha=kwargs["expected_head_sha"],
+                command=kwargs["command"],
+            )
+
+    gate = RecordingGate()
+    orch = Orchestrator.__new__(Orchestrator)
+    orch.project_store = project_store
+    orch._tracker_for_project = MagicMock(return_value=tracker)
+    orch._standalone_delivery_authority_lock = threading.RLock()
+    orch._standalone_delivery_authorities = {}
+    orch._branch_quality_gate = gate
+    orch._quality_gate_worktree = MagicMock(return_value=str(repo))
+    orch._quality_gate_branch_head = MagicMock(return_value=head)
+
+    assert orch._review_quality_gate_passes(project, issue, "work", "main")
+    is_current = gate.kwargs["is_current"]
+    assert callable(is_current)
+    assert is_current()
+
+    issue.state = OPEN
+    assert not is_current()
+
+
 def test_quality_gate_cleans_up_active_process_groups(tmp_path):
     repo = _git_repo(tmp_path)
     state = tmp_path / "quality.json"
@@ -850,3 +905,129 @@ def test_tombstone_set_between_popen_and_registration_stops_gate(tmp_path):
         BranchQualityGate.cleanup_active_processes()
         with BranchQualityGate._processes_lock:
             BranchQualityGate._cancelled_generations.discard("popen-to-reg-gen")
+
+
+def test_cancelled_generation_stays_tombstoned_for_waiting_same_generation(tmp_path):
+    """One interrupted caller cannot revive another caller waiting on its key."""
+    repo = _git_repo(tmp_path)
+    gate = BranchQualityGate(str(tmp_path / "quality.json"))
+    head = BranchQualityGate._head_sha(str(repo))
+    marker = tmp_path / "must-not-run"
+    generation = "shared-generation"
+    command = f"sleep 30; touch {shlex.quote(str(marker))}"
+
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            first = pool.submit(
+                _run,
+                gate,
+                repo,
+                command,
+                expected_head_sha=head,
+                generation=generation,
+            )
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                with BranchQualityGate._processes_lock:
+                    if BranchQualityGate._active_generations:
+                        break
+                time.sleep(0.01)
+            else:
+                raise AssertionError("first quality gate was not active")
+
+            # The second caller registers before it waits on the same
+            # evidence key.  Cancelling the generation must fence both
+            # callers, rather than allowing the waiter to launch after the
+            # first caller's cleanup runs.
+            second = pool.submit(
+                _run,
+                gate,
+                repo,
+                command,
+                expected_head_sha=head,
+                generation=generation,
+            )
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                with BranchQualityGate._processes_lock:
+                    if BranchQualityGate._generation_run_counts.get(generation) == 2:
+                        break
+                time.sleep(0.01)
+            else:
+                raise AssertionError("second quality gate did not wait on the key")
+
+            assert BranchQualityGate.cancel_generation(generation) == 1
+            assert first.result(timeout=10).status == "interrupted"
+            assert second.result(timeout=10).status == "interrupted"
+
+        assert not marker.exists()
+        with BranchQualityGate._processes_lock:
+            assert generation not in BranchQualityGate._cancelled_generations
+            assert generation not in BranchQualityGate._generation_run_counts
+    finally:
+        BranchQualityGate.cleanup_active_processes()
+        with BranchQualityGate._processes_lock:
+            BranchQualityGate._cancelled_generations.discard(generation)
+            BranchQualityGate._generation_run_counts.pop(generation, None)
+
+
+def test_single_flight_locks_are_released_after_unique_evidence(tmp_path):
+    """Completed evidence keys do not leave an unbounded lock registry."""
+    repo = _git_repo(tmp_path)
+    gate = BranchQualityGate(str(tmp_path / "quality.json"))
+
+    for index in range(20):
+        result = _run(gate, repo, f"true # evidence-{index}")
+        assert result.passed
+
+    assert gate._key_locks == {}
+
+
+def test_cancel_before_spawn_tombstones_are_bounded(monkeypatch):
+    """Abandoned pre-spawn generations cannot grow process state forever."""
+    monkeypatch.setattr(BranchQualityGate, "_MAX_CANCELLED_GENERATIONS", 2)
+    with BranchQualityGate._processes_lock:
+        BranchQualityGate._cancelled_generations.clear()
+        BranchQualityGate._cancelled_generation_order.clear()
+        BranchQualityGate._generation_run_counts.clear()
+    try:
+        for generation in ("oldest", "middle", "newest"):
+            BranchQualityGate.cancel_generation(generation)
+
+        with BranchQualityGate._processes_lock:
+            assert "oldest" not in BranchQualityGate._cancelled_generations
+            assert BranchQualityGate._cancelled_generations == {"middle", "newest"}
+    finally:
+        with BranchQualityGate._processes_lock:
+            BranchQualityGate._cancelled_generations.clear()
+            BranchQualityGate._cancelled_generation_order.clear()
+            BranchQualityGate._generation_run_counts.clear()
+
+
+def test_failed_snapshot_verification_removes_worktree_registration(tmp_path, monkeypatch):
+    """A post-add snapshot verification failure leaves no registered worktree."""
+    repo = _git_repo(tmp_path)
+    head = BranchQualityGate._head_sha(str(repo))
+    snapshot = tmp_path / "failed-snapshot"
+    monkeypatch.setattr(
+        "oompah.quality_gate.tempfile.mkdtemp",
+        lambda prefix: str(snapshot),
+    )
+    monkeypatch.setattr(
+        BranchQualityGate,
+        "_head_sha",
+        staticmethod(lambda _path: "not-the-requested-head"),
+    )
+
+    with pytest.raises(RuntimeError, match="different commit"):
+        BranchQualityGate._create_snapshot(str(repo), head)
+
+    registered = subprocess.run(
+        ["git", "worktree", "list", "--porcelain"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    assert f"worktree {snapshot}" not in registered
+    assert not snapshot.exists()

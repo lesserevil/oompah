@@ -12,6 +12,7 @@ import subprocess
 import tempfile
 import threading
 import time
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Callable
@@ -39,6 +40,14 @@ class QualityGateResult:
         return self.status in {"passed", "not_configured"}
 
 
+@dataclass
+class _KeyLockEntry:
+    """One in-process single-flight lock plus its current users."""
+
+    lock: threading.Lock
+    users: int = 0
+
+
 class BranchQualityGate:
     """Run and persist full branch checks without duplicate concurrent work.
 
@@ -61,8 +70,17 @@ class BranchQualityGate:
     # spawns so that pre-spawn authority withdrawals (during snapshot
     # creation or between Popen and registration) are guaranteed to stop
     # the gate even if the process is not yet in _active_generations.
-    # Protected by _processes_lock; cleaned up in the gate's finally block.
+    # Protected by _processes_lock.  A tombstone is retained until every
+    # caller that had entered ``run`` for that generation has left it.  This
+    # is deliberately not a per-call finally cleanup: another same-generation
+    # caller may still be waiting on the evidence-key lock.
     _cancelled_generations: set[str] = set()
+    _generation_run_counts: dict[str, int] = {}
+    # Cancel-before-spawn has no running caller to release the tombstone. Keep
+    # those records in LRU order so abandoned generations cannot grow this
+    # process-wide registry without bound.
+    _cancelled_generation_order: dict[str, None] = {}
+    _MAX_CANCELLED_GENERATIONS = 1024
     _processes_lock = threading.Lock()
 
     def __init__(
@@ -76,7 +94,7 @@ class BranchQualityGate:
         self.timeout_seconds = max(int(timeout_seconds), 1)
         self.output_tail_bytes = max(int(output_tail_bytes), 1024)
         self._lock = threading.Lock()
-        self._key_locks: dict[str, threading.Lock] = {}
+        self._key_locks: dict[str, _KeyLockEntry] = {}
 
     @classmethod
     def _terminate_active_processes(
@@ -109,7 +127,7 @@ class BranchQualityGate:
             # pre-spawn barrier checks (snapshot creation, Popen-to-
             # registration window) also stop on their next check.
             if generation is not None:
-                cls._cancelled_generations.add(generation)
+                cls._mark_generation_cancelled_locked(generation)
 
         terminated_count = 0
         for pid, process in processes:
@@ -182,10 +200,55 @@ class BranchQualityGate:
             return generation in cls._cancelled_generations
 
     @classmethod
-    def _clear_generation_tombstone(cls, generation: str) -> None:
-        """Remove *generation* from the cancelled set after the gate exits."""
+    def _mark_generation_cancelled_locked(cls, generation: str) -> None:
+        """Tombstone *generation* while holding ``_processes_lock``."""
+        cls._cancelled_generations.add(generation)
+        cls._cancelled_generation_order.pop(generation, None)
+        cls._cancelled_generation_order[generation] = None
+        cls._prune_cancelled_generations_locked()
+
+    @classmethod
+    def _prune_cancelled_generations_locked(cls) -> None:
+        """Bound inactive cancel-before-spawn tombstones by LRU age."""
+        while len(cls._cancelled_generation_order) > cls._MAX_CANCELLED_GENERATIONS:
+            oldest = next(iter(cls._cancelled_generation_order))
+            if oldest not in cls._cancelled_generations:
+                cls._cancelled_generation_order.pop(oldest, None)
+                continue
+            if cls._generation_run_counts.get(oldest, 0) > 0:
+                # Active/waiting callers must keep their cancellation fence.
+                # Move it behind inactive candidates and stop if all entries
+                # are active; normal completion will release it later.
+                cls._cancelled_generation_order.pop(oldest)
+                cls._cancelled_generation_order[oldest] = None
+                if all(
+                    cls._generation_run_counts.get(generation, 0) > 0
+                    for generation in cls._cancelled_generation_order
+                ):
+                    return
+                continue
+            cls._cancelled_generation_order.pop(oldest, None)
+            cls._cancelled_generations.discard(oldest)
+
+    @classmethod
+    def _register_generation(cls, generation: str) -> None:
+        """Record a caller before it can wait behind a single-flight lock."""
         with cls._processes_lock:
+            cls._generation_run_counts[generation] = (
+                cls._generation_run_counts.get(generation, 0) + 1
+            )
+
+    @classmethod
+    def _release_generation(cls, generation: str) -> None:
+        """Release one caller and retire a cancelled generation when it is idle."""
+        with cls._processes_lock:
+            remaining = cls._generation_run_counts.get(generation, 0) - 1
+            if remaining > 0:
+                cls._generation_run_counts[generation] = remaining
+                return
+            cls._generation_run_counts.pop(generation, None)
             cls._cancelled_generations.discard(generation)
+            cls._cancelled_generation_order.pop(generation, None)
 
     @staticmethod
     def _head_sha(repo_path: str) -> str:
@@ -245,7 +308,10 @@ class BranchQualityGate:
                 )
             return snapshot
         except BaseException:
-            shutil.rmtree(snapshot, ignore_errors=True)
+            # ``git worktree add`` can register the worktree before a later
+            # verification step fails.  Always remove through Git first so a
+            # failed snapshot can never leave a stale registration behind.
+            BranchQualityGate._remove_snapshot(repo_path, snapshot)
             raise
 
     @staticmethod
@@ -384,10 +450,27 @@ class BranchQualityGate:
             except OSError as exc:
                 logger.warning("Failed to persist branch quality evidence: %s", exc)
 
-    def _key_lock(self, key: str) -> threading.Lock:
-        """Return the single-flight lock for one exact evidence key."""
+    @contextmanager
+    def _key_lock(self, key: str):
+        """Yield a single-flight lock and discard it once its last user leaves."""
         with self._lock:
-            return self._key_locks.setdefault(key, threading.Lock())
+            entry = self._key_locks.get(key)
+            if entry is None:
+                entry = _KeyLockEntry(lock=threading.Lock())
+                self._key_locks[key] = entry
+            entry.users += 1
+        entry.lock.acquire()
+        try:
+            yield
+        finally:
+            entry.lock.release()
+            with self._lock:
+                entry.users -= 1
+                if (
+                    entry.users == 0
+                    and self._key_locks.get(key) is entry
+                ):
+                    self._key_locks.pop(key, None)
 
     def run(
         self,
@@ -427,6 +510,13 @@ class BranchQualityGate:
                 command="",
             )
 
+        owned_generation = str(generation) if generation is not None else None
+        # Register before resolving the head or waiting on the evidence key.
+        # A cancellation that arrives while a second caller waits on that key
+        # must remain authoritative until that waiter has observed it.
+        if owned_generation is not None:
+            self._register_generation(owned_generation)
+
         # Serialize only identical evidence keys. Different exact heads must
         # be able to run concurrently so a replacement generation never waits
         # behind (or shares state with) an obsolete gate.
@@ -438,6 +528,8 @@ class BranchQualityGate:
                 else observed_head
             )
             if expected_head_sha and observed_head != head_sha:
+                if owned_generation is not None:
+                    self._release_generation(owned_generation)
                 return QualityGateResult(
                     status="stale_head",
                     head_sha=observed_head,
@@ -448,6 +540,8 @@ class BranchQualityGate:
                     ),
                 )
         except (OSError, subprocess.SubprocessError) as exc:
+            if owned_generation is not None:
+                self._release_generation(owned_generation)
             return QualityGateResult(
                 status="error",
                 head_sha="",
@@ -455,7 +549,6 @@ class BranchQualityGate:
                 output_tail=f"Could not resolve branch HEAD: {exc}",
             )
 
-        owned_generation = str(generation) if generation is not None else None
         key = self._evidence_key(
             repo_identity=repo_identity,
             target_branch=target_branch,
@@ -478,6 +571,8 @@ class BranchQualityGate:
                     # Fall through to re-execute instead of returning cached result
                     pass
                 else:
+                    if owned_generation is not None:
+                        self._release_generation(owned_generation)
                     return QualityGateResult(
                         status=cached_status,
                         head_sha=head_sha,
@@ -733,10 +828,12 @@ class BranchQualityGate:
                         self._active_snapshots.pop(process.pid, None)
                 if snapshot is not None:
                     self._remove_snapshot(repo_path, snapshot)
-                # Remove the tombstone once the gate exits so that the set
-                # does not grow unboundedly over the lifetime of the server.
+                # A cancelled generation remains fenced until every caller
+                # already registered for it has crossed the barrier.  This
+                # prevents one interrupted caller from clearing the tombstone
+                # while another is still waiting on this evidence-key lock.
                 if owned_generation is not None:
-                    self._clear_generation_tombstone(owned_generation)
+                    self._release_generation(owned_generation)
 
             result = QualityGateResult(
                 status="passed",
