@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T09:03:05.001014Z'
+updated_at: '2026-07-31T09:05:41.895570Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -120,5 +120,30 @@ author: oompah
 created: 2026-07-31 09:03
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-07-31 09:05
+---
+UNDERSTANDING & PLAN
+
+Issue: Secrets (passwords, tokens, bearer credentials, URLs with userinfo) are being logged to JSONL event streams without redaction. The current _truncate_for_log function only limits size, not content.
+
+**Root Cause Analysis:**
+- Tool inputs/outputs flow through acp_backends/claude.py _truncate_for_log()
+- _truncate_for_log() only truncates size, doesn't redact secrets
+- Events are persisted via console.py _persist_and_emit() -> ConsoleStore.append()
+- Secrets leak into: .oompah/console/*.jsonl, telemetry, state API
+
+**Implementation Plan:**
+1. Create centralized redaction module (oompah/secrets.py) with recursive secret detection
+2. Patterns to redact: passwords, bearer/task-handoff tokens, auth headers, URLs with userinfo, env assignments, credential objects
+3. Replace _truncate_for_log with redacted version in claude.py
+4. Integrate redaction in console_format.py ConsoleEvent.to_dict()
+5. Add redaction to exception/error messages in agent paths
+6. Create comprehensive tests with sentinel secrets injected into nested structures
+7. Scan existing logs locally and provide rotation procedure (without copying secrets)
+8. Verify with: make check-secrets, make test, terminal mutation scan
+
+**Next Steps:** Explore secret detection patterns and implement centralized redaction module.
 ---
 <!-- COMMENTS:END -->
