@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T11:06:15.542774Z'
-updated_at: '2026-07-31T11:11:10.120298Z'
+updated_at: '2026-07-31T11:11:24.460275Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -130,5 +130,10 @@ author: oompah
 created: 2026-07-31 11:11
 ---
 Second live OOMPAH-657 reproduction: after OOMPAH-655 was moved from Ready to Integrate back to Open for rejected head b519be788, the stale integration generation launched a new server-owned make test PGID 1239518 in the reusable OOMPAH-655 worktree. Operator verified task status/head/cwd/PGID and terminated only that gate group to prevent rejected work from advancing. Fix must cancel queued/running gate generations on Ready to Integrate to Open/rejection and re-check current tracker status plus exact generation before spawn and before consuming success.
+---
+author: oompah
+created: 2026-07-31 11:11
+---
+Follow-up: the first guard intentionally sent no signal because the expected full SHA was mistyped; a second guard revalidated the actual full head b519be788276e349d4b39978660d6a9ee92b5cfa, cwd, and PGID, then terminated only PGID 1239518. No provider process or other task was signaled.
 ---
 <!-- COMMENTS:END -->
