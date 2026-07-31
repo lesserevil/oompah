@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-31T12:15:02.565914Z'
-updated_at: '2026-07-31T13:19:07.559907Z'
+updated_at: '2026-07-31T13:19:37.827187Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -59,13 +59,13 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: c07feddf-478e-4f4c-b40a-33529654f7b1
 oompah.task_costs:
-  total_input_tokens: 21
-  total_output_tokens: 4865
+  total_input_tokens: 7599218
+  total_output_tokens: 45356
   total_cost_usd: 0.0
   by_model:
     sonnet:
-      input_tokens: 21
-      output_tokens: 4865
+      input_tokens: 7599218
+      output_tokens: 45356
       cost_usd: 0.0
   runs:
   - profile: standard
@@ -74,6 +74,12 @@ oompah.task_costs:
     output_tokens: 4865
     cost_usd: 0.0
     recorded_at: '2026-07-31T13:03:56.242390+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 7599197
+    output_tokens: 40491
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T13:19:32.382060+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-659__20260731T130144Z
@@ -84,14 +90,24 @@ oompah.work_contributors:
     source_branch: OOMPAH-659
     source_sha: 3316ec40933d1c387619d534e607a3b0100df7dc
     completed_at: '2026-07-31T13:03:56.254699+00:00'
+  - run_id: OOMPAH-659__20260731T130424Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-terra
+    focus: ci_fix
+    source_branch: OOMPAH-659
+    source_sha: cbbc1a5a14faaec32dfdf93e7e6043c3c0074f50
+    completed_at: '2026-07-31T13:19:32.385404+00:00'
 oompah.integration:
   version: 2
   state: ready
   attempts: 0
   task_branch: OOMPAH-659
+  base_branch: main
+  base_sha: 3316ec40933d1c387619d534e607a3b0100df7dc
   head_sha: cbbc1a5a14faaec32dfdf93e7e6043c3c0074f50
   submitted_at: '2026-07-31T13:19:04.263341+00:00'
-  updated_at: '2026-07-31T13:19:04.263341+00:00'
+  updated_at: '2026-07-31T13:19:37.021543+00:00'
 ---
 ## Summary
 
@@ -144,5 +160,20 @@ author: oompah
 created: 2026-07-31 13:19
 ---
 Deferred standalone gates until effective finish dependencies are terminal-audit satisfied.
+---
+author: oompah
+created: 2026-07-31 13:19
+---
+Agent completed successfully in 914s (7639688 tokens)
+---
+author: oompah
+created: 2026-07-31 13:19
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Codex/gpt-5.6-terra]
+- Turns: 1, Tool calls: 61
+- Tokens: 7.6M in / 40.5K out [7.6M total]
+- Cost: $0.0000
+- Exit: normal, Duration: 15m 14s
+- Log: OOMPAH-659__20260731T130424Z.jsonl
 ---
 <!-- COMMENTS:END -->
