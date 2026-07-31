@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-597
 type: task
-status: Needs Human
+status: Done
 priority: 1
 title: Recover and drain the OOMPAH-460 ordered integration chain
 parent: OOMPAH-587
@@ -13,7 +13,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:28.342383Z'
-updated_at: '2026-07-31T05:11:42.273187Z'
+updated_at: '2026-07-31T05:12:08.181140Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-597
 target_branch: null
 review_url: null
@@ -146,6 +146,24 @@ oompah.terminal_audit:
     attempt-77ab0745d9d4: '2026-07-31T03:47:44.012900+00:00'
     attempt-880b644ed7b6: '2026-07-31T04:26:33.485214+00:00'
     no-auditor-audit-9fbb7de561e1-1: '2026-07-31T05:10:06.022126+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-a9306968600d
+    project_id: proj-14849f1b
+    task_id: OOMPAH-597
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 42484346a18e554720f9714d6fadb3a7bfa959e4601f59f2f47e70e87a87c595
+    authorized_by:
+      version: 1
+      identity: lesserevil
+      source: api
+    reason: Restore audited Done after false missing-landing regression caused by
+      epic rebase SHA rewrite; exact task ref now points to patch-equivalent rebased
+      commit contained in merged PR 601.
+    created_at: '2026-07-31T05:12:05.757495+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -267,7 +285,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-597
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -310,6 +328,23 @@ oompah.terminal_audit:
     previous_state: Needs Human
     created_at: '2026-07-31T05:09:44.608326+00:00'
     updated_at: '2026-07-31T05:10:06.021966+00:00'
+  - version: 1
+    audit_id: audit-24f49aa3ccda
+    project_id: proj-14849f1b
+    task_id: OOMPAH-597
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 42484346a18e554720f9714d6fadb3a7bfa959e4601f59f2f47e70e87a87c595
+    attempts: []
+    requested_by:
+      version: 1
+      identity: api-client
+      source: api
+    previous_state: Needs Human
+    created_at: '2026-07-31T05:11:57.669594+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-5af1aa0b5fd2
@@ -1030,5 +1065,17 @@ author: oompah
 created: 2026-07-31 05:11
 ---
 Post-merge landing repair: the old runtime compared the pre-rebase task ref to the rebased parent and falsely regressed this audited Done task to Needs Human. Refreshed its remote task ref with an exact lease to patch-equivalent rebased head d251b929869c3719ae122f1dc2c4e4d98e0ee087; it is now an ancestor of merged epic head c1b23d67e with zero commits outside the epic. Restoring the previously audited Done state by project-owner override.
+---
+author: oompah
+created: 2026-07-31 05:12
+---
+Refresh terminal candidate after patch-equivalent rebase landing repair.
+---
+author: oompah
+created: 2026-07-31 05:12
+---
+Override by lesserevil: terminal transition to Done applied by project owner.
+
+Reason: Restore audited Done after false missing-landing regression caused by epic rebase SHA rewrite; exact task ref now points to patch-equivalent rebased commit contained in merged PR 601.
 ---
 <!-- COMMENTS:END -->
