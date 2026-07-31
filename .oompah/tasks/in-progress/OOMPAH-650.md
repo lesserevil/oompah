@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T09:55:26.126983Z'
+updated_at: '2026-07-31T09:58:17.007328Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -365,5 +365,10 @@ author: oompah
 created: 2026-07-31 09:55
 ---
 Temporary gate safety constraint: this worktree does not yet contain OOMPAH-652's isolated test lifecycle. Run focused tests and git diff --check, but do not run make test locally before OOMPAH-652 is integrated/deployed and the branch is rebased onto that safe base. Oompah's exact post-submit full gate will provide the complete gate once the finish-order dependency is satisfied.
+---
+author: oompah
+created: 2026-07-31 09:58
+---
+In-progress review of the heartbeat implementation finds three concrete lifetime bugs. (1) TaskHandoffLease renews solely because its own daemon thread is alive; it has no worker/session liveness predicate. Any missed cleanup/orphaned RunningEntry renews authorization forever. Tie each heartbeat to the exact RunningEntry/worker generation and revoke when that identity is absent/done, or own renewal in the worker task's try/finally. (2) _terminate_running currently returns early when state.running has a replacement entry before revoking the old entry's token; that exact retry/replacement race leaves the old lease renewing indefinitely. Revoke the captured old entry after its process tree is gone regardless of whether the map now points to a replacement; only guard the map pop. (3) lease heartbeat calls refresh with DEFAULT_TTL_SECONDS, so a grant issued with a short/custom TTL is extended to 24h on its first heartbeat; preserve the grant's configured lease duration. Add deterministic tests for replacement-during-termination, launch failure before worker start, owner disappearance without normal callback, service restart/old token invalidation/new token issuance, and the required zero-handoff interval past the original TTL followed by final submit.
 ---
 <!-- COMMENTS:END -->
