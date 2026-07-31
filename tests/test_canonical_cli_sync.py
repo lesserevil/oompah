@@ -8,7 +8,12 @@ from pathlib import Path
 
 import pytest
 
-from scripts.sync_canonical_cli import SyncError, synchronize
+from scripts.sync_canonical_cli import (
+    SyncError,
+    activate_candidate,
+    stage_candidate,
+    synchronize,
+)
 
 
 def _git(repo: Path, *args: str) -> str:
@@ -181,3 +186,36 @@ def test_wrong_path_resolution_refuses_to_activate_new_cli(tmp_path):
     with pytest.raises(SyncError, match="command -v"):
         synchronize(**kwargs)
     assert canonical.read_bytes() == old_launcher
+
+
+def test_stage_does_not_replace_launcher_and_activation_can_roll_back(tmp_path):
+    repo = _repo(tmp_path)
+    uv = _fake_uv(tmp_path)
+    _, canonical, tool_dir, env = _paths(tmp_path)
+    old_revision = _git(repo, "rev-parse", "HEAD")
+    env["FAKE_CLI_REVISION"] = old_revision
+    kwargs = _kwargs(repo, canonical, uv, tool_dir, env)
+    assert synchronize(**kwargs) is True
+    old_launcher = canonical.read_bytes()
+    old_tool = (tool_dir / "oompah").read_bytes() if (tool_dir / "oompah").is_file() else None
+
+    new_revision = _push_change(repo, "two\n")
+    env["FAKE_CLI_REVISION"] = new_revision
+    staged = stage_candidate(repo=repo, uv=str(uv), environ=env)
+    try:
+        assert canonical.read_bytes() == old_launcher
+        activation = activate_candidate(
+            staged,
+            canonical=canonical,
+            tool_dir=tool_dir,
+            bin_dir=canonical.parent,
+            environ=env,
+        )
+        assert new_revision in subprocess.check_output([str(canonical), "--version"], text=True)
+        activation.rollback()
+        assert canonical.read_bytes() == old_launcher
+        if old_tool is not None:
+            assert (tool_dir / "oompah").read_bytes() == old_tool
+        assert old_revision in subprocess.check_output([str(canonical), "--version"], text=True)
+    finally:
+        staged.cleanup()

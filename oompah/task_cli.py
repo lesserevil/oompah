@@ -497,9 +497,6 @@ def _cmd_comment(base_url: str, args: argparse.Namespace) -> None:
     """oompah task comment <identifier> --message "..." [--author oompah]"""
     identifier = args.identifier
     data: dict[str, Any] = {
-        # Identifier is included in the payload to scope handoff comments to the
-        # specific task, enabling oompah orchestrator to route agent handoffs correctly.
-        "identifier": identifier,
         "text": args.message,
         "author": args.author,
         "identifier": identifier,

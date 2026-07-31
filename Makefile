@@ -140,6 +140,11 @@ start: setup
 			exit 1; \
 		fi; \
 		echo "oompah is already running (pid $$EXISTING_PID)"; \
+		$(PYTHON) scripts/canonical_cli_cutover.py \
+			--repo . \
+			--canonical "$(CANONICAL_CLI)" \
+			--url "$(LOCAL_HTTP_URL)" \
+			--verify-only || exit 1; \
 	else \
 		rm -f "$(PID_FILE)" "$(PID_META_FILE)"; \
 		if $(call port_in_use,$(PORT)); then \
@@ -182,6 +187,15 @@ start: setup
 			sleep 1; \
 			ELAPSED=$$((ELAPSED + 1)); \
 		done; \
+		if ! $(PYTHON) scripts/canonical_cli_cutover.py \
+			--repo . \
+			--canonical "$(CANONICAL_CLI)" \
+			--url "$(LOCAL_HTTP_URL)" \
+			--verify-only; then \
+			echo "ERROR: oompah started but CLI/server build identities do not match; stopping it."; \
+			$(MAKE) --no-print-directory stop; \
+			exit 1; \
+		fi; \
 		echo "oompah started (pid $$NEWPID); HTTP port defaults to $(PORT)"; \
 	fi
 
@@ -215,8 +229,6 @@ restart: setup
 	@PID=$$(cat "$(PID_FILE)" 2>/dev/null || :); \
 	if [ -n "$$PID" ] && kill -0 "$$PID" 2>/dev/null; then \
 		HEALTHZ_URL="http://127.0.0.1:$(PORT)/healthz"; \
-		STATE_PATH="/api/v1/state"; \
-		RESTART_PATH="/api/v1/orchestrator/restart"; \
 		if ! curl -sf "$$HEALTHZ_URL" >/dev/null; then \
 			echo "ERROR: oompah PID is running but /healthz is unavailable."; \
 			echo "Refusing to interrupt agents. Inspect logs, or use 'make force-restart' for an emergency."; \
@@ -238,38 +250,14 @@ restart: setup
 			fi; \
 			mv -f "$$META_TMP" "$(PID_META_FILE)"; \
 		fi; \
-		if ! BEFORE=$$(OOMPAH_SERVER_URL="$(LOCAL_HTTP_URL)" $(PYTHON) scripts/oompah_http.py GET "$$STATE_PATH" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('service_instance_id') or '')"); then \
-			echo "ERROR: Cannot reach state API (authentication may be required or server is unhealthy)."; \
-			echo "Check OOMPAH_SERVER_USERNAME / OOMPAH_SERVER_PASSWORD_FILE and 'make logs'."; \
-			echo "Refusing to restart. No force restart attempted."; \
-			exit 1; \
-		fi; \
-		echo "Requesting draining restart (agent drain timeout: $(DRAIN_TIMEOUT)s)..."; \
-		OOMPAH_SERVER_URL="$(LOCAL_HTTP_URL)" $(PYTHON) scripts/oompah_http.py POST "$$RESTART_PATH" '{"drain_timeout_s": $(DRAIN_TIMEOUT)}' | python3 -m json.tool || { \
-			echo "ERROR: graceful restart request failed; active agents were not interrupted."; \
-			echo "Check OOMPAH_SERVER_USERNAME / OOMPAH_SERVER_PASSWORD_FILE and 'make logs'."; \
-			echo "No force restart attempted."; \
-			exit 1; \
-		}; \
-		ELAPSED=0; \
-		while [ $$ELAPSED -lt $(RESTART_HEALTH_TIMEOUT) ]; do \
-			AFTER=$$(OOMPAH_SERVER_URL="$(LOCAL_HTTP_URL)" $(PYTHON) scripts/oompah_http.py GET "$$STATE_PATH" 2>/dev/null | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('service_instance_id') or '')" 2>/dev/null || true); \
-			if [ -n "$$AFTER" ] && { [ -z "$$BEFORE" ] || [ "$$AFTER" != "$$BEFORE" ]; }; then \
-				echo "Old service instance drained and replaced. Synchronizing CLI..."; \
-				$(PYTHON) scripts/sync_canonical_cli.py \
-					--repo . \
-					--canonical "$(CANONICAL_CLI)" \
-					--source-url "$(CLI_SOURCE_URL)" \
-					--uv "$(UV)" || exit 1; \
-				echo "oompah restarted successfully and passed its health check (instance $$AFTER)."; \
-				exit 0; \
-			fi; \
-			sleep 1; \
-			ELAPSED=$$((ELAPSED + 1)); \
-		done; \
-		echo "ERROR: draining restart did not expose a new healthy instance within $(RESTART_HEALTH_TIMEOUT)s."; \
-		echo "Active tasks may still be draining; inspect 'make status' and 'make logs'. No force restart was attempted."; \
-		exit 1; \
+		$(PYTHON) scripts/canonical_cli_cutover.py \
+			--repo . \
+			--canonical "$(CANONICAL_CLI)" \
+			--url "$(LOCAL_HTTP_URL)" \
+			--source-url "$(CLI_SOURCE_URL)" \
+			--uv "$(UV)" \
+			--timeout "$(DRAIN_TIMEOUT)" \
+			--health-timeout "$(RESTART_HEALTH_TIMEOUT)" || exit 1; \
 	else \
 		rm -f "$(PID_FILE)" "$(PID_META_FILE)"; \
 		echo "oompah is not running; starting it."; \
@@ -278,17 +266,21 @@ restart: setup
 
 graceful: restart
 
-# The emergency implementation is an explicit stop followed by start,
-# with CLI synchronization occurring after the old service is stopped
-# but before the new one starts (the safe point for synchronization).
+# The emergency path still stages before touching the running service.  It
+# skips the graceful agent-drain wait, but activation and health verification
+# remain transactional so an install failure cannot strand the old pair.
 force-restart: setup
-	@$(MAKE) --no-print-directory stop
-	$(PYTHON) scripts/sync_canonical_cli.py \
-		--repo . \
-		--canonical "$(CANONICAL_CLI)" \
-		--source-url "$(CLI_SOURCE_URL)" \
-		--uv "$(UV)" || exit 1
-	@$(MAKE) --no-print-directory start
+	@if [ -f $(PID_FILE) ] && kill -0 $$(cat $(PID_FILE)) 2>/dev/null; then \
+		$(PYTHON) scripts/canonical_cli_cutover.py \
+			--repo . \
+			--canonical "$(CANONICAL_CLI)" \
+			--url "$(LOCAL_HTTP_URL)" \
+			--source-url "$(CLI_SOURCE_URL)" \
+			--uv "$(UV)" \
+			--force || exit 1; \
+	else \
+		$(MAKE) --no-print-directory start; \
+	fi
 
 # Run oompah in the foreground using the Granian ASGI server.
 #

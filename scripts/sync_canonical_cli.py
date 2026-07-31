@@ -15,6 +15,8 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import uuid
+from dataclasses import dataclass
 from pathlib import Path
 
 
@@ -24,6 +26,50 @@ _REVISION_RE = re.compile(r"revision\s+([0-9a-fA-F]{7,64})\b")
 
 class SyncError(RuntimeError):
     """Raised when canonical CLI synchronization cannot be completed safely."""
+
+
+@dataclass
+class StagedCLI:
+    """A verified CLI install which has not changed the canonical launcher."""
+
+    root: Path
+    tool_dir: Path
+    bin_dir: Path
+    launcher: Path
+    tool: Path
+    revision: str
+
+    def cleanup(self) -> None:
+        """Remove the isolated staging tree."""
+        shutil.rmtree(self.root, ignore_errors=True)
+
+
+@dataclass
+class Activation:
+    """Rollback journal for an activated canonical CLI."""
+
+    canonical: Path
+    tool_path: Path
+    backup_root: Path
+    launcher_backup: Path | None
+    tool_backup: Path | None
+    _closed: bool = False
+
+    def rollback(self) -> None:
+        """Restore the exact launcher and UV environment from before activation."""
+        if self._closed:
+            return
+        _restore(self.canonical, self.launcher_backup)
+        _restore(self.tool_path, self.tool_backup)
+        shutil.rmtree(self.backup_root, ignore_errors=True)
+        self._closed = True
+
+    def commit(self) -> None:
+        """Discard rollback material after the new service is healthy."""
+        if self._closed:
+            return
+        shutil.rmtree(self.backup_root, ignore_errors=True)
+        self._closed = True
 
 
 def _run(
@@ -123,14 +169,23 @@ def _restore(path: Path, backup: Path | None) -> None:
         shutil.copy2(backup, path)
 
 
-def _verify(canonical: Path, revision: str, *, path: str) -> None:
+def _verify(
+    canonical: Path,
+    revision: str,
+    *,
+    path: str,
+    environ: dict[str, str] | None = None,
+) -> None:
     if not _command_resolves_to(canonical, path=path):
         actual = shutil.which("oompah", path=path) or "not found"
         raise SyncError(
             f"canonical CLI was installed but command -v oompah resolves to {actual!r}; "
             f"expected {str(canonical)!r}"
         )
-    result = _run([str(canonical), "--version"], env={**os.environ, "PATH": path})
+    result = _run(
+        [str(canonical), "--version"],
+        env={**(environ or os.environ), "PATH": path},
+    )
     if result.returncode != 0:
         detail = (result.stderr or result.stdout).strip()
         raise SyncError(f"canonical oompah --version failed: {detail or 'unknown error'}")
@@ -140,6 +195,153 @@ def _verify(canonical: Path, revision: str, *, path: str) -> None:
             "canonical CLI revision mismatch: "
             f"server={revision}, cli={actual_revision or 'unknown'}"
         )
+
+
+def stage_candidate(
+    *,
+    repo: Path,
+    source_url: str = DEFAULT_SOURCE_URL,
+    uv: str = "uv",
+    stage_dir: Path | None = None,
+    environ: dict[str, str] | None = None,
+) -> StagedCLI:
+    """Build and verify a CLI in an isolated tree without touching the live CLI.
+
+    The staged launcher is verified with the exact same PATH check used for
+    activation.  Keeping both UV directories below ``stage_dir`` means a
+    failed download, build, or version check cannot alter the known-good
+    canonical launcher or its tool environment.
+    """
+    env = dict(os.environ if environ is None else environ)
+    revision = selected_revision(repo)
+    root = Path(stage_dir) if stage_dir is not None else Path(
+        tempfile.mkdtemp(prefix="oompah-cli-stage-")
+    )
+    root.mkdir(parents=True, exist_ok=True)
+    tool_dir = root / "tools"
+    bin_dir = root / "bin"
+    tool_dir.mkdir(parents=True, exist_ok=True)
+    bin_dir.mkdir(parents=True, exist_ok=True)
+    install_env = {
+        **env,
+        "UV_TOOL_DIR": str(tool_dir),
+        "UV_TOOL_BIN_DIR": str(bin_dir),
+    }
+    source = f"git+{source_url}@{revision}"
+    result = _run(
+        [uv, "tool", "install", "--force", "--from", source, "oompah"],
+        cwd=repo,
+        env=install_env,
+    )
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip()
+        shutil.rmtree(root, ignore_errors=True)
+        raise SyncError(
+            "canonical CLI staging failed; the previous executable was preserved. "
+            "Retry after fixing UV/source access: "
+            f"{detail or 'unknown error'}"
+        )
+
+    launcher = bin_dir / "oompah"
+    tool = tool_dir / "oompah"
+    path = os.pathsep.join(part for part in (str(bin_dir), env.get("PATH", "")) if part)
+    try:
+        _verify(launcher, revision, path=path, environ=env)
+    except SyncError:
+        shutil.rmtree(root, ignore_errors=True)
+        raise
+    return StagedCLI(
+        root=root,
+        tool_dir=tool_dir,
+        bin_dir=bin_dir,
+        launcher=launcher,
+        tool=tool,
+        revision=revision,
+    )
+
+
+def _relocate_launcher(launcher: Path, old_tool_dir: Path, new_tool_dir: Path) -> Path:
+    """Make a staged UV launcher refer to its final tool directory.
+
+    UV launchers normally contain an absolute interpreter path.  Staging in a
+    temporary UV root is therefore not enough by itself: copy the launcher to
+    a temporary destination and rewrite the staged root before activation.
+    """
+    data = launcher.read_bytes()
+    old = str(old_tool_dir).encode()
+    new = str(new_tool_dir).encode()
+    if old in data:
+        data = data.replace(old, new)
+    relocated = launcher.parent / f".oompah-relocated-{uuid.uuid4().hex}"
+    relocated.write_bytes(data)
+    relocated.chmod(launcher.stat().st_mode & 0o777)
+    return relocated
+
+
+def activate_candidate(
+    staged: StagedCLI,
+    *,
+    canonical: Path,
+    tool_dir: Path,
+    bin_dir: Path,
+    environ: dict[str, str] | None = None,
+) -> Activation:
+    """Atomically publish a staged CLI and return a rollback journal.
+
+    The old launcher remains in place while the candidate tool tree is copied
+    and verified.  Only after that preparation succeeds is the launcher
+    replaced.  Callers must retain the returned journal until the paired
+    server cutover has passed its health/build-id check.
+    """
+    env = dict(os.environ if environ is None else environ)
+    canonical = canonical.expanduser()
+    tool_dir = tool_dir.expanduser()
+    bin_dir = bin_dir.expanduser()
+    tool_path = tool_dir / "oompah"
+    backup_root = Path(tempfile.mkdtemp(prefix="oompah-cli-activation-"))
+    launcher_backup = _snapshot(canonical, backup_root / "launcher")
+    tool_backup = _snapshot(tool_path, backup_root / "tool")
+    candidate_tool = tool_dir / f".oompah-candidate-{uuid.uuid4().hex}"
+    candidate_launcher = None
+    activation = Activation(
+        canonical=canonical,
+        tool_path=tool_path,
+        backup_root=backup_root,
+        launcher_backup=launcher_backup,
+        tool_backup=tool_backup,
+    )
+    try:
+        canonical.parent.mkdir(parents=True, exist_ok=True)
+        tool_dir.mkdir(parents=True, exist_ok=True)
+        bin_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(staged.tool, candidate_tool, symlinks=True)
+        candidate_launcher = _relocate_launcher(
+            staged.launcher, staged.tool_dir, tool_dir
+        )
+        # The candidate tree is complete before the old tree is replaced.
+        _remove_path(tool_path)
+        os.replace(candidate_tool, tool_path)
+        os.replace(candidate_launcher, canonical)
+        candidate_launcher = None
+        # Verify the operator's real PATH, not a synthetic path that happens
+        # to include the destination.  This catches a project virtualenv or
+        # another stale executable winning command resolution.
+        _verify(canonical, staged.revision, path=env.get("PATH", ""), environ=env)
+    except Exception as exc:
+        if candidate_launcher is not None:
+            _remove_path(candidate_launcher)
+        _remove_path(candidate_tool)
+        activation.rollback()
+        if isinstance(exc, SyncError):
+            raise SyncError(
+                f"canonical CLI activation failed: {exc}; "
+                "the previous executable was preserved"
+            ) from exc
+        raise SyncError(
+            "canonical CLI activation failed; the previous executable was preserved: "
+            f"{exc}"
+        ) from exc
+    return activation
 
 
 def synchronize(
@@ -158,55 +360,41 @@ def synchronize(
     tool_dir = tool_dir or Path(env.get("UV_TOOL_DIR", home / ".local/share/uv/tools"))
     bin_dir = bin_dir or Path(env.get("UV_TOOL_BIN_DIR", canonical.parent))
     canonical = canonical.expanduser()
-    tool_path = tool_dir / "oompah"
     revision = selected_revision(repo)
-    path = env.get("PATH", "")
 
     # Validate PATH even for a no-op. A stale local virtualenv must never win
     # command resolution after deployment.
+    if os.path.lexists(canonical) and not _command_resolves_to(
+        canonical, path=env.get("PATH")
+    ):
+        actual = shutil.which("oompah", path=env.get("PATH")) or "not found"
+        raise SyncError(
+            f"refusing CLI synchronization: command -v oompah resolves to {actual!r}; "
+            f"expected {str(canonical)!r}"
+        )
     if os.path.lexists(canonical) and _command_resolves_to(canonical, path=env.get("PATH")):
         current = _run([str(canonical), "--version"], env=env)
         if current.returncode == 0 and _version_revision(current.stdout + current.stderr) == revision.lower():
             print(f"Canonical oompah already matches revision {revision}.")
             return False
 
-    canonical.parent.mkdir(parents=True, exist_ok=True)
-    tool_dir.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="oompah-cli-rollback-") as temp_name:
-        rollback = Path(temp_name)
-        launcher_backup = _snapshot(canonical, rollback / "launcher")
-        tool_backup = _snapshot(tool_path, rollback / "tool")
-        install_env = {
-            **env,
-            "UV_TOOL_DIR": str(tool_dir),
-            "UV_TOOL_BIN_DIR": str(bin_dir),
-        }
-        source = f"git+{source_url}@{revision}"
-        command = [uv, "tool", "install", "--force", "--from", source, "oompah"]
-        result = _run(command, cwd=repo, env=install_env)
-        if result.returncode != 0:
-            _restore(canonical, launcher_backup)
-            _restore(tool_path, tool_backup)
-            detail = (result.stderr or result.stdout).strip()
-            preserved = (
-                "the previous executable was preserved"
-                if launcher_backup is not None or tool_backup is not None
-                else "no previous executable existed to preserve"
-            )
-            raise SyncError(
-                f"canonical CLI installation failed; {preserved}. "
-                "Retry after fixing UV/source access: "
-                f"{detail or 'unknown error'}"
-            )
-        try:
-            _verify(canonical, revision, path=path)
-        except SyncError as exc:
-            _restore(canonical, launcher_backup)
-            _restore(tool_path, tool_backup)
-            raise SyncError(
-                f"{exc}; the previous executable was preserved. "
-                "Fix the revision or PATH and retry."
-            ) from exc
+    staged = stage_candidate(
+        repo=repo,
+        source_url=source_url,
+        uv=uv,
+        environ=env,
+    )
+    try:
+        activation = activate_candidate(
+            staged,
+            canonical=canonical,
+            tool_dir=tool_dir,
+            bin_dir=bin_dir,
+            environ=env,
+        )
+        activation.commit()
+    finally:
+        staged.cleanup()
 
     print(f"Canonical oompah synchronized to revision {revision} at {canonical}.")
     return True

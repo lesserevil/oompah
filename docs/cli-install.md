@@ -71,8 +71,8 @@ revision. The machine-readable `build_id` in `GET /healthz` and
 The CLI and server revisions must match before task or admin requests are
 used.
 
-Normal source-managed lifecycle commands run the synchronization check before
-starting or draining the service:
+Normal source-managed lifecycle commands use a transactional synchronization
+barrier:
 
 ```bash
 make start
@@ -80,12 +80,18 @@ make restart
 make graceful
 ```
 
-The check installs the exact clean, pushed `HEAD` revision into the canonical
-UV tool and verifies both `command -v oompah` and `oompah --version`. A dirty,
-unpushed, diverged, or failed install is refused before a running service is
-interrupted. On an install failure, the known-good executable is restored and
-the command prints the reason. After pushing the intended server revision,
-recover with:
+For a running service, the lifecycle helper pauses dispatch and waits for the
+old service to drain without executing a restart. It then stages the exact
+clean, pushed `HEAD` revision in isolated UV directories, verifies the staged
+launcher, activates it with a rollback journal, requests the server cutover,
+and commits the activation only after the new health and state surfaces report
+the same revision. A dirty, unpushed, diverged, failed, or wrong-PATH install
+leaves the old executable and old service running; the command prints the
+reason and resumes the old service. A post-cutover health failure restores the
+old launcher and emits a recovery alert rather than silently accepting a
+mismatched pair.
+
+After pushing the intended server revision, recover with:
 
 ```bash
 make install-cli

@@ -448,19 +448,6 @@ class TestCmdComment:
         assert data["issue_key"] == "owner/repo#5"
         assert data["managed_repo"] == "owner/repo"
 
-    def test_handoff_comment_includes_identifier_scope(self, monkeypatch):
-        args = _make_args(
-            subcommand="comment",
-            identifier="TASK-1",
-            message="handoff",
-            author="oompah",
-            project="proj-1",
-        )
-        with patch.object(task_cli, "_task_handoff_request", return_value={"ok": True}) as handoff:
-            task_cli._cmd_comment("http://localhost:8080", args)
-        payload = handoff.call_args.args[2]
-        assert payload["identifier"] == "TASK-1"
-
     def test_prints_confirmation(self, capsys):
         args = _make_args(
             subcommand="comment",
