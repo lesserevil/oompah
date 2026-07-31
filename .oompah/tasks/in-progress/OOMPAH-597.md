@@ -13,7 +13,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:28.342383Z'
-updated_at: '2026-07-31T01:24:51.252925Z'
+updated_at: '2026-07-31T01:27:18.842781Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-597
 target_branch: null
 review_url: null
@@ -300,5 +300,10 @@ author: oompah
 created: 2026-07-31 01:24
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-07-31 01:27
+---
+Conflict-resolution guidance from the live recovery chain: preserve both OOMPAH-486's terminal_audit_observability metrics/alert registry and the newer terminal_audit_health model/API; they are complementary. In terminal_transition_coordinator retain the observability metrics sink plus the newer ProjectStore cross-loop project_write_lock serialization and In Validation/coalesced ownership fixes. In interface/coordinator tests retain both coverage families. The resolved head must still include the OOMPAH-460 chain behavior and all newer OOMPAH-585/586/630/631 base fixes.
 ---
 <!-- COMMENTS:END -->
