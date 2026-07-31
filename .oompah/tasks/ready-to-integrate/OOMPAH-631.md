@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-631
 type: bug
-status: Backlog
+status: Ready to Integrate
 priority: 1
 title: Restore validation ownership when terminal retries coalesce
 parent: OOMPAH-584
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:08:00.758352Z'
-updated_at: '2026-07-31T00:36:34.883264Z'
+updated_at: '2026-07-31T00:37:42.452617Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-631
 target_branch: null
 review_url: null
@@ -35,12 +35,12 @@ oompah.agent_run_id: 09a8240d-a79e-456b-8c2a-126d6348b9cd
 oompah.work_branch: epic-OOMPAH-584--task-OOMPAH-631
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-584--task-OOMPAH-631
-  base_branch: epic-OOMPAH-584
-  base_sha: c03e52f66f4e5123576f4de3f21e4a763cc9c4b1
-  updated_at: '2026-07-31T00:35:13.869937+00:00'
+  head_sha: b385d90cc7bc4c55c1c1921b6b00a2a6a46ef15b
+  submitted_at: '2026-07-31T00:37:40.093444+00:00'
+  updated_at: '2026-07-31T00:37:40.093444+00:00'
 oompah.task_costs:
   total_input_tokens: 1487488
   total_output_tokens: 12834
@@ -248,5 +248,15 @@ Run #1 [attempt=1, profile=deep, role=deep -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 1m 22s
 - Log: OOMPAH-631__20260731T003526Z.jsonl
+---
+author: oompah
+created: 2026-07-31 00:37
+---
+Stabilized the exact-gate concurrency regression at b385d90cc. The test now has a 30s explicit budget, a single 20s shared join deadline, and asserts both worker threads stopped before reading tracker state. Verification: test passed 30 consecutive runs; complete state-branch migration suite 71 passed; terminal mutation scan passed. Resubmitting the exact pushed head.
+---
+author: oompah
+created: 2026-07-31 00:37
+---
+Coalesced audit repair and load-safe concurrency regressions complete at b385d90cc.
 ---
 <!-- COMMENTS:END -->
