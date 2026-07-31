@@ -1509,6 +1509,8 @@ _issues_snapshot: dict[str, Any] = {
     "duration_ms": None,
     "issue_count": 0,
     "error": None,
+    "source_generations": {},
+    "invalidated": False,
 }
 _issues_refresh_task: asyncio.Task | None = None
 _api_metrics_lock = threading.Lock()
@@ -1588,6 +1590,109 @@ def _cached_state_snapshot_or_unavailable() -> dict[str, Any]:
 
 # Shared response cache for API endpoints
 _api_cache = TTLCache()
+_detail_cache_lock = threading.Lock()
+_detail_cache_generations: dict[str, tuple[str, str]] = {}
+
+
+def _tracker_source_generation(tracker: object) -> str | None:
+    """Return a tracker generation suitable for binding read responses.
+
+    Native state-branch trackers expose a commit-plus-mutation epoch.  Other
+    tracker kinds deliberately return ``None`` and retain their existing TTL
+    semantics.  An enabled state branch without a readable generation is
+    represented as unavailable so it can never make a stale response appear
+    fresh.
+    """
+    if getattr(tracker, "state_branch_enabled", False) is not True:
+        return None
+    getter = getattr(tracker, "get_state_branch_generation", None)
+    if not callable(getter):
+        return "unavailable"
+    try:
+        generation = getter()
+    except Exception:  # noqa: BLE001 — degraded reads must be stale-marked
+        return "unavailable"
+    return generation if isinstance(generation, str) and generation else "unavailable"
+
+
+def _wire_tracker_issue_cache_invalidation(tracker: object, project_id: str | None) -> None:
+    """Connect native tracker mutations to synchronous API-cache invalidation."""
+    if not project_id:
+        return
+    register = getattr(tracker, "add_read_change_callback", None)
+    if not callable(register):
+        return
+    wired_projects = getattr(tracker, "_oompah_server_cache_projects", None)
+    if not isinstance(wired_projects, set):
+        wired_projects = set()
+        try:
+            setattr(tracker, "_oompah_server_cache_projects", wired_projects)
+        except Exception:  # noqa: BLE001 — unusual tracker proxies are optional
+            return
+    if project_id in wired_projects:
+        return
+    wired_projects.add(project_id)
+    register(lambda: _invalidate_issue_caches(project_id))
+
+
+def _invalidate_issue_caches(
+    project_id: str | None = None,
+    *,
+    schedule_broadcast: bool = True,
+) -> None:
+    """Invalidate list/detail snapshots after an authoritative task change."""
+    _api_cache.invalidate("issues:all")
+    if project_id:
+        _api_cache.invalidate_prefix(f"detail:{project_id}:")
+    else:
+        _api_cache.invalidate_prefix("detail:")
+    with _issues_snapshot_lock:
+        _issues_snapshot["invalidated"] = True
+    # A mutation callback can run in a worker thread.  Scheduling is
+    # best-effort; the synchronous invalidation above is the correctness fence.
+    if schedule_broadcast and _ws_clients:
+        _schedule_api_coro(broadcast_issues)
+
+
+def _detail_cache_get(
+    cache_key: str,
+    orch: object,
+    project_id: str | None,
+) -> Any | None:
+    cached = _api_cache.get(cache_key)
+    if cached is None:
+        return None
+    with _detail_cache_lock:
+        binding = _detail_cache_generations.get(cache_key)
+    if binding is None:
+        # Preserve compatibility with callers/tests that seed the generic TTL
+        # cache directly; all server-written native detail entries are bound.
+        return cached
+    bound_project, bound_generation = binding
+    try:
+        tracker = orch._tracker_for_project(bound_project)
+        current_generation = _tracker_source_generation(tracker)
+    except Exception:  # noqa: BLE001 — stale is safer than a false cache hit
+        current_generation = "unavailable"
+    if bound_generation != current_generation or current_generation == "unavailable":
+        _api_cache.invalidate(cache_key)
+        with _detail_cache_lock:
+            _detail_cache_generations.pop(cache_key, None)
+        return None
+    return cached
+
+
+def _detail_cache_set(
+    cache_key: str,
+    value: Any,
+    *,
+    project_id: str | None,
+    generation: str | None,
+) -> None:
+    _api_cache.set(cache_key, value, ttl_ms=3000)
+    if project_id and generation is not None:
+        with _detail_cache_lock:
+            _detail_cache_generations[cache_key] = (project_id, generation)
 
 
 # Fields on a Project that, when changed, require GitLab hook reconciliation.
@@ -1951,6 +2056,8 @@ def _issues_snapshot_payload(
     with _issues_snapshot_lock:
         data = _issues_snapshot.get("data")
         snapshot_orch_id = _issues_snapshot.get("orch_id")
+        source_generations = _issues_snapshot.get("source_generations") or {}
+        invalidated = bool(_issues_snapshot.get("invalidated"))
         if (
             data is not None
             and orch is not None
@@ -1958,11 +2065,24 @@ def _issues_snapshot_payload(
             and snapshot_orch_id != id(orch)
         ):
             data = None
-        if data is None and not allow_empty:
-            return None
         nowm = time.monotonic()
         created = float(_issues_snapshot.get("created_at_monotonic") or 0.0)
         age_ms = (nowm - created) * 1000 if created else None
+        snapshot_error = _issues_snapshot.get("error")
+        snapshot_stale = (
+            invalidated
+            or bool(snapshot_error)
+            or age_ms is None
+            or age_ms >= _ISSUES_SNAPSHOT_STALE_MS
+        )
+    source_stale = False
+    if orch is not None and source_generations:
+        source_stale = not _issues_snapshot_sources_match(orch, source_generations)
+    if data is None and not allow_empty:
+        return None
+    if source_stale and not allow_empty:
+        return None
+    with _issues_snapshot_lock:
         payload = _copy_issue_board(data or _empty_issue_board(), filter_project)
         if include_meta:
             payload["_meta"] = {
@@ -1971,10 +2091,8 @@ def _issues_snapshot_payload(
                 "refreshing": _snapshot_refreshing_locked(),
                 "last_refresh_ms": _issues_snapshot.get("duration_ms"),
                 "issue_count": _issue_count_from_board(data or {}),
-                "error": _issues_snapshot.get("error"),
-                "stale": (
-                    age_ms is None or age_ms >= _ISSUES_SNAPSHOT_STALE_MS
-                ),
+                "error": snapshot_error,
+                "stale": snapshot_stale or source_stale,
             }
         return payload
 
@@ -2005,7 +2123,14 @@ def _set_issues_snapshot(
     duration_ms: float,
     error: str | None = None,
     orch_id: int | None = None,
+    source_generations: dict[str, str | None] | None = None,
+    source_authority: "Orchestrator | None" = None,
 ) -> None:
+    captured_generations = dict(source_generations or {})
+    source_valid = not captured_generations or (
+        source_authority is not None
+        and _issues_snapshot_sources_match(source_authority, captured_generations)
+    )
     with _issues_snapshot_lock:
         _issues_snapshot["data"] = data
         _issues_snapshot["orch_id"] = orch_id
@@ -2014,7 +2139,48 @@ def _set_issues_snapshot(
         _issues_snapshot["duration_ms"] = round(duration_ms, 3)
         _issues_snapshot["issue_count"] = _issue_count_from_board(data)
         _issues_snapshot["error"] = error
+        _issues_snapshot["source_generations"] = captured_generations
+        # A mutation that races serialization must leave the resulting board
+        # stale-marked; it will be retried on the next read rather than being
+        # advertised as a fresh view of the newer generation.
+        _issues_snapshot["invalidated"] = not source_valid
     _api_cache.set("issues:all", data, ttl_ms=60_000)
+
+
+def _issues_snapshot_sources_match(
+    orch: "Orchestrator", source_generations: dict[str, str | None]
+) -> bool:
+    """Return whether every project still has the snapshot's source generation."""
+    current = _current_tracker_source_generations(orch)
+    for project_id, generation in source_generations.items():
+        if generation == "unavailable" or current.get(project_id) != generation:
+            return False
+    return True
+
+
+def _current_tracker_source_generations(orch: "Orchestrator") -> dict[str, str | None]:
+    generations: dict[str, str | None] = {}
+    try:
+        projects = list(orch.project_store.list_all())
+    except Exception:  # noqa: BLE001 — unavailable authority must be stale
+        return {}
+    if not projects:
+        tracker = getattr(orch, "tracker", None)
+        generation = _tracker_source_generation(tracker) if tracker is not None else None
+        if generation is not None:
+            generations["__legacy__"] = generation
+        return generations
+    for project in projects:
+        project_id = str(getattr(project, "id", "") or "")
+        if not project_id:
+            continue
+        try:
+            tracker = orch._tracker_for_project(project_id)
+            _wire_tracker_issue_cache_invalidation(tracker, project_id)
+            generations[project_id] = _tracker_source_generation(tracker)
+        except Exception:  # noqa: BLE001 — preserve a stale fallback
+            generations[project_id] = "unavailable"
+    return generations
 
 
 def _any_tracker_checkpoint_newer_than(orch: "Orchestrator", snapshot_at: float) -> bool:
@@ -2068,9 +2234,16 @@ async def _ensure_issues_snapshot_refresh(
         if snapshot_orch_id is not None and snapshot_orch_id != id(orch):
             created = 0.0
         age_ms = (time.monotonic() - created) * 1000 if created else None
-        # Force refresh when any tracker checkpoint is newer than the snapshot.
+        source_generations = _issues_snapshot.get("source_generations") or {}
+        invalidated = bool(_issues_snapshot.get("invalidated"))
+        # Force refresh when any tracker checkpoint or exact source generation
+        # is newer than the snapshot.
         if not force and created:
             force = _any_tracker_checkpoint_newer_than(orch, created)
+        if not force and invalidated:
+            force = True
+        if not force and source_generations:
+            force = not _issues_snapshot_sources_match(orch, source_generations)
         if (
             not force
             and created
@@ -2084,11 +2257,35 @@ async def _ensure_issues_snapshot_refresh(
             start = time.monotonic()
             try:
                 loop = asyncio.get_event_loop()
-                result = await loop.run_in_executor(
-                    _api_thread_pool, _fetch_and_serialize_issues, orch
-                )
+                try:
+                    result = await loop.run_in_executor(
+                        _api_thread_pool,
+                        functools.partial(
+                            _fetch_and_serialize_issues,
+                            orch,
+                            include_source_generations=True,
+                        ),
+                    )
+                except TypeError as exc:
+                    # A narrow compatibility path for tests/integrations that
+                    # replace the historical two-argument fetch helper.
+                    if "include_source_generations" not in str(exc):
+                        raise
+                    board = await loop.run_in_executor(
+                        _api_thread_pool,
+                        _fetch_and_serialize_issues,
+                        orch,
+                    )
+                    result = (board, _current_tracker_source_generations(orch))
                 duration_ms = (time.monotonic() - start) * 1000
-                _set_issues_snapshot(result, duration_ms=duration_ms, orch_id=id(orch))
+                board, source_generations = result
+                _set_issues_snapshot(
+                    board,
+                    duration_ms=duration_ms,
+                    orch_id=id(orch),
+                    source_generations=source_generations,
+                    source_authority=orch,
+                )
                 if duration_ms > 1000:
                     logger.warning(
                         "Issues snapshot refresh slow: refresh=%.0fms issues=%d",
@@ -2359,7 +2556,7 @@ def _on_orchestrator_change(snapshot: dict) -> None:
     global _last_state_broadcast
     # Always cache the snapshot so api_state() can serve it without recomputing.
     _update_state_snapshot(snapshot)
-    _api_cache.invalidate("issues:all")
+    _invalidate_issue_caches(schedule_broadcast=False)
     if not _ws_clients:
         return
     now = time.monotonic() * 1000
@@ -2455,14 +2652,36 @@ def _integration_queue_summary(item, issue, issues) -> dict[str, Any]:
     return result
 
 
-def _fetch_and_serialize_issues(orch) -> dict[str, list]:
+def _fetch_and_serialize_issues(
+    orch,
+    *,
+    include_source_generations: bool = False,
+) -> dict[str, list] | tuple[dict[str, list], dict[str, str | None]]:
+    """Fetch and serialize a board using the existing public helper shape."""
+    if include_source_generations:
+        return _fetch_and_serialize_issues_with_sources(orch)
+    return _serialize_issues(orch, _fetch_all_issues(orch, None))
+
+
+def _fetch_and_serialize_issues_with_sources(
+    orch,
+) -> tuple[dict[str, list], dict[str, str | None]]:
+    """Fetch a board and the exact source generations read to build it."""
+    all_issues, source_generations = _fetch_all_issues(
+        orch,
+        None,
+        include_source_generations=True,
+    )
+    return _serialize_issues(orch, all_issues), source_generations
+
+
+def _serialize_issues(orch, all_issues: list) -> dict[str, list]:
     """Fetch all issues and serialize — runs in thread pool to avoid blocking.
 
     Mirrors the entry shape produced by ``api_issues`` (the GET endpoint)
     so the WebSocket push path and the initial-load fetch path produce
     interchangeable payloads. If you add a field to one, add it here too.
     """
-    all_issues = _fetch_all_issues(orch, None)
     project_names = _project_names_by_id(orch)
     integration_queue = getattr(orch, "integration_queue", None)
     integration_items = (
@@ -4263,6 +4482,7 @@ def _find_tracker_for_issue(orch, identifier: str, project_id: str | None = None
     if project_id:
         try:
             tracker = orch._tracker_for_project(project_id)
+            _wire_tracker_issue_cache_invalidation(tracker, str(project_id))
         except Exception:
             return None, None, None
         try:
@@ -4284,6 +4504,7 @@ def _find_tracker_for_issue(orch, identifier: str, project_id: str | None = None
     for project in projects:
         try:
             tracker = orch._tracker_for_project(project.id)
+            _wire_tracker_issue_cache_invalidation(tracker, str(project.id))
             issue = tracker.fetch_issue_detail(identifier)
         except Exception:
             issue = None
@@ -5036,7 +5257,12 @@ def _get_tracker_for_managed_repo(orch, managed_repo: str):
     raise ValueError(f"No project found for managed_repo: {managed_repo!r}")
 
 
-def _fetch_all_issues(orch, filter_project: str | None = None):
+def _fetch_all_issues(
+    orch,
+    filter_project: str | None = None,
+    *,
+    include_source_generations: bool = False,
+):
     """Fetch issues from all projects or a specific one (parallel)."""
     from concurrent.futures import ThreadPoolExecutor
     from oompah.tracker import StateBranchFetchError, StateBranchMissingError, TrackerError
@@ -5044,16 +5270,30 @@ def _fetch_all_issues(orch, filter_project: str | None = None):
     projects = orch.project_store.list_all()
     if not projects:
         # No projects configured — legacy mode
-        return orch.tracker.fetch_all_issues()
+        issues = orch.tracker.fetch_all_issues()
+        if include_source_generations:
+            generation = _tracker_source_generation(orch.tracker)
+            return issues, ({"__legacy__": generation} if generation is not None else {})
+        return issues
 
     targets = [p for p in projects if not filter_project or p.id == filter_project]
     if not targets:
-        return []
+        return ([], {}) if include_source_generations else []
 
     def _fetch_for_project(project):
         try:
             tracker = orch._tracker_for_project(project.id)
+            _wire_tracker_issue_cache_invalidation(tracker, str(project.id))
+            generation_before = _tracker_source_generation(tracker)
             issues = tracker.fetch_all_issues()
+            generation_after = _tracker_source_generation(tracker)
+            # A direct mutation may race the list read.  Retry once when the
+            # source epoch changed so the board cannot be stamped with the
+            # post-mutation generation while containing pre-mutation issues.
+            if generation_before != generation_after:
+                generation_before = generation_after
+                issues = tracker.fetch_all_issues()
+                generation_after = _tracker_source_generation(tracker)
             for issue in issues:
                 issue.project_id = project.id
             for issue in issues:
@@ -5094,7 +5334,7 @@ def _fetch_all_issues(orch, filter_project: str | None = None):
                         continue
                     if rolled:
                         issue.state = rolled
-            return issues
+            return issues, generation_after
         except StateBranchMissingError as exc:
             # State branch not yet bootstrapped — expected configuration
             # condition, not a runtime fault.  Degrade gracefully so
@@ -5104,7 +5344,7 @@ def _fetch_all_issues(orch, filter_project: str | None = None):
                 project.name,
                 exc,
             )
-            return []
+            return [], "unavailable"
         except StateBranchFetchError as exc:
             # Transient network failure fetching the remote state branch —
             # local state is still valid.  Degrade gracefully so
@@ -5114,16 +5354,20 @@ def _fetch_all_issues(orch, filter_project: str | None = None):
                 project.name,
                 exc,
             )
-            return []
+            return [], "unavailable"
         except (TrackerError, ProjectError) as exc:
             logger.error("Fetch issues failed for project %s: %s", project.name, exc)
-            return []
+            return [], "unavailable"
 
     all_issues = []
+    source_generations: dict[str, str | None] = {}
     with ThreadPoolExecutor(max_workers=min(len(targets), 4)) as pool:
-        for issues in pool.map(_fetch_for_project, targets):
+        for project, result in zip(targets, pool.map(_fetch_for_project, targets)):
+            issues, generation = result
             all_issues.extend(issues)
-    return all_issues
+            if include_source_generations:
+                source_generations[str(project.id)] = generation
+    return (all_issues, source_generations) if include_source_generations else all_issues
 
 
 def _verify_epic_state_after_update(
@@ -10798,7 +11042,7 @@ async def api_issue_full_detail(identifier: str, request: Request):
         # support GitHub identifiers with slashes.
         resolved_identifier = _resolve_identifier(identifier, None, request.query_params)
         cache_key = f"detail:{project_id}:{resolved_identifier}:actor:{actor_login.lower()}"
-        cached = _api_cache.get(cache_key)
+        cached = _detail_cache_get(cache_key, orch, project_id)
         if cached is not None:
             return JSONResponse(cached)
         tracker, resolved_project_id, issue = _find_tracker_for_issue(
@@ -10822,6 +11066,8 @@ async def api_issue_full_detail(identifier: str, request: Request):
         # screening; otherwise a current fingerprint is falsely shown as stale.
         if project_id:
             issue.project_id = project_id
+        _wire_tracker_issue_cache_invalidation(tracker, project_id)
+        detail_generation = _tracker_source_generation(tracker)
         project_names = _project_names_by_id(orch)
         project_name = project_names.get(project_id or "")
         # Prefer the tracker's own display_identifier when set; otherwise use
@@ -10922,6 +11168,7 @@ async def api_issue_full_detail(identifier: str, request: Request):
             # or when the state-branch worktree could not be synced).
             "tracker_state_fresh": (
                 getattr(tracker, "state_branch_enabled", False) is True
+                and detail_generation != "unavailable"
             ),
             "intake_actions": action_permissions(
                 issue,
@@ -10967,7 +11214,12 @@ async def api_issue_full_detail(identifier: str, request: Request):
             ]
         # Always include comments
         result["comments"] = tracker.fetch_comments(issue.identifier)
-        _api_cache.set(cache_key, result, ttl_ms=3000)
+        _detail_cache_set(
+            cache_key,
+            result,
+            project_id=project_id,
+            generation=detail_generation,
+        )
         return JSONResponse(result)
     except Exception as exc:
         logger.error("Issue detail API error: %s", exc)

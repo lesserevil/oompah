@@ -343,6 +343,11 @@ class OompahMarkdownTracker:
         self._read_cache_generation: int | None = None
         self._corrupt_stubs: list[dict[str, Any]] | None = None
         self._read_cache_guard = threading.Lock()
+        # Consumers such as the HTTP server can subscribe to authoritative
+        # task-read changes.  This is deliberately a small callback surface
+        # rather than a server import: tracker instances are also used by the
+        # task CLI and by background workers.
+        self._read_change_callbacks: list[Any] = []
         # Monotonic timestamp of the last successful state-branch checkpoint
         # flush.  Updated by _do_checkpoint_flush so callers (e.g. server.py
         # issues-snapshot logic) can detect when a checkpoint has advanced past
@@ -510,6 +515,11 @@ class OompahMarkdownTracker:
         # Record the checkpoint time so server.py can detect when its issues
         # snapshot is older than the latest state-branch commit.
         self.last_checkpoint_at = time.monotonic()
+        # A checkpoint advances the durable state-branch generation even when
+        # the mutation was made through another tracker instance.  Notify
+        # subscribers after the commit so list/detail caches cannot continue
+        # presenting the pre-checkpoint state.
+        self._notify_read_change()
         # Invoke the post-checkpoint callback outside the write lock to avoid
         # deadlocks when the callback tries to read tracker state.
         if callable(self._on_checkpoint_flushed):
@@ -517,6 +527,27 @@ class OompahMarkdownTracker:
                 self._on_checkpoint_flushed()
             except Exception:  # noqa: BLE001 — callback failures must not abort the flush
                 logger.exception("Error in _on_checkpoint_flushed callback")
+
+    def add_read_change_callback(self, callback: Any) -> None:
+        """Register *callback* for direct mutations and checkpoint commits.
+
+        Callbacks are best-effort observers.  They must not be able to make a
+        successful task mutation fail, and duplicate registrations are ignored.
+        """
+        if not callable(callback):
+            return
+        with self._read_cache_guard:
+            if callback not in self._read_change_callbacks:
+                self._read_change_callbacks.append(callback)
+
+    def _notify_read_change(self) -> None:
+        with self._read_cache_guard:
+            callbacks = list(self._read_change_callbacks)
+        for callback in callbacks:
+            try:
+                callback()
+            except Exception:  # noqa: BLE001 — observers must not break writes
+                logger.exception("Error in native tracker read-change callback")
 
     def _schedule_checkpoint(self) -> None:
         """Notify the checkpoint queue that a new mutation is pending.
@@ -1056,6 +1087,29 @@ class OompahMarkdownTracker:
             self._read_cache = None
             self._read_cache_generation = None
             self._corrupt_stubs = None
+        # Invalidation occurs after the mutation has been written to the
+        # authoritative worktree and before the mutation is returned to the
+        # caller, so server-side snapshots are invalidated synchronously.
+        self._notify_read_change()
+
+    def get_state_branch_generation(self) -> str | None:
+        """Return the exact local state-branch read generation.
+
+        The commit SHA fences durable checkpoint changes.  The shared
+        repository read epoch fences direct, not-yet-committed mutations and
+        mutations made through a sibling tracker instance.  Combining both
+        keeps a cached board/detail response valid only for the exact
+        authoritative view from which it was read, including after restart.
+        """
+        if not self.state_branch_enabled:
+            return None
+        try:
+            state_root = self._get_state_root()
+            result = self._git(["rev-parse", "HEAD"], check=False, cwd=state_root)
+            commit = result.stdout.strip() if result.returncode == 0 else "unavailable"
+        except Exception:  # noqa: BLE001 — callers will mark the read stale
+            commit = "unavailable"
+        return f"{commit}:{_repo_read_generation(self._repo_lock_key)}"
 
     def list_corrupt_stubs(self) -> list[dict[str, Any]]:
         """Return the list of corrupt or unreadable task file stubs.

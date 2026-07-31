@@ -269,6 +269,57 @@ class TestStateBranchTrackerIntegration:
         assert refreshed.state == IN_PROGRESS
         assert reader.list_corrupt_stubs() == []
 
+    def test_generation_tracks_direct_mutation_checkpoint_and_restart(
+        self, state_branch_repo: tuple[Path, str]
+    ) -> None:
+        """Board fences advance for direct writes and durable commits survive restart."""
+        repo, state_branch = state_branch_repo
+        writer = _make_tracker(
+            repo, state_branch_enabled=True, state_branch_name=state_branch, git_sync=True
+        )
+        reader = _make_tracker(
+            repo, state_branch_enabled=True, state_branch_name=state_branch, git_sync=True
+        )
+        issue = writer.create_issue("Generation-fenced status move")
+        writer.flush_checkpoint(reason="seed")
+
+        before = reader.get_state_branch_generation()
+        writer.update_issue(issue.identifier, status=IN_PROGRESS)
+        direct_write = reader.get_state_branch_generation()
+        assert direct_write != before
+
+        writer.flush_checkpoint(reason="checkpoint")
+        after_checkpoint = reader.get_state_branch_generation()
+        assert after_checkpoint != direct_write
+        assert after_checkpoint.split(":", 1)[0] == _commit_sha(repo, state_branch)
+
+        restarted = _make_tracker(
+            repo, state_branch_enabled=True, state_branch_name=state_branch, git_sync=True
+        )
+        assert restarted.fetch_issue_detail(issue.identifier).state == IN_PROGRESS
+        assert restarted.get_state_branch_generation().split(":", 1)[0] == (
+            after_checkpoint.split(":", 1)[0]
+        )
+
+    def test_read_change_callback_runs_for_direct_write_and_checkpoint(
+        self, state_branch_repo: tuple[Path, str]
+    ) -> None:
+        """Cache observers see both the uncommitted and durable mutation fences."""
+        repo, state_branch = state_branch_repo
+        tracker = _make_tracker(
+            repo, state_branch_enabled=True, state_branch_name=state_branch, git_sync=True
+        )
+        issue = tracker.create_issue("Callback status move")
+        tracker.flush_checkpoint(reason="seed")
+        changes: list[str] = []
+        tracker.add_read_change_callback(lambda: changes.append("changed"))
+
+        tracker.update_issue(issue.identifier, status=IN_PROGRESS)
+        assert changes
+        before_flush = len(changes)
+        tracker.flush_checkpoint(reason="checkpoint")
+        assert len(changes) > before_flush
+
     def test_add_comment_commits_only_to_state_branch(
         self, state_branch_repo: tuple[Path, str]
     ) -> None:
