@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-659
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Defer standalone full gates until finish dependencies are satisfied
 parent: null
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-31T12:15:02.565914Z'
-updated_at: '2026-07-31T13:04:22.238330Z'
+updated_at: '2026-07-31T13:19:07.559907Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -84,6 +84,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-659
     source_sha: 3316ec40933d1c387619d534e607a3b0100df7dc
     completed_at: '2026-07-31T13:03:56.254699+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-659
+  head_sha: cbbc1a5a14faaec32dfdf93e7e6043c3c0074f50
+  submitted_at: '2026-07-31T13:19:04.263341+00:00'
+  updated_at: '2026-07-31T13:19:04.263341+00:00'
 ---
 ## Summary
 
@@ -131,5 +139,10 @@ author: oompah
 created: 2026-07-31 13:04
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-31 13:19
+---
+Deferred standalone gates until effective finish dependencies are terminal-audit satisfied.
 ---
 <!-- COMMENTS:END -->
