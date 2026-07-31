@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:31.072278Z'
-updated_at: '2026-07-31T03:45:33.936787Z'
+updated_at: '2026-07-31T03:45:56.748059Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-599
 target_branch: null
 review_url: null
@@ -140,5 +140,10 @@ author: oompah
 created: 2026-07-31 03:45
 ---
 Focus: Test Engineer
+---
+author: oompah
+created: 2026-07-31 03:45
+---
+Operator handoff: reconcile stale Ready children OOMPAH-484/485/487/488/489 whose code was linearized and gate-passed through OOMPAH-597 head 44e5c5579, plus stale blocked queue rows for 484/487. Do not edit task Markdown or the SQLite queue directly. Use tracker/service transitions and add deterministic regression coverage for this post-recovery shape. OOMPAH-597 audit is currently independent and may remain pending until these records are corrected. OOMPAH-601 is concurrently in its exact integration gate; do not restart the service. The operator owns the final drained restart after the outer recovery reaches main.
 ---
 <!-- COMMENTS:END -->
