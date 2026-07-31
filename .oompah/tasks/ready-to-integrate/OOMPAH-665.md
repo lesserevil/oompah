@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:07.401588Z'
-updated_at: '2026-07-31T21:56:47.557819Z'
+updated_at: '2026-07-31T21:59:08.310380Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -576,5 +576,10 @@ author: oompah
 created: 2026-07-31 21:56
 ---
 Reused the trusted quality-gate venv when uv is unavailable; pushed e395a94af with regression coverage.
+---
+author: oompah
+created: 2026-07-31 21:59
+---
+Coordination review: OOMPAH-668 has submitted the more constrained quality-gate bootstrap (1fe2181a2 / rearmed at 6d9698be0). OOMPAH-665 is already submitted at e395a94af and remains clean/current. Its core terminal-audit retirement changes are independent. If integration needs to reconcile the overlapping Makefile/tests hunk, retain OOMPAH-668's OOMPAH_PYTEST_GATE-only trusted-runtime validation (normal setup unchanged) rather than the broader fallback in e395a94af. No change is needed to OOMPAH-665's observability implementation.
 ---
 <!-- COMMENTS:END -->
