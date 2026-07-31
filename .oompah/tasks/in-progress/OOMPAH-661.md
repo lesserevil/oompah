@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T13:12:19.387161Z'
-updated_at: '2026-07-31T14:51:24.446473Z'
+updated_at: '2026-07-31T14:51:44.982076Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -53,7 +53,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 0c78b242-c254-45ac-8933-17ee1f7d026a
+oompah.agent_run_id: 2b97250b-0de6-49c0-bf97-ad8aff1be6e8
 oompah.task_costs:
   total_input_tokens: 484212
   total_output_tokens: 11029
@@ -180,5 +180,15 @@ author: oompah
 created: 2026-07-31 14:51
 ---
 Agent completed without closing this issue (1275s (491130 tokens)). Escalating from 'standard' to 'deep'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-31 14:51
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-31 14:51
+---
+Focus: Event Api Redaction Specialist
 ---
 <!-- COMMENTS:END -->
