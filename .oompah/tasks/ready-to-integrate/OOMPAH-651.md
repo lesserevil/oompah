@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T09:19:26.260915Z'
+updated_at: '2026-07-31T09:19:39.782484Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -54,13 +54,13 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: f7f4595d-abc9-40eb-97a8-2f1981f2b7f4
 oompah.task_costs:
-  total_input_tokens: 82
-  total_output_tokens: 2879
+  total_input_tokens: 2376
+  total_output_tokens: 3527
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 82
-      output_tokens: 2879
+      input_tokens: 2376
+      output_tokens: 3527
       cost_usd: 0.0
   runs:
   - profile: default
@@ -69,6 +69,12 @@ oompah.task_costs:
     output_tokens: 2879
     cost_usd: 0.0
     recorded_at: '2026-07-31T09:02:29.889282+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 2294
+    output_tokens: 648
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T09:19:37.722574+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-651__20260731T090132Z
@@ -215,5 +221,15 @@ author: oompah
 created: 2026-07-31 09:19
 ---
 Implemented centralized secret redaction for logs and events. All secrets (passwords, tokens, API keys, bearer credentials, URLs with userinfo) are now redacted from tool inputs/outputs, JSONL logs, and state before persistence. Comprehensive test coverage (38 tests) verifies zero plaintext persistence while preserving non-secret diagnostic context. Existing redaction contracts remain compatible (console tests pass).
+---
+author: oompah
+created: 2026-07-31 09:19
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 137
+- Tokens: 2.3K in / 648 out [2.9K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 16m 36s
+- Log: OOMPAH-651__20260731T090308Z.jsonl
 ---
 <!-- COMMENTS:END -->
