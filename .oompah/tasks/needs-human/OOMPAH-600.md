@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-600
 type: task
-status: Ready to Integrate
+status: Needs Human
 priority: 1
 title: Integrate OOMPAH-581 and prune current safe terminal workspaces
 parent: OOMPAH-588
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:58.634342Z'
-updated_at: '2026-07-31T03:11:56.969408Z'
+updated_at: '2026-07-31T03:12:25.983881Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-600
 target_branch: null
 review_url: null
@@ -69,13 +69,13 @@ oompah.integration:
   submitted_at: '2026-07-31T03:11:53.786551+00:00'
   updated_at: '2026-07-31T03:11:53.786551+00:00'
 oompah.task_costs:
-  total_input_tokens: 138
-  total_output_tokens: 6624
+  total_input_tokens: 1180
+  total_output_tokens: 6935
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 138
-      output_tokens: 6624
+      input_tokens: 1180
+      output_tokens: 6935
       cost_usd: 0.0
   runs:
   - profile: default
@@ -84,6 +84,12 @@ oompah.task_costs:
     output_tokens: 6624
     cost_usd: 0.0
     recorded_at: '2026-07-30T15:52:40.469349+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 1042
+    output_tokens: 311
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T03:12:18.548230+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-600__20260730T155057Z
@@ -202,5 +208,30 @@ author: oompah
 created: 2026-07-31 03:11
 ---
 Integrated OOMPAH-581 (commit 4dd6bd24e) into epic-OOMPAH-588--task-OOMPAH-600. Implementation: _cleanup_epic_repair_workspace_locked() with 4 strict guards for safe terminal epic repair workspace pruning. All 7 OOMPAH-581 tests PASS. Comprehensive testing: 452+ tests PASS, no regressions. Preserved TASK-472, TASK-473 worktrees. Branch pushed and ready for review.
+---
+author: oompah
+created: 2026-07-31 03:12
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 60
+- Tokens: 1.0K in / 311 out [1.4K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 6m 51s
+- Log: OOMPAH-600__20260731T030541Z.jsonl
+---
+author: oompah
+created: 2026-07-31 03:12
+---
+Operator fence: the worker pushed duplicate commit 4dd6bd24e despite the coordination correction. Moving temporarily to Needs Human prevents this duplicate from entering epic OOMPAH-588. Finish any currently running read-only tests, but perform no further push, submit, integration, cleanup, or restart. The operator will restore the task ref to unchanged parent b4959703e with an exact lease and retain the useful verification evidence.
+---
+author: oompah
+created: 2026-07-31 03:12
+---
+Moved to Needs Human from the dashboard/API. Human action required: inspect OOMPAH-600 (Integrate OOMPAH-581 and prune current safe terminal workspaces), add the specific decision, missing information, or manual fix needed, then move the task back to Open when it is ready for agents again.
+---
+author: oompah
+created: 2026-07-31 03:12
+---
+Temporary operator fence against duplicate OOMPAH-581 delivery; no user decision is required.
 ---
 <!-- COMMENTS:END -->
