@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-632
 type: bug
-status: Backlog
+status: In Progress
 priority: 1
 title: Refresh candidate refs before child landing reconciliation
 parent: OOMPAH-584
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:46:34.785511Z'
-updated_at: '2026-07-31T00:46:34.785511Z'
+updated_at: '2026-07-31T00:46:47.894245Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -28,3 +28,11 @@ Implementation scope: make Done-child landing reconciliation fetch authoritative
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-31 00:46
+---
+Claimed directly by the operator Codex session because stale candidate-ref reconciliation is currently re-escalating OOMPAH-595 after a valid auditor PASS and blocks the green recovery epic. Implementing the regression fix against the latest OOMPAH-584 head now.
+---
+<!-- COMMENTS:END -->
