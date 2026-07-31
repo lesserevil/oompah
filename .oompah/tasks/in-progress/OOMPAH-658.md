@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-07-31T12:13:05.279983Z'
+updated_at: '2026-07-31T12:13:33.698294Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -660,5 +660,10 @@ author: oompah
 created: 2026-07-31 12:13
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-31 12:13
+---
+Understanding: Head 1b49ab0f4 is the completed and verified fix. Prior 'Branch quality gate failed' notices at 11:53 (PGID 2487891) and 12:07 (PGID 2991395) were operator-terminated premature full make test runs — the terminal 'make[1]: *** [Makefile:295: test] Terminated' line is SIGTERM, not an assertion. Operator repeatedly instructed (comments 23/28/38): 'run focused regression tests only. Oompah will run the configured complete branch gate once for the accepted exact review-ready head.' Full gate authority remains finish-order blocked on OOMPAH-657. Plan: re-verify focused suites at HEAD in this dispatch's worktree, confirm branch is up to date with origin, then submit — no source changes required.
 ---
 <!-- COMMENTS:END -->
