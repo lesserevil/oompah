@@ -12,10 +12,11 @@ children:
 - OOMPAH-603
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- epic:rebased
 assignee: null
 created_at: '2026-07-30T14:13:46.482910Z'
-updated_at: '2026-07-31T05:09:40.001100Z'
+updated_at: '2026-07-31T05:18:03.334544Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -177,5 +178,10 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 6m 24s
 - Log: OOMPAH-588__20260731T050322Z.jsonl
+---
+author: oompah
+created: 2026-07-31 05:18
+---
+Operator self-hosting recovery: rebased origin/epic-OOMPAH-588 from 869005b38 onto current parent origin/epic-OOMPAH-584 145b6b67e, resolving cleanup-result and terminal-metrics overlaps by preserving both newer contracts. Added conflict regression commit c2549a76d. Focused repository hygiene/projects/config/merged-label suite: 530 passed. Terminal mutation scan passed. Pushed exact head c2549a76d; parent comparison 0 behind / 10 ahead; all four terminal child refs refreshed to contained rebased heads.
 ---
 <!-- COMMENTS:END -->
