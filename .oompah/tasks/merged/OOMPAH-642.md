@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:09:07.190386Z'
-updated_at: '2026-07-31T07:12:33.220286Z'
+updated_at: '2026-07-31T07:12:51.212746Z'
 work_branch: OOMPAH-642
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/609
@@ -47,8 +47,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: c803da15-5b02-4845-97cc-81c04b4c2e1e
 oompah.task_costs:
-  total_input_tokens: 7891155
-  total_output_tokens: 48690
+  total_input_tokens: 7891196
+  total_output_tokens: 49967
   total_cost_usd: 0.0
   by_model:
     sonnet:
@@ -60,8 +60,8 @@ oompah.task_costs:
       output_tokens: 1966
       cost_usd: 0.0
     unknown:
-      input_tokens: 6
-      output_tokens: 393
+      input_tokens: 47
+      output_tokens: 1670
       cost_usd: 0.0
   runs:
   - profile: standard
@@ -94,6 +94,12 @@ oompah.task_costs:
     output_tokens: 393
     cost_usd: 0.0
     recorded_at: '2026-07-31T07:09:29.115446+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 41
+    output_tokens: 1277
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T07:12:48.698813+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-642__20260731T060949Z
@@ -440,5 +446,15 @@ Safe evidence:
 - coordinator_revoke_wiring: terminal_transition_coordinator.py:465,482,516; bootstrap.py:373; orchestrator.py:900
 - focused_tests_pass: test_quality_gate:17, test_standalone_ready_to_integrate:17, test_terminal_transition_coordinator+authority_boundary+terminal_override:271, test_delivery_plane_recovery:4
 - full_branch_gate: make test passed in 309.7s on af6e42339
+---
+author: oompah
+created: 2026-07-31 07:12
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 22
+- Tokens: 41 in / 1.3K out [1.3K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 3m 5s
+- Log: OOMPAH-642__20260731T070947Z.jsonl
 ---
 <!-- COMMENTS:END -->
