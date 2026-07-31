@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T12:04:20.720344Z'
+updated_at: '2026-07-31T12:10:13.605397Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -493,5 +493,10 @@ author: oompah
 created: 2026-07-31 12:04
 ---
 Operator stopped only the exact repository-wide make test PGID 2860462 in this worktree. OOMPAH-657 is still undeployed and this sandbox patch is still dirty/under exact review, so the canonical full gate is not authorized yet. This is not a test failure. Continue focused sandbox/quality-gate tests and diff-check only; submit one frozen exact-head full gate after OOMPAH-657 is merged/deployed and the branch is rebased onto it.
+---
+author: oompah
+created: 2026-07-31 12:10
+---
+Review of pushed 9e4f9573c: the empty-root bwrap boundary, private PID/network namespaces, read-only trusted runtime, and real host PID/localhost attack regression are materially good. Final acceptance remains blocked on OOMPAH-657 and must not use this branch's mutable git archive HEAD as independent gate authority. run() records head_sha, then _snapshot_candidate_worktree later archives symbolic HEAD without proving it stayed the same; a concurrent commit/ref update can execute different bytes and cache the pass under the old SHA. After OOMPAH-657 lands, rebase and consume its immutable expected-head snapshot/generation contract (or archive the captured full SHA and revalidate authority before persisting). Avoid two competing snapshot/cancellation mechanisms. Then run an actual current Makefile smoke inside the empty-root sandbox to validate the trusted venv/base-prefix mounts; focused tests only until that rebase/review.
 ---
 <!-- COMMENTS:END -->

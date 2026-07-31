@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-658
 type: bug
-status: Needs CI Fix
+status: Open
 priority: 2
 title: Deduplicate duplicate-preflight runs across deferred dispatch ticks
 parent: null
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-07-31T12:09:45.877342Z'
+updated_at: '2026-07-31T12:10:08.329400Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,8 +41,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: eac89fad-6ddc-453a-b594-4d70621ad4a1
 oompah.task_costs:
-  total_input_tokens: 928363
-  total_output_tokens: 9951
+  total_input_tokens: 928381
+  total_output_tokens: 13992
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -50,8 +50,8 @@ oompah.task_costs:
       output_tokens: 5456
       cost_usd: 0.0
     opus:
-      input_tokens: 155
-      output_tokens: 4495
+      input_tokens: 173
+      output_tokens: 8536
       cost_usd: 0.0
   runs:
   - profile: default
@@ -72,6 +72,12 @@ oompah.task_costs:
     output_tokens: 4495
     cost_usd: 0.0
     recorded_at: '2026-07-31T12:05:36.529135+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 18
+    output_tokens: 4041
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T12:10:00.631120+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-658__20260731T111938Z
@@ -575,5 +581,27 @@ author: oompah
 created: 2026-07-31 12:09
 ---
 Adapter-backed duplicate-preflight deduplication complete at head 1b49ab0f4. Fingerprint composes (title, description with Triggered-by header, project, type, parent, intake.proposal_fingerprint); scheduling metadata (deps, labels, updated_at, last_validated_at) excluded. Native persisted regressions verify zero re-screens across ticks/fresh orchestrator on unchanged intake, exactly-one claim under concurrent ticks on mutated intake proposal_fingerprint, and continued retry for inconclusive verdicts. 450 focused tests pass; full make test gate deferred to the server-owned single review-ready run per operator guidance.
+---
+author: oompah
+created: 2026-07-31 12:10
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Claude/opus]
+- Turns: 0, Tool calls: 12
+- Tokens: 18 in / 4.0K out [4.1K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 2m 25s
+- Log: OOMPAH-658__20260731T120739Z.jsonl
+---
+author: oompah
+created: 2026-07-31 12:10
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #18)
+
+**State audited:** `Needs CI Fix`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** Recent comment indicates CI is now passing or PR has been merged; safe to reopen for dispatch.
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
 ---
 <!-- COMMENTS:END -->
