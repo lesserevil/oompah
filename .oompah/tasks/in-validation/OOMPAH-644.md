@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:46:11.947079Z'
-updated_at: '2026-07-31T08:03:47.360891Z'
+updated_at: '2026-07-31T08:11:10.632792Z'
 work_branch: OOMPAH-644
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/611
@@ -58,13 +58,17 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: ba4c6d0b-dcb0-4b53-be1a-00516ceb6a08
 oompah.task_costs:
-  total_input_tokens: 162
-  total_output_tokens: 5801
+  total_input_tokens: 195
+  total_output_tokens: 6920
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 162
       output_tokens: 5801
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 33
+      output_tokens: 1119
       cost_usd: 0.0
   runs:
   - profile: default
@@ -73,6 +77,12 @@ oompah.task_costs:
     output_tokens: 5801
     cost_usd: 0.0
     recorded_at: '2026-07-31T06:49:10.710435+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 33
+    output_tokens: 1119
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T08:11:08.284937+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-644__20260731T064652Z
@@ -267,5 +277,15 @@ author: oompah
 created: 2026-07-31 08:03
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 08:11
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 20
+- Tokens: 33 in / 1.1K out [1.2K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 7m 24s
+- Log: OOMPAH-644__20260731T080348Z.jsonl
 ---
 <!-- COMMENTS:END -->
