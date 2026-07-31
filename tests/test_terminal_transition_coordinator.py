@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import copy
 import threading
+import time
 from dataclasses import dataclass, field, replace
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -115,6 +116,29 @@ class _FailingUpdateTracker(_MemoryTracker):
         if self.fail_update:
             raise RuntimeError("Tracker write failed")
         super().update_issue(identifier, **kwargs)
+
+
+class _BlockingMetadataTracker(_MemoryTracker):
+    """Block the first metadata write to force cross-loop lock contention."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.first_write_entered = threading.Event()
+        self.release_first_write = threading.Event()
+        self._block_guard = threading.Lock()
+        self._blocked_once = False
+
+    def set_metadata_field(self, identifier: str, key: str, value: Any) -> None:
+        should_block = False
+        with self._block_guard:
+            if not self._blocked_once:
+                self._blocked_once = True
+                should_block = True
+        if should_block:
+            self.first_write_entered.set()
+            if not self.release_first_write.wait(timeout=5):
+                raise TimeoutError("test did not release the first metadata write")
+        super().set_metadata_field(identifier, key, value)
 
 
 class _TrackerFactory:
@@ -961,39 +985,69 @@ class TestSimultaneousRequests:
 
 
 class TestPerProjectLocking:
-    def test_per_project_locks_are_independent(self) -> None:
-        """Requests for two different projects use different locks."""
-        coord = _coordinator(post_comments=False)
-        # Accessing private _async_locks after requests
+    def test_same_project_is_safe_across_concurrent_event_loops(self) -> None:
+        """Server and orchestrator loops may use one coordinator concurrently."""
+        tracker = _BlockingMetadataTracker()
+        coord = TerminalTransitionCoordinator(
+            tracker=tracker,
+            project_store=_LockStore(),
+            post_comments=False,
+        )
         fp = _fingerprint()
-        tracker = _MemoryTracker()
-        coord2 = TerminalTransitionCoordinator(tracker=tracker, project_store=_LockStore(), post_comments=False)
+        results: list[TransitionResult] = []
+        errors: list[BaseException] = []
 
-        async def _run_both():
-            issue_a = Issue(id="A-1", identifier="A-1", title="Task A", state="Open")
-            issue_b = Issue(id="B-1", identifier="B-1", title="Task B", state="Open")
-            await coord2.request_transition(issue_a, TargetState.DONE, _trigger(), "proj-a", fp)
-            await coord2.request_transition(issue_b, TargetState.DONE, _trigger(), "proj-b", fp)
+        def _request(identifier: str) -> None:
+            issue = Issue(
+                id=identifier,
+                identifier=identifier,
+                title=identifier,
+                state="Open",
+            )
+            try:
+                results.append(
+                    asyncio.run(
+                        coord.request_transition(
+                            issue,
+                            TargetState.DONE,
+                            _trigger(),
+                            PROJECT_ID,
+                            fp,
+                        )
+                    )
+                )
+            except BaseException as exc:  # noqa: BLE001 - asserted below
+                errors.append(exc)
 
-        asyncio.run(_run_both())
-        # Each project should have its own lock
-        assert "proj-a" in coord2._async_locks
-        assert "proj-b" in coord2._async_locks
-        assert coord2._async_locks["proj-a"] is not coord2._async_locks["proj-b"]
+        first = threading.Thread(target=_request, args=("TASK-A",), daemon=True)
+        second = threading.Thread(target=_request, args=("TASK-B",), daemon=True)
+        third = threading.Thread(target=_request, args=("TASK-C",), daemon=True)
+        first.start()
+        assert tracker.first_write_entered.wait(timeout=2)
+        second.start()
+        time.sleep(0.1)
+        third.start()
+        time.sleep(0.1)
+        tracker.release_first_write.set()
 
-    def test_same_project_uses_same_lock(self) -> None:
-        tracker = _MemoryTracker()
-        coord = _coordinator(tracker, post_comments=False)
-        fp = _fingerprint()
+        for thread in (first, second, third):
+            thread.join(timeout=5)
+            assert not thread.is_alive()
 
-        async def _run_two():
-            issue = _issue()
-            await coord.request_transition(issue, TargetState.DONE, _trigger(), PROJECT_ID, fp)
-            await coord.request_transition(issue, TargetState.DONE, _trigger(), PROJECT_ID, fp)
+        assert errors == []
+        assert len(results) == 3
+        assert all(result.success for result in results)
 
-        asyncio.run(_run_two())
-        # There should be exactly one lock for PROJECT_ID
-        assert list(coord._async_locks.keys()) == [PROJECT_ID]
+        fourth = _run(
+            coord.request_transition(
+                Issue(id="TASK-D", identifier="TASK-D", title="D", state="Open"),
+                TargetState.DONE,
+                _trigger(),
+                PROJECT_ID,
+                fp,
+            )
+        )
+        assert fourth.success
 
 
 class TestProjectTrackerFactory:
