@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-638
 type: task
-status: In Validation
+status: Archived
 priority: 0
 title: Rebase epic-OOMPAH-460 onto main
 parent: OOMPAH-460
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T02:59:30.537456Z'
-updated_at: '2026-07-31T03:00:24.885792Z'
+updated_at: '2026-07-31T03:02:00.231009Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-638
 target_branch: null
 review_url: null
@@ -29,6 +29,8 @@ oompah.integration:
   updated_at: '2026-07-31T02:59:43.580480+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-a579aa2fac0d: '2026-07-31T03:01:58.166408+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -36,7 +38,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-638
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -45,7 +47,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-a579aa2fac0d
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -55,13 +57,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T03:00:17.731678+00:00'
       branch_key: epic-OOMPAH-460--task-OOMPAH-638
+      verdict: pass
+      completed_at: '2026-07-31T03:01:58.166245+00:00'
+      ended_at: '2026-07-31T03:01:58.166245+00:00'
     requested_by:
       version: 1
       identity: api-client
       source: api
     previous_state: In Progress
     created_at: '2026-07-31T03:00:14.621153+00:00'
-    updated_at: '2026-07-31T03:00:17.731678+00:00'
+    updated_at: '2026-07-31T03:01:58.166245+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-a579aa2fac0d
@@ -120,5 +125,21 @@ author: oompah
 created: 2026-07-31 03:00
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 03:01
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- current_branch: epic-OOMPAH-460--task-OOMPAH-638
+- worktree_status: clean
+- commits_ahead_of_origin_main: 4 (all OOMPAH-486)
+- commits_behind_origin_main: 2 (OOMPAH-581)
+- task_specific_work_on_branch: none
+- duplicate_investigator_verdict: documented in comment #3 with named alternate owners OOMPAH-634 (completed synchronization) and OOMPAH-599 (final synchronization)
+- task_state: In Validation queued for Archived
 ---
 <!-- COMMENTS:END -->
