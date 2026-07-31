@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T09:52:43.998245Z'
+updated_at: '2026-07-31T09:55:13.702875Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -302,5 +302,10 @@ author: oompah
 created: 2026-07-31 09:52
 ---
 In-progress operator review: the durable-source direction is right, but the current dirty diff still has two race/recovery holes and is missing the required deterministic barriers. First, apply_audit_result writes a retirement with applied=true and marks the audit COMPLETED before tracker.update_issue; if that status write fails or the process dies there, the task can remain In Validation while every replay/reconcile is fenced as already completed. Use an intent/applied protocol with restart recovery (or make the durable outcome/status mutation atomic) and test the crash window. Second, TerminalAuditEnforcement._recover_terminal_override captures raw_overrides before store.update, then its updater rebuilds the ledger from that stale outer list; a concurrent appended record can be silently overwritten. Derive the ledger from the updater's current document. The modified enforcement recovery path also has no new test in the current diff. Before submission add deterministic PASS-persist-vs-reconcile/no-candidate and override-vs-no-candidate barriers, interrupted PASS/status recovery, interrupted override finalization/restart, repeated callbacks, and project-isolation assertions against the production alert registry—not only sequential coordinator tests.
+---
+author: oompah
+created: 2026-07-31 09:55
+---
+Operator safety intervention: I terminated only the exact full-test process group PGID 220968 (cwd OOMPAH-653) because this branch does not yet contain OOMPAH-652 gate isolation and an old full gate can still stop the live service at teardown. The implementation provider remains running. Continue with focused terminal-audit tests and diff-check only; do not run make test again on this branch. Oompah will run the exact full branch gate after OOMPAH-652 is integrated/deployed and this branch is rebased onto that safe base. This interrupted full run is not evidence of a code failure.
 ---
 <!-- COMMENTS:END -->
