@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-664
 type: task
-status: Ready to Integrate
+status: In Progress
 priority: null
 title: Make issue-list snapshots advance with canonical state-branch task changes
 parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- needs-rebase
 assignee: null
 created_at: '2026-07-31T16:04:06.140108Z'
-updated_at: '2026-07-31T18:39:10.041707Z'
+updated_at: '2026-07-31T18:39:18.602528Z'
 work_branch: null
 target_branch: null
 review_url: null
