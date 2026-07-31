@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-664
 type: task
-status: Needs CI Fix
+status: In Progress
 priority: 0
 title: Make issue-list snapshots advance with canonical state-branch task changes
 parent: null
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:06.140108Z'
-updated_at: '2026-07-31T21:34:19.742582Z'
+updated_at: '2026-07-31T21:34:28.480697Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,7 +44,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 53ab8898-b738-402c-8e99-cd7db269207f
+oompah.agent_run_id: bbc523cb-8ed8-4e29-83a9-b1a4a13a14a3
 oompah.task_costs:
   total_input_tokens: 3977153
   total_output_tokens: 26612
@@ -328,5 +328,15 @@ author: oompah
 created: 2026-07-31 21:33
 ---
 Agent completed without closing this issue (118s (3001 tokens)). Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-31 21:34
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-31 21:34
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
