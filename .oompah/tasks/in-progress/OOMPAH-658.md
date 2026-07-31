@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-658
 type: bug
-status: Needs CI Fix
+status: In Progress
 priority: 2
 title: Deduplicate duplicate-preflight runs across deferred dispatch ticks
 parent: null
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-07-31T12:12:48.878988Z'
+updated_at: '2026-07-31T12:13:05.279983Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,7 +39,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 0a177c31-b61e-414e-bb59-6cb43faae632
+oompah.agent_run_id: d04a41a5-30f7-4b46-a24b-06a6d02db04f
 oompah.task_costs:
   total_input_tokens: 928411
   total_output_tokens: 14630
@@ -650,5 +650,15 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 2m 24s
 - Log: OOMPAH-658__20260731T121022Z.jsonl
+---
+author: oompah
+created: 2026-07-31 12:13
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-31 12:13
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
