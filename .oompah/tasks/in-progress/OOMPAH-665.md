@@ -12,7 +12,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-07-31T16:04:07.401588Z'
-updated_at: '2026-07-31T19:01:20.885806Z'
+updated_at: '2026-07-31T19:09:27.344203Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -356,5 +356,15 @@ author: oompah
 created: 2026-07-31 19:01
 ---
 Understanding (run #5): Branch is correctly rebased on main. All 134 focused tests pass. The gate keeps returning needs_rebase because the bubblewrap probe in quality_gate.py is missing --symlink usr/lib64 /lib64. The probe tries to exec /bin/sh (dash) which needs /lib64/ld-linux-x86-64.so.2 as its ELF interpreter, but /lib64 is not mounted in the probe namespace (only /usr is). The main sandbox command already includes --symlink usr/lib64 /lib64 but the probe does not. Fix: add --symlink usr/lib64 /lib64 to the probe command.
+---
+author: oompah
+created: 2026-07-31 19:09
+---
+Implementation: Fixed bubblewrap probe in oompah/quality_gate.py. Root cause: (1) probe missing --symlink usr/lib64 /lib64 — ELF dynamic loader for /bin/sh (dash) lives at /lib64/ld-linux-x86-64.so.2 but /lib64 was not in the probe namespace; (2) kernel 6.18+ marks the loopback as netns-immutable, so ip link set lo up returns RTNETLINK EPERM (exit 2) even though lo is already UP. Fix: probe now uses --symlink usr/lib64 /lib64 and tests 'ip link show lo' instead of 'ip link set lo up'. Main sandbox bootstrap changed to 'ip link set lo up 2>/dev/null || true; exec ...' so tests always run. Updated test assertion for the new bootstrap string.
+---
+author: oompah
+created: 2026-07-31 19:09
+---
+Verification: 180 focused tests pass (18 terminal_audit_observability + 116 terminal_transition_coordinator + 46 quality_gate). terminal-audit-scan passes. Branch head ccae8b823 pushed to origin/OOMPAH-665.
 ---
 <!-- COMMENTS:END -->
