@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-597
 type: task
-status: Ready to Integrate
+status: Needs Rebase
 priority: 1
 title: Recover and drain the OOMPAH-460 ordered integration chain
 parent: OOMPAH-587
@@ -13,7 +13,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:28.342383Z'
-updated_at: '2026-07-30T16:02:37.519809Z'
+updated_at: '2026-07-31T01:23:45.101780Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-597
 target_branch: null
 review_url: null
@@ -42,12 +42,32 @@ oompah.agent_run_id: 4a50f740-f87d-4845-8eff-a79b5f74352f
 oompah.work_branch: epic-OOMPAH-587--task-OOMPAH-597
 oompah.integration:
   version: 1
-  state: ready
-  attempts: 0
+  state: blocked
+  attempts: 1
   task_branch: epic-OOMPAH-587--task-OOMPAH-597
+  base_branch: epic-OOMPAH-587
+  base_sha: 8a875b1c321d5d1a0ae5623158a3eb98ad940313
   head_sha: 4fa190277b977e3d3348c5003b0c1f98a36e5a0a
   submitted_at: '2026-07-30T16:02:06.448831+00:00'
-  updated_at: '2026-07-30T16:02:06.448831+00:00'
+  updated_at: '2026-07-31T01:23:36.373341+00:00'
+  last_error: 'Rebase onto the latest epic head conflicted: Rebasing (1/11)
+
+    error: could not apply 2fecdd67a... OOMPAH-486: add terminal audit observability
+    and alerts
+
+    hint: Resolve all conflicts manually, mark them as resolved with
+
+    hint: "git add/rm <conflicted_files>", then run "git rebase --continue".
+
+    hint: You can instead skip this commit: run "git rebase --skip".
+
+    hint: To abort and get back to the state before "git rebase", run "git rebase
+    --abort".
+
+    hint: Disable this message with "git config set advice.mergeConflict false"
+
+    Could not apply 2fecdd67a... # OOMPAH-486: add terminal audit observability and
+    alerts'
 oompah.task_costs:
   total_input_tokens: 1271455
   total_output_tokens: 12292
@@ -242,5 +262,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 16m 18s
 - Log: OOMPAH-597__20260730T154633Z.jsonl
+---
+author: oompah
+created: 2026-07-31 01:23
+---
+Integration found a rebase conflict on `epic-OOMPAH-587--task-OOMPAH-597`. Resolve it against `epic-OOMPAH-587`, run the required tests, push the same private branch, and `oompah task submit` it again.
 ---
 <!-- COMMENTS:END -->
