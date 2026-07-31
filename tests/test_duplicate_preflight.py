@@ -24,7 +24,7 @@ from oompah.duplicate_screening import (
     new_claim_record,
 )
 from oompah.events import EventBus
-from oompah.models import Issue, OrchestratorState, RunningEntry
+from oompah.models import BlockerRef, Issue, OrchestratorState, RunningEntry
 from oompah.orchestrator import Orchestrator
 from oompah.statuses import (
     DONE,
@@ -511,46 +511,66 @@ def test_selection_skips_checked_running_and_backoff_records():
     assert metrics["skipped_backoff"] == 1
 
 
-def test_selection_loads_metadata_when_not_on_candidate_issue():
-    """Test that metadata is explicitly loaded from tracker during selection.
-
-    This reproduces the bug where candidates fetched via fetch_candidate_issues()
-    might not have metadata loaded (description might be truncated in list
-    responses). The selection should explicitly load metadata to recognize
-    CHECKED records and avoid redundant duplicate-preflight dispatches across
-    scheduler ticks.
-    """
+def test_checked_result_survives_finish_order_and_scheduler_metadata_changes():
+    """A scheduling-only update must not launch a second screening run."""
     checked_issue = _issue("TASK-1", title="Already screened")
-    unchecked_issue = _issue("TASK-2")
+    tracker = _Tracker([checked_issue])
+    orch = _orch(tracker, slots=4, preflight_limit=4)
     now = datetime.now(timezone.utc)
 
-    # Store CHECKED record in tracker metadata (simulating a previous screening)
-    checked_claim = new_claim_record(checked_issue, owner="scheduler", now=now)
-    checked_record = complete_claim_record(
-        checked_claim,
+    claim = orch._claim_duplicate_preflight(checked_issue)
+    assert claim is not None
+    checked = complete_claim_record(
+        claim,
         verdict=ScreeningVerdict.NO_DUPLICATE,
         now=now,
     )
-    tracker = _Tracker([checked_issue, unchecked_issue])
-    tracker.set_metadata_field(checked_issue.identifier, METADATA_KEY, checked_record.to_dict())
-
-    # Simulate candidates fetched from a list endpoint (metadata not loaded)
-    candidate_checked = copy.deepcopy(checked_issue)
-    candidate_checked.duplicate_screening = None  # Metadata not loaded in list response
-    candidate_unchecked = copy.deepcopy(unchecked_issue)
-    candidate_unchecked.duplicate_screening = None
-
-    orch = _orch(tracker, slots=4, preflight_limit=4)
-    orch._should_dispatch = lambda issue, duplicate_preflight=False: True
-
-    # The fix should load metadata from tracker and skip the CHECKED task
-    selected = orch._select_duplicate_preflight_candidates(
-        [candidate_checked, candidate_unchecked]
+    tracker.set_metadata_field(
+        checked_issue.identifier,
+        METADATA_KEY,
+        checked.to_dict(),
     )
 
-    assert [item.identifier for item in selected] == ["TASK-2"]
+    # This mirrors the live incident: a finish-order dependency and scheduler
+    # labels change after the no-duplicate result has already been persisted.
+    tracker.issues[checked_issue.identifier].blocked_by = [
+        BlockerRef(id="OOMPAH-657", identifier="OOMPAH-657")
+    ]
+    tracker.issues[checked_issue.identifier].start_blocked_by = [
+        BlockerRef(id="START-1", identifier="START-1")
+    ]
+    tracker.issues[checked_issue.identifier].labels = ["oompah:status:open"]
+
+    candidate = tracker.fetch_issue_detail(checked_issue.identifier)
+    assert candidate is not None
+    orch._should_dispatch = lambda issue, duplicate_preflight=False: True
+
+    selected = orch._select_duplicate_preflight_candidates([candidate])
+
+    assert selected == []
     metrics = orch._last_duplicate_preflight_metrics
     assert metrics["skipped_checked"] == 1
+
+
+def test_changed_source_revision_selects_one_fresh_screening():
+    issue = _issue()
+    issue.source = "OOMPAH-655"
+    issue.source_revision = "revision-1"
+    tracker = _Tracker([issue])
+    orch = _orch(tracker, slots=4, preflight_limit=4)
+    claim = orch._claim_duplicate_preflight(issue)
+    assert claim is not None
+    checked = complete_claim_record(claim, verdict=ScreeningVerdict.NO_DUPLICATE)
+    tracker.set_metadata_field(issue.identifier, METADATA_KEY, checked.to_dict())
+
+    tracker.issues[issue.identifier].source_revision = "revision-2"
+    candidate = tracker.fetch_issue_detail(issue.identifier)
+    assert candidate is not None
+    orch._should_dispatch = lambda issue, duplicate_preflight=False: True
+
+    selected = orch._select_duplicate_preflight_candidates([candidate])
+
+    assert [item.identifier for item in selected] == [issue.identifier]
 
 
 @pytest.mark.asyncio

@@ -30,21 +30,7 @@ DETECTOR_VERSION = "duplicate-detector-v1"
 DEFAULT_CLAIM_TTL_SECONDS = 30 * 60
 
 _SPACE_RE = re.compile(r"\s+")
-_TRANSIENT_LABEL_PREFIXES = (
-    "focus-complete:",
-    "needs:",
-    "oompah:",
-    "epic:",
-    "duplicate-preflight:",
-)
-_TRANSIENT_LABELS = {
-    "asking_question",
-    "ci-fix",
-    "decomposed",
-    "duplicate-candidate",
-    "human-only",
-    "merge-conflict",
-}
+_SOURCE_HEADER_RE = re.compile(r"(?im)^\s*triggered by\s*:\s*(\S+)\s*$")
 
 
 class ScreeningState(str, Enum):
@@ -69,43 +55,56 @@ def _normalize_text(value: object) -> str:
     return _SPACE_RE.sub(" ", text).strip().casefold()
 
 
-def _relevant_labels(labels: Iterable[str]) -> list[str]:
-    normalized: set[str] = set()
-    for raw in labels:
-        label = _normalize_text(raw)
-        if not label:
-            continue
-        if label in _TRANSIENT_LABELS:
-            continue
-        if any(label.startswith(prefix) for prefix in _TRANSIENT_LABEL_PREFIXES):
-            continue
-        normalized.add(label)
-    return sorted(normalized)
+def _source_input(issue: Issue) -> str:
+    """Return the stable source identity associated with *issue*, if any."""
+
+    explicit = getattr(issue, "source", None)
+    if explicit:
+        return _normalize_text(explicit)
+    match = _SOURCE_HEADER_RE.search(str(issue.description or ""))
+    return _normalize_text(match.group(1)) if match else ""
+
+
+def _revision_input(issue: Issue) -> str:
+    """Return stable intake/source revision data without scheduler metadata."""
+
+    for name in ("source_revision", "revision"):
+        value = getattr(issue, name, None)
+        if value:
+            return _normalize_text(value)
+
+    intake = getattr(issue, "intake", None)
+    if isinstance(intake, dict):
+        for key in (
+            "source_revision",
+            "evidence_revision",
+            "revision",
+            "proposal_fingerprint",
+        ):
+            value = intake.get(key)
+            if value:
+                return _normalize_text(value)
+    return ""
 
 
 def compute_task_fingerprint(issue: Issue) -> str:
     """Return a stable SHA-256 fingerprint of duplicate-relevant task input.
 
-    Tracker state, priority, timestamps, comments, and Oompah-owned transient
-    labels are intentionally excluded.  Writing screening metadata or agent
-    telemetry therefore cannot make its own result stale.
+    Tracker state, priority, timestamps, comments, labels, and scheduling
+    dependencies are intentionally excluded. Writing screening metadata or
+    agent telemetry therefore cannot make its own result stale. Stable source
+    identity and intake/evidence revision fields are included when supplied by
+    a tracker adapter.
     """
 
-    dependencies = sorted(
-        {
-            _normalize_text(blocker.identifier or blocker.id)
-            for blocker in (issue.blocked_by or [])
-            if _normalize_text(blocker.identifier or blocker.id)
-        }
-    )
     payload = {
         "title": _normalize_text(issue.title),
         "description": _normalize_text(issue.description),
         "project_id": _normalize_text(issue.project_id),
         "issue_type": _normalize_text(issue.issue_type),
         "parent_id": _normalize_text(issue.parent_id),
-        "dependencies": dependencies,
-        "labels": _relevant_labels(issue.labels or []),
+        "source": _source_input(issue),
+        "source_revision": _revision_input(issue),
     }
     canonical = json.dumps(
         payload,

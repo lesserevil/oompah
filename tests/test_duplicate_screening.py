@@ -79,7 +79,7 @@ def test_transient_oompah_labels_do_not_invalidate_fingerprint():
     assert compute_task_fingerprint(original) == compute_task_fingerprint(updated)
 
 
-def test_each_material_field_invalidates_fingerprint():
+def test_relevant_task_inputs_invalidate_fingerprint():
     issue = _issue()
     original = compute_task_fingerprint(issue)
     changes = [
@@ -88,14 +88,24 @@ def test_each_material_field_invalidates_fingerprint():
         replace(issue, project_id="project-2"),
         replace(issue, issue_type="bug"),
         replace(issue, parent_id="EPIC-2"),
-        replace(issue, labels=[*issue.labels, "frontend"]),
-        replace(
-            issue,
-            blocked_by=[BlockerRef(id="TASK-9", identifier="TASK-9")],
-        ),
+        replace(issue, source="SOURCE-2"),
+        replace(issue, source_revision="revision-2"),
+        replace(issue, intake={"proposal_fingerprint": "proposal-2"}),
     ]
 
     assert all(compute_task_fingerprint(changed) != original for changed in changes)
+
+
+def test_scheduler_metadata_does_not_invalidate_fingerprint():
+    issue = _issue()
+    changed = replace(
+        issue,
+        labels=["different-scheduling-label"],
+        blocked_by=[BlockerRef(id="TASK-9", identifier="TASK-9")],
+        start_blocked_by=[BlockerRef(id="TASK-10", identifier="TASK-10")],
+    )
+
+    assert compute_task_fingerprint(changed) == compute_task_fingerprint(issue)
 
 
 def test_unchecked_legacy_malformed_and_future_records_fail_closed():
