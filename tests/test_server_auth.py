@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import base64
 import contextlib
+import os
 from typing import Generator
 from unittest.mock import AsyncMock, MagicMock
 
@@ -26,7 +27,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import oompah.server as server_module
-from oompah.http_auth import HtpasswdCredentials, VerificationError
+from oompah.http_auth import HtpasswdCredentials, VerificationError, load_credentials
 from oompah.server import app
 
 
@@ -180,6 +181,63 @@ class TestAuthEnabled_ValidCredentials:
         resp = auth_client.get("/api/v1/state", headers=valid_auth_header)
         # May be 503 (no orchestrator) but NOT 401
         assert resp.status_code != 401
+
+    def test_state_exposes_only_redacted_auth_reload_status(
+        self, auth_client, valid_auth_header
+    ):
+        previous_snapshot = server_module._state_snapshot
+        previous_snapshot_at = server_module._state_snapshot_at
+        try:
+            server_module._update_state_snapshot({"paused": False})
+            resp = auth_client.get("/api/v1/state", headers=valid_auth_header)
+        finally:
+            server_module._state_snapshot = previous_snapshot
+            server_module._state_snapshot_at = previous_snapshot_at
+
+        assert resp.status_code == 200
+        status = resp.json()["http_auth"]
+        assert status == {
+            "enabled": True,
+            "reload": {
+                "state": "static",
+                "generation": 0,
+                "retaining_last_known_good": False,
+            },
+        }
+        rendered = repr(status)
+        assert ".htpasswd" not in rendered
+        assert "admin" not in rendered
+        assert "secret" not in rendered
+
+    def test_running_middleware_uses_rotated_htpasswd_without_restart(
+        self, client, tmp_path
+    ):
+        from passlib.context import CryptContext
+
+        context = CryptContext(schemes=["bcrypt"])
+        path = tmp_path / ".htpasswd"
+        path.write_text(f"operator:{context.hash('old-password')}\n", encoding="utf-8")
+        creds = load_credentials(str(path), str(tmp_path))
+        replacement = tmp_path / ".htpasswd.next"
+        replacement.write_text(
+            f"operator:{context.hash('new-password')}\n", encoding="utf-8"
+        )
+
+        previous = server_module._http_credentials
+        server_module._http_credentials = creds
+        try:
+            assert client.get(
+                "/api/v1/state", headers={"Authorization": _basic("operator", "old-password")}
+            ).status_code != 401
+            os.replace(replacement, path)
+            assert client.get(
+                "/api/v1/state", headers={"Authorization": _basic("operator", "old-password")}
+            ).status_code == 401
+            assert client.get(
+                "/api/v1/state", headers={"Authorization": _basic("operator", "new-password")}
+            ).status_code != 401
+        finally:
+            server_module._http_credentials = previous
 
     def test_valid_credentials_on_issues_api(self, auth_client, valid_auth_header):
         resp = auth_client.get("/api/v1/issues", headers=valid_auth_header)
@@ -742,3 +800,161 @@ class TestSetHttpCredentials:
             assert server_module._http_credentials is None
         finally:
             server_module._http_credentials = orig
+
+
+# ---------------------------------------------------------------------------
+# Auth-health counter integration
+# ---------------------------------------------------------------------------
+
+class TestAuthHealthCounters:
+    """Verify that the middleware and task-handoff endpoint drive auth_health counters."""
+
+    def test_operator_401_increments_counter(self):
+        """A failed Basic auth check must increment the operator 401 counter."""
+        import oompah.auth_health as ah
+        ah._reset_for_testing()
+
+        with _auth_enabled("admin", "correct-password"):
+            with TestClient(app, raise_server_exceptions=False) as client:
+                resp = client.get(
+                    "/api/v1/state",
+                    headers={"Authorization": "Basic " + base64.b64encode(b"admin:wrong").decode()},
+                )
+        assert resp.status_code == 401
+        snap = ah.auth_health_snapshot()
+        assert snap["operator"]["recent_401_count"] >= 1
+
+        ah._reset_for_testing()
+
+    def test_operator_success_does_not_increment_counter(self):
+        """Successful operator auth must not increment the 401 counter."""
+        import oompah.auth_health as ah
+        ah._reset_for_testing()
+
+        with _auth_enabled("admin", "correct-password"):
+            with _patch_orchestrator():
+                with TestClient(app, raise_server_exceptions=False) as client:
+                    resp = client.get(
+                        "/healthz",  # exempt route, but let's use a real route
+                    )
+        snap = ah.auth_health_snapshot()
+        assert snap["operator"]["recent_401_count"] == 0
+
+        ah._reset_for_testing()
+
+    def test_worker_missing_token_increments_401_counter(self):
+        """A handoff request with no token must increment worker 401 counter."""
+        import oompah.auth_health as ah
+        from oompah.task_handoff import TASK_HANDOFF_HEADER
+        ah._reset_for_testing()
+
+        orig_creds = server_module._http_credentials
+        server_module._http_credentials = None
+        try:
+            with TestClient(app, raise_server_exceptions=False) as client:
+                resp = client.post(
+                    "/api/v1/task-handoff",
+                    # No task handoff header — token is missing
+                    json={"action": "comment", "project_id": "p", "identifier": "T-1",
+                          "message": "hi"},
+                )
+        finally:
+            server_module._http_credentials = orig_creds
+
+        assert resp.status_code == 401
+        snap = ah.auth_health_snapshot()
+        assert snap["worker"]["recent_401_count"] >= 1
+
+        ah._reset_for_testing()
+
+    def test_worker_invalid_token_increments_401_counter(self):
+        """An invalid (unknown) token must increment worker 401 counter."""
+        import oompah.auth_health as ah
+        from oompah.task_handoff import TASK_HANDOFF_HEADER
+        ah._reset_for_testing()
+
+        orig_creds = server_module._http_credentials
+        server_module._http_credentials = None
+        try:
+            with TestClient(app, raise_server_exceptions=False) as client:
+                resp = client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: "bogus-token-that-does-not-exist"},
+                    json={"action": "comment", "project_id": "p", "identifier": "T-1",
+                          "message": "hi"},
+                )
+        finally:
+            server_module._http_credentials = orig_creds
+
+        assert resp.status_code == 401
+        snap = ah.auth_health_snapshot()
+        assert snap["worker"]["recent_401_count"] >= 1
+
+        ah._reset_for_testing()
+
+    def test_worker_cross_scope_403_increments_scope_counter(self):
+        """A cross-project scope rejection must increment 403_scope counter."""
+        import oompah.auth_health as ah
+        from oompah.task_handoff import TASK_HANDOFF_HEADER
+        from oompah.task_handoff import issue_task_handoff_token as _mint
+        ah._reset_for_testing()
+
+        token = _mint(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"comment"},
+        )
+
+        orig_creds = server_module._http_credentials
+        server_module._http_credentials = None
+        try:
+            with TestClient(app, raise_server_exceptions=False) as client:
+                resp = client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: token},
+                    json={"action": "comment", "project_id": "proj-OTHER",
+                          "identifier": "TASK-1", "message": "escape"},
+                )
+        finally:
+            server_module._http_credentials = orig_creds
+
+        assert resp.status_code == 403
+        snap = ah.auth_health_snapshot()
+        assert snap["worker"]["recent_403_scope_count"] >= 1
+
+        ah._reset_for_testing()
+
+    def test_worker_action_denial_increments_only_scope_denial_counter(self):
+        """An intentional action denial must NOT increment health-signal counters."""
+        import oompah.auth_health as ah
+        from oompah.task_handoff import TASK_HANDOFF_HEADER
+        from oompah.task_handoff import issue_task_handoff_token as _mint
+        ah._reset_for_testing()
+
+        token = _mint(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"comment"},
+        )
+
+        orig_creds = server_module._http_credentials
+        server_module._http_credentials = None
+        try:
+            with TestClient(app, raise_server_exceptions=False) as client:
+                # "nonexistent-action" is not in the server's registered actions
+                resp = client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: token},
+                    json={"action": "nonexistent-action", "project_id": "proj-a",
+                          "identifier": "TASK-1"},
+                )
+        finally:
+            server_module._http_credentials = orig_creds
+
+        assert resp.status_code == 403
+        snap = ah.auth_health_snapshot()
+        # 401 and 403_scope counters must not have been incremented
+        assert snap["worker"]["recent_401_count"] == 0
+        assert snap["worker"]["recent_403_scope_count"] == 0
+
+        ah._reset_for_testing()

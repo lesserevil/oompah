@@ -32,6 +32,7 @@ from pathlib import Path
 from oompah.client_auth import (
     CredentialError,
     format_auth_error,
+    load_client_environment,
     resolve_client_credentials,
     sanitize_server_url,
 )
@@ -396,6 +397,10 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> None:
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    # Refresh only client-side values.  This keeps admin operations aligned
+    # with an operator's current .env without importing server-only config.
+    load_client_environment()
 
     # Resolve client credentials (env vars + optional CLI overrides).
     try:

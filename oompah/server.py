@@ -115,6 +115,13 @@ from oompah.task_handoff import (
     record_task_handoff_failure,
     validate_task_handoff_token,
 )
+from oompah.auth_health import (
+    record_operator_401,
+    record_worker_401,
+    record_worker_403_scope,
+    record_worker_403_action,
+    record_worker_token_accepted,
+)
 from oompah.projects import ProjectError, ProjectStore
 from oompah.integration_queue import IntegrationQueueStore
 from oompah.tracker import TrackerError, normalize_priority_int
@@ -604,6 +611,7 @@ class _BasicAuthMiddleware:
                 return
 
             # Deny with 401 Basic challenge — no credential disclosure.
+            record_operator_401()
             body = self._DENY_BODY
             await send({
                 "type": "http.response.start",
@@ -1156,6 +1164,36 @@ def set_http_credentials(creds: Any) -> None:
         )
     else:
         logger.debug("HTTP Basic auth disabled")
+
+
+def _http_auth_reload_status() -> dict[str, object]:
+    """Return the redacted HTTP-auth reload state for protected status APIs."""
+    creds = _http_credentials
+    if creds is None or not getattr(creds, "enabled", False):
+        return {
+            "enabled": False,
+            "reload": {
+                "state": "disabled",
+                "generation": 0,
+                "retaining_last_known_good": False,
+            },
+        }
+    status = getattr(creds, "reload_status", None)
+    if callable(status):
+        try:
+            result = status()
+            if isinstance(result, dict):
+                return result
+        except Exception:  # noqa: BLE001 - status must never break the API
+            pass
+    return {
+        "enabled": True,
+        "reload": {
+            "state": "static",
+            "generation": 0,
+            "retaining_last_known_good": False,
+        },
+    }
 
 
 def remove_draft_labels_from_epics(tracker) -> int:
@@ -2771,6 +2809,7 @@ async def api_state():
             duration_ms = (time.monotonic() - t_start) * 1000
             _record_api_latency("/api/v1/state", duration_ms)
             snapshot["api_metrics"] = _api_metrics_snapshot()
+            snapshot["http_auth"] = _http_auth_reload_status()
             return JSONResponse(snapshot)
 
         # Combined mode: prefer the cached snapshot to avoid recomputing
@@ -2779,6 +2818,7 @@ async def api_state():
         duration_ms = (time.monotonic() - t_start) * 1000
         _record_api_latency("/api/v1/state", duration_ms)
         snapshot["api_metrics"] = _api_metrics_snapshot()
+        snapshot["http_auth"] = _http_auth_reload_status()
         return JSONResponse(snapshot)
     except Exception as exc:
         _record_api_latency(
@@ -3262,6 +3302,7 @@ async def api_task_handoff(request: Request):
     """
     token = request.scope.get(_TASK_HANDOFF_SCOPE_CAPABILITY)
     if not isinstance(token, str) or not token:
+        record_worker_401()
         return JSONResponse(
             {"error": {"code": "handoff_unauthorized", "message": "task handoff capability required"}},
             status_code=401,
@@ -3296,6 +3337,8 @@ async def api_task_handoff(request: Request):
         "add-label",
         "remove-label",
     }:
+        # Intentional least-privilege denial — not a health signal.
+        record_worker_403_action()
         return JSONResponse(
             {"error": {"code": "handoff_forbidden", "message": "task handoff action is not granted"}},
             status_code=403,
@@ -3316,10 +3359,17 @@ async def api_task_handoff(request: Request):
         # Do not expose whether a token exists for another task/project.
         record_task_handoff_failure(token, "task handoff scope validation failed")
         status_code = 401 if "invalid" in reason or "missing" in reason else 403
+        # Count by auth-plane failure type for health signals.
+        if status_code == 401:
+            record_worker_401()
+        else:
+            record_worker_403_scope()
         return JSONResponse(
             {"error": {"code": "handoff_forbidden", "message": reason}},
             status_code=status_code,
         )
+    # Token presented and scope validated — record acceptance before dispatch.
+    record_worker_token_accepted()
 
     try:
         orch = _get_orchestrator()
