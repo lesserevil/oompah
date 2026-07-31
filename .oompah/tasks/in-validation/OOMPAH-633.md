@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-633
 type: bug
-status: In Progress
+status: In Validation
 priority: 1
 title: Repair stale integration queues in nested epics
 parent: OOMPAH-584
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:54:49.391955Z'
-updated_at: '2026-07-31T05:53:00.971968Z'
+updated_at: '2026-07-31T05:54:46.522807Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-633
 target_branch: null
 review_url: null
@@ -64,13 +64,13 @@ oompah.work_contributors:
     source_sha: d62dd4cff702ae2b818418407d7d15b7a643213e
     completed_at: '2026-07-31T01:03:25.102978+00:00'
 oompah.task_costs:
-  total_input_tokens: 552144
-  total_output_tokens: 11477
+  total_input_tokens: 552368
+  total_output_tokens: 11538
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 552050
-      output_tokens: 3655
+      input_tokens: 552274
+      output_tokens: 3716
       cost_usd: 0.0
     unknown:
       input_tokens: 94
@@ -107,6 +107,12 @@ oompah.task_costs:
     output_tokens: 2160
     cost_usd: 0.0
     recorded_at: '2026-07-31T01:38:13.818552+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 224
+    output_tokens: 61
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T05:54:42.858246+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
@@ -153,7 +159,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-633
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -182,6 +188,23 @@ oompah.terminal_audit:
     previous_state: Ready to Integrate
     created_at: '2026-07-31T01:31:59.841804+00:00'
     updated_at: '2026-07-31T01:37:53.870947+00:00'
+  - version: 1
+    audit_id: audit-49b880c8d4e4
+    project_id: proj-14849f1b
+    task_id: OOMPAH-633
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 38f8ef4617ce4bfff0aea1812bda9303b13ef927fceacb0fcab294d28b115968
+    attempts: []
+    requested_by:
+      version: 1
+      identity: api-client
+      source: api
+    previous_state: In Progress
+    created_at: '2026-07-31T05:54:26.980614+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-70d2d55461f6
@@ -557,5 +580,15 @@ author: oompah
 created: 2026-07-31 05:53
 ---
 Post-restart landing re-evaluation: this task's refreshed exact remote work ref is an ancestor of merged origin/main bb0fd760c3. The Needs Human state was a false regression from the old runtime comparing a pre-rebase SHA. Restoring the task's previously audited Done state.
+---
+author: oompah
+created: 2026-07-31 05:54
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 14
+- Tokens: 224 in / 61 out [285 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 2m 6s
+- Log: OOMPAH-633__20260731T055250Z.jsonl
 ---
 <!-- COMMENTS:END -->

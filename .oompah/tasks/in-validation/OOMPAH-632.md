@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:46:34.785511Z'
-updated_at: '2026-07-31T05:54:14.135194Z'
+updated_at: '2026-07-31T05:54:38.956898Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-632
 target_branch: null
 review_url: null
@@ -46,13 +46,13 @@ oompah.integration:
   base_sha: bb0fd760c3b2938d15ec2026ef5bfc2fd34b0682
   updated_at: '2026-07-31T05:52:19.347225+00:00'
 oompah.task_costs:
-  total_input_tokens: 9925397
-  total_output_tokens: 33429
+  total_input_tokens: 9925787
+  total_output_tokens: 33522
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 9925344
-      output_tokens: 31457
+      input_tokens: 9925734
+      output_tokens: 31550
       cost_usd: 0.0
     unknown:
       input_tokens: 53
@@ -89,6 +89,12 @@ oompah.task_costs:
     output_tokens: 1489
     cost_usd: 0.0
     recorded_at: '2026-07-31T01:42:25.195932+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 390
+    output_tokens: 93
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T05:54:24.760791+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-632__20260731T004738Z
@@ -180,18 +186,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-632
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 19a92356cfab7a1ca8683861f06b4da799bc0a1e44ab53adddb393aae1460ef3
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-30f44e889b81
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 19a92356cfab7a1ca8683861f06b4da799bc0a1e44ab53adddb393aae1460ef3
+      created_at: '2026-07-31T05:54:34.209143+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-31T05:54:34.209143+00:00'
+      branch_key: epic-OOMPAH-584--task-OOMPAH-632
     requested_by:
       version: 1
       identity: api-client
       source: api
     previous_state: In Progress
     created_at: '2026-07-31T05:54:11.262646+00:00'
+    updated_at: '2026-07-31T05:54:34.209143+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-4e25047be4f6
@@ -218,6 +238,19 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: opus
     started_at: '2026-07-31T01:37:24.334014+00:00'
+    branch_key: epic-OOMPAH-584--task-OOMPAH-632
+  - version: 1
+    attempt_id: attempt-30f44e889b81
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 19a92356cfab7a1ca8683861f06b4da799bc0a1e44ab53adddb393aae1460ef3
+    created_at: '2026-07-31T05:54:34.209143+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-31T05:54:34.209143+00:00'
     branch_key: epic-OOMPAH-584--task-OOMPAH-632
 ---
 ## Summary
@@ -532,5 +565,25 @@ author: oompah
 created: 2026-07-31 05:52
 ---
 Post-restart landing re-evaluation: this task's refreshed exact remote work ref is an ancestor of merged origin/main bb0fd760c3. The Needs Human state was a false regression from the old runtime comparing a pre-rebase SHA. Restoring the task's previously audited Done state.
+---
+author: oompah
+created: 2026-07-31 05:54
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 23
+- Tokens: 390 in / 93 out [483 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 2m 12s
+- Log: OOMPAH-632__20260731T055229Z.jsonl
+---
+author: oompah
+created: 2026-07-31 05:54
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-07-31 05:54
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
