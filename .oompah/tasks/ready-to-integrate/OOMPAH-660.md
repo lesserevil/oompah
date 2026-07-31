@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-660
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 0
 title: Rebase epic-OOMPAH-619 onto main
 parent: OOMPAH-619
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T12:53:39.335817Z'
-updated_at: '2026-07-31T13:10:17.562007Z'
+updated_at: '2026-07-31T13:10:59.551373Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-660
 target_branch: null
 review_url: null
@@ -21,17 +21,12 @@ oompah.agent_run_id: 2ccdbd13-9ae2-463c-9e32-a37c22a563ab
 oompah.work_branch: epic-OOMPAH-619--task-OOMPAH-660
 oompah.integration:
   version: 2
-  state: blocked
-  attempts: 1
+  state: ready
+  attempts: 0
   task_branch: epic-OOMPAH-619--task-OOMPAH-660
-  base_branch: epic-OOMPAH-619
-  base_sha: 17658b95e32641e8cf2dbfff06f780c0f6b57916
   head_sha: 17658b95e32641e8cf2dbfff06f780c0f6b57916
-  submitted_at: '2026-07-31T13:03:46.388362+00:00'
-  updated_at: '2026-07-31T13:03:58.360022+00:00'
-  last_error: epic worktree head 3fcdf30caa62fb7709d0cd9e1553320dd11b3877 differs
-    from the published epic head 17658b95e32641e8cf2dbfff06f780c0f6b57916; refusing
-    to reset a preserved recovery snapshot
+  submitted_at: '2026-07-31T13:10:56.253614+00:00'
+  updated_at: '2026-07-31T13:10:56.253614+00:00'
 oompah.task_costs:
   total_input_tokens: 247073
   total_output_tokens: 16020
@@ -387,5 +382,15 @@ Run #6 [attempt=6, profile=standard, role=— -> Claude/sonnet]
 - Tokens: 0 in / 0 out [0 total]
 - Cost: $0.0000
 - Exit: error, Duration: 4s
+---
+author: oompah
+created: 2026-07-31 13:10
+---
+Operator reconciled the clean shared epic worktree to published head 17658b95e. Safety evidence: both worktrees were clean with no process/open-file owners; git range-diff proved all six old/new commits patch-identical; the local epic branch now exactly tracks origin/epic-OOMPAH-619 (0 ahead, 0 behind). Resubmitting avoids waiting for a redundant retry.
+---
+author: oompah
+created: 2026-07-31 13:10
+---
+Rebased epic-OOMPAH-619 onto main and reconciled the clean shared epic worktree to exact pushed head 17658b95e; six commits are patch-identical across the rebase.
 ---
 <!-- COMMENTS:END -->
