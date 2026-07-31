@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-644
 type: task
-status: Needs Human
+status: Merged
 priority: null
 title: Make native task reads atomic across status-file moves
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:46:11.947079Z'
-updated_at: '2026-07-31T08:54:29.519527Z'
+updated_at: '2026-07-31T08:55:19.796992Z'
 work_branch: OOMPAH-644
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/611
@@ -109,6 +109,25 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     no-auditor-audit-710535de2bba-2: '2026-07-31T08:54:27.004450+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-b9bd25c5c20a
+    project_id: proj-14849f1b
+    task_id: OOMPAH-644
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0df6c64231ea0cc330c24b6722280e8d3de176fedcf80a8d9a7680a38727410b
+    authorized_by:
+      version: 1
+      identity: lesserevil
+      source: api
+    reason: 'PR #611 is merged; exact branch quality gate passed on ab4cab20c0697076098bd429d529fd3d8d3434e9;
+      both configured independent auditor candidates (opus and sonnet) were attempted
+      and exhausted. Operator reviewed the recorded evidence and is clearing the infeasible
+      audit deadlock.'
+    created_at: '2026-07-31T08:55:16.942016+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -354,5 +373,12 @@ created: 2026-07-31 08:54
 Needs Human — Done audit requires operator input.
 
 No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then move the task back to Open to retry.
+---
+author: oompah
+created: 2026-07-31 08:55
+---
+Override by lesserevil: terminal transition to Merged applied by project owner.
+
+Reason: PR #611 is merged; exact branch quality gate passed on ab4cab20c0697076098bd429d529fd3d8d3434e9; both configured independent auditor candidates (opus and sonnet) were attempted and exhausted. Operator reviewed the recorded evidence and is clearing the infeasible audit deadlock.
 ---
 <!-- COMMENTS:END -->

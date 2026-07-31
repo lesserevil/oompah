@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-623
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Keep the canonical user CLI synchronized with the running server
 parent: OOMPAH-619
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:32:18.734139Z'
-updated_at: '2026-07-31T08:54:50.004799Z'
+updated_at: '2026-07-31T08:55:15.823402Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-623
 target_branch: null
 review_url: null
@@ -86,7 +86,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 8dcfe0a5-b5c8-4811-8c7d-1cf336dc7ebb
+oompah.agent_run_id: 0c315515-69e5-42b5-978a-4c6f794da2f6
 oompah.work_branch: epic-OOMPAH-619--task-OOMPAH-623
 oompah.integration:
   version: 2
@@ -95,7 +95,7 @@ oompah.integration:
   task_branch: epic-OOMPAH-619--task-OOMPAH-623
   base_branch: epic-OOMPAH-619
   base_sha: 0dc7d0f7caeea06a6eceb55ea2e58cf16554f0a4
-  updated_at: '2026-07-31T08:33:34.712826+00:00'
+  updated_at: '2026-07-31T08:55:12.843626+00:00'
 oompah.task_costs:
   total_input_tokens: 210
   total_output_tokens: 5047
@@ -174,5 +174,15 @@ author: oompah
 created: 2026-07-31 08:36
 ---
 UNDERSTANDING: Task requires: (1) --version flag showing git revision, (2) build_id in server state/healthz endpoints, (3) Makefile target to install canonical CLI from exact pushed revision, (4) safeguards to prevent dirty/unpushed CLI replacement, (5) comprehensive tests, (6) documentation. Prior work (OOMPAH-621) added CLI credential precedence and revision compatibility testing infrastructure. Proceeding with implementation of version sync mechanisms and Makefile lifecycle target.
+---
+author: oompah
+created: 2026-07-31 08:55
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-31 08:55
+---
+Focus: Maintenance Engineer
 ---
 <!-- COMMENTS:END -->
