@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-648
 type: task
-status: Needs Human
+status: Merged
 priority: null
 title: Keep live long-running tool calls from triggering agent stall termination
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:15:42.851609Z'
-updated_at: '2026-07-31T09:01:25.766133Z'
+updated_at: '2026-07-31T09:02:37.893216Z'
 work_branch: OOMPAH-648
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/614
@@ -130,6 +130,26 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-7d1427097e93: '2026-07-31T08:37:54.213561+00:00'
     no-auditor-audit-db48e6cb6d3e-2: '2026-07-31T09:01:23.248842+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-cb7445addbd3
+    project_id: proj-14849f1b
+    task_id: OOMPAH-648
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f94d808fab5ea8a54de74df6958de5dd299e0535df6df6303d3b4670f9700d25
+    authorized_by:
+      version: 1
+      identity: lesserevil
+      source: api
+    reason: 'PR #614 is merged at 8fd133e26; exact branch gate passed with 14,217
+      tests; the first independent opus audit already recorded Audit PASS with safe
+      merge/test evidence at 08:37. A duplicate audit was incorrectly dispatched after
+      that pass and then exhausted candidates. Operator is applying the already-established
+      successful verdict and clearing the duplicate-audit deadlock.'
+    created_at: '2026-07-31T09:02:33.518649+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -505,5 +525,12 @@ created: 2026-07-31 09:01
 Needs Human — Merged audit requires operator input.
 
 No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then move the task back to Open to retry.
+---
+author: oompah
+created: 2026-07-31 09:02
+---
+Override by lesserevil: terminal transition to Merged applied by project owner.
+
+Reason: PR #614 is merged at 8fd133e26; exact branch gate passed with 14,217 tests; the first independent opus audit already recorded Audit PASS with safe merge/test evidence at 08:37. A duplicate audit was incorrectly dispatched after that pass and then exhausted candidates. Operator is applying the already-established successful verdict and clearing the duplicate-audit deadlock.
 ---
 <!-- COMMENTS:END -->
