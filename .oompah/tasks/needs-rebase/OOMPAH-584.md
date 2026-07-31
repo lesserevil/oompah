@@ -1,8 +1,8 @@
 ---
 id: OOMPAH-584
 type: epic
-status: In Review
-priority: 1
+status: Needs Rebase
+priority: 0
 title: Return the oompah delivery control plane to green
 parent: null
 children:
@@ -17,14 +17,15 @@ children:
 blocked_by: []
 start_blocked_by: []
 labels:
-- epic:stale
+- merge-conflict
+- epic:rebasing
 assignee: null
 created_at: '2026-07-30T14:13:01.872040Z'
-updated_at: '2026-07-31T05:33:45.268892Z'
-work_branch: null
-target_branch: null
-review_url: null
-review_number: null
+updated_at: '2026-07-31T05:34:00.348340Z'
+work_branch: epic-OOMPAH-584
+target_branch: main
+review_url: https://github.com/lesserevil/oompah/pull/603
+review_number: '603'
 merged_at: null
 oompah.terminal_audit:
   queued_comment_posted: true
@@ -111,6 +112,10 @@ oompah.work_contributors:
     source_branch: OOMPAH-584
     source_sha: 24bd5d6c166af7f8c839e9d5c9e4f3f17d17508e
     completed_at: '2026-07-31T05:16:23.361221+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/603
+oompah.review_number: '603'
+oompah.work_branch: epic-OOMPAH-584
+oompah.target_branch: main
 ---
 ## Summary
 
@@ -208,5 +213,10 @@ author: oompah
 created: 2026-07-31 05:33
 ---
 Branch quality gate passed for `cf2fd7cfc6f556f51a9f11c6a950f00e6ba2d220` using `make test` in 262.5s. Review creation may proceed.
+---
+author: oompah
+created: 2026-07-31 05:33
+---
+YOLO: Merge conflict detected on MR #603. Rebase `epic-OOMPAH-584` onto main and resolve conflicts.
 ---
 <!-- COMMENTS:END -->
