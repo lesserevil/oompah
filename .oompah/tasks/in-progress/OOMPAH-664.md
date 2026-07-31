@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T16:04:06.140108Z'
-updated_at: '2026-07-31T18:33:38.126211Z'
+updated_at: '2026-07-31T18:37:22.861340Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -131,5 +131,10 @@ author: oompah
 created: 2026-07-31 18:33
 ---
 Focus: Event Api Redaction Specialist
+---
+author: oompah
+created: 2026-07-31 18:37
+---
+Understanding: This issue requires binding API list/board snapshots to the exact state-branch generation so that task status changes (like OOMPAH-651/655 in Needs Human) are never silently hidden behind a stale cached board. Plan: (1) add get_state_branch_generation() to OompahMarkdownTracker combining commit SHA + local read epoch, (2) add add_read_change_callback() + _notify_read_change() so direct writes and checkpoint flushes fire synchronous cache invalidation, (3) bind _issues_snapshot to source_generations dict, reject stale snapshots on read, (4) add generation-bound detail cache helpers, (5) tests for all required scenarios from the issue.
 ---
 <!-- COMMENTS:END -->
