@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-595
 type: feature
-status: In Validation
+status: Done
 priority: 1
 title: Expose separate operator and worker task-auth health signals
 parent: OOMPAH-586
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:56.897824Z'
-updated_at: '2026-07-31T01:03:56.285025Z'
+updated_at: '2026-07-31T01:09:44.505936Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-595
 target_branch: null
 review_url: null
@@ -142,6 +142,7 @@ oompah.terminal_audit:
     attempt-e7bb1375c3e2: '2026-07-31T00:18:20.982747+00:00'
     attempt-05f1dc64fc23: '2026-07-31T00:44:24.685225+00:00'
     attempt-744e4c989d95: '2026-07-31T00:50:15.225713+00:00'
+    attempt-1cc40a1916d3: '2026-07-31T01:09:41.702411+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -251,7 +252,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-595
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -260,7 +261,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-1cc40a1916d3
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -270,13 +271,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T01:03:49.415016+00:00'
       branch_key: epic-OOMPAH-586--task-OOMPAH-595
+      verdict: pass
+      completed_at: '2026-07-31T01:09:41.702110+00:00'
+      ended_at: '2026-07-31T01:09:41.702110+00:00'
     requested_by:
       version: 1
       identity: api-client
       source: api
     previous_state: Needs Human
     created_at: '2026-07-31T01:03:27.513877+00:00'
-    updated_at: '2026-07-31T01:03:49.415016+00:00'
+    updated_at: '2026-07-31T01:09:41.702110+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-e7bb1375c3e2
@@ -745,5 +749,32 @@ author: oompah
 created: 2026-07-31 01:03
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 01:09
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- branch_head_local: 04d072a5f1ade3a92506316ef102c84545b5fcd2
+- landing_local_epic_contains: epic-OOMPAH-584 (contains 04d072a5f); epic-OOMPAH-584--task-OOMPAH-586 (contains 04d072a5f)
+- landing_prior_audit_reference: outer merge head cd08185c9 (PR #597 epic-OOMPAH-586 -> epic-OOMPAH-584)
+- working_tree: clean; up to date with origin
+- auth_health_module: oompah/auth_health.py present; snapshot returns only ints/bools/static strings
+- operator_wiring: server.py:119 import; :614 record_operator_401() in _BasicAuthMiddleware deny path
+- worker_wiring_401_missing: server.py:3305 record_worker_401 (missing/malformed capability)
+- worker_wiring_403_action_intentional: server.py:3341 record_worker_403_action (no alert)
+- worker_wiring_scope_check: server.py:3364 record_worker_401; :3366 record_worker_403_scope
+- worker_wiring_accepted: server.py:3372 record_worker_token_accepted
+- mint_wiring: orchestrator.py:166 import; :20402 record_worker_token_minted() at successful handoff issue
+- snapshot_wiring: orchestrator.py:25725 auth_health=auth_health_snapshot(); :25726 alerts += auth_health_alerts()
+- dashboard_wiring: templates/dashboard.html:2620 renderAuthHealthBanner defined; :2726 auth_health:-prefixed alerts filtered from generic banner; :2768 render call from state update
+- docs_change: docs/authentication.md line 769 'Auth Health Dashboard Signals' with recovery tables for both planes
+- tests_auth_health: 28/28 pass (tests/test_auth_health.py)
+- tests_focused_suites_combined: 379/379 pass (test_task_handoff + test_server_auth + test_orchestrator_handlers; 1 unrelated crypt deprecation warning)
+- redaction_verified: auth_health.py has no Authorization/password/htpasswd literals; only env-var NAMES appear in guidance strings
+- action_denial_semantics: record_worker_403_action stored in scope_denial_count field only; never surfaced by build_alert or auth_health_alerts
 ---
 <!-- COMMENTS:END -->
