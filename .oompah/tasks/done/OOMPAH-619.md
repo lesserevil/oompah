@@ -20,7 +20,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-30T21:24:41.452666Z'
-updated_at: '2026-07-31T15:00:33.164851Z'
+updated_at: '2026-07-31T19:56:35.709574Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -188,5 +188,10 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: normal, Duration: 10m 42s
 - Log: OOMPAH-619__20260731T144953Z.jsonl
+---
+author: oompah
+created: 2026-07-31 19:56
+---
+Rebased the completed epic onto main, preserving the owner-authority retry cancellation alongside the task-handoff permit changes. Removed the tracked generated hook symlink, normalized inherited whitespace, and pushed b55160d3798d228e140881d9d5bacbc0439cfc78. Verification: 213 focused tests passed; full make test passed with 14,534 passed, 7 skipped, 1 xfailed.
 ---
 <!-- COMMENTS:END -->
