@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T11:54:14.558844Z'
+updated_at: '2026-07-31T11:54:23.862065Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -478,5 +478,10 @@ author: oompah
 created: 2026-07-31 11:54
 ---
 Discovery: The existing wrapper mounted the host root and live worktree, so its containment depended on candidate code. The repaired boundary now snapshots tracked HEAD, hides host lifecycle/config state, exposes sandbox-visible runtime paths, and keeps namespace-local loopback available.
+---
+author: oompah
+created: 2026-07-31 11:54
+---
+Understanding: I am enforcing the full quality gate boundary outside candidate branch code. The gate will verify a deployed base for recovered branches, execute only an immutable snapshot behind a server-owned OS sandbox, and fail closed before candidate execution if namespaces are unavailable.
 ---
 <!-- COMMENTS:END -->
