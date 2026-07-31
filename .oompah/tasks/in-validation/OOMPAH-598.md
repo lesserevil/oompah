@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-598
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Detect and deliver standalone Ready to Integrate tasks without PRs
 parent: OOMPAH-587
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:29.695490Z'
-updated_at: '2026-07-31T02:47:47.223148Z'
+updated_at: '2026-07-31T02:59:13.638309Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-598
 target_branch: null
 review_url: null
@@ -43,12 +43,15 @@ oompah.agent_run_id: 710f636b-e783-4e1c-8dff-bef1828e2e6a
 oompah.work_branch: epic-OOMPAH-587--task-OOMPAH-598
 oompah.integration:
   version: 1
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-587--task-OOMPAH-598
-  head_sha: d547fb3a093f6f657a9cfcef82b3c880c6443cdd
+  base_branch: epic-OOMPAH-587
+  base_sha: 53bdc0f8036c3c8e1ecac521c1f6139b7606e684
+  head_sha: 33b773bd2f8fd82605e44165c362e0f6071d9d66
+  integrated_sha: 33b773bd2f8fd82605e44165c362e0f6071d9d66
   submitted_at: '2026-07-31T02:47:44.879275+00:00'
-  updated_at: '2026-07-31T02:47:44.879275+00:00'
+  updated_at: '2026-07-31T02:59:10.238921+00:00'
 oompah.task_costs:
   total_input_tokens: 19934415
   total_output_tokens: 59897
@@ -124,7 +127,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-598
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -154,6 +157,23 @@ oompah.terminal_audit:
     previous_state: Ready to Integrate
     created_at: '2026-07-31T01:54:12.844272+00:00'
     updated_at: '2026-07-31T02:00:26.359922+00:00'
+  - version: 1
+    audit_id: audit-9eff6cf28727
+    project_id: proj-14849f1b
+    task_id: OOMPAH-598
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 550ebe8ed557edc2e73de128b333b2c752cf7a6ee692b499840d006f2f6ccef1
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-31T02:59:12.036752+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-0335e837a33d
