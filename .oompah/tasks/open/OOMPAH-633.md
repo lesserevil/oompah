@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-633
 type: bug
-status: Done
+status: Open
 priority: 1
 title: Repair stale integration queues in nested epics
 parent: OOMPAH-584
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:54:49.391955Z'
-updated_at: '2026-07-31T01:20:45.658199Z'
+updated_at: '2026-07-31T01:21:18.232670Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-633
 target_branch: null
 review_url: null
@@ -67,13 +67,17 @@ oompah.work_contributors:
     source_sha: d62dd4cff702ae2b818418407d7d15b7a643213e
     completed_at: '2026-07-31T01:03:25.102978+00:00'
 oompah.task_costs:
-  total_input_tokens: 551308
-  total_output_tokens: 3468
+  total_input_tokens: 551338
+  total_output_tokens: 9130
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 551308
       output_tokens: 3468
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 30
+      output_tokens: 5662
       cost_usd: 0.0
   runs:
   - profile: default
@@ -88,6 +92,12 @@ oompah.task_costs:
     output_tokens: 200
     cost_usd: 0.0
     recorded_at: '2026-07-31T01:11:30.268815+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 30
+    output_tokens: 5662
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T01:21:08.710350+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
@@ -315,5 +325,20 @@ Safe evidence:
 - new_tests_added: test_nested_epic_queue_repair_with_parent_target, test_nested_epic_queue_repair_denies_unrelated_epic_target
 - orchestrator_changes: _detect_and_repair_integration_queue_staleness_block (5310-5323); _epic_synchronization_decision (10326-10353)
 - commit_trailer: Co-authored-by: oompah <lesserevil@users.noreply.github.com>
+---
+author: oompah
+created: 2026-07-31 01:21
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 24
+- Tokens: 30 in / 5.7K out [5.7K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 4m 44s
+- Log: OOMPAH-633__20260731T011630Z.jsonl
+---
+author: oompah
+created: 2026-07-31 01:21
+---
+Reopened after operator review: the unrelated-parent test is a false positive and the required no-rebase/claim-next acceptance paths are not covered. See the pre-audit review comment for exact corrections.
 ---
 <!-- COMMENTS:END -->
