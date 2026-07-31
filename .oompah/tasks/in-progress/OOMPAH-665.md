@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T16:04:07.401588Z'
-updated_at: '2026-07-31T18:41:37.247476Z'
+updated_at: '2026-07-31T18:43:27.057136Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -145,5 +145,10 @@ author: oompah
 created: 2026-07-31 18:41
 ---
 Focus: Event Api Redaction Specialist
+---
+author: oompah
+created: 2026-07-31 18:43
+---
+Understanding: The prior agent implemented the core fix in oompah/orchestrator.py (commit 84214ef43). The _reconcile_terminal_audit_observability_from_metadata method now checks 3 retirement sources before accepting a no-auditor alert as actionable: (1) explicit retirement rows (_retirement_metadata_proves_identity), (2) legacy override records (_legacy_override_proves_identity), (3) a later PASS verdict (_later_pass_proves_identity). If none apply, a live canonical tracker read is done - if the task is in a terminal state (Merged/Done/Archived), the stale alert is retired. Fetch failures and quarantined metadata fail closed (alert is preserved). All 62 focused tests pass. Verifying correctness and submitting.
 ---
 <!-- COMMENTS:END -->
