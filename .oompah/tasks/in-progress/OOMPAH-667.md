@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T21:32:57.017227Z'
-updated_at: '2026-07-31T22:59:10.486784Z'
+updated_at: '2026-07-31T22:59:26.398877Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -128,5 +128,10 @@ author: oompah
 created: 2026-07-31 22:59
 ---
 Focus: Event Api Redaction Specialist
+---
+author: oompah
+created: 2026-07-31 22:59
+---
+Understanding: the Makefile's virtualenv PATH must support internal tooling without changing the PATH used to validate the canonical user CLI. I will trace the lifecycle scripts and existing tests, implement the smallest separation, add coverage for sync/restart success and refusal/rollback cases, then run focused checks.
 ---
 <!-- COMMENTS:END -->
