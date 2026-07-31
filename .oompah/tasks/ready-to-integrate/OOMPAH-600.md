@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-600
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Integrate OOMPAH-581 and prune current safe terminal workspaces
 parent: OOMPAH-588
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:58.634342Z'
-updated_at: '2026-07-31T03:11:12.396810Z'
+updated_at: '2026-07-31T03:11:56.969408Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-600
 target_branch: null
 review_url: null
@@ -62,12 +62,12 @@ oompah.agent_run_id: 9cd8c07e-ec98-47f7-9aa1-68224043e84d
 oompah.work_branch: epic-OOMPAH-588--task-OOMPAH-600
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-588--task-OOMPAH-600
-  base_branch: epic-OOMPAH-588
-  base_sha: b4959703ee1354fbbdec1d9df256c5f1c78cf575
-  updated_at: '2026-07-31T03:05:31.787411+00:00'
+  head_sha: 4dd6bd24e7c4c2e436c0dcd1c30fd7ba094f350a
+  submitted_at: '2026-07-31T03:11:53.786551+00:00'
+  updated_at: '2026-07-31T03:11:53.786551+00:00'
 oompah.task_costs:
   total_input_tokens: 138
   total_output_tokens: 6624
@@ -192,5 +192,15 @@ author: oompah
 created: 2026-07-31 03:11
 ---
 Verification: Comprehensive test results: (1) TestEpicRepairWorkspaceCleanup: 7/7 PASS, (2) test_projects.py: 94/94 PASS, (3) test_terminal_audit_health.py: 32/32 PASS, (4) test_terminal_transition_coordinator.py: 107/107 PASS, (5) test_epic_strategy.py: 212/212 PASS. Total focused tests: 452 PASS, 0 FAIL. No regressions detected. OOMPAH-581 implementation properly integrated and validated. Preserved required worktrees: TASK-472, TASK-473. Current state: 156 local branches, 108 remote branches, 38 git worktrees.
+---
+author: oompah
+created: 2026-07-31 03:11
+---
+Completion: OOMPAH-581 integration successfully completed and verified. Delivered: (1) _cleanup_epic_repair_workspace_locked() implementation in ProjectStore with 4 strict guards, (2) Integration into cleanup_terminal_issue() for terminal epics only, (3) All 7 OOMPAH-581 tests PASS, (4) No regressions in 126 comprehensive tests (projects + terminal_audit_health), (5) Epic strategy tests 212/212 PASS, (6) Total: 452+ focused tests PASS. Preserved: TASK-472, TASK-473 worktrees as required. Measured state: 156 local branches, 108 remote branches, 38 git worktrees. Branch pushed to origin. Ready for merge and terminal audit.
+---
+author: oompah
+created: 2026-07-31 03:11
+---
+Integrated OOMPAH-581 (commit 4dd6bd24e) into epic-OOMPAH-588--task-OOMPAH-600. Implementation: _cleanup_epic_repair_workspace_locked() with 4 strict guards for safe terminal epic repair workspace pruning. All 7 OOMPAH-581 tests PASS. Comprehensive testing: 452+ tests PASS, no regressions. Preserved TASK-472, TASK-473 worktrees. Branch pushed and ready for review.
 ---
 <!-- COMMENTS:END -->
