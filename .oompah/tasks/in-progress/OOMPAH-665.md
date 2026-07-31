@@ -12,7 +12,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-07-31T16:04:07.401588Z'
-updated_at: '2026-07-31T18:56:08.790149Z'
+updated_at: '2026-07-31T18:56:56.373185Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -105,9 +105,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-665
-  head_sha: 8aacda6516595119ec57e530abbb9dbae8365a22
-  submitted_at: '2026-07-31T18:50:27.033428+00:00'
-  updated_at: '2026-07-31T18:50:27.033428+00:00'
+  head_sha: 2027d0fd4b2f4c4281f7d3fab9e48c69f869f37a
+  submitted_at: '2026-07-31T18:56:54.919999+00:00'
+  updated_at: '2026-07-31T18:56:54.919999+00:00'
 ---
 ## Summary
 
@@ -303,5 +303,10 @@ author: oompah
 created: 2026-07-31 18:56
 ---
 Implementation and verification: tightened the preserved retirement reconciliation so a durable retirement row must match the alert record's target state and evidence fingerprint as well as its project/task/audit ID; mismatches fail closed. Added a regression test. Focused observability, transition-coordinator, and enforcement suites pass (177 tests). The full make test setup is environment-blocked because the local uv launcher cannot create its transient system scope.
+---
+author: oompah
+created: 2026-07-31 18:56
+---
+Completion: delivered and pushed 2027d0fd4. The branch retains the legacy no-auditor retirement implementation plus a fail-closed identity guard and regression coverage. It is based on current origin/main; focused tests passed (177). Full make test could not start because the host uv launcher cannot create its transient system scope.
 ---
 <!-- COMMENTS:END -->
