@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-653
 type: bug
-status: Ready to Integrate
+status: In Progress
 priority: 1
 title: Make terminal-audit success and owner override retire every duplicate record
   and alert
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T11:11:59.330481Z'
+updated_at: '2026-07-31T11:12:35.518591Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,7 +44,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 4bf6216b-a7cc-4d75-8a33-9293a654ade7
+oompah.agent_run_id: 6029ffca-4e4e-4a13-bdfa-ec6f669bfa1a
 oompah.task_costs:
   total_input_tokens: 16258103
   total_output_tokens: 60424
@@ -582,5 +582,20 @@ Run #2 [attempt=2, profile=deep, role=deep -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 14m 14s
 - Log: OOMPAH-653__20260731T105746Z.jsonl
+---
+author: oompah
+created: 2026-07-31 11:12
+---
+Returned to Open because submitted head 59436e50a adds tests but leaves both blocking recovery defects from comments 52/54 unchanged. The next implementation pass must change production recovery code for unapplied overrides in In Validation and stale-evidence result intents before resubmission.
+---
+author: oompah
+created: 2026-07-31 11:12
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-31 11:12
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
