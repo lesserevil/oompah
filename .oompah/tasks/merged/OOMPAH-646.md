@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:55:23.505409Z'
-updated_at: '2026-07-31T08:59:10.501199Z'
+updated_at: '2026-07-31T08:59:20.929249Z'
 work_branch: OOMPAH-646
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/613
@@ -66,8 +66,8 @@ oompah.work_contributors:
     source_sha: d7027de514d1fcee1cf3e150f9f02b11b3168071
     completed_at: '2026-07-31T06:58:02.250282+00:00'
 oompah.task_costs:
-  total_input_tokens: 40853362
-  total_output_tokens: 75533
+  total_input_tokens: 40853390
+  total_output_tokens: 79506
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -75,8 +75,8 @@ oompah.task_costs:
       output_tokens: 75206
       cost_usd: 0.0
     unknown:
-      input_tokens: 3
-      output_tokens: 327
+      input_tokens: 31
+      output_tokens: 4300
       cost_usd: 0.0
   runs:
   - profile: default
@@ -97,6 +97,12 @@ oompah.task_costs:
     output_tokens: 327
     cost_usd: 0.0
     recorded_at: '2026-07-31T08:56:54.206045+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 28
+    output_tokens: 3973
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T08:59:18.951842+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -402,5 +408,15 @@ Safe evidence:
 - test_server_webhooks: 130 passed
 - full_gate: make test passed at 355258ef0 in 410.1s (per prior comment)
 - orchestrator_wiring: ReviewCapacityStore imported at orchestrator.py:70 and instantiated at line 872
+---
+author: oompah
+created: 2026-07-31 08:59
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 27, Tool calls: 22
+- Tokens: 28 in / 4.0K out [4.0K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 17s
+- Log: OOMPAH-646__20260731T085707Z.jsonl
 ---
 <!-- COMMENTS:END -->

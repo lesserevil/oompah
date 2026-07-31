@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-651
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Redact secrets from agent tool inputs, outputs, and JSONL event logs
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T08:57:13.236209Z'
+updated_at: '2026-07-31T08:59:16.697165Z'
 work_branch: null
 target_branch: null
 review_url: null

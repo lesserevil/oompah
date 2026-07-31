@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-650
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Keep scoped task handoff credentials valid for the full worker lifetime
 parent: OOMPAH-619
@@ -11,12 +11,36 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T08:57:09.832838Z'
-work_branch: null
+updated_at: '2026-07-31T08:59:30.865768Z'
+work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: e12d210e52775bddb4e0f0261ddd708b8c2890ef3db6daf9b0043d22fd2907f9
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: e23ad513-2e50-49f9-9ba6-20435a5a2055
+  claim_owner: 106d2bf0-ef5a-4435-81e3-efd3fb3705e0
+  claimed_at: '2026-07-31T08:59:21.698913+00:00'
+  claim_expires_at: '2026-07-31T09:29:21.698913+00:00'
+  retry_count: 0
+  retry_after: null
+oompah.agent_run_id: 29d8eb02-0f3e-42aa-992e-f9ecf2be00a8
+oompah.work_branch: epic-OOMPAH-619--task-OOMPAH-650
+oompah.integration:
+  version: 2
+  state: working
+  attempts: 0
+  task_branch: epic-OOMPAH-619--task-OOMPAH-650
+  base_branch: epic-OOMPAH-619
+  base_sha: 0dc7d0f7caeea06a6eceb55ea2e58cf16554f0a4
+  updated_at: '2026-07-31T08:59:28.483865+00:00'
 ---
 ## Summary
 
@@ -28,3 +52,16 @@ Live reproduction on 2026-07-31: an active OOMPAH-646 worker inherited OOMPAH_TA
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-31 08:59
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-07-31 08:59
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
