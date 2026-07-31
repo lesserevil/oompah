@@ -15,7 +15,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T12:11:44.655660Z'
+updated_at: '2026-07-31T12:23:31.960153Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -817,5 +817,10 @@ author: oompah
 created: 2026-07-31 12:11
 ---
 The current dirty refactor is finally moving toward one canonical Issue/integration fingerprint and a stable timestamp+persisted-ID authority key; keep that direction. One remaining race is visible in the existing test_override_recovery_preserves_concurrent_ledger_append: selection is computed from the first document, but _finalize reads the current ledger and classifies only IDs already present in retire_reasons. A same-evidence override appended between selection/status write and finalization remains unapplied and can be replayed on the next scan even when its authority key is older/equal to the selected row. In the metadata updater, validate every current unapplied row: retire any stale/invalid or authority <= the applied selection, and leave only a strictly newer authoritative row for a later scan. Add both older and newer concurrent-append latch cases. Also still add the requested actual OompahMarkdownTracker fresh-instance/restart test with persisted integration head/base evidence mutation; the current tests remain _Tracker-only.
+---
+author: oompah
+created: 2026-07-31 12:23
+---
+Coordination review completed at pushed head 69fff643e. OOMPAH-651 submissions do not overlap this branch's actual delta. OOMPAH-657 remains In Progress and is the finish-order dependency for exact-head full-gate evidence. Fixed the remaining concurrent override finalization race: the updater now revalidates every current unapplied override, retires stale/invalid/non-newer concurrent appends atomically, and preserves only a strictly newer authority for a subsequent scan. Added deterministic older-append retirement and newer-append follow-on authority regressions. Verification: 200 terminal-audit domain/enforcement/observability/coordinator tests passed; make terminal-audit-scan passed; git diff --check clean; branch pushed and up to date. Do not run or consume the full gate until OOMPAH-657 is merged/deployed, then rebase this branch and resolve the orchestrator overlap before submit.
 ---
 <!-- COMMENTS:END -->
