@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:29:49.323393Z'
-updated_at: '2026-07-31T10:33:33.961816Z'
+updated_at: '2026-07-31T10:35:03.993512Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -113,5 +113,10 @@ author: oompah
 created: 2026-07-31 10:33
 ---
 **Discovery**: Found Makefile creates .oompah.pid.meta files during start/restart (lines ~50-100). Makefile also creates temporary .tmp.XXXXXX files. Current .gitignore only has *.pid, missing *.pid.meta and .tmp.* patterns for PID metadata. Will update .gitignore and add regression test.
+---
+author: oompah
+created: 2026-07-31 10:35
+---
+**Implementation**: Added patterns to .gitignore: *.pid.meta and *.pid.meta.tmp.* to ignore lifecycle metadata files created during make start/restart. Added comprehensive test (test_pid_meta_gitignore.py) with 6 test cases covering: PID files, metadata files, temporary files, all artifacts together, and unrelated .meta files visibility. All existing tests pass.
 ---
 <!-- COMMENTS:END -->
