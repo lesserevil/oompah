@@ -14,6 +14,7 @@ import threading
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 from fnmatch import fnmatchcase
@@ -146,6 +147,7 @@ from oompah.terminal_audit import (
     ContributorIdentity,
     EvidenceFingerprint,
     FailureClassification,
+    OverrideRecord,
     RequestState,
     TargetState,
     Verdict,
@@ -427,6 +429,177 @@ def _dispatch_active_state_keys(active_states: list[str] | tuple[str, ...]) -> s
 def _is_terminal_state(state: str | None, terminal_states: list[str] | tuple[str, ...]) -> bool:
     """Return True when a tracker state is terminal in canonical oompah terms."""
     return is_terminal_status(state) or _state_key(state) in _terminal_state_keys(terminal_states)
+
+
+_TERMINAL_RETIREMENTS_KEY = "oompah.terminal_audit_retirements"
+_TERMINAL_OVERRIDE_RECORDS_KEY = "oompah.terminal_override_records"
+
+
+def _audit_observability_time(value: object) -> datetime | None:
+    """Parse a persisted audit timestamp without treating malformed data as proof."""
+
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed.replace(tzinfo=timezone.utc) if parsed.tzinfo is None else parsed
+
+
+def _audit_record_time(record: Any, *, verdict: Verdict | None = None) -> datetime | None:
+    """Return the newest trustworthy time for a record or selected verdict."""
+
+    values: list[datetime] = []
+    for value in (
+        getattr(record, "created_at", None),
+        getattr(record, "updated_at", None),
+    ):
+        parsed = _audit_observability_time(value)
+        if parsed is not None:
+            values.append(parsed)
+    for attempt in getattr(record, "attempts", ()) or ():
+        if verdict is not None and getattr(attempt, "verdict", None) != verdict:
+            continue
+        for value in (
+            getattr(attempt, "created_at", None),
+            getattr(attempt, "completed_at", None),
+            getattr(attempt, "ended_at", None),
+        ):
+            parsed = _audit_observability_time(value)
+            if parsed is not None:
+                values.append(parsed)
+    return max(values) if values else None
+
+
+def _record_has_no_auditor(record: Any) -> bool:
+    return any(
+        getattr(attempt, "failure_classification", None)
+        == FailureClassification.NO_AUDITOR
+        for attempt in getattr(record, "attempts", ()) or ()
+    )
+
+
+def _retirement_metadata_proves_identity(
+    document: Any,
+    project_id: str,
+    task_id: str,
+    audit_id: str,
+) -> bool:
+    """Return whether a validated durable retirement row names *audit_id*."""
+
+    raw_rows = getattr(document, "unknown_fields", {}).get(_TERMINAL_RETIREMENTS_KEY)
+    if not isinstance(raw_rows, list):
+        return False
+    for raw_row in raw_rows:
+        if not isinstance(raw_row, Mapping) or raw_row.get("applied", True) is False:
+            continue
+        if raw_row.get("project_id") != project_id or raw_row.get("task_id") != task_id:
+            continue
+        raw_ids = raw_row.get("audit_ids")
+        if (
+            not isinstance(raw_ids, list)
+            or not all(isinstance(value, str) and value.strip() for value in raw_ids)
+            or audit_id not in raw_ids
+        ):
+            continue
+        try:
+            TargetState.from_raw(raw_row.get("target_state"))
+            raw_fingerprint = raw_row.get("evidence_fingerprint")
+            if isinstance(raw_fingerprint, Mapping):
+                raw_fingerprint = raw_fingerprint.get(
+                    "digest", raw_fingerprint.get("sha256", raw_fingerprint.get("value"))
+                )
+            EvidenceFingerprint(str(raw_fingerprint))
+        except (TypeError, ValueError):
+            # Unknown or malformed forward-compatible data is not lifecycle
+            # evidence. Keep the alert until a trusted source confirms it.
+            continue
+        return True
+    return False
+
+
+def _legacy_override_proves_identity(
+    document: Any,
+    record: Any,
+    project_id: str,
+    task_id: str,
+) -> bool:
+    """Recognize an applied pre-retirement owner override conservatively."""
+
+    raw_overrides = getattr(document, "unknown_fields", {}).get(
+        _TERMINAL_OVERRIDE_RECORDS_KEY
+    )
+    if not isinstance(raw_overrides, list):
+        return False
+    record_time = _audit_record_time(record)
+    for raw_override in raw_overrides:
+        if not isinstance(raw_override, Mapping) or raw_override.get("applied", True) is False:
+            continue
+        try:
+            override = OverrideRecord.from_dict(raw_override)
+        except (TypeError, ValueError):
+            continue
+        if (
+            override.project_id != project_id
+            or override.task_id != task_id
+            or override.target_state != getattr(record, "target_state", None)
+            or override.evidence_fingerprint != getattr(record, "evidence_fingerprint", None)
+        ):
+            continue
+        override_time = _audit_observability_time(override.created_at)
+        # A legacy row without ordering is ambiguous when the task may have
+        # been reopened. Canonical terminal tracker state remains sufficient,
+        # but this metadata alone does not.
+        if record_time is None or override_time is None or record_time > override_time:
+            continue
+        return True
+    return False
+
+
+def _later_pass_proves_identity(record: Any, records: Iterable[Any]) -> bool:
+    """Find a later equivalent PASS without retiring a newer reopened decision."""
+
+    no_auditor_attempts = [
+        attempt
+        for attempt in getattr(record, "attempts", ()) or ()
+        if getattr(attempt, "failure_classification", None)
+        == FailureClassification.NO_AUDITOR
+    ]
+    if not no_auditor_attempts:
+        return False
+    no_time = _audit_record_time(record, verdict=Verdict.FAIL)
+    for candidate in records:
+        if (
+            getattr(candidate, "project_id", None) != getattr(record, "project_id", None)
+            or getattr(candidate, "task_id", None) != getattr(record, "task_id", None)
+            or getattr(candidate, "target_state", None) != getattr(record, "target_state", None)
+            or getattr(candidate, "evidence_fingerprint", None)
+            != getattr(record, "evidence_fingerprint", None)
+        ):
+            continue
+        pass_attempts = [
+            attempt
+            for attempt in getattr(candidate, "attempts", ()) or ()
+            if getattr(attempt, "verdict", None) == Verdict.PASS
+        ]
+        if not pass_attempts:
+            continue
+        if candidate is record:
+            # Same-record retries retain attempt order even in old metadata
+            # that predates persisted timestamps.
+            last_terminal = [
+                attempt
+                for attempt in getattr(candidate, "attempts", ()) or ()
+                if getattr(attempt, "verdict", None) in (Verdict.PASS, Verdict.FAIL)
+            ]
+            if last_terminal and getattr(last_terminal[-1], "verdict", None) == Verdict.PASS:
+                return True
+            continue
+        pass_time = _audit_record_time(candidate, verdict=Verdict.PASS)
+        if no_time is not None and pass_time is not None and pass_time > no_time:
+            return True
+    return False
 
 
 def _configured_in_progress_state(active_states: list[str]) -> str:
@@ -1716,12 +1889,67 @@ class Orchestrator:
             )
             no_candidate_terminal = (
                 record.request_state == RequestState.COMPLETED
-                and any(
-                    attempt.failure_classification == FailureClassification.NO_AUDITOR
-                    for attempt in record.attempts
-                )
+                and _record_has_no_auditor(record)
             )
-            if live or no_candidate_terminal:
+            if live:
+                continue
+            if no_candidate_terminal:
+                # Newer coordinators persist a retirement row naming every
+                # superseded identity. This is deliberately checked before
+                # tracker state so a reopened task can retain a genuinely new
+                # no-auditor decision while the old identity is retired.
+                if _retirement_metadata_proves_identity(
+                    document, project_id, task_id, audit_id
+                ):
+                    self._forget_terminal_audit_alert_identity(
+                        project_id, task_id, audit_id
+                    )
+                    continue
+                if _legacy_override_proves_identity(
+                    document, record, project_id, task_id
+                ) or _later_pass_proves_identity(record, document.pending_chain):
+                    self._forget_terminal_audit_alert_identity(
+                        project_id, task_id, audit_id
+                    )
+                    continue
+
+                # A successful canonical tracker read is an independent
+                # lifecycle authority. It retires legacy no-auditor alerts
+                # even when historical evidence fingerprints no longer match
+                # the task after merge. Fetch failures and ambiguous identity
+                # responses intentionally leave the alert untouched.
+                fetch_issue_detail = getattr(tracker, "fetch_issue_detail", None)
+                if not callable(fetch_issue_detail):
+                    continue
+                try:
+                    current_issue = fetch_issue_detail(task_id)
+                except Exception:
+                    continue
+                if current_issue is None:
+                    continue
+                current_project_id = str(getattr(current_issue, "project_id", "") or "")
+                if current_project_id and current_project_id != str(project_id):
+                    continue
+                current_ids = {
+                    str(value)
+                    for value in (
+                        getattr(current_issue, "identifier", None),
+                        getattr(current_issue, "id", None),
+                    )
+                    if value
+                }
+                if task_id not in current_ids:
+                    continue
+                if _is_terminal_state(
+                    getattr(current_issue, "state", None),
+                    self.config.tracker_terminal_states,
+                ):
+                    self._forget_terminal_audit_alert_identity(
+                        project_id, task_id, audit_id
+                    )
+                    continue
+                # The task is still nonterminal (including Needs Human), so
+                # the completed no-auditor decision remains actionable.
                 continue
             self._forget_terminal_audit_alert_identity(
                 project_id, task_id, audit_id

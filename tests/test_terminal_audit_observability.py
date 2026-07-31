@@ -13,12 +13,21 @@ from oompah.terminal_audit_observability import (
     threshold_conditions,
 )
 from oompah.terminal_audit import (
+    AuditAttempt,
+    ContributorIdentity,
     EvidenceFingerprint,
+    FailureClassification,
+    OverrideRecord,
     RequestState,
     TargetState,
     TerminalAuditRecord,
+    Verdict,
 )
-from oompah.terminal_audit_metadata import METADATA_KEY, TerminalAuditMetadata
+from oompah.terminal_audit_metadata import (
+    METADATA_KEY,
+    MetadataQuarantine,
+    TerminalAuditMetadata,
+)
 from oompah.config import ServiceConfig
 from oompah.models import Issue, RunningEntry
 from oompah.orchestrator import Orchestrator
@@ -35,12 +44,46 @@ class _Clock:
 class _MetadataTracker:
     def __init__(self) -> None:
         self.metadata: dict[str, dict] = {}
+        self.issues: dict[str, Issue] = {}
 
     def get_metadata(self, identifier: str) -> dict:
         return self.metadata.get(identifier, {})
 
     def set_metadata_field(self, identifier: str, field: str, value) -> None:
         self.metadata.setdefault(identifier, {})[field] = value
+
+    def fetch_issue_detail(self, identifier: str) -> Issue | None:
+        return self.issues.get(identifier)
+
+
+def _no_auditor_record(
+    audit_id: str,
+    fingerprint: EvidenceFingerprint,
+    *,
+    target: TargetState = TargetState.MERGED,
+    completed_at: str = "2026-07-31T10:00:00+00:00",
+) -> TerminalAuditRecord:
+    attempt = AuditAttempt(
+        attempt_id=f"attempt-{audit_id}",
+        target_state=target,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.COMPLETED,
+        verdict=Verdict.FAIL,
+        failure_classification=FailureClassification.NO_AUDITOR,
+        created_at=completed_at,
+        completed_at=completed_at,
+    )
+    return TerminalAuditRecord(
+        audit_id=audit_id,
+        project_id="project-a",
+        task_id="TASK-1",
+        target_state=target,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.COMPLETED,
+        attempts=[attempt],
+        created_at=completed_at,
+        updated_at=completed_at,
+    )
 
 
 def test_lifecycle_metrics_and_oldest_age_are_deterministic() -> None:
@@ -300,6 +343,291 @@ def test_restart_reconciles_stale_no_candidate_alert_from_cancelled_metadata(
     finally:
         restarted._tick_pool.shutdown(wait=True, cancel_futures=True)
         restarted._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+
+def test_terminal_state_retires_legacy_alert_after_fingerprint_changes_and_restart(
+    tmp_path: Path,
+) -> None:
+    """A canonical terminal state retires an old alert without restaging."""
+    state_path = tmp_path / "service_state.json"
+    tracker = _MetadataTracker()
+    fingerprint = EvidenceFingerprint("a" * 64)
+    record = _no_auditor_record("audit-legacy", fingerprint)
+    tracker.metadata["TASK-1"] = {
+        METADATA_KEY: TerminalAuditMetadata(pending_chain=[record]).to_dict()
+    }
+    issue = Issue(
+        id="TASK-1",
+        identifier="TASK-1",
+        title="Merged task",
+        description="old evidence",
+        state="Needs Human",
+        project_id="project-a",
+    )
+    tracker.issues["TASK-1"] = issue
+
+    first = Orchestrator(
+        ServiceConfig(workspace_root=str(tmp_path / "workspace")),
+        str(tmp_path / "WORKFLOW.md"),
+        state_path=str(state_path),
+    )
+    try:
+        first._tracker_for_project = lambda _project_id: tracker
+        first.record_terminal_audit_no_candidate(
+            "project-a", "TASK-1", "audit-legacy", reason="legacy callback"
+        )
+        assert any(
+            "audit-legacy" in str(alert.get("source", ""))
+            for alert in first.get_snapshot()["alerts"]
+        )
+
+        # Merge changed the live evidence, so replaying the historical
+        # override is not supported. The canonical tracker state is still
+        # authoritative for retiring the old observability identity.
+        issue.description = "new evidence after merge"
+        issue.state = "Merged"
+        recovered = first.get_snapshot()
+        assert not [
+            alert
+            for alert in recovered["alerts"]
+            if "audit-legacy" in str(alert.get("source", ""))
+        ]
+        assert first._terminal_audit_metrics.snapshot()["no_independent_candidate"] == 1
+    finally:
+        first._tick_pool.shutdown(wait=True, cancel_futures=True)
+        first._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+    restarted = Orchestrator(
+        ServiceConfig(workspace_root=str(tmp_path / "workspace-2")),
+        str(tmp_path / "WORKFLOW-2.md"),
+        state_path=str(state_path),
+    )
+    try:
+        restarted._tracker_for_project = lambda _project_id: tracker
+        assert not [
+            alert
+            for alert in restarted.get_snapshot()["alerts"]
+            if "audit-legacy" in str(alert.get("source", ""))
+        ]
+        assert restarted._terminal_audit_metrics.snapshot()["no_independent_candidate"] == 1
+    finally:
+        restarted._tick_pool.shutdown(wait=True, cancel_futures=True)
+        restarted._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+
+def test_retirement_rows_clear_only_old_id_when_task_reopened(
+    tmp_path: Path,
+) -> None:
+    """A migrated retirement ledger must not hide a new Needs Human audit."""
+    tracker = _MetadataTracker()
+    fingerprint = EvidenceFingerprint("b" * 64)
+    old_override = _no_auditor_record("audit-override", fingerprint)
+    old_pass = _no_auditor_record("audit-pass", fingerprint)
+    current = _no_auditor_record(
+        "audit-current", fingerprint, completed_at="2026-07-31T12:00:00+00:00"
+    )
+    tracker.metadata["TASK-1"] = {
+        METADATA_KEY: TerminalAuditMetadata(
+            pending_chain=[old_override, old_pass, current],
+            unknown_fields={
+                "oompah.terminal_audit_retirements": [
+                    {
+                        "project_id": "project-a",
+                        "task_id": "TASK-1",
+                        "target_state": "Merged",
+                        "evidence_fingerprint": fingerprint.digest,
+                        "audit_ids": ["audit-override"],
+                        "kind": "override",
+                        "applied": True,
+                    },
+                    {
+                        "project_id": "project-a",
+                        "task_id": "TASK-1",
+                        "target_state": "Merged",
+                        "evidence_fingerprint": fingerprint.digest,
+                        "audit_ids": ["audit-pass"],
+                        "kind": "result",
+                        "applied": True,
+                    },
+                ]
+            },
+        ).to_dict()
+    }
+    tracker.issues["TASK-1"] = Issue(
+        id="TASK-1",
+        identifier="TASK-1",
+        title="Reopened task",
+        description="needs another human decision",
+        state="Needs Human",
+        project_id="project-a",
+    )
+    orchestrator = Orchestrator(
+        ServiceConfig(workspace_root=str(tmp_path / "workspace")),
+        str(tmp_path / "WORKFLOW.md"),
+        state_path=str(tmp_path / "service_state.json"),
+    )
+    try:
+        orchestrator._tracker_for_project = lambda _project_id: tracker
+        for audit_id in ("audit-override", "audit-pass", "audit-current"):
+            orchestrator.record_terminal_audit_no_candidate(
+                "project-a", "TASK-1", audit_id, reason="migrated callback"
+            )
+        sources = [str(alert.get("source", "")) for alert in orchestrator.get_snapshot()["alerts"]]
+        assert not any("audit-override" in source for source in sources)
+        assert not any("audit-pass" in source for source in sources)
+        assert any("audit-current" in source for source in sources)
+        assert orchestrator._terminal_audit_metrics.snapshot()["no_independent_candidate"] == 3
+    finally:
+        orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
+        orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+
+def test_migrated_override_and_pass_metadata_retire_older_identities(
+    tmp_path: Path,
+) -> None:
+    """Legacy applied decisions clear old alerts without hiding a reopen."""
+    tracker = _MetadataTracker()
+    override_fingerprint = EvidenceFingerprint("e" * 64)
+    pass_fingerprint = EvidenceFingerprint("f" * 64)
+    old_override = _no_auditor_record(
+        "audit-old-override",
+        override_fingerprint,
+        target=TargetState.DONE,
+        completed_at="2026-07-31T10:00:00+00:00",
+    )
+    old_pass = _no_auditor_record(
+        "audit-old-pass",
+        pass_fingerprint,
+        target=TargetState.MERGED,
+        completed_at="2026-07-31T10:00:00+00:00",
+    )
+    pass_attempt = AuditAttempt(
+        attempt_id="attempt-pass",
+        target_state=TargetState.MERGED,
+        evidence_fingerprint=pass_fingerprint,
+        request_state=RequestState.COMPLETED,
+        verdict=Verdict.PASS,
+        created_at="2026-07-31T11:00:00+00:00",
+        completed_at="2026-07-31T11:00:00+00:00",
+    )
+    later_pass = TerminalAuditRecord(
+        audit_id="audit-later-pass",
+        project_id="project-a",
+        task_id="TASK-1",
+        target_state=TargetState.MERGED,
+        evidence_fingerprint=pass_fingerprint,
+        request_state=RequestState.COMPLETED,
+        attempts=[pass_attempt],
+        created_at="2026-07-31T11:00:00+00:00",
+        updated_at="2026-07-31T11:00:00+00:00",
+    )
+    current = _no_auditor_record(
+        "audit-reopened",
+        pass_fingerprint,
+        target=TargetState.MERGED,
+        completed_at="2026-07-31T12:00:00+00:00",
+    )
+    override = OverrideRecord(
+        override_id="override-legacy",
+        project_id="project-a",
+        task_id="TASK-1",
+        target_state=TargetState.DONE,
+        evidence_fingerprint=override_fingerprint,
+        authorized_by=ContributorIdentity("owner", "github"),
+        reason="Owner approved terminal completion.",
+        created_at="2026-07-31T10:30:00+00:00",
+    ).to_dict()
+    override["applied"] = True
+    tracker.metadata["TASK-1"] = {
+        METADATA_KEY: TerminalAuditMetadata(
+            pending_chain=[old_override, old_pass, later_pass, current],
+            unknown_fields={"oompah.terminal_override_records": [override]},
+        ).to_dict()
+    }
+    tracker.issues["TASK-1"] = Issue(
+        id="TASK-1",
+        identifier="TASK-1",
+        title="Reopened task",
+        description="still in validation",
+        state="In Validation",
+        project_id="project-a",
+    )
+    orchestrator = Orchestrator(
+        ServiceConfig(workspace_root=str(tmp_path / "workspace")),
+        str(tmp_path / "WORKFLOW.md"),
+        state_path=str(tmp_path / "service_state.json"),
+    )
+    try:
+        orchestrator._tracker_for_project = lambda _project_id: tracker
+        for audit_id in ("audit-old-override", "audit-old-pass", "audit-reopened"):
+            orchestrator.record_terminal_audit_no_candidate(
+                "project-a", "TASK-1", audit_id, reason="legacy callback"
+            )
+        sources = [str(alert.get("source", "")) for alert in orchestrator.get_snapshot()["alerts"]]
+        assert not any("audit-old-override" in source for source in sources)
+        assert not any("audit-old-pass" in source for source in sources)
+        assert any("audit-reopened" in source for source in sources)
+    finally:
+        orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
+        orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+
+def test_no_candidate_reconciliation_fails_closed_on_read_failure_or_quarantine(
+    tmp_path: Path,
+) -> None:
+    """Unknown tracker/metadata state must never clear an actionable alert."""
+
+    class _ReadFailureTracker(_MetadataTracker):
+        def fetch_issue_detail(self, identifier: str) -> Issue | None:
+            raise RuntimeError(f"read failed for {identifier}")
+
+    fingerprint = EvidenceFingerprint("c" * 64)
+    failing_tracker = _ReadFailureTracker()
+    record = _no_auditor_record("audit-read-failure", fingerprint)
+    failing_tracker.metadata["TASK-1"] = {
+        METADATA_KEY: TerminalAuditMetadata(pending_chain=[record]).to_dict()
+    }
+    failing_orchestrator = Orchestrator(
+        ServiceConfig(workspace_root=str(tmp_path / "workspace-read")),
+        str(tmp_path / "WORKFLOW-read.md"),
+        state_path=str(tmp_path / "state-read.json"),
+    )
+    try:
+        failing_orchestrator._tracker_for_project = lambda _project_id: failing_tracker
+        failing_orchestrator.record_terminal_audit_no_candidate(
+            "project-a", "TASK-1", "audit-read-failure", reason="read failure"
+        )
+        assert any(
+            "audit-read-failure" in str(alert.get("source", ""))
+            for alert in failing_orchestrator.get_snapshot()["alerts"]
+        )
+    finally:
+        failing_orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
+        failing_orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+    quarantined_tracker = _MetadataTracker()
+    quarantined_tracker.metadata["TASK-1"] = {
+        METADATA_KEY: TerminalAuditMetadata(
+            quarantine=MetadataQuarantine("d" * 64)
+        ).to_dict()
+    }
+    quarantined_orchestrator = Orchestrator(
+        ServiceConfig(workspace_root=str(tmp_path / "workspace-quarantine")),
+        str(tmp_path / "WORKFLOW-quarantine.md"),
+        state_path=str(tmp_path / "state-quarantine.json"),
+    )
+    try:
+        quarantined_orchestrator._tracker_for_project = lambda _project_id: quarantined_tracker
+        quarantined_orchestrator.record_terminal_audit_no_candidate(
+            "project-a", "TASK-1", "audit-quarantine", reason="quarantine"
+        )
+        assert any(
+            "audit-quarantine" in str(alert.get("source", ""))
+            for alert in quarantined_orchestrator.get_snapshot()["alerts"]
+        )
+    finally:
+        quarantined_orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
+        quarantined_orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
 
 
 def test_queue_recovery_alert_survives_snapshots_until_recovery(tmp_path: Path) -> None:
