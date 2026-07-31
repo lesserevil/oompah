@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-633
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Repair stale integration queues in nested epics
 parent: OOMPAH-584
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:54:49.391955Z'
-updated_at: '2026-07-31T01:03:31.408593Z'
+updated_at: '2026-07-31T01:04:03.508382Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-633
 target_branch: null
 review_url: null
@@ -43,7 +43,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: a2ec708b-6be1-4f1d-aa98-be0be72eda11
+oompah.agent_run_id: e2428db0-e77f-4d48-b59c-862bb86666e2
 oompah.work_branch: epic-OOMPAH-584--task-OOMPAH-633
 oompah.integration:
   version: 1
@@ -52,7 +52,7 @@ oompah.integration:
   task_branch: epic-OOMPAH-584--task-OOMPAH-633
   base_branch: epic-OOMPAH-584
   base_sha: d62dd4cff702ae2b818418407d7d15b7a643213e
-  updated_at: '2026-07-31T01:01:53.144332+00:00'
+  updated_at: '2026-07-31T01:03:59.694485+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-633__20260731T010158Z
@@ -116,5 +116,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 37s
 - Log: OOMPAH-633__20260731T010158Z.jsonl
+---
+author: oompah
+created: 2026-07-31 01:03
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-31 01:04
+---
+Focus: Maintenance Engineer
 ---
 <!-- COMMENTS:END -->

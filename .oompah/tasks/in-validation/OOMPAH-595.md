@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:56.897824Z'
-updated_at: '2026-07-31T01:03:33.370557Z'
+updated_at: '2026-07-31T01:03:56.285025Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-595
 target_branch: null
 review_url: null
@@ -251,18 +251,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-595
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 4818bf1084729de2ef0887490ea51286bb480ecbd823735d7271c4e0a3e7a8d5
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-1cc40a1916d3
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 4818bf1084729de2ef0887490ea51286bb480ecbd823735d7271c4e0a3e7a8d5
+      created_at: '2026-07-31T01:03:49.415016+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-31T01:03:49.415016+00:00'
+      branch_key: epic-OOMPAH-586--task-OOMPAH-595
     requested_by:
       version: 1
       identity: api-client
       source: api
     previous_state: Needs Human
     created_at: '2026-07-31T01:03:27.513877+00:00'
+    updated_at: '2026-07-31T01:03:49.415016+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-e7bb1375c3e2
@@ -302,6 +316,19 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: opus
     started_at: '2026-07-31T00:45:09.152356+00:00'
+    branch_key: epic-OOMPAH-586--task-OOMPAH-595
+  - version: 1
+    attempt_id: attempt-1cc40a1916d3
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 4818bf1084729de2ef0887490ea51286bb480ecbd823735d7271c4e0a3e7a8d5
+    created_at: '2026-07-31T01:03:49.415016+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-31T01:03:49.415016+00:00'
     branch_key: epic-OOMPAH-586--task-OOMPAH-595
 ---
 ## Summary
@@ -708,5 +735,15 @@ author: oompah
 created: 2026-07-31 01:03
 ---
 Revalidate Done after aligning the clean managed worktree to the authoritative rewritten task ref 04d072a5f; this commit is directly contained by merged epic head cd08185c9.
+---
+author: oompah
+created: 2026-07-31 01:03
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-07-31 01:03
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
