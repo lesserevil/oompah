@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T13:52:05.961085Z'
-updated_at: '2026-07-31T14:13:44.297957Z'
+updated_at: '2026-07-31T14:13:46.996356Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -201,5 +201,10 @@ Code changes:
 - Created comprehensive regression test suite
 
 Ready for full branch gate test and integration.
+---
+author: oompah
+created: 2026-07-31 14:13
+---
+Canonicalized integrated-task fingerprints for owner overrides. All code paths (orchestrator integration, API override, ACP override, restart recovery) now use compute_issue_evidence_fingerprint(). Added 3 regression tests to verify fingerprint consistency, first valid override succeeds without restaging, and stale evidence fails closed. All 174 tests pass.
 ---
 <!-- COMMENTS:END -->
