@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-668
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Use the trusted test virtualenv without reinstalling inside quality-gate sandbox
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T21:35:20.853943Z'
-updated_at: '2026-07-31T21:36:32.865803Z'
+updated_at: '2026-07-31T21:38:15.160393Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -21,17 +21,46 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 8e4e3574b1f58ffe3b7c489be06bd9da31962659f65aef9ed6a6ca88664ecc25
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-07-31T21:38:04.351516+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: f3d331f2-52a9-4fc3-b11f-8c0e6a4e1ce6
-  claim_owner: 25dc1d1d-9292-4ddb-9dce-007ca37e5395
-  claimed_at: '2026-07-31T21:36:26.684052+00:00'
-  claim_expires_at: '2026-07-31T22:06:26.684052+00:00'
+  evidence: "Focus handoff: duplicate_detector  \nDuplicate preflight verdict: no_duplicate\
+    \  \nMatches: none  \n\nEvidence: Reviewed active `OOMPAH-281`, backlog `OOMPAH-282`,\
+    \ and archived `OOMPAH-38`; none covers this trusted-virtualenv quality-gate failure.\
+    \ No files or tracker state were changed."
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
 oompah.agent_run_id: 4964095e-a27e-4656-9333-a6d3745467c2
+oompah.task_costs:
+  total_input_tokens: 634211
+  total_output_tokens: 4078
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 634211
+      output_tokens: 4078
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 634211
+    output_tokens: 4078
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T21:38:04.349772+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-668__20260731T213635Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: OOMPAH-668
+    source_sha: 16362384be835d1485d1121ce3c8329743391c79
+    completed_at: '2026-07-31T21:38:04.362153+00:00'
 ---
 ## Summary
 
@@ -61,5 +90,15 @@ author: oompah
 created: 2026-07-31 21:36
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-31 21:38
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 15
+- Tokens: 634.2K in / 4.1K out [638.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 35s
+- Log: OOMPAH-668__20260731T213635Z.jsonl
 ---
 <!-- COMMENTS:END -->
