@@ -15,7 +15,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T11:58:03.922456Z'
+updated_at: '2026-07-31T12:11:44.655660Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -812,5 +812,10 @@ author: oompah
 created: 2026-07-31 11:58
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-31 12:11
+---
+The current dirty refactor is finally moving toward one canonical Issue/integration fingerprint and a stable timestamp+persisted-ID authority key; keep that direction. One remaining race is visible in the existing test_override_recovery_preserves_concurrent_ledger_append: selection is computed from the first document, but _finalize reads the current ledger and classifies only IDs already present in retire_reasons. A same-evidence override appended between selection/status write and finalization remains unapplied and can be replayed on the next scan even when its authority key is older/equal to the selected row. In the metadata updater, validate every current unapplied row: retire any stale/invalid or authority <= the applied selection, and leave only a strictly newer authoritative row for a later scan. Add both older and newer concurrent-append latch cases. Also still add the requested actual OompahMarkdownTracker fresh-instance/restart test with persisted integration head/base evidence mutation; the current tests remain _Tracker-only.
 ---
 <!-- COMMENTS:END -->
