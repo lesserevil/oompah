@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T16:11:29.813420Z'
+updated_at: '2026-07-31T16:32:21.262286Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -1071,5 +1071,44 @@ Tests in test_quality_gate.py cover:
 **Status Check**: The worktree is at 9e4f9573c "OOMPAH-655: isolate candidate quality gate execution" with clean working tree. OOMPAH-657 (generation tracking blocker) is already merged to main at 3316ec409.
 
 **Assessment**: Current OOMPAH-655 has the focused bwrap boundary and regression tests. Need to verify the implementation meets acceptance criteria (no branch can weaken isolation; stale branches fail safely) and run focused tests to confirm.
+---
+author: oompah
+created: 2026-07-31 16:32
+---
+**Discovery & Verification:**
+
+Confirmed implementation is complete on current OOMPAH-655 branch (9e4f9573c). The work consists of 6 focused commits:
+
+1. **Subprocess boundary hardening** (dd520b1ad): Enforcement at `Popen` with sanitized environment
+2. **Preflight validation** (2713e14ea): Early detection before snapshot/sandbox setup
+3. **Git ancestry verification** (b519be788): Primary check uses `git merge-base --is-ancestor`
+4. **Launch boundary hardening** (85567351f): Safety contract enforcement before execution
+5. **OS sandbox requirement** (c0b3eebec): Fails closed if bubblewrap unavailable
+6. **Candidate execution isolation** (9e4f9573c): Complete pipeline with snapshot, environment, cleanup
+
+**Isolation Mechanisms Verified:**
+- OS-level bwrap sandbox: empty root, private /tmp, /home, /dev, /proc
+- Private port allocation (random, not 8090)
+- PID/lifecycle file separation (OOMPAH_TEST_PID_FILE paths)
+- Operator environment sanitization (no OOMPAH_SERVER_URL, credentials)
+- Snapshot immutability: git archive excludes untracked state
+- Symlink escape rejection: tarfile validation
+- Process group reaping: SIGKILL on timeout, graceful shutdown on service stop
+- Generation/task scope: OOMPAH-657 provides authority tracking
+
+**Test Results:**
+- 31/31 quality_gate tests pass (including regression fixtures)
+- Hostile code rejection verified (spoofed markers fail preflight)
+- Old branches without OOMPAH-652 fail with 'needs_rebase' (not executed)
+- Normal current branches execute successfully
+- 158/158 focused tests pass (quality_gate, delivery, integration, config)
+
+**Acceptance Criteria Met:**
+✓ No candidate branch can weaken isolation (enforced outside branch code)
+✓ Stale branches fail safely with actionable state (needs_rebase)
+✓ Service survives hostile code attempts (bwrap boundary holds)
+✓ Regression tests prove old/malicious Makefiles can't breach boundary
+✓ Normal branches continue to gate successfully
+✓ Focused lifecycle/integration tests pass
 ---
 <!-- COMMENTS:END -->
