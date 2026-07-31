@@ -6,8 +6,9 @@ import hashlib
 import json
 import logging
 import os
-import signal
 import shutil
+import signal
+import socket
 import subprocess
 import tempfile
 import threading
@@ -22,6 +23,18 @@ from oompah.client_auth import agent_environment
 logger = logging.getLogger(__name__)
 
 _EVIDENCE_VERSION = 2
+_OOMPAH_652_SAFETY_HEAD = "ec0ec7d89fb8804571fcf7e780558e6d979b73ea"
+
+# These files are the candidate-controlled entrypoints that establish the
+# lifecycle contract for a full gate.  A branch may not replace them after the
+# deployed safety prerequisite.  The operator updates the trusted head when a
+# lifecycle change is intentionally deployed.
+_LIFECYCLE_CRITICAL_PATHS = (
+    ".env.example",
+    "Makefile",
+    "scripts/process_identity.py",
+    "scripts/run-tests.sh",
+)
 
 
 @dataclass(frozen=True)
@@ -89,10 +102,12 @@ class BranchQualityGate:
         *,
         timeout_seconds: int = 3600,
         output_tail_bytes: int = 16 * 1024,
+        safety_head: str = _OOMPAH_652_SAFETY_HEAD,
     ) -> None:
         self.state_path = Path(state_path)
         self.timeout_seconds = max(int(timeout_seconds), 1)
         self.output_tail_bytes = max(int(output_tail_bytes), 1024)
+        self.safety_head = safety_head
         self._lock = threading.Lock()
         self._key_locks: dict[str, _KeyLockEntry] = {}
 
@@ -358,28 +373,32 @@ class BranchQualityGate:
         # being cancelled.  The path is still gate-owned and safe to remove.
         shutil.rmtree(snapshot, ignore_errors=True)
 
-    @staticmethod
-    def _verify_isolation_contract(repo_path: str) -> tuple[bool, str]:
-        """Verify that the candidate branch contains the OOMPAH-652 safety head in git ancestry.
+    def _verify_isolation_contract(self, repo_path: str) -> tuple[bool, str]:
+        """Verify the candidate is based on the deployed lifecycle contract.
 
         The quality gate runs in a disposable worktree. Candidate code cannot be trusted
         to implement its own containment boundary. A same-UID process with access to the
         source tree can read absolute canonical paths, connect to localhost:8090, or
         signal the operator service regardless of environment variables or marker strings.
 
-        This function verifies that the checked-out branch is descended from the exact
-        OOMPAH-652 safety head commit (ec0ec7d89), which introduced the isolation contract.
-        Branches that predate this commit or have been spoofed with fake markers are
-        rejected at the preflight stage before any candidate command executes.
+        Ancestry alone is insufficient: a descendant can revert or replace the
+        Makefile and runner scripts.  The candidate must therefore retain the
+        exact lifecycle-critical files from the deployed safety head, and the
+        checked-out worktree must not have uncommitted changes to those files.
+        All checks happen before Popen, so a rejected candidate command never
+        gets a chance to inspect or signal the operator service.
 
         Returns:
             (is_compliant, reason) — True if the branch contains OOMPAH-652 safety head
             in its ancestry, False if the branch needs rebase.
         """
-        # The OOMPAH-652 safety head: exact commit introducing lifecycle isolation.
-        # All candidate branches must be descended from this commit.
-        # Can be overridden for testing via OOMPAH_TEST_SAFETY_HEAD environment variable.
-        safety_head = os.environ.get("OOMPAH_TEST_SAFETY_HEAD", "ec0ec7d89")
+        safety_head = self.safety_head
+        if not isinstance(safety_head, str) or len(safety_head) != 40:
+            return False, "Configured lifecycle safety head is not a full commit SHA"
+        try:
+            int(safety_head, 16)
+        except ValueError:
+            return False, "Configured lifecycle safety head is not a full commit SHA"
 
         # Verify git repository exists and is valid
         repo_path_obj = Path(repo_path)
@@ -387,8 +406,9 @@ class BranchQualityGate:
             return False, "Not a git repository (required for ancestry verification)"
 
         try:
-            # Check if the safety head commit is an ancestor of HEAD in this repository.
-            # This uses git merge-base --is-ancestor which is efficient and non-spoofable.
+            # Check if the safety head commit is an ancestor of HEAD in this
+            # repository.  This uses git merge-base --is-ancestor which is
+            # efficient and cannot be spoofed by Makefile marker text.
             result = subprocess.run(
                 ["git", "merge-base", "--is-ancestor", safety_head, "HEAD"],
                 cwd=repo_path,
@@ -397,19 +417,151 @@ class BranchQualityGate:
             )
             # merge-base --is-ancestor exits 0 if ancestor exists, non-zero otherwise
             if result.returncode == 0:
-                return True, ""
-            else:
-                return (
-                    False,
-                    f"Branch does not contain OOMPAH-652 isolation contract (commit {safety_head}). "
-                    f"This branch was likely created before the safety prerequisite was merged. "
-                    f"Rebase to main or a newer commit that includes OOMPAH-652. "
-                    f"See OOMPAH-652 and OOMPAH-655 for details on lifecycle isolation enforcement.",
+                critical_diff = subprocess.run(
+                    [
+                        "git",
+                        "diff",
+                        "--name-only",
+                        safety_head,
+                        "HEAD",
+                        "--",
+                        *_LIFECYCLE_CRITICAL_PATHS,
+                    ],
+                    cwd=repo_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
                 )
+                if critical_diff.returncode != 0:
+                    return False, "Cannot inspect lifecycle-critical candidate files"
+                changed = tuple(
+                    line.strip()
+                    for line in critical_diff.stdout.splitlines()
+                    if line.strip()
+                )
+                if changed:
+                    return (
+                        False,
+                        "Candidate changes deployed lifecycle-critical files: "
+                        f"{', '.join(changed)}. Rebase onto the deployed safety "
+                        "base or obtain a separately deployed lifecycle update "
+                        f"before rerunning the gate (safety head {safety_head}).",
+                    )
+
+                dirty = subprocess.run(
+                    [
+                        "git",
+                        "status",
+                        "--porcelain=v1",
+                        "--untracked-files=all",
+                        "--",
+                        *_LIFECYCLE_CRITICAL_PATHS,
+                    ],
+                    cwd=repo_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+                if dirty.returncode != 0:
+                    return False, "Cannot inspect lifecycle-critical worktree state"
+                if dirty.stdout.strip():
+                    return (
+                        False,
+                        "Lifecycle-critical files are modified in the gate "
+                        "worktree. Commit and push the repair before rerunning "
+                        "the gate; refusing to execute an unreviewed lifecycle "
+                        "path.",
+                    )
+                return True, ""
+            return (
+                False,
+                f"Branch does not contain the deployed OOMPAH-652 isolation "
+                f"contract (commit {safety_head}). This branch was likely "
+                "created before the safety prerequisite was merged. Rebase "
+                "to the current base before rerunning the gate; see "
+                "OOMPAH-652 and OOMPAH-655 for lifecycle isolation details.",
+            )
         except subprocess.TimeoutExpired:
             return False, "Git ancestry check timed out (git repository may be corrupted)"
         except OSError as exc:
             return False, f"Cannot verify git ancestry: {exc}"
+
+    @staticmethod
+    def _gate_run_root() -> Path:
+        """Create an operator-owned, private root for one candidate command."""
+        root = Path(tempfile.mkdtemp(prefix="oompah-quality-gate-"))
+        os.chmod(root, 0o700)
+        for relative in ("home", "tmp", "cache", "config", "data", "lifecycle"):
+            path = root / relative
+            path.mkdir(mode=0o700)
+        return root
+
+    @staticmethod
+    def _cleanup_gate_run_root(root: Path) -> None:
+        """Remove only a root created by :meth:`_gate_run_root`."""
+        try:
+            resolved = root.resolve(strict=False)
+            temp_root = Path(tempfile.gettempdir()).resolve()
+            if (
+                resolved.parent != temp_root
+                or not resolved.name.startswith("oompah-quality-gate-")
+                or root.is_symlink()
+                or not root.exists()
+                or root.stat().st_uid != os.getuid()
+            ):
+                logger.warning("Refusing to remove unexpected gate root %s", root)
+                return
+            shutil.rmtree(root)
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            logger.warning("Failed to clean quality gate root %s: %s", root, exc)
+
+    @staticmethod
+    def _quality_gate_environment(run_root: Path) -> dict[str, str]:
+        """Build the complete server-owned lifecycle environment for a gate."""
+        environment = agent_environment()
+        private_tmp = run_root / "tmp"
+        private_lifecycle = run_root / "lifecycle"
+        private_home = run_root / "home"
+        # Bind-and-close allocation is the portable interface available to the
+        # existing Makefile contract.  The candidate still cannot select the
+        # operator's configured port because this value is server-generated.
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
+            listener.bind(("127.0.0.1", 0))
+            private_port = str(listener.getsockname()[1])
+
+        environment.update(
+            {
+                "OOMPAH_PYTEST_GATE": "1",
+                "OOMPAH_PYTEST_RUN_ROOT": str(run_root),
+                "OOMPAH_TEST_SERVER_PORT": private_port,
+                "OOMPAH_SERVER_PORT": private_port,
+                "OOMPAH_TEST_PID_FILE": str(private_lifecycle / ".oompah.pid"),
+                "OOMPAH_TEST_PID_META_FILE": str(
+                    private_lifecycle / ".oompah.pid.meta"
+                ),
+                "HOME": str(private_home),
+                "TMPDIR": str(private_tmp),
+                "TMP": str(private_tmp),
+                "TEMP": str(private_tmp),
+                "XDG_CACHE_HOME": str(run_root / "cache"),
+                "XDG_CONFIG_HOME": str(run_root / "config"),
+                "XDG_DATA_HOME": str(run_root / "data"),
+                "PYTHONPYCACHEPREFIX": str(run_root / "cache" / "pycache"),
+            }
+        )
+        for key in (
+            "OOMPAH_SERVER_URL",
+            "OOMPAH_SERVER_USERNAME",
+            "OOMPAH_SERVER_PASSWORD",
+            "OOMPAH_SERVER_PASSWORD_FILE",
+            "OOMPAH_TASK_HANDOFF_TOKEN",
+            "OOMPAH_TASK_HANDOFF_PROJECT_ID",
+            "OOMPAH_TEST_SAFETY_HEAD",
+        ):
+            environment.pop(key, None)
+        return environment
 
     @staticmethod
     def _evidence_key(
@@ -651,6 +803,7 @@ class BranchQualityGate:
 
             started = time.monotonic()
             process: subprocess.Popen[str] | None = None
+            run_root = self._gate_run_root()
             snapshot: Path | None = None
             monitor_stop = threading.Event()
             monitor: threading.Thread | None = None
@@ -728,7 +881,7 @@ class BranchQualityGate:
                 process = subprocess.Popen(  # noqa: S602 - operator-owned command
                     command,
                     cwd=snapshot,
-                    env=agent_environment(),
+                    env=self._quality_gate_environment(run_root),
                     shell=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
@@ -901,6 +1054,7 @@ class BranchQualityGate:
                 # while another is still waiting on this evidence-key lock.
                 if owned_generation is not None:
                     self._release_generation(owned_generation)
+                self._cleanup_gate_run_root(run_root)
 
             result = QualityGateResult(
                 status="passed",

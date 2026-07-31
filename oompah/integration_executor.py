@@ -298,6 +298,18 @@ def execute_integration(
                 rebased_task_sha=rebased_sha,
                 quality=quality,
             )
+        if quality.status == "needs_rebase":
+            return IntegrationExecutionResult(
+                status="needs_rebase",
+                message=(
+                    "Combined-tree quality gate was refused because the task "
+                    "branch does not contain the deployed lifecycle safety "
+                    f"contract: {quality.output_tail[-4000:]}"
+                ),
+                expected_epic_sha=expected_epic_sha,
+                rebased_task_sha=rebased_sha,
+                quality=quality,
+            )
         return IntegrationExecutionResult(
             status="ci_failure",
             message=(

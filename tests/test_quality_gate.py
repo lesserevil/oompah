@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
+from pathlib import Path
 import shlex
 import subprocess
 import threading
@@ -10,21 +10,16 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import MagicMock
 
-import pytest
-
 from oompah.models import Issue, Project
 from oompah.orchestrator import Orchestrator
 from oompah.quality_gate import BranchQualityGate, QualityGateResult
 from oompah.statuses import OPEN, READY_TO_INTEGRATE
 
 
-def _create_safety_head(repo_path):
-    """Create a synthetic OOMPAH-652 safety head commit for testing.
-    
-    Returns the commit SHA that can be used with OOMPAH_TEST_SAFETY_HEAD.
-    """
+def _safety_head(repo_path):
+    """Return the synthetic safety head created by ``_git_repo``."""
     result = subprocess.run(
-        ["git", "rev-parse", "HEAD"],
+        ["git", "log", "--format=%H", "--grep=^OOMPAH-652: lifecycle isolation$", "-n", "1"],
         cwd=repo_path,
         capture_output=True,
         text=True,
@@ -33,14 +28,15 @@ def _create_safety_head(repo_path):
     return result.stdout.strip()
 
 
-@pytest.fixture(autouse=True)
-def _setup_test_safety_head(tmp_path, monkeypatch):
-    """Auto-fixture: configure tests to use a synthetic safety head."""
-    # Will be set up in _git_repo when needed
-    yield
+def _gate(state_path, repo_path, **kwargs):
+    """Inject a fixture repository's safety head without global environment state."""
+    safety_head = _safety_head(repo_path)
+    if safety_head:
+        kwargs["safety_head"] = safety_head
+    return BranchQualityGate(str(state_path), **kwargs)
 
 
-def _git_repo(tmp_path, monkeypatch=None):
+def _git_repo(tmp_path):
     repo = tmp_path / "repo"
     repo.mkdir()
     subprocess.run(["git", "init", "-q", "-b", "main"], cwd=repo, check=True)
@@ -50,34 +46,9 @@ def _git_repo(tmp_path, monkeypatch=None):
         cwd=repo,
         check=True,
     )
-    
-    # Create initial "safety head" commit (simulating OOMPAH-652)
-    initial = repo / "initial.txt"
-    initial.write_text("safety head\n", encoding="utf-8")
-    subprocess.run(["git", "add", "initial.txt"], cwd=repo, check=True)
-    subprocess.run(
-        ["git", "commit", "-q", "-m", "OOMPAH-652: lifecycle isolation"],
-        cwd=repo,
-        check=True,
-    )
-    
-    # Get this safety head's SHA for testing
-    safety_head = subprocess.run(
-        ["git", "rev-parse", "HEAD"],
-        cwd=repo,
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout.strip()
-    
-    # Set environment variable so tests use this synthetic safety head
-    # (We'll use monkeypatch if provided, otherwise os.environ)
-    if monkeypatch:
-        monkeypatch.setenv("OOMPAH_TEST_SAFETY_HEAD", safety_head)
-    else:
-        os.environ["OOMPAH_TEST_SAFETY_HEAD"] = safety_head
-    
-    # Create a compliant Makefile with OOMPAH-652 isolation logic
+
+    # Create the deployed lifecycle entrypoint before the synthetic safety
+    # head, so later candidate commits can be checked against its exact bytes.
     makefile = repo / "Makefile"
     makefile.write_text(
         """
@@ -96,12 +67,23 @@ test:
 """,
         encoding="utf-8",
     )
+
+    # Create initial "safety head" commit (simulating OOMPAH-652).
+    initial = repo / "initial.txt"
+    initial.write_text("safety head\n", encoding="utf-8")
+    subprocess.run(["git", "add", "initial.txt", "Makefile"], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "commit", "-q", "-m", "OOMPAH-652: lifecycle isolation"],
+        cwd=repo,
+        check=True,
+    )
+
     source = repo / "source.txt"
     source.write_text("one\n", encoding="utf-8")
     subprocess.run(["git", "add", "Makefile", "source.txt"], cwd=repo, check=True)
     subprocess.run(["git", "commit", "-q", "-m", "initial"], cwd=repo, check=True)
     subprocess.run(["git", "checkout", "-q", "-b", "work"], cwd=repo, check=True)
-    
+
     return repo
 
 
@@ -123,8 +105,8 @@ def test_passing_head_is_cached_and_survives_restart(tmp_path):
     command = f"printf x >> {shlex.quote(str(counter))}"
     state = tmp_path / "quality.json"
 
-    first = _run(BranchQualityGate(str(state)), repo, command)
-    second = _run(BranchQualityGate(str(state)), repo, command)
+    first = _run(_gate(state, repo), repo, command)
+    second = _run(_gate(state, repo), repo, command)
 
     assert first.passed and not first.cached
     assert second.passed and second.cached
@@ -136,7 +118,7 @@ def test_new_head_command_or_target_invalidates_pass(tmp_path):
     counter = tmp_path / "counter"
     state = tmp_path / "quality.json"
     command = f"printf x >> {shlex.quote(str(counter))}"
-    gate = BranchQualityGate(str(state))
+    gate = _gate(state, repo)
 
     assert _run(gate, repo, command).passed
     assert _run(gate, repo, command, target_branch="release/1").passed
@@ -190,7 +172,7 @@ def test_pre_sanitization_evidence_is_invalidated(tmp_path):
         encoding="utf-8",
     )
 
-    result = _run(BranchQualityGate(str(state)), repo, command)
+    result = _run(_gate(state, repo), repo, command)
 
     assert result.passed and not result.cached
     assert counter.read_text(encoding="utf-8") == "x"
@@ -200,7 +182,7 @@ def test_pre_sanitization_evidence_is_invalidated(tmp_path):
 def test_failure_and_timeout_do_not_create_passing_evidence(tmp_path):
     repo = _git_repo(tmp_path)
     state = tmp_path / "quality.json"
-    gate = BranchQualityGate(str(state), timeout_seconds=1)
+    gate = _gate(state, repo, timeout_seconds=1)
 
     failed = _run(gate, repo, "sh -c 'echo broken; exit 7'")
     timed_out = _run(gate, repo, "sleep 2")
@@ -219,7 +201,7 @@ def test_concurrent_readiness_checks_execute_once(tmp_path):
     repo = _git_repo(tmp_path)
     counter = tmp_path / "counter"
     command = f"printf x >> {shlex.quote(str(counter))}; sleep 0.2"
-    gate = BranchQualityGate(str(tmp_path / "quality.json"))
+    gate = _gate(tmp_path / "quality.json", repo)
     barrier = threading.Barrier(3)
     results = []
 
@@ -394,7 +376,7 @@ def test_gate_liveness_callback_cancels_only_its_owned_process(tmp_path):
 def test_no_command_is_an_explicit_non_blocking_result(tmp_path):
     repo = _git_repo(tmp_path)
     result = _run(
-        BranchQualityGate(str(tmp_path / "quality.json")),
+        _gate(tmp_path / "quality.json", repo),
         repo,
         "",
     )
@@ -403,26 +385,65 @@ def test_no_command_is_an_explicit_non_blocking_result(tmp_path):
     assert result.passed
 
 
-def test_gate_subprocess_strips_client_credentials_only(tmp_path, monkeypatch):
+def test_gate_subprocess_isolates_operator_and_tool_state(tmp_path, monkeypatch):
     repo = _git_repo(tmp_path)
+    sentinel = tmp_path / "gate-environment"
+    monkeypatch.setenv("OOMPAH_SERVER_URL", "http://127.0.0.1:8090")
     monkeypatch.setenv("OOMPAH_SERVER_USERNAME", "operator")
     monkeypatch.setenv("OOMPAH_SERVER_PASSWORD", "secret")
     monkeypatch.setenv("OOMPAH_SERVER_PASSWORD_FILE", "/secret/path")
     monkeypatch.setenv("QUALITY_GATE_SENTINEL", "visible")
     command = (
-        'test -z "${OOMPAH_SERVER_USERNAME+x}"'
+        'test -z "${OOMPAH_SERVER_URL+x}"'
+        ' && test -z "${OOMPAH_TASK_HANDOFF_TOKEN+x}"'
+        ' && test -z "${OOMPAH_SERVER_USERNAME+x}"'
         ' && test -z "${OOMPAH_SERVER_PASSWORD+x}"'
         ' && test -z "${OOMPAH_SERVER_PASSWORD_FILE+x}"'
         ' && test "$QUALITY_GATE_SENTINEL" = visible'
+        f' && printf "%s\\n%s\\n%s\\n%s\\n%s\\n" '
+        f'"$HOME" "$TMPDIR" "$OOMPAH_TEST_PID_FILE" '
+        f'"$OOMPAH_TEST_PID_META_FILE" "$OOMPAH_TEST_SERVER_PORT" '
+        f'> {shlex.quote(str(sentinel))}'
     )
 
     result = _run(
-        BranchQualityGate(str(tmp_path / "quality.json")),
+        _gate(tmp_path / "quality.json", repo),
         repo,
         command,
     )
 
     assert result.passed
+    values = sentinel.read_text(encoding="utf-8").splitlines()
+    private_home = Path(values[0])
+    private_root = private_home.parent
+    assert private_root.name.startswith("oompah-quality-gate-")
+    assert values[1] == str(private_root / "tmp")
+    assert values[2] == str(private_root / "lifecycle" / ".oompah.pid")
+    assert values[3] == str(private_root / "lifecycle" / ".oompah.pid.meta")
+    assert values[4].isdigit() and values[4] != "8090"
+    assert not private_root.exists(), "gate-owned lifecycle root leaked"
+
+
+def test_preflight_rejects_descendant_that_replaces_lifecycle_entrypoint(tmp_path):
+    """An OOMPAH-652 descendant cannot replace the trusted Makefile and run."""
+    repo = _git_repo(tmp_path)
+    sentinel = tmp_path / "replaced-entrypoint-executed"
+    (repo / "Makefile").write_text(
+        f".PHONY: test\ntest:\n\t@touch {shlex.quote(str(sentinel))}\n",
+        encoding="utf-8",
+    )
+    subprocess.run(["git", "add", "Makefile"], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "commit", "-q", "-m", "replace lifecycle entrypoint"],
+        cwd=repo,
+        check=True,
+    )
+
+    result = _run(_gate(tmp_path / "quality.json", repo), repo, "make test")
+
+    assert result.status == "needs_rebase"
+    assert "lifecycle-critical" in result.output_tail
+    assert not sentinel.exists(), "replaced lifecycle entrypoint executed"
 
 
 def test_orchestrator_resolves_exact_branch_worktree_and_posts_evidence(tmp_path):
@@ -447,9 +468,7 @@ def test_orchestrator_resolves_exact_branch_worktree_and_posts_evidence(tmp_path
     orch = Orchestrator.__new__(Orchestrator)
     orch.project_store = project_store
     orch._issue_has_children = MagicMock(return_value=False)
-    orch._branch_quality_gate = BranchQualityGate(
-        str(tmp_path / "quality.json")
-    )
+    orch._branch_quality_gate = _gate(tmp_path / "quality.json", repo)
     orch._tracker_for_project = MagicMock(return_value=tracker)
     orch._standalone_delivery_authority_lock = threading.RLock()
     orch._standalone_delivery_authorities = {}
@@ -466,6 +485,40 @@ def test_orchestrator_resolves_exact_branch_worktree_and_posts_evidence(tmp_path
     assert passed is True
     assert tracker.add_comment.call_count == 1
     assert "Review creation may proceed" in tracker.add_comment.call_args.args[1]
+
+
+def test_orchestrator_routes_gate_needs_rebase_to_rebase_repair(tmp_path):
+    issue = Issue(
+        id="task-1",
+        identifier="task-1",
+        title="Task",
+        project_id="project-1",
+        work_branch="work",
+    )
+    tracker = MagicMock()
+    orch = Orchestrator.__new__(Orchestrator)
+    orch._tracker_for_project = MagicMock(return_value=tracker)
+    orch._standalone_delivery_authorities = {}
+
+    orch._record_quality_gate_failure(
+        issue,
+        "project-1",
+        "work",
+        "main",
+        QualityGateResult(
+            status="needs_rebase",
+            head_sha="a" * 40,
+            command="make test",
+            output_tail="safety prerequisite missing",
+        ),
+    )
+
+    tracker.update_issue.assert_called_once_with(
+        "task-1",
+        status="Needs Rebase",
+        **{"add-label": "needs-rebase"},
+    )
+    assert "rebase" in tracker.add_comment.call_args.args[1].lower()
 
 
 def test_orchestrator_rejects_checkout_that_is_not_branch_tip(tmp_path):
@@ -597,7 +650,7 @@ def test_standalone_review_gate_receives_live_delivery_authority(tmp_path):
 def test_quality_gate_cleans_up_active_process_groups(tmp_path):
     repo = _git_repo(tmp_path)
     state = tmp_path / "quality.json"
-    gate = BranchQualityGate(str(state))
+    gate = _gate(state, repo)
     with BranchQualityGate._processes_lock:
         BranchQualityGate._active_processes.clear()
 
@@ -629,7 +682,7 @@ def test_quality_gate_tracks_and_removes_processes_on_completion(tmp_path):
     repo = _git_repo(tmp_path)
     with BranchQualityGate._processes_lock:
         BranchQualityGate._active_processes.clear()
-    gate = BranchQualityGate(str(tmp_path / "quality.json"))
+    gate = _gate(tmp_path / "quality.json", repo)
     result = _run(gate, repo, "true")
 
     assert result.passed
@@ -641,7 +694,7 @@ def test_quality_gate_cleans_up_on_timeout(tmp_path):
     repo = _git_repo(tmp_path)
     with BranchQualityGate._processes_lock:
         BranchQualityGate._active_processes.clear()
-    gate = BranchQualityGate(str(tmp_path / "quality.json"), timeout_seconds=1)
+    gate = _gate(tmp_path / "quality.json", repo, timeout_seconds=1)
     result = _run(gate, repo, "sleep 10")
 
     assert result.status == "timed_out"
@@ -654,7 +707,7 @@ def test_explicit_retry_re_executes_failed_result(tmp_path):
     repo = _git_repo(tmp_path)
     counter = tmp_path / "counter"
     state = tmp_path / "quality.json"
-    gate = BranchQualityGate(str(state))
+    gate = _gate(state, repo)
 
     # First run: fails and is cached
     (repo / "work.txt").write_text("fail\n", encoding="utf-8")
@@ -676,7 +729,7 @@ def test_explicit_retry_re_executes_timeout_result(tmp_path):
     """Forced retry should bypass cache for timed_out results and re-execute."""
     repo = _git_repo(tmp_path)
     state = tmp_path / "quality.json"
-    gate = BranchQualityGate(str(state), timeout_seconds=1)
+    gate = _gate(state, repo, timeout_seconds=1)
 
     # First run: times out
     timed_out = _run(gate, repo, "sleep 2")
@@ -695,7 +748,7 @@ def test_explicit_retry_re_executes_failed_with_non_zero_exit(tmp_path):
     """Forced retry should bypass cache for failed results (non-zero exit) and re-execute."""
     repo = _git_repo(tmp_path)
     state = tmp_path / "quality.json"
-    gate = BranchQualityGate(str(state))
+    gate = _gate(state, repo)
 
     # First run: fails with non-zero exit code
     failed = _run(gate, repo, "sh -c 'echo error; exit 42'")
@@ -716,7 +769,7 @@ def test_explicit_retry_preserves_passed_cache(tmp_path):
     counter = tmp_path / "counter"
     command = f"printf x >> {shlex.quote(str(counter))}"
     state = tmp_path / "quality.json"
-    gate = BranchQualityGate(str(state))
+    gate = _gate(state, repo)
 
     # First run: passes and is cached
     first = _run(gate, repo, command)
@@ -739,7 +792,7 @@ def test_explicit_retry_can_recover_from_transient_failure(tmp_path):
     repo = _git_repo(tmp_path)
     trigger = tmp_path / "trigger"
     state = tmp_path / "quality.json"
-    gate = BranchQualityGate(str(state))
+    gate = _gate(state, repo)
     trigger.write_text("fail\n", encoding="utf-8")
 
     # First run: fails (trigger file exists)
@@ -1146,7 +1199,7 @@ def test_preflight_allows_branch_with_oompah652_ancestor(tmp_path):
     repo = _git_repo(tmp_path)
     # _git_repo() already creates the repo as a descendant of OOMPAH-652
     # (by checking out main before creating the work branch)
-    gate = BranchQualityGate(str(tmp_path / "quality.json"))
+    gate = _gate(tmp_path / "quality.json", repo)
     counter = tmp_path / "counter"
 
     result = _run(gate, repo, f"printf x >> {shlex.quote(str(counter))}")
@@ -1268,7 +1321,7 @@ def test_branch_with_oompah652_ancestor_allows_execution(tmp_path):
     the isolation contract, regardless of what the Makefile says.
     """
     repo = _git_repo(tmp_path)
-    gate = BranchQualityGate(str(tmp_path / "quality.json"))
+    gate = _gate(tmp_path / "quality.json", repo)
     sentinel = tmp_path / "executed"
 
     # Branch is descended from OOMPAH-652 (created via _git_repo which checks out main)

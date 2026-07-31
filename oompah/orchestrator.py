@@ -7549,6 +7549,7 @@ class Orchestrator:
         # Handle real conflicts and other non-retryable failures
         repair_status = {
             "conflict": NEEDS_REBASE,
+            "needs_rebase": NEEDS_REBASE,
             "ci_failure": NEEDS_CI_FIX,
             "task_push_race": OPEN,
             "stale_head": OPEN,
@@ -7563,6 +7564,14 @@ class Orchestrator:
                 f"Resolve it against `{self.project_store.epic_branch_name(item.epic_id)}`, "
                 "run the required tests, push the same private branch, and "
                 "`oompah task submit` it again."
+            ),
+            "needs_rebase": (
+                f"The combined-tree quality gate refused `{item.task_branch}` "
+                "because its executable lifecycle path does not contain the "
+                "deployed safety prerequisite. Rebase the private branch onto "
+                f"the current `{self.project_store.epic_branch_name(item.epic_id)}` "
+                "base, preserve the candidate changes, run the full gate, push, "
+                "and `oompah task submit` it again."
             ),
             "ci_failure": (
                 f"The combined-tree quality gate failed on `{item.task_branch}`. "
@@ -10392,11 +10401,23 @@ class Orchestrator:
                 f"Command: `{result.command or 'unavailable'}`",
                 f"Result: `{result.status}`",
                 "",
-                "Required: run the command in the task worktree, fix the "
-                "failure, commit and push the repair, then leave the task in "
-                "Done. Oompah will rerun the gate for the new head before "
-                "creating the PR/MR.",
             ]
+            if result.status == "needs_rebase":
+                lines.append(
+                    "Required: rebase this branch onto the current deployed "
+                    "base so it contains the lifecycle safety prerequisite "
+                    "and does not replace the protected gate entrypoints. "
+                    "Run the full command, commit and push the repair, then "
+                    "leave the task in Done; Oompah will rerun the gate for "
+                    "the new head before creating the PR/MR."
+                )
+            else:
+                lines.append(
+                    "Required: run the command in the task worktree, fix the "
+                    "failure, commit and push the repair, then leave the task "
+                    "in Done. Oompah will rerun the gate for the new head "
+                    "before creating the PR/MR."
+                )
             if output:
                 lines.extend(["", "Output tail:", "```text", output, "```"])
             if post_comment:
@@ -10412,17 +10433,23 @@ class Orchestrator:
                         return
                 else:
                     comment()
+            repair_status = (
+                NEEDS_REBASE if result.status == "needs_rebase" else NEEDS_CI_FIX
+            )
+            repair_label = (
+                "needs-rebase" if result.status == "needs_rebase" else "ci-fix"
+            )
             status_update = lambda: tracker.update_issue(
                 issue.identifier,
-                status=NEEDS_CI_FIX,
-                **{"add-label": "ci-fix"},
+                status=repair_status,
+                **{"add-label": repair_label},
             )
             if authority is not None:
                 self._standalone_delivery_mutation(
                     authority,
                     tracker,
                     status_update,
-                    next_state=NEEDS_CI_FIX,
+                    next_state=repair_status,
                 )
             else:
                 status_update()
