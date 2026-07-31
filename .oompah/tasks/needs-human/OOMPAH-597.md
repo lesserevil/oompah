@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-597
 type: task
-status: Done
+status: Needs Human
 priority: 1
 title: Recover and drain the OOMPAH-460 ordered integration chain
 parent: OOMPAH-587
@@ -13,7 +13,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:28.342383Z'
-updated_at: '2026-07-31T04:26:51.195193Z'
+updated_at: '2026-07-31T05:09:26.951030Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-597
 target_branch: null
 review_url: null
@@ -922,5 +922,10 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 5m 24s
 - Log: OOMPAH-597__20260731T042129Z.jsonl
+---
+author: oompah
+created: 2026-07-31 05:09
+---
+The parent epic OOMPAH-587 merged from epic-OOMPAH-587, but this task was Done with work branch epic-OOMPAH-587--task-OOMPAH-597. Its work is not proven to be in the merged epic. Git evidence: OOMPAH-597 branch epic-OOMPAH-587--task-OOMPAH-597 has 2 unlanded commit(s), including 4faf51fcaa73. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
 ---
 <!-- COMMENTS:END -->
