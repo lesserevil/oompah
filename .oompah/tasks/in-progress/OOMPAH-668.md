@@ -2,7 +2,7 @@
 id: OOMPAH-668
 type: bug
 status: In Progress
-priority: 1
+priority: 0
 title: Use the trusted test virtualenv without reinstalling inside quality-gate sandbox
 parent: null
 children: []
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T21:35:20.853943Z'
-updated_at: '2026-07-31T21:49:18.864592Z'
+updated_at: '2026-07-31T21:50:25.142958Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,7 +35,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 63c33ca0-ceeb-40a8-aec9-493b348fa22d
+oompah.agent_run_id: ecab4d1a-c322-42b8-8a82-1c21d780f1f9
 oompah.task_costs:
   total_input_tokens: 634233
   total_output_tokens: 4326
@@ -354,5 +354,15 @@ author: oompah
 created: 2026-07-31 21:49
 ---
 Managed worktree is now clean at tested/pushed head 1fe2181a2 and tracks origin/OOMPAH-668. Resubmitting unchanged from the registered checkout so exact-head validation can resolve the worktree.
+---
+author: oompah
+created: 2026-07-31 21:50
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-31 21:50
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
