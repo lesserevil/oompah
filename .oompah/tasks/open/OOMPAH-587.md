@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-587
 type: epic
-status: In Progress
+status: Open
 priority: 1
 title: Drain integration queues and prevent stranded delivery states
 parent: OOMPAH-584
@@ -19,7 +19,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-30T14:13:38.093049Z'
-updated_at: '2026-07-31T02:48:11.977720Z'
+updated_at: '2026-07-31T04:45:58.118928Z'
 work_branch: null
 target_branch: null
 review_url: null
