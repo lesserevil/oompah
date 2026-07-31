@@ -28,8 +28,9 @@ import hmac
 import secrets
 import threading
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Callable, FrozenSet
+from typing import Callable, FrozenSet, Generator
 
 
 TASK_HANDOFF_TOKEN_ENV = "OOMPAH_TASK_HANDOFF_TOKEN"
@@ -45,6 +46,48 @@ _MAX_HEARTBEAT_INTERVAL_SECONDS = 60.0
 _MIN_HEARTBEAT_INTERVAL_SECONDS = 0.01
 
 
+class OperationPermitDenied(Exception):
+    """Grant was revoked or operation not authorized after validation."""
+    pass
+
+
+@dataclass(frozen=True)
+class OperationPermit:
+    """Authorization to proceed with a scoped operation after validation.
+    
+    A permit is acquired after validation succeeds and held during the
+    actual tracker mutation. If revoke() is called while a permit is active,
+    it increments the grant's operation_permit_generation, and the operation
+    must detect this and abort.
+    
+    Stores the generation number at acquisition time. Before performing a
+    mutation, check is_valid(): if it returns False, the grant was revoked
+    between validation and the start of the mutation, and the operation
+    must abort without touching the tracker.
+    """
+    token_digest: str
+    store: TaskHandoffGrantStore
+    generation_at_acquisition: int
+    
+    def is_valid(self) -> bool:
+        """Check if permit is still valid (not revoked/expired).
+        
+        Returns False if the grant was revoked, expired, or the operation
+        permit generation was incremented (indicating a concurrent revocation).
+        """
+        with self.store._lock:
+            grant = self.store._grants.get(self.token_digest)
+            if grant is None or grant.revoked_at is not None:
+                return False
+            now = float(self.store._now())
+            if grant.expires_at <= now:
+                return False
+            # Check if generation was incremented (concurrent revocation)
+            if grant.operation_permit_generation != self.generation_at_acquisition:
+                return False
+            return True
+
+
 @dataclass(frozen=True)
 class TaskHandoffGrant:
     """Server-owned authorization for one spawned worker session.
@@ -55,11 +98,16 @@ class TaskHandoffGrant:
     explicit revocation both prevent reuse after termination.
 
     ``original_ttl_seconds`` is the TTL the grant was minted with. Heartbeat
-    renewal (either from the server-side lease or the endpoint refresh) uses
-    this value as the default extension so a grant minted with a deliberately
-    short TTL is not silently widened to the module default. Operators who
-    configure a short-lived capability retain that bound across the entire
-    session.
+    renewal (only from the server-side lease) uses this value as the default
+    extension so a grant minted with a deliberately short TTL is not silently
+    widened to the module default. Operators who configure a short-lived
+    capability retain that bound across the entire session.
+    
+    ``operation_permit_generation`` is incremented when the grant is revoked.
+    An OperationPermit holds the generation number at acquisition time. Before
+    performing tracker mutations, the permit checks its generation matches
+    the current grant; if not, the grant was revoked mid-operation and the
+    mutation must abort.
     """
 
     token_digest: str
@@ -70,10 +118,16 @@ class TaskHandoffGrant:
     owner_id: str | None = None
     revoked_at: float | None = None  # Explicit revocation timestamp
     original_ttl_seconds: float = DEFAULT_TTL_SECONDS
+    operation_permit_generation: int = 0  # Incremented on revocation
 
 
 class TaskHandoffGrantStore:
-    """In-memory capability registry with constant-time token lookup."""
+    """In-memory capability registry with constant-time token lookup.
+    
+    Provides linearizable operation authorization: a permit acquired after
+    validation remains valid only until revoke() invalidates it. This prevents
+    tracker mutations from racing with termination-triggered revocation.
+    """
 
     def __init__(self, *, now=time.time):
         self._now = now
@@ -180,9 +234,11 @@ class TaskHandoffGrantStore:
     def revoke(self, token: str | None) -> None:
         """Revoke a capability after its worker exits.
         
-        Marks the grant as revoked to prevent reuse after termination.
-        Keeps the grant in memory briefly to distinguish explicit revocation
-        from expiry when validating stale or retry attempts.
+        Marks the grant as revoked to prevent reuse after termination and
+        increments the operation permit generation to invalidate any permits
+        that were acquired before this revocation. This ensures that even if
+        a tracker mutation started between validation and revocation, it will
+        detect the revocation before proceeding.
         """
         if not token:
             return
@@ -195,6 +251,8 @@ class TaskHandoffGrantStore:
                 # Mark as revoked with a grace period (10 seconds) to catch
                 # late-arriving requests that race with termination.
                 # After grace, normal expiry will purge the entry.
+                # Increment operation_permit_generation to invalidate any
+                # permits acquired before revocation.
                 revoked_grant = TaskHandoffGrant(
                     token_digest=grant.token_digest,
                     project_id=grant.project_id,
@@ -204,6 +262,7 @@ class TaskHandoffGrantStore:
                     owner_id=grant.owner_id,
                     revoked_at=now,
                     original_ttl_seconds=grant.original_ttl_seconds,
+                    operation_permit_generation=grant.operation_permit_generation + 1,
                 )
                 self._grants[digest] = revoked_grant
             lease = self._leases.pop(digest, None)
@@ -229,6 +288,67 @@ class TaskHandoffGrantStore:
             return None
         with self._lock:
             return self._failures.pop(self._digest(token), None)
+    
+    def _is_permit_valid(self, token_digest: str) -> bool:
+        """Check if an operation permit is still valid (not revoked).
+        
+        This is called from OperationPermit.is_valid() without holding the lock.
+        It returns False if the grant was revoked or no longer exists.
+        """
+        with self._lock:
+            grant = self._grants.get(token_digest)
+            if grant is None or grant.revoked_at is not None:
+                return False
+            now = float(self._now())
+            if grant.expires_at <= now:
+                return False
+            return True
+    
+    def acquire_permit(
+        self,
+        token: str | None,
+        *,
+        project_id: str,
+        task_identifier: str,
+        action: str,
+    ) -> OperationPermit | None:
+        """Acquire an operation permit after successful validation.
+        
+        Returns a permit if the token is valid and scope matches. The permit
+        remains valid until revoke() is called. Use the permit to guard
+        tracker mutations: abort if permit.is_valid() returns False.
+        
+        This is called AFTER validate() succeeds and should only fail if the
+        grant was just revoked or expired in the narrow window between
+        validation and permit acquisition.
+        """
+        if not isinstance(token, str) or not token:
+            return None
+        digest = self._digest(token)
+        now = float(self._now())
+        with self._lock:
+            grant = self._grants.get(digest)
+            if grant is None or grant.revoked_at is not None:
+                return None
+            if grant.expires_at <= now:
+                self._purge_locked(now)
+                return None
+            # Quick scope check (revalidate project/task/action)
+            if not hmac.compare_digest(grant.project_id, str(project_id or "")):
+                return None
+            if not hmac.compare_digest(
+                grant.task_identifier, str(task_identifier or "")
+            ):
+                return None
+            if action not in grant.allowed_actions:
+                return None
+            # Capture current generation so permit can detect revocation
+            generation = grant.operation_permit_generation
+        return OperationPermit(
+            token_digest=digest,
+            store=self,
+            generation_at_acquisition=generation,
+        )
     
     def refresh(
         self,
@@ -447,15 +567,37 @@ def refresh_task_handoff_token(
     *,
     ttl_seconds: float | None = None,
 ) -> bool:
-    """Extend the TTL of a task handoff grant (heartbeat-based renewal).
+    """Extend the TTL of a task handoff grant (server-owned lease only).
 
-    Called on tool invocation to keep the grant alive during long tool calls.
-    When ``ttl_seconds`` is ``None`` the grant's original TTL is reused, so a
-    grant minted with a short TTL is not silently widened to the module
-    default. Returns True if refresh succeeded, False if token is
-    invalid/revoked.
+    DEPRECATED: This function should only be called by TaskHandoffLease
+    heartbeats. Endpoint-driven refresh (bearer-driven sliding window) has
+    been removed; the server-owned lease is the only TTL extension mechanism.
+    
+    Returns True if refresh succeeded, False if token is invalid/revoked.
     """
     return _default_store.refresh(token, ttl_seconds=ttl_seconds)
+
+
+def acquire_task_handoff_permit(
+    token: str | None,
+    *,
+    project_id: str,
+    task_identifier: str,
+    action: str,
+) -> OperationPermit | None:
+    """Acquire an operation permit to guard tracker mutations.
+    
+    Call this AFTER validate_task_handoff_token() succeeds to acquire a
+    permit that will guard the actual tracker mutation. Before performing
+    the mutation, check permit.is_valid(); if False, the grant was revoked
+    between validation and the mutation start, and the operation must abort.
+    """
+    return _default_store.acquire_permit(
+        token,
+        project_id=project_id,
+        task_identifier=task_identifier,
+        action=action,
+    )
 
 
 def start_task_handoff_lease(

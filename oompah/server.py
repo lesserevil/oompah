@@ -119,6 +119,7 @@ from oompah.terminal_audit_metadata import (
 from oompah.mcp_exposure_policy import MCP_DISCOVERY_PATH, MCP_ENDPOINT_PATH
 from oompah.task_handoff import (
     TASK_HANDOFF_HEADER,
+    acquire_task_handoff_permit,
     record_task_handoff_failure,
     refresh_task_handoff_token,
     validate_task_handoff_token,
@@ -3704,35 +3705,37 @@ async def api_task_handoff(request: Request):
     # Token presented and scope validated — record acceptance before dispatch.
     record_worker_token_accepted()
 
-    # Refresh the token to extend its TTL. This keeps the grant alive during
-    # long tool calls and restart recovery. The refresh is performed on the
-    # server-owned store, so the worker's TTL advances with each request.
-    # If refresh fails (revoked/expired), the token is already invalid and
-    # the worker should not proceed further.
-    if not refresh_task_handoff_token(token):
-        # A worker can race with forced termination between validation and the
-        # renewal. Do not perform the tracker mutation unless the server-owned
-        # grant is still active at the commit point.
-        _still_allowed, refresh_reason = validate_task_handoff_token(
+    # Acquire an operation permit to guard the tracker mutation. This permit
+    # will detect if the grant is revoked between now and the actual mutation.
+    # The server-owned lease (not bearer-driven refresh) keeps the grant alive.
+    permit = acquire_task_handoff_permit(
+        token,
+        project_id=project_id,
+        task_identifier=identifier,
+        action=action,
+    )
+    if permit is None:
+        # Grant was revoked or expired between validation and permit acquisition.
+        _still_allowed, permit_reason = validate_task_handoff_token(
             token,
             project_id=project_id,
             task_identifier=identifier,
             action=action,
         )
-        refresh_reason = refresh_reason or (
+        permit_reason = permit_reason or (
             "task handoff capability was revoked when the worker terminated"
         )
-        record_task_handoff_failure(token, "task handoff capability renewal failed")
+        record_task_handoff_failure(token, "task handoff capability authorization failed")
         record_worker_401()
         return JSONResponse(
             {
                 "error": {
                     "code": (
                         "handoff_expired"
-                        if "expired" in refresh_reason.lower()
+                        if "expired" in permit_reason.lower()
                         else "handoff_revoked"
                     ),
-                    "message": refresh_reason,
+                    "message": permit_reason,
                 }
             },
             status_code=401,
@@ -3801,6 +3804,14 @@ async def api_task_handoff(request: Request):
             return JSONResponse({"messages": messages})
 
         if action == "coordination-send":
+            # Check permit is still valid before mutation.
+            if not permit.is_valid():
+                record_task_handoff_failure(token, "task handoff capability revoked during operation")
+                record_worker_401()
+                return JSONResponse(
+                    {"error": {"code": "handoff_revoked", "message": "task handoff capability was revoked when the worker terminated"}},
+                    status_code=401,
+                )
             message = await _run_api_io(
                 orch.coordination_send,
                 project_id=project_id,
@@ -3816,6 +3827,14 @@ async def api_task_handoff(request: Request):
             return JSONResponse({"message": message}, status_code=201)
 
         if action == "coordination-checkpoint":
+            # Check permit is still valid before mutation.
+            if not permit.is_valid():
+                record_task_handoff_failure(token, "task handoff capability revoked during operation")
+                record_worker_401()
+                return JSONResponse(
+                    {"error": {"code": "handoff_revoked", "message": "task handoff capability was revoked when the worker terminated"}},
+                    status_code=401,
+                )
             checkpoint = await _run_api_io(
                 orch.coordination_checkpoint,
                 project_id=project_id,
@@ -3835,11 +3854,27 @@ async def api_task_handoff(request: Request):
                     {"error": {"code": "validation", "message": "comment message is required"}},
                     status_code=400,
                 )
+            # Check permit is still valid before mutation.
+            if not permit.is_valid():
+                record_task_handoff_failure(token, "task handoff capability revoked during operation")
+                record_worker_401()
+                return JSONResponse(
+                    {"error": {"code": "handoff_revoked", "message": "task handoff capability was revoked when the worker terminated"}},
+                    status_code=401,
+                )
             # A spawned worker cannot impersonate a human/operator author.
             await _run_api_io(tracker.add_comment, identifier, text, author="oompah")
             return JSONResponse({"ok": True})
 
         if action == "submit":
+            # Check permit is still valid before mutation.
+            if not permit.is_valid():
+                record_task_handoff_failure(token, "task handoff capability revoked during operation")
+                record_worker_401()
+                return JSONResponse(
+                    {"error": {"code": "handoff_revoked", "message": "task handoff capability was revoked when the worker terminated"}},
+                    status_code=401,
+                )
             try:
                 record = _submission_record(issue, body)
                 cancel_retry = getattr(orch, "_cancel_retry_for_issue", None)
@@ -3877,6 +3912,14 @@ async def api_task_handoff(request: Request):
                 return JSONResponse(
                     {"error": {"code": "validation", "message": "status is required"}},
                     status_code=400,
+                )
+            # Check permit is still valid before mutation.
+            if not permit.is_valid():
+                record_task_handoff_failure(token, "task handoff capability revoked during operation")
+                record_worker_401()
+                return JSONResponse(
+                    {"error": {"code": "handoff_revoked", "message": "task handoff capability was revoked when the worker terminated"}},
+                    status_code=401,
                 )
             # Preserve the existing intake/transition gate for forge-backed
             # trackers instead of turning a scoped capability into a bypass.
@@ -3973,6 +4016,14 @@ async def api_task_handoff(request: Request):
             return JSONResponse(
                 {"error": {"code": "validation", "message": "label is required"}},
                 status_code=400,
+            )
+        # Check permit is still valid before mutation.
+        if not permit.is_valid():
+            record_task_handoff_failure(token, "task handoff capability revoked during operation")
+            record_worker_401()
+            return JSONResponse(
+                {"error": {"code": "handoff_revoked", "message": "task handoff capability was revoked when the worker terminated"}},
+                status_code=401,
             )
         from oompah.label_auth import label_name_to_status
 
