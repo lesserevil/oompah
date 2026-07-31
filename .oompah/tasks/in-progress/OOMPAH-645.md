@@ -16,7 +16,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T06:47:58.732088Z'
-updated_at: '2026-07-31T14:58:28.184694Z'
+updated_at: '2026-07-31T14:58:38.854247Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -621,5 +621,10 @@ author: oompah
 created: 2026-07-31 14:58
 ---
 Discovery: The 2 implementation commits were already on branch OOMPAH-645 (6686290d5, 7d1019194) but the branch was 51 commits behind origin/main. The core fix in oompah/terminal_audit_health.py is correct: failure classification is now guarded by `if record.request_state == RequestState.PENDING:` so IN_PROGRESS records (active retry running) don't surface stale failure alerts. The rebase had one trivial conflict in tests/test_client_auth.py: a comment added by a later merge vs our monkeypatch.delenv line — both were kept.
+---
+author: oompah
+created: 2026-07-31 14:58
+---
+Implementation: Rebased OOMPAH-645 onto current origin/main (8c75a201e, 51 commits ahead). Resolved one conflict in tests/test_client_auth.py (kept both the comment from HEAD and the monkeypatch.delenv line from our commit). Force-pushed 9e4a0c877 to origin/OOMPAH-645. Files changed: oompah/terminal_audit_health.py (failure classification guarded by PENDING check), tests/test_terminal_audit_health.py (+360 lines of recovery scenario tests), tests/test_client_auth.py (delenv CLIENT_AUTH_DISABLED_ENV isolation), tests/test_oompah_http.py (same isolation).
 ---
 <!-- COMMENTS:END -->
