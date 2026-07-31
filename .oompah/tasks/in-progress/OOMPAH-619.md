@@ -15,11 +15,11 @@ children:
 blocked_by: []
 start_blocked_by: []
 labels:
-- epic:stale
 - rebase-requested
+- epic:rebasing
 assignee: null
 created_at: '2026-07-30T21:24:41.452666Z'
-updated_at: '2026-07-31T12:53:39.713202Z'
+updated_at: '2026-07-31T12:53:43.043947Z'
 work_branch: null
 target_branch: null
 review_url: null
