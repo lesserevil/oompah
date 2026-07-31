@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T12:53:39.335817Z'
-updated_at: '2026-07-31T13:33:07.000369Z'
+updated_at: '2026-07-31T13:33:43.587907Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-660
 target_branch: null
 review_url: null
@@ -552,5 +552,20 @@ Implementation: Fixed both failing tests by isolating them from server environme
 2. tests/test_orchestrator_full_sync.py: Added monkeypatch fixture param and monkeypatch.delenv('OOMPAH_FULL_SYNC_INTERVAL_MS', raising=False) to test_from_workflow_custom and test_from_workflow_string_value. Also fixed test_from_workflow_custom which was failing locally due to the same env var. Pattern already used in test_event_driven_loop.py:122.
 
 All 24 tests in both files now pass.
+---
+author: oompah
+created: 2026-07-31 13:33
+---
+Verification: All 24 tests in both affected files pass.
+
+python -m pytest tests/test_oompah_http.py tests/test_orchestrator_full_sync.py -v
+→ 24 passed in 5.55s
+
+The 3 originally failing tests now pass:
+- tests/test_oompah_http.py::test_lifecycle_helper_refreshes_current_dotenv_client_inputs PASSED
+- tests/test_orchestrator_full_sync.py::TestFullSyncIntervalConfig::test_from_workflow_string_value PASSED
+- tests/test_orchestrator_full_sync.py::TestFullSyncIntervalConfig::test_from_workflow_custom PASSED
+
+Branch pushed: epic-OOMPAH-619--task-OOMPAH-660 @ 793bcc796
 ---
 <!-- COMMENTS:END -->
