@@ -16,7 +16,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T06:47:58.732088Z'
-updated_at: '2026-07-31T14:59:05.285962Z'
+updated_at: '2026-07-31T14:59:19.437260Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -45,8 +45,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: ad6b4b79-c8d8-47bf-8078-ebdaff795395
 oompah.task_costs:
-  total_input_tokens: 3156815
-  total_output_tokens: 67136
+  total_input_tokens: 3156849
+  total_output_tokens: 72491
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -54,8 +54,8 @@ oompah.task_costs:
       output_tokens: 6782
       cost_usd: 0.0
     sonnet:
-      input_tokens: 3156661
-      output_tokens: 60354
+      input_tokens: 3156695
+      output_tokens: 65709
       cost_usd: 0.0
   runs:
   - profile: default
@@ -94,6 +94,12 @@ oompah.task_costs:
     output_tokens: 2827
     cost_usd: 0.0
     recorded_at: '2026-07-31T13:39:48.590312+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 34
+    output_tokens: 5355
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T14:59:13.203976+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-645__20260731T064937Z
@@ -144,14 +150,24 @@ oompah.work_contributors:
     source_branch: OOMPAH-645
     source_sha: 6686290d51cfff9d63270ee27da19d2aafd0fd87
     completed_at: '2026-07-31T13:39:48.609869+00:00'
+  - run_id: OOMPAH-645__20260731T143948Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: sonnet
+    focus: ci_fix
+    source_branch: OOMPAH-645
+    source_sha: 9e4a0c877707d946a4504d664dba74811c2e0aac
+    completed_at: '2026-07-31T14:59:13.208309+00:00'
 oompah.integration:
   version: 2
   state: ready
   attempts: 0
   task_branch: OOMPAH-645
+  base_branch: main
+  base_sha: 8c75a201e328949d4057bfbd53e11cd5498ed72f
   head_sha: 9e4a0c877707d946a4504d664dba74811c2e0aac
   submitted_at: '2026-07-31T14:59:02.674308+00:00'
-  updated_at: '2026-07-31T14:59:02.674308+00:00'
+  updated_at: '2026-07-31T14:59:18.389406+00:00'
 oompah.start_blocked_by: *id001
 ---
 ## Summary
@@ -636,5 +652,20 @@ author: oompah
 created: 2026-07-31 14:59
 ---
 Rebased OOMPAH-645 onto current origin/main. The implementation (transport failure classification guarded by PENDING-only check) was already correct; only a rebase was needed. Resolved one trivial comment/code conflict in tests/test_client_auth.py. Force-pushed 9e4a0c877. All 106 focused tests pass (43 terminal_audit_health + 63 client_auth/http). Per-audit failure isolation prevents stale OOMPAH-607-style alerts from contaminating later audits like OOMPAH-641.
+---
+author: oompah
+created: 2026-07-31 14:59
+---
+Agent completed successfully in 1168s (5389 tokens)
+---
+author: oompah
+created: 2026-07-31 14:59
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 60, Tool calls: 39
+- Tokens: 34 in / 5.4K out [5.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 19m 28s
+- Log: OOMPAH-645__20260731T143948Z.jsonl
 ---
 <!-- COMMENTS:END -->
