@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-647
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Make merge-conflict rebase continuation noninteractive and deadlock-safe
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:09:27.752943Z'
-updated_at: '2026-07-31T07:09:54.855771Z'
+updated_at: '2026-07-31T07:11:09.477200Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -21,17 +21,55 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 68fcb9c97245c8ffaa75c53536a9ffa3c84fea1bb8ec55c467315ac0a4a26565
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-07-31T07:10:54.566738+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 3ccaf8fa-ba3f-42ff-a0f4-db8841e126bd
-  claim_owner: d12922aa-baf6-4258-aa45-02da3deea710
-  claimed_at: '2026-07-31T07:09:45.978655+00:00'
-  claim_expires_at: '2026-07-31T07:39:45.978655+00:00'
+  evidence: 'Focus handoff: duplicate_detector
+
+
+    Duplicate preflight verdict: no_duplicate
+
+
+    Matches: none
+
+
+    Evidence: Only active native task is OOMPAH-281, covering a self-hosted CI runner.
+    Closest matches OOMPAH-214 (Archived, conflict-agent dispatch) and OOMPAH-235
+    (Archived, tracker rebase recovery) are terminal and do not cover noninteractive
+    rebase continuation/editor deadlock prevention.'
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: cf80fb4f-be29-4cd9-86d1-77f7aa70023d
+oompah.agent_run_id: f04374c6-0574-41a8-8715-8a7b627a01d5
+oompah.task_costs:
+  total_input_tokens: 269782
+  total_output_tokens: 1487
+  total_cost_usd: 0.0
+  by_model:
+    sonnet:
+      input_tokens: 269782
+      output_tokens: 1487
+      cost_usd: 0.0
+  runs:
+  - profile: standard
+    model: sonnet
+    input_tokens: 269782
+    output_tokens: 1487
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T07:10:54.563272+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-647__20260731T070958Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-terra
+    focus: duplicate_detector
+    source_branch: OOMPAH-647
+    source_sha: 50625abed5be36e106dbd281871a2e464c671303
+    completed_at: '2026-07-31T07:10:54.580031+00:00'
 ---
 ## Summary
 
@@ -54,5 +92,25 @@ author: oompah
 created: 2026-07-31 07:09
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-31 07:10
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Codex/gpt-5.6-terra]
+- Turns: 1, Tool calls: 6
+- Tokens: 269.8K in / 1.5K out [271.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 5s
+- Log: OOMPAH-647__20260731T070958Z.jsonl
+---
+author: oompah
+created: 2026-07-31 07:11
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-31 07:11
+---
+Focus: Merge Conflict Resolver
 ---
 <!-- COMMENTS:END -->
