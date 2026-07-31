@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-598
 type: bug
-status: Needs Human
+status: Ready to Integrate
 priority: 1
 title: Detect and deliver standalone Ready to Integrate tasks without PRs
 parent: OOMPAH-587
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:29.695490Z'
-updated_at: '2026-07-31T02:45:22.871948Z'
+updated_at: '2026-07-31T02:47:47.223148Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-598
 target_branch: null
 review_url: null
@@ -43,12 +43,12 @@ oompah.agent_run_id: 710f636b-e783-4e1c-8dff-bef1828e2e6a
 oompah.work_branch: epic-OOMPAH-587--task-OOMPAH-598
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-587--task-OOMPAH-598
-  base_branch: epic-OOMPAH-587
-  base_sha: 9b51b35a065906909c98a205fbeab27c3f691692
-  updated_at: '2026-07-31T02:01:08.866168+00:00'
+  head_sha: d547fb3a093f6f657a9cfcef82b3c880c6443cdd
+  submitted_at: '2026-07-31T02:47:44.879275+00:00'
+  updated_at: '2026-07-31T02:47:44.879275+00:00'
 oompah.task_costs:
   total_input_tokens: 19934415
   total_output_tokens: 59897
@@ -607,5 +607,10 @@ Run #2 [attempt=2, profile=deep, role=deep -> Codex/gpt-5.6-sol]
 - Cost: $0.0000
 - Exit: terminated, Duration: 44m 15s
 - Log: OOMPAH-598__20260731T020113Z.jsonl
+---
+author: oompah
+created: 2026-07-31 02:47
+---
+Repaired standalone Ready delivery at d547fb3a0: real SCM/project APIs, durable queue/review/audit reconciliation, actionable failures, gated live recovery of OOMPAH-574/576/581, and same-sweep review-slot reservation so multiple Ready rows cannot exceed max_in_flight_prs. Normal capacity waits clear stale failure alerts instead of reporting false undeliverable state. Verification: corrected branch full Makefile gate 13,931 passed and 7 skipped before the reservation patch; exact reservation regression plus affected suites 54 passed; oompah will run the configured exact-head branch gate for d547fb3a0.
 ---
 <!-- COMMENTS:END -->
