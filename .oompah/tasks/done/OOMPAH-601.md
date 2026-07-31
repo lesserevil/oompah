@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:00.331568Z'
-updated_at: '2026-07-31T03:59:21.214484Z'
+updated_at: '2026-07-31T03:59:32.613699Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-601
 target_branch: null
 review_url: null
@@ -73,8 +73,8 @@ oompah.integration:
   dependency_heads:
     OOMPAH-600: 67c67ffa6f932ca2a41ff1cd214ed33c9655becc
 oompah.task_costs:
-  total_input_tokens: 778461
-  total_output_tokens: 9178
+  total_input_tokens: 778541
+  total_output_tokens: 22817
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -84,6 +84,10 @@ oompah.task_costs:
     opus:
       input_tokens: 56839
       output_tokens: 503
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 80
+      output_tokens: 13639
       cost_usd: 0.0
   runs:
   - profile: default
@@ -116,6 +120,12 @@ oompah.task_costs:
     output_tokens: 600
     cost_usd: 0.0
     recorded_at: '2026-07-30T16:27:32.950112+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 80
+    output_tokens: 13639
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T03:59:28.545485+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-601__20260730T155258Z
@@ -503,5 +513,15 @@ Safe evidence:
 - branch_name: epic-OOMPAH-588--task-OOMPAH-601
 - commits: 8553b181c, 5176c9e47
 - focused_tests: tests/test_projects.py 87 passed; tests/test_orchestrator_handlers.py 277 passed; test_orchestrator_handlers.py::TestTerminalWorktreeCleanup 20 passed; test_projects.py::TestRemoveWorktreeCleanup 17 passed
+---
+author: oompah
+created: 2026-07-31 03:59
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 91, Tool calls: 74
+- Tokens: 80 in / 13.6K out [13.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 11m 52s
+- Log: OOMPAH-601__20260731T034743Z.jsonl
 ---
 <!-- COMMENTS:END -->
