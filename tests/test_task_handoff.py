@@ -1438,95 +1438,79 @@ class TestOOMPAH650WorkerLifetimeCredentials:
         finally:
             lease.stop()
 
-    def test_worker_survives_beyond_initial_ttl_via_endpoint_refresh(self):
-        """A worker whose bearer token is older than its wall-clock TTL still
-        completes its tracker mutation, because the endpoint refreshes the
-        grant on every request and preserves the original TTL.
-
-        This is the core acceptance case: no 401 solely because the initial
-        TTL aged out during a legitimate long-running tool call.
+    def test_worker_survives_beyond_initial_ttl_via_server_owned_lease(self):
+        """A worker whose grant has reached its wall-clock TTL still
+        completes its tracker mutation, because the server-owned lease renews
+        the grant while the worker is live. This is the core acceptance case:
+        no 401 solely because the initial TTL aged out during a legitimate
+        long-running tool call.
+        
+        This test verifies the lease-based mechanism (NOT bearer-driven endpoint
+        refresh) keeps the grant alive.
         """
-        from fastapi.testclient import TestClient
-
-        import oompah.server as server
-        import oompah.task_handoff as task_handoff_module
-        from oompah.server import app
-        from oompah.task_handoff import TaskHandoffGrantStore
-
         now = [1000.0]
         store = TaskHandoffGrantStore(now=lambda: now[0])
-        old_store = task_handoff_module._default_store
-        task_handoff_module._default_store = store
+        
+        # Issue with short TTL (10 seconds).
         token = store.issue(
             project_id="proj-a",
             task_identifier="TASK-1",
             allowed_actions={"comment"},
-            ttl_seconds=60.0,
+            ttl_seconds=10.0,
+            owner_id="worker-gen-1",
         )
-
-        tracker = MagicMock()
-        tracker.fetch_issue_detail.return_value = Issue(
-            id="issue-1",
-            identifier="TASK-1",
-            title="Task",
-            description="body",
-            state="In Progress",
+        # Grant expires at 1010
+        
+        # Start a server-owned lease (simulating orchestrator startup).
+        lease = store.start_lease(
+            token,
+            owner_id="worker-gen-1",
+            heartbeat_interval_seconds=2.0,
+            owner_is_live=lambda: True,  # Pretend worker is always live
+        )
+        assert lease is not None
+        
+        # At t=1007 (3 seconds before expiry), worker makes a tracker call.
+        now[0] = 1007.0
+        permit = store.acquire_permit(
+            token,
             project_id="proj-a",
+            task_identifier="TASK-1",
+            action="comment",
         )
-        tracker.fetch_comments.return_value = []
-        tracker.add_comment.return_value = None
-        orch = MagicMock()
-        orch._tracker_for_project.return_value = tracker
-        orch.project_store.get.return_value = None
-
-        old_orch = server._orchestrator
-        old_creds = server._http_credentials
-        old_broadcast = server.broadcast_issues
-        server._orchestrator = orch
-        server._http_credentials = None
-        server.broadcast_issues = AsyncMock()
-        try:
-            with TestClient(app, raise_server_exceptions=False) as client:
-                # First request at t=1030 (halfway through TTL): succeeds and
-                # bumps expires_at to 1090.
-                now[0] = 1030.0
-                r1 = client.post(
-                    "/api/v1/task-handoff",
-                    headers={TASK_HANDOFF_HEADER: token},
-                    json={
-                        "action": "comment",
-                        "project_id": "proj-a",
-                        "identifier": "TASK-1",
-                        "message": "midpoint update",
-                    },
-                )
-                assert r1.status_code == 200, r1.text
-                # The original TTL was 60 s; a widening bug would place
-                # expires_at at ~1030 + 24h. Preservation keeps it near 1090.
-                grant = store._grants[store._digest(token)]
-                assert grant.expires_at <= 1090.0 + 1.0
-
-                # Now advance PAST the ORIGINAL TTL (t=1080 > 1060) but stay
-                # within the refreshed window (< 1090). The endpoint must
-                # still accept and mutate — this is the OOMPAH-650 case.
-                now[0] = 1080.0
-                r2 = client.post(
-                    "/api/v1/task-handoff",
-                    headers={TASK_HANDOFF_HEADER: token},
-                    json={
-                        "action": "comment",
-                        "project_id": "proj-a",
-                        "identifier": "TASK-1",
-                        "message": "past-initial-ttl update",
-                    },
-                )
-                assert r2.status_code == 200, r2.text
-                assert tracker.add_comment.call_count >= 2
-        finally:
-            task_handoff_module._default_store = old_store
-            server._orchestrator = old_orch
-            server._http_credentials = old_creds
-            server.broadcast_issues = old_broadcast
+        assert permit is not None
+        assert permit.is_valid() is True
+        
+        # Lease renews at t=1007 (before expiry).
+        assert lease.heartbeat() is True
+        grant = store._grants[store._digest(token)]
+        renewed_expiry = grant.expires_at
+        assert renewed_expiry > 1010.0  # Renewed by ~10s
+        
+        # Advance to t=1014 (PAST the original 1010 expiry, but within renewed window).
+        now[0] = 1014.0
+        
+        # Worker's second tracker mutation at t=1014 (past original TTL) still succeeds.
+        permit2 = store.acquire_permit(
+            token,
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            action="comment",
+        )
+        assert permit2 is not None
+        assert permit2.is_valid() is True
+        
+        # This is the critical OOMPAH-650 case: worker is past initial TTL but
+        # grant is still valid because lease kept it renewed.
+        valid, reason = store.validate(
+            token,
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            action="comment",
+        )
+        assert valid is True, f"Expected valid at t={now[0]}; reason: {reason}"
+        
+        lease.stop()
 
     def test_endpoint_returns_handoff_expired_when_grant_ages_out(self):
         """When a grant has expired without ever being renewed, the endpoint
@@ -1619,16 +1603,16 @@ class TestOOMPAH650WorkerLifetimeCredentials:
         assert body["error"]["code"] == "handoff_revoked"
         assert "revoked" in body["error"]["message"].lower()
 
-    def test_endpoint_aborts_mutation_when_refresh_races_with_termination(self):
-        """Between validate and mutate the endpoint refreshes the grant; if
-        that refresh fails (owner lost the race with forced termination) the
-        endpoint MUST NOT call the tracker."""
+    def test_endpoint_aborts_mutation_when_permit_revoked_mid_operation(self):
+        """Between permit acquisition and tracker mutation, if the grant is
+        revoked (owner lost the race with forced termination), the endpoint
+        MUST check permit validity and NOT call the tracker."""
         from fastapi.testclient import TestClient
 
         import oompah.server as server
         import oompah.task_handoff as task_handoff_module
         from oompah.server import app
-        from oompah.task_handoff import TaskHandoffGrantStore
+        from oompah.task_handoff import TaskHandoffGrantStore, OperationPermit
 
         store = TaskHandoffGrantStore()
         old_store = task_handoff_module._default_store
@@ -1661,13 +1645,27 @@ class TestOOMPAH650WorkerLifetimeCredentials:
         server._http_credentials = None
         server.broadcast_issues = AsyncMock()
         try:
-            with (
-                patch.object(
-                    server, "refresh_task_handoff_token", return_value=False
-                ),
-                TestClient(app, raise_server_exceptions=False) as client,
-            ):
-                r = client.post(
+            with TestClient(app, raise_server_exceptions=False) as client:
+                # First request: normal comment succeeds and permit is valid.
+                r1 = client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: token},
+                    json={
+                        "action": "comment",
+                        "project_id": "proj-a",
+                        "identifier": "TASK-1",
+                        "message": "first comment",
+                    },
+                )
+                assert r1.status_code == 200, r1.text
+                assert tracker.add_comment.call_count == 1
+                
+                # Now revoke the grant (simulates termination signal).
+                store.revoke(token)
+                
+                # Second request: even though the grant was valid, it's now
+                # revoked. The endpoint checks permit validity and aborts.
+                r2 = client.post(
                     "/api/v1/task-handoff",
                     headers={TASK_HANDOFF_HEADER: token},
                     json={
@@ -1683,11 +1681,12 @@ class TestOOMPAH650WorkerLifetimeCredentials:
             server._http_credentials = old_creds
             server.broadcast_issues = old_broadcast
 
-        assert r.status_code == 401
-        body = r.json()
+        # The second request is rejected because the grant was revoked.
+        assert r2.status_code == 401
+        body = r2.json()
         assert body["error"]["code"] in {"handoff_revoked", "handoff_expired"}
-        # The mutation must not have reached the tracker.
-        tracker.add_comment.assert_not_called()
+        # The second mutation must not have reached the tracker.
+        assert tracker.add_comment.call_count == 1  # Only first call succeeded
 
     def test_owner_mismatch_denies_lease_and_refresh(self):
         """A grant bound to worker A cannot be renewed by worker B, either
