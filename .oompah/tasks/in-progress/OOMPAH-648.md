@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:15:42.851609Z'
-updated_at: '2026-07-31T08:05:07.390642Z'
+updated_at: '2026-07-31T08:11:42.922690Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -195,5 +195,46 @@ A previous Refactoring Specialist agent completed significant implementation wor
 3. Submit completed work
 
 Starting verification now...
+---
+author: oompah
+created: 2026-07-31 08:11
+---
+**Verification Complete**
+
+Implementation successfully addresses all acceptance criteria:
+
+✅ **Distinguished hung agent from active tool call:**
+- ToolLivenessMonitor tracks subprocess.poll() for process liveness
+- Dead child processes don't protect worker from recovery
+
+✅ **Bounded command tracking:**
+- _exec_run_command in api_agent.py registers invocations with timeout_s
+- Process is attached immediately after subprocess.Popen()
+- Graceful error handling ensures liveness never blocks command execution
+
+✅ **Stall detection deferral:**
+- Orchestrator._tool_stall_status() checks if a live bounded tool protects the session
+- Generic stall threshold is bypassed while process.poll() returns None
+- Tool deadline is honored independently
+
+✅ **Timeout diagnostics:**
+- Command-specific deadline produces precise 'command timed out after Xs' diagnostic
+- Deadline-exceeded check prevents bypassing recovery
+
+✅ **Test Coverage (11 tests):**
+- Live silent commands protected past generic threshold ✓
+- Exited child recovery with proper cleanup ✓
+- Command-specific timeout enforcement ✓
+- Process attachment and completion lifecycle ✓
+- Concurrent command isolation ✓
+- Executor timeout reporting ✓
+
+✅ **All tests pass:**
+- Full test suite: 14,217 passed, 7 skipped, 1 xfailed (no failures)
+- Tool liveness tests: 11/11 passing
+- Terminal mutation scan: passed
+- No regressions detected
+
+The implementation allows long-running commands (pytest, make gates) to complete without false stall termination while maintaining proper recovery for genuinely stuck processes.
 ---
 <!-- COMMENTS:END -->
