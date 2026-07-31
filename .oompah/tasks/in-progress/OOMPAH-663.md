@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T13:52:05.961085Z'
-updated_at: '2026-07-31T14:04:21.362555Z'
+updated_at: '2026-07-31T14:04:43.850646Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -106,5 +106,12 @@ author: oompah
 created: 2026-07-31 14:04
 ---
 Focus: Event Api Redaction Specialist
+---
+author: oompah
+created: 2026-07-31 14:04
+---
+**Understanding & Plan**: The issue reports fingerprint mismatches when OOMPAH-660's integration-staged audit used epic branch + git-branch contributor evidence, but the API owner-override path recomputed evidence from normalized task issue. This HTTP 409 conflict required duplicate restaging. 
+
+Plan: (1) Identify the canonical fingerprinting path used by terminal audit creation, (2) trace how API and ACP owner-override paths diverge from it, (3) unify them to use the same evidence snapshot, (4) preserve auditor-independence provenance separately if needed, (5) add regression tests covering integrated task audit → Needs Human → authorized owner override without restaging, (6) verify changed SHA still fails. Focusing on oompah/orchestrator.py, oompah/server.py, oompah/acp_tools.py, oompah/terminal_audit.py and related tests.
 ---
 <!-- COMMENTS:END -->
