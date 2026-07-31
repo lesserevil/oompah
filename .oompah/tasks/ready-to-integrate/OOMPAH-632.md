@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:46:34.785511Z'
-updated_at: '2026-07-31T01:03:24.606411Z'
+updated_at: '2026-07-31T01:05:07.151387Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-632
 target_branch: null
 review_url: null
@@ -241,5 +241,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 14m 13s
 - Log: OOMPAH-632__20260731T004919Z.jsonl
+---
+author: oompah
+created: 2026-07-31 01:05
+---
+Pre-audit defect found in submitted head 144970e31: it discards the (False, error) result from _refresh_landing_evidence_candidate_refs, explicitly treats every nonzero fetch as success, and leaves _resolve_git_branch_refs returning both origin and the stale refs/heads branch. Therefore the actual ca49-local/04d-origin reproduction still reports the ca49 patch unlanded, and candidate transport failure does not defer mutation. The added test mocks the helper and only proves it was called. Do not PASS this head. Required regression: a real force-pushed rewritten remote contained by target while stale local remains must avoid Needs Human; candidate fetch failure must leave Done unchanged. A corrected local commit f33d843df (not pushed because the exact 144970e gate already holds the queue lease) passes these paths.
 ---
 <!-- COMMENTS:END -->
