@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-647
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Make merge-conflict rebase continuation noninteractive and deadlock-safe
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:09:27.752943Z'
-updated_at: '2026-07-31T08:54:39.948430Z'
+updated_at: '2026-07-31T08:58:05.791774Z'
 work_branch: OOMPAH-647
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/612
@@ -112,6 +112,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-d19fa24aa57b: '2026-07-31T08:07:04.573902+00:00'
+    attempt-7af68c392bdb: '2026-07-31T08:58:03.057502+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -153,7 +154,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-647
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -177,7 +178,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-7af68c392bdb
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -188,13 +189,16 @@ oompah.terminal_audit:
       started_at: '2026-07-31T08:54:36.157806+00:00'
       branch_key: OOMPAH-647
       candidate_rotation_count: 1
+      verdict: pass
+      completed_at: '2026-07-31T08:58:03.057303+00:00'
+      ended_at: '2026-07-31T08:58:03.057303+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-07-31T07:54:50.402416+00:00'
-    updated_at: '2026-07-31T08:54:36.157806+00:00'
+    updated_at: '2026-07-31T08:58:03.057303+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-d19fa24aa57b
@@ -399,5 +403,29 @@ author: oompah
 created: 2026-07-31 08:54
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 08:58
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: 79fbad71a4c5e735916e16db6fd546d455da3022
+- merged_into_main_via: PR #612 (a95fac583)
+- test_git_noninteractive: 18 passed
+- test_integration_executor: 7 passed
+- test_cherry_pick_pr_creator: 53 passed
+- test_focus: 138 passed
+- test_integration_conflict_repair: 14 passed
+- total_tests_passed: 230
+- noninteractive_env_vars: GIT_EDITOR, GIT_SEQUENCE_EDITOR, GIT_TERMINAL_PROMPT, GIT_ASKPASS, GIT_SSH_COMMAND
+- callsites_wired: integration_executor._git, cherry_pick_pr_creator (6 sites), focus.merge_conflict must_do/must_not_do
+- acceptance_criteria_1: real_conflict_unset_editor_succeeds
+- acceptance_criteria_2: hostile_editor_never_invoked
+- acceptance_criteria_3: commit_message_trailer_preserved
+- acceptance_criteria_4: timeout_preserves_rebase_head
+- acceptance_criteria_5: recovery_idempotent
 ---
 <!-- COMMENTS:END -->
