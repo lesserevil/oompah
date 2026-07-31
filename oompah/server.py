@@ -3710,14 +3710,6 @@ async def api_task_handoff(request: Request):
                 record_task_handoff_failure(token, "task handoff status transition rejected")
                 return rejection
             terminal_target = _terminal_target_for_status(status)
-            _cancel_retry_for_authority_change(
-                orch,
-                issue,
-                identifier,
-                project_id,
-                status,
-                None,
-            )
             if terminal_target is not None:
                 # A task-scoped capability cannot impersonate an owner. Keep
                 # the identity fixed to the handoff actor while still routing
@@ -3744,7 +3736,23 @@ async def api_task_handoff(request: Request):
                         {"error": {"code": "terminal_transition", "message": message}},
                         status_code=status_code,
                     )
+                _cancel_retry_for_authority_change(
+                    orch,
+                    issue,
+                    identifier,
+                    project_id,
+                    status,
+                    None,
+                )
             else:
+                _cancel_retry_for_authority_change(
+                    orch,
+                    issue,
+                    identifier,
+                    project_id,
+                    status,
+                    None,
+                )
                 await _run_api_io(tracker.update_issue, identifier, status=status)
             summary = str(body.get("summary") or "").strip()
             if summary:
@@ -3830,6 +3838,14 @@ async def api_task_handoff(request: Request):
                     {"error": {"code": "terminal_transition", "message": message}},
                     status_code=status_code,
                 )
+            _cancel_retry_for_authority_change(
+                orch,
+                issue,
+                identifier,
+                project_id,
+                status_from_label,
+                None,
+            )
         elif action == "add-label":
             await _run_api_io(tracker.add_label, identifier, label)
         else:
@@ -8869,31 +8885,57 @@ def _cancel_retry_for_authority_change(
     project_id: str | None,
     new_status: Any,
     new_work_branch: str | None,
-) -> None:
+) -> set[str]:
     """Withdraw implementation retry authority only for an accepted change."""
-    if existing_issue is None:
-        return
+    current_state = getattr(existing_issue, "state", None)
+    # The normal API path has a concrete Issue.  If a tracker cannot provide
+    # one, an accepted explicit status/branch mutation is still a sufficient
+    # authority withdrawal for this exact identifier and project; retaining a
+    # delayed implementation retry is the unsafe choice.
     status_changed = (
         new_status is not None
-        and canonicalize_status(new_status)
-        != canonicalize_status(existing_issue.state)
+        and (
+            not isinstance(current_state, str)
+            or canonicalize_status(new_status) != canonicalize_status(current_state)
+        )
     )
-    current_branch = str(
-        getattr(existing_issue, "work_branch", None)
-        or getattr(existing_issue, "branch_name", None)
-        or ""
-    ).strip()
-    branch_changed = new_work_branch is not None and new_work_branch != current_branch
+    current_branch = ""
+    if existing_issue is not None:
+        current_branch = str(
+            getattr(existing_issue, "work_branch", None)
+            or getattr(existing_issue, "branch_name", None)
+            or ""
+        ).strip()
+    branch_changed = new_work_branch is not None and (
+        not current_branch or new_work_branch != current_branch
+    )
     if not status_changed and not branch_changed:
-        return
+        return set()
+    state = getattr(orch, "state", None)
+    retry_attempts = getattr(state, "retry_attempts", {})
+    matching_retry_ids: set[str] = set()
+    for retry_id, retry in list(getattr(retry_attempts, "items", lambda: [])()):
+        retry_project_id = getattr(retry, "project_id", None)
+        if project_id and retry_project_id and retry_project_id != project_id:
+            continue
+        if (
+            getattr(retry, "identifier", None) == identifier
+            or getattr(retry, "issue_id", None) == identifier
+        ):
+            matching_retry_ids.add(str(retry_id))
     cancel_retry = getattr(orch, "_cancel_retry_for_issue", None)
     if callable(cancel_retry):
         cancel_retry(
-            issue_id=getattr(existing_issue, "id", None),
+            issue_id=(
+                getattr(existing_issue, "id", None)
+                if isinstance(getattr(existing_issue, "id", None), str)
+                else None
+            ),
             identifier=identifier,
             project_id=project_id,
             reason=("task status changed" if status_changed else "task work branch changed"),
         )
+    return matching_retry_ids
 
 
 @app.patch("/api/v1/issues/{identifier}")
@@ -9001,6 +9043,7 @@ async def api_update_issue(identifier: str, request: Request):
         needs_human_comment = body.get("needs_human_comment", body.get("comment"))
         terminal_transition_payload: dict[str, Any] | None = None
         terminal_target: TargetState | None = None
+        terminal_withdrawn_retry_ids: set[str] = set()
 
         # Optional tracker-identity / branch fields accepted for update.
         # These are persisted to the tracker adapter when supported; validated
@@ -9184,18 +9227,6 @@ async def api_update_issue(identifier: str, request: Request):
             # below, so no ordinary API client can write a terminal status
             # directly.
             if terminal_target is not None:
-                # Withdraw delayed implementation authority after all intake
-                # validation has passed, but before terminal staging writes
-                # tracker state.  This keeps rejected requests from deleting
-                # a still-actionable retry while closing the due-time race.
-                _cancel_retry_for_authority_change(
-                    orch,
-                    existing_issue,
-                    identifier,
-                    project_id,
-                    new_status,
-                    new_work_branch,
-                )
                 terminal_transition_payload, terminal_error = (
                     await _stage_terminal_transition(
                         orch=orch,
@@ -9213,6 +9244,17 @@ async def api_update_issue(identifier: str, request: Request):
                         {"error": {"code": "terminal_transition", "message": message}},
                         status_code=status_code,
                     )
+                # Staging owns the pre-await dispatch fence and rolls it back
+                # if rejected. Only a successful terminal transition may
+                # withdraw the retry generation permanently.
+                terminal_withdrawn_retry_ids = _cancel_retry_for_authority_change(
+                    orch,
+                    existing_issue,
+                    identifier,
+                    project_id,
+                    new_status,
+                    new_work_branch,
+                )
                 handled_status = True
 
         if (
@@ -9256,14 +9298,15 @@ async def api_update_issue(identifier: str, request: Request):
                 update_fields["target_branch"] = new_target_branch
             if new_work_branch is not None:
                 update_fields["work_branch"] = new_work_branch
-            _cancel_retry_for_authority_change(
-                orch,
-                existing_issue,
-                identifier,
-                project_id,
-                new_status,
-                new_work_branch,
-            )
+            if terminal_transition_payload is None:
+                _cancel_retry_for_authority_change(
+                    orch,
+                    existing_issue,
+                    identifier,
+                    project_id,
+                    new_status,
+                    new_work_branch,
+                )
             if update_fields:
                 tracker.update_issue(identifier, **update_fields)
             if needs_human_status is not None:
@@ -9368,11 +9411,14 @@ async def api_update_issue(identifier: str, request: Request):
                         )
                         break
 
-                # The authority fence runs before the tracker write above and
-                # covers both pending and in-flight retry callbacks.  Preserve
-                # the existing terminal completed marker for dispatch guards.
-                if status_norm in terminal and existing_issue is not None:
-                    orch.state.completed.add(existing_issue.id)
+                if status_norm in terminal:
+                    existing_issue_id = getattr(existing_issue, "id", None)
+                    if isinstance(existing_issue_id, str) and existing_issue_id:
+                        orch.state.completed.add(existing_issue_id)
+                    else:
+                        # A tracker that cannot return an Issue still has a
+                        # precise retry identity. Retain its terminal fence.
+                        orch.state.completed.update(terminal_withdrawn_retry_ids)
 
         _api_cache.invalidate("issues:all")
         _api_cache.invalidate_prefix(f"detail:{project_id}:{identifier}")

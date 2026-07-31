@@ -23539,7 +23539,11 @@ class Orchestrator:
         # last writer wins: if another oompah instance claimed the issue after
         # us, our run ID will have been overwritten and we abort rather than
         # starting a duplicate agent.
-        if auditor_plan is None and (issue.tracker_kind or "").strip().lower() in {"github_issues", "oompah_md"}:
+        claimed_assignment_id: str | None = None
+        if auditor_plan is None and (issue.tracker_kind or "").strip().lower() in {
+            "github_issues",
+            "oompah_md",
+        }:
             _claim_run_id = str(uuid.uuid4())
             try:
                 await asyncio.get_event_loop().run_in_executor(
@@ -23572,6 +23576,11 @@ class Orchestrator:
                     issue.identifier,
                     _claim_run_id,
                 )
+                # Keep ``issue`` as the pre-claim snapshot until the retry
+                # compare-and-swap below. The newly confirmed ID is for the
+                # next worker assignment, not evidence that the failed retry
+                # lost authority before it could start.
+                claimed_assignment_id = _claim_run_id
             except Exception as exc:
                 logger.warning(
                     "GitHub run-id claim protocol failed for %s: %s"
@@ -23721,7 +23730,7 @@ class Orchestrator:
         else:
             # Ordinary dispatches should never inherit an older retry.  This
             # also handles an operator/manual assignment racing a timer.
-            retry = self._cancel_retry_for_issue(
+            self._cancel_retry_for_issue(
                 issue_id=issue.id,
                 identifier=issue.identifier,
                 project_id=issue.project_id,
@@ -23730,7 +23739,9 @@ class Orchestrator:
             )
 
         now = datetime.now(timezone.utc)
-        assignment_id = str(uuid.uuid4())
+        assignment_id = claimed_assignment_id or getattr(
+            running_issue, "assignment_id", None
+        )
         authority_generation = self._retry_authority_generation(
             running_issue,
             attempt=attempt,
@@ -28371,8 +28382,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         )
         if (
             retry.assignment_id is not None
-            and current_assignment is not None
-            and str(current_assignment) != retry.assignment_id
+            and str(current_assignment or "") != retry.assignment_id
         ):
             return False
         current_attempt = getattr(issue, "attempt", None) or getattr(
@@ -28384,9 +28394,9 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             and int(current_attempt) != int(retry.failed_attempt)
         ):
             return False
-        current_revision = self._retry_issue_revision(issue)
-        if retry.failed_updated_at is not None and current_revision != retry.failed_updated_at:
-            return False
+        # ``updated_at`` is diagnostics, not retry authority: a historical
+        # run/error comment may legitimately advance it after the failure.
+        # Status, assignment, branch, and head are the ownership boundaries.
         current_branch = str(
             getattr(issue, "work_branch", None)
             or getattr(issue, "branch_name", None)
@@ -28394,7 +28404,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         ).strip()
         if retry.work_branch is not None and current_branch != retry.work_branch:
             return False
-        current_head = self._retry_issue_head(issue)
+        current_head = self._retry_issue_head(issue, retry.workspace_path)
         if retry.head_sha is not None and current_head != retry.head_sha:
             return False
         return True
@@ -28439,6 +28449,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     "assignment_id": entry.assignment_id,
                     "work_branch": entry.work_branch,
                     "head_sha": entry.head_sha,
+                    "workspace_path": entry.workspace_path,
                     "authority_generation": entry.authority_generation,
                     "cancelled": bool(entry.cancelled),
                 }
@@ -28488,6 +28499,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     assignment_id=value.get("assignment_id"),
                     work_branch=value.get("work_branch"),
                     head_sha=value.get("head_sha"),
+                    workspace_path=value.get("workspace_path"),
                     authority_generation=value.get("authority_generation"),
                     due_at_epoch_ms=value.get("due_at_epoch_ms"),
                     cancelled=bool(value.get("cancelled", False)),
@@ -28506,6 +28518,14 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         self._save_state(retry_attempts={})
         now_ms = time.time() * 1000
         for retry in entries:
+            # A pre-generation entry cannot prove that it still owns the task
+            # after restart. Keep its tracker history, but never re-arm it.
+            if not retry.authority_generation:
+                logger.info(
+                    "Discarding legacy persisted implementation retry for %s",
+                    retry.identifier,
+                )
+                continue
             try:
                 issue = await asyncio.to_thread(self._fetch_retry_issue, retry)
             except Exception as exc:
@@ -28524,6 +28544,9 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             due_epoch = float(retry.due_at_epoch_ms or now_ms)
             delay_ms = max(0, int(due_epoch - now_ms))
             self._arm_retry_entry(retry, delay_ms)
+        # The old state payload was cleared before validation. Persist the
+        # re-armed entries so another restart cannot lose valid authority.
+        self._persist_retry_entries()
 
     def _cancel_retry_for_issue(
         self,
@@ -28711,9 +28734,18 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             or getattr(failed_issue, "branch_name", None)
             or getattr(context_retry, "work_branch", None)
         )
+        workspace_path = (
+            getattr(context_entry, "workspace_path", None)
+            or getattr(context_retry, "workspace_path", None)
+        )
+        if not workspace_path:
+            try:
+                workspace_path = self.workspace_mgr.workspace_path_for(identifier)
+            except Exception:
+                workspace_path = None
         head_sha = self._retry_issue_head(
             failed_issue,
-            getattr(context_entry, "workspace_path", None),
+            workspace_path,
         ) or getattr(context_retry, "head_sha", None)
         authority_generation = (
             getattr(context_retry, "authority_generation", None)
@@ -28755,6 +28787,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             assignment_id=assignment_id,
             work_branch=work_branch,
             head_sha=head_sha,
+            workspace_path=workspace_path,
             authority_generation=authority_generation,
         )
         self._arm_retry_entry(retry, delay_ms)

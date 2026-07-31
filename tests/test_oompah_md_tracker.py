@@ -247,6 +247,7 @@ class TestOompahMarkdownTrackerMutations:
         tracker.add_start_dependency(child.identifier, "REPO-98")
         tracker.add_label(child.identifier, "backend")
         tracker.set_metadata_field(child.identifier, "oompah.work_branch", "oompah/repo-1")
+        tracker.set_metadata_field(child.identifier, "oompah.agent_run_id", "run-1")
         tracker.set_metadata_field(
             child.identifier,
             "oompah.review_url",
@@ -260,9 +261,11 @@ class TestOompahMarkdownTrackerMutations:
         assert refreshed.start_blocked_by[0].identifier == "REPO-98"
         assert "backend" in refreshed.labels
         assert refreshed.work_branch == "oompah/repo-1"
+        assert refreshed.assignment_id == "run-1"
         assert refreshed.review_url == "https://github.com/org/repo/pull/7"
         assert refreshed.review_number == "7"
         assert tracker.get_metadata(child.identifier)["oompah.work_branch"] == "oompah/repo-1"
+        assert tracker.get_metadata(child.identifier)["oompah.agent_run_id"] == "run-1"
         assert (
             tracker.get_metadata(child.identifier)["oompah.review_url"]
             == "https://github.com/org/repo/pull/7"

@@ -5,7 +5,9 @@ from __future__ import annotations
 import asyncio
 import threading
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from oompah.config import ServiceConfig
 from oompah.integration import IntegrationRecord
@@ -23,6 +25,7 @@ def _issue(
     updated_at: str | None = "2026-07-31T12:00:00+00:00",
     head_sha: str | None = "a" * 40,
     work_branch: str = "task/TASK-1",
+    assignment_id: str | None = "assignment-1",
 ) -> Issue:
     return Issue(
         id=issue_id,
@@ -30,6 +33,7 @@ def _issue(
         title="Retry authority test",
         state=state,
         project_id=project_id,
+        assignment_id=assignment_id,
         work_branch=work_branch,
         updated_at=(
             datetime.fromisoformat(updated_at) if updated_at is not None else None
@@ -127,6 +131,25 @@ def test_status_change_cancels_only_matching_project_and_task(tmp_path):
     assert second_retry.cancelled is False
 
 
+@pytest.mark.parametrize("new_status", ["Backlog", "Open", "Needs Human", "Done"])
+def test_every_operator_status_change_withdraws_retry_authority(tmp_path, new_status):
+    orch = _orchestrator(tmp_path)
+    issue = _issue()
+    retry = _schedule(orch, issue)
+
+    _cancel_retry_for_authority_change(
+        orch,
+        issue,
+        issue.identifier,
+        issue.project_id,
+        new_status,
+        None,
+    )
+
+    assert retry.cancelled is True
+    assert issue.id not in orch.state.retry_attempts
+
+
 def test_replacement_head_cannot_inherit_failed_retry_generation(tmp_path):
     orch = _orchestrator(tmp_path)
     original = _issue()
@@ -134,6 +157,24 @@ def test_replacement_head_cannot_inherit_failed_retry_generation(tmp_path):
     replacement = _issue(head_sha="b" * 40)
 
     assert retry.authority_generation
+    assert orch._retry_entry_matches_issue(replacement, retry) is False
+
+
+def test_replacement_assignment_cannot_inherit_failed_retry_generation(tmp_path):
+    orch = _orchestrator(tmp_path)
+    retry = _schedule(orch, _issue())
+
+    assert orch._retry_entry_matches_issue(
+        _issue(assignment_id="assignment-2"), retry
+    ) is False
+
+
+def test_replacement_attempt_cannot_inherit_failed_retry_generation(tmp_path):
+    orch = _orchestrator(tmp_path)
+    retry = _schedule(orch, _issue())
+    replacement = _issue()
+    replacement.retry_attempt = 1
+
     assert orch._retry_entry_matches_issue(replacement, retry) is False
 
 
@@ -197,6 +238,75 @@ def test_restart_discards_persisted_retry_for_missing_task(tmp_path):
 
     assert restarted.state.retry_attempts == {}
     assert restarted._load_state().get("retry_attempts") == {}
+
+
+def test_restart_discards_legacy_persisted_retry_without_generation(tmp_path):
+    original = _orchestrator(tmp_path)
+    original._save_state(
+        retry_attempts={
+            "task-1": {
+                "issue_id": "task-1",
+                "identifier": "TASK-1",
+                "attempt": 1,
+                "project_id": "project-a",
+                "due_at_epoch_ms": 0,
+            }
+        }
+    )
+    restarted = _orchestrator(tmp_path)
+    restarted._fetch_retry_issue = MagicMock(return_value=_issue())
+
+    asyncio.run(restarted._restore_persisted_retries())
+
+    restarted._fetch_retry_issue.assert_not_called()
+    assert restarted.state.retry_attempts == {}
+    assert restarted._load_state().get("retry_attempts") == {}
+
+
+def test_restart_repersist_valid_retry_after_rearming(tmp_path):
+    original = _orchestrator(tmp_path)
+    _schedule(original, _issue())
+    restarted = _orchestrator(tmp_path)
+    restarted._fetch_retry_issue = MagicMock(return_value=_issue())
+
+    asyncio.run(restarted._restore_persisted_retries())
+
+    persisted = restarted._load_state().get("retry_attempts")
+    assert set(persisted) == {"task-1"}
+    assert persisted["task-1"]["authority_generation"]
+
+
+def test_workspace_head_is_revalidated_when_tracker_has_no_head(tmp_path):
+    workspace = tmp_path / "worker"
+    workspace.mkdir()
+    asyncio.set_event_loop(asyncio.new_event_loop())
+    orch = _orchestrator(tmp_path)
+    issue = _issue(head_sha=None)
+    entry = RunningEntry(
+        worker_task=None,
+        identifier=issue.identifier,
+        issue=issue,
+        session=None,
+        retry_attempt=0,
+        started_at=datetime.now(timezone.utc),
+        assignment_id="assignment-1",
+        workspace_path=str(workspace),
+    )
+    with patch.object(Orchestrator, "_worktree_head", return_value="a" * 40):
+        orch._schedule_retry(
+            issue.id,
+            attempt=1,
+            identifier=issue.identifier,
+            delay_ms=60_000,
+            error="old divergence error",
+            project_id=issue.project_id,
+            context_entry=entry,
+        )
+        retry = orch.state.retry_attempts[issue.id]
+        assert orch._retry_entry_matches_issue(_issue(head_sha=None), retry) is True
+
+    with patch.object(Orchestrator, "_worktree_head", return_value="b" * 40):
+        assert orch._retry_entry_matches_issue(_issue(head_sha=None), retry) is False
 
 
 def test_api_status_authority_helper_ignores_noop_and_cancels_changed_status(

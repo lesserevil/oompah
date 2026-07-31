@@ -344,6 +344,10 @@ class RetryEntry:
     assignment_id: str | None = None
     work_branch: str | None = None
     head_sha: str | None = None
+    # Trackers do not expose a head for an unsubmitted worker.  Keep the
+    # concrete checkout that supplied ``head_sha`` so restart reconciliation
+    # can re-check the same authority boundary locally.
+    workspace_path: str | None = None
     authority_generation: str | None = None
     # Wall-clock due time is persisted separately from due_at_ms, which is a
     # process-local monotonic timestamp and cannot survive a restart.

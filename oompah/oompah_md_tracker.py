@@ -1257,6 +1257,9 @@ class OompahMarkdownTracker:
                 else None
             ),
             integration=parse_integration_record(meta.get("oompah.integration")),
+            assignment_id=_optional_str(
+                meta.get("agent_run_id") or meta.get("oompah.agent_run_id")
+            ),
             work_branch=_optional_str(
                 meta.get("work_branch") or meta.get("oompah.work_branch")
             ),
