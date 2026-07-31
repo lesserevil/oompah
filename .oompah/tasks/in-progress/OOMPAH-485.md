@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-485
 type: feature
-status: Needs Rebase
+status: In Progress
 priority: 1
 title: Add In Validation and terminal-audit details to the dashboard
 parent: OOMPAH-460
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:24.220262Z'
-updated_at: '2026-07-31T03:57:34.248057Z'
+updated_at: '2026-07-31T03:57:51.463779Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-485
 target_branch: null
 review_url: null
@@ -89,7 +89,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: b664b8e1-1ca8-49eb-9681-a0b2e6f82e6f
+oompah.agent_run_id: 12d2f031-2ac3-4c67-b4a7-13dc32a242dc
 oompah.work_branch: epic-OOMPAH-460--task-OOMPAH-485
 oompah.task_costs:
   total_input_tokens: 10241159
@@ -135,30 +135,12 @@ oompah.task_costs:
     recorded_at: '2026-07-29T19:03:20.123890+00:00'
 oompah.integration:
   version: 1
-  state: blocked
-  attempts: 1
+  state: working
+  attempts: 0
   task_branch: epic-OOMPAH-460--task-OOMPAH-485
   base_branch: epic-OOMPAH-460
   base_sha: fd19b48db0293b02a267e7cf4f22cca5cf8073a1
-  head_sha: 290e834981114b9ad547a766920ec9165e96cb82
-  submitted_at: '2026-07-29T19:02:56.771150+00:00'
-  updated_at: '2026-07-31T03:57:27.082807+00:00'
-  last_error: 'Rebase onto the latest epic head conflicted: Rebasing (1/2)
-
-    error: could not apply dcf6b5339... OOMPAH-485: add terminal audit dashboard details
-
-    hint: Resolve all conflicts manually, mark them as resolved with
-
-    hint: "git add/rm <conflicted_files>", then run "git rebase --continue".
-
-    hint: You can instead skip this commit: run "git rebase --skip".
-
-    hint: To abort and get back to the state before "git rebase", run "git rebase
-    --abort".
-
-    hint: Disable this message with "git config set advice.mergeConflict false"
-
-    Could not apply dcf6b5339... # OOMPAH-485: add terminal audit dashboard details'
+  updated_at: '2026-07-31T03:57:48.668613+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-485__20260729T182724Z
@@ -352,5 +334,15 @@ author: oompah
 created: 2026-07-31 03:57
 ---
 Integration found a rebase conflict on `epic-OOMPAH-460--task-OOMPAH-485`. Resolve it against `epic-OOMPAH-460`, run the required tests, push the same private branch, and `oompah task submit` it again.
+---
+author: oompah
+created: 2026-07-31 03:57
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-31 03:57
+---
+Focus: Frontend Developer
 ---
 <!-- COMMENTS:END -->
