@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-655
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Enforce full-gate service isolation outside candidate branch code
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T10:46:59.031368Z'
+updated_at: '2026-07-31T10:47:08.498076Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -61,6 +61,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-655
     source_sha: ec0ec7d89fb8804571fcf7e780558e6d979b73ea
     completed_at: '2026-07-31T10:39:27.539684+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-655
+  head_sha: dd520b1adc45b7010451e3b4dfadde05fbedf0f3
+  submitted_at: '2026-07-31T10:47:05.503364+00:00'
+  updated_at: '2026-07-31T10:47:05.503364+00:00'
 ---
 ## Summary
 
@@ -133,5 +141,10 @@ author: oompah
 created: 2026-07-31 10:46
 ---
 Completion: Service isolation enforcement complete. Comprehensive testing: 90 tests pass (19 quality_gate + 62 client_auth + 9 integration_executor). Security boundary moved to server-controlled subprocess launch boundary in quality_gate.py. Candidate subprocess isolated with: private temp root, ephemeral port, isolated PID files, removed server URL/credentials. Old/malicious Makefiles cannot discover operator service. Branch pushed to origin/OOMPAH-655. Ready for review.
+---
+author: oompah
+created: 2026-07-31 10:47
+---
+Enforce full-gate service isolation at subprocess launch boundary. Quality gate subprocess now runs with complete lifecycle isolation (private temp root, ephemeral port, isolated PID files, removed credentials) enforced at the server-controlled launch boundary, independent of candidate branch code cooperation. Added quality_gate_environment() function and regression tests. All tests pass (90+ tests verified).
 ---
 <!-- COMMENTS:END -->
