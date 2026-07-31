@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-630
 type: task
-status: In Validation
+status: Done
 priority: null
 title: Fetch rollup targets before judging child landing evidence
 parent: OOMPAH-584
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T23:37:58.090708Z'
-updated_at: '2026-07-31T05:54:04.423399Z'
+updated_at: '2026-07-31T05:54:57.031819Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-630
 target_branch: null
 review_url: null
@@ -84,6 +84,23 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-0add3cf25974: '2026-07-31T00:27:16.916939+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-7c0ffbe500af
+    project_id: proj-14849f1b
+    task_id: OOMPAH-630
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a04b5dada176e1e62367fe170ccb5de77843fd1337fc44e48e99532911f7f924
+    authorized_by:
+      version: 1
+      identity: lesserevil
+      source: api
+    reason: Restore previously audited Done after false post-merge landing regression;
+      refreshed exact task ref is contained in main.
+    created_at: '2026-07-31T05:54:52.226868+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -424,5 +441,12 @@ author: oompah
 created: 2026-07-31 05:54
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 05:54
+---
+Override by lesserevil: terminal transition to Done applied by project owner.
+
+Reason: Restore previously audited Done after false post-merge landing regression; refreshed exact task ref is contained in main.
 ---
 <!-- COMMENTS:END -->
