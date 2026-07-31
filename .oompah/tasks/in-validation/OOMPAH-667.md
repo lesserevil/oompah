@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-667
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Keep Makefile virtualenv PATH from defeating canonical CLI cutover
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T21:32:57.017227Z'
-updated_at: '2026-07-31T23:50:17.708776Z'
+updated_at: '2026-07-31T23:58:48.608742Z'
 work_branch: OOMPAH-667
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/629
@@ -131,6 +131,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/629
 oompah.review_number: '629'
 oompah.work_branch: OOMPAH-667
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-aa5f1643fa3e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-667
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c8c5cbe715ac16fca6fd06860bbe3555d86dd3f0fb69240521fe555ea9a0e588
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-31T23:58:43.595561+00:00'
+  - version: 1
+    audit_id: audit-9c0d35990825
+    project_id: proj-14849f1b
+    task_id: OOMPAH-667
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c8c5cbe715ac16fca6fd06860bbe3555d86dd3f0fb69240521fe555ea9a0e588
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-31T23:58:43.595561+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -340,5 +379,15 @@ author: oompah
 created: 2026-07-31 23:49
 ---
 Branch quality gate passed for `669094c81f4b2d52431134b99f084878223785dc` using `make test` in 398.0s. Review creation may proceed.
+---
+author: oompah
+created: 2026-07-31 23:58
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-07-31 23:58
+---
+YOLO: merged PR #629.
 ---
 <!-- COMMENTS:END -->
