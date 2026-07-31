@@ -13,9 +13,10 @@ blocked_by: []
 start_blocked_by: []
 labels:
 - merge-conflict
+- epic:rebasing
 assignee: null
 created_at: '2026-07-30T14:13:33.901470Z'
-updated_at: '2026-07-31T00:26:15.908609Z'
+updated_at: '2026-07-31T00:26:19.657374Z'
 work_branch: epic-OOMPAH-586
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/597
@@ -57,5 +58,10 @@ author: oompah
 created: 2026-07-31 00:25
 ---
 Branch quality gate passed for `ca49d0c25b30d149cb59f0af0bac57276c1f8120` using `make test` in 260.9s. Review creation may proceed.
+---
+author: oompah
+created: 2026-07-31 00:26
+---
+YOLO: Merge conflict detected on MR #597. Rebase `epic-OOMPAH-586` onto epic-OOMPAH-584 and resolve conflicts.
 ---
 <!-- COMMENTS:END -->

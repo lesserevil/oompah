@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-631
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Restore validation ownership when terminal retries coalesce
 parent: OOMPAH-584
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:08:00.758352Z'
-updated_at: '2026-07-31T00:20:55.879858Z'
+updated_at: '2026-07-31T00:26:17.988393Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-631
 target_branch: null
 review_url: null
