@@ -1,19 +1,20 @@
 ---
 id: OOMPAH-658
 type: bug
-status: Ready to Integrate
+status: Open
 priority: 2
 title: Deduplicate duplicate-preflight runs across deferred dispatch ticks
 parent: null
 children: []
 blocked_by:
 - OOMPAH-657
-start_blocked_by: []
+start_blocked_by: &id001
+- OOMPAH-657
 labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-07-31T12:15:16.191579Z'
+updated_at: '2026-07-31T12:15:35.467951Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -126,6 +127,7 @@ oompah.integration:
   head_sha: 1b49ab0f4732ca40bfb7355f726a8da6bacc234f
   submitted_at: '2026-07-31T12:15:02.988090+00:00'
   updated_at: '2026-07-31T12:15:15.409955+00:00'
+oompah.start_blocked_by: *id001
 ---
 ## Summary
 
@@ -712,5 +714,10 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Claude/opus]
 - Cost: $0.0000
 - Exit: normal, Duration: 2m 8s
 - Log: OOMPAH-658__20260731T121307Z.jsonl
+---
+author: oompah
+created: 2026-07-31 12:15
+---
+Temporarily parked the accepted focused-test head 1b49ab0f4 in Open behind a hard-start dependency on OOMPAH-657. This prevents the current standalone scheduler bug from repeatedly launching an unauthorized full gate and triggering Needs CI Fix/watchdog churn. The branch and integration metadata are preserved; after OOMPAH-657 is merged/deployed, remove the temporary hard-start (or let the normal repair flow do so), rebase onto the safe base, and submit once for the exact server-owned gate. Permanent scheduler fix is tracked as OOMPAH-659.
 ---
 <!-- COMMENTS:END -->
