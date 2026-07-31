@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-630
 type: task
-status: Ready to Integrate
+status: In Progress
 priority: null
 title: Fetch rollup targets before judging child landing evidence
 parent: OOMPAH-584
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T23:37:58.090708Z'
-updated_at: '2026-07-31T00:15:28.098507Z'
+updated_at: '2026-07-31T00:15:38.693334Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-630
 target_branch: null
 review_url: null
@@ -225,5 +225,10 @@ Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: terminated, Duration: 6m 10s
 - Log: OOMPAH-630__20260731T000922Z.jsonl
+---
+author: oompah
+created: 2026-07-31 00:15
+---
+Operator retaining ownership before another exact gate: the unchanged-head retry does not repair the scheduler-dependent concurrency test. I am adding the deterministic synchronization regression now; do not resubmit 797d2c0de unchanged.
 ---
 <!-- COMMENTS:END -->
