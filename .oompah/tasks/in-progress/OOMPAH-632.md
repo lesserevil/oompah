@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:46:34.785511Z'
-updated_at: '2026-07-31T00:49:16.989757Z'
+updated_at: '2026-07-31T00:51:08.541488Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-632
 target_branch: null
 review_url: null
@@ -118,5 +118,21 @@ author: oompah
 created: 2026-07-31 00:49
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-31 00:51
+---
+**Understanding:** This issue is about a regression in Done-child landing reconciliation. When an epic is marked Merged, oompah checks if its Done children have landed by comparing their branch refs with the rollup target branch using git cherry. The problem: if a candidate task branch has been force-pushed, the local refs/heads/candidate_branch might be stale while refs/remotes/origin/candidate_branch contains the rewritten commit already in the rollup. The current code uses stale local refs without fetching.
+
+**Key code:** 
+- _mark_epic_merged() calls _refresh_landing_evidence_target_refs() to refresh container branch but NOT candidate branch refs
+- _child_landing_evidence_block_reason() uses _resolve_git_branch_refs() which doesn't fetch
+- Result: force-pushed rebases incorrectly fail landing checks after auditor PASS
+
+**Planned approach:**
+1. Add function to refresh candidate branch refs (similar to _refresh_landing_evidence_target_refs)
+2. Call it before landing evidence checks in _child_landing_evidence_block_reason
+3. Preserve fail-closed behavior (defer mutation if fetch fails)
+4. Add tests to verify the fix
 ---
 <!-- COMMENTS:END -->
