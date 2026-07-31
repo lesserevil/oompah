@@ -2158,6 +2158,90 @@ class TestOOMPAH650WorkerLifetimeCredentials:
         # Stop lease.
         lease.stop()
 
+    def test_atomic_grant_replacement_on_restart(self):
+        """When orchestrator restarts and a new grant is issued for the same
+        task, the old grant is explicitly revoked. This prevents the old
+        lease from renewing and blocks use of the old token."""
+        store = TaskHandoffGrantStore()
+        
+        # Issue first grant for worker.
+        old_token = store.issue(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"comment"},
+            ttl_seconds=60.0,
+            owner_id="dispatch-gen-1",
+        )
+        
+        # Start lease for first grant.
+        old_lease = store.start_lease(
+            old_token,
+            owner_id="dispatch-gen-1",
+            heartbeat_interval_seconds=1.0,
+            owner_is_live=lambda: True,
+        )
+        assert old_lease is not None
+        
+        # Old token works initially.
+        valid, _ = store.validate(
+            old_token,
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            action="comment",
+        )
+        assert valid is True
+        
+        # Simulate orchestrator restart: orchestrator issues NEW grant
+        # and immediately revokes the OLD grant.
+        new_token = store.issue(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"comment"},
+            ttl_seconds=60.0,
+            owner_id="dispatch-gen-2",  # New generation
+        )
+        
+        # Orchestrator revokes the old grant (atomically with new grant issuance).
+        store.revoke(old_token)
+        
+        # Old token is now revoked and cannot be used.
+        valid, reason = store.validate(
+            old_token,
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            action="comment",
+        )
+        assert valid is False
+        assert "revoked" in reason.lower()
+        
+        # Old lease cannot renew (token is revoked).
+        assert store.refresh(old_token, owner_id="dispatch-gen-1") is False
+        
+        # The new token can be used by the new dispatch.
+        assert store.refresh(new_token, owner_id="dispatch-gen-2") is True
+        
+        # Start a new lease for the new grant.
+        new_lease = store.start_lease(
+            new_token,
+            owner_id="dispatch-gen-2",
+            heartbeat_interval_seconds=1.0,
+            owner_is_live=lambda: True,
+        )
+        assert new_lease is not None
+        
+        # New token works.
+        valid, _ = store.validate(
+            new_token,
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            action="comment",
+        )
+        assert valid is True
+        
+        # Clean up leases.
+        old_lease.stop()
+        new_lease.stop()
+
     def test_owner_is_live_callback_stops_lease_on_worker_death(self):
         """A lease can be configured with an owner_is_live callback that
         determines if the worker is still running. When it returns False,
