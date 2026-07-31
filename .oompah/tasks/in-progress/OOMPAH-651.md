@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T10:37:58.487096Z'
+updated_at: '2026-07-31T10:44:52.538590Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -556,5 +556,10 @@ Plan:
 - Apply redact_sensitive_data() inside api_agent._log_event before json.dumps.
 - Apply redact_sensitive_data() inside console_legacy.ConsoleStore.append and _record_and_broadcast.
 - Add e2e sentinel tests across all backends and sinks (JSONL, state activity, WS/broadcast, streaming chunk, exception, last_message).
+---
+author: oompah
+created: 2026-07-31 10:44
+---
+In-progress security review: the current draft improves unknown-object, attachment, usage, Console, ACP JSONL, and API-agent boundaries, but acceptance is not yet met. secrets.py claims configured secret values are covered yet has no registry/initialization path for the actual configured password/token contents; an innocuously named field containing the bare Basic password with no indicator will pass unchanged. Bytes also return raw when regex output is unchanged. Add a non-logging known-secret registry loaded safely from configured values/files and longest-first literal replacement with tests. Coverage remains concentrated in tests/test_secrets.py; add true sink/backend tests that inject sentinels through Claude/Codex/OpenCode/API/legacy events and assert absence from JSONL, ConsoleStore, RunningEntry/state/websocket/telemetry/alerts/comments/log output. Audit remaining default=str sites and direct logger/error paths, including ACP activity construction, rather than relying only on unit calls to the redactor. Update the module contract that still says unknown types return their original value.
 ---
 <!-- COMMENTS:END -->
