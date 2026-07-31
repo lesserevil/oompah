@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-603
 type: feature
-status: Needs Human
+status: In Validation
 priority: 2
 title: Define and enforce repository hygiene health thresholds
 parent: OOMPAH-588
@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:03.538398Z'
-updated_at: '2026-07-31T05:56:42.599268Z'
+updated_at: '2026-07-31T05:56:45.789515Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-603
 target_branch: null
 review_url: null
