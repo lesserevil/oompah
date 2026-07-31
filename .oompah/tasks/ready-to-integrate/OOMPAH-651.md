@@ -15,7 +15,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T12:14:44.610047Z'
+updated_at: '2026-07-31T12:15:08.186495Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -899,5 +899,15 @@ author: oompah
 created: 2026-07-31 12:14
 ---
 CI repair complete at e4e36c44e: registered configured literals are now redacted unconditionally longest-first in text and bytes, with embedded short-secret regressions through innocuous values, API-agent JSONL, and service-log sinks. Focused security/backend/console suites and static security gates pass.
+---
+author: oompah
+created: 2026-07-31 12:15
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Codex/gpt-5.6-sol]
+- Turns: 0, Tool calls: 42
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 6m 14s
+- Log: OOMPAH-651__20260731T120856Z.jsonl
 ---
 <!-- COMMENTS:END -->

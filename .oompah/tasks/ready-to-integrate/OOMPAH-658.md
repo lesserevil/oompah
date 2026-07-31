@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-658
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 2
 title: Deduplicate duplicate-preflight runs across deferred dispatch ticks
 parent: null
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-07-31T12:14:49.661559Z'
+updated_at: '2026-07-31T12:15:16.191579Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,8 +41,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: d04a41a5-30f7-4b46-a24b-06a6d02db04f
 oompah.task_costs:
-  total_input_tokens: 928411
-  total_output_tokens: 14630
+  total_input_tokens: 928429
+  total_output_tokens: 17298
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -50,8 +50,8 @@ oompah.task_costs:
       output_tokens: 5456
       cost_usd: 0.0
     opus:
-      input_tokens: 203
-      output_tokens: 9174
+      input_tokens: 221
+      output_tokens: 11842
       cost_usd: 0.0
   runs:
   - profile: default
@@ -84,6 +84,12 @@ oompah.task_costs:
     output_tokens: 638
     cost_usd: 0.0
     recorded_at: '2026-07-31T12:12:42.325664+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 18
+    output_tokens: 2668
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T12:15:10.307191+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-658__20260731T111938Z
@@ -102,14 +108,24 @@ oompah.work_contributors:
     source_branch: OOMPAH-658
     source_sha: 7e4375e6f87e14cd31fd4f9073c4d2b1f8109930
     completed_at: '2026-07-31T11:30:17.284846+00:00'
+  - run_id: OOMPAH-658__20260731T121307Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: opus
+    focus: ci_fix
+    source_branch: OOMPAH-658
+    source_sha: 1b49ab0f4732ca40bfb7355f726a8da6bacc234f
+    completed_at: '2026-07-31T12:15:10.310898+00:00'
 oompah.integration:
   version: 2
   state: ready
   attempts: 0
   task_branch: OOMPAH-658
+  base_branch: main
+  base_sha: 54dd2509c6cbc73aaadbda2a3fdc7cfbb14530eb
   head_sha: 1b49ab0f4732ca40bfb7355f726a8da6bacc234f
-  submitted_at: '2026-07-31T12:12:25.013044+00:00'
-  updated_at: '2026-07-31T12:12:25.013044+00:00'
+  submitted_at: '2026-07-31T12:15:02.988090+00:00'
+  updated_at: '2026-07-31T12:15:15.409955+00:00'
 ---
 ## Summary
 
@@ -676,5 +692,25 @@ Verification: All focused suites green at head 1b49ab0f4 (re-run in this dispatc
 - tests/test_intake_promotion.py + test_epic_proposal.py + test_duplicate_names.py: 45 passed (3.0s)
 
 Total 450 focused tests passing across the duplicate-screening/intake surface. No source changes required at this dispatch. Per operator guidance (comments 23/28/38), skipping the repository-wide 'make test' — the server owns the single review-ready full gate for the exact head once OOMPAH-657 lands exact-head enforcement.
+---
+author: oompah
+created: 2026-07-31 12:15
+---
+Adapter-backed duplicate-preflight deduplication at head 1b49ab0f4. Fingerprint composes (title, description with Triggered-by header, project, type, parent, intake.proposal_fingerprint); scheduling metadata (deps, labels, updated_at, last_validated_at) excluded. Native persisted regressions verify zero re-screens across ticks/fresh orchestrator on unchanged intake, exactly-one claim under concurrent ticks on mutated intake proposal_fingerprint, and continued retry for inconclusive verdicts. 450 focused tests pass. Previous 'Branch quality gate failed' notices were operator-terminated (SIGTERM) premature full make test runs, not real failures. Server owns the single review-ready full gate once OOMPAH-657 lands exact-head enforcement.
+---
+author: oompah
+created: 2026-07-31 12:15
+---
+Agent completed successfully in 128s (2686 tokens)
+---
+author: oompah
+created: 2026-07-31 12:15
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Claude/opus]
+- Turns: 16, Tool calls: 12
+- Tokens: 18 in / 2.7K out [2.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 8s
+- Log: OOMPAH-658__20260731T121307Z.jsonl
 ---
 <!-- COMMENTS:END -->
