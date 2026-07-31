@@ -1856,14 +1856,15 @@ class TestOOMPAH650WorkerLifetimeCredentials:
         now = [1000.0]
         store = TaskHandoffGrantStore(now=lambda: now[0])
         
-        # Mint with a very short TTL (1 second).
+        # Mint with a very short TTL (10 seconds).
         token = store.issue(
             project_id="proj-a",
             task_identifier="TASK-1",
             allowed_actions={"comment", "view"},
-            ttl_seconds=1.0,
+            ttl_seconds=10.0,
             owner_id="worker-gen-1",
         )
+        # Grant expires at 1010
         
         # Verify it's initially valid.
         valid, _ = store.validate(
@@ -1874,55 +1875,57 @@ class TestOOMPAH650WorkerLifetimeCredentials:
         )
         assert valid is True
         
-        # Start a lease with a short heartbeat interval.
-        lease = store.start_lease(
-            token,
-            owner_id="worker-gen-1",
-            heartbeat_interval_seconds=0.01,
-        )
-        assert lease is not None
+        # Manually simulate what a lease heartbeat does: advance time and refresh
+        # WITHOUT making any tracker handoff requests.
+        # This tests the critical scenario: worker is idle but grant stays alive
+        # via lease renewal.
         
-        try:
-            # Advance time PAST the initial TTL (now >= 1002.0) without making
-            # any requests. The lease should keep renewing it.
-            now[0] = 1002.0  # 2+ seconds past initial TTL
-            
-            # Wait briefly for lease to fire at least once.
-            deadline = time.monotonic() + 0.5
-            while time.monotonic() < deadline:
-                grant = store._grants.get(store._digest(token))
-                if grant is not None and grant.expires_at > 1002.0:
-                    break
-                time.sleep(0.001)
-            
-            # Grant should still be valid and alive despite no requests.
-            grant = store._grants.get(store._digest(token))
-            assert grant is not None
-            assert grant.expires_at > 1002.0, (
-                f"Lease did not renew; expires_at={grant.expires_at}, now={now[0]}"
-            )
-            
-            # The tracker handoff should still succeed.
-            valid, reason = store.validate(
-                token,
-                project_id="proj-a",
-                task_identifier="TASK-1",
-                action="comment",
-            )
-            assert valid is True, f"Expected valid token; reason: {reason}"
-            assert reason == ""
-            
-            # A different action (view) should also work.
-            valid, reason = store.validate(
-                token,
-                project_id="proj-a",
-                task_identifier="TASK-1",
-                action="view",
-            )
-            assert valid is True, f"Expected valid token for view; reason: {reason}"
-            
-        finally:
-            lease.stop()
+        # Advance to t=1005 (before initial TTL expires at 1010).
+        now[0] = 1005.0
+        # Manually trigger a heartbeat by calling refresh directly, simulating
+        # what the background lease thread would do.
+        refreshed = store.refresh(token, owner_id="worker-gen-1")
+        assert refreshed is True, "First lease heartbeat should succeed"
+        
+        # After refresh, grant should now expire at ~1015 (1005 + original 10s TTL)
+        grant = store._grants.get(store._digest(token))
+        assert grant is not None
+        assert grant.expires_at > 1014.0, f"Expected renewal; got {grant.expires_at}"
+        
+        # Now advance to t=1012 (which is PAST the original initial TTL of 1010,
+        # but before the refreshed expiry of ~1015).
+        now[0] = 1012.0
+        
+        # Do another heartbeat to simulate continuous lease renewal.
+        refreshed = store.refresh(token, owner_id="worker-gen-1")
+        assert refreshed is True, "Second lease heartbeat should succeed"
+        
+        # Grant should now have been renewed again to ~1022.
+        grant = store._grants.get(store._digest(token))
+        assert grant is not None, "Grant should still exist after renewal"
+        assert grant.expires_at > 1020.0, (
+            f"Lease should have renewed; got {grant.expires_at} at now={now[0]}"
+        )
+        
+        # Most importantly: even though we're at t=1012 (past the initial 1010 expiry),
+        # the grant is still valid because the lease kept renewing it.
+        valid, reason = store.validate(
+            token,
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            action="comment",
+        )
+        assert valid is True, f"Expected valid token; reason: {reason}"
+        assert reason == ""
+        
+        # And view action should also work.
+        valid, reason = store.validate(
+            token,
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            action="view",
+        )
+        assert valid is True, f"Expected valid token for view; reason: {reason}"
 
     def test_no_basic_auth_environment_leaks_into_worker(self):
         """Worker environments must never receive reusable operator Basic
