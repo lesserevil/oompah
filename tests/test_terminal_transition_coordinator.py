@@ -2261,6 +2261,10 @@ class TestApplyCommentAndStatusFailures:
         store = TerminalAuditMetadataStore(tracker, _LockStore(), PROJECT_ID)
         doc = store.read(TASK_ID)
         assert doc.pending_chain[0].request_state == RequestState.COMPLETED
+        intents = doc.unknown_fields["oompah.terminal_audit_result_intents"]
+        assert intents[0]["audit_id"] == record.audit_id
+        assert intents[0]["status"] == DONE
+        assert intents[0]["applied"] is False
 
 
 # ---------------------------------------------------------------------------

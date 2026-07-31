@@ -5153,16 +5153,46 @@ class Orchestrator:
         record,
         *,
         append_attempt: AuditAttempt | None = None,
-    ) -> None:
-        """Atomically replace a chain record and mirror new attempts in history."""
+    ) -> bool:
+        """CAS-update one still-live audit record.
+
+        The dispatch lane can hold a stale ``PENDING`` snapshot while an
+        auditor callback completes the same audit.  Replacing that snapshot
+        unconditionally resurrects the completed row and launches the exact
+        duplicate seen in OOMPAH-648.  Return ``False`` when the durable row
+        has already been completed, superseded, cancelled, or retired.
+        """
+
+        updated = False
 
         def _updater(document):
+            nonlocal updated
+            existing = next(
+                (
+                    candidate
+                    for candidate in document.pending_chain
+                    if candidate.audit_id == record.audit_id
+                ),
+                None,
+            )
+            if existing is None:
+                return document
+            if existing.request_state not in (
+                RequestState.PENDING,
+                RequestState.IN_PROGRESS,
+            ):
+                return document
+            if (
+                existing.project_id != record.project_id
+                or existing.task_id != record.task_id
+                or existing.target_state != record.target_state
+                or existing.evidence_fingerprint != record.evidence_fingerprint
+            ):
+                return document
             chain = [
                 record if existing.audit_id == record.audit_id else existing
                 for existing in document.pending_chain
             ]
-            if not any(existing.audit_id == record.audit_id for existing in chain):
-                chain.append(record)
             history = list(document.attempt_history)
             if append_attempt is not None:
                 history = [
@@ -5171,9 +5201,11 @@ class Orchestrator:
                     if existing.attempt_id != append_attempt.attempt_id
                 ]
                 history.append(append_attempt)
+            updated = True
             return replace(document, pending_chain=chain, attempt_history=history)
 
         store.update(issue.identifier, _updater)
+        return updated
 
     def _audit_branch_busy(
         self,
@@ -5391,12 +5423,17 @@ class Orchestrator:
                         if recovery.record.attempts
                         else None
                     )
-                    await asyncio.get_running_loop().run_in_executor(
+                    recovered_persisted = await asyncio.get_running_loop().run_in_executor(
                         self._tick_pool,
                         lambda r=recovery.record, a=recovered_attempt: self._audit_update_record(
                             store, issue, r, append_attempt=a
                         ),
                     )
+                    if not recovered_persisted:
+                        # A result/override won after the scan snapshot was
+                        # read.  Re-read on the next scan; never launch from
+                        # the stale recovery object.
+                        continue
                     record = recovery.record
                 if not recovery.ready:
                     if recovery.reason and "already running" in recovery.reason:
@@ -5424,12 +5461,16 @@ class Orchestrator:
                 attempt = persisted.attempts[-1]
                 # This write is deliberately awaited before _dispatch can
                 # create a worker. It is the crash/restart idempotency fence.
-                await asyncio.get_running_loop().run_in_executor(
+                plan_persisted = await asyncio.get_running_loop().run_in_executor(
                     self._tick_pool,
                     lambda r=persisted, a=attempt: self._audit_update_record(
                         store, issue, r, append_attempt=a
                     ),
                 )
+                if not plan_persisted:
+                    # PASS/override may have retired this identity between
+                    # the candidate read and the launch fence.
+                    continue
                 self._audit_branch_claims[branch_key] = plan.attempt_id
                 try:
                     await self._dispatch(

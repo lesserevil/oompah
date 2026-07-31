@@ -20,10 +20,16 @@ from oompah.terminal_audit import (
 from oompah.terminal_audit_enforcement import (
     PendingAudit,
     SERVICE_STATE_KEY,
+    TERMINAL_OVERRIDE_RECORDS_KEY,
+    TERMINAL_RESULT_INTENTS_KEY,
     TerminalAuditEnforcement,
     TerminalAuditEnforcementState,
 )
-from oompah.terminal_audit_metadata import METADATA_KEY, TerminalAuditMetadata
+from oompah.terminal_audit_metadata import (
+    METADATA_KEY,
+    TerminalAuditMetadata,
+    TerminalAuditMetadataStore,
+)
 
 
 class _LockStore:
@@ -43,6 +49,7 @@ class _Tracker:
         self.issues = issues
         self.metadata: dict[str, dict[str, object]] = {}
         self.set_calls = 0
+        self.fail_status_updates = False
 
     def fetch_all_issues_enriched(self):
         return list(self.issues)
@@ -53,6 +60,39 @@ class _Tracker:
     def set_metadata_field(self, identifier: str, key: str, value: object):
         self.set_calls += 1
         self.metadata.setdefault(identifier, {})[key] = value
+
+    def update_issue(self, identifier: str, **kwargs):
+        if self.fail_status_updates:
+            raise RuntimeError("status write failed")
+        for issue in self.issues:
+            if issue.identifier == identifier and "status" in kwargs:
+                issue.state = kwargs["status"]
+
+
+class _OverrideRaceTracker(_Tracker):
+    """Inject a concurrent override while the recovery updater reads current state."""
+
+    def __init__(self, issues: list[Issue], injected_override: dict[str, object]):
+        super().__init__(issues)
+        self.injected_override = injected_override
+        self.read_count = 0
+
+    def get_metadata(self, identifier: str):
+        self.read_count += 1
+        if self.read_count == 2:
+            current = TerminalAuditMetadata.from_dict(
+                self.metadata[identifier][METADATA_KEY]
+            )
+            unknown = dict(current.unknown_fields)
+            overrides = list(unknown.get(TERMINAL_OVERRIDE_RECORDS_KEY, []))
+            overrides.append(self.injected_override)
+            unknown[TERMINAL_OVERRIDE_RECORDS_KEY] = overrides
+            self.metadata[identifier][METADATA_KEY] = TerminalAuditMetadata(
+                pending_chain=current.pending_chain,
+                attempt_history=current.attempt_history,
+                unknown_fields=unknown,
+            ).to_dict()
+        return super().get_metadata(identifier)
 
 
 def _issue(identifier: str, state: str, evidence: str, project: str | None = None) -> Issue:
@@ -384,6 +424,117 @@ def test_restart_finishes_override_retirement_after_status_write(tmp_path):
     assert stored.pending_chain[0].request_state == RequestState.CANCELLED
     assert stored.unknown_fields["oompah.terminal_override_records"][0]["applied"] is True
     assert stored.unknown_fields["oompah.terminal_audit_retirements"][0]["applied"] is True
+
+
+def test_override_recovery_preserves_concurrent_ledger_append(tmp_path):
+    """Recovery must update the updater's current override list, not a stale snapshot."""
+    record = _pending_record("project-a", "TASK-1", "audit-pending")
+    first_override = {
+        "version": 1,
+        "override_id": "override-first",
+        "project_id": "project-a",
+        "task_id": "TASK-1",
+        "target_state": "Done",
+        "evidence_fingerprint": record.evidence_fingerprint.to_dict(),
+        "authorized_by": {"version": 1, "identity": "owner"},
+        "reason": "restart recovery",
+        "applied": False,
+    }
+    second_override = {
+        **first_override,
+        "override_id": "override-concurrent",
+        "reason": "concurrent owner callback",
+    }
+    tracker = _OverrideRaceTracker(
+        [_issue("TASK-1", "Done", "evidence-a", "project-a")],
+        second_override,
+    )
+    tracker.metadata["TASK-1"] = {
+        METADATA_KEY: TerminalAuditMetadata(
+            pending_chain=[record],
+            unknown_fields={TERMINAL_OVERRIDE_RECORDS_KEY: [first_override]},
+        ).to_dict()
+    }
+
+    recovered = _enforcer(tmp_path).recover_pending_audits([("project-a", tracker)])
+    assert recovered == []
+    stored = TerminalAuditMetadata.from_dict(tracker.metadata["TASK-1"][METADATA_KEY])
+    overrides = stored.unknown_fields[TERMINAL_OVERRIDE_RECORDS_KEY]
+    assert [item["override_id"] for item in overrides] == [
+        "override-first",
+        "override-concurrent",
+    ]
+    assert overrides[0]["applied"] is True
+    assert overrides[1]["applied"] is False
+
+
+def test_restart_replays_unacknowledged_result_status_and_is_idempotent(tmp_path):
+    """A PASS persisted before its tracker write is recovered exactly once."""
+    tracker = _Tracker([_issue("TASK-1", "In Validation", "evidence-a")])
+    record = _pending_record("project-a", "TASK-1", "audit-pass", request_state=RequestState.COMPLETED)
+    tracker.metadata["TASK-1"] = {
+        METADATA_KEY: TerminalAuditMetadata(
+            pending_chain=[record],
+            unknown_fields={
+                TERMINAL_RESULT_INTENTS_KEY: [
+                    {
+                        "project_id": "project-a",
+                        "task_id": "TASK-1",
+                        "audit_id": record.audit_id,
+                        "attempt_id": "attempt-pass",
+                        "target_state": "Done",
+                        "evidence_fingerprint": record.evidence_fingerprint.digest,
+                        "status": "Done",
+                        "audit_ids": [record.audit_id],
+                        "applied": False,
+                    }
+                ]
+            },
+        ).to_dict()
+    }
+
+    tracker.fail_status_updates = True
+    enforcer = _enforcer(tmp_path)
+    assert enforcer.recover_pending_audits([("project-a", tracker)]) == []
+    failed = TerminalAuditMetadata.from_dict(tracker.metadata["TASK-1"][METADATA_KEY])
+    assert failed.unknown_fields[TERMINAL_RESULT_INTENTS_KEY][0]["applied"] is False
+    assert tracker.issues[0].state == "In Validation"
+
+    tracker.fail_status_updates = False
+    recovered = enforcer.recover_pending_audits([("project-a", tracker)])
+    assert recovered == []
+    assert tracker.issues[0].state == "Done"
+    applied = TerminalAuditMetadata.from_dict(tracker.metadata["TASK-1"][METADATA_KEY])
+    assert applied.unknown_fields[TERMINAL_RESULT_INTENTS_KEY][0]["applied"] is True
+
+    updates_before_replay = tracker.set_calls
+    assert enforcer.recover_pending_audits([("project-a", tracker)]) == []
+    assert tracker.set_calls == updates_before_replay
+
+
+def test_dispatch_cas_does_not_resurrect_completed_audit(tmp_path):
+    """A stale dispatch snapshot cannot overwrite a PASS completion."""
+    tracker = _Tracker([_issue("TASK-1", "In Validation", "evidence-a", "project-a")])
+    completed = _pending_record(
+        "project-a", "TASK-1", "audit-pass", request_state=RequestState.COMPLETED
+    )
+    tracker.metadata["TASK-1"] = {
+        METADATA_KEY: TerminalAuditMetadata(pending_chain=[completed]).to_dict()
+    }
+    stale = replace(completed, request_state=RequestState.IN_PROGRESS)
+    orchestrator = Orchestrator(
+        ServiceConfig(workspace_root=str(tmp_path / "workspace")),
+        str(tmp_path / "WORKFLOW.md"),
+        state_path=str(tmp_path / "service_state.json"),
+    )
+    try:
+        store = TerminalAuditMetadataStore(tracker, orchestrator.project_store, "project-a")
+        assert orchestrator._audit_update_record(store, tracker.issues[0], stale) is False
+        stored = TerminalAuditMetadata.from_dict(tracker.metadata["TASK-1"][METADATA_KEY])
+        assert stored.pending_chain[0].request_state == RequestState.COMPLETED
+    finally:
+        orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
+        orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
 
 
 def test_orchestrator_runs_enforcement_before_dispatch_startup(tmp_path):

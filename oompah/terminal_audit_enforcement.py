@@ -49,6 +49,9 @@ logger = logging.getLogger(__name__)
 SERVICE_STATE_KEY = "terminal_audit_enforcement"
 SERVICE_STATE_VERSION = 1
 PENDING_REQUEST_STATES = frozenset({RequestState.PENDING, RequestState.IN_PROGRESS})
+TERMINAL_OVERRIDE_RECORDS_KEY = "oompah.terminal_override_records"
+TERMINAL_RETIREMENTS_KEY = "oompah.terminal_audit_retirements"
+TERMINAL_RESULT_INTENTS_KEY = "oompah.terminal_audit_result_intents"
 
 _STATE_LOCK_GUARD = threading.Lock()
 _STATE_LOCKS: dict[str, threading.RLock] = {}
@@ -757,10 +760,11 @@ class TerminalAuditEnforcement:
             # If a process died after applying the tracker status but before
             # the coordinator's final metadata write, finish that durable
             # override retirement before rebuilding any queue projection.
-            for issue in all_issues:
-                if status_key(getattr(issue, "state", "")) == status_key(IN_VALIDATION):
-                    continue
-                self._recover_terminal_override(store, issue, str(project_id))
+            with self.project_store.project_write_lock(str(project_id)):
+                for issue in all_issues:
+                    if status_key(getattr(issue, "state", "")) != status_key(IN_VALIDATION):
+                        self._recover_terminal_override(store, issue, str(project_id))
+                    self._recover_terminal_result(store, tracker, issue, str(project_id))
             for issue in issues:
                 current_fingerprint = self._explicit_evidence_fingerprint(issue, tracker)
                 try:
@@ -820,7 +824,7 @@ class TerminalAuditEnforcement:
             return
         if document.is_quarantined:
             return
-        raw_overrides = document.unknown_fields.get("oompah.terminal_override_records", [])
+        raw_overrides = document.unknown_fields.get(TERMINAL_OVERRIDE_RECORDS_KEY, [])
         if not isinstance(raw_overrides, list):
             return
         target_override = next(
@@ -847,15 +851,16 @@ class TerminalAuditEnforcement:
 
         def _finalize(document):
             unknown = dict(document.unknown_fields)
+            current_overrides = unknown.get(TERMINAL_OVERRIDE_RECORDS_KEY, [])
             overrides = []
-            for raw in raw_overrides:
+            for raw in current_overrides if isinstance(current_overrides, list) else []:
                 if not isinstance(raw, Mapping):
                     continue
                 item = dict(raw)
                 if item.get("override_id") == target_override.get("override_id"):
                     item["applied"] = True
                 overrides.append(item)
-            unknown["oompah.terminal_override_records"] = overrides
+            unknown[TERMINAL_OVERRIDE_RECORDS_KEY] = overrides
             live_ids = [
                 record.audit_id
                 for record in document.pending_chain
@@ -869,7 +874,7 @@ class TerminalAuditEnforcement:
             ]
             retirements = [
                 dict(row)
-                for row in (unknown.get("oompah.terminal_audit_retirements") or [])
+                for row in (unknown.get(TERMINAL_RETIREMENTS_KEY) or [])
                 if isinstance(row, Mapping)
             ]
             identity = {
@@ -911,7 +916,21 @@ class TerminalAuditEnforcement:
                         ]
                     )
                 )
-            unknown["oompah.terminal_audit_retirements"] = retirements
+            # An owner override supersedes any result whose tracker status
+            # acknowledgement was interrupted.  Otherwise restart recovery
+            # could replay an older PASS after the override wins.
+            intents = unknown.get(TERMINAL_RESULT_INTENTS_KEY, [])
+            if isinstance(intents, list):
+                unknown[TERMINAL_RESULT_INTENTS_KEY] = [
+                    {
+                        **dict(raw),
+                        "applied": True,
+                        "retired_by_override": True,
+                    }
+                    for raw in intents
+                    if isinstance(raw, Mapping)
+                ]
+            unknown[TERMINAL_RETIREMENTS_KEY] = retirements
             return replace(document, pending_chain=chain, unknown_fields=unknown)
 
         try:
@@ -923,6 +942,119 @@ class TerminalAuditEnforcement:
                 issue.identifier,
                 exc_info=True,
             )
+
+    def _recover_terminal_result(
+        self,
+        store: TerminalAuditMetadataStore,
+        tracker: TrackerProtocol,
+        issue: Issue,
+        project_id: str,
+    ) -> None:
+        """Finish a result whose metadata commit preceded its status write.
+
+        Tracker status and audit metadata are separate stores.  Result
+        application records an unapplied intent before calling
+        ``update_issue``; this recovery path owns the other half of that
+        protocol and is deliberately serialized with coordinator mutations by
+        the project lock.
+        """
+
+        identifier = str(issue.identifier)
+        with self.project_store.project_write_lock(project_id):
+            try:
+                document = store.read(identifier)
+            except Exception:
+                return
+            if document.is_quarantined:
+                return
+            raw_overrides = document.unknown_fields.get(TERMINAL_OVERRIDE_RECORDS_KEY, [])
+            if any(
+                isinstance(raw, Mapping) and raw.get("applied", True) is False
+                for raw in raw_overrides
+                if isinstance(raw, Mapping)
+            ):
+                # An owner override intent is the stronger authority.  Its
+                # recovery pass will either finalize it or leave it visible
+                # for a later scan; do not replay an older audit underneath it.
+                return
+            raw_intents = document.unknown_fields.get(TERMINAL_RESULT_INTENTS_KEY, [])
+            if not isinstance(raw_intents, list):
+                return
+
+            current_status = str(getattr(issue, "state", "") or "")
+            for raw_intent in raw_intents:
+                if not isinstance(raw_intent, Mapping) or raw_intent.get("applied", True):
+                    continue
+                if (
+                    raw_intent.get("project_id") != project_id
+                    or raw_intent.get("task_id") != identifier
+                ):
+                    continue
+                audit_id = raw_intent.get("audit_id")
+                attempt_id = raw_intent.get("attempt_id")
+                desired_status = raw_intent.get("status")
+                if not all(
+                    isinstance(value, str) and value.strip()
+                    for value in (audit_id, attempt_id, desired_status)
+                ):
+                    continue
+                record = next(
+                    (item for item in document.pending_chain if item.audit_id == audit_id),
+                    None,
+                )
+                stale = record is None or record.request_state in (
+                    RequestState.SUPERSEDED,
+                    RequestState.CANCELLED,
+                )
+                if not stale and record is not None and record.request_state != RequestState.COMPLETED:
+                    continue
+
+                if not stale and status_key(current_status) != status_key(desired_status):
+                    try:
+                        # TERMINAL-AUDIT-ALLOW OOMPAH-483: replay only a
+                        # previously persisted terminal-audit decision.
+                        tracker.update_issue(identifier, status=desired_status)
+                    except Exception:
+                        logger.warning(
+                            "terminal-audit result recovery status write failed for %s/%s",
+                            project_id,
+                            identifier,
+                            exc_info=True,
+                        )
+                        return
+                    current_status = desired_status
+
+                def _finalize(current):
+                    unknown = dict(current.unknown_fields)
+                    current_intents = unknown.get(TERMINAL_RESULT_INTENTS_KEY, [])
+                    if isinstance(current_intents, list):
+                        updated_intents = []
+                        for raw in current_intents:
+                            if not isinstance(raw, Mapping):
+                                continue
+                            item = dict(raw)
+                            if (
+                                item.get("project_id") == project_id
+                                and item.get("task_id") == identifier
+                                and item.get("audit_id") == audit_id
+                                and item.get("attempt_id") == attempt_id
+                            ):
+                                item["applied"] = True
+                                item["recovered_at"] = datetime.now(timezone.utc).isoformat()
+                            updated_intents.append(item)
+                        unknown[TERMINAL_RESULT_INTENTS_KEY] = updated_intents
+                    return replace(current, unknown_fields=unknown)
+
+                try:
+                    document = store.update(identifier, _finalize)
+                except Exception:
+                    logger.warning(
+                        "terminal-audit result recovery finalization failed for %s/%s",
+                        project_id,
+                        identifier,
+                        exc_info=True,
+                    )
+                    return
 
     def initialize(
         self, scopes: Iterable[tuple[str, TrackerProtocol]]

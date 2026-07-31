@@ -121,6 +121,9 @@ _APPLIED_RESULTS_KEY = "applied_result_attempts"
 _TERMINAL_RETIREMENTS_KEY = "oompah.terminal_audit_retirements"
 """Durable fingerprints for terminal decisions already applied to a task."""
 
+_TERMINAL_RESULT_INTENTS_KEY = "oompah.terminal_audit_result_intents"
+"""Durable status-write intents awaiting confirmation."""
+
 _OVERRIDE_RECORDS_KEY = "oompah.terminal_override_records"
 """Metadata key containing the historical owner-override ledger."""
 
@@ -1535,6 +1538,27 @@ class TerminalTransitionCoordinator:
                 ],
                 kind="result",
             )
+            # Metadata and tracker status live in different persistence
+            # systems.  Record the status mutation as an intent before leaving
+            # the project lock so a crash (or a failed tracker write) cannot
+            # make the completed audit look as though its terminal status was
+            # applied.  Recovery consumes this intent and marks it applied
+            # only after the tracker accepts the status.
+            applied_status = (
+                IN_VALIDATION if action.kind == "pass" and next_pending is not None
+                else action.status
+            )
+            new_unknown = _record_terminal_result_intent(
+                new_unknown,
+                project_id=project_id,
+                task_id=identifier,
+                audit_id=result.audit_id,
+                target_state=result.target_state,
+                evidence_fingerprint=result.evidence_fingerprint,
+                attempt_id=idempotency_key,
+                status=applied_status,
+                audit_ids=[result.audit_id, *decision.cancelled_audit_ids],
+            )
             decision.target_status = action.status
             decision.comment_text = action.comment
             decision.audit_id = result.audit_id
@@ -1583,12 +1607,34 @@ class TerminalTransitionCoordinator:
             # TERMINAL-AUDIT-ALLOW OOMPAH-483: apply a validated, persisted
             # terminal-audit verdict (or its deterministic repair status).
             tracker.update_issue(identifier, status=applied_status)
+            status_applied = True
         except Exception:
+            status_applied = False
             logger.exception(
                 "Failed to apply audit-result status %r for %s",
                 applied_status,
                 identifier,
             )
+
+        if status_applied:
+            try:
+                def _finalize_result_intent(doc: TerminalAuditMetadata) -> TerminalAuditMetadata:
+                    new_unknown = _mark_terminal_result_intent_applied(
+                        doc.unknown_fields,
+                        audit_id=result.audit_id,
+                        attempt_id=_result_idempotency_key(result),
+                    )
+                    return replace(doc, unknown_fields=new_unknown)
+
+                store.update(identifier, _finalize_result_intent)
+            except Exception:
+                # The status write already succeeded.  Leave the intent
+                # durable and unapplied so restart recovery can finish the
+                # metadata acknowledgement without repeating the result.
+                logger.exception(
+                    "Failed to finalize terminal-audit result intent for %s",
+                    identifier,
+                )
 
         # --- Epic-audit-repair signalling ---
         # When a failed audit reopens an epic as Open, mark it with the
@@ -1853,6 +1899,7 @@ class TerminalTransitionCoordinator:
                     audit_ids=retired_alert_audit_ids,
                     kind="override",
                 )
+                new_unknown = _mark_all_terminal_result_intents_applied(new_unknown)
                 return replace(doc, pending_chain=new_chain, unknown_fields=new_unknown)
 
             store.update(identifier, _finalize_override)
@@ -2319,6 +2366,125 @@ def _record_terminal_retirement(
         )
     )
     new_unknown[_TERMINAL_RETIREMENTS_KEY] = rows
+    return new_unknown
+
+
+def _record_terminal_result_intent(
+    unknown_fields: Mapping[str, Any],
+    *,
+    project_id: str,
+    task_id: str,
+    audit_id: str,
+    target_state: TargetState,
+    evidence_fingerprint: EvidenceFingerprint,
+    attempt_id: str,
+    status: str | None,
+    audit_ids: list[str],
+) -> dict[str, Any]:
+    """Persist one status-write intent before mutating the tracker.
+
+    Tracker status and audit metadata cannot share a transaction.  The intent
+    is therefore the durable hand-off between those two stores.  It remains
+    queryable after completion, while ``applied`` tells restart recovery
+    whether the tracker write was acknowledged.
+    """
+
+    if not status:
+        return dict(unknown_fields)
+    new_unknown = dict(unknown_fields)
+    raw_intents = new_unknown.get(_TERMINAL_RESULT_INTENTS_KEY, [])
+    intents = [dict(item) for item in raw_intents if isinstance(item, Mapping)]
+    identity = {
+        "project_id": project_id,
+        "task_id": task_id,
+        "audit_id": audit_id,
+        "attempt_id": attempt_id,
+    }
+    matching = next(
+        (
+            item
+            for item in intents
+            if all(item.get(key) == value for key, value in identity.items())
+        ),
+        None,
+    )
+    if matching is None:
+        matching = {
+            **identity,
+            "target_state": target_state.value,
+            "evidence_fingerprint": evidence_fingerprint.digest,
+            "status": status,
+            "audit_ids": list(dict.fromkeys(audit_ids)),
+            "applied": False,
+            "created_at": _now_iso8601(),
+        }
+        intents.append(matching)
+    else:
+        matching.update(
+            {
+                "target_state": target_state.value,
+                "evidence_fingerprint": evidence_fingerprint.digest,
+                "status": status,
+                "audit_ids": list(
+                    dict.fromkeys(
+                        [
+                            *(
+                                matching.get("audit_ids", [])
+                                if isinstance(matching.get("audit_ids"), list)
+                                else []
+                            ),
+                            *audit_ids,
+                        ]
+                    )
+                ),
+            }
+        )
+    new_unknown[_TERMINAL_RESULT_INTENTS_KEY] = intents
+    return new_unknown
+
+
+def _mark_terminal_result_intent_applied(
+    unknown_fields: Mapping[str, Any], *, audit_id: str, attempt_id: str
+) -> dict[str, Any]:
+    """Mark one result status intent acknowledged using current metadata."""
+
+    new_unknown = dict(unknown_fields)
+    raw_intents = new_unknown.get(_TERMINAL_RESULT_INTENTS_KEY, [])
+    if not isinstance(raw_intents, list):
+        return new_unknown
+    intents: list[dict[str, Any]] = []
+    for raw in raw_intents:
+        if not isinstance(raw, Mapping):
+            continue
+        item = dict(raw)
+        if item.get("audit_id") == audit_id and item.get("attempt_id") == attempt_id:
+            item["applied"] = True
+            item["applied_at"] = _now_iso8601()
+        intents.append(item)
+    new_unknown[_TERMINAL_RESULT_INTENTS_KEY] = intents
+    return new_unknown
+
+
+def _mark_all_terminal_result_intents_applied(
+    unknown_fields: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Retire result intents when a later owner override takes authority."""
+
+    new_unknown = dict(unknown_fields)
+    raw_intents = new_unknown.get(_TERMINAL_RESULT_INTENTS_KEY, [])
+    if not isinstance(raw_intents, list):
+        return new_unknown
+    now = _now_iso8601()
+    new_unknown[_TERMINAL_RESULT_INTENTS_KEY] = [
+        {
+            **dict(raw),
+            "applied": True,
+            "retired_by_override": True,
+            "applied_at": dict(raw).get("applied_at", now),
+        }
+        for raw in raw_intents
+        if isinstance(raw, Mapping)
+    ]
     return new_unknown
 
 
