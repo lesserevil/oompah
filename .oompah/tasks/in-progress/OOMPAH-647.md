@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:09:27.752943Z'
-updated_at: '2026-07-31T07:11:09.477200Z'
+updated_at: '2026-07-31T07:15:24.067901Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -112,5 +112,10 @@ author: oompah
 created: 2026-07-31 07:11
 ---
 Focus: Merge Conflict Resolver
+---
+author: oompah
+created: 2026-07-31 07:15
+---
+**Understanding**: OOMPAH-643 deadlock: the merge-conflict resolver ran 'git rebase --continue' which caused git to spawn /usr/bin/vi on the COMMIT_EDITMSG, blocking the ACP tool call for ~3 minutes until the operator killed the editor PID.\n\n**Planned approach:**\n1. Create `oompah/git_noninteractive.py` with a `NONINTERACTIVE_GIT_ENV` dict (`GIT_EDITOR=true`, `GIT_SEQUENCE_EDITOR=true`, `GIT_TERMINAL_PROMPT=0`) and a `run_rebase_continue()` helper with bounded subprocess timeout/kill monitoring.\n2. Update `oompah/integration_executor.py` `_git()` to always pass `NONINTERACTIVE_GIT_ENV` so the server-side rebase operations can never spawn an editor.\n3. Update `oompah/cherry_pick_pr_creator.py` subprocess calls to also pass noninteractive env.\n4. Update `oompah/focus.py` merge_conflict focus must_do list to instruct agents to use `GIT_EDITOR=true GIT_SEQUENCE_EDITOR=true` before `git rebase --continue`.\n5. Add `tests/test_git_noninteractive.py` with the five required test scenarios.\n\n**Key insight**: The fix has two layers — (a) server-side subprocess calls must set noninteractive env, (b) the agent prompt instructions must tell agents to use the same env when they run git commands.
 ---
 <!-- COMMENTS:END -->
