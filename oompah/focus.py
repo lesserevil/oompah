@@ -476,9 +476,15 @@ BUILTIN_FOCI: list[Focus] = [
             "Run `git fetch origin && git rebase origin/<target_branch>` to start the rebase",
             "Resolve every conflict by understanding the intent of BOTH sides",
             "Preserve the original work from this branch — do not drop commits",
-            "Run tests after resolving all conflicts to verify nothing is broken",
+            "Run focused tests for the changed behavior and directly affected neighboring suites after resolving all conflicts to verify nothing is broken",
             "Force-push with `git push --force-with-lease` after a clean rebase",
             "Verify the review diff looks correct after force-pushing",
+            (
+                "Use `GIT_EDITOR=true GIT_SEQUENCE_EDITOR=true git rebase --continue` "
+                "(or `git -c core.editor=true -c sequence.editor=true rebase --continue`) "
+                "so git never spawns an interactive editor for the commit message. "
+                "The original commit message in COMMIT_EDITMSG is preserved as-is when the editor exits 0 immediately."
+            ),
         ],
         must_not_do=[
             "Make any code changes beyond what is needed to resolve conflicts",
@@ -486,6 +492,11 @@ BUILTIN_FOCI: list[Focus] = [
             "Accept 'ours' or 'theirs' blindly — understand what both sides intended",
             "Push to the main/default branch — only push to this issue's branch",
             "Create a new branch or review — work on the existing one",
+            (
+                "Run `git rebase --continue` without first setting GIT_EDITOR=true and "
+                "GIT_SEQUENCE_EDITOR=true — doing so can spawn /usr/bin/vi or another "
+                "interactive editor that blocks the agent slot indefinitely (OOMPAH-647)"
+            ),
         ],
         keywords=["merge conflict", "rebase conflict", "resolve conflict"],
         labels=["merge-conflict"],

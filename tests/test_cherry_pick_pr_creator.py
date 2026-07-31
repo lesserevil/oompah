@@ -87,13 +87,15 @@ class TestHasNewCommits:
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0, stdout="3\n")
             assert _has_new_commits("/wt", "release/1.0") is True
-            mock_run.assert_called_once_with(
-                ["git", "rev-list", "--count", "HEAD", "^origin/release/1.0"],
-                cwd="/wt",
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
+            mock_run.assert_called_once()
+            call_args, call_kwargs = mock_run.call_args
+            assert call_args[0] == [
+                "git", "rev-list", "--count", "HEAD", "^origin/release/1.0"
+            ]
+            assert call_kwargs["cwd"] == "/wt"
+            assert call_kwargs["timeout"] == 30
+            # env must include noninteractive overrides (OOMPAH-647)
+            assert call_kwargs.get("env", {}).get("GIT_EDITOR") == "true"
 
     def test_returns_false_when_no_commits_ahead(self):
         with patch("subprocess.run") as mock_run:
@@ -296,14 +298,16 @@ class TestPushBranch:
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0)
             push_branch("/wt", "TASK-455.4")
-            mock_run.assert_called_once_with(
-                ["git", "push", "-u", "--force-with-lease", "origin", "TASK-455.4"],
-                cwd="/wt",
-                capture_output=True,
-                text=True,
-                check=True,
-                timeout=120,
-            )
+            mock_run.assert_called_once()
+            call_args, call_kwargs = mock_run.call_args
+            assert call_args[0] == [
+                "git", "push", "-u", "--force-with-lease", "origin", "TASK-455.4"
+            ]
+            assert call_kwargs["cwd"] == "/wt"
+            assert call_kwargs["check"] is True
+            assert call_kwargs["timeout"] == 120
+            # env must include noninteractive overrides (OOMPAH-647)
+            assert call_kwargs.get("env", {}).get("GIT_EDITOR") == "true"
 
     def test_raises_on_push_failure(self):
         with patch(

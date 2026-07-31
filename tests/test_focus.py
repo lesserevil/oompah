@@ -812,8 +812,8 @@ class TestFocusRenderWithProject:
         out_no_arg = focus.render()
         out_none = focus.render(None)
         assert out_no_arg == out_none
-        # The original generic 'Run tests' line is still present.
-        assert "Run tests after resolving all conflicts" in out_no_arg
+        # The focused test line is still present (OOMPAH-647: wording updated).
+        assert "focused tests" in out_no_arg or "after resolving all conflicts" in out_no_arg
         # And no Project Test Configuration block.
         assert "Project Test Configuration" not in out_no_arg
 
@@ -885,7 +885,8 @@ class TestFocusRenderWithProject:
         project = self._make_project()
         # default test_command is None; no test_command_full or skip paths
         out = focus.render(project)
-        assert "Run tests after resolving all conflicts" in out
+        # The focused test line is present (OOMPAH-647: wording updated to "Run focused tests").
+        assert "focused tests" in out or "after resolving all conflicts" in out
         assert "Project Test Configuration" not in out
 
 
