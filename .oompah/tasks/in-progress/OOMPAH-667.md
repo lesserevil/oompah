@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T21:32:57.017227Z'
-updated_at: '2026-07-31T23:15:51.698177Z'
+updated_at: '2026-07-31T23:32:08.130687Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -283,5 +283,10 @@ author: oompah
 created: 2026-07-31 23:15
 ---
 Understanding: gate failed on tests/test_orchestrator_handlers.py::TestTickDelegation::test_tick_notifies_observers — unrelated to Makefile PATH work but blocks merge. Investigating that test to determine if my changes broke it, a rebase interaction with OOMPAH-668, or if it's a flaky/preexisting failure.
+---
+author: oompah
+created: 2026-07-31 23:32
+---
+Discovery: gate failure is tests/test_orchestrator_handlers.py::TestTickDelegation::test_tick_notifies_observers, which passes ~10/10 locally in isolation and passes under xdist -n 8 loadgroup here too. My branch does not touch orchestrator.py or that test file. Root cause is a flaky race: _tick() fires _run_step5b_maintenance, _run_step5c_epic_maintenance, and _maybe_run_watchdog (on the tick_pool) plus real _recover_release_addendum_leases, and any of these can transitively touch _notify_observers under load. Fix pattern is the same one OOMPAH-652 applied to TestRunStep5cEpicMaintenance: mock the fire-and-forget maintenance methods so the assert_called_once() invariant is deterministic.
 ---
 <!-- COMMENTS:END -->
