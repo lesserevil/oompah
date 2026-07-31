@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-07-31T11:28:53.210044Z'
+updated_at: '2026-07-31T11:29:28.492702Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -213,5 +213,31 @@ Modified \`_duplicate_screening_assessment()\` in orchestrator.py to explicitly 
 - Prevents redundant duplicate-preflight dispatches across scheduler ticks for unchanged tasks
 - Allows implementation to proceed once duplicate screening is satisfied, even when behind dependency delays
 - Reduces provider capacity waste from duplicate screening
+---
+author: oompah
+created: 2026-07-31 11:29
+---
+## Verification
+
+**Test Results:**
+✓ test_duplicate_preflight.py - 19 tests passed (including new test)
+✓ test_duplicate_screening.py - 7 tests passed
+✓ test_orchestrator_duplicate_detection.py - 25 tests passed
+✓ test_server_duplicate_screening_sync.py - 4 tests passed
+
+**Commit:**
+OOMPAH-658: Load duplicate_screening metadata during candidate selection
+- Fixes repeated duplicate-preflight dispatches across scheduler ticks
+- Loads metadata from tracker to recognize CHECKED records
+- Adds test to verify behavior when metadata missing from candidates
+- All changes committed and pushed to branch OOMPAH-658
+
+**Acceptance Criteria Met:**
+✓ Unchanged Open work cannot launch duplicate investigators repeatedly
+✓ No valid rescreen is suppressed (CHECKED records are still recognized)
+✓ Focused scheduler tests pass
+✓ Full test suite passes without regressions
+
+Ready for integration.
 ---
 <!-- COMMENTS:END -->
