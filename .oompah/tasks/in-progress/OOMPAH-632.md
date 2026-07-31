@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-632
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Refresh candidate refs before child landing reconciliation
 parent: OOMPAH-584
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:46:34.785511Z'
-updated_at: '2026-07-31T01:11:39.722117Z'
+updated_at: '2026-07-31T01:12:07.406878Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-632
 target_branch: null
 review_url: null
@@ -35,7 +35,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 0d410b5d-40d5-4b37-a317-49d3daaa7c7c
+oompah.agent_run_id: db4bcefb-81fe-4d50-a88c-fee7dd67cf47
 oompah.work_branch: epic-OOMPAH-584--task-OOMPAH-632
 oompah.integration:
   version: 1
@@ -49,13 +49,17 @@ oompah.integration:
   submitted_at: '2026-07-31T01:03:10.114174+00:00'
   updated_at: '2026-07-31T01:08:13.312219+00:00'
 oompah.task_costs:
-  total_input_tokens: 597125
-  total_output_tokens: 3510
+  total_input_tokens: 597131
+  total_output_tokens: 3993
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 597125
       output_tokens: 3510
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 6
+      output_tokens: 483
       cost_usd: 0.0
   runs:
   - profile: default
@@ -70,6 +74,12 @@ oompah.task_costs:
     output_tokens: 370
     cost_usd: 0.0
     recorded_at: '2026-07-31T01:03:23.104230+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 6
+    output_tokens: 483
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T01:12:00.650581+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-632__20260731T004738Z
@@ -333,5 +343,20 @@ Instructions:
 - Change _resolve_git_branch_refs (or introduce a landing-evidence variant) so that when refs/remotes/origin/<branch> is present it is used and the stale refs/heads/<branch> is not additionally consulted; alternatively, prefer origin-only refs in the child landing evidence path.
 - Replace the mocked-only test with three real-repo tests: (a) local=pre-rebase SHA, origin=rewritten SHA contained in target -> Done retained, no escalation; (b) candidate fetch failure (e.g. broken origin) -> Done unchanged, escalation deferred; (c) rewritten SHA on both local and origin but genuinely not in target -> still escalates.
 - Verify by running the focused epic-strategy tests plus the full 'make test' branch gate after the corrections.
+---
+author: oompah
+created: 2026-07-31 01:12
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 35, Tool calls: 24
+- Tokens: 6 in / 483 out [489 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 3m 32s
+- Log: OOMPAH-632__20260731T010834Z.jsonl
+---
+author: oompah
+created: 2026-07-31 01:12
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
