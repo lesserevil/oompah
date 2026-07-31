@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-640
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Complete combined stall-to-dispatch recovery regression coverage
 parent: null
@@ -11,12 +11,27 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T05:59:47.260716Z'
-updated_at: '2026-07-31T05:59:47.260716Z'
+updated_at: '2026-07-31T06:04:53.858932Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: ac81c38f3684a776100adff1365492d7e4f68e5c3580a6447826a757979893cb
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 50734c16-7f27-40d7-9a78-0bd67d646f08
+  claim_owner: d12922aa-baf6-4258-aa45-02da3deea710
+  claimed_at: '2026-07-31T06:04:47.383687+00:00'
+  claim_expires_at: '2026-07-31T06:34:47.383687+00:00'
+  retry_count: 0
+  retry_after: null
+oompah.agent_run_id: 2ece76fd-3703-4c4f-8be6-9887ccebb834
 ---
 ## Summary
 
@@ -28,3 +43,16 @@ Follow-up to OOMPAH-417 after parent epic OOMPAH-414 merged. Implementation scop
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-31 06:04
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-07-31 06:04
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->

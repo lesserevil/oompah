@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-641
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Finish shared-epic pre-PR and reconciliation hardening from OOMPAH-428
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T05:59:48.550048Z'
-updated_at: '2026-07-31T05:59:48.550048Z'
+updated_at: '2026-07-31T06:04:44.185280Z'
 work_branch: null
 target_branch: null
 review_url: null
