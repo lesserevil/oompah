@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-657
 type: task
-status: Needs CI Fix
+status: In Progress
 priority: null
 title: Run branch quality gates from immutable exact-head snapshots
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:06:15.542774Z'
-updated_at: '2026-07-31T12:01:32.341651Z'
+updated_at: '2026-07-31T12:03:16.474248Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -57,7 +57,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: e0ab9ba2-8c66-4f4c-a32e-2b5041dd8640
+oompah.agent_run_id: 4586b6e5-7918-43ab-aca0-6fa11a8ed1e0
 oompah.task_costs:
   total_input_tokens: 718070
   total_output_tokens: 13622
@@ -447,5 +447,15 @@ Installed 23 packages in 48ms
 make[1]: *** [Makefile:295: test] Terminated
 rm: cannot remove '/home/shedwards/.oompah/tmp/pytest/run.LOAd4q': Directory not empty
 ```
+---
+author: oompah
+created: 2026-07-31 12:03
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-31 12:03
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
