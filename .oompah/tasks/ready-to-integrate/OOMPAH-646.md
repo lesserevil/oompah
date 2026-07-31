@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:55:23.505409Z'
-updated_at: '2026-07-31T08:02:19.304364Z'
+updated_at: '2026-07-31T08:02:31.254283Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -66,13 +66,13 @@ oompah.work_contributors:
     source_sha: d7027de514d1fcee1cf3e150f9f02b11b3168071
     completed_at: '2026-07-31T06:58:02.250282+00:00'
 oompah.task_costs:
-  total_input_tokens: 146
-  total_output_tokens: 4804
+  total_input_tokens: 40853359
+  total_output_tokens: 75206
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 146
-      output_tokens: 4804
+      input_tokens: 40853359
+      output_tokens: 75206
       cost_usd: 0.0
   runs:
   - profile: default
@@ -81,6 +81,12 @@ oompah.task_costs:
     output_tokens: 4804
     cost_usd: 0.0
     recorded_at: '2026-07-31T06:58:02.245280+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 40853213
+    output_tokens: 70402
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T08:02:29.518164+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -146,5 +152,15 @@ author: oompah
 created: 2026-07-31 08:02
 ---
 Pushed durable review-capacity serialization and compatibility normalization in 355258ef0. Focused regressions, ACP handoff recovery, and terminal mutation scan pass; task submitted for validation.
+---
+author: oompah
+created: 2026-07-31 08:02
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 282
+- Tokens: 40.9M in / 70.4K out [40.9M total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 1h 4m 13s
+- Log: OOMPAH-646__20260731T065821Z.jsonl
 ---
 <!-- COMMENTS:END -->
