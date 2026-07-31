@@ -864,6 +864,11 @@ class TerminalAuditEnforcement:
         document.  If the tracker write succeeded but metadata finalization
         failed, the status is already at (or beyond) the requested target and
         only the durable retirement step is needed.
+
+        An override's evidence_fingerprint must match the current task evidence
+        to be applicable. If multiple unapplied overrides exist for the same task,
+        only the newest (by created_at) is selected; all others are retired without
+        being applied.
         """
 
         try:
@@ -875,30 +880,77 @@ class TerminalAuditEnforcement:
         raw_overrides = document.unknown_fields.get(TERMINAL_OVERRIDE_RECORDS_KEY, [])
         if not isinstance(raw_overrides, list):
             return
-        target_override = next(
-            (
-                raw
-                for raw in raw_overrides
-                if isinstance(raw, Mapping)
-                and raw.get("applied", True) is False
+
+        # Compute the current task's evidence fingerprint.
+        current_fingerprint = self._explicit_evidence_fingerprint(issue, tracker)
+        if current_fingerprint is None:
+            # Fall back to computing from description, like is_grandfathered does.
+            current_fingerprint = compute_evidence_fingerprint(
+                requirements_text=str(getattr(issue, "description", None) or ""),
+                project_id=str(project_id),
+                task_id=str(issue.identifier),
+            )
+
+        # Collect unapplied overrides that match the current evidence.
+        valid_candidates = []
+        stale_keys = []  # Keys of overrides with mismatched evidence
+
+        for raw in raw_overrides:
+            if not isinstance(raw, Mapping):
+                continue
+            if not (
+                raw.get("applied", True) is False
                 and raw.get("project_id") == project_id
                 and raw.get("task_id") == str(issue.identifier)
                 and isinstance(raw.get("override_id"), str)
                 and bool(raw.get("override_id"))
                 and isinstance(raw.get("target_state"), str)
-            ),
-            None,
-        )
-        if target_override is None:
+            ):
+                continue
+
+            # Extract and validate the override's evidence fingerprint.
+            override_fp = raw.get("evidence_fingerprint")
+            if isinstance(override_fp, Mapping):
+                override_fp = override_fp.get("digest", override_fp.get("sha256"))
+            try:
+                if isinstance(override_fp, str):
+                    override_fp = EvidenceFingerprint(override_fp)
+                else:
+                    override_fp = None
+            except (TypeError, ValueError):
+                override_fp = None
+
+            # Only consider overrides with matching current evidence.
+            if override_fp is None or override_fp != current_fingerprint:
+                stale_keys.append(raw.get("override_id"))
+                continue
+
+            created_at_str = raw.get("created_at")
+            valid_candidates.append((raw, created_at_str))
+
+        # If no valid candidates, retire all stale ones and return.
+        if not valid_candidates:
+            if stale_keys:
+                self._retire_stale_overrides(store, str(issue.identifier), project_id, stale_keys)
             return
+
+        # Select the newest valid candidate by created_at timestamp.
+        def _parse_timestamp(ts_str):
+            """Parse ISO 8601 timestamp; return min datetime if unparseable."""
+            if not isinstance(ts_str, str):
+                return datetime.min.replace(tzinfo=timezone.utc)
+            try:
+                return datetime.fromisoformat(ts_str.replace('Z', '+00:00'))
+            except (ValueError, AttributeError):
+                return datetime.min.replace(tzinfo=timezone.utc)
+
+        target_override, _ts_str = max(
+            valid_candidates,
+            key=lambda x: _parse_timestamp(x[1]),
+        )
         target_state = str(target_override["target_state"])
         target_status = _target_state_status(target_state)
         if target_status is None:
-            return
-        fingerprint = target_override.get("evidence_fingerprint")
-        if isinstance(fingerprint, Mapping):
-            fingerprint = fingerprint.get("digest", fingerprint.get("sha256"))
-        if not isinstance(fingerprint, str) or not fingerprint:
             return
 
         current_status = str(getattr(issue, "state", "") or "")
@@ -926,14 +978,23 @@ class TerminalAuditEnforcement:
             unknown = dict(document.unknown_fields)
             current_overrides = unknown.get(TERMINAL_OVERRIDE_RECORDS_KEY, [])
             overrides = []
+            stale_override_ids = []
             for raw in current_overrides if isinstance(current_overrides, list) else []:
                 if not isinstance(raw, Mapping):
                     continue
                 item = dict(raw)
-                if item.get("override_id") == target_override.get("override_id"):
+                override_id = item.get("override_id")
+                if override_id == target_override.get("override_id"):
                     item["applied"] = True
+                elif override_id in stale_keys:
+                    # Mark stale overrides as retired without applying.
+                    item["applied"] = True
+                    item["retired_at"] = now
+                    item["retired_reason"] = "evidence_mismatch"
+                    stale_override_ids.append(override_id)
                 overrides.append(item)
             unknown[TERMINAL_OVERRIDE_RECORDS_KEY] = overrides
+
             live_ids = [
                 record.audit_id
                 for record in document.pending_chain
@@ -954,7 +1015,7 @@ class TerminalAuditEnforcement:
                 "project_id": project_id,
                 "task_id": str(issue.identifier),
                 "target_state": target_state,
-                "evidence_fingerprint": fingerprint,
+                "evidence_fingerprint": str(current_fingerprint.digest),
             }
             matching = next(
                 (
@@ -1013,6 +1074,42 @@ class TerminalAuditEnforcement:
                 "terminal-audit override recovery failed for %s/%s",
                 project_id,
                 issue.identifier,
+                exc_info=True,
+            )
+
+    def _retire_stale_overrides(
+        self,
+        store: TerminalAuditMetadataStore,
+        identifier: str,
+        project_id: str,
+        override_ids: list[str],
+    ) -> None:
+        """Mark overrides as retired without applying them."""
+        now = datetime.now(timezone.utc).isoformat()
+
+        def _finalize(document):
+            unknown = dict(document.unknown_fields)
+            current_overrides = unknown.get(TERMINAL_OVERRIDE_RECORDS_KEY, [])
+            overrides = []
+            for raw in current_overrides if isinstance(current_overrides, list) else []:
+                if not isinstance(raw, Mapping):
+                    continue
+                item = dict(raw)
+                if item.get("override_id") in override_ids:
+                    item["applied"] = True
+                    item["retired_at"] = now
+                    item["retired_reason"] = "evidence_mismatch"
+                overrides.append(item)
+            unknown[TERMINAL_OVERRIDE_RECORDS_KEY] = overrides
+            return replace(document, unknown_fields=unknown)
+
+        try:
+            store.update(identifier, _finalize)
+        except Exception:
+            logger.warning(
+                "terminal-audit stale override retirement failed for %s/%s",
+                project_id,
+                identifier,
                 exc_info=True,
             )
 
@@ -1131,20 +1228,38 @@ class TerminalAuditEnforcement:
             # The newest valid intent is the only result allowed to acquire
             # tracker-status authority.  Older valid intents can be left
             # visible for history, but must not replay a status over a newer
-            # result after restart.
-            selected: tuple[Mapping[str, Any], TerminalAuditRecord, str] | None = (
-                candidates[-1] if candidates else None
-            )
+            # result after restart.  Selection is based on created_at timestamps.
+            def _parse_timestamp(ts_str):
+                """Parse ISO 8601 timestamp; return min datetime if unparseable."""
+                if not isinstance(ts_str, str):
+                    return datetime.min.replace(tzinfo=timezone.utc)
+                try:
+                    return datetime.fromisoformat(ts_str.replace('Z', '+00:00'))
+                except (ValueError, AttributeError):
+                    return datetime.min.replace(tzinfo=timezone.utc)
+
+            selected: tuple[Mapping[str, Any], TerminalAuditRecord, str] | None = None
+            if candidates:
+                # Select the newest by created_at; use list order as tiebreaker.
+                selected = max(
+                    enumerate(candidates),
+                    key=lambda x: (_parse_timestamp(x[1][0].get("created_at")), x[0]),
+                )[1]
+
             if selected is not None:
                 selected_intent, _selected_record, desired_status = selected
                 selected_key = (
                     str(selected_intent["audit_id"]),
                     str(selected_intent["attempt_id"]),
                 )
-                for raw_intent, _record, _status in candidates[:-1]:
-                    retire_keys[(str(raw_intent["audit_id"]), str(raw_intent["attempt_id"]))] = (
-                        "superseded_by_newer_intent"
-                    )
+                for raw_intent, _record, _status in candidates:
+                    if (
+                        str(raw_intent["audit_id"]),
+                        str(raw_intent["attempt_id"]),
+                    ) != selected_key:
+                        retire_keys[(str(raw_intent["audit_id"]), str(raw_intent["attempt_id"]))] = (
+                            "superseded_by_newer_intent"
+                        )
                 if status_key(current_status) != status_key(desired_status):
                     current_rank = _TERMINAL_STATUS_RANK.get(status_key(current_status), 0)
                     desired_rank = _TERMINAL_STATUS_RANK.get(status_key(desired_status), 0)
