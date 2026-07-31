@@ -2,7 +2,7 @@
 id: OOMPAH-664
 type: task
 status: Needs CI Fix
-priority: null
+priority: 0
 title: Make issue-list snapshots advance with canonical state-branch task changes
 parent: null
 children: []
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:06.140108Z'
-updated_at: '2026-07-31T21:33:59.425329Z'
+updated_at: '2026-07-31T21:34:19.742582Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,7 +44,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 16067305-5adf-457b-ab49-01ec4a3d6c65
+oompah.agent_run_id: 53ab8898-b738-402c-8e99-cd7db269207f
 oompah.task_costs:
   total_input_tokens: 3977153
   total_output_tokens: 26612
