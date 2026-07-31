@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-653
 type: bug
-status: Needs Human
+status: Open
 priority: 1
 title: Make terminal-audit success and owner override retire every duplicate record
   and alert
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T10:39:17.551489Z'
+updated_at: '2026-07-31T10:39:59.141478Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -472,5 +472,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 18s
 - Log: OOMPAH-653__20260731T103903Z.jsonl
+---
+author: oompah
+created: 2026-07-31 10:39
+---
+Formatting correction complete: removed only the five trailing-space-only lines, committed/pushed 01f2770d7 with canonical attribution, verified the full origin/main...HEAD diff-check now passes, branch is clean/up-to-date, and OOMPAH-652 remains an ancestor. Resume substantive implementation and tests from this head.
 ---
 <!-- COMMENTS:END -->
