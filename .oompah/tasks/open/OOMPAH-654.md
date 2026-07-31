@@ -11,12 +11,27 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:29:49.323393Z'
-updated_at: '2026-07-31T10:30:46.629435Z'
+updated_at: '2026-07-31T10:31:16.510044Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 8636c86f6d347afd10831ff399fc2b9d01193f270c6c2981b38987c794a9a5b9
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 4bb78865-92a3-408e-82b7-71458b85682c
+  claim_owner: f6d86559-4e9d-42bf-ac66-416781dbb14f
+  claimed_at: '2026-07-31T10:31:07.284463+00:00'
+  claim_expires_at: '2026-07-31T11:01:07.284463+00:00'
+  retry_count: 0
+  retry_after: null
+oompah.agent_run_id: b5c9fce1-9a14-41d0-b3b8-32a3357f089e
 ---
 ## Summary
 
@@ -28,3 +43,16 @@ Regression found immediately after deploying OOMPAH-652 on merged main ec0ec7d89
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-31 10:31
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-07-31 10:31
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
