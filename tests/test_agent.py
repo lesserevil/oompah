@@ -12,6 +12,7 @@ import pytest
 
 from oompah.agent import (
     AgentSession,
+    ProcessIdentity,
     capture_workspace_processes,
     terminate_captured_processes,
 )
@@ -107,6 +108,38 @@ async def test_stop_has_safe_non_posix_fallback(tmp_path):
 
     process.terminate.assert_called_once_with()
     process.kill.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.skipif(
+    os.name != "posix" or not os.path.isdir("/proc"),
+    reason="requires Linux procfs",
+)
+async def test_stop_refuses_reused_or_reassigned_process_identity(tmp_path):
+    """A changed start-time/session identity must never receive a signal."""
+
+    session = AgentSession("sleep 60", str(tmp_path))
+    await session.start()
+    process = session._process
+    assert process is not None
+    assert session._process_identity is not None
+    original = session._process_identity
+    session._process_identity = ProcessIdentity(
+        pid=original.pid,
+        starttime=original.starttime + 1,
+        process_group=original.process_group,
+        session=original.session,
+        cwd=original.cwd,
+    )
+
+    try:
+        with patch("oompah.agent.os.killpg") as killpg:
+            await session.stop(timeout_s=0.1)
+        killpg.assert_not_called()
+        assert process.returncode is None
+    finally:
+        process.kill()
+        await process.wait()
 
 
 @pytest.mark.asyncio

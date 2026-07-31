@@ -17,9 +17,9 @@ Skips cleanly if granian is not installed.
 
 Design notes:
   • Each scenario uses the _granian_server() context manager which owns the
-    full process lifecycle: start → wait-ready → yield → SIGINT → terminate →
-    kill → pipe-drain. Cleanup runs even on assertion failure or
-    KeyboardInterrupt, leaving no orphaned subprocesses.
+    full process lifecycle: start → identity capture → wait-ready → yield →
+    identity-checked termination → pipe-drain. Cleanup runs even on assertion
+    failure or KeyboardInterrupt, leaving no orphaned subprocesses.
   • The subprocess runs a one-shot Python script that calls
     ``oompah.server.set_orchestrator(stub)`` *before* ``Granian.serve()``.
     Because Granian 2.x with ``workers=1`` and the ASGI interface keeps the
@@ -35,16 +35,19 @@ from __future__ import annotations
 
 import contextlib
 import json
-import signal
+import os
 import socket
-import subprocess
 import sys
+import tempfile
 import threading
 import time
+from pathlib import Path
 from typing import Generator
 
 import httpx
 import pytest
+
+from tests.process_lifecycle import OwnedProcess, start_owned_process, stop_owned_process
 
 granian = pytest.importorskip("granian", reason="granian not installed")
 
@@ -163,21 +166,22 @@ def _free_port() -> int:
         return sock.getsockname()[1]
 
 
-def _start_granian_proc(port: int) -> subprocess.Popen:
+def _start_granian_proc(port: int, workspace) -> OwnedProcess:
     """Launch the Granian e2e subprocess on *port* and return the Popen handle."""
     script = _GRANIAN_E2E_SCRIPT.format(port=port)
-    return subprocess.Popen(
-        [sys.executable, "-c", script],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+    env = os.environ.copy()
+    repo_root = str(Path(__file__).resolve().parents[1])
+    env["PYTHONPATH"] = repo_root + os.pathsep + env.get("PYTHONPATH", "")
+    return start_owned_process(
+        [sys.executable, "-c", script], workspace=workspace, env=env
     )
 
 
-def _wait_ready(port: int, proc: subprocess.Popen, timeout: float = 12.0) -> bool:
+def _wait_ready(port: int, proc: OwnedProcess, timeout: float = 12.0) -> bool:
     """Poll until HTTP / returns 200 or the process exits early."""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        if proc.poll() is not None:
+        if proc.process.poll() is not None:
             return False
         try:
             r = httpx.get(f"http://127.0.0.1:{port}/", timeout=1.0)
@@ -189,25 +193,11 @@ def _wait_ready(port: int, proc: subprocess.Popen, timeout: float = 12.0) -> boo
     return False
 
 
-def _stop_proc(proc: subprocess.Popen) -> None:
-    """Bounded shutdown: SIGINT → terminate → kill, then drain pipes."""
-    if proc.poll() is None:
-        proc.send_signal(signal.SIGINT)
-        try:
-            proc.wait(timeout=8)
-        except subprocess.TimeoutExpired:
-            proc.terminate()
-            try:
-                proc.wait(timeout=3)
-            except subprocess.TimeoutExpired:
-                proc.kill()
-                try:
-                    proc.wait(timeout=2)
-                except subprocess.TimeoutExpired:
-                    pass
-    # Always drain pipes to prevent ResourceWarning and blocked I/O
+def _stop_proc(proc: OwnedProcess) -> None:
+    """Bounded identity-checked shutdown, then drain pipes."""
+    stop_owned_process(proc, timeout_s=8)
     try:
-        proc.communicate(timeout=2)
+        proc.process.communicate(timeout=2)
     except Exception:
         pass
 
@@ -216,10 +206,10 @@ def _stop_proc(proc: subprocess.Popen) -> None:
 def _granian_server(port: int | None = None) -> Generator[str, None, None]:
     """Context manager: start a Granian E2E server, yield its base URL, then clean up.
 
-    Process ownership is centralised here. Cleanup always executes bounded
-    SIGINT/terminate/kill and drains stdout/stderr pipes, even when the body
-    raises an assertion error or KeyboardInterrupt. This prevents orphaned
-    Granian subprocesses regardless of test outcome.
+    Process ownership is centralised here. Cleanup always executes bounded,
+    identity-checked termination and drains stdout/stderr pipes, even when the
+    body raises an assertion error or KeyboardInterrupt. This prevents
+    orphaned Granian subprocesses regardless of test outcome.
 
     Args:
         port: TCP port to bind. Allocates an ephemeral port when *None*.
@@ -230,24 +220,26 @@ def _granian_server(port: int | None = None) -> Generator[str, None, None]:
     if port is None:
         port = _free_port()
 
-    proc = _start_granian_proc(port)
-    try:
-        if not _wait_ready(port, proc):
-            # Drain pipes before pytest.fail so they are not left open
-            stdout, stderr = b"", b""
-            try:
-                stdout, stderr = proc.communicate(timeout=3)
-            except Exception:
-                pass
-            pytest.fail(
-                f"Granian e2e server did not become ready on port {port}.\n"
-                f"stdout: {stdout.decode()[:400]}\n"
-                f"stderr: {stderr.decode()[:400]}"
-            )
+    with tempfile.TemporaryDirectory(prefix="oompah-granian-") as raw_workspace:
+        workspace = Path(raw_workspace)
+        proc = _start_granian_proc(port, workspace)
+        try:
+            if not _wait_ready(port, proc):
+                # Drain pipes before pytest.fail so they are not left open
+                stdout, stderr = b"", b""
+                try:
+                    stdout, stderr = proc.process.communicate(timeout=3)
+                except Exception:
+                    pass
+                pytest.fail(
+                    f"Granian e2e server did not become ready on port {port}.\n"
+                    f"stdout: {stdout.decode()[:400]}\n"
+                    f"stderr: {stderr.decode()[:400]}"
+                )
 
-        yield f"http://127.0.0.1:{port}"
-    finally:
-        _stop_proc(proc)
+            yield f"http://127.0.0.1:{port}"
+        finally:
+            _stop_proc(proc)
 
 
 def _ws_recv_json(ws, timeout: float = _WS_RECV_TIMEOUT) -> dict:
