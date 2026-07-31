@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-07-31T11:42:42.967209Z'
+updated_at: '2026-07-31T11:45:25.768322Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -330,5 +330,10 @@ author: oompah
 created: 2026-07-31 11:42
 ---
 Operator stopped only exact test process group 2150010 in the OOMPAH-658 worktree. The branch was still dirty and OOMPAH-657 has not yet deployed immutable exact-head gates, so a repository-wide make test was premature and could not serve as final evidence. This is not a test failure. Finish the implementation and focused checks; the server should run the one exact review-ready full gate.
+---
+author: oompah
+created: 2026-07-31 11:45
+---
+Current dirty fingerprint correction is on the right root cause: finish/start dependencies and labels no longer invalidate, and intake proposal/source revision does. Before submission, close two evidence gaps. The new Issue.source/source_revision fields are not populated by oompah_md_tracker, GitHub, or GitLab constructors, so the direct replace-based tests can pass while production never sees them. Either populate stable values from real adapter/native intake metadata with adapter tests, or remove the dead fields and derive only from already-normalized production fields; do not use generic updated_at because scheduler writes change it. Also make the exact regression genuinely multi-tick/restart: persist a checked native task, add only finish-order dependency/transient scheduling metadata, create a fresh orchestrator/read the task again, and prove repeated selections launch zero screens; then mutate a real persisted intake/source revision and prove exactly one new claim under concurrent ticks while inconclusive retry remains unchanged. Focused Make-backed checks only until OOMPAH-657.
 ---
 <!-- COMMENTS:END -->
