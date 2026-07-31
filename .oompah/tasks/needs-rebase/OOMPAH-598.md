@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-598
 type: bug
-status: Ready to Integrate
+status: Needs Rebase
 priority: 1
 title: Detect and deliver standalone Ready to Integrate tasks without PRs
 parent: OOMPAH-587
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:29.695490Z'
-updated_at: '2026-07-31T01:46:26.663219Z'
+updated_at: '2026-07-31T01:46:52.938726Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-598
 target_branch: null
 review_url: null
@@ -43,12 +43,32 @@ oompah.agent_run_id: 9d807078-d693-4825-8127-698df7c8ae37
 oompah.work_branch: epic-OOMPAH-587--task-OOMPAH-598
 oompah.integration:
   version: 1
-  state: ready
-  attempts: 0
+  state: blocked
+  attempts: 1
   task_branch: epic-OOMPAH-587--task-OOMPAH-598
+  base_branch: epic-OOMPAH-587
+  base_sha: 8a875b1c321d5d1a0ae5623158a3eb98ad940313
   head_sha: ef40deab8bc6fce6b116cab9e69fc96a1089390f
   submitted_at: '2026-07-31T01:46:22.060436+00:00'
-  updated_at: '2026-07-31T01:46:22.060436+00:00'
+  updated_at: '2026-07-31T01:46:50.290542+00:00'
+  last_error: 'Rebase onto the latest epic head conflicted: Rebasing (1/2)
+
+    error: could not apply e474c0021... OOMPAH-598: Add reconciliation for standalone
+    Ready to Integrate tasks
+
+    hint: Resolve all conflicts manually, mark them as resolved with
+
+    hint: "git add/rm <conflicted_files>", then run "git rebase --continue".
+
+    hint: You can instead skip this commit: run "git rebase --skip".
+
+    hint: To abort and get back to the state before "git rebase", run "git rebase
+    --abort".
+
+    hint: Disable this message with "git config set advice.mergeConflict false"
+
+    Could not apply e474c0021... # OOMPAH-598: Add reconciliation for standalone Ready
+    to Integrate tasks'
 oompah.task_costs:
   total_input_tokens: 1166009
   total_output_tokens: 6765
@@ -392,5 +412,10 @@ author: oompah
 created: 2026-07-31 01:46
 ---
 Resolved the parent-branch conflict at ef40deab8 while preserving standalone Ready delivery and integration-repair backoff. Focused conflict/standalone coverage: 49 passed; broader standalone/integration coverage: 299 passed before a known executor-thread teardown hang. Branch is pushed and ready for the authoritative exact-head Makefile gate.
+---
+author: oompah
+created: 2026-07-31 01:46
+---
+Integration found a rebase conflict on `epic-OOMPAH-587--task-OOMPAH-598`. Resolve it against `epic-OOMPAH-587`, run the required tests, push the same private branch, and `oompah task submit` it again.
 ---
 <!-- COMMENTS:END -->
