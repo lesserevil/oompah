@@ -109,6 +109,12 @@ from oompah.github_intake_bridge import (
 from oompah.issue_validator import validate_issue
 from oompah.models import AgentProfile
 from oompah.mcp_gateway import build_mcp_gateway, discovery_document
+from oompah.terminal_audit import OverrideRecord
+from oompah.terminal_audit_metadata import (
+    METADATA_KEY as TERMINAL_AUDIT_METADATA_KEY,
+    TerminalAuditMetadata,
+    TerminalAuditMetadataError,
+)
 from oompah.mcp_exposure_policy import MCP_DISCOVERY_PATH, MCP_ENDPOINT_PATH
 from oompah.task_handoff import (
     TASK_HANDOFF_HEADER,
@@ -1605,6 +1611,146 @@ def _issue_duplicate_screening_summary(issue, orch) -> dict[str, Any] | None:
     return result
 
 
+def _terminal_audit_phase(document: "TerminalAuditMetadata", record: object, latest_attempt: object) -> str:
+    """Return a human-readable phase label for the audit state."""
+    if getattr(document, "is_quarantined", False):
+        return "error"
+    if record is None:
+        return "queued"
+    request_state = getattr(getattr(record, "request_state", None), "value", None)
+    if request_state in ("pending",):
+        return "queued"
+    if request_state in ("in_progress",):
+        return "running"
+    if request_state in ("completed",):
+        verdict = getattr(getattr(latest_attempt, "verdict", None), "value", None)
+        if verdict == "pass":
+            return "passed"
+        if verdict in ("fail", "needs_human", "error"):
+            return "failed"
+        return "completed"
+    if request_state in ("superseded", "cancelled"):
+        return "cancelled"
+    return "queued"
+
+
+def _issue_terminal_audit_summary(
+    issue: Any,
+    tracker: Any = None,
+) -> "dict[str, Any] | None":
+    """Return safe operator-facing terminal-audit state for an issue.
+
+    Returns None for issues that have never been audited (no metadata), or
+    for grandfathered tasks (omit by convention — they have no pending chain).
+
+    The returned dict never contains credentials, prompts, full diffs, hidden
+    tracker metadata, or untrusted model output.  Only stable, safe fields
+    from the TerminalAuditMetadata record are exposed.
+    """
+    # First try to get from cached issue.terminal_audit (when tracker adapters
+    # populate it — same pattern as issue.duplicate_screening).
+    raw_metadata = getattr(issue, "terminal_audit", None)
+
+    # For detail views where a tracker is provided, fall back to a direct
+    # metadata read.  One read per detail call is acceptable; list views only
+    # expose data that tracker adapters have already loaded onto the issue.
+    if raw_metadata is None and tracker is not None:
+        try:
+            meta = tracker.get_metadata(
+                getattr(issue, "identifier", None) or str(getattr(issue, "id", ""))
+            ) or {}
+            raw_metadata = meta.get(TERMINAL_AUDIT_METADATA_KEY)
+        except Exception:  # noqa: BLE001 – metadata read must not break the response
+            return None
+
+    if raw_metadata is None:
+        return None
+
+    # Decode the metadata envelope, safely quarantining malformed payloads.
+    try:
+        document = TerminalAuditMetadata.from_dict(raw_metadata)
+    except (TypeError, ValueError, TerminalAuditMetadataError):
+        return {"phase": "error", "quarantined": True}
+
+    # Grandfathered tasks have an empty pending_chain and no attempt history.
+    if not document.pending_chain and not document.attempt_history and not document.is_quarantined:
+        return None
+
+    # Take the first (oldest) pending record as the primary record.  In the
+    # common case there is exactly one record per task.
+    record = document.pending_chain[0] if document.pending_chain else None
+
+    # Find the latest attempt across the primary record.
+    latest_attempt = None
+    if record is not None and record.attempts:
+        latest_attempt = record.attempts[-1]
+    elif document.attempt_history:
+        latest_attempt = document.attempt_history[-1]
+
+    # Detect owner override: stored under unknown_fields to preserve the
+    # TerminalAuditMetadata forward-compatible design.
+    override_records_raw = document.unknown_fields.get("oompah.terminal_override_records") or []
+    is_overridden = bool(
+        isinstance(override_records_raw, list) and override_records_raw
+    )
+
+    # Expose safe override metadata (who, when — no reason text).
+    override_info: dict[str, Any] | None = None
+    if is_overridden and isinstance(override_records_raw, list) and override_records_raw:
+        latest_override_raw = override_records_raw[-1]
+        if isinstance(latest_override_raw, dict):
+            try:
+                override_obj = OverrideRecord.from_dict(latest_override_raw)
+                override_info = {
+                    "authorized_by": {
+                        "identity": override_obj.authorized_by.identity,
+                        "source": override_obj.authorized_by.source,
+                    },
+                    "created_at": override_obj.created_at,
+                    "target_state": override_obj.target_state.value,
+                }
+            except (TypeError, ValueError):
+                override_info = {"authorized_by": None, "created_at": None, "target_state": None}
+
+    # Build the safe summary.
+    result: dict[str, Any] = {
+        "phase": _terminal_audit_phase(document, record, latest_attempt),
+        "target_state": record.target_state.value if record is not None else None,
+        "request_state": record.request_state.value if record is not None else None,
+        "attempt_count": (
+            len(record.attempts) if record is not None else len(document.attempt_history)
+        ),
+        "fingerprint_prefix": (
+            record.evidence_fingerprint.digest[:12] if record is not None else None
+        ),
+        "verdict": (
+            latest_attempt.verdict.value
+            if latest_attempt is not None and latest_attempt.verdict is not None
+            else None
+        ),
+        "failure_classification": (
+            latest_attempt.failure_classification.value
+            if latest_attempt is not None and latest_attempt.failure_classification is not None
+            else None
+        ),
+        "requested_by": (
+            {
+                "identity": record.requested_by.identity,
+                "source": record.requested_by.source,
+            }
+            if record is not None and record.requested_by is not None
+            else None
+        ),
+        "created_at": record.created_at if record is not None else None,
+        "updated_at": record.updated_at if record is not None else None,
+        "quarantined": document.is_quarantined,
+        "is_overridden": is_overridden,
+    }
+    if override_info is not None:
+        result["override"] = override_info
+    return result
+
+
 def _issue_count_from_board(board: dict[str, Any]) -> int:
     return sum(len(v) for v in board.values() if isinstance(v, list))
 
@@ -2273,6 +2419,9 @@ def _fetch_and_serialize_issues(orch) -> dict[str, list]:
         duplicate_screening = _issue_duplicate_screening_summary(issue, orch)
         if duplicate_screening is not None:
             entry["duplicate_screening"] = duplicate_screening
+        terminal_audit_summary = _issue_terminal_audit_summary(issue)
+        if terminal_audit_summary is not None:
+            entry["terminal_audit_summary"] = terminal_audit_summary
         if issue.id in parents:
             entry["children_counts"] = parents[issue.id]
         result[state].append(entry)
@@ -10153,6 +10302,9 @@ async def api_issue_full_detail(identifier: str, request: Request):
         duplicate_screening = _issue_duplicate_screening_summary(issue, orch)
         if duplicate_screening is not None:
             result["duplicate_screening"] = duplicate_screening
+        terminal_audit_summary = _issue_terminal_audit_summary(issue, tracker=tracker)
+        if terminal_audit_summary is not None:
+            result["terminal_audit_summary"] = terminal_audit_summary
         if issue.issue_type in ("epic", "feature"):
             children = tracker.fetch_children(issue.id)
             result["children"] = [
@@ -10590,24 +10742,36 @@ async def api_agent_activity(identifier: str):
         orch = _get_orchestrator()
         for entry in orch.state.running.values():
             if entry.identifier == identifier:
-                return JSONResponse(
-                    {
-                        "identifier": identifier,
-                        "profile": entry.agent_profile_name,
-                        "provider_name": entry.provider_name,
-                        "model_name": entry.model_name,
-                        "work_kind": (
-                            "duplicate_screening"
-                            if getattr(entry, "duplicate_preflight", False)
-                            else "implementation"
-                        ),
-                        "duplicate_preflight": bool(
-                            getattr(entry, "duplicate_preflight", False)
-                        ),
-                        "started_at": entry.started_at.isoformat(),
-                        "activity": [a.to_dict() for a in entry.activity_log],
-                    }
-                )
+                issue = getattr(entry, "issue", None)
+                project_id = issue.project_id if issue else None
+                terminal_audit_summary: dict[str, Any] | None = None
+                if issue is not None:
+                    try:
+                        tracker = orch._tracker_for_project(project_id) if project_id else getattr(orch, "tracker", None)
+                        terminal_audit_summary = _issue_terminal_audit_summary(
+                            issue, tracker=tracker
+                        )
+                    except Exception:  # noqa: BLE001 – audit read must not break activity
+                        pass
+                payload: dict[str, Any] = {
+                    "identifier": identifier,
+                    "profile": entry.agent_profile_name,
+                    "provider_name": entry.provider_name,
+                    "model_name": entry.model_name,
+                    "work_kind": (
+                        "duplicate_screening"
+                        if getattr(entry, "duplicate_preflight", False)
+                        else "implementation"
+                    ),
+                    "duplicate_preflight": bool(
+                        getattr(entry, "duplicate_preflight", False)
+                    ),
+                    "started_at": entry.started_at.isoformat(),
+                    "activity": [a.to_dict() for a in entry.activity_log],
+                }
+                if terminal_audit_summary is not None:
+                    payload["terminal_audit_summary"] = terminal_audit_summary
+                return JSONResponse(payload)
         return JSONResponse({"identifier": identifier, "activity": []})
     except Exception as exc:
         return JSONResponse({"error": str(exc)}, status_code=500)

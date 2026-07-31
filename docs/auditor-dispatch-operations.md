@@ -1,24 +1,113 @@
-# Independent Auditor Dispatch — Operations Guide
+# Independent Auditor Dispatch — Operator Guide
 
-This guide is for operators running Oompah with independent auditor dispatch enabled. It covers configuration, monitoring, troubleshooting, and recovery for the audit queue system.
+This guide is for operators running Oompah with independent auditor dispatch
+enabled. It covers configuration, monitoring, troubleshooting, and recovery
+for the audit queue system.
 
-**See also:** `plans/independent-auditor-dispatch.md` (design and architecture)
+The audit lane is enabled by default. It scans `In Validation` tasks on each
+dispatch tick and shares the global worker pool with ordinary implementation
+agents.
 
-The priority lane is enabled by default. It scans persisted `In Validation`
-requests on each dispatch tick and shares the global worker pool with ordinary
-implementation agents.
+## What Is the Auditor?
 
-## Overview
+When an agent submits completed work, Oompah moves the task to **In
+Validation** and queues a terminal-audit request. An *independent auditor* —
+a separate AI agent session using a different provider/model combination than
+the original implementer — reads the work, runs the project's configured
+checks, and submits one structured verdict via the `submit_audit_result` tool.
 
-When enabled, the lane consumes audit requests staged as a task moves toward
-a terminal state (Done, Merged, or Archived). The coordinator moves the task
-to `In Validation`; the independent auditor dispatch lane then:
+The auditor is a *read-only* agent. It receives a restricted tool set:
 
-1. Reads queued audit requests from tasks in `In Validation`
-2. Selects an independent auditor (provider/model not used by the task's contributors)
-3. Launches a reserved auditor agent with read-only verification tools
-4. Handles retry and rotation if the auditor's provider is unavailable or busy
-5. Routes exhausted audits (no remaining candidates) to `Needs Human` with configuration guidance
+| Tool | Purpose |
+|---|---|
+| `read_file` | Read source files |
+| `list_files` | Browse directory contents |
+| `search_files` | Search across the worktree |
+| `run_command` | Run project test/lint commands |
+| `submit_audit_result` | Submit the structured audit verdict (write-only result) |
+
+Mutating tools (`write_file`, `edit_file`, project management tools) are
+unconditionally blocked regardless of the audit prompt text.
+
+## Lifecycle Overview
+
+```mermaid
+flowchart TD
+    Agent[Agent submits work] --> Coord[TerminalTransitionCoordinator]
+    Coord --> InVal[Task moves to In Validation]
+    InVal --> Lane[Audit dispatch lane scans on next tick]
+    Lane --> Sel{Select independent candidate}
+    Sel -- candidate found --> AuditRun[Auditor agent runs]
+    Sel -- no candidate --> NoAudit[Needs Human: no_auditor]
+
+    AuditRun --> Verdict{Verdict?}
+    Verdict -- PASS --> Terminal[Task advances to Done / Merged / Archived]
+    Verdict -- FAIL --> Route[Route by failure_classification]
+    Verdict -- ERROR --> Retry[Retry with next candidate]
+
+    Route --> Open[Open: incomplete / missing tests / unpushed]
+    Route --> NeedsCIFix[Needs CI Fix: ci_failure]
+    Route --> NeedsRebase[Needs Rebase: conflict / out_of_date]
+    Route --> InReview[In Review: healthy_unmerged_review]
+    Route --> NeedsHuman[Needs Human: no_auditor / ambiguous / external_capability]
+
+    Retry --> MaxAttempts{Attempts exhausted?}
+    MaxAttempts -- no --> Lane
+    MaxAttempts -- yes --> NoAudit
+```
+
+## Target-Specific Audit Chains
+
+Each terminal-state request creates one or more audit records in the task's
+`oompah.terminal_audit` metadata:
+
+| Request | Audit records created |
+|---|---|
+| **Done** | One `Done` audit |
+| **Merged** | Reuses an existing completed `Done` audit; if none exists, creates `Done` then `Merged` in sequence |
+| **Archived** | One `Archived` audit appended after any pending non-archived targets |
+
+The audit chain is committed to tracker metadata *before* the task moves to
+`In Validation`. This ensures the queue is durable and fully recoverable after
+a process restart.
+
+## Independence Rules
+
+Before dispatching, Oompah enforces that the selected auditor is independent
+from every agent that contributed to this task's branch:
+
+- If contributors used `prov-a / model-x`, then `prov-a / model-x` is
+  **excluded** from the auditor candidate list.
+- If contributors used provider `prov-a` but the model is unknown (ACP
+  SDK-managed), then **all** candidates on `prov-a` are excluded (fail-closed).
+- Candidates are tried in saved role order. Once all independent candidates
+  have been tried (or are unavailable), the audit is exhausted and routed to
+  `Needs Human` with the `no_auditor` failure classification.
+
+## Failure Routing
+
+The auditor's `failure_classification` field controls where the task lands
+after a FAIL verdict:
+
+| Classification | Resulting status |
+|---|---|
+| `incomplete` | `Open` |
+| `missing_tests` | `Open` |
+| `unpushed` | `Open` |
+| `missing_evidence` | `Open` |
+| `ci_failure` | `Needs CI Fix` |
+| `conflict` | `Needs Rebase` |
+| `out_of_date` | `Needs Rebase` |
+| `healthy_unmerged_review` | `In Review` |
+| `ambiguous_requirements` | `Needs Human` |
+| `external_capability` | `Needs Human` |
+| `no_auditor` | `Needs Human` |
+| `malformed_result` | Stays in `In Validation` (retry) |
+| `infrastructure_error` | Stays in `In Validation` (retry) |
+
+`Needs Human` comments must end with actionable instructions or a question;
+the coordinator rejects vague messages that would leave an operator with no
+clear path forward.
 
 ## Configuration
 
@@ -29,52 +118,46 @@ These `.env` settings control the dispatch lane.
 #### Core Auditor Settings
 
 ```bash
-# Maximum number of auditor candidates to attempt per audit before
-# routing to Needs Human when all independent candidates fail.
-# Recommended: 3-5 (allows several independent candidates to be tried).
+# Maximum independent auditor candidates to attempt per audit before
+# routing to Needs Human. Recommended: 3–5 (allows rotation across several
+# independent providers). Must be a positive integer.
 OOMPAH_AUDIT_MAX_ATTEMPTS=3
 
-# Time-to-live (seconds) for running auditor attempts.
+# Time-to-live (seconds) for a running auditor attempt.
 # A live auditor session older than this is considered abandoned and eligible
 # for retry. An attempt with no live worker is reclaimed immediately.
-# Recommended: 3600 (1 hour). Set higher for slower CI environments.
+# Recommended: 3600 (1 hour). Increase for slow CI environments.
 OOMPAH_AUDIT_ATTEMPT_TTL=3600
 
 # Relative ordering among In Validation audits without an explicit task
-# priority. The audit lane still runs before ordinary Open work when a slot is
-# available. Recommended: 100-200.
+# priority. The audit lane still runs before ordinary Open work when a slot
+# is available. Recommended: 100–200.
 OOMPAH_AUDIT_PRIORITY=100
 
 # Maximum number of In Validation tasks scanned per scheduler tick.
-# Limits the audit lane's CPU time per tick to avoid blocking work dispatch.
-# Recommended: 32-64. Set to 0 for no limit (scan all pending audits).
+# Limits the audit lane's CPU time per tick. Set to 0 for no cap.
+# Recommended: 32–64.
 OOMPAH_AUDIT_LANE_SCAN_LIMIT=32
 ```
 
 #### Global Settings That Affect Auditors
 
-These existing settings also apply to auditor dispatch:
-
 ```bash
 # Global agent concurrency limit (affects both workers and auditors).
-# Auditors consume from this same pool. Increase if you want more
-# parallelism for audits + work.
+# Auditors consume from this same pool.
 OOMPAH_MAX_CONCURRENT_AGENTS=5
 
 # Budget limit (auditors count against this).
-# If you want unlimited audit attempts regardless of budget, set
-# a high limit for completion verification work.
 OOMPAH_BUDGET_LIMIT=50.00
 
-# Retry backoff settings (same for audits and normal work).
-# Auditor provider/tool failures use the normal exponential delay before
-# rotating to the next candidate.
+# Maximum retry backoff in milliseconds.
 OOMPAH_MAX_RETRY_BACKOFF_MS=300000
 ```
 
 ### Auditor Role Configuration
 
-The auditor role defines which providers/models are eligible auditors. It is configured in `.oompah/roles.json`:
+The auditor role defines which providers/models are eligible. Configure it in
+`.oompah/roles.json`:
 
 ```json
 {
@@ -82,222 +165,208 @@ The auditor role defines which providers/models are eligible auditors. It is con
   "strategy": "round_robin",
   "candidates": [
     { "provider_id": "prov-deep", "model": "claude-opus-4" },
-    { "provider_id": "prov-standard", "model": "claude-sonnet-4" },
-    { "provider_id": "prov-fast", "model": "gpt-4o" }
+    { "provider_id": "prov-standard", "model": "claude-sonnet-4" }
   ],
   "updated_at": "2026-01-01T12:00:00Z"
 }
 ```
 
-**Candidate order:**
-
-The audit lane considers candidates in the saved role order and excludes every
-provider/model pair already attempted by that audit. A retry therefore rotates
-to the next eligible pair. The role's `strategy` field remains part of the
-shared role configuration, but the audit lane does not apply round-robin usage
-history.
+**At least two independent candidates are recommended.** With a single
+candidate, any task whose sole contributor used that same provider/model
+will route immediately to `Needs Human` because no independent auditor is
+available. Two or more candidates from different providers provides rotation
+and avoids `no_auditor` failures when one provider is temporarily unavailable.
 
 **Adding candidates:**
 
-1. Via dashboard: Navigate to the Roles section and edit the auditor role.
-2. Via API: use `GET /api/v1/roles` to inspect the current matrix and
-   `PUT /api/v1/roles` to save the complete role payload. The standard roles
-   (`fast`, `standard`, `deep`, and `default`) are required; `auditor` is an
-   optional multi-candidate row. See `docs/multi-provider-roles.md` for the
-   request shape and validation rules.
+1. Via dashboard: navigate to the Roles section and edit the auditor role.
+2. Via API: `GET /api/v1/roles` to inspect, `PUT /api/v1/roles` to save.
+   See `docs/multi-provider-roles.md` for the request shape.
 
-**Provider independence check:**
-
-Before each audit, Oompah verifies that the selected auditor provider is independent from the task's contributors:
-
-- If contributors used `prov-fast/gpt-4o`, then `prov-fast/gpt-4o` is skipped.
-- If contributors used `prov-standard` with unknown model (ACP SDK-managed), then all `prov-standard` candidates are skipped (fail-closed).
-- If only dependent candidates remain, the audit is routed to `Needs Human`
-  with the `no_auditor` failure classification.
+**Project whitelist:** If the project configuration includes a provider
+whitelist (`allowed_provider_ids`), only providers on that whitelist may be
+used as auditor candidates. Providers not on the whitelist are excluded from
+candidate selection even if they appear in `.oompah/roles.json`. Ensure at
+least two independently-listed providers are on the whitelist to guarantee
+rotation.
 
 ## Monitoring
 
 ### Dashboard
 
-When the lane is enabled, the Oompah dashboard displays:
+The Oompah dashboard displays:
 
-- **In Validation tasks**: count and list under the "In Validation" column.
-- **Running audits**: active auditor agents shown in the "Active Agents" section.
-- **Audit metrics**: dispatch lane statistics in the metrics sidebar.
+- **In Validation tasks**: count and list in the board column.
+- **Running audits**: active auditor agents in the "Active Agents" section.
 
 ### Logs
 
-Use the project Make target to watch the service log:
-
 ```bash
-# Tail the service log in real time
+# Tail the service log
 make logs
 
 # Example output:
-# [INFO] audit dispatch: starting audit-1 (task OOMPAH-123) on prov-fast/gpt-4, candidate rotation 0
-# [INFO] audit dispatch: auditor exit (audit-1) — transient failure, rotating to next candidate
+# [INFO] audit dispatch: starting attempt-abc (task OOMPAH-123) on prov-fast/gpt-4, rotation 0
+# [INFO] audit dispatch: auditor exit (attempt-abc) — transient failure, rotating to next candidate
 # [INFO] audit dispatch: rotation failed — no independent candidates; routing to Needs Human
 ```
 
-### State and Metrics
-
-The supported diagnostics endpoint is `/api/v1/state`. Audit counters are
-available under `orchestrator_metrics.audits`, and running auditor rows include
-their audit and attempt IDs.
+### State Endpoint
 
 ```bash
-# Inspect current dispatch metrics
 curl -s http://localhost:8080/api/v1/state | jq '.orchestrator_metrics.last_dispatch'
-
-# Audit fields exposed in the same state snapshot:
-{
-  "audits": {
-    "pending_count": 3,
-    "in_progress_count": 2,
-    "dispatch_count": 45,
-    "exhaustion_count": 1
-  }
-}
 ```
 
 ## Troubleshooting
 
-### "No Independent Auditor Candidates" Error
+### Task Stuck in "Needs Human" — Reason: no_auditor
 
-The audit was routed to `Needs Human` because all auditor candidates used the same providers as the task's contributors.
+**Cause:** All auditor candidates share a provider with the task's contributors,
+so no independent auditor was available.
 
 **Solutions:**
 
-1. **Add more providers to the auditor role**: Edit `.oompah/roles.json` to add candidates from different providers.
+1. **Add providers to the auditor role.** Edit `.oompah/roles.json` to add
+   candidates from different providers than the ones used to implement the task.
 
    ```json
    {
      "candidates": [
-       { "provider_id": "prov-external", "model": "gpt-4-turbo" },
-       { "provider_id": "prov-internal", "model": "claude-opus" }
+       { "provider_id": "prov-external", "model": "gpt-4o" },
+       { "provider_id": "prov-internal", "model": "claude-opus-4" }
      ]
    }
    ```
 
-2. **Configure a provider whitelist for auditors** (future): Pin the auditor role to specific independent providers.
-
-3. **Reopen the task with different contributors** (workaround): If the same contributors will work again, start the task with `deep` or other non-default profiles to change the provider pool.
+2. **Owner override.** If a human has reviewed the work and is confident it
+   is correct, use the explicit owner override (see below) to bypass the
+   audit and advance the task.
 
 ### Auditor Rate-Limited (HTTP 429)
 
-The selected provider returned a rate-limit error. Oompah persists the failed
-attempt, waits for the normal exponential retry backoff, and then rotates to
-the next independent candidate.
+Oompah persists the failed attempt, waits for the normal exponential backoff,
+then rotates to the next independent candidate.
 
 **If rotations keep failing:**
 
-1. Check provider health: Dashboard → Providers → check rate-limit status.
-2. Increase the provider's quota or throttle limit in the provider configuration.
-3. Add more independent providers to the auditor role.
-4. Increase `OOMPAH_MAX_RETRY_BACKOFF_MS` only if the provider needs a longer
-   cooldown before the next attempt.
+1. Check provider health in the dashboard (Providers page).
+2. Add more independent providers to the auditor role.
+3. Increase the provider quota or throttle limit.
 
-### Auditor Timeout (Took Too Long)
+### Auditor Timeout or Crash
 
-The auditor took longer than `OOMPAH_AGENT_COMMAND_TIMEOUT_SECONDS` to run a single command. This is usually benign (slow CI environment), but you can:
+1. After restart, an in-progress attempt with no live worker is reclaimed
+   immediately and the lane retries on the next tick.
+2. Check the orchestrator and agent logs for the crash reason.
 
-1. Increase `OOMPAH_AGENT_COMMAND_TIMEOUT_SECONDS` in `.env`:
+## Explicit Owner Override
 
-   ```bash
-   OOMPAH_AGENT_COMMAND_TIMEOUT_SECONDS=1800  # 30 minutes
-   ```
+When an audit is infeasible (e.g., no independent candidates available) or a
+human has independently reviewed the work, a project owner can bypass the
+audit queue and advance the task directly.
 
-2. Optimize your test suite (reduce test count, parallelize, skip slow checks for auditor runs).
+**Eligibility:** The actor must be listed as an authorized status label actor
+for the project (`status_label_authorized_logins` in the project configuration
+or the forge-level label authorization).
 
-### Auditor Crash (Worker Exited)
+**How to trigger:**
 
-The auditor process crashed or was killed. Oompah persists the failure and
-applies normal retry backoff:
+Via API:
 
-1. After a restart, an in-progress attempt with no live worker is reclaimed
-   immediately. An unobserved live session is reclaimed after
-   `OOMPAH_AUDIT_ATTEMPT_TTL` (default 3600s).
-2. Oompah rotates to the next candidate after the backoff on the next scheduler
-   tick.
-3. Check the orchestrator and agent logs for the crash reason (OOM, segfault, etc.).
+```http
+POST /api/v1/projects/{project_id}/issues/{task_id}/terminal-override
+Content-Type: application/json
 
-**If crashes are frequent:**
-
-- Increase agent memory limits (container/VM settings).
-- Reduce the amount of work per audit (e.g., skip slower quality gates).
-- Check provider logs for backend issues.
-
-### Audit Queue Backing Up
-
-If `audits_pending_count` is large and growing, audits are being queued faster than dispatched.
-
-**Root causes:**
-
-1. **Not enough concurrent capacity**: Increase `OOMPAH_MAX_CONCURRENT_AGENTS`.
-2. **Audits taking too long**: Increase `OOMPAH_AUDIT_ATTEMPT_TTL` or optimize test commands.
-3. **Provider health issues**: Inspect `GET /api/v1/providers` and test the
-   affected provider through the Providers page.
-4. **Budget limit reached**: Check `OOMPAH_BUDGET_LIMIT` vs. current spend.
-
-**Remediation:**
-
-```bash
-# Check the current dispatch snapshot
-curl -s http://localhost:8080/api/v1/state | jq '.orchestrator_metrics.last_dispatch'
-
-# Update OOMPAH_MAX_CONCURRENT_AGENTS in .env, then restart for faster dispatch
-make restart
-
-# List configured providers
-curl -s http://localhost:8080/api/v1/providers | jq '.[] | {id, name, mode}'
+{
+  "target_state": "Done",
+  "reason": "Independently reviewed by @alice — auditor candidates exhausted."
+}
 ```
 
-## Recovery
+The coordinator validates the fingerprint, records an immutable
+`OverrideRecord` in the task metadata, posts an override comment to the
+tracker, and advances the task to the requested terminal state.
 
-### Graceful Restart
+**Override rejection codes:**
 
-When the lane is enabled, restarting Oompah (for example after deploying
-changes) rehydrates running audits:
+| Code | Meaning |
+|---|---|
+| `unauthorized_actor` | The caller is not an authorized status actor |
+| `metadata_quarantined` | Audit metadata is corrupted; contact support |
+| `fingerprint_mismatch` | Evidence changed while the override was in flight; retry |
 
-```bash
-make restart
-```
+An override cannot be undone. If the reason for the override is later found
+to be incorrect, reopen the task through normal tracker commands.
 
-Oompah detects running attempts from metadata and:
+## Upgrade Grandfathering and Restart Behavior
 
-1. Reloads each pending/in-progress audit.
-2. If a live worker still owns a recent attempt, skips it; if a live worker
-   exceeds `OOMPAH_AUDIT_ATTEMPT_TTL`, terminates and reclaims it.
-3. If no live worker owns the attempt (the normal post-restart case), marks it
-   abandoned immediately rather than launching a duplicate.
-4. Rotates to the next candidate on the next scheduler tick.
+### Grandfathering (Upgrade Path)
 
-This is safe and idempotent — no duplicate audits are created.
+When the independent auditor dispatch feature is first enabled (or when Oompah
+restarts after a feature upgrade), existing terminal tasks are handled as
+follows:
 
-### Force Restart (Emergency)
+1. **First startup:** Oompah scans all terminal tasks (`Done`, `Merged`,
+   `Archived`) and records them in a persisted baseline snapshot. Tasks in
+   this baseline are *grandfathered* — they are not re-audited unless their
+   evidence fingerprint changes.
 
-If you need to interrupt active agents immediately (emergency):
+2. **Subsequent startups:** Oompah compares the current terminal state
+   snapshot against the baseline. Tasks whose state or evidence has changed
+   since the baseline was recorded are queued for a fresh audit.
 
-```bash
-make force-restart
-```
+3. **Incomplete scan:** If the first startup scan fails (tracker unavailable,
+   incomplete enumeration), the baseline is marked quarantined. All observed
+   terminal tasks are queued for audit as a conservative fallback. The
+   baseline heals on the next successful scan.
 
-This kills running auditors and workers without draining. They are recovered as abandoned attempts on restart.
+**Implication for upgrades:** Upgrading from a version without independent
+auditing to one with it will queue every existing terminal task for a one-time
+audit. This is intentional: it ensures historical work meets the same bar as
+new work. To avoid noise from a large backlog, upgrade during a low-activity
+window or use the owner override procedure above for known-good tasks.
 
-### Stuck or abandoned audits
+### Restart Recovery
 
-Do not delete `oompah.terminal_audit` metadata or move a task out of
-`In Validation` by hand. The metadata is the recovery source of truth, and a
-manual status change can leave the tracker and audit chain inconsistent. Use
-the graceful or force restart procedure above; if the lane still cannot
-recover the attempt, preserve the task identifier, audit identifier, and
-service log excerpt for operator reconciliation.
+When Oompah restarts with pending audits in flight:
+
+1. The service reads `In Validation` tasks from the tracker and rebuilds the
+   in-memory audit queue from their persisted `oompah.terminal_audit` metadata.
+2. A running attempt with no live worker is reclaimed immediately (no TTL wait).
+3. A running attempt whose worker is still live is honored until
+   `OOMPAH_AUDIT_ATTEMPT_TTL` expires, at which point it is reclaimed.
+4. No duplicate audits are created. Recovery is idempotent.
+
+Do **not** edit `oompah.terminal_audit` metadata or manually move a task out
+of `In Validation`. The metadata is the recovery source of truth. A manual
+status change leaves the audit chain and tracker state inconsistent. Use the
+graceful restart (`make restart`) or force restart (`make force-restart`)
+procedure instead.
+
+## Migration from Completion Verifier
+
+The legacy `OOMPAH_VERIFY_COMPLETION` and `OOMPAH_VERIFY_COMPLETION_LLM`
+variables are **deprecated**. Oompah emits a startup warning when either is
+set. They do not disable the mandatory terminal-audit gate.
+
+**Migration steps:**
+
+1. Remove `OOMPAH_VERIFY_COMPLETION` and `OOMPAH_VERIFY_COMPLETION_LLM` from
+   your `.env` file.
+2. Configure the auditor role in `.oompah/roles.json` with at least two
+   independent candidates (see §Auditor Role Configuration above).
+3. Set `OOMPAH_AUDIT_MAX_ATTEMPTS` to match the number of candidates.
+4. Restart: `make restart`.
+
+The old completion verifier ran as a post-exit in-process check without
+independence guarantees. The independent auditor dispatch runs as a
+full agent session using a demonstrably different provider/model pair,
+providing stronger assurance with the same fail-open safety net for
+infrastructure errors.
 
 ## Configuration Examples
 
-### Small Setup (Single Provider)
-
-Auditor role:
+### Minimal (Single Provider)
 
 ```json
 {
@@ -309,18 +378,13 @@ Auditor role:
 }
 ```
 
-Environment:
-
 ```bash
-OOMPAH_AUDIT_MAX_ATTEMPTS=1          # Only one provider, no rotation
-OOMPAH_AUDIT_ATTEMPT_TTL=1800        # 30 min (quick TTL for fast feedback)
-OOMPAH_AUDIT_PRIORITY=150            # High priority to unblock tasks quickly
-OOMPAH_AUDIT_LANE_SCAN_LIMIT=64      # Scan up to 64 pending audits each tick
+OOMPAH_AUDIT_MAX_ATTEMPTS=1   # Only one candidate; rotate will exhaust immediately
+OOMPAH_AUDIT_ATTEMPT_TTL=1800
+OOMPAH_AUDIT_PRIORITY=150
 ```
 
-### Large Setup (Multiple Providers)
-
-Auditor role:
+### Two Independent Providers (Recommended Minimum)
 
 ```json
 {
@@ -328,69 +392,45 @@ Auditor role:
   "strategy": "round_robin",
   "candidates": [
     { "provider_id": "prov-claude", "model": "claude-opus-4" },
-    { "provider_id": "prov-openai", "model": "gpt-4-turbo" },
-    { "provider_id": "prov-azure", "model": "gpt-4" },
-    { "provider_id": "prov-self-hosted", "model": "llama-2-70b" }
+    { "provider_id": "prov-openai", "model": "gpt-4o" }
   ]
 }
 ```
 
-Environment:
-
 ```bash
-OOMPAH_AUDIT_MAX_ATTEMPTS=4          # Try all 4 providers before giving up
-OOMPAH_AUDIT_ATTEMPT_TTL=3600        # 1 hour (allows CI to complete)
-OOMPAH_AUDIT_PRIORITY=150            # Prioritize audits
-OOMPAH_AUDIT_LANE_SCAN_LIMIT=32      # Batch scans to avoid GIL contention
-OOMPAH_MAX_CONCURRENT_AGENTS=20      # Allow many audits + work in parallel
+OOMPAH_AUDIT_MAX_ATTEMPTS=2
+OOMPAH_AUDIT_ATTEMPT_TTL=3600
+OOMPAH_AUDIT_PRIORITY=100
+OOMPAH_AUDIT_LANE_SCAN_LIMIT=32
 ```
 
-### CI/Integration Environment
-
-Auditor role (uses internal provider only):
+### Large Setup (Four Providers)
 
 ```json
 {
   "name": "auditor",
-  "strategy": "priority",
+  "strategy": "round_robin",
   "candidates": [
-    { "provider_id": "prov-internal-api", "model": "internal-gpt-4" }
+    { "provider_id": "prov-claude", "model": "claude-opus-4" },
+    { "provider_id": "prov-openai", "model": "gpt-4o" },
+    { "provider_id": "prov-azure", "model": "gpt-4" },
+    { "provider_id": "prov-self-hosted", "model": "llama-3-70b" }
   ]
 }
 ```
 
-Environment:
-
 ```bash
-OOMPAH_AUDIT_MAX_ATTEMPTS=3
-OOMPAH_AUDIT_ATTEMPT_TTL=7200        # 2 hours (CI can be slow)
-OOMPAH_AGENT_COMMAND_TIMEOUT_SECONDS=1800  # 30 min per test command
-OOMPAH_BUDGET_LIMIT=0                # Unlimited (internal provider)
+OOMPAH_AUDIT_MAX_ATTEMPTS=4
+OOMPAH_AUDIT_ATTEMPT_TTL=3600
+OOMPAH_AUDIT_PRIORITY=150
+OOMPAH_AUDIT_LANE_SCAN_LIMIT=64
+OOMPAH_MAX_CONCURRENT_AGENTS=20
 ```
-
-## Performance Tuning
-
-### Reduce Audit Latency
-
-1. **Increase priority**: `OOMPAH_AUDIT_PRIORITY=200`
-2. **Increase concurrency**: set `OOMPAH_MAX_CONCURRENT_AGENTS=20` in `.env`
-3. **Add more auditor candidates**: More providers = more rotation options, less queueing.
-
-### Reduce Audit Cost
-
-1. **Use faster models**: Configure auditor role with cheaper providers.
-2. **Reduce test commands**: Disable slow quality checks in auditor sessions.
-3. **Increase max attempts**: Let Oompah try all candidates before giving up (retry cost is cheap vs. manual Needs Human remediation).
-
-### Optimize for High Throughput
-
-1. Set `OOMPAH_AUDIT_LANE_SCAN_LIMIT=128` in `.env` (scan more audits per tick)
-2. Set `OOMPAH_MAX_CONCURRENT_AGENTS=50` in `.env` (parallel audits and work)
-3. Add independent providers to the auditor role (more rotation options)
 
 ## See Also
 
-- `plans/independent-auditor-dispatch.md` — Complete design and architecture
-- `docs/agent-profiles.md` — How to configure agent profiles and roles
+- `plans/independent-auditor-dispatch.md` — Design and architecture
+- `docs/agent-profiles.md` — Configuring agent profiles and roles
 - `docs/operator-runbook.md` — General Oompah operations guide
+- `docs/task-epic-workflow.md` — Task status lifecycle including In Validation
 - `plans/terminal-transition-coordinator.md` — Audit request staging and result coordination

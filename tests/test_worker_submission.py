@@ -206,7 +206,9 @@ def test_submit_endpoint_rejects_foreign_task_branch_without_writing():
 
     assert response.status_code == 400
     assert response.json()["error"]["message"] == (
-        "task_branch does not match the task's canonical work branch"
+        "submitted branch 'oompah/task/TASK-OTHER' does not match the task's "
+        "expected work branch 'oompah/task/TASK-2'; submit from the assigned "
+        "task checkout"
     )
     tracker.set_metadata_field.assert_not_called()
     tracker.update_issue.assert_not_called()
