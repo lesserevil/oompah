@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T13:52:05.961085Z'
-updated_at: '2026-07-31T14:11:33.729880Z'
+updated_at: '2026-07-31T14:13:06.267800Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -146,5 +146,27 @@ created: 2026-07-31 14:11
 - API and orchestrator paths use identical computation
 
 All regression tests pass. Next: Ensure documentation clarity and verify edge cases.
+---
+author: oompah
+created: 2026-07-31 14:13
+---
+**Implementation - Fingerprint Canonicalization**:
+
+1. **Enhanced canonical function documentation** (terminal_audit.py):
+   - Expanded docstring for \`compute_issue_evidence_fingerprint\` to explicitly state it is the ONLY function for computing fingerprints across all paths
+   - Added detailed parameter documentation explaining fallback hierarchy
+   - Clearly stated that auditor-specific data is excluded to keep fingerprints stable
+
+2. **Added clarifying references in all entry points**:
+   - **orchestrator.py** (line 27440): Added comment referencing OOMPAH-663 to confirm orchestrator integration uses canonical path
+   - **server.py** (_terminal_evidence_fingerprint): Updated docstring to reference OOMPAH-663 and confirm API override path
+   - **acp_tools.py** (_task_evidence_fingerprint): Updated docstring to reference OOMPAH-663 and confirm ACP override path
+
+3. **Added comprehensive regression test suite** (test_terminal_fingerprint_canonicalization.py):
+   - test_integrated_task_audit_staged_and_overridden_with_canonical_fingerprint: Verifies first valid override succeeds without restaging
+   - test_genuinely_changed_integration_sha_still_fails_closed: Verifies stale evidence is rejected with 409
+   - test_api_override_uses_same_canonical_fingerprint_as_orchestrator_integration: Verifies all paths use identical computation
+
+All 149 affected tests pass (30 new + 119 existing).
 ---
 <!-- COMMENTS:END -->
