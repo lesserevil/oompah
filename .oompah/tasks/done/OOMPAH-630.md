@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-630
 type: task
-status: In Validation
+status: Done
 priority: null
 title: Fetch rollup targets before judging child landing evidence
 parent: OOMPAH-584
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T23:37:58.090708Z'
-updated_at: '2026-07-31T00:21:53.975265Z'
+updated_at: '2026-07-31T00:27:19.940309Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-630
 target_branch: null
 review_url: null
@@ -72,6 +72,8 @@ oompah.task_costs:
     recorded_at: '2026-07-31T00:15:26.415217+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-0add3cf25974: '2026-07-31T00:27:16.916939+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -79,7 +81,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-630
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -88,7 +90,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-0add3cf25974
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -98,13 +100,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T00:21:49.594379+00:00'
       branch_key: epic-OOMPAH-584--task-OOMPAH-630
+      verdict: pass
+      completed_at: '2026-07-31T00:27:16.916751+00:00'
+      ended_at: '2026-07-31T00:27:16.916751+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-31T00:21:38.160095+00:00'
-    updated_at: '2026-07-31T00:21:49.594379+00:00'
+    updated_at: '2026-07-31T00:27:16.916751+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-0add3cf25974
@@ -307,5 +312,21 @@ author: oompah
 created: 2026-07-31 00:21
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 00:27
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: c03e52f66f4e5123576f4de3f21e4a763cc9c4b1
+- task_branch: epic-OOMPAH-584--task-OOMPAH-630
+- commits: da4476dbb refresh rollup targets before containment; f9f1e78ae preserve active child validation ownership; 797d2c0de serialize terminal transitions across event loops; c03e52f66 make project-lock concurrency proof deterministic
+- focused_tests: test_epic_strategy.py 212 passed; test_project_locks.py 26 passed; test_terminal_transition_coordinator.py 105 passed; test_orchestrator_merged.py 160 passed
+- fail_closed_helper: oompah/orchestrator.py:_refresh_landing_evidence_target_refs (bounded fetch, redacted reason)
+- call_site: oompah/orchestrator.py:_mark_epic_merged skips Done children when refresh cannot be proven successful and skips In Validation children so the terminal auditor keeps ownership
+- worktree_status: clean, up to date with origin
 ---
 <!-- COMMENTS:END -->
