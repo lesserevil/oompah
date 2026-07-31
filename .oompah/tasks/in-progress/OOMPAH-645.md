@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-645
 type: task
-status: Needs CI Fix
+status: In Progress
 priority: 0
 title: Clear recovered terminal-audit transport failures without contaminating later
   audits
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T06:47:58.732088Z'
-updated_at: '2026-07-31T09:01:44.738876Z'
+updated_at: '2026-07-31T09:01:58.182414Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -100,7 +100,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: f6a9d672-5eab-479e-bd83-bfff5bb40b01
+oompah.agent_run_id: aa3a6a51-405f-4be1-9308-b7b8dab72a67
 oompah.task_costs:
   total_input_tokens: 2223999
   total_output_tokens: 58992
@@ -574,5 +574,15 @@ author: oompah
 created: 2026-07-31 08:59
 ---
 Understanding: Branch OOMPAH-645 is current at 6686290d5 (isolate client environment tests) and pushed to origin. Previous agents completed the main terminal-audit health implementation and a CI fix for the test_current_dotenv_replaces_stale_client_inputs test. The task handoff failed after the last agent's work but the branch is intact. My job is to verify the CI fix is working, run focused tests, and submit the task.
+---
+author: oompah
+created: 2026-07-31 09:01
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-31 09:01
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->

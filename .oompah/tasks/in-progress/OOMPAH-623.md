@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-623
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Keep the canonical user CLI synchronized with the running server
 parent: OOMPAH-619
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:32:18.734139Z'
-updated_at: '2026-07-31T09:01:39.805174Z'
+updated_at: '2026-07-31T09:02:06.732185Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-623
 target_branch: null
 review_url: null
@@ -86,7 +86,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 0c315515-69e5-42b5-978a-4c6f794da2f6
+oompah.agent_run_id: 78712b7a-3b81-4333-b8a9-929ff6dab00c
 oompah.work_branch: epic-OOMPAH-619--task-OOMPAH-623
 oompah.integration:
   version: 2
@@ -95,7 +95,7 @@ oompah.integration:
   task_branch: epic-OOMPAH-619--task-OOMPAH-623
   base_branch: epic-OOMPAH-619
   base_sha: 0dc7d0f7caeea06a6eceb55ea2e58cf16554f0a4
-  updated_at: '2026-07-31T08:55:12.843626+00:00'
+  updated_at: '2026-07-31T09:02:04.378852+00:00'
 oompah.task_costs:
   total_input_tokens: 210
   total_output_tokens: 5047
@@ -194,5 +194,15 @@ author: oompah
 created: 2026-07-31 08:56
 ---
 DISCOVERY: Found test_cli_install_revision_compatibility.py which verifies exact-revision CLI can authenticate against matching server. Current version is 0.1.0 from pyproject.toml. No --version flag or build_id endpoints exist yet. Need to: (1) create version module to get git revision, (2) add --version to CLI, (3) add build_id to /healthz and /api/v1/state, (4) create Makefile install-cli target, (5) comprehensive tests, (6) documentation.
+---
+author: oompah
+created: 2026-07-31 09:02
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-31 09:02
+---
+Focus: Maintenance Engineer
 ---
 <!-- COMMENTS:END -->
