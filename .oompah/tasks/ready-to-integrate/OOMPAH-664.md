@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-664
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Make issue-list snapshots advance with canonical state-branch task changes
 parent: null
@@ -12,7 +12,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-07-31T16:04:06.140108Z'
-updated_at: '2026-07-31T21:33:24.871476Z'
+updated_at: '2026-07-31T21:33:40.014894Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -99,9 +99,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-664
-  head_sha: db975da26c71bb65456d0df87549cc65ce582095
-  submitted_at: '2026-07-31T18:38:47.626545+00:00'
-  updated_at: '2026-07-31T18:38:47.626545+00:00'
+  head_sha: 9b0696866c9f186649076773e213cd4f2890bd99
+  submitted_at: '2026-07-31T21:33:31.547613+00:00'
+  updated_at: '2026-07-31T21:33:31.547613+00:00'
 ---
 ## Summary
 
@@ -267,5 +267,31 @@ author: oompah
 created: 2026-07-31 21:33
 ---
 Rebased branch onto deployed main (16362384b). All 59 focused tests pass (test_server_issue_snapshot.py + test_oompah_md_tracker_state_branch.py). Branch is now ready for quality gate and integration.
+---
+author: oompah
+created: 2026-07-31 21:33
+---
+Rebased OOMPAH-664 onto deployed main. Branch contains generation-bound issue snapshots that bind list/board snapshots to exact state-branch generation, invalidate caches synchronously after mutations, and ensure all read surfaces (list, detail, websocket, CLI) agree. All 59 focused tests pass. Ready for quality gate and review.
+---
+author: oompah
+created: 2026-07-31 21:33
+---
+Branch quality gate blocked review creation.
+
+Branch: `OOMPAH-664`
+Target: `main`
+Head: `9b0696866c9f186649076773e213cd4f2890bd99`
+Command: `make test`
+Result: `failed`
+
+Required: run the command in the task worktree, fix the failure, commit and push the repair, then leave the task in Done. Oompah will rerun the gate for the new head before creating the PR/MR.
+
+Output tail:
+```text
+uv pip install -e '.[server]'
+
+make: uv: No such file or directory
+make: *** [Makefile:118: .venv/.uv-setup] Error 127
+```
 ---
 <!-- COMMENTS:END -->
