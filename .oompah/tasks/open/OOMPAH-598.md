@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-598
 type: bug
-status: In Validation
+status: Open
 priority: 1
 title: Detect and deliver standalone Ready to Integrate tasks without PRs
 parent: OOMPAH-587
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:29.695490Z'
-updated_at: '2026-07-31T01:54:29.125553Z'
+updated_at: '2026-07-31T02:00:29.978151Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-598
 target_branch: null
 review_url: null
@@ -102,6 +102,8 @@ oompah.work_contributors:
     completed_at: '2026-07-30T15:40:21.961176+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-0335e837a33d: '2026-07-31T02:00:26.360030+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -109,7 +111,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-598
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -118,7 +120,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-0335e837a33d
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -128,13 +130,17 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T01:54:24.351074+00:00'
       branch_key: epic-OOMPAH-587--task-OOMPAH-598
+      verdict: fail
+      failure_classification: incomplete
+      completed_at: '2026-07-31T02:00:26.359922+00:00'
+      ended_at: '2026-07-31T02:00:26.359922+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-31T01:54:12.844272+00:00'
-    updated_at: '2026-07-31T01:54:24.351074+00:00'
+    updated_at: '2026-07-31T02:00:26.359922+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-0335e837a33d
@@ -509,5 +515,19 @@ author: oompah
 created: 2026-07-31 01:54
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 02:00
+---
+Audit FAIL — incomplete. Routing task to Open.
+
+[REDACTED]
+
+Instructions:
+- Replace provider_store.get_scm_for_project with the standard detect_provider(project.repo_url, ...) pattern used elsewhere in orchestrator.py.
+- Replace getattr(project, 'repo_slug', None) with extract_repo_slug(project.repo_url) and read the target branch from project.default_branch.
+- Add an integration style test that constructs a real Orchestrator with real ProviderStore and Project, so mismatched collaborator APIs cannot pass silently.
+- Cover the missing scenarios: existing closed PR, existing queue row, service restart, gate failure and retry, and successful merge and audit.
+- Confirm live recovery of OOMPAH-574, OOMPAH-576, and OOMPAH-581 before the next Done audit.
 ---
 <!-- COMMENTS:END -->
