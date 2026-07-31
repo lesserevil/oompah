@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-667
 type: bug
-status: Needs CI Fix
+status: In Progress
 priority: 1
 title: Keep Makefile virtualenv PATH from defeating canonical CLI cutover
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T21:32:57.017227Z'
-updated_at: '2026-07-31T23:14:33.621862Z'
+updated_at: '2026-07-31T23:15:31.088005Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -58,7 +58,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: a5c1ccde-9a95-4ff1-ab7f-1ad7b0150519
+oompah.agent_run_id: 762bc01a-3a84-401c-b4b5-295694dde00a
 oompah.task_costs:
   total_input_tokens: 3515907
   total_output_tokens: 25472
@@ -268,5 +268,15 @@ FAILED tests/test_orchestrator_handlers.py::TestTickDelegation::test_tick_notifi
 
 make: *** [Makefile:381: test] Error 1
 ```
+---
+author: oompah
+created: 2026-07-31 23:15
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-31 23:15
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->

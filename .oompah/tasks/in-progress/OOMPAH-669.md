@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T21:52:16.588312Z'
-updated_at: '2026-07-31T23:13:21.957729Z'
+updated_at: '2026-07-31T23:15:31.919899Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -133,5 +133,15 @@ Added tests/test_worker_submission.py covering:
 - Cross-project isolation: reconciling one task does not mutate an unrelated project's queue row.
 
 All 10 tests in test_worker_submission.py pass. Neighboring suites (integration_queue, integration_executor, task_handoff, submit_queue_concurrency, task_cli) all green.
+---
+author: oompah
+created: 2026-07-31 23:15
+---
+Verification: focused test runs pass.
+
+- tests/test_worker_submission.py: 10/10 pass (5 pre-existing + 5 new for OOMPAH-669 lifecycle reconciliation).
+- Directly affected neighboring suites: tests/test_integration_queue.py, test_integration_record.py, test_integration_conflict_repair.py, test_integration_executor.py, test_task_handoff.py, test_task_cli.py, test_submit_queue_concurrency.py — 315 passed, 0 failed.
+
+Commit e8761afb6 pushed to origin/OOMPAH-669. The complete branch gate (make test) will run once when this branch is ready for review.
 ---
 <!-- COMMENTS:END -->
