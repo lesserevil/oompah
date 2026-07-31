@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-668
 type: bug
-status: In Progress
+status: Needs Human
 priority: 1
 title: Use the trusted test virtualenv without reinstalling inside quality-gate sandbox
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T21:35:20.853943Z'
-updated_at: '2026-07-31T21:48:05.923218Z'
+updated_at: '2026-07-31T21:48:43.047084Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,13 +37,17 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 63c33ca0-ceeb-40a8-aec9-493b348fa22d
 oompah.task_costs:
-  total_input_tokens: 634211
-  total_output_tokens: 4078
+  total_input_tokens: 634233
+  total_output_tokens: 4326
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 634211
       output_tokens: 4078
+      cost_usd: 0.0
+    opus:
+      input_tokens: 22
+      output_tokens: 248
       cost_usd: 0.0
   runs:
   - profile: default
@@ -52,6 +56,12 @@ oompah.task_costs:
     output_tokens: 4078
     cost_usd: 0.0
     recorded_at: '2026-07-31T21:38:04.349772+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 22
+    output_tokens: 248
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T21:48:41.444888+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-668__20260731T213635Z
@@ -319,5 +329,25 @@ author: oompah
 created: 2026-07-31 21:48
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-31 21:48
+---
+Managed worktree registration succeeded, but creation initialized local OOMPAH-668 at main (16362384b) while origin/OOMPAH-668 remains the tested head 1fe2181a2. Draining this retry before performing a non-destructive fast-forward of the managed branch to its remote head, then resubmitting from the registered checkout.
+---
+author: oompah
+created: 2026-07-31 21:48
+---
+Moved to Needs Human from the dashboard/API. Human action required: inspect OOMPAH-668 (Use the trusted test virtualenv without reinstalling inside quality-gate sandbox), add the specific decision, missing information, or manual fix needed, then move the task back to Open when it is ready for agents again.
+---
+author: oompah
+created: 2026-07-31 21:48
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Claude/opus]
+- Turns: 12, Tool calls: 7
+- Tokens: 22 in / 248 out [270 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 40s
+- Log: OOMPAH-668__20260731T214807Z.jsonl
 ---
 <!-- COMMENTS:END -->
