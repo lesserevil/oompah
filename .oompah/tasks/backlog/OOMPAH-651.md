@@ -17,7 +17,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T12:18:37.157359Z'
+updated_at: '2026-07-31T12:18:58.843784Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -61,8 +61,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 2f1d6bc3-b9b9-4bb5-ad86-9a6a5e4dd01c
 oompah.task_costs:
-  total_input_tokens: 16588309
-  total_output_tokens: 104315
+  total_input_tokens: 16588339
+  total_output_tokens: 105080
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -70,8 +70,8 @@ oompah.task_costs:
       output_tokens: 54450
       cost_usd: 0.0
     opus:
-      input_tokens: 1658427
-      output_tokens: 49865
+      input_tokens: 1658457
+      output_tokens: 50630
       cost_usd: 0.0
   runs:
   - profile: default
@@ -122,6 +122,12 @@ oompah.task_costs:
     output_tokens: 857
     cost_usd: 0.0
     recorded_at: '2026-07-31T11:53:57.457150+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 30
+    output_tokens: 765
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T12:18:44.473399+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-651__20260731T090132Z
@@ -1012,5 +1018,25 @@ author: oompah
 created: 2026-07-31 12:16
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-31 12:18
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Claude/opus]
+- Turns: 0, Tool calls: 15
+- Tokens: 30 in / 765 out [795 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 1m 58s
+- Log: OOMPAH-651__20260731T121651Z.jsonl
+---
+author: oompah
+created: 2026-07-31 12:18
+---
+Temporary containment update: parked in Backlog rather than Open to prevent duplicate-preflight/CI-watchdog redispatch under the currently deployed scheduler. Pushed e4e36c44e remains preserved and accepted pending OOMPAH-650/657. Return to Open after both deploy, rebase, and wire the redaction lease lifecycle.
+---
+author: oompah
+created: 2026-07-31 12:18
+---
+Temporary containment update: parked in Backlog rather than Open to prevent duplicate-preflight/CI-watchdog redispatch under the currently deployed scheduler. Pushed e4e36c44e remains preserved and accepted pending OOMPAH-650/657. Return to Open after both deploy, rebase, and wire the redaction lease lifecycle.
 ---
 <!-- COMMENTS:END -->

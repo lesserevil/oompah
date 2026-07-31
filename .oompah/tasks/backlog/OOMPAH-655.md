@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-655
 type: task
-status: Open
+status: Backlog
 priority: null
 title: Enforce full-gate service isolation outside candidate branch code
 parent: null
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T12:17:29.401836Z'
+updated_at: '2026-07-31T12:19:01.361212Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -578,5 +578,15 @@ author: oompah
 created: 2026-07-31 12:17
 ---
 Pushed 9e4f9573c has the required empty-root bwrap/PID/network boundary and live host attack regression, but its symbolic git archive HEAD snapshot cannot be final authority. Parked Open behind a hard-start dependency on OOMPAH-657. Preserve the branch; after 657 deploys, rebase and consume its captured exact-head snapshot/generation contract instead of maintaining a competing mutable snapshot, then validate one real Makefile smoke in the sandbox and submit once.
+---
+author: oompah
+created: 2026-07-31 12:18
+---
+Temporary containment update: parked in Backlog rather than Open to prevent duplicate-preflight redispatch before OOMPAH-657. Pushed 9e4f9573c remains preserved; return to Open after 657 deploys for exact-snapshot rebase/refactor.
+---
+author: oompah
+created: 2026-07-31 12:19
+---
+Temporary containment update: parked in Backlog rather than Open to prevent duplicate-preflight redispatch before OOMPAH-657. Pushed 9e4f9573c remains preserved; return to Open after 657 deploys for exact-snapshot rebase/refactor.
 ---
 <!-- COMMENTS:END -->

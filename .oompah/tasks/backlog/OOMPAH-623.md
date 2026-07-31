@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:32:18.734139Z'
-updated_at: '2026-07-31T12:18:35.959126Z'
+updated_at: '2026-07-31T12:18:56.303159Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-623
 target_branch: null
 review_url: null
@@ -526,5 +526,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 1m 13s
 - Log: OOMPAH-623__20260731T121727Z.jsonl
+---
+author: oompah
+created: 2026-07-31 12:18
+---
+Temporary containment update: parked in Backlog rather than Open because deployed duplicate-preflight intentionally bypasses hard-start constraints and the OOMPAH-658 dedup repair is not deployed yet. Pushed c8bb0b809 remains preserved and accepted pending OOMPAH-657. Return to Open after 657 deploys.
+---
+author: oompah
+created: 2026-07-31 12:18
+---
+Temporary containment update: parked in Backlog rather than Open because deployed duplicate-preflight intentionally bypasses hard-start constraints and the OOMPAH-658 dedup repair is not deployed yet. Pushed c8bb0b809 remains preserved and accepted pending OOMPAH-657. Return to Open after 657 deploys.
 ---
 <!-- COMMENTS:END -->

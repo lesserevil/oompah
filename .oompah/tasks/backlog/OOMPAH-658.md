@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-658
 type: bug
-status: Open
+status: Backlog
 priority: 2
 title: Deduplicate duplicate-preflight runs across deferred dispatch ticks
 parent: null
@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-07-31T12:15:35.467951Z'
+updated_at: '2026-07-31T12:19:03.850473Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -719,5 +719,15 @@ author: oompah
 created: 2026-07-31 12:15
 ---
 Temporarily parked the accepted focused-test head 1b49ab0f4 in Open behind a hard-start dependency on OOMPAH-657. This prevents the current standalone scheduler bug from repeatedly launching an unauthorized full gate and triggering Needs CI Fix/watchdog churn. The branch and integration metadata are preserved; after OOMPAH-657 is merged/deployed, remove the temporary hard-start (or let the normal repair flow do so), rebase onto the safe base, and submit once for the exact server-owned gate. Permanent scheduler fix is tracked as OOMPAH-659.
+---
+author: oompah
+created: 2026-07-31 12:19
+---
+Temporary containment update: parked in Backlog to stop the deployed standalone-gate/watchdog and duplicate-preflight loops while OOMPAH-657 is unfinished. Pushed 1b49ab0f4 and its ready integration metadata remain preserved. Return to Open after 657 deploys, remove the temporary hard-start, rebase, and submit once.
+---
+author: oompah
+created: 2026-07-31 12:19
+---
+Temporary containment update: parked in Backlog to stop the deployed standalone-gate/watchdog and duplicate-preflight loops while OOMPAH-657 is unfinished. Pushed 1b49ab0f4 and its ready integration metadata remain preserved. Return to Open after 657 deploys, remove the temporary hard-start, rebase, and submit once.
 ---
 <!-- COMMENTS:END -->
