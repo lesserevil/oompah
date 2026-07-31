@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-631
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Restore validation ownership when terminal retries coalesce
 parent: OOMPAH-584
@@ -11,12 +11,36 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:08:00.758352Z'
-updated_at: '2026-07-31T00:08:03.777963Z'
-work_branch: null
+updated_at: '2026-07-31T00:08:44.722002Z'
+work_branch: epic-OOMPAH-584--task-OOMPAH-631
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: a2a29335ee6182a0bd482858460eb19f1eb1be588b29354d79864987fde1d125
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: cda32726-2f01-499b-a9e1-04f9a5edfba3
+  claim_owner: b1126b43-a708-4576-a58f-88442a7059a7
+  claimed_at: '2026-07-31T00:08:37.342070+00:00'
+  claim_expires_at: '2026-07-31T00:38:37.342070+00:00'
+  retry_count: 0
+  retry_after: null
+oompah.agent_run_id: 1b719070-2122-4ee7-85c8-3985846a983b
+oompah.work_branch: epic-OOMPAH-584--task-OOMPAH-631
+oompah.integration:
+  version: 1
+  state: working
+  attempts: 0
+  task_branch: epic-OOMPAH-584--task-OOMPAH-631
+  base_branch: epic-OOMPAH-584
+  base_sha: f9f1e78ae25afb462d71a360bf93cc2d4f0804a2
+  updated_at: '2026-07-31T00:08:41.969324+00:00'
 ---
 ## Summary
 
@@ -34,5 +58,15 @@ author: oompah
 created: 2026-07-31 00:08
 ---
 Claimed directly by the operator Codex session because this bug is the live deadlock preventing OOMPAH-590 from re-entering validation. Implementation will begin after OOMPAH-630's exact head finishes its currently active integration gate, avoiding a moving-head race.
+---
+author: oompah
+created: 2026-07-31 00:08
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-07-31 00:08
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
