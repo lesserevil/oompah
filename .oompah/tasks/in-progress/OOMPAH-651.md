@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T11:54:13.228362Z'
+updated_at: '2026-07-31T11:57:01.719322Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -811,5 +811,10 @@ author: oompah
 created: 2026-07-31 11:54
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-07-31 11:57
+---
+Exact review of clean 6cfb48666: the short-secret fix still trades correctness for over-redaction by requiring alphanumeric boundaries for values under 8 characters. A configured password s7 is leaked unchanged in prefixs7suffix, an URL segment, or concatenated tool output, despite the zero-plaintext contract. Comment #51 explicitly required not trading correctness for over-redaction. Either redact every registered configured literal longest-first everywhere, or enforce a minimum credential length at every authoritative configuration/mint boundary and reject shorter values before use; do not silently use a secret the redactor cannot guarantee. Add innocuous-key str/bytes and real log/backend sink tests with the short value embedded inside surrounding alphanumerics. The handoff renewal/revoke registry lifecycle remains finish-order blocked on OOMPAH-650 as already recorded.
 ---
 <!-- COMMENTS:END -->
