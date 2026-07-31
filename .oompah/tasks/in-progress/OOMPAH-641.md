@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T05:59:48.550048Z'
-updated_at: '2026-07-31T06:10:24.191688Z'
+updated_at: '2026-07-31T06:12:17.252146Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -122,5 +122,17 @@ UNDERSTANDING: This task completes the hardening of shared-epic child PR creatio
 4. Independently merged reconciliation must detect stale work_branch bypassing epic
 Required test cases: stale work_branch+parent_id, missing parent_id+resolvable parent, persistence failure, independently merged child.
 Starting with code exploration in orchestrator.py, epic_proposal.py, and test_epic_strategy.py.
+---
+author: oompah
+created: 2026-07-31 06:12
+---
+DISCOVERY: Found relevant code:
+- _ensure_review_exists (line 13430): Blocks child PRs if parent_id exists, but doesn't check if work_branch is stale or if parent is resolvable without parent_id
+- _create_workspace_for_issue (line 9920): Already corrects stale work_branch for shared epic children with try/except for persistence failures
+- _resolve_parent_epic (line 9852): Resolves parent even if parent_id is empty
+Key issue: _ensure_review_exists needs to:
+1. Use resolvable parent_epic as fail-closed signal (not just parent_id)
+2. Verify work_branch matches expected epic branch before routing
+3. Test cases needed for: stale work_branch+parent_id, missing parent_id+resolvable parent, persistence failure in _create_workspace
 ---
 <!-- COMMENTS:END -->
