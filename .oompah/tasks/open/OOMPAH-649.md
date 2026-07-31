@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:19:33.053515Z'
-updated_at: '2026-07-31T07:19:57.690100Z'
+updated_at: '2026-07-31T07:22:35.545738Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -21,17 +21,68 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 34b7218c890759bfab1fc1575e53815c1060649d03e9dae5e880401024c8464e
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-07-31T07:22:29.514613+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 913e3cb4-4f87-48df-9661-5d7b878c5efc
-  claim_owner: d12922aa-baf6-4258-aa45-02da3deea710
-  claimed_at: '2026-07-31T07:19:49.635543+00:00'
-  claim_expires_at: '2026-07-31T07:49:49.635543+00:00'
+  evidence: "Based on my comprehensive investigation, I have:\n\n1. \u2705 Searched\
+    \ all active tasks (open, backlog) - found OOMPAH-281 (unrelated: containerized\
+    \ runner) and OOMPAH-282 (unrelated: Unicode encoding bug)\n2. \u2705 Searched\
+    \ merged/archived task histories - no duplicates matching worktree preservation\n\
+    3. \u2705 Searched docs/ and plans/ directories - no existing documentation on\
+    \ this topic\n4. \u2705 Searched for references to OOMPAH-644 and OOMPAH-645 mentioned\
+    \ in the description - they do not exist as tracked tasks\n5. \u2705 Searched\
+    \ for related keywords (dirty, worktree, termination, cleanup, retry, preserve,\
+    \ reset, stash, recovery) - no active duplicate tasks found\n\n## Investigation\
+    \ Summary\n\n**OOMPAH-649** addresses a critical data-loss bug: when a worker\
+    \ is terminated with `cleanup=False` during task work, the subsequent retry launch\
+    \ starts on a clean worktree with the previous agent's staged/unstaged/untracked\
+    \ changes completely lost. The issue description references OOMPAH-644 and OOMPAH-645\
+    \ as prior instances of this data loss, but these are not currently tracked as\
+    \ separate active tasks \u2014 they're mentioned only as context for the problem.\n\
+    \nThe required fix involves:\n- Detecting dirty worktrees before any reset/sync/rebase\n\
+    - Preserving changes durably via task-scoped recovery commits or snapshots\n-\
+    \ Exposing recovery context and exact prior filesystem state to retry agents\n\
+    - Preventing silent data loss via `reset --hard`\n\nThis is a unique, previously-unaddressed\
+    \ task with no active duplicate.\n\n---\n\n**Focus handoff: duplicate_detector**\n\
+    \n**Duplicate preflight verdict: no_duplicate**\n\n**Matches: none**\n\n**Evidence:**\
+    \ Searched all task states (open, backlog, merged, archived), docs/, plans/, and\
+    \ entire repository for related keywords (dirty, worktree, termination, cleanup,\
+    \ retry, preserve, reset, stash, recovery, worker). Only active tasks are OOMPAH-281\
+    \ (self-hosted runner) and OOMPAH-282 (Unicode encoding bug), both unrelated.\
+    \ OOMPAH-649 is a unique task addressing a critical data-loss b"
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
 oompah.agent_run_id: 8c89fc06-7400-475f-adc1-ccca7397ed24
+oompah.task_costs:
+  total_input_tokens: 146
+  total_output_tokens: 3808
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 146
+      output_tokens: 3808
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 146
+    output_tokens: 3808
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T07:22:29.513382+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-649__20260731T072014Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: duplicate_detector
+    source_branch: OOMPAH-649
+    source_sha: d48b971c58b8622e9c63de4923db08b755b5434b
+    completed_at: '2026-07-31T07:22:29.525605+00:00'
 ---
 ## Summary
 
@@ -54,5 +105,15 @@ author: oompah
 created: 2026-07-31 07:19
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-31 07:22
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 40, Tool calls: 17
+- Tokens: 146 in / 3.8K out [4.0K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 37s
+- Log: OOMPAH-649__20260731T072014Z.jsonl
 ---
 <!-- COMMENTS:END -->
