@@ -5021,6 +5021,18 @@ class Orchestrator:
                 provider_error = f"SCM provider setup failed: {exc}"
 
             target_branch = str(project.default_branch or "").strip()
+            review_count, review_limit, _ = self._project_review_capacity(
+                project_id
+            )
+            counted_review_ids = {
+                str(getattr(review, "id", "") or "").strip()
+                for review in getattr(self, "_reviews_cache", {}).get(
+                    project_id,
+                    [],
+                )
+                if not getattr(review, "draft", False)
+                and str(getattr(review, "id", "") or "").strip()
+            }
             for issue in pending_review:
                 issue.project_id = project_id
                 task_id = issue.identifier
@@ -5116,6 +5128,16 @@ class Orchestrator:
                     getattr(existing_pr, "state", "") or ""
                 ).strip().lower()
                 if existing_pr is not None and review_state == "open":
+                    existing_review_id = str(
+                        getattr(existing_pr, "id", "") or ""
+                    ).strip()
+                    if (
+                        not existing_review_id
+                        or existing_review_id not in counted_review_ids
+                    ):
+                        review_count += 1
+                        if existing_review_id:
+                            counted_review_ids.add(existing_review_id)
                     try:
                         tracker.update_issue(task_id, status=IN_REVIEW)
                         self._write_review_metadata(
@@ -5206,18 +5228,16 @@ class Orchestrator:
                     )
                     continue
 
-                n_open, limit, at_capacity = self._project_review_capacity(
-                    project_id
-                )
-                if at_capacity:
+                if review_count >= review_limit:
                     reason = (
-                        f"waiting for review capacity ({n_open}/{limit} open)"
+                        "waiting for review capacity "
+                        f"({review_count}/{review_limit} open)"
                     )
-                    self._arm_standalone_delivery_alert(
-                        project_id,
-                        task_id,
-                        reason,
-                    )
+                    # Capacity is a healthy, retryable wait rather than an
+                    # undeliverable submission.  Clear any stale failure alert
+                    # and let the next serialized sweep retry after a review
+                    # closes.
+                    self._clear_standalone_delivery_alert(project_id, task_id)
                     logger.info(
                         "Deferred standalone review for %s: %s",
                         task_id,
@@ -5286,6 +5306,20 @@ class Orchestrator:
                         task_id,
                     )
                     continue
+
+                created_review_id = str(
+                    getattr(result, "id", "") or ""
+                ).strip()
+                if (
+                    not created_review_id
+                    or created_review_id not in counted_review_ids
+                ):
+                    # Reserve the slot before tracker metadata writes.  The
+                    # review exists even if those writes fail, and later tasks
+                    # in this same sweep must observe the consumed capacity.
+                    review_count += 1
+                    if created_review_id:
+                        counted_review_ids.add(created_review_id)
 
                 try:
                     tracker.update_issue(task_id, status=IN_REVIEW)
