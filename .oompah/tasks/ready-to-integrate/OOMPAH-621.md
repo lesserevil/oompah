@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:25:29.809048Z'
-updated_at: '2026-07-31T07:20:29.636753Z'
+updated_at: '2026-07-31T07:21:15.759447Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-621
 target_branch: null
 review_url: null
@@ -47,17 +47,19 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: epic-OOMPAH-619--task-OOMPAH-621
+  base_branch: main
+  base_sha: d48b971c58b8622e9c63de4923db08b755b5434b
   head_sha: 0dc7d0f7caeea06a6eceb55ea2e58cf16554f0a4
   submitted_at: '2026-07-31T07:20:21.380928+00:00'
-  updated_at: '2026-07-31T07:20:21.380928+00:00'
+  updated_at: '2026-07-31T07:21:11.888611+00:00'
 oompah.task_costs:
-  total_input_tokens: 2243852
-  total_output_tokens: 45793
+  total_input_tokens: 5801742
+  total_output_tokens: 62390
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 871464
-      output_tokens: 20410
+      input_tokens: 4429354
+      output_tokens: 37007
       cost_usd: 0.0
     unknown:
       input_tokens: 105
@@ -98,6 +100,12 @@ oompah.task_costs:
     output_tokens: 8618
     cost_usd: 0.0
     recorded_at: '2026-07-31T06:25:34.081510+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 3557890
+    output_tokens: 16597
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T07:21:09.101780+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-621__20260730T213528Z
@@ -124,6 +132,14 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-619--task-OOMPAH-621
     source_sha: b2191c92f124fdb33e5f0383e3eb458c22ff030d
     completed_at: '2026-07-30T22:56:13.259089+00:00'
+  - run_id: OOMPAH-621__20260731T062550Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: docs
+    source_branch: epic-OOMPAH-619--task-OOMPAH-621
+    source_sha: 0dc7d0f7caeea06a6eceb55ea2e58cf16554f0a4
+    completed_at: '2026-07-31T07:21:09.106933+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
@@ -615,5 +631,20 @@ author: oompah
 created: 2026-07-31 07:20
 ---
 Completed CLI credential precedence documentation and real exact-revision compatibility coverage; focused checks pass and clean head is pushed.
+---
+author: oompah
+created: 2026-07-31 07:21
+---
+Agent completed successfully in 3324s (3574487 tokens)
+---
+author: oompah
+created: 2026-07-31 07:21
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 3, Tool calls: 188
+- Tokens: 3.6M in / 16.6K out [3.6M total]
+- Cost: $0.0000
+- Exit: normal, Duration: 55m 24s
+- Log: OOMPAH-621__20260731T062550Z.jsonl
 ---
 <!-- COMMENTS:END -->
