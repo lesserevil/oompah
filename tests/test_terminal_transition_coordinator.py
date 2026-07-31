@@ -1703,6 +1703,32 @@ class TestApplyPassChainedTargets:
         assert doc.pending_chain[1].audit_id == "audit-sibling-2"
         assert doc.pending_chain[1].request_state == RequestState.SUPERSEDED
 
+    def test_stale_request_rejected_after_pass_completion(self) -> None:
+        """After PASS is recorded, new requests with the same fingerprint are rejected.
+        
+        This prevents reconciliation from creating a second audit for the same
+        evidence fingerprint after the first one has passed (OOMPAH-648).
+        """
+        tracker = _MemoryTracker()
+        fp = _fingerprint()
+        record = _pending_record(audit_id="audit-1", fingerprint=fp)
+        
+        issue = _seed_and_validation(tracker, [record])
+        coord = _coordinator(tracker)
+
+        # First request passes
+        outcome1 = _apply(coord, issue, _pass_result(record))
+        assert outcome1.success is True
+        assert outcome1.applied_status == DONE
+
+        # Second request with the same fingerprint should be rejected as stale
+        second_result = _run(coord.request_transition(
+            _issue(DONE), TargetState.DONE, _trigger(), PROJECT_ID, fp
+        ))
+        
+        assert second_result.success is False
+        assert second_result.reason == "already completed"
+
 
 # ---------------------------------------------------------------------------
 # TestApplyFailRouting
