@@ -54,9 +54,13 @@ def _clear_issue_snapshot_sync() -> None:
                 "duration_ms": None,
                 "issue_count": 0,
                 "error": None,
+                "source_generations": {},
+                "invalidated": False,
             }
         )
     server_module._api_cache.clear()
+    with server_module._detail_cache_lock:
+        server_module._detail_cache_generations.clear()
 
 
 def _issue(
@@ -331,6 +335,116 @@ def test_issue_snapshot_payload_uses_stale_threshold(monkeypatch):
 
         assert payload is not None
         assert payload["_meta"]["stale"] is False
+    finally:
+        _clear_issue_snapshot_sync()
+
+
+def test_generation_bound_snapshot_rejects_newer_project_state():
+    """A status move in a separate tracker generation cannot serve old lanes."""
+    _clear_issue_snapshot_sync()
+    tracker = MagicMock()
+    tracker.state_branch_enabled = True
+    tracker.get_state_branch_generation.return_value = "commit-a:1"
+    project = SimpleNamespace(id="proj-1", name="project-1")
+    orch = MagicMock()
+    orch.project_store.list_all.return_value = [project]
+    orch._tracker_for_project.return_value = tracker
+    try:
+        server_module._set_issues_snapshot(
+            {"Needs Human": [{"identifier": "OOMPAH-651", "project_id": "proj-1"}]},
+            duration_ms=1.0,
+            orch_id=id(orch),
+            source_generations={"proj-1": "commit-a:1"},
+            source_authority=orch,
+        )
+        tracker.get_state_branch_generation.return_value = "commit-b:2"
+
+        assert server_module._issues_snapshot_payload(
+            orch=orch, allow_empty=False
+        ) is None
+        stale = server_module._issues_snapshot_payload(
+            orch=orch, allow_empty=True, include_meta=True
+        )
+        assert stale["Needs Human"][0]["identifier"] == "OOMPAH-651"
+        assert stale["_meta"]["stale"] is True
+    finally:
+        _clear_issue_snapshot_sync()
+
+
+def test_unavailable_generation_preserves_stale_snapshot_instead_of_empty_fresh_lane():
+    """An unavailable state-branch read is explicitly stale, never fresh empty."""
+    _clear_issue_snapshot_sync()
+    tracker = MagicMock()
+    tracker.state_branch_enabled = True
+    tracker.get_state_branch_generation.return_value = "unavailable"
+    project = SimpleNamespace(id="proj-1", name="project-1")
+    orch = MagicMock()
+    orch.project_store.list_all.return_value = [project]
+    orch._tracker_for_project.return_value = tracker
+    try:
+        server_module._set_issues_snapshot(
+            {"Needs Human": [{"identifier": "OOMPAH-655", "project_id": "proj-1"}]},
+            duration_ms=1.0,
+            orch_id=id(orch),
+            source_generations={"proj-1": "unavailable"},
+            source_authority=orch,
+        )
+        stale = server_module._issues_snapshot_payload(
+            orch=orch, allow_empty=True, include_meta=True
+        )
+        assert stale["Needs Human"][0]["identifier"] == "OOMPAH-655"
+        assert stale["_meta"]["stale"] is True
+        assert server_module._issues_snapshot_headers(orch)[
+            "X-Oompah-Issues-Stale"
+        ] == "true"
+    finally:
+        _clear_issue_snapshot_sync()
+
+
+def test_detail_cache_is_rejected_when_project_generation_advances():
+    """Detail parity follows the same generation fence as the board cache."""
+    _clear_issue_snapshot_sync()
+    tracker = MagicMock()
+    tracker.state_branch_enabled = True
+    tracker.get_state_branch_generation.return_value = "commit-a:1"
+    orch = MagicMock()
+    orch._tracker_for_project.return_value = tracker
+    key = "detail:proj-1:OOMPAH-651:actor:"
+    try:
+        server_module._detail_cache_set(
+            key,
+            {"identifier": "OOMPAH-651", "state": "Needs Human"},
+            project_id="proj-1",
+            generation="commit-a:1",
+        )
+        tracker.get_state_branch_generation.return_value = "commit-b:2"
+        assert server_module._detail_cache_get(key, orch, "proj-1") is None
+    finally:
+        _clear_issue_snapshot_sync()
+
+
+def test_tracker_callback_invalidates_only_matching_detail_project():
+    """Direct native mutations synchronously invalidate list and project A details."""
+    _clear_issue_snapshot_sync()
+    tracker = MagicMock()
+    callbacks = []
+    tracker.add_read_change_callback.side_effect = callbacks.append
+    server_module._wire_tracker_issue_cache_invalidation(tracker, "proj-a")
+    server_module._api_cache.set(
+        "detail:proj-a:TASK-1:actor:", {"state": "Open"}, ttl_ms=60_000
+    )
+    server_module._api_cache.set(
+        "detail:proj-b:TASK-1:actor:", {"state": "Open"}, ttl_ms=60_000
+    )
+    try:
+        assert callbacks
+        callbacks[0]()
+        assert server_module._api_cache.get("detail:proj-a:TASK-1:actor:") is None
+        assert server_module._api_cache.get("detail:proj-b:TASK-1:actor:") == {
+            "state": "Open"
+        }
+        with server_module._issues_snapshot_lock:
+            assert server_module._issues_snapshot["invalidated"] is True
     finally:
         _clear_issue_snapshot_sync()
 

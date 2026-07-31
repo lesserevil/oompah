@@ -111,6 +111,13 @@ help:
 	@echo "  runner-stop    Stop the containerized Actions runner"
 	@echo "  runner-status  Show runner container status and GitHub registration state"
 
+ifneq ($(_PYTEST_GATE),)
+# In gate mode the operator's venv is pre-mounted read-only by the bubblewrap
+# sandbox and uv is not on the restricted PATH.  Avoid setup's uv invocation;
+# test-setup below instead validates the trusted runtime before tests run.
+setup:
+	@:
+else
 setup: $(VENV)/.uv-setup
 
 $(VENV)/.uv-setup: pyproject.toml
@@ -118,6 +125,7 @@ $(VENV)/.uv-setup: pyproject.toml
 	uv pip install -e '.[server]'
 	@touch $@
 	@echo "Setup complete. Run 'make start' to launch oompah."
+endif
 
 sync-cli: setup
 	@$(PYTHON) scripts/sync_canonical_cli.py \
@@ -171,7 +179,6 @@ test-setup:
 		exit 1; \
 	fi
 endif
-
 start: setup
 	@mkdir -p "$$(dirname "$(PID_FILE)")" "$$(dirname "$(PID_META_FILE)")"; \
 	EXISTING_PID=$$(cat "$(PID_FILE)" 2>/dev/null || true); \

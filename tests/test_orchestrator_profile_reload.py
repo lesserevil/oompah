@@ -200,6 +200,13 @@ class TestStoreOrchestratorIntegration:
         orch._handle_yolo_review = _no_op2
         orch._handle_auto_update = _no_op
         orch._maybe_run_watchdog = lambda: None
+        # Stub the tracker I/O steps that are awaited inside _tick() but
+        # not related to the profile-swap assertion.  Without these stubs
+        # the test reads the live .oompah/tasks tree (281 files in CI),
+        # which can exceed the 5s per-test timeout under parallel load.
+        orch._recover_release_addendum_leases = lambda: 0
+        orch._run_step5b_maintenance = lambda: None
+        orch._run_step5c_epic_maintenance = lambda: None
 
         await orch._tick()
         names = sorted(p.name for p in orch.config.agent_profiles)

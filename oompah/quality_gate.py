@@ -779,6 +779,41 @@ class BranchQualityGate:
                     str(python_destination),
                 ]
             )
+            # Overlay writable sentinel files over the read-only venv mount so
+            # Make skips uv-based setup steps inside the gate.  Git archive
+            # stamps every file in the snapshot with the commit timestamp,
+            # which can be newer than the sentinel files in the ro-mounted
+            # venv; Make then tries to rebuild them by running uv, which is
+            # unavailable in the sandbox PATH.  Creating fresh sentinels in
+            # run_root and binding them over the venv paths ensures Make sees
+            # setup as current without any uv invocation or write access.
+            for _sentinel_name in (".uv-setup", ".uv-test-setup"):
+                _writable_sentinel = run_root / _sentinel_name
+                _writable_sentinel.touch()
+                runtime_binds.extend(
+                    [
+                        "--bind",
+                        str(_writable_sentinel),
+                        str(repo / ".venv" / _sentinel_name),
+                    ]
+                )
+            # Also bind the operator venv at its original absolute path so
+            # that entry-point scripts (e.g. the ``oompah`` console-script)
+            # whose shebangs reference that absolute path can execute inside
+            # the sandbox.  Without this, the shebang
+            # ``#!/path/to/operator/.venv/bin/python3`` resolves to a path
+            # that is not visible in the sandbox, causing subprocess calls to
+            # the binary entry point to fail with ENOENT.  The venv is still
+            # mounted read-only; no operator state is writable.
+            if runtime_prefix != (repo / ".venv").resolve():
+                add_destination(runtime_prefix)
+                runtime_binds.extend(
+                    [
+                        "--ro-bind",
+                        str(runtime_prefix),
+                        str(runtime_prefix),
+                    ]
+                )
 
         add_destination(repo)
         add_destination(_SANDBOX_RUN_ROOT)
