@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:07.401588Z'
-updated_at: '2026-07-31T21:46:56.722420Z'
+updated_at: '2026-07-31T21:55:45.111802Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -561,5 +561,10 @@ author: oompah
 created: 2026-07-31 21:46
 ---
 Implementation: Updated only Makefile's server/dev setup recipes and tests/test_makefile_setup.py. Normal environments still create and install with the configurable UV command. If UV cannot run but the gate-mounted .venv already provides the required server/test modules, setup validates that trusted runtime and proceeds; an incomplete venv still fails. This directly addresses the sandbox's uv-not-found bootstrap failure without changing the alert-retirement implementation.
+---
+author: oompah
+created: 2026-07-31 21:55
+---
+Verification: the focused setup, terminal-audit observability, terminal-transition coordinator, and isolated timing suites pass (143 passed). Full make test exercised the new missing-UV fallback and terminal-audit scan successfully; 14,539 tests passed. The two failures are unrelated to this change: the host venv lacks hatchling for the isolated CLI packaging compatibility fixture, and a fire-and-forget timing test fails only under loaded parallel execution but passes in isolation.
 ---
 <!-- COMMENTS:END -->
