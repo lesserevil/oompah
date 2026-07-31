@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-603
 type: feature
-status: Open
+status: In Progress
 priority: 2
 title: Define and enforce repository hygiene health thresholds
 parent: OOMPAH-588
@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:03.538398Z'
-updated_at: '2026-07-31T04:11:22.212907Z'
+updated_at: '2026-07-31T04:11:58.849524Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-603
 target_branch: null
 review_url: null
@@ -38,7 +38,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 1
   retry_after: null
-oompah.agent_run_id: 026c8411-9861-4b04-9e90-a96b31df962b
+oompah.agent_run_id: f99a6a8e-3c5e-466f-a92b-dbf0e5dbd6f0
 oompah.work_branch: epic-OOMPAH-588--task-OOMPAH-603
 oompah.integration:
   version: 1
@@ -74,13 +74,17 @@ oompah.work_contributors:
     source_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
     completed_at: '2026-07-30T16:31:48.127593+00:00'
 oompah.task_costs:
-  total_input_tokens: 6930416
-  total_output_tokens: 27912
+  total_input_tokens: 6930478
+  total_output_tokens: 30037
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 6930416
       output_tokens: 27912
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 62
+      output_tokens: 2125
       cost_usd: 0.0
   runs:
   - profile: default
@@ -101,6 +105,12 @@ oompah.task_costs:
     output_tokens: 350
     cost_usd: 0.0
     recorded_at: '2026-07-30T16:39:59.815675+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 62
+    output_tokens: 2125
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T04:11:37.607012+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
@@ -433,5 +443,15 @@ Instructions:
 - Extend the dashboard template to render inventory, overdue artifacts, and health summary, and add a rendering test analogous to the existing terminal audit health dashboard test.
 - Add orchestrator-level tests that seed synthetic worktrees and branches, run the maintenance tick, and assert inventory counts appear in the maintenance status, overdue detection fires when the age threshold is exceeded, is_healthy flips back to True after cleanup, and the health state survives an orchestrator restart with the same config.
 - Add a snapshot-level test that asserts the health payload is present under the orchestrator maintenance metrics with the documented schema.
+---
+author: oompah
+created: 2026-07-31 04:11
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 41
+- Tokens: 62 in / 2.1K out [2.2K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 4m 38s
+- Log: OOMPAH-603__20260731T040705Z.jsonl
 ---
 <!-- COMMENTS:END -->
