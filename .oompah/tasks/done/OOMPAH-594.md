@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-594
 type: feature
-status: In Validation
+status: Done
 priority: 1
 title: Reload HTTP Basic credentials safely after htpasswd rotation
 parent: OOMPAH-586
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:55.490677Z'
-updated_at: '2026-07-31T00:04:04.228224Z'
+updated_at: '2026-07-31T00:06:43.349975Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-594
 target_branch: null
 review_url: null
@@ -195,6 +195,8 @@ oompah.work_contributors:
     completed_at: '2026-07-30T16:23:22.807700+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-c1e6e00f48bf: '2026-07-31T00:06:41.131527+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -202,7 +204,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-594
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -211,7 +213,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-c1e6e00f48bf
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -221,13 +223,16 @@ oompah.terminal_audit:
       model: sonnet
       started_at: '2026-07-31T00:03:56.897118+00:00'
       branch_key: epic-OOMPAH-586--task-OOMPAH-594
+      verdict: pass
+      completed_at: '2026-07-31T00:06:41.131326+00:00'
+      ended_at: '2026-07-31T00:06:41.131326+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-30T23:53:04.759302+00:00'
-    updated_at: '2026-07-31T00:03:56.897118+00:00'
+    updated_at: '2026-07-31T00:06:41.131326+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-c1e6e00f48bf
@@ -749,5 +754,20 @@ author: oompah
 created: 2026-07-31 00:04
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 00:06
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- head_commit: e0cff8ffd3319cf6d22dab914befea3222a1498d
+- branch: epic-OOMPAH-586--task-OOMPAH-594
+- branch_status: up-to-date with origin, clean
+- focused_tests: 330 passed, 26 warnings (passlib deprecation noise)
+- full_gate_reported: 13711 passed, 7 skipped
+- files_changed: 14 files: oompah/http_auth.py, oompah/client_auth.py, oompah/server.py, oompah/admin_cli.py, oompah/task_cli.py, scripts/oompah_http.py, .env.example, docs/authentication.md, tests/test_http_auth.py, tests/test_client_auth.py, tests/test_server_auth.py, tests/test_oompah_http.py, tests/test_task_cli.py, tests/test_admin_cli.py
 ---
 <!-- COMMENTS:END -->
