@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-668
 type: bug
-status: In Review
+status: In Validation
 priority: 0
 title: Use the trusted test virtualenv without reinstalling inside quality-gate sandbox
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T21:35:20.853943Z'
-updated_at: '2026-07-31T22:40:04.792768Z'
+updated_at: '2026-07-31T22:48:12.799136Z'
 work_branch: OOMPAH-668
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/627
@@ -84,6 +84,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/627
 oompah.review_number: '627'
 oompah.work_branch: OOMPAH-668
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-4420ed7ceee0
+    project_id: proj-14849f1b
+    task_id: OOMPAH-668
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9f3301c525adc95680e4e8774ce438e8b40ee6740cbf5f991994b15079f93f47
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-31T22:48:08.031217+00:00'
+  - version: 1
+    audit_id: audit-aef1db8fbd71
+    project_id: proj-14849f1b
+    task_id: OOMPAH-668
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9f3301c525adc95680e4e8774ce438e8b40ee6740cbf5f991994b15079f93f47
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-31T22:48:08.031217+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -433,5 +472,15 @@ author: oompah
 created: 2026-07-31 22:39
 ---
 Branch quality gate passed for `9e520df9a3f292bd54f4c6791cb3e6591c28446d` using `make test` in 385.1s. Review creation may proceed.
+---
+author: oompah
+created: 2026-07-31 22:48
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-07-31 22:48
+---
+YOLO: merged PR #627.
 ---
 <!-- COMMENTS:END -->
