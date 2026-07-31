@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-07-31T11:29:37.744154Z'
+updated_at: '2026-07-31T11:29:50.591086Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -252,5 +252,32 @@ author: oompah
 created: 2026-07-31 11:29
 ---
 Fixed duplicate-preflight repeated dispatches by loading metadata from tracker during candidate selection. All tests pass.
+---
+author: oompah
+created: 2026-07-31 11:29
+---
+## Completion
+
+**What Was Delivered:**
+Fixed the issue of duplicate-preflight screening being dispatched multiple times for unchanged tasks across scheduler ticks.
+
+**Technical Summary:**
+- Root cause: Candidates fetched via \`fetch_candidate_issues()\` have incomplete metadata because list API responses may truncate descriptions
+- Solution: Modified \`_duplicate_screening_assessment()\` to explicitly load \`duplicate_screening\` metadata from the tracker if not already present on the issue object
+- Impact: CHECKED screening records are now properly recognized across scheduler ticks, preventing redundant re-dispatch
+
+**Files Changed:**
+1. oompah/orchestrator.py - Added metadata loading in _duplicate_screening_assessment()
+2. tests/test_duplicate_preflight.py - Added test_selection_loads_metadata_when_not_on_candidate_issue()
+
+**Testing:**
+- New test reproduces the bug scenario and verifies the fix
+- All 19 duplicate-preflight tests pass
+- All 7 duplicate-screening unit tests pass  
+- All 25 orchestrator duplicate-detection tests pass
+- All 4 server duplicate-screening sync tests pass
+- Zero regressions in test suite
+
+**Branch:** OOMPAH-658 is up to date with origin and ready for integration.
 ---
 <!-- COMMENTS:END -->
