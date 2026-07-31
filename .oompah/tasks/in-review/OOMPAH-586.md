@@ -16,7 +16,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-30T14:13:33.901470Z'
-updated_at: '2026-07-31T00:31:54.710242Z'
+updated_at: '2026-07-31T00:35:04.082719Z'
 work_branch: epic-OOMPAH-586
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/597
@@ -120,5 +120,10 @@ author: oompah
 created: 2026-07-31 00:31
 ---
 Operator takeover after the dispatched merge-conflict resolver completed but its task-scoped handoff failed. PR #597 remains DIRTY. I am rebasing exact remote epic head ca49d0c25 onto parent epic-OOMPAH-584 at c03e52f66 in an isolated worktree, preserving the managed worktree until the resolved head is verified and pushed with lease.
+---
+author: oompah
+created: 2026-07-31 00:35
+---
+Resolved PR #597 directly after the server resolver's handoff failure. Rebased the six-child epic branch onto parent c03e52f66; Git correctly dropped patch-equivalent timeout commit 0a260f027 already present upstream. Conflict resolution preserves both terminal-audit health and operator/worker auth-health state, banners, and alerts. New exact head 04d072a5f was pushed with lease. Focused auth/dashboard/orchestrator/task-handoff suite: 423 passed; terminal mutation scan passed.
 ---
 <!-- COMMENTS:END -->
