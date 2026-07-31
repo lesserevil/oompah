@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T02:27:37.845123Z'
-updated_at: '2026-07-31T02:46:37.998357Z'
+updated_at: '2026-07-31T04:22:49.148102Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-634
 target_branch: null
 review_url: null
@@ -148,6 +148,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     no-auditor-audit-9f1cb6c31d68-0: '2026-07-31T02:46:35.067836+00:00'
+    no-auditor-audit-70f70ba2852d-0: '2026-07-31T04:22:44.100537+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -155,7 +156,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-634
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -180,6 +181,36 @@ oompah.terminal_audit:
     previous_state: Needs Human
     created_at: '2026-07-31T02:46:24.698988+00:00'
     updated_at: '2026-07-31T02:46:35.067684+00:00'
+  - version: 1
+    audit_id: audit-70f70ba2852d
+    project_id: proj-14849f1b
+    task_id: OOMPAH-634
+    target_state: Done
+    request_state: completed
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 519681e9ac4912722a5210ab27286b30d44f75e6293b28649b0b33812d0ec353
+    attempts:
+    - version: 1
+      attempt_id: no-auditor-audit-70f70ba2852d-0
+      target_state: Done
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 519681e9ac4912722a5210ab27286b30d44f75e6293b28649b0b33812d0ec353
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-07-31T04:22:44.100385+00:00'
+      completed_at: '2026-07-31T04:22:44.100385+00:00'
+    requested_by:
+      version: 1
+      identity: api-client
+      source: api
+    previous_state: Needs Human
+    created_at: '2026-07-31T04:22:38.829293+00:00'
+    updated_at: '2026-07-31T04:22:44.100385+00:00'
   attempt_history: []
 ---
 ## Summary
@@ -328,6 +359,18 @@ Queued for terminal transition to Done. An auditor will review and apply the ter
 ---
 author: oompah
 created: 2026-07-31 02:46
+---
+Needs Human — Done audit requires operator input.
+
+No independent auditor candidate is available for this audit (All candidates are used by contributors.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then move the task back to Open to retry.
+---
+author: oompah
+created: 2026-07-31 04:22
+---
+Refresh terminal evidence after the shared branch advanced; completed rebase remains in current ancestry.
+---
+author: oompah
+created: 2026-07-31 04:22
 ---
 Needs Human — Done audit requires operator input.
 
