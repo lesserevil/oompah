@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T21:35:20.853943Z'
-updated_at: '2026-07-31T21:38:15.160393Z'
+updated_at: '2026-07-31T21:38:22.552408Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -34,7 +34,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 4964095e-a27e-4656-9333-a6d3745467c2
+oompah.agent_run_id: 6cb390bf-e6f6-4e66-a87d-1df69ae0433a
 oompah.task_costs:
   total_input_tokens: 634211
   total_output_tokens: 4078
@@ -100,5 +100,27 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 35s
 - Log: OOMPAH-668__20260731T213635Z.jsonl
+---
+author: oompah
+created: 2026-07-31 21:38
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-31 21:38
+---
+Agent failed: could not stage recovery snapshot for OOMPAH-668: The following paths are ignored by one of your .gitignore files:
+.oompah-no-hooks
+hint: Use -f if you really want to add them.
+hint: Disable this message with "git config set advice.addIgnoredFile false". Retrying in 10s (attempt #1)
+---
+author: oompah
+created: 2026-07-31 21:38
+---
+Run #1 [attempt=1, profile=default, role=— -> Claude/haiku]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 1s
 ---
 <!-- COMMENTS:END -->
