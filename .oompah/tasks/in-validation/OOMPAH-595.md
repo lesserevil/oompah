@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-595
 type: feature
-status: Needs Human
+status: In Validation
 priority: 1
 title: Expose separate operator and worker task-auth health signals
 parent: OOMPAH-586
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:56.897824Z'
-updated_at: '2026-07-31T00:59:11.164736Z'
+updated_at: '2026-07-31T01:03:33.370557Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-595
 target_branch: null
 review_url: null
@@ -217,7 +217,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-595
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -246,6 +246,23 @@ oompah.terminal_audit:
     previous_state: Needs Human
     created_at: '2026-07-31T00:44:54.940604+00:00'
     updated_at: '2026-07-31T00:50:15.225537+00:00'
+  - version: 1
+    audit_id: audit-fe55bbb31db6
+    project_id: proj-14849f1b
+    task_id: OOMPAH-595
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 4818bf1084729de2ef0887490ea51286bb480ecbd823735d7271c4e0a3e7a8d5
+    attempts: []
+    requested_by:
+      version: 1
+      identity: api-client
+      source: api
+    previous_state: Needs Human
+    created_at: '2026-07-31T01:03:27.513877+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-e7bb1375c3e2
@@ -686,5 +703,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 1m 1s
 - Log: OOMPAH-595__20260731T005817Z.jsonl
+---
+author: oompah
+created: 2026-07-31 01:03
+---
+Revalidate Done after aligning the clean managed worktree to the authoritative rewritten task ref 04d072a5f; this commit is directly contained by merged epic head cd08185c9.
 ---
 <!-- COMMENTS:END -->
