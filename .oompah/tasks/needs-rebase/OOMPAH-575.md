@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-575
 type: task
-status: In Review
-priority: null
+status: Needs Rebase
+priority: 0
 title: Propagate scoped task CLI auth to Codex agent sessions
 parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- merge-conflict
 assignee: null
 created_at: '2026-07-30T02:15:25.255613Z'
-updated_at: '2026-07-31T05:55:27.863213Z'
+updated_at: '2026-07-31T05:55:36.966643Z'
 work_branch: OOMPAH-575
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/604
@@ -261,5 +262,10 @@ author: oompah
 created: 2026-07-31 05:55
 ---
 Branch quality gate passed for `e404d6eb71998904a7a3e6bea4ef4c3320e43116` using `make test` in 256.6s. Review creation may proceed.
+---
+author: oompah
+created: 2026-07-31 05:55
+---
+YOLO: Merge conflict detected on MR #604. Rebase onto main and resolve conflicts.
 ---
 <!-- COMMENTS:END -->
