@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-666
 type: bug
-status: Ready to Integrate
+status: Needs Human
 priority: 1
 title: Fix dashboard vertical scrolling when alerts precede the Kanban board
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T21:19:38.816688Z'
-updated_at: '2026-07-31T23:13:30.891135Z'
+updated_at: '2026-07-31T23:14:29.255282Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -58,13 +58,17 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: a0d4d1f3-ca53-4231-a444-0e9ef748ec59
 oompah.task_costs:
-  total_input_tokens: 15
-  total_output_tokens: 3466
+  total_input_tokens: 372340
+  total_output_tokens: 8225
   total_cost_usd: 0.0
   by_model:
     opus:
       input_tokens: 15
       output_tokens: 3466
+      cost_usd: 0.0
+    haiku:
+      input_tokens: 372325
+      output_tokens: 4759
       cost_usd: 0.0
   runs:
   - profile: deep
@@ -73,6 +77,12 @@ oompah.task_costs:
     output_tokens: 3466
     cost_usd: 0.0
     recorded_at: '2026-07-31T22:56:58.150612+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 372325
+    output_tokens: 4759
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T23:14:20.715106+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-666__20260731T225546Z
@@ -83,6 +93,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-666
     source_sha: d96740a6ecdca353e40ef87e94a4ee91b8828df0
     completed_at: '2026-07-31T22:56:58.164909+00:00'
+  - run_id: OOMPAH-666__20260731T225710Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: event_api
+    source_branch: OOMPAH-666
+    source_sha: 8d3da62bf488a6537a188303934957293b2d2951
+    completed_at: '2026-07-31T23:14:20.729417+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -169,5 +187,20 @@ author: oompah
 created: 2026-07-31 23:13
 ---
 Reviewed coordination overlap with OOMPAH-670 commit 67026d068. The shared dashboard.html edits are interface-compatible: OOMPAH-666 changes only flex/overflow CSS and pre-board panel sizing, while OOMPAH-670 changes the later auth global/state-update/mutation JavaScript; merge-tree reports no content conflict. The regression suites are separate files. Integration can retain both changes in either order; no additional interface adjustment is required.
+---
+author: oompah
+created: 2026-07-31 23:14
+---
+Task handoff failed after the worker ran: the server-owned, task-scoped tracker capability could not update this task. The task is held in Needs Human and will not be redispatched automatically; verify the handoff service and reconcile the worker's branch before resuming it.
+---
+author: oompah
+created: 2026-07-31 23:14
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 2, Tool calls: 98
+- Tokens: 372.3K in / 4.8K out [377.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 17m 15s
+- Log: OOMPAH-666__20260731T225710Z.jsonl
 ---
 <!-- COMMENTS:END -->
