@@ -16,9 +16,9 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T06:47:58.732088Z'
-updated_at: '2026-07-31T15:06:03.416230Z'
-work_branch: null
-target_branch: null
+updated_at: '2026-07-31T15:06:09.514404Z'
+work_branch: OOMPAH-645
+target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/623
 review_number: '623'
 merged_at: null
@@ -171,6 +171,8 @@ oompah.integration:
 oompah.start_blocked_by: *id001
 oompah.review_url: https://github.com/lesserevil/oompah/pull/623
 oompah.review_number: '623'
+oompah.work_branch: OOMPAH-645
+oompah.target_branch: main
 ---
 ## Summary
 
