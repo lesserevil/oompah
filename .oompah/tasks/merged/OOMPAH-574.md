@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-574
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Rerun failed cached quality gates on explicit same-head retry
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T02:15:22.112289Z'
-updated_at: '2026-07-31T02:33:29.806663Z'
+updated_at: '2026-07-31T02:37:02.651050Z'
 work_branch: OOMPAH-574
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/598
@@ -93,6 +93,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-8bbf80aa87af: '2026-07-31T02:32:57.162559+00:00'
+    attempt-8c015e1f6a8c: '2026-07-31T02:36:58.722143+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -134,7 +135,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-574
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -143,7 +144,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-8c015e1f6a8c
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -153,13 +154,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T02:33:22.888792+00:00'
       branch_key: OOMPAH-574
+      verdict: pass
+      completed_at: '2026-07-31T02:36:58.721962+00:00'
+      ended_at: '2026-07-31T02:36:58.721962+00:00'
     requested_by:
       version: 1
       identity: NVShawn
       source: forge
     previous_state: In Review
     created_at: '2026-07-31T02:27:17.415166+00:00'
-    updated_at: '2026-07-31T02:33:22.888792+00:00'
+    updated_at: '2026-07-31T02:36:58.721962+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-8bbf80aa87af
@@ -448,5 +452,31 @@ author: oompah
 created: 2026-07-31 02:33
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 02:37
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- worktree_head: af72cf7ccae31fbd264e8fc1907864e47e82c115
+- origin_main_head: c8ab3957b
+- pr_number: 598
+- merge_commit: c8ab3957b
+- implementation_commit: 4faf51fca
+- docs_commit: af72cf7cc
+- merged_into_main: true
+- branch_contained_in_origin_main: true
+- quality_gate_retry_forced_present: true
+- integration_queue_retry_forced_column_present: true
+- integration_executor_wiring_present: true
+- orchestrator_wiring_present: true
+- prior_audit_quality_gate_tests_passed: 17
+- prior_audit_integration_queue_tests_passed: 10
+- prior_audit_integration_executor_tests_passed: 4
+- prior_audit_task_handoff_tests_passed: 16
+- acceptance_criteria_satisfied: all
 ---
 <!-- COMMENTS:END -->
