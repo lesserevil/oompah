@@ -30,7 +30,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:03:47.776498Z'
-updated_at: '2026-07-31T06:21:05.075882Z'
+updated_at: '2026-07-31T06:21:23.809257Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -138,13 +138,13 @@ oompah.terminal_audit:
     started_at: '2026-07-31T06:16:38.724130+00:00'
     branch_key: OOMPAH-460
 oompah.task_costs:
-  total_input_tokens: 185
-  total_output_tokens: 7463
+  total_input_tokens: 235
+  total_output_tokens: 18653
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 185
-      output_tokens: 7463
+      input_tokens: 235
+      output_tokens: 18653
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -153,6 +153,12 @@ oompah.task_costs:
     output_tokens: 7463
     cost_usd: 0.0
     recorded_at: '2026-07-31T04:36:26.861632+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 50
+    output_tokens: 11190
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T06:21:20.147863+00:00'
 ---
 ## Summary
 
@@ -276,5 +282,15 @@ Safe evidence:
 - audit_id_match: audit-2b50ca0977be == trusted scheduler input
 - attempt_id_match: attempt-01ce9e329c32 == trusted scheduler input
 - unsafe_archive_check: safe; feature commits preserved on main via OOMPAH-597 recovery chain
+---
+author: oompah
+created: 2026-07-31 06:21
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 56, Tool calls: 44
+- Tokens: 50 in / 11.2K out [11.2K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 4m 28s
+- Log: OOMPAH-460__20260731T061657Z.jsonl
 ---
 <!-- COMMENTS:END -->
