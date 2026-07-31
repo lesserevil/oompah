@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-645
 type: task
-status: Open
+status: In Progress
 priority: 0
 title: Clear recovered terminal-audit transport failures without contaminating later
   audits
@@ -16,7 +16,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T06:47:58.732088Z'
-updated_at: '2026-07-31T13:39:54.122092Z'
+updated_at: '2026-07-31T14:39:41.292187Z'
 work_branch: null
 target_branch: null
 review_url: null
