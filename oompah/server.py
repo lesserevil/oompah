@@ -4030,7 +4030,13 @@ def _terminal_evidence_fingerprint(
     issue,
     project_id: str,
 ) -> EvidenceFingerprint:
-    """Build the tracker-neutral evidence fingerprint used by API callers."""
+    """Build the canonical, auditor-independent evidence fingerprint for API callers.
+    
+    OOMPAH-663: This is the canonical fingerprint path used by all API owner-override
+    requests. It uses the same compute_issue_evidence_fingerprint function as the
+    orchestrator integration path and ACP override path to ensure consistent,
+    deterministic fingerprints across the entire system.
+    """
     return compute_issue_evidence_fingerprint(issue, str(project_id))
 
 

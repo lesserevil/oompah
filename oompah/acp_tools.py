@@ -395,6 +395,13 @@ def _target_for_task_status(status: str | None) -> TargetState | None:
 
 
 def _task_evidence_fingerprint(issue: Any, project_id: str) -> Any:
+    """Build the canonical, auditor-independent evidence fingerprint for ACP callers.
+    
+    OOMPAH-663: This is the canonical fingerprint path used by all ACP owner-override
+    requests. It uses the same compute_issue_evidence_fingerprint function as the
+    orchestrator integration path and API override path to ensure consistent,
+    deterministic fingerprints across the entire system.
+    """
     return compute_issue_evidence_fingerprint(issue, project_id)
 
 
