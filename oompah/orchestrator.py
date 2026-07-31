@@ -27444,6 +27444,9 @@ class Orchestrator:
                                 )
                             else:
                                 try:
+                                    # OOMPAH-663: Use the canonical evidence fingerprint function
+                                    # (same as API and ACP override paths) to ensure consistent
+                                    # fingerprints across all terminal-audit entry points.
                                     evidence_fp = compute_issue_evidence_fingerprint(
                                         current,
                                         project_id,

@@ -380,13 +380,53 @@ def compute_issue_evidence_fingerprint(
     issue: Any,
     project_id: str,
 ) -> EvidenceFingerprint:
-    """Build the canonical fingerprint for a normalized tracker issue.
+    """Build the canonical, auditor-independent fingerprint for a normalized tracker issue.
+
+    This is the ONLY function that should be used to compute evidence fingerprints
+    for terminal audit requests, API owner overrides, ACP owner overrides, and
+    restart recovery.  All code paths that need a fingerprint must use this function
+    to ensure consistent, canonical computation across the entire system.
+
+    The fingerprint includes only task evidence (requirements, branch/SHA, review state,
+    contributors, child audits) and explicitly excludes auditor-specific data
+    (auditor identity, model, provider, execution timeline).  This ensures that
+    the fingerprint remains stable across auditor retries and auditor selection
+    changes.
 
     Terminal-transition entry points and restart recovery must derive evidence
     from exactly the same fields.  Native Markdown issues expose immutable git
     revision evidence through their persisted integration record rather than
     ad-hoc ``source_sha``/``target_sha`` attributes, so those values are used
     as fallbacks when present.
+
+    Parameters
+    ----------
+    issue : Any
+        A tracker issue object with optional properties:
+        - description: task requirements text
+        - identifier, id: task identifier
+        - source_branch, work_branch, branch_name: source branch (with fallback to integration.task_branch)
+        - source_sha: source commit SHA (with fallback to integration.head_sha)
+        - target_branch: target branch (with fallback to integration.base_branch)
+        - target_sha: target commit SHA (with fallback to integration.integrated_sha, integration.base_sha)
+        - review_id, review_number: review identifier
+        - review_state: review lifecycle state
+        - contributors: list of ContributorIdentity or strings
+        - child_audit_digests: list of child audit fingerprint digests
+        - integration: optional integration record with task_branch, head_sha, base_branch, integrated_sha, base_sha
+    project_id : str
+        The managed project ID that owns this issue.
+
+    Returns
+    -------
+    EvidenceFingerprint
+        A deterministic SHA-256 digest representing the task evidence.
+        Same inputs always produce the same digest (canonical).
+        Different evidence produces a different digest (sensitive).
+
+    See Also
+    --------
+    compute_evidence_fingerprint : Lower-level function accepting explicit fields
     """
 
     integration = getattr(issue, "integration", None)
