@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-640
 type: task
-status: Needs Human
+status: Merged
 priority: null
 title: Complete combined stall-to-dispatch recovery regression coverage
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T05:59:47.260716Z'
-updated_at: '2026-07-31T07:11:02.291685Z'
+updated_at: '2026-07-31T07:12:47.154436Z'
 work_branch: OOMPAH-640
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/608
@@ -128,6 +128,27 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     no-auditor-audit-50ba79464bb3-2: '2026-07-31T07:10:59.822460+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-4bd14405754f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-640
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9fae4e3ab825e00cbc64ba02d9836dbc3c055e12b56f18d4c3c077dec93691ae
+    authorized_by:
+      version: 1
+      identity: lesserevil
+      source: api
+    reason: 'Owner audit override after independent auditor exhaustion: exact task
+      head 5a5f4867f2d5c640069b16fe6eaf45e09a54c963 is an ancestor of current origin/main;
+      PR #608 merged as d7027de514d1fcee1cf3e150f9f02b11b3168071; the recorded exact-head
+      make test branch gate passed; GitHub CI test jobs for Python 3.11, 3.12, and
+      3.13 all completed successfully. Two configured independent auditor transports
+      were attempted and terminated without a verdict, leaving no independent candidate.'
+    created_at: '2026-07-31T07:12:44.433704+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -602,5 +623,12 @@ created: 2026-07-31 07:11
 Needs Human — Done audit requires operator input.
 
 No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then move the task back to Open to retry.
+---
+author: oompah
+created: 2026-07-31 07:12
+---
+Override by lesserevil: terminal transition to Merged applied by project owner.
+
+Reason: Owner audit override after independent auditor exhaustion: exact task head 5a5f4867f2d5c640069b16fe6eaf45e09a54c963 is an ancestor of current origin/main; PR #608 merged as d7027de514d1fcee1cf3e150f9f02b11b3168071; the recorded exact-head make test branch gate passed; GitHub CI test jobs for Python 3.11, 3.12, and 3.13 all completed successfully. Two configured independent auditor transports were attempted and terminated without a verdict, leaving no independent candidate.
 ---
 <!-- COMMENTS:END -->
