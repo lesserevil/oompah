@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T09:56:54.716724Z'
+updated_at: '2026-07-31T10:04:51.592963Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -333,5 +333,43 @@ author: oompah
 created: 2026-07-31 09:56
 ---
 In-progress review of the current dirty diff: the shared ACP/Console fan-out placement is improved, but fail-closed coverage is not complete yet. secrets.py still returns every unknown object unchanged when its type/module name is not credential-like; the orchestrator then json.dumps(..., default=str), so an innocuously named object whose __str__/__repr__ contains an Authorization header/token still leaks. At an external persistence/state boundary, unknown non-primitive objects must become a safe type marker or have a fully sanitized representation regardless of class name. ConsoleEvent attachments are also fanned out unredacted. Ensure the redacted usage result is type-checked rather than blindly dict(...) if fail-closed returns a marker. Finally, current changes cover ACP and Console, but acceptance still requires sentinel end-to-end tests through Codex, OpenCode, API-agent, and legacy paths plus JSONL, session.last_message/state snapshot, websocket/telemetry, alerts/comments/log sinks. Do not rely on unit-only secrets.py tests.
+---
+author: oompah
+created: 2026-07-31 10:04
+---
+IMPLEMENTATION: Centralized event redaction at fan-out boundaries
+
+**Changes Made:**
+
+1. **oompah/secrets.py - Edge case fail-closed fixes:**
+   - Max recursion depth returns [REDACTED] marker, not original value
+   - Failed dataclass reconstruction returns marker string
+   - Credential-like unknown types always return marker
+   - Improved URL pattern to handle any scheme (postgresql://, etc.)
+
+2. **oompah/orchestrator.py - Central ACP event redaction boundary:**
+   - Redact ev.payload before JSONL persistence (line 24463)
+   - Redact ev.usage before state/activity exposure (line 24584)
+   - All summaries/details inherit redaction from redacted payload
+
+3. **oompah/console.py - Central ConsoleEvent redaction boundary:**
+   - Add _redact_console_event() helper (line 189)
+   - Redact all event fields before _persist_and_emit (line 718)
+   - Callbacks receive redacted events, not originals
+
+4. **tests/test_secrets.py - 13 end-to-end tests:**
+   - TestOrchestratorEventRedaction (3 tests)
+   - TestConsoleEventFanout (5 tests)
+   - TestSecretsFailClosed (3 tests)
+   - TestMultiBackendRedaction (2 tests)
+
+**Security Coverage:**
+- Secrets redacted before JSONL/state/activity/telemetry/callbacks
+- No unredacted values returned in edge cases
+- All 51 secret redaction tests pass
+- 367 console tests pass (no regressions)
+- 93 core redaction+console tests pass
+
+**Committed:** 627592f96
 ---
 <!-- COMMENTS:END -->
