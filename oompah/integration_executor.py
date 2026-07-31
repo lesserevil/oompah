@@ -61,6 +61,27 @@ def _current_branch(repo_path: str) -> str | None:
     return result.stdout.strip() if result.returncode == 0 else None
 
 
+def _dirty_worktree(repo_path: str) -> str | None:
+    """Return task-owned porcelain changes before any destructive git step."""
+
+    result = _git(
+        repo_path,
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=all",
+        timeout=30,
+    )
+    if result.returncode != 0:
+        return "git status failed: " + result.stderr.strip()[:1000]
+    dirty = [
+        line
+        for line in result.stdout.splitlines()
+        if line and not line[3:].strip().startswith(".oompah-no-hooks/")
+        and line[3:].strip() != ".oompah-no-hooks"
+    ]
+    return "\n".join(dirty) if dirty else None
+
+
 def execute_integration(
     *,
     project_lock: ContextManager[object],
@@ -118,6 +139,16 @@ def execute_integration(
                         f"queued branch {task_branch}; refusing to reset it"
                     ),
                 )
+            current_epic_branch = _current_branch(epic_worktree)
+            if current_epic_branch != epic_branch:
+                return IntegrationExecutionResult(
+                    status="wrong_worktree",
+                    message=(
+                        "epic worktree is on "
+                        f"{current_epic_branch or 'a detached HEAD'}, not "
+                        f"expected branch {epic_branch}; refusing to reset it"
+                    ),
+                )
             for worktree in (epic_worktree, task_worktree):
                 fetched = _git(worktree, "fetch", "--prune", "origin")
                 if fetched.returncode != 0:
@@ -140,11 +171,49 @@ def execute_integration(
                     ),
                     rebased_task_sha=remote_task_sha,
                 )
+            current_task_head = _sha(task_worktree, "HEAD")
+            if current_task_head != remote_task_sha:
+                return IntegrationExecutionResult(
+                    status="worktree_recovery",
+                    message=(
+                        "task worktree head "
+                        f"{current_task_head or 'unknown'} differs from the "
+                        f"published task head {remote_task_sha}; refusing to "
+                        "reset a preserved recovery snapshot"
+                    ),
+                    rebased_task_sha=remote_task_sha,
+                )
+            for worktree, label in (
+                (task_worktree, "task"),
+                (epic_worktree, "epic"),
+            ):
+                dirty = _dirty_worktree(worktree)
+                if dirty:
+                    return IntegrationExecutionResult(
+                        status="dirty_worktree",
+                        message=(
+                            f"{label} worktree has uncommitted task-owned "
+                            f"changes; refusing to reset it: {dirty[:1000]}"
+                        ),
+                        expected_epic_sha=expected_epic_sha,
+                    )
             expected_epic_sha = _sha(epic_worktree, f"origin/{epic_branch}")
             if expected_epic_sha is None:
                 return IntegrationExecutionResult(
                     status="missing_epic",
                     message=f"remote epic branch {epic_branch} does not exist",
+                )
+            current_epic_head = _sha(epic_worktree, "HEAD")
+            if current_epic_head != expected_epic_sha:
+                return IntegrationExecutionResult(
+                    status="worktree_recovery",
+                    message=(
+                        "epic worktree head "
+                        f"{current_epic_head or 'unknown'} differs from the "
+                        f"published epic head {expected_epic_sha}; refusing "
+                        "to reset a preserved recovery snapshot"
+                    ),
+                    expected_epic_sha=expected_epic_sha,
                 )
             checkout = _git(task_worktree, "checkout", task_branch)
             if checkout.returncode != 0:
@@ -257,6 +326,31 @@ def execute_integration(
                     message=(
                         f"epic head advanced from {expected_epic_sha} "
                         f"to {current_remote}; retrying on the new head"
+                    ),
+                    expected_epic_sha=expected_epic_sha,
+                    rebased_task_sha=rebased_sha,
+                    quality=quality,
+                )
+            current_epic_head = _sha(epic_worktree, "HEAD")
+            if current_epic_head != expected_epic_sha:
+                return IntegrationExecutionResult(
+                    status="worktree_recovery",
+                    message=(
+                        "epic worktree changed during the quality gate; "
+                        "refusing to reset preserved task-owned work"
+                    ),
+                    expected_epic_sha=expected_epic_sha,
+                    rebased_task_sha=rebased_sha,
+                    quality=quality,
+                )
+            dirty = _dirty_worktree(epic_worktree)
+            if dirty:
+                return IntegrationExecutionResult(
+                    status="dirty_worktree",
+                    message=(
+                        "epic worktree has uncommitted task-owned changes "
+                        "after the quality gate; refusing to reset it: "
+                        f"{dirty[:1000]}"
                     ),
                     expected_epic_sha=expected_epic_sha,
                     rebased_task_sha=rebased_sha,

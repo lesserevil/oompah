@@ -747,6 +747,79 @@ class TestTerminateRunningWritesCostRecord:
         assert len(fire_calls) == 1
         assert fire_calls[0] is entry
 
+    def test_terminate_snapshots_task_worktree_before_retry(self, tmp_path):
+        """Forced termination captures dirty task state before releasing runtime."""
+        orch, entry = self._make_orchestrator_with_running(tmp_path)
+        entry.issue.project_id = "project-1"
+        entry.workspace_path = str(tmp_path / "task-worktree")
+        calls = []
+
+        class RecoveryStore:
+            def list_all(self):
+                return []
+
+            def worktree_path_for(self, project_id, identifier):
+                assert project_id == "project-1"
+                assert identifier == entry.identifier
+                return entry.workspace_path
+
+            def preserve_worktree_changes(
+                self, project_id, identifier, worktree_path, branch_name
+            ):
+                calls.append(
+                    (project_id, identifier, worktree_path, branch_name)
+                )
+                return {
+                    "recovery_ref": "refs/oompah/recovery/project-1",
+                    "snapshot_head": "snapshot-sha",
+                }
+
+        orch.project_store = RecoveryStore()
+        orch._fire_task_cost_record = MagicMock()
+        orch._fire_telemetry_comment = MagicMock()
+
+        assert asyncio.run(
+            orch._terminate_running(entry.identifier, cleanup_workspace=False)
+        ) is True
+        assert calls == [
+            (
+                "project-1",
+                entry.identifier,
+                entry.workspace_path,
+                None,
+            )
+        ]
+
+    def test_snapshot_failure_holds_task_for_human_reconciliation(self, tmp_path):
+        """Recovery errors remove retry eligibility and preserve the task state."""
+        orch, entry = self._make_orchestrator_with_running(tmp_path)
+        entry.issue.project_id = "project-1"
+        entry.workspace_path = str(tmp_path / "task-worktree")
+
+        class RecoveryStore:
+            def list_all(self):
+                return []
+
+            def worktree_path_for(self, _project_id, _identifier):
+                return entry.workspace_path
+
+            def preserve_worktree_changes(self, *_args):
+                raise RuntimeError("snapshot backend unavailable")
+
+        tracker = MagicMock()
+        orch.project_store = RecoveryStore()
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch._fire_task_cost_record = MagicMock()
+        orch._fire_telemetry_comment = MagicMock()
+
+        assert asyncio.run(
+            orch._terminate_running(entry.identifier, cleanup_workspace=False)
+        ) is False
+        assert entry.identifier not in orch.state.running
+        assert entry.issue.id in orch.state.completed
+        tracker.mark_needs_human.assert_called_once()
+        assert "snapshot backend unavailable" in tracker.mark_needs_human.call_args.args[1]
+
     def test_terminate_fires_cost_before_workspace_cleanup(self, tmp_path):
         """Cost record must be written before workspace is removed
         (so entry still holds the session token data at write time)."""

@@ -61,6 +61,20 @@ class TestRenderPrompt:
         assert "urgent" in result
         assert "backend" in result
 
+    def test_recovery_context_is_explicitly_exposed_to_retry_agent(self):
+        issue = _make_issue()
+        issue.worktree_recovery = {
+            "recovery_ref": "refs/oompah/recovery/tasks-001-deadbeef",
+            "snapshot_head": "abc123",
+            "changed_paths": ["src/example.py"],
+        }
+
+        result = render_prompt("Continue {{ issue.identifier }}", issue)
+
+        assert "Oompah recovery context (trusted Git evidence)" in result
+        assert "refs/oompah/recovery/tasks-001-deadbeef" in result
+        assert "src/example.py" in result
+
     def test_invalid_template(self):
         issue = _make_issue()
         with pytest.raises(PromptError):

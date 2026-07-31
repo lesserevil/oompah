@@ -220,3 +220,46 @@ def test_executor_refuses_stale_queue_branch_without_resetting_task_worktree(tmp
     assert "refusing to reset" in result.message
     assert _git(task, "branch", "--show-current") == original_branch
     assert _git(task, "rev-parse", "HEAD") == original_head
+
+
+def test_executor_refuses_dirty_task_worktree_before_reset(tmp_path):
+    remote, epic, task, task_head = _repo(tmp_path)
+    original = b"worker edits\x00\xff"
+    (task / "task.txt").write_bytes(original)
+
+    result = execute_integration(
+        project_lock=nullcontext(),
+        epic_worktree=str(epic),
+        task_worktree=str(task),
+        epic_branch="epic-E-1",
+        task_branch="epic-E-1--task-T-1",
+        submitted_head_sha=task_head,
+        quality_gate=BranchQualityGate(str(tmp_path / "quality.json")),
+        quality_command="true",
+        repo_identity=str(remote),
+    )
+
+    assert result.status == "dirty_worktree"
+    assert (task / "task.txt").read_bytes() == original
+    assert _git(task, "rev-parse", "HEAD") == task_head
+
+
+def test_executor_refuses_dirty_epic_worktree_before_reset(tmp_path):
+    remote, epic, task, task_head = _repo(tmp_path)
+    original = b"shared edits\x00\xfe"
+    (epic / "base.txt").write_bytes(original)
+
+    result = execute_integration(
+        project_lock=nullcontext(),
+        epic_worktree=str(epic),
+        task_worktree=str(task),
+        epic_branch="epic-E-1",
+        task_branch="epic-E-1--task-T-1",
+        submitted_head_sha=task_head,
+        quality_gate=BranchQualityGate(str(tmp_path / "quality.json")),
+        quality_command="true",
+        repo_identity=str(remote),
+    )
+
+    assert result.status == "dirty_worktree"
+    assert (epic / "base.txt").read_bytes() == original

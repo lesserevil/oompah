@@ -10677,6 +10677,28 @@ class Orchestrator:
         read-only view of already-integrated evidence, not a new implementation
         attempt.
         """
+        def _finish_workspace(path: str, epic: Issue | None) -> tuple[str, Issue | None]:
+            # Recovery refs survive orchestrator restarts even when tracker
+            # metadata was not written before a worker was terminated.
+            if (
+                issue.project_id
+                and getattr(type(self.project_store), "worktree_recovery_context", None)
+                is not None
+            ):
+                try:
+                    recovery = self.project_store.worktree_recovery_context(
+                        issue.project_id, issue.identifier
+                    )
+                    if isinstance(recovery, dict):
+                        issue.worktree_recovery = recovery
+                except Exception as exc:  # noqa: BLE001 - context is advisory
+                    logger.warning(
+                        "Could not read task recovery context for %s: %s",
+                        issue.identifier,
+                        exc,
+                    )
+            return path, epic
+
         if not issue.project_id:
             workspace = self.workspace_mgr.create_for_issue(issue.identifier)
             self.workspace_mgr.run_before_run(workspace.path)
@@ -10698,14 +10720,14 @@ class Orchestrator:
                     issue.project_id,
                     issue.identifier,
                 )
-                return wp, issue
+                return _finish_workspace(wp, issue)
             wp = self.project_store.create_worktree(
                 issue.project_id,
                 issue.identifier,
                 base_branch=issue.target_branch,
                 branch_name=work_branch,
             )
-            return wp, issue
+            return _finish_workspace(wp, issue)
 
         parent_epic = self._resolve_parent_epic(issue)
         if parent_epic is not None:
@@ -10756,7 +10778,7 @@ class Orchestrator:
                         base_branch=epic_branch,
                         branch_name=private_branch,
                     )
-                return wp, None
+                return _finish_workspace(wp, None)
 
             # Correct stale work_branch metadata on the child before
             # dispatching to the epic worktree.  A child may carry a
@@ -10796,7 +10818,7 @@ class Orchestrator:
                 issue.project_id,
                 parent_epic.identifier,
             )
-            return wp, parent_epic
+            return _finish_workspace(wp, parent_epic)
 
         # Parent lookup can fail transiently even though a previous successful
         # dispatch already persisted the shared epic branch on the child.  Do
@@ -10837,7 +10859,7 @@ class Orchestrator:
                     project_id=issue.project_id,
                     work_branch=expected_epic_branch,
                 )
-                return wp, inferred_parent
+                return _finish_workspace(wp, inferred_parent)
 
         # For GitHub-backed tasks, generate a GitHub-safe branch name
         # (oompah/<project-slug>/gh-<number>) and persist Work Branch +
@@ -10875,7 +10897,7 @@ class Orchestrator:
             base_branch=issue.target_branch,
             branch_name=work_branch,
         )
-        return wp, None
+        return _finish_workspace(wp, None)
 
     def _auto_close_completed_epics(self, candidates: list[Issue]) -> None:
         """Auto-close epics whose children are all in terminal states.
@@ -23286,6 +23308,59 @@ class Orchestrator:
             )
         )
 
+    def _hold_after_worktree_recovery_failure(
+        self,
+        entry: RunningEntry,
+        issue_id: str,
+        project_id: str | None,
+        error: str,
+    ) -> None:
+        """Route an un-snapshotable worker workspace to Needs Human."""
+
+        message = (
+            "Oompah could not durably preserve this worker's task worktree "
+            "before retry. The worktree was left in place and no reset, clean, "
+            "or retry was started. Reconcile the workspace and recovery evidence "
+            f"manually before resuming the task. Error: {error}"
+        )
+        self.state.claimed.discard(issue_id)
+        self.state.claimed_issues.pop(issue_id, None)
+        self.state.stall_counts.pop(issue_id, None)
+        self._clear_reopen_count(issue_id)
+        try:
+            tracker = (
+                self._tracker_for_project(project_id)
+                if project_id
+                else self.tracker
+            )
+            self._mark_needs_human(tracker, entry.identifier, message)
+        except Exception as exc:  # noqa: BLE001 - retain in-memory fence
+            self._post_comment(entry.identifier, message, project_id=project_id)
+            logger.error(
+                "Failed to persist Needs Human after worktree recovery failure "
+                "for %s: %s",
+                entry.identifier,
+                exc,
+            )
+        self.state.completed.add(issue_id)
+        self.event_bus.emit(
+            EventType.AGENT_FAILED,
+            {
+                "issue_id": issue_id,
+                "identifier": entry.identifier,
+                "reason": "worktree_recovery_failed",
+                "error": error,
+            },
+        )
+        self._notify_observers()
+        self._post_event(
+            DispatchEvent(
+                event_type=DispatchEventType.WORKER_EXIT,
+                issue_id=issue_id,
+                payload={"reason": "worktree_recovery_failed"},
+            )
+        )
+
     async def _run_worker(
         self,
         issue: Issue,
@@ -28323,6 +28398,53 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 )
                 return False
 
+            # A retry may reuse the exact task worktree. Snapshot its dirty
+            # state after all worker processes are stopped but before the
+            # runtime entry is forgotten. Shared epic worktrees are handled
+            # by their existing non-destructive preparation path; only the
+            # exact per-task worktree is safe to snapshot under this task's
+            # recovery ref.
+            project_id = entry.issue.project_id if entry.issue else None
+            project_store = getattr(self, "project_store", None)
+            recovery_preserver = getattr(
+                type(project_store), "preserve_worktree_changes", None
+            ) if project_store is not None else None
+            if (
+                project_id
+                and entry.workspace_path
+                and recovery_preserver is not None
+            ):
+                try:
+                    expected_path = project_store.worktree_path_for(
+                        project_id, entry.identifier
+                    )
+                    if os.path.realpath(entry.workspace_path) == os.path.realpath(
+                        expected_path
+                    ):
+                        await asyncio.get_event_loop().run_in_executor(
+                            self._tick_pool,
+                            lambda: project_store.preserve_worktree_changes(
+                                project_id,
+                                entry.identifier,
+                                entry.workspace_path,
+                                (
+                                    getattr(entry.issue, "work_branch", None)
+                                    or getattr(entry.issue, "branch_name", None)
+                                    or None
+                                ),
+                            ),
+                        )
+                except Exception as exc:  # noqa: BLE001 - fail closed for retries
+                    if self.state.running.get(issue_id) is entry:
+                        self.state.running.pop(issue_id, None)
+                    self._hold_after_worktree_recovery_failure(
+                        entry,
+                        issue_id,
+                        project_id,
+                        str(exc),
+                    )
+                    return False
+
             if (
                 cli_session is not None
                 and getattr(self, "_cli_agent_sessions", {}).get(issue_id)
@@ -28391,7 +28513,6 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     )
 
             if cleanup_workspace:
-                project_id = entry.issue.project_id if entry.issue else None
                 try:
                     if project_id:
                         self.project_store.remove_worktree(
