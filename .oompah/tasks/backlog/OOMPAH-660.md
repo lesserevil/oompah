@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-660
 type: task
-status: In Progress
+status: Backlog
 priority: 0
 title: Rebase epic-OOMPAH-619 onto main
 parent: OOMPAH-619
@@ -13,7 +13,7 @@ labels:
 - needs:devops
 assignee: null
 created_at: '2026-07-31T12:53:39.335817Z'
-updated_at: '2026-07-31T12:57:52.322936Z'
+updated_at: '2026-07-31T12:58:51.022467Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-660
 target_branch: null
 review_url: null
@@ -30,13 +30,17 @@ oompah.integration:
   base_sha: 3fcdf30caa62fb7709d0cd9e1553320dd11b3877
   updated_at: '2026-07-31T12:56:50.028188+00:00'
 oompah.task_costs:
-  total_input_tokens: 12
-  total_output_tokens: 2999
+  total_input_tokens: 40
+  total_output_tokens: 7372
   total_cost_usd: 0.0
   by_model:
     sonnet:
       input_tokens: 12
       output_tokens: 2999
+      cost_usd: 0.0
+    opus:
+      input_tokens: 28
+      output_tokens: 4373
       cost_usd: 0.0
   runs:
   - profile: standard
@@ -45,6 +49,12 @@ oompah.task_costs:
     output_tokens: 2999
     cost_usd: 0.0
     recorded_at: '2026-07-31T12:56:25.439448+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 28
+    output_tokens: 4373
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T12:58:41.293122+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-660__20260731T125457Z
@@ -55,6 +65,14 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-619--task-OOMPAH-660
     source_sha: 3fcdf30caa62fb7709d0cd9e1553320dd11b3877
     completed_at: '2026-07-31T12:56:25.442328+00:00'
+  - run_id: OOMPAH-660__20260731T125653Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: opus
+    focus: duplicate_detector
+    source_branch: epic-OOMPAH-619--task-OOMPAH-660
+    source_sha: 3fcdf30caa62fb7709d0cd9e1553320dd11b3877
+    completed_at: '2026-07-31T12:58:41.296983+00:00'
 ---
 ## Summary
 
@@ -116,5 +134,30 @@ created: 2026-07-31 12:57
 Focus handoff: duplicate_detector
 
 Outcome: no duplicate exists. OOMPAH-660 is the sole live task for rebasing epic-OOMPAH-619 after main advanced. Evidence: the first worker searched active and historical native tasks and found no concurrent equivalent. Remaining work: fetch origin, rebase the existing epic-OOMPAH-619 worktree onto origin/main, resolve conflicts, and force-push with --force-with-lease. Recommended next focus: devops.
+---
+author: oompah
+created: 2026-07-31 12:58
+---
+Agent completed successfully in 116s (4401 tokens)
+---
+author: oompah
+created: 2026-07-31 12:58
+---
+Run #2 [attempt=2, profile=deep, role=deep -> Claude/opus]
+- Turns: 30, Tool calls: 22
+- Tokens: 28 in / 4.4K out [4.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 56s
+- Log: OOMPAH-660__20260731T125653Z.jsonl
+---
+author: oompah
+created: 2026-07-31 12:58
+---
+Focus handoff from `duplicate_detector` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-07-31 12:58
+---
+Operator is stopping the second redundant duplicate-screening run. Both the task worktree and shared epic worktree are clean; the canonical no-duplicate handoff and needs:devops label are now persisted. This is a scheduling correction, not an implementation failure.
 ---
 <!-- COMMENTS:END -->
