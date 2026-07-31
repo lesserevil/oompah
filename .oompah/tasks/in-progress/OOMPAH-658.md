@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-07-31T11:28:01.109410Z'
+updated_at: '2026-07-31T11:28:53.210044Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -188,5 +188,30 @@ author: oompah
 created: 2026-07-31 11:28
 ---
 Second exact live confirmation of the corrected root cause: OOMPAH-650 completed duplicate screening with outcome=checked at 09:10. Adding only the OOMPAH-657 finish-order dependency at 11:17 and reopening the same implementation caused another duplicate screen, which completed checked at 11:24. This is revision-key overbreadth from blocked_by/scheduling metadata, not loss across ticks. Use OOMPAH-650 as the deterministic finish-dependency regression.
+---
+author: oompah
+created: 2026-07-31 11:28
+---
+## Implementation
+
+**Root Cause Confirmed:**
+Duplicate-preflight candidates fetched via \`_fetch_all_candidates_bounded()\` have incomplete metadata because the description might be truncated in list API responses. When \`_select_duplicate_preflight_candidates\` called \`_duplicate_screening_assessment(issue)\`, the metadata wasn't loaded, causing \`assess_screening(issue)\` to incorrectly return UNCHECKED state even when a CHECKED record existed in the tracker. This led to the task being re-selected for duplicate screening on every scheduler tick.
+
+**Fix Applied:**
+Modified \`_duplicate_screening_assessment()\` in orchestrator.py to explicitly load duplicate_screening metadata from the tracker if it's not already set on the issue object. This ensures that:
+1. Previously completed CHECKED records are recognized across scheduler ticks
+2. Unchanged tasks with completed screening are not re-dispatched
+3. The fix handles exceptions gracefully (falls back to UNCHECKED if metadata can't be loaded)
+
+**Test Coverage:**
+- Added \`test_selection_loads_metadata_when_not_on_candidate_issue\` to reproduce and verify the fix
+- All 19 existing duplicate-preflight tests pass
+- All 7 duplicate-screening unit tests pass
+- Test simulates the real scenario where metadata is missing from candidate issues but exists in tracker
+
+**Impact:**
+- Prevents redundant duplicate-preflight dispatches across scheduler ticks for unchanged tasks
+- Allows implementation to proceed once duplicate screening is satisfied, even when behind dependency delays
+- Reduces provider capacity waste from duplicate screening
 ---
 <!-- COMMENTS:END -->
