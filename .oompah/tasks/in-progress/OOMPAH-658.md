@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-658
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: Deduplicate duplicate-preflight runs across deferred dispatch ticks
 parent: null
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-07-31T11:19:33.989338Z'
+updated_at: '2026-07-31T11:21:41.822819Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -22,17 +22,49 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 4a1bb0e26842985230ec626f23ddef4727bf4b92c77c3423b2df84e9e0e9abb1
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-07-31T11:21:27.879571+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 42f44d3b-5181-4e0f-8ddc-6d3c19435f90
-  claim_owner: f6d86559-4e9d-42bf-ac66-416781dbb14f
-  claimed_at: '2026-07-31T11:19:29.394663+00:00'
-  claim_expires_at: '2026-07-31T11:49:29.394663+00:00'
+  evidence: "No implementation or tracker mutation performed.\n\nFocus handoff: duplicate_detector\
+    \  \nDuplicate preflight verdict: no_duplicate  \nMatches: none  \nEvidence: Active\
+    \ OOMPAH-655 and OOMPAH-657 address service isolation and immutable gate snapshots,\
+    \ not duplicate-preflight deduplication. Historical OOMPAH-529\u2013532, OOMPAH-535,\
+    \ and OOMPAH-540 are terminal and therefore excluded as duplicate targets; they\
+    \ cover prerequisite evidence, claims, scheduling, lifecycle recovery, and dependency\
+    \ bypass\u2014not this deferred-tick regression."
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: ce9f7847-556b-47c9-8a9e-946fb6230dca
+oompah.agent_run_id: e4544404-5ab9-418b-875b-6ffe44dc9d65
+oompah.task_costs:
+  total_input_tokens: 928198
+  total_output_tokens: 4930
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 928198
+      output_tokens: 4930
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 928198
+    output_tokens: 4930
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T11:21:27.878524+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-658__20260731T111938Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: OOMPAH-658
+    source_sha: 54dd2509c6cbc73aaadbda2a3fdc7cfbb14530eb
+    completed_at: '2026-07-31T11:21:27.888975+00:00'
 ---
 ## Summary
 
@@ -82,5 +114,25 @@ author: oompah
 created: 2026-07-31 11:19
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-31 11:21
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 14
+- Tokens: 928.2K in / 4.9K out [933.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 56s
+- Log: OOMPAH-658__20260731T111938Z.jsonl
+---
+author: oompah
+created: 2026-07-31 11:21
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-31 11:21
+---
+Focus: Maintenance Engineer
 ---
 <!-- COMMENTS:END -->
