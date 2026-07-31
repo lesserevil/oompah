@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-665
 type: task
-status: Ready to Integrate
+status: In Progress
 priority: null
 title: Retire legacy no-auditor alerts after terminal task completion
 parent: null
@@ -10,9 +10,10 @@ blocked_by: []
 start_blocked_by: []
 labels:
 - needs-rebase
+- ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:07.401588Z'
-updated_at: '2026-07-31T21:42:39.382674Z'
+updated_at: '2026-07-31T21:43:04.670188Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -514,5 +515,26 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 10m 38s
 - Log: OOMPAH-665__20260731T213203Z.jsonl
+---
+author: oompah
+created: 2026-07-31 21:42
+---
+Branch quality gate blocked review creation.
+
+Branch: `OOMPAH-665`
+Target: `main`
+Head: `f8a1149911e51ebf0e0331ce7cc2a4705bb6a051`
+Command: `make test`
+Result: `failed`
+
+Required: run the command in the task worktree, fix the failure, commit and push the repair, then leave the task in Done. Oompah will rerun the gate for the new head before creating the PR/MR.
+
+Output tail:
+```text
+uv pip install -e '.[server]'
+
+make: uv: No such file or directory
+make: *** [Makefile:118: .venv/.uv-setup] Error 127
+```
 ---
 <!-- COMMENTS:END -->
