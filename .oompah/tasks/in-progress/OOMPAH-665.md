@@ -12,7 +12,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-07-31T16:04:07.401588Z'
-updated_at: '2026-07-31T18:51:33.735706Z'
+updated_at: '2026-07-31T18:56:08.790149Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -298,5 +298,10 @@ author: oompah
 created: 2026-07-31 18:51
 ---
 Focus: Event Api Redaction Specialist
+---
+author: oompah
+created: 2026-07-31 18:56
+---
+Implementation and verification: tightened the preserved retirement reconciliation so a durable retirement row must match the alert record's target state and evidence fingerprint as well as its project/task/audit ID; mismatches fail closed. Added a regression test. Focused observability, transition-coordinator, and enforcement suites pass (177 tests). The full make test setup is environment-blocked because the local uv launcher cannot create its transient system scope.
 ---
 <!-- COMMENTS:END -->
