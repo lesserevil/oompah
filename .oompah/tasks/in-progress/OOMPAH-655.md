@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T10:44:24.494068Z'
+updated_at: '2026-07-31T10:46:59.031368Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -128,5 +128,10 @@ author: oompah
 created: 2026-07-31 10:44
 ---
 Verification: All tests pass. Quality gate tests (19 tests): PASSED. Client auth tests (62 tests): PASSED. Added two regression tests to verify: (1) lifecycle isolation variables are set correctly in subprocess, (2) server URL and task credentials are not inherited. Changes committed with full trailer.
+---
+author: oompah
+created: 2026-07-31 10:46
+---
+Completion: Service isolation enforcement complete. Comprehensive testing: 90 tests pass (19 quality_gate + 62 client_auth + 9 integration_executor). Security boundary moved to server-controlled subprocess launch boundary in quality_gate.py. Candidate subprocess isolated with: private temp root, ephemeral port, isolated PID files, removed server URL/credentials. Old/malicious Makefiles cannot discover operator service. Branch pushed to origin/OOMPAH-655. Ready for review.
 ---
 <!-- COMMENTS:END -->
