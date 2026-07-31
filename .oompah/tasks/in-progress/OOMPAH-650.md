@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T11:31:28.432339Z'
+updated_at: '2026-07-31T11:34:28.529136Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -709,5 +709,36 @@ author: oompah
 created: 2026-07-31 11:31
 ---
 Operator stopped only exact test group 1835091 because make test -- tests/test_task_handoff.py expands to the repository-wide Make target; it is not a focused selection. This is not a test failure. Continue deterministic focused checks without launching the full suite while the branch is active and final integration remains blocked on OOMPAH-657.
+---
+author: oompah
+created: 2026-07-31 11:34
+---
+**DISCOVERY & ANALYSIS**
+
+Found critical security issue with the prior implementation:
+
+**Root Cause**: DEFAULT_TTL_SECONDS was set to 24 hours instead of 15 minutes
+
+This undermines the security model:
+- 24-hour wall-clock TTL means compromised bearer tokens could be used for a very long time
+- The whole point of a short TTL is safety-by-timeout: if lease renewal crashes or server restarts unexpectedly, the grant still expires
+- With 24 hours, a failure in the lease mechanism means indefinite access
+
+**Design Verification**: The lease mechanism is sound:
+1. Grant issued with short TTL (15 min with my fix)
+2. Server-owned lease renews grant while worker is live via refresh()
+3. owner_is_live() callback checks entry identity + bearer token + worker task status
+4. Generation-bound: replacement dispatch can never renew predecessor's grant
+5. Revocation is atomic: marked immediately, prevents all further access
+
+**Fixes Applied**:
+1. Restored DEFAULT_TTL_SECONDS = 15 * 60 (was 24 * 60 * 60)
+2. Updated docstrings to clarify wall-clock TTL as safety mechanism
+3. Added test_worker_lifetime_grant_survives_zero_handoff_requests
+   - Verifies grant stays alive via lease without any tracker requests
+   - Demonstrates critical requirement: no 401 during worker lifetime
+   - Tests continuous renewal beyond initial TTL via lease heartbeats
+
+**Tests**: All 44 task_handoff tests pass; 297 auth/handoff/CLI tests pass.
 ---
 <!-- COMMENTS:END -->

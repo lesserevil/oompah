@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T11:06:15.542774Z'
-updated_at: '2026-07-31T11:34:13.986028Z'
+updated_at: '2026-07-31T11:34:32.727447Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -56,7 +56,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: f75cece9-82da-4c80-842b-614d77367f5b
+oompah.agent_run_id: e0ab9ba2-8c66-4f4c-a32e-2b5041dd8640
 oompah.task_costs:
   total_input_tokens: 718067
   total_output_tokens: 13082
@@ -199,5 +199,15 @@ author: oompah
 created: 2026-07-31 11:34
 ---
 Agent completed without closing this issue (1474s (725787 tokens)). Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-31 11:34
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-31 11:34
+---
+Focus: Refactoring Specialist
 ---
 <!-- COMMENTS:END -->
