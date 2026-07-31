@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-07-31T11:21:41.822819Z'
+updated_at: '2026-07-31T11:21:57.539338Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -134,5 +134,29 @@ author: oompah
 created: 2026-07-31 11:21
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-07-31 11:21
+---
+## Understanding
+
+The issue is that duplicate-preflight (duplicate screening) runs are being dispatched multiple times across scheduler ticks when the task intake/evidence hasn't changed. For example, it ran twice (11:09-11:11 and 11:13-11:15) with no input changes, wasting provider capacity.
+
+**Root Cause:** Duplicate-preflight completion/result is not being persisted and retained across scheduler ticks. Each tick re-evaluates whether to dispatch duplicate screening, even though the previous run already completed with a no-duplicate result.
+
+**Solution Approach:**
+1. Investigate how duplicate-preflight dispatch selection works in the scheduler
+2. Find where completed duplicate-preflight results are handled (claimed/completed state recovery)
+3. Implement caching/persistence of duplicate-preflight completion keyed to task intake/evidence revision
+4. Invalidate cache only when relevant inputs (title/description/source/parent/revision) change
+5. Add tests to verify exactly one screening launches for unchanged revision across ticks
+6. Ensure implementation dispatch follows correctly when eligible
+
+**Next Steps:**
+- Locate duplicate-preflight focus/dispatch logic
+- Trace scheduler tick and dependency wait flow
+- Examine task metadata and claimed/completed state handling
+
+Starting exploration of the codebase.
 ---
 <!-- COMMENTS:END -->
