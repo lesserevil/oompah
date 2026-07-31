@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:06.140108Z'
-updated_at: '2026-07-31T21:46:36.680569Z'
+updated_at: '2026-07-31T21:50:36.181327Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -408,5 +408,10 @@ author: oompah
 created: 2026-07-31 21:46
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-31 21:50
+---
+Understanding: The CI gate is still failing with 'make: uv: No such file or directory' even after the quality_gate.py sentinel overlay fix was committed (7fb6cb96d). Root cause: the sentinel overlay fix is in the BRANCH code, but the gate that runs tests uses the DEPLOYED server's quality_gate.py (at 16362384b, which predates this branch). The deployed server sets OOMPAH_PYTEST_GATE=1 in the sandbox environment (visible in Makefile:4 as _PYTEST_GATE). The Makefile already uses _PYTEST_GATE for other behaviors. Fix: extend the Makefile to make 'setup' and 'test-setup' no-ops when _PYTEST_GATE is set, since the operator venv is already bind-mounted at .venv by the sandbox. This prevents any uv invocation in the restricted-PATH sandbox. The quality_gate.py sentinel overlay remains as defense-in-depth for future runs after merge.
 ---
 <!-- COMMENTS:END -->
