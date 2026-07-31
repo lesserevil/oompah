@@ -10,11 +10,10 @@ blocked_by:
 - OOMPAH-657
 start_blocked_by: &id001
 - OOMPAH-657
-labels:
-- merge-conflict
+labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T16:41:49.835472Z'
+updated_at: '2026-07-31T16:51:12.167146Z'
 work_branch: OOMPAH-655
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/625
