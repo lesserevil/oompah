@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-668
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 0
 title: Use the trusted test virtualenv without reinstalling inside quality-gate sandbox
 parent: null
@@ -12,10 +12,10 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T21:35:20.853943Z'
-updated_at: '2026-07-31T22:31:37.448641Z'
+updated_at: '2026-07-31T22:39:59.041858Z'
 work_branch: null
 target_branch: null
-review_url: null
+review_url: https://github.com/lesserevil/oompah/pull/627
 review_number: null
 merged_at: null
 oompah.duplicate_screening:
@@ -80,6 +80,7 @@ oompah.integration:
   head_sha: 9e520df9a3f292bd54f4c6791cb3e6591c28446d
   submitted_at: '2026-07-31T22:31:31.408808+00:00'
   updated_at: '2026-07-31T22:31:31.408808+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/627
 ---
 ## Summary
 
@@ -424,5 +425,10 @@ author: oompah
 created: 2026-07-31 22:31
 ---
 Quality gates now use the trusted read-only test runtime without reinstalling, force editable CLI paths onto the exact candidate snapshot, and preserve private exact-head revision checks. Focused, real-sandbox, and full Makefile gates pass.
+---
+author: oompah
+created: 2026-07-31 22:39
+---
+Branch quality gate passed for `9e520df9a3f292bd54f4c6791cb3e6591c28446d` using `make test` in 385.1s. Review creation may proceed.
 ---
 <!-- COMMENTS:END -->
