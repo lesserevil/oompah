@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T12:04:23.986662Z'
+updated_at: '2026-07-31T12:06:26.502569Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -826,5 +826,10 @@ author: oompah
 created: 2026-07-31 12:04
 ---
 Verification: 131 focused tests pass (test_secrets.py + test_task_handoff.py); 228 console/API-budget tests pass; 193 ACP/backend tests pass with OOMPAH_AGENT_LOG_DIR directed to the writable temp root; make check-secrets passes; make terminal-audit-scan passes (6/6 allowlisted). The initial ACP run hit only the sandbox read-only default agent-log path and passed when redirected to TMPDIR.
+---
+author: oompah
+created: 2026-07-31 12:06
+---
+Completion: commit 823e96052 adds renew_secret and retire_secret for dynamic exact-match registrations, wires handoff revocation to bounded delayed-writer grace, adds deterministic renewal/retirement tests, and updates the operator runbook. All focused suites and static security gates are green. OOMPah-650 was coordinated to consume renew_secret on each live lease refresh before final dependency-ordered integration.
 ---
 <!-- COMMENTS:END -->
