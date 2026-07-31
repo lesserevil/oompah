@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-595
 type: feature
-status: In Progress
+status: Needs Human
 priority: 1
 title: Expose separate operator and worker task-auth health signals
 parent: OOMPAH-586
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:56.897824Z'
-updated_at: '2026-07-31T00:58:16.076089Z'
+updated_at: '2026-07-31T00:58:58.131148Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-595
 target_branch: null
 review_url: null
@@ -660,5 +660,15 @@ author: oompah
 created: 2026-07-31 00:58
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-07-31 00:58
+---
+UNDERSTANDING: Task OOMPAH-595 implementation is complete and all tests pass per previous auditor reports. My role as Frontend Developer is to verify the dashboard/frontend integration is working correctly and ensure the work can be properly submitted. Current status: auth_health.py exists with proper separation of operator vs worker auth signals, no credentials/secrets exposed, and correct alert generation. Next: verify dashboard rendering and test coverage.
+---
+author: oompah
+created: 2026-07-31 00:58
+---
+The parent epic OOMPAH-586 merged from epic-OOMPAH-586, but this task was In Progress with work branch epic-OOMPAH-586--task-OOMPAH-595. Its work is not proven to be in the merged epic. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
 ---
 <!-- COMMENTS:END -->
