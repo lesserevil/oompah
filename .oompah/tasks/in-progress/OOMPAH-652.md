@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:15.160957Z'
-updated_at: '2026-07-31T09:13:00.819014Z'
+updated_at: '2026-07-31T09:23:10.293402Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -121,5 +121,10 @@ author: oompah
 created: 2026-07-31 09:13
 ---
 Correction/clarification: the current Makefile stop/status predicates run process_identity.py capture and redirect into PID_META_FILE, overwriting the identity recorded at startup before deciding whether to signal. That does not protect against PID reuse; a reused PID with a matching cwd would be blessed as new ownership. Preserve the startup meta atomically, add a compare/validate command that checks live pid/start_time/process_group/session/cwd against that exact stored record, and never rewrite it during stop/status. Tests should mutate each stored field and simulate a reused PID/current identity mismatch, asserting no signal and safe stale-file handling.
+---
+author: oompah
+created: 2026-07-31 09:23
+---
+Additional live process-ownership evidence during the drain: OOMPAH-651 worker exited and the task left running state, but its full make test process group 3603400 (leader sh -c make test, bash run-tests, pytest controller, four workers; exact cwd OOMPAH-651) remained alive as a child group of the service. Because that rejected branch lacked gate isolation, the operator terminated only PGID 3603400 before teardown could stop the service. Include the invariant that worker completion/termination reaps every captured test/tool process group, even when the provider returns before the command, while never touching sibling service/group identities.
 ---
 <!-- COMMENTS:END -->
