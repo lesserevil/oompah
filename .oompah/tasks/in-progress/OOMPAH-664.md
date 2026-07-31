@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:06.140108Z'
-updated_at: '2026-07-31T23:05:27.360545Z'
+updated_at: '2026-07-31T23:06:37.160194Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -833,5 +833,10 @@ author: oompah
 created: 2026-07-31 23:05
 ---
 Discovery: test_tick_applies_pending_at_quiescent_point is flaky under parallel CI load. The test stubs _handle_reconcile, _handle_review_check, _handle_dispatch_needed, _handle_yolo_review, _handle_auto_update, and _maybe_run_watchdog, but does NOT stub _recover_release_addendum_leases, which is the ONLY remaining awaited I/O operation in _tick(). _recover_release_addendum_leases calls tracker.fetch_all_issues() -> _read_records(), which sequentially reads 281 .oompah/tasks/*.md files. With 4 parallel test workers competing for I/O, this can exceed the 5s per-test timeout. Fix: add orch._recover_release_addendum_leases = lambda: 0 to the test's stub block, consistent with existing approach.
+---
+author: oompah
+created: 2026-07-31 23:06
+---
+Implementation: Stubbed three additional I/O methods in test_tick_applies_pending_at_quiescent_point to prevent 5s timeout under parallel CI load: (1) _recover_release_addendum_leases - the only awaited real-I/O step in _tick() not previously stubbed; reads all 281 .oompah/tasks files via fetch_all_issues() on every tick, slow under 4-way parallel test load. (2) _run_step5b_maintenance - fire-and-forget step that avoids post-test background noise. (3) _run_step5c_epic_maintenance - same. All 11 tests in the file pass; all 70 focused tests pass.
 ---
 <!-- COMMENTS:END -->

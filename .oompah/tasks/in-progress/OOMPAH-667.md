@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T21:32:57.017227Z'
-updated_at: '2026-07-31T23:05:56.491543Z'
+updated_at: '2026-07-31T23:06:34.912873Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -148,5 +148,10 @@ author: oompah
 created: 2026-07-31 23:05
 ---
 Verification: focused lifecycle and neighboring Makefile suites pass: 97 passed in 16.41s (test_canonical_cli_sync.py, test_lifecycle_cli_sync_integration.py, test_makefile_setup.py, test_makefile_restart_wait.py). Python compilation and both helper --help checks pass; git diff --check is clean. Make dry-runs confirm sync/restart receive the preserved operator PATH.
+---
+author: oompah
+created: 2026-07-31 23:06
+---
+Completion: pushed commit 6ee3e0213 to origin/OOMPAH-667. Make lifecycle commands now preserve the caller's canonical CLI PATH while retaining internal venv tooling, strict shadowing refusal remains intact, focused suites are green, and the worktree is clean/up to date.
 ---
 <!-- COMMENTS:END -->
