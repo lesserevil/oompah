@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:55:23.505409Z'
-updated_at: '2026-07-31T08:54:34.694053Z'
+updated_at: '2026-07-31T08:56:37.936947Z'
 work_branch: OOMPAH-646
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/613
@@ -101,6 +101,8 @@ oompah.work_branch: OOMPAH-646
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-a175b1f99c65: '2026-07-31T08:56:34.841668+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -108,7 +110,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-646
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -132,7 +134,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-a175b1f99c65
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -143,13 +145,16 @@ oompah.terminal_audit:
       started_at: '2026-07-31T08:54:30.904114+00:00'
       branch_key: OOMPAH-646
       candidate_rotation_count: 1
+      verdict: pass
+      completed_at: '2026-07-31T08:56:34.841566+00:00'
+      ended_at: '2026-07-31T08:56:34.841566+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-07-31T08:19:02.154963+00:00'
-    updated_at: '2026-07-31T08:54:30.904114+00:00'
+    updated_at: '2026-07-31T08:56:34.841566+00:00'
   - version: 1
     audit_id: audit-6514bbb96a7e
     project_id: proj-14849f1b
@@ -299,5 +304,21 @@ author: oompah
 created: 2026-07-31 08:54
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 08:56
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit: 4544101aa Merge pull request #613 from lesserevil/OOMPAH-646
+- branch_head: 355258ef0d1b1600f09cd111511f2828946e4ec7
+- test_review_capacity: 6/6 passed
+- test_standalone_ready_to_integrate: 20/20 passed
+- test_server_webhooks: 130/130 passed
+- full_gate: make test passed at 355258ef0 in 410.1s
+- new_files: oompah/review_capacity.py (+433 lines), tests/test_review_capacity.py (+104 lines), tests/test_standalone_ready_to_integrate.py (+98 lines)
 ---
 <!-- COMMENTS:END -->
