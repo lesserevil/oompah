@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:58.634342Z'
-updated_at: '2026-07-31T03:30:35.851433Z'
+updated_at: '2026-07-31T03:30:46.469163Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-600
 target_branch: null
 review_url: null
@@ -69,13 +69,17 @@ oompah.integration:
   submitted_at: '2026-07-31T03:30:30.310337+00:00'
   updated_at: '2026-07-31T03:30:30.310337+00:00'
 oompah.task_costs:
-  total_input_tokens: 1180
-  total_output_tokens: 6935
+  total_input_tokens: 8278292
+  total_output_tokens: 24509
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 1180
       output_tokens: 6935
+      cost_usd: 0.0
+    sonnet:
+      input_tokens: 8277112
+      output_tokens: 17574
       cost_usd: 0.0
   runs:
   - profile: default
@@ -90,6 +94,12 @@ oompah.task_costs:
     output_tokens: 311
     cost_usd: 0.0
     recorded_at: '2026-07-31T03:12:18.548230+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 8277112
+    output_tokens: 17574
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T03:30:44.988224+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-600__20260730T155057Z
@@ -400,5 +410,15 @@ author: oompah
 created: 2026-07-31 03:30
 ---
 Operator completed the old-runtime handoff after the worker's 401. Final pushed head 67c67ffa6 is queued for exact integration. This is the live-runtime limitation already covered by the recovery graph; no user action is required.
+---
+author: oompah
+created: 2026-07-31 03:30
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Codex/gpt-5.6-terra]
+- Turns: 0, Tool calls: 46
+- Tokens: 8.3M in / 17.6K out [8.3M total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 16m 36s
+- Log: OOMPAH-600__20260731T031421Z.jsonl
 ---
 <!-- COMMENTS:END -->
