@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-489
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Validate nested epic auditing, repair planning, races, and cross-tracker behavior
 parent: OOMPAH-460
@@ -16,7 +16,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:28.198709Z'
-updated_at: '2026-07-31T04:05:58.581416Z'
+updated_at: '2026-07-31T04:06:08.873189Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-489
 target_branch: null
 review_url: null
@@ -94,12 +94,12 @@ oompah.task_costs:
     recorded_at: '2026-07-29T19:21:29.471084+00:00'
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-460--task-OOMPAH-489
-  base_branch: epic-OOMPAH-460
-  base_sha: fd19b48db0293b02a267e7cf4f22cca5cf8073a1
-  updated_at: '2026-07-31T04:02:35.141703+00:00'
+  head_sha: 0d7c3578f56f2939e4d9d3b73b5a92cad10d203a
+  submitted_at: '2026-07-31T04:06:06.400927+00:00'
+  updated_at: '2026-07-31T04:06:06.400927+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-489__20260729T184610Z
@@ -444,5 +444,10 @@ Implementation: Fixed 2 constructor mismatches in tests/test_epic_terminal_audit
 Verification: All 21 tests now green (20 pass + 1 expected xfail for repair-planner lifecycle blocked on OOMPAH-482). 412 tests across neighboring suites also pass.
 
 Committed: 0d7c3578f, pushed to origin.
+---
+author: oompah
+created: 2026-07-31 04:06
+---
+Added end-to-end terminal audit contract tests for nested epics (tests/test_epic_terminal_audit_contract.py). Tests cover: nested evidence fingerprinting including every contributor and child audit, rollup blocking for In Validation children, child landing evidence via bare git refs, Done/Merged audits across native Markdown, GitHub, and GitLab tracker adapters, evidence-change race protection, duplicate webhook+polling idempotency, service restart recovery, authorized owner override recording, and multi-contributor exclusion for independent auditor selection. Fixed constructor calls for ModelProvider (added base_url) and WorkContributor (added focus, source_branch, source_sha). All 20 tests pass; 1 xfail correctly marks the repair-planner contract gated on OOMPAH-482.
 ---
 <!-- COMMENTS:END -->

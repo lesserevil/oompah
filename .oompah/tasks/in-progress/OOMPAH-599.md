@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-599
 type: task
-status: Needs Human
+status: In Progress
 priority: 1
 title: Verify zero stranded delivery states and close recovery epics
 parent: OOMPAH-587
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:31.072278Z'
-updated_at: '2026-07-31T04:01:19.635455Z'
+updated_at: '2026-07-31T04:06:05.859439Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-599
 target_branch: null
 review_url: null
