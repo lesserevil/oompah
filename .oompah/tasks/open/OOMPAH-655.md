@@ -1,18 +1,19 @@
 ---
 id: OOMPAH-655
 type: task
-status: In Progress
+status: Open
 priority: null
 title: Enforce full-gate service isolation outside candidate branch code
 parent: null
 children: []
 blocked_by:
 - OOMPAH-657
-start_blocked_by: []
+start_blocked_by: &id001
+- OOMPAH-657
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T12:12:34.844070Z'
+updated_at: '2026-07-31T12:17:29.401836Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -58,8 +59,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 13e83c2e-d718-45cc-84dc-344de317111d
 oompah.task_costs:
-  total_input_tokens: 5996787
-  total_output_tokens: 39745
+  total_input_tokens: 7045048
+  total_output_tokens: 48811
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -69,6 +70,10 @@ oompah.task_costs:
     sonnet:
       input_tokens: 267237
       output_tokens: 6616
+      cost_usd: 0.0
+    opus:
+      input_tokens: 1048261
+      output_tokens: 9066
       cost_usd: 0.0
   runs:
   - profile: default
@@ -119,6 +124,12 @@ oompah.task_costs:
     output_tokens: 6616
     cost_usd: 0.0
     recorded_at: '2026-07-31T12:11:55.192171+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 1048261
+    output_tokens: 9066
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T12:17:23.914128+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-655__20260731T103632Z
@@ -169,6 +180,7 @@ oompah.integration:
   head_sha: b519be788276e349d4b39978660d6a9ee92b5cfa
   submitted_at: '2026-07-31T11:06:28.174250+00:00'
   updated_at: '2026-07-31T11:06:28.174250+00:00'
+oompah.start_blocked_by: *id001
 ---
 ## Summary
 
@@ -546,5 +558,25 @@ author: oompah
 created: 2026-07-31 12:12
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-07-31 12:17
+---
+Run #3 [attempt=3, profile=deep, role=deep -> Codex/gpt-5.6-sol]
+- Turns: 0, Tool calls: 55
+- Tokens: 1.0M in / 9.1K out [1.1M total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 4m 52s
+- Log: OOMPAH-655__20260731T121235Z.jsonl
+---
+author: oompah
+created: 2026-07-31 12:17
+---
+Pushed 9e4f9573c has the required empty-root bwrap/PID/network boundary and live host attack regression, but its symbolic git archive HEAD snapshot cannot be final authority. Parked Open behind a hard-start dependency on OOMPAH-657. Preserve the branch; after 657 deploys, rebase and consume its captured exact-head snapshot/generation contract instead of maintaining a competing mutable snapshot, then validate one real Makefile smoke in the sandbox and submit once.
+---
+author: oompah
+created: 2026-07-31 12:17
+---
+Pushed 9e4f9573c has the required empty-root bwrap/PID/network boundary and live host attack regression, but its symbolic git archive HEAD snapshot cannot be final authority. Parked Open behind a hard-start dependency on OOMPAH-657. Preserve the branch; after 657 deploys, rebase and consume its captured exact-head snapshot/generation contract instead of maintaining a competing mutable snapshot, then validate one real Makefile smoke in the sandbox and submit once.
 ---
 <!-- COMMENTS:END -->

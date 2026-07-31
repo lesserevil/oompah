@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-623
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Keep the canonical user CLI synchronized with the running server
 parent: OOMPAH-619
@@ -11,10 +11,11 @@ blocked_by:
 - OOMPAH-657
 start_blocked_by: &id001
 - OOMPAH-621
+- OOMPAH-657
 labels: []
 assignee: null
 created_at: '2026-07-30T21:32:18.734139Z'
-updated_at: '2026-07-31T11:49:43.075360Z'
+updated_at: '2026-07-31T12:17:24.719470Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-623
 target_branch: null
 review_url: null
@@ -23,31 +24,19 @@ merged_at: null
 oompah.start_blocked_by: *id001
 oompah.duplicate_screening:
   schema_version: 1
-  task_fingerprint: 2c03431ab27db837fe90d6abbb34133f8d277fc87f504f324bec6316d803b03e
+  task_fingerprint: d0a95e45b2f50e0debb4b1f36c8834d5b4984b200f7e7c5328db61914a66f4ea
   detector_version: duplicate-detector-v1
-  verdict: no_duplicate
-  checked_at: '2026-07-31T09:42:46.130462+00:00'
+  verdict: inconclusive
+  checked_at: null
   matched_identifiers: []
-  evidence: "This coordination message confirms that OOMPAH-652 is a dependency (blocker)\
-    \ for OOMPAH-623, not a duplicate. The dependency relationship means OOMPAH-623\
-    \ cannot proceed until OOMPAH-652 is complete, but they remain distinct, non-duplicate\
-    \ tasks.\n\nMy duplicate screening verdict remains unchanged:\n\n---\n\n**Focus\
-    \ handoff: duplicate_detector**\n\n**Duplicate preflight verdict: no_duplicate**\n\
-    \n**Matches: none**\n\n**Evidence:** Comprehensive search of .oompah/tasks/, docs,\
-    \ plans, and source code found no active duplicate of OOMPAH-623. The current\
-    \ branch contains a complete implementation (build_info.py, sync_canonical_cli.py,\
-    \ test suite, documentation) that was rejected in operator review for timing/ordering\
-    \ issues\u2014not duplication. OOMPAH-650 is a sibling epic task; OOMPAH-652 (just\
-    \ started per coordination) is a blocking dependency, not a duplicate. The task\
-    \ requires operator feedback incorporation to address the safe-point timing issue\
-    \ identified in the rejection comment before it can be submitted."
-  claim_id: null
-  claim_owner: null
-  claimed_at: null
-  claim_expires_at: null
+  evidence: ''
+  claim_id: 163e282e-9800-4558-8dfb-2c7578451983
+  claim_owner: f6d86559-4e9d-42bf-ac66-416781dbb14f
+  claimed_at: '2026-07-31T12:17:16.899384+00:00'
+  claim_expires_at: '2026-07-31T12:47:16.899384+00:00'
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 9721733c-ddfb-4938-aa18-3ed7abb7923c
+oompah.agent_run_id: de4d44d0-8e7d-45de-bc33-b122336b327a
 oompah.work_branch: epic-OOMPAH-619--task-OOMPAH-623
 oompah.integration:
   version: 2
@@ -56,15 +45,19 @@ oompah.integration:
   task_branch: epic-OOMPAH-619--task-OOMPAH-623
   base_branch: epic-OOMPAH-619
   base_sha: 3fcdf30caa62fb7709d0cd9e1553320dd11b3877
-  updated_at: '2026-07-31T11:02:20.172426+00:00'
+  updated_at: '2026-07-31T12:17:22.698548+00:00'
 oompah.task_costs:
-  total_input_tokens: 21767466
-  total_output_tokens: 78584
+  total_input_tokens: 23786732
+  total_output_tokens: 87497
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 21767466
       output_tokens: 78584
+      cost_usd: 0.0
+    opus:
+      input_tokens: 2019266
+      output_tokens: 8913
       cost_usd: 0.0
   runs:
   - profile: default
@@ -97,6 +90,12 @@ oompah.task_costs:
     output_tokens: 62228
     cost_usd: 0.0
     recorded_at: '2026-07-31T10:14:23.563020+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 2019266
+    output_tokens: 8913
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T12:17:10.002625+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-623__20260730T213656Z
@@ -486,5 +485,30 @@ author: oompah
 created: 2026-07-31 11:49
 ---
 Exact review of clean 3c65ddb64: the candidate/old/unknown resolution and exact-PID quarantine are materially improved, but one blocking lifecycle race remains. There is no stable serialization lock in canonical_cli_cutover.py or sync_canonical_cli.py. Two make restart/install-cli invocations can capture the same old pair, stage different journals, interleave os.replace/rollback/commit, and prune roots while the other activation is live. Add one host-scoped fcntl/flock lock at a stable path outside revision/backup roots, held across selection, staging, activation, restart resolution, rollback/quarantine, and pruning; synchronize() and graceful_cutover() must share it without self-deadlock. Add deterministic concurrent activation/cutover tests where the second caller blocks or fails clearly and can never overwrite the first rollback journal or delete either active root. Harden pruning tests for concurrent launcher replacement, symlink/incomplete publication, and an invocation crossing activation. Also require health and authenticated state to report the same non-null service instance and exact revision before candidate/old equality is proven; accepting state_instance=None weakens the stated two-surface identity contract. Keep the exact lifecycle-owned quarantine and paused-state behavior.
+---
+author: oompah
+created: 2026-07-31 12:17
+---
+Run #3 [attempt=3, profile=deep, role=deep -> Codex/gpt-5.6-sol]
+- Turns: 0, Tool calls: 364
+- Tokens: 2.0M in / 8.9K out [2.0M total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 1h 14m 54s
+- Log: OOMPAH-623__20260731T110227Z.jsonl
+---
+author: oompah
+created: 2026-07-31 12:17
+---
+Code-level review accepts pushed c8bb0b809 provisionally: install and graceful cutover share one stable host flock, pruning is inside the serialized transaction, and health/state require the same non-null instance and exact revision. Parked Open behind a hard-start dependency on OOMPAH-657 so final rebase/gate uses immutable exact-head authority. Preserve this pushed branch; after 657 deploys, rebase onto the repaired epic base, run focused lifecycle regressions, and submit once.
+---
+author: oompah
+created: 2026-07-31 12:17
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-07-31 12:17
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
