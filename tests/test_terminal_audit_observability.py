@@ -388,3 +388,134 @@ def test_running_audits_do_not_emit_queue_age_alerts(tmp_path: Path) -> None:
     finally:
         orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
         orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+
+def test_pass_clears_sibling_alert_in_production_registry_across_restart(
+    tmp_path: Path,
+) -> None:
+    """OOMPAH-644 barrier: a cancelled sibling's actionable alert must clear
+    against the production alert registry and stay clear across restart.
+
+    Two audits with the same target/fingerprint are registered; one is
+    cancelled and gets a live no_independent_candidate alert. After clear,
+    the alert must be gone.  After a restart with the CANCELLED metadata
+    seeded, the reconciliation path must not re-emit the alert.
+    """
+    state_path = tmp_path / "service_state.json"
+    tracker = _MetadataTracker()
+    fingerprint = EvidenceFingerprint("a" * 64)
+    passed = TerminalAuditRecord(
+        audit_id="audit-passed",
+        project_id="project-a",
+        task_id="TASK-1",
+        target_state=TargetState.DONE,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.COMPLETED,
+    )
+    cancelled_sibling = TerminalAuditRecord(
+        audit_id="audit-sibling",
+        project_id="project-a",
+        task_id="TASK-1",
+        target_state=TargetState.DONE,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.SUPERSEDED,
+    )
+    tracker.metadata["TASK-1"] = {
+        METADATA_KEY: TerminalAuditMetadata(
+            pending_chain=[passed, cancelled_sibling]
+        ).to_dict()
+    }
+
+    first = Orchestrator(
+        ServiceConfig(workspace_root=str(tmp_path / "workspace")),
+        str(tmp_path / "WORKFLOW.md"),
+        state_path=str(state_path),
+    )
+    try:
+        # Simulate an actionable alert that was registered before PASS won.
+        first.record_terminal_audit_no_candidate(
+            "project-a", "TASK-1", "audit-sibling", reason="race window"
+        )
+        before = first.get_snapshot()["alerts"]
+        assert any("audit-sibling" in str(a.get("source", "")) for a in before)
+
+        # The coordinator's post-PASS cleanup calls this method for every
+        # cancelled sibling.  It must retire the alert against the live
+        # production registry, not only the metrics counter.
+        first.clear_terminal_audit_alert("project-a", "TASK-1", "audit-sibling")
+        after = first.get_snapshot()["alerts"]
+        assert not [
+            a for a in after if "audit-sibling" in str(a.get("source", ""))
+        ]
+    finally:
+        first._tick_pool.shutdown(wait=True, cancel_futures=True)
+        first._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+    # Restart with the same state file; the durable metadata still shows the
+    # sibling as SUPERSEDED, and reconciliation must not re-emit the alert.
+    restarted = Orchestrator(
+        ServiceConfig(workspace_root=str(tmp_path / "workspace-2")),
+        str(tmp_path / "WORKFLOW-2.md"),
+        state_path=str(state_path),
+    )
+    try:
+        restarted._tracker_for_project = lambda _project_id: tracker
+        restarted._sync_terminal_audit_observability_alerts()
+        recovered = restarted.get_snapshot()["alerts"]
+        assert not [
+            a for a in recovered
+            if "audit-sibling" in str(a.get("source", ""))
+        ]
+    finally:
+        restarted._tick_pool.shutdown(wait=True, cancel_futures=True)
+        restarted._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+
+def test_project_isolation_pass_alert_cleanup_does_not_cross_projects(
+    tmp_path: Path,
+) -> None:
+    """Alert cleanup must be scoped by project id.
+
+    Two projects host a task with identical identifier and audit id (a real
+    possibility across managed projects).  Clearing one must not touch the
+    other's actionable alerts or metrics counters.
+    """
+    orchestrator = Orchestrator(
+        ServiceConfig(workspace_root=str(tmp_path / "workspace")),
+        str(tmp_path / "WORKFLOW.md"),
+        state_path=str(tmp_path / "service_state.json"),
+    )
+    try:
+        orchestrator.record_terminal_audit_no_candidate(
+            "project-a", "TASK-1", "audit-1", reason="race window a"
+        )
+        orchestrator.record_terminal_audit_no_candidate(
+            "project-b", "TASK-1", "audit-1", reason="race window b"
+        )
+        before = orchestrator.get_snapshot()["alerts"]
+        source_strings_before = [str(a.get("source", "")) for a in before]
+        assert any(
+            "project-a:TASK-1:audit-1" in src for src in source_strings_before
+        )
+        assert any(
+            "project-b:TASK-1:audit-1" in src for src in source_strings_before
+        )
+
+        # Retire only project-a's audit; project-b's alert must remain.
+        orchestrator.clear_terminal_audit_alert("project-a", "TASK-1", "audit-1")
+        after = orchestrator.get_snapshot()["alerts"]
+        source_strings_after = [str(a.get("source", "")) for a in after]
+        assert not any(
+            "project-a:TASK-1:audit-1" in src for src in source_strings_after
+        )
+        assert any(
+            "project-b:TASK-1:audit-1" in src for src in source_strings_after
+        )
+
+        # Historical counters are retained regardless of alert clearing:
+        # both projects contributed one no_independent_candidate observation.
+        metrics_snapshot = orchestrator._terminal_audit_metrics.snapshot()
+        assert metrics_snapshot["no_independent_candidate"] == 2
+    finally:
+        orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
+        orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
