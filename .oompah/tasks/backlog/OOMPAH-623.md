@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-623
 type: bug
-status: Open
+status: Backlog
 priority: 1
 title: Keep the canonical user CLI synchronized with the running server
 parent: OOMPAH-619
@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:32:18.734139Z'
-updated_at: '2026-07-31T12:17:24.719470Z'
+updated_at: '2026-07-31T12:18:21.134782Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-623
 target_branch: null
 review_url: null
