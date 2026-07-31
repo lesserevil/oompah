@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-655
 type: task
-status: In Progress
+status: Needs Human
 priority: 0
 title: Enforce full-gate service isolation outside candidate branch code
 parent: null
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T16:51:12.167146Z'
+updated_at: '2026-07-31T16:51:54.031331Z'
 work_branch: OOMPAH-655
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/625
@@ -39,8 +39,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 0f116dfb-29dc-4dd7-b8cd-785f05f8956e
 oompah.task_costs:
-  total_input_tokens: 8339587
-  total_output_tokens: 55820
+  total_input_tokens: 16744130
+  total_output_tokens: 80657
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -48,8 +48,8 @@ oompah.task_costs:
       output_tokens: 40138
       cost_usd: 0.0
     sonnet:
-      input_tokens: 267237
-      output_tokens: 6616
+      input_tokens: 8671780
+      output_tokens: 31453
       cost_usd: 0.0
     opus:
       input_tokens: 1048261
@@ -128,6 +128,12 @@ oompah.task_costs:
     output_tokens: 277
     cost_usd: 0.0
     recorded_at: '2026-07-31T16:34:16.146229+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 8404543
+    output_tokens: 24837
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T16:51:48.820251+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-655__20260731T103632Z
@@ -178,6 +184,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-655
     source_sha: 9e4f9573c0ebf13f9f429967b35d5a5eb6d9d9da
     completed_at: '2026-07-31T16:09:24.316484+00:00'
+  - run_id: OOMPAH-655__20260731T164150Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-terra
+    focus: merge_conflict
+    source_branch: OOMPAH-655
+    source_sha: 5dc381dda7aecb5589ff88de69dc5746239acc86
+    completed_at: '2026-07-31T16:51:48.822999+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -1178,5 +1192,20 @@ author: oompah
 created: 2026-07-31 16:41
 ---
 Focus: Merge Conflict Resolver
+---
+author: oompah
+created: 2026-07-31 16:51
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Codex/gpt-5.6-terra]
+- Turns: 1, Tool calls: 60
+- Tokens: 8.4M in / 24.8K out [8.4M total]
+- Cost: $0.0000
+- Exit: normal, Duration: 10m 2s
+- Log: OOMPAH-655__20260731T164150Z.jsonl
+---
+author: oompah
+created: 2026-07-31 16:51
+---
+Task handoff failed after the worker ran: the server-owned, task-scoped tracker capability could not update this task. The task is held in Needs Human and will not be redispatched automatically; verify the handoff service and reconcile the worker's branch before resuming it.
 ---
 <!-- COMMENTS:END -->
