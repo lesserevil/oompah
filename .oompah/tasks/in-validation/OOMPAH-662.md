@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-662
 type: task
-status: In Progress
+status: In Validation
 priority: 0
 title: Rebase epic-OOMPAH-619 onto main
 parent: OOMPAH-619
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T13:49:37.853904Z'
-updated_at: '2026-07-31T13:52:47.143603Z'
+updated_at: '2026-07-31T14:02:53.838121Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-662
 target_branch: null
 review_url: null
@@ -53,6 +53,28 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-619--task-OOMPAH-662
     source_sha: 793bcc7969d39634dab560ed0a10b9dcad7a9716
     completed_at: '2026-07-31T13:52:17.473821+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-f0f4f01732f7
+    project_id: proj-14849f1b
+    task_id: OOMPAH-662
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c64e79f4807e9af5dfdb9d7db78dac2a509792baa3d326243d34b00569983a56
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: api
+    previous_state: In Progress
+    created_at: '2026-07-31T14:02:49.264319+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -107,5 +129,15 @@ author: oompah
 created: 2026-07-31 13:52
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-31 14:02
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-07-31 14:02
+---
+Rebased epic-OOMPAH-619 onto latest origin/main and force-pushed with lease. Verified all seven epic commits remained patch-identical with git range-diff; origin/main is an ancestor of the published epic. Reviewed OOMPAH-623 coordination: sibling work remains isolated and was not overwritten. make test was attempted but could not start because the host Snap uv launcher failed with a DBus kernel-thread error.
 ---
 <!-- COMMENTS:END -->
