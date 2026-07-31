@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:06:15.542774Z'
-updated_at: '2026-07-31T12:03:16.474248Z'
+updated_at: '2026-07-31T12:04:50.675385Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -457,5 +457,10 @@ author: oompah
 created: 2026-07-31 12:03
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-31 12:04
+---
+Operator stopped only the exact repository-wide make test PGID 2940950 started by the new retry worker. The branch still has unresolved production blockers from comments 20/21 (standalone Ready->Open reconciliation, durable generation cancellation across same-generation waiters, bounded key locks, and snapshot registration cleanup), plus the live stale-alert reproductions. This is not a test failure. Finish the production code and deterministic focused tests before one final frozen full gate; do not start make test on the current dirty/review-rejected head.
 ---
 <!-- COMMENTS:END -->
