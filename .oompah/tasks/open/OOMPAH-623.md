@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:32:18.734139Z'
-updated_at: '2026-07-31T13:38:16.041598Z'
+updated_at: '2026-07-31T13:40:11.510558Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-623
 target_branch: null
 review_url: null
@@ -29,14 +29,14 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: Duplicate screening worker was terminated.
-  claim_id: null
-  claim_owner: null
-  claimed_at: null
-  claim_expires_at: null
+  evidence: ''
+  claim_id: 6a857c83-5d19-41a7-b35f-b5bcc599c468
+  claim_owner: 660099b4-9353-48a0-9b6d-9b3e8f3b8896
+  claimed_at: '2026-07-31T13:40:02.400314+00:00'
+  claim_expires_at: '2026-07-31T14:10:02.400314+00:00'
   retry_count: 0
-  retry_after: '2026-07-31T12:18:35.180042+00:00'
-oompah.agent_run_id: de4d44d0-8e7d-45de-bc33-b122336b327a
+  retry_after: null
+oompah.agent_run_id: 53dc0466-4ef7-431d-84c2-6da320f75e6b
 oompah.work_branch: epic-OOMPAH-619--task-OOMPAH-623
 oompah.integration:
   version: 2
@@ -44,8 +44,8 @@ oompah.integration:
   attempts: 0
   task_branch: epic-OOMPAH-619--task-OOMPAH-623
   base_branch: epic-OOMPAH-619
-  base_sha: 3fcdf30caa62fb7709d0cd9e1553320dd11b3877
-  updated_at: '2026-07-31T12:17:22.698548+00:00'
+  base_sha: 17658b95e32641e8cf2dbfff06f780c0f6b57916
+  updated_at: '2026-07-31T13:40:08.785942+00:00'
 oompah.task_costs:
   total_input_tokens: 23786922
   total_output_tokens: 87544
@@ -541,5 +541,15 @@ author: oompah
 created: 2026-07-31 13:13
 ---
 Fresh compatibility reproduction after main advanced: the OOMPAH-653 Codex worker's canonical PATH oompah CLI could view its scoped task, but every task comment invocation returned HTTP 400 'project_id and identifier are required' even when both positional identifier and --project/--project-id were supplied exactly as --help documented. The same operator CLI command succeeds from the current project checkout. This server/CLI payload drift blocked the worker before implementation and forced operator takeover. Add this exact view-succeeds/comment-payload-fails case to the canonical CLI/server revision compatibility coverage.
+---
+author: oompah
+created: 2026-07-31 13:40
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-07-31 13:40
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
