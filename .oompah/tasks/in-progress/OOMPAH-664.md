@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:06.140108Z'
-updated_at: '2026-07-31T22:00:32.860804Z'
+updated_at: '2026-07-31T22:05:05.677194Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -522,5 +522,10 @@ author: oompah
 created: 2026-07-31 22:00
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-31 22:05
+---
+Understanding (CI fix): The 3 test_collapsed_epics.py::TestServerChildrenCounts failures are caused by our OOMPAH-664 refactoring. We split _fetch_and_serialize_issues into a thin wrapper + _serialize_issues helper. The pre-existing tests use inspect.getsource(_fetch_and_serialize_issues) and expect children_counts/epics/child_state/_empty_state_counts() in the source — but those now live in _serialize_issues. Fix: update the 3 TestServerChildrenCounts tests to import _serialize_issues instead. The other CI failures (test_installed_cli_smoke, test_quality_gate isolation) all PASS locally — likely CI environment fluke. test_cli_install_revision_compatibility fails locally too (hatchling not in venv's site-packages) but is pre-existing and not caused by our changes.
 ---
 <!-- COMMENTS:END -->
