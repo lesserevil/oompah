@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T11:17:18.798451Z'
+updated_at: '2026-07-31T11:17:20.984324Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -573,5 +573,10 @@ Security review notes:
 - Endpoint refresh clamps to the grant's original TTL, so an operator-configured short capability is never silently widened by the heartbeat
 
 Ready for terminal audit.
+---
+author: oompah
+created: 2026-07-31 11:17
+---
+Grant lifetime bound to worker session via server-owned heartbeat lease with generation-bound owner_id. Custom TTL preserved on refresh and heartbeat. Forced termination revokes even when replacement entry is present. Endpoint returns explicit handoff_expired/handoff_revoked codes and aborts tracker mutation when refresh races termination. No Basic-auth fallback in worker environments. 534 focused tests pass.
 ---
 <!-- COMMENTS:END -->
