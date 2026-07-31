@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-665
 type: task
-status: Needs Rebase
+status: In Progress
 priority: null
 title: Retire legacy no-auditor alerts after terminal task completion
 parent: null
@@ -12,7 +12,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-07-31T16:04:07.401588Z'
-updated_at: '2026-07-31T19:10:16.337346Z'
+updated_at: '2026-07-31T19:10:31.693204Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -57,7 +57,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 4a78ff57-12cf-4be4-9793-10dcb6b08f2e
+oompah.agent_run_id: 9a906e06-c250-4763-868c-866a893d6e4b
 oompah.task_costs:
   total_input_tokens: 430
   total_output_tokens: 11169
@@ -420,5 +420,15 @@ Output tail:
 ```text
 OS-enforced quality-gate sandbox is unavailable; refusing to execute candidate code: bubblewrap cannot create the required OS namespaces: bwrap: execvp /bin/sh: No such file or directory
 ```
+---
+author: oompah
+created: 2026-07-31 19:10
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-31 19:10
+---
+Focus: Event Api Redaction Specialist
 ---
 <!-- COMMENTS:END -->
