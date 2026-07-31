@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-621
 type: task
-status: In Validation
+status: Done
 priority: 1
 title: Document and integration-test CLI credential precedence
 parent: OOMPAH-619
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:25:29.809048Z'
-updated_at: '2026-07-31T08:03:57.061985Z'
+updated_at: '2026-07-31T08:10:40.020188Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-621
 target_branch: null
 review_url: null
@@ -146,6 +146,7 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-8a79c55ddcf1: '2026-07-30T22:43:19.718125+00:00'
     attempt-52c9129eca9e: '2026-07-31T06:25:23.085292+00:00'
+    attempt-8302129935eb: '2026-07-31T08:10:37.427107+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -223,7 +224,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-621
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -232,7 +233,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-8302129935eb
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -242,13 +243,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T08:03:50.042269+00:00'
       branch_key: epic-OOMPAH-619--task-OOMPAH-621
+      verdict: pass
+      completed_at: '2026-07-31T08:10:37.426958+00:00'
+      ended_at: '2026-07-31T08:10:37.426958+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-31T07:26:03.489345+00:00'
-    updated_at: '2026-07-31T08:03:50.042269+00:00'
+    updated_at: '2026-07-31T08:10:37.426958+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-8a79c55ddcf1
@@ -701,5 +705,22 @@ author: oompah
 created: 2026-07-31 08:03
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 08:10
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: 0dc7d0f7caeea06a6eceb55ea2e58cf16554f0a4
+- origin_head: 0dc7d0f7caeea06a6eceb55ea2e58cf16554f0a4
+- task_commits: 9d1101420,b2191c92f,655398cda,0dc7d0f7c
+- focused_tests_passed: 308
+- integration_marker_registered: true
+- e2e_test_present: tests/test_cli_install_revision_compatibility.py::test_installed_cli_from_exact_revision_reads_matching_authenticated_server
+- docs_updated: docs/authentication.md,docs/cli-install.md,.env.example
+- contract_tests: tests/test_docs_authentication_contract.py
 ---
 <!-- COMMENTS:END -->
