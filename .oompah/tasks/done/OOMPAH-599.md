@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-599
 type: task
-status: In Validation
+status: Done
 priority: 1
 title: Verify zero stranded delivery states and close recovery epics
 parent: OOMPAH-587
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:31.072278Z'
-updated_at: '2026-07-31T04:40:27.825178Z'
+updated_at: '2026-07-31T04:45:35.331213Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-599
 target_branch: null
 review_url: null
@@ -94,6 +94,8 @@ oompah.work_contributors:
     completed_at: '2026-07-30T15:50:18.598020+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-9e80dda6753b: '2026-07-31T04:45:29.862224+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -101,7 +103,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-599
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -125,7 +127,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-9e80dda6753b
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -136,13 +138,16 @@ oompah.terminal_audit:
       started_at: '2026-07-31T04:40:23.060787+00:00'
       branch_key: epic-OOMPAH-587--task-OOMPAH-599
       candidate_rotation_count: 1
+      verdict: pass
+      completed_at: '2026-07-31T04:45:29.861977+00:00'
+      ended_at: '2026-07-31T04:45:29.861977+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-31T04:23:47.707138+00:00'
-    updated_at: '2026-07-31T04:40:23.060787+00:00'
+    updated_at: '2026-07-31T04:45:29.861977+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-a3ab71aa9f01
@@ -360,5 +365,29 @@ author: oompah
 created: 2026-07-31 04:40
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 04:45
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- branch: epic-OOMPAH-587--task-OOMPAH-599
+- head_sha: 88adebe114c187b8fdc33f935e2fe4d61f1df3d1
+- git_status: nothing to commit, working tree clean; up to date with origin
+- commit_title: OOMPAH-599: fence stale integration ownership
+- files_changed_in_head: oompah/integration_executor.py, oompah/integration_queue.py, oompah/orchestrator.py, tests/test_delivery_plane_recovery.py, tests/test_integration_executor.py, tests/test_integration_queue.py
+- orchestrator_method_sync_ready: def _sync_ready_integration_submissions(self) at line 5002
+- orchestrator_method_audit_blocked: def _audit_blocked_integration_rows(self, project_id, tracker) at line 5079
+- orchestrator_method_task_still_ready: def _integration_task_still_ready(self) at line 5800
+- orchestrator_method_retire_inactive: def _retire_inactive_integration_rows(self) at line 5818
+- executor_authority_checks: before preparation (line 94) and before epic commit (line 227); fails closed when tracker unavailable
+- commit_allowed_wire: commit_allowed=lambda: self._integration_task_still_ready(item) at orchestrator.py:5894
+- queue_cancel_method: cancel() invalidates active lease and sets state=cancelled; fail() state predicate prevents late finish
+- test_file_new: tests/test_delivery_plane_recovery.py (220 lines): 4 deterministic invariant tests
+- operator_focused_gate: 46 passed
+- operator_full_gate: 14,104 passed, 7 skipped, 1 xfailed
 ---
 <!-- COMMENTS:END -->
