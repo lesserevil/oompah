@@ -48,6 +48,7 @@ def orchestrator_with_store(tmp_path, monkeypatch):
     orch = Orchestrator(
         cfg, workflow_path,
         agent_profile_store=store,
+        state_path=str(tmp_path / "service_state.json"),
     )
     return orch, store, cfg, wf, workflow_path
 
