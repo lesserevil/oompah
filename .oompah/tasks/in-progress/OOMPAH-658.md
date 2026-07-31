@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-07-31T11:25:29.734672Z'
+updated_at: '2026-07-31T11:27:40.415401Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -178,5 +178,10 @@ The metadata is stored in the issue description (embedded in a hidden comment bl
 Ensure the \`duplicate_screening\` metadata from a completed screening is retained/cached at the task/fingerprint level so that subsequent scheduler ticks recognize it as satisfied, or explicitly reload metadata before assessment if needed.
 
 Next: Verify this hypothesis by checking if descriptions are fully loaded in list responses.
+---
+author: oompah
+created: 2026-07-31 11:27
+---
+Root-cause correction from live service evidence: OOMPAH-655 did not lose a completed no-duplicate record across the 11:09/11:13 ticks. The service log records its 11:11 completion as outcome=retry, retry_count=1, retry_delay_seconds=60; the 11:15 run then completed outcome=checked. That second run was the configured retry after an inconclusive first run. The real unnecessary rescreen occurred earlier: OOMPAH-655 had outcome=checked at 10:39, then adding the finish-order dependency on OOMPAH-657 at 11:06 changed compute_task_fingerprint because it currently includes blocked_by dependencies, even though that scheduling-only change cannot affect duplicate identity. The task acceptance already says relevant title/description/source/parent/revision inputs; current fingerprint instead includes dependencies/labels and omits explicit source revision fields. Reproduce this exact checked-record plus finish-order dependency/other scheduler metadata change and prove it stays checked; retain retry behavior for genuinely inconclusive runs. Then add changed intake/source revision tests. Do not add a second cache around metadata or suppress legitimate retries based on the incorrect lost-record hypothesis.
 ---
 <!-- COMMENTS:END -->
