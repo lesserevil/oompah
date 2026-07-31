@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:09:27.752943Z'
-updated_at: '2026-07-31T07:24:50.680570Z'
+updated_at: '2026-07-31T07:25:03.074542Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -127,5 +127,10 @@ author: oompah
 created: 2026-07-31 07:24
 ---
 **Implementation**: Created `oompah/git_noninteractive.py` with `NONINTERACTIVE_GIT_ENV` dict and `run_rebase_continue()` helper. Updated `integration_executor._git()` and all `cherry_pick_pr_creator` subprocess calls to pass noninteractive env. Updated `focus.py` merge_conflict focus with explicit GIT_EDITOR=true instruction and prohibition on bare 'git rebase --continue'. Added 18 tests covering all 5 acceptance criteria. Updated 2 existing test files to account for changed call signatures/wording.
+---
+author: oompah
+created: 2026-07-31 07:25
+---
+**Verification**: All 230 tests pass across the 5 affected suites (test_git_noninteractive: 18 new tests, test_integration_executor: 7, test_integration_conflict_repair: 9, test_cherry_pick_pr_creator: 58, test_focus: 138). All 5 acceptance criteria verified by test:\n- AC1: Real conflict + unset editor → rebase --continue succeeds\n- AC2: Hostile EDITOR never invoked\n- AC3: Commit message + attribution trailer preserved\n- AC4: Timeout kill leaves REBASE_HEAD intact\n- AC5: Repeated recovery is idempotent\n\nBranch pushed: 79fbad71a
 ---
 <!-- COMMENTS:END -->
