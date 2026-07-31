@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:55:23.505409Z'
-updated_at: '2026-07-31T06:56:15.454330Z'
+updated_at: '2026-07-31T06:56:32.233509Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -31,6 +31,7 @@ oompah.duplicate_screening:
   claim_expires_at: '2026-07-31T07:26:14.634093+00:00'
   retry_count: 0
   retry_after: null
+oompah.agent_run_id: 82a8e8db-83ea-4947-9d39-662adb370655
 ---
 ## Summary
 
@@ -42,3 +43,16 @@ Live regression on 2026-07-31: project proj-14849f1b has max_in_flight_prs=1. PR
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-31 06:56
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-07-31 06:56
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
