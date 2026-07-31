@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:25:29.809048Z'
-updated_at: '2026-07-31T06:25:50.294363Z'
+updated_at: '2026-07-31T07:20:16.282649Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-621
 target_branch: null
 review_url: null
@@ -605,5 +605,10 @@ author: oompah
 created: 2026-07-31 06:25
 ---
 Focus: Technical Writer
+---
+author: oompah
+created: 2026-07-31 07:20
+---
+Reviewed OOMPAH-640 and OOMPAH-642 overlap advisories: their merged changes are outside this branch delta (pyproject.toml and tests/test_cli_install_revision_compatibility.py). Focused compatibility and documentation checks pass (27 tests), including exact git-revision install, matching live bcrypt-authenticated server, task view, safe admin read, and credential redaction. The Makefile gate was attempted but blocked before pytest by the environment uv DBus transient-scope error; submitting the clean pushed head for the configured gate.
 ---
 <!-- COMMENTS:END -->
