@@ -12,13 +12,28 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-31T12:15:02.565914Z'
-updated_at: '2026-07-31T13:01:20.936402Z'
+updated_at: '2026-07-31T13:01:44.171431Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
 oompah.start_blocked_by: *id001
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 903f68bf1e5410244cf5b06395503984aed024890c87202e33be151b4e57ccf2
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: dd73564d-4b6b-49a1-8aa5-b1d0ed7ccb7d
+  claim_owner: b69cac5c-f04f-4fcf-915d-a91676c7ce36
+  claimed_at: '2026-07-31T13:01:37.058755+00:00'
+  claim_expires_at: '2026-07-31T13:31:37.058755+00:00'
+  retry_count: 0
+  retry_after: null
+oompah.agent_run_id: e8f87de9-d36c-433e-ab24-b121b12442d3
 ---
 ## Summary
 
@@ -36,5 +51,15 @@ author: oompah
 created: 2026-07-31 12:15
 ---
 Hard-start ordered after OOMPAH-657 because both tasks change standalone gate authority/cancellation code; implementation before that integration would create a conflict and test against obsolete lifecycle semantics.
+---
+author: oompah
+created: 2026-07-31 13:01
+---
+Duplicate screening dispatched (profile: standard, task remains Open)
+---
+author: oompah
+created: 2026-07-31 13:01
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
