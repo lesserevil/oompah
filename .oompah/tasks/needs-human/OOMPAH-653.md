@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T10:37:45.266188Z'
+updated_at: '2026-07-31T10:39:08.056364Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,7 +44,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 18c90838-cd0d-4309-bd62-4f8debb65bb1
+oompah.agent_run_id: 8ce8e62e-1708-41ee-8c10-3951f0a37775
 oompah.task_costs:
   total_input_tokens: 1396321
   total_output_tokens: 13713
@@ -437,5 +437,30 @@ author: oompah
 created: 2026-07-31 10:37
 ---
 Task handoff failed after the worker ran: the server-owned, task-scoped tracker capability could not update this task. The task is held in Needs Human and will not be redispatched automatically; verify the handoff service and reconcile the worker's branch before resuming it.
+---
+author: oompah
+created: 2026-07-31 10:38
+---
+Rebase agent completed the base repair, but the known scoped-handoff credential bug prevented its final status update. Operator verified clean rebased head 200e13705 contains OOMPAH-652, diff-check passes, and published it with an exact force-with-lease against prior remote d89dca83c. Resume implementation and regression work from this isolated head.
+---
+author: oompah
+created: 2026-07-31 10:39
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-31 10:39
+---
+Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-31 10:39
+---
+Correction to the preceding operator comment: ancestry and worktree cleanliness passed, but git diff --check reported five trailing-whitespace lines in tests/test_terminal_transition_coordinator.py and the non-fail-fast shell continued to the push. Temporarily fencing the branch to remove only those formatting defects and republish; do not rely on the prior diff-check statement.
+---
+author: oompah
+created: 2026-07-31 10:39
+---
+Moved to Needs Human from the dashboard/API. Human action required: inspect OOMPAH-653 (Make terminal-audit success and owner override retire every duplicate record and alert), add the specific decision, missing information, or manual fix needed, then move the task back to Open when it is ready for agents again.
 ---
 <!-- COMMENTS:END -->
