@@ -15,6 +15,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
+from fnmatch import fnmatchcase
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from enum import Enum
@@ -128,6 +129,11 @@ from oompah.storage_cleanup import (
     StoragePressure,
     cleanup_owned_storage,
     inspect_storage_pressure,
+)
+from oompah.repo_hygiene import (
+    HealthThresholds,
+    OverdueArtifact,
+    RepoHygieneHealth,
 )
 from oompah.terminal_audit import (
     AuditAttempt,
@@ -933,6 +939,12 @@ class Orchestrator:
         )
         self._maintenance_status: dict[str, Any] = {}
         self.terminal_transition_coordinator.set_metrics(self._terminal_audit_metrics)
+        # Repository hygiene is a derived view, but retain the last complete
+        # evaluation so a restart does not briefly hide known hygiene debt
+        # while the first Git/tracker scan is running.
+        persisted_hygiene = state_data.get("repo_hygiene_health")
+        if isinstance(persisted_hygiene, dict):
+            self._maintenance_status["repo_hygiene_health"] = persisted_hygiene
         self._last_tick_metrics: dict[str, Any] = {}
         self._last_dispatch_metrics: dict[str, Any] = {}
         self._dispatch_pending_event_keys: set[str] = set()
@@ -1158,6 +1170,22 @@ class Orchestrator:
         # Counts events that were drained from the dispatch queue and coalesced
         # into the current tick so slow-tick logs can report burst size.
         self._last_coalesced_event_count: int = 0
+        # Repository hygiene health thresholds (OOMPAH-603).
+        # Configured via .env variables; tracks health status in maintenance_status.
+        self._repo_hygiene_thresholds: HealthThresholds = HealthThresholds(
+            safely_prunable_age_seconds=(
+                config.repo_hygiene_safely_prunable_age_seconds
+            ),
+            safely_prunable_count_warning=(
+                config.repo_hygiene_safely_prunable_count_warning
+            ),
+            safely_prunable_count_critical=(
+                config.repo_hygiene_safely_prunable_count_critical
+            ),
+            cleanup_error_threshold=(
+                config.repo_hygiene_cleanup_error_threshold
+            ),
+        )
         # ---- Bounded per-project refresh infrastructure (TASK-467.2) ----
         # Per-project semaphores for bounded concurrency. Created on-demand
         # when a project is first refreshed.
@@ -2796,6 +2824,116 @@ class Orchestrator:
             )
         return self.tracker
 
+    def _resolve_issue_project_id(
+        self,
+        issue: Issue,
+        fallback_project_id: str | None = None,
+        *,
+        source_project_id: str | None = None,
+    ) -> str | None:
+        """Resolve an issue's owning project when project_id is missing.
+
+        When an issue lacks project_id, searches all managed projects for canonical
+        ownership. If found in exactly one project, returns that project_id. If found
+        in multiple projects, raises even when a fallback is available: choosing a
+        fallback would allow an identifier collision to mutate the wrong tracker.
+        ``source_project_id`` identifies the managed tracker that produced the
+        record and is used to reject explicit or discovered cross-project
+        mismatches.
+
+        Args:
+            issue: The issue to resolve project for.
+            fallback_project_id: Project to use if resolution is ambiguous or not found.
+            source_project_id: Project whose tracker produced ``issue``.
+
+        Returns:
+            Resolved project_id, or None if not found and no fallback provided.
+
+        Raises:
+            ProjectError: If ownership is ambiguous, a record conflicts with
+                its source project, or a managed tracker cannot be queried.
+        """
+        explicit_project_id = str(issue.project_id or "").strip()
+        source_project_id = str(source_project_id or "").strip() or None
+        fallback_project_id = str(fallback_project_id or "").strip() or None
+        if explicit_project_id:
+            if source_project_id and explicit_project_id != source_project_id:
+                raise ProjectError(
+                    f"Issue {issue.identifier!r} declares project "
+                    f"{explicit_project_id!r} but was fetched from "
+                    f"project {source_project_id!r}; refusing to mutate"
+                )
+            return explicit_project_id
+
+        projects = self.project_store.list_all()
+        if not projects:
+            # Legacy mode — no managed projects
+            return fallback_project_id
+
+        # Search all projects to find where this issue belongs
+        found_projects: list[str] = []
+        lookup_errors: list[tuple[str, Exception]] = []
+        for project in projects:
+            try:
+                project_id = str(project.id)
+                tracker = self._tracker_for_project(project_id)
+                fetched_issue = tracker.fetch_issue_detail(issue.identifier)
+                if fetched_issue is not None:
+                    found_projects.append(project_id)
+            except Exception as exc:  # noqa: BLE001 - fail closed below
+                lookup_errors.append((str(getattr(project, "id", "")), exc))
+
+        if lookup_errors:
+            failed_projects = [project_id for project_id, _ in lookup_errors]
+            raise ProjectError(
+                f"Could not resolve ownership for issue {issue.identifier!r}; "
+                f"tracker lookup failed for projects {failed_projects!r}"
+            )
+        if len(found_projects) == 1:
+            # Canonical ownership found
+            resolved_project_id = found_projects[0]
+            if source_project_id and resolved_project_id != source_project_id:
+                raise ProjectError(
+                    f"Issue {issue.identifier!r} was fetched from project "
+                    f"{source_project_id!r} but canonical ownership is "
+                    f"{resolved_project_id!r}; refusing to mutate"
+                )
+            return resolved_project_id
+        elif len(found_projects) > 1:
+            # Ambiguous ownership
+            raise ProjectError(
+                f"Ambiguous ownership: issue {issue.identifier!r} found in "
+                f"projects {found_projects!r}; refusing to mutate without "
+                f"explicit scope"
+            )
+        else:
+            # Not found in any project
+            return fallback_project_id
+
+    def _scope_issue_for_maintenance(
+        self,
+        issue: Issue,
+        source_project_id: str,
+    ) -> tuple[str, TrackerProtocol]:
+        """Resolve a maintenance record and return its scoped tracker.
+
+        Maintenance sweeps iterate a project-scoped tracker, but legacy records
+        may not carry ``project_id``.  Keep the normalization and tracker
+        selection together so a later write cannot accidentally use the
+        iterator's stale or unscoped tracker.
+        """
+        resolved_project_id = self._resolve_issue_project_id(
+            issue,
+            fallback_project_id=source_project_id,
+            source_project_id=source_project_id,
+        )
+        if not resolved_project_id:
+            raise ProjectError(
+                f"Issue {issue.identifier!r} has no resolvable managed project"
+            )
+        issue.project_id = resolved_project_id
+        return resolved_project_id, self._tracker_for_project(resolved_project_id)
+
     def _invalidate_tracker_read_caches(self) -> None:
         """Clear the per-tick task-record cache on every tracker.
 
@@ -3012,24 +3150,31 @@ class Orchestrator:
         self,
         project: Any,
         issue: Issue,
-    ) -> bool:
-        """Remove one terminal issue's owned worktree/branch when supported."""
+    ) -> tuple[bool, str | None]:
+        """Remove one terminal issue's owned worktree/branch when supported.
+        
+        Returns (changed, skip_reason). skip_reason is None if the branch was
+        removed or attempted, or a category string if skipped.
+        """
 
         cleanup = getattr(type(self.project_store), "cleanup_terminal_issue", None)
         if cleanup is not None:
-            return bool(
-                self.project_store.cleanup_terminal_issue(
-                    project.id,
-                    issue.identifier,
-                    branch_name=str(issue.work_branch or "").strip() or None,
-                    is_epic=_is_epic_issue(issue),
-                    issue_number=(
-                        str(issue.issue_number).strip()
-                        if issue.issue_number
-                        else None
-                    ),
-                )
+            result = self.project_store.cleanup_terminal_issue(
+                project.id,
+                issue.identifier,
+                branch_name=str(issue.work_branch or "").strip() or None,
+                is_epic=_is_epic_issue(issue),
+                issue_number=(
+                    str(issue.issue_number).strip()
+                    if issue.issue_number
+                    else None
+                ),
             )
+            # Handle both old bool return and new (bool, skip_reason) tuple
+            if isinstance(result, tuple):
+                return result
+            else:
+                return bool(result), None
 
         # Compatibility for third-party/custom stores that only implement the
         # older worktree API. A successful call retains its historical
@@ -3047,7 +3192,7 @@ class Orchestrator:
                 project.id,
                 issue.identifier,
             )
-        return True
+        return True, None
 
     def _cleanup_terminal_worktrees(self, projects: list | None = None) -> int:
         """Remove worktrees and branches for issues safe to discard.
@@ -3061,6 +3206,13 @@ class Orchestrator:
         cleanup for other projects.
         """
         cleaned = 0
+        # Track categorized skip reasons to avoid warning floods
+        skip_reasons: dict[str, int] = {
+            "shared_epic_branch": 0,
+            "protected_branch": 0,
+            "checked_out_in_worktree": 0,
+            "not_owned": 0,
+        }
         limit = getattr(self.config, "worktree_cleanup_batch_size", 100)
         if limit <= 0:
             self._maintenance_status["worktree_cleanup"] = {
@@ -3102,7 +3254,7 @@ class Orchestrator:
                             }
                             return cleaned
                         try:
-                            changed = self._cleanup_terminal_project_issue(
+                            changed, skip_reason = self._cleanup_terminal_project_issue(
                                 project,
                                 issue,
                             )
@@ -3114,6 +3266,9 @@ class Orchestrator:
                                     project.name,
                                     issue.identifier,
                                 )
+                            elif skip_reason:
+                                # Track categorized skip for aggregated summary
+                                skip_reasons[skip_reason] = skip_reasons.get(skip_reason, 0) + 1
                         except Exception as exc:
                             logger.warning(
                                 "Failed to clean worktree/branch "
@@ -3211,12 +3366,28 @@ class Orchestrator:
             except TrackerError as exc:
                 logger.warning("Terminal workspace cleanup failed: %s", exc)
         self._set_maintenance_cursor("worktree_cleanup", None)
+        
+        # Emit structured summary of skipped branches (aggregated, not per-issue warnings)
+        skipped_total = sum(skip_reasons.values())
+        if skipped_total > 0:
+            skip_summary = ", ".join(
+                f"{reason}={count}"
+                for reason, count in sorted(skip_reasons.items())
+                if count > 0
+            )
+            logger.info(
+                "Terminal branch cleanup skipped branches: %s (total=%d)",
+                skip_summary,
+                skipped_total,
+            )
+        
         self._maintenance_status["worktree_cleanup"] = {
             "last_run_at": datetime.now(timezone.utc).isoformat(),
             "cleaned": cleaned,
             "limit": limit,
             "deferred": False,
             "cursor": None,
+            "skipped_branches": skip_reasons,
         }
         return cleaned
 
@@ -3564,6 +3735,392 @@ class Orchestrator:
                 self._cleanup_error_last = str(exc)
                 logger.warning("Terminal worktree cleanup failed during maintenance: %s", exc)
 
+    @staticmethod
+    def _repo_hygiene_timestamp(value: Any) -> float | None:
+        """Convert tracker timestamps and epoch values into UTC seconds."""
+        if isinstance(value, datetime):
+            stamp = value
+            if stamp.tzinfo is None:
+                stamp = stamp.replace(tzinfo=timezone.utc)
+            return stamp.timestamp()
+        if isinstance(value, (int, float)) and value > 0:
+            return float(value)
+        if isinstance(value, str) and value.strip():
+            try:
+                stamp = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+            except ValueError:
+                return None
+            if stamp.tzinfo is None:
+                stamp = stamp.replace(tzinfo=timezone.utc)
+            return stamp.timestamp()
+        return None
+
+    @staticmethod
+    def _repo_hygiene_git_worktrees(repo_path: str) -> list[dict[str, Any]]:
+        """Return registered worktrees and their checked-out branches."""
+        result = subprocess.run(
+            ["git", "worktree", "list", "--porcelain"],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"git worktree list failed: {result.stderr.strip()[:500]}"
+            )
+
+        records: list[dict[str, Any]] = []
+        current: dict[str, Any] | None = None
+
+        def flush() -> None:
+            nonlocal current
+            if current is None or not current.get("path"):
+                current = None
+                return
+            path = os.path.realpath(str(current["path"]))
+            status = subprocess.run(
+                ["git", "status", "--porcelain", "--untracked-files=all"],
+                cwd=path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=30,
+            )
+            current["path"] = path
+            current["dirty"] = status.returncode != 0 or bool(
+                (status.stdout or "").strip()
+            )
+            records.append(current)
+            current = None
+
+        for line in (result.stdout or "").splitlines():
+            if line.startswith("worktree "):
+                flush()
+                current = {"path": line[len("worktree ") :].strip()}
+            elif current is not None and line.startswith("branch refs/heads/"):
+                current["branch"] = line[len("branch refs/heads/") :].strip()
+            elif current is not None and line == "detached":
+                current["detached"] = True
+        flush()
+        return records
+
+    @staticmethod
+    def _repo_hygiene_git_refs(repo_path: str) -> list[dict[str, Any]]:
+        """Return local and origin refs with their latest commit timestamp."""
+        result = subprocess.run(
+            [
+                "git",
+                "for-each-ref",
+                "--format=%(refname)\t%(refname:short)\t%(committerdate:unix)",
+                "refs/heads",
+                "refs/remotes/origin",
+            ],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"git branch listing failed: {result.stderr.strip()[:500]}"
+            )
+        refs: list[dict[str, Any]] = []
+        for line in (result.stdout or "").splitlines():
+            fields = line.split("\t", 2)
+            if len(fields) != 3:
+                continue
+            raw_ref, short_ref, raw_timestamp = fields
+            # A symbolic origin/HEAD is not a branch artifact and would make
+            # every repository look as though it had one extra shared branch.
+            if short_ref.endswith("/HEAD"):
+                continue
+            try:
+                commit_timestamp = float(raw_timestamp or 0)
+            except ValueError:
+                commit_timestamp = 0.0
+            refs.append(
+                {
+                    "ref": raw_ref,
+                    "name": short_ref,
+                    "remote": raw_ref.startswith("refs/remotes/"),
+                    "commit_timestamp": commit_timestamp,
+                }
+            )
+        return refs
+
+    @staticmethod
+    def _repo_hygiene_branch_merged(
+        repo_path: str,
+        ref: str,
+        default_branch: str,
+    ) -> bool:
+        """Return whether *ref* is an ancestor of the project's default ref."""
+        default_ref = f"refs/remotes/origin/{default_branch}"
+        remote_default = subprocess.run(
+            ["git", "show-ref", "--verify", "--quiet", default_ref],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+        if remote_default.returncode != 0:
+            default_ref = f"refs/heads/{default_branch}"
+        result = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", ref, default_ref],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+        return result.returncode == 0
+
+    def _repo_hygiene_inventory_for_project(
+        self,
+        project: Project,
+        health: RepoHygieneHealth,
+        now: float,
+    ) -> None:
+        """Populate one project's live worktree and branch inventory."""
+        tracker = self._tracker_for_project(project.id)
+        issues = tracker.fetch_all_issues()
+        issue_by_branch: dict[str, Issue] = {}
+        issue_by_identifier: dict[str, Issue] = {}
+        for issue in issues:
+            issue_by_identifier[str(issue.identifier)] = issue
+            for branch in (
+                getattr(issue, "work_branch", None),
+                getattr(issue, "branch_name", None),
+            ):
+                if branch:
+                    issue_by_branch[str(branch)] = issue
+
+        worktrees = self._repo_hygiene_git_worktrees(project.repo_path)
+        dirty_branches = {
+            str(record.get("branch"))
+            for record in worktrees
+            if record.get("dirty") and record.get("branch")
+        }
+        for record in worktrees:
+            path = str(record["path"])
+            branch = str(record.get("branch") or "")
+            issue = issue_by_branch.get(branch)
+            if issue is None:
+                issue = issue_by_identifier.get(os.path.basename(path))
+            if record.get("dirty"):
+                health.worktrees.dirty += 1
+            elif issue is None:
+                health.worktrees.shared_owner += 1
+            elif not is_terminal_status(issue.state):
+                health.worktrees.active += 1
+            else:
+                merged = self._repo_hygiene_branch_merged(
+                    project.repo_path,
+                    f"refs/heads/{branch}" if branch else "HEAD",
+                    project.default_branch,
+                )
+                if not merged:
+                    health.worktrees.unmerged += 1
+                elif canonicalize_status(issue.state) == DONE:
+                    health.worktrees.terminal_protected += 1
+                else:
+                    health.worktrees.safely_prunable += 1
+
+            if issue is not None and is_terminal_status(issue.state):
+                terminal_timestamp = self._repo_hygiene_timestamp(
+                    getattr(issue, "closed_at", None)
+                    or getattr(issue, "merged_at", None)
+                    or getattr(issue, "updated_at", None)
+                )
+                if terminal_timestamp is None:
+                    try:
+                        terminal_timestamp = os.path.getmtime(path)
+                    except OSError:
+                        terminal_timestamp = now
+                if (
+                    not record.get("dirty")
+                    and canonicalize_status(issue.state) in {MERGED, ARCHIVED}
+                    and self._repo_hygiene_branch_merged(
+                        project.repo_path,
+                        f"refs/heads/{branch}" if branch else "HEAD",
+                        project.default_branch,
+                    )
+                    and now - terminal_timestamp
+                    >= self._repo_hygiene_thresholds.safely_prunable_age_seconds
+                ):
+                    health.overdue_artifacts.append(
+                        OverdueArtifact(
+                            artifact_type="worktree",
+                            identifier=path,
+                            category="safely_prunable",
+                            age_seconds=max(0, int(now - terminal_timestamp)),
+                            threshold_seconds=(
+                                self._repo_hygiene_thresholds.safely_prunable_age_seconds
+                            ),
+                            project_id=project.id,
+                            task_id=issue.identifier,
+                        )
+                    )
+
+        protected_branches = {
+            str(value).strip()
+            for value in (
+                project.default_branch,
+                project.branch,
+                project.state_branch_name,
+                *(project.supported_release_branches or []),
+            )
+            if str(value or "").strip()
+        }
+        for ref in self._repo_hygiene_git_refs(project.repo_path):
+            name = str(ref["name"])
+            branch = name.removeprefix("origin/")
+            issue = issue_by_branch.get(branch)
+            checked_out = (
+                not ref["remote"]
+                and branch in {
+                    str(record.get("branch"))
+                    for record in worktrees
+                    if record.get("branch")
+                }
+            )
+            configured_owner = any(
+                pattern and fnmatchcase(branch, str(pattern).strip())
+                for pattern in (project.branches or [])
+            )
+            if not ref["remote"] and branch in dirty_branches:
+                category = "dirty"
+            elif branch in protected_branches or configured_owner or issue is None:
+                category = "shared_owner"
+            elif not is_terminal_status(issue.state):
+                category = "active"
+            elif not self._repo_hygiene_branch_merged(
+                project.repo_path, str(ref["ref"]), project.default_branch
+            ):
+                category = "unmerged"
+            elif canonicalize_status(issue.state) == DONE or checked_out:
+                category = "terminal_protected"
+            else:
+                category = "safely_prunable"
+
+            inventory = health.branches_remote if ref["remote"] else health.branches_local
+            setattr(inventory, category, getattr(inventory, category) + 1)
+
+            if category == "safely_prunable":
+                terminal_timestamp = (
+                    self._repo_hygiene_timestamp(
+                        getattr(issue, "closed_at", None)
+                        or getattr(issue, "merged_at", None)
+                        or getattr(issue, "updated_at", None)
+                    )
+                    if issue is not None
+                    else None
+                )
+                age_start = terminal_timestamp or float(ref["commit_timestamp"] or 0)
+                if age_start and now - age_start >= self._repo_hygiene_thresholds.safely_prunable_age_seconds:
+                    health.overdue_artifacts.append(
+                        OverdueArtifact(
+                            artifact_type="branch",
+                            identifier=name,
+                            category=category,
+                            age_seconds=max(0, int(now - age_start)),
+                            threshold_seconds=(
+                                self._repo_hygiene_thresholds.safely_prunable_age_seconds
+                            ),
+                            project_id=project.id,
+                            task_id=issue.identifier if issue is not None else None,
+                        )
+                    )
+
+    def _evaluate_repo_hygiene_health(self) -> RepoHygieneHealth:
+        """Evaluate repository hygiene health status (OOMPAH-603).
+
+        Builds a RepoHygieneHealth snapshot with current inventory counts,
+        overdue artifacts, and cleanup errors. Used to populate
+        maintenance_status for dashboard and API display.
+
+        Returns:
+            RepoHygieneHealth instance with current status and thresholds applied.
+        """
+        health = RepoHygieneHealth()
+
+        now = time.time()
+        health.thresholds = {
+            "safely_prunable_age_seconds": (
+                self._repo_hygiene_thresholds.safely_prunable_age_seconds
+            ),
+            "safely_prunable_count_warning": (
+                self._repo_hygiene_thresholds.safely_prunable_count_warning
+            ),
+            "safely_prunable_count_critical": (
+                self._repo_hygiene_thresholds.safely_prunable_count_critical
+            ),
+            "cleanup_error_threshold": (
+                self._repo_hygiene_thresholds.cleanup_error_threshold
+            ),
+        }
+
+        for project in self.project_store.list_all():
+            try:
+                self._repo_hygiene_inventory_for_project(project, health, now)
+            except Exception as exc:  # noqa: BLE001 - keep other projects visible
+                message = f"project {project.id}: {type(exc).__name__}: {exc}"
+                health.cleanup_errors.append(message)
+                logger.warning("Repository hygiene inventory failed: %s", message)
+
+        # Track most recent cleanup error if present
+        if self._cleanup_error_last:
+            health.cleanup_errors.append(self._cleanup_error_last)
+
+        # Evaluate health against thresholds
+        is_healthy, summary = self._repo_hygiene_thresholds.evaluate_health(health)
+        health.is_healthy = is_healthy
+        health.summary = summary
+        health.last_evaluated_at = now
+
+        return health
+
+    def _update_repo_hygiene_health(self) -> None:
+        """Update repository hygiene health status in maintenance_status.
+
+        Called periodically as part of maintenance sweep. Exposes health
+        status to dashboard and API via orchestrator_metrics.
+        """
+        try:
+            health = self._evaluate_repo_hygiene_health()
+            payload = health.to_dict()
+            self._maintenance_status["repo_hygiene_health"] = payload
+            self._save_state(repo_hygiene_health=payload)
+            # Replace only this feature's derived alert.  Recent but
+            # safely-prunable artifacts remain green; an alert exists only
+            # for overdue debt or a cleanup/inventory error.
+            self._alerts = [
+                alert
+                for alert in self._alerts
+                if alert.get("source") != "repo_hygiene_health"
+            ]
+            if not health.is_healthy:
+                self._alerts.append(
+                    {
+                        "level": "warning",
+                        "source": "repo_hygiene_health",
+                        "message": health.summary,
+                    }
+                )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Failed to evaluate repository hygiene health: %s", exc)
+            # Maintain previous state rather than failing the entire maintenance sweep
+            if "repo_hygiene_health" not in self._maintenance_status:
+                self._maintenance_status["repo_hygiene_health"] = {
+                    "is_healthy": False,
+                    "summary": "Health evaluation error",
+                    "error": str(exc),
+                }
+
     def _storage_cleanup_paths(self) -> tuple[str, str, list[str]]:
         log_root = os.environ.get("OOMPAH_AGENT_LOG_DIR") or os.path.join(
             os.path.expanduser("~"), ".oompah", "agent-logs"
@@ -3692,6 +4249,7 @@ class Orchestrator:
         self._maybe_heal_repos()
         self._maybe_cleanup_worktrees()
         self._maybe_cleanup_storage()
+        self._update_repo_hygiene_health()
         self._auto_archive()
         self._maybe_open_deferred_done_reviews()
         self._maybe_run_merged_labels()
@@ -7730,7 +8288,30 @@ class Orchestrator:
                 }
                 for issue in issues:
                     if pid:
-                        issue.project_id = pid
+                        try:
+                            resolved_id = self._resolve_issue_project_id(
+                                issue,
+                                fallback_project_id=pid,
+                                source_project_id=pid,
+                            )
+                        except ProjectError as exc:
+                            logger.warning(
+                                "Skipping non-terminal epic %s due to scope conflict "
+                                "in project %s: %s",
+                                issue.identifier,
+                                pid,
+                                exc,
+                            )
+                            continue
+                        if not resolved_id:
+                            logger.warning(
+                                "Skipping non-terminal epic %s with unresolved scope "
+                                "in project %s",
+                                issue.identifier,
+                                pid,
+                            )
+                            continue
+                        issue.project_id = resolved_id
                     status = canonicalize_status(issue.state)
                     labels = {str(label).strip().lower() for label in issue.labels or []}
                     if (
@@ -13354,8 +13935,18 @@ class Orchestrator:
                     return
                 if self._project_review_capacity(project_id)[2]:
                     break
-                if not issue.project_id:
-                    issue.project_id = project_id
+                try:
+                    project_id, tracker = self._scope_issue_for_maintenance(
+                        issue, project_id
+                    )
+                except ProjectError as exc:
+                    logger.error(
+                        "Scope conflict while processing done-review issue %s in project %s: %s",
+                        issue.identifier,
+                        project_id,
+                        exc,
+                    )
+                    continue
                 if canonicalize_status(issue.state) != DONE:
                     continue
                 if (issue.issue_type or "").strip().lower() == "epic":
@@ -13790,8 +14381,18 @@ class Orchestrator:
             for issue in closed_issues:
                 if self._job_deadline_exceeded("merged_labels"):
                     return
-                if not issue.project_id:
-                    issue.project_id = project_id
+                try:
+                    project_id, tracker = self._scope_issue_for_maintenance(
+                        issue, project_id
+                    )
+                except ProjectError as exc:
+                    logger.error(
+                        "Scope conflict while processing merged issue %s in project %s: %s",
+                        issue.identifier,
+                        project_id,
+                        exc,
+                    )
+                    continue
                 issue_status = canonicalize_status(issue.state)
                 labels = set(issue.labels or [])
                 if (
@@ -13902,8 +14503,18 @@ class Orchestrator:
             for issue in issues:
                 if self._job_deadline_exceeded("merged_labels"):
                     return
-                if not issue.project_id:
-                    issue.project_id = project_id
+                try:
+                    project_id, tracker = self._scope_issue_for_maintenance(
+                        issue, project_id
+                    )
+                except ProjectError as exc:
+                    logger.error(
+                        "Scope conflict while processing stale-in-review issue %s in project %s: %s",
+                        issue.identifier,
+                        project_id,
+                        exc,
+                    )
+                    continue
                 if canonicalize_status(issue.state) != IN_REVIEW:
                     continue
 
@@ -14006,8 +14617,18 @@ class Orchestrator:
             for issue in issues:
                 if self._job_deadline_exceeded("merged_labels"):
                     return
-                if not issue.project_id:
-                    issue.project_id = project_id
+                try:
+                    project_id, tracker = self._scope_issue_for_maintenance(
+                        issue, project_id
+                    )
+                except ProjectError as exc:
+                    logger.error(
+                        "Scope conflict while processing terminal-open-review issue %s in project %s: %s",
+                        issue.identifier,
+                        project_id,
+                        exc,
+                    )
+                    continue
                 if canonicalize_status(issue.state) != MERGED:
                     continue
 
@@ -14225,8 +14846,19 @@ class Orchestrator:
             for issue in issues:
                 if self._job_deadline_exceeded("merged_labels"):
                     return
-                if not issue.project_id:
-                    issue.project_id = project_id
+                try:
+                    project_id, tracker = self._scope_issue_for_maintenance(
+                        issue, project_id
+                    )
+                except ProjectError as exc:
+                    logger.error(
+                        "Scope conflict while processing stale-in-review issue %s "
+                        "in project %s: %s",
+                        issue.identifier,
+                        project_id,
+                        exc,
+                    )
+                    continue
                 if canonicalize_status(issue.state) != IN_REVIEW:
                     continue
                 branch = self._stale_in_review_effective_branch(
@@ -15457,7 +16089,32 @@ class Orchestrator:
             }
             for issue in issues:
                 if pid:
-                    issue.project_id = pid
+                    # Resolve project_id from canonical ownership and verify that
+                    # this record belongs to the tracker that produced it.
+                    try:
+                        resolved_id = self._resolve_issue_project_id(
+                            issue,
+                            fallback_project_id=pid,
+                            source_project_id=pid,
+                        )
+                        if not resolved_id:
+                            logger.warning(
+                                "Skipping merged epic %s with unresolved scope "
+                                "in project %s",
+                                issue.identifier,
+                                pid,
+                            )
+                            continue
+                        issue.project_id = resolved_id
+                    except ProjectError as exc:
+                        logger.warning(
+                            "Skipping merged epic %s due to scope conflict in "
+                            "project %s: %s",
+                            issue.identifier,
+                            pid,
+                            exc,
+                        )
+                        continue
                 if canonicalize_status(issue.state) != MERGED:
                     continue
                 is_declared_epic = (
@@ -15597,6 +16254,9 @@ class Orchestrator:
             if EPIC_INDEPENDENTLY_MERGED_LABEL.lower() in existing_labels:
                 # Already annotated — idempotent skip.
                 continue
+            source_project_id = str(
+                getattr(parent_epic, "project_id", None) or ""
+            ).strip()
             logger.warning(
                 "Child %s (branch=%s) was merged to main independently, "
                 "bypassing parent epic %s (expected branch=%s). "
@@ -15608,13 +16268,22 @@ class Orchestrator:
                 EPIC_INDEPENDENTLY_MERGED_LABEL,
             )
             try:
-                tracker = self._tracker_for_issue(child)
+                if source_project_id:
+                    _resolved_project_id, _scoped_child_tracker = (
+                        self._scope_issue_for_maintenance(
+                            child,
+                            source_project_id,
+                        )
+                    )
+                    tracker = self._tracker_for_issue(parent_epic)
+                else:
+                    tracker = self._tracker_for_issue(child)
                 tracker.update_issue(
                     child.identifier,
                     add_label=EPIC_INDEPENDENTLY_MERGED_LABEL,
                 )
                 annotated += 1
-            except TrackerError as exc:
+            except (ProjectError, TrackerError) as exc:
                 logger.debug(
                     "Failed to annotate independently-merged child %s: %s",
                     child.identifier,
@@ -15741,6 +16410,37 @@ class Orchestrator:
         for child in children:
             if self._job_deadline_exceeded("merged_labels"):
                 return
+            child_project_id = str(
+                getattr(child, "project_id", None) or project_id or ""
+            ).strip()
+            child_tracker = tracker
+            if project_id:
+                try:
+                    child_project_id, _scoped_child_tracker = (
+                        self._scope_issue_for_maintenance(
+                            child,
+                            project_id,
+                        )
+                    )
+                except ProjectError as exc:
+                    logger.warning(
+                        "Skipping epic child %s due to scope conflict in project "
+                        "%s: %s",
+                        child.identifier,
+                        project_id,
+                        exc,
+                    )
+                    continue
+            elif child_project_id:
+                try:
+                    child_tracker = self._tracker_for_issue(child)
+                except ProjectError as exc:
+                    logger.warning(
+                        "Skipping legacy epic child %s due to scope conflict: %s",
+                        child.identifier,
+                        exc,
+                    )
+                    continue
             if canonicalize_status(child.state) in (MERGED, ARCHIVED):
                 self._cleanup_landed_private_child_branch(epic, child)
                 continue
@@ -15795,7 +16495,7 @@ class Orchestrator:
                 if (
                     child_status == NEEDS_HUMAN
                     and self._tracker_comment_matches(
-                        tracker,
+                        child_tracker,
                         child.identifier,
                         instruction,
                     )
@@ -15808,7 +16508,7 @@ class Orchestrator:
                     continue
                 try:
                     self._mark_needs_human(
-                        tracker,
+                        child_tracker,
                         child.identifier,
                         instruction,
                     )
@@ -15836,10 +16536,9 @@ class Orchestrator:
                     epic.identifier,
                 )
                 continue
-            project_id = getattr(child, "project_id", None) or ""
             result = self._request_merged_via_coordinator(
                 child,
-                project_id,
+                child_project_id,
                 trigger_identity="epic-rollup-reconciliation",
                 trigger_source="oompah",
             )
@@ -26953,6 +27652,16 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 "last_cleanup_at": self._last_cleanup_at if self._last_cleanup_at != 0.0 else None,
                 "cleanup_count": self._cleanup_count_last,
                 "cleanup_error": self._cleanup_error_last,
+                # Keep the derived hygiene payload alongside the legacy
+                # maintenance summary as well as under orchestrator_metrics.
+                # This gives API consumers one stable maintenance location
+                # while preserving the documented metrics namespace.
+                "repo_hygiene_health": dict(
+                    getattr(self, "_maintenance_status", {}).get(
+                        "repo_hygiene_health", {}
+                    )
+                    or {}
+                ),
                 "jobs": {
                     name: {
                         "status": state.last_status,

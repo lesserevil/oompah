@@ -69,7 +69,10 @@ else
 fi
 
 set +e
-uv run pytest "${pytest_args[@]}"
+# Make exports .venv/bin ahead of the system PATH, and test-setup installs this
+# project's editable test dependencies there.  Invoke that interpreter directly
+# so an already-prepared gate does not require a second uv subprocess.
+python -m pytest "${pytest_args[@]}"
 test_status=$?
 set -e
 exit "${test_status}"

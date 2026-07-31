@@ -599,6 +599,10 @@ class ServiceConfig:
     storage_cleanup_batch_size: int = 50
     storage_cleanup_max_bytes: int = 50 * 1024 * 1024 * 1024
     storage_cleanup_log_retention_seconds: int = 7 * 24 * 60 * 60
+    repo_hygiene_safely_prunable_age_seconds: int = 7 * 24 * 60 * 60
+    repo_hygiene_safely_prunable_count_warning: int = 10
+    repo_hygiene_safely_prunable_count_critical: int = 50
+    repo_hygiene_cleanup_error_threshold: int = 3
     coordination_retention_seconds: int = 30 * 24 * 60 * 60
     restart_drain_timeout_seconds: int = 60 * 60
     quality_gate_timeout_seconds: int = 60 * 60
@@ -764,6 +768,18 @@ class ServiceConfig:
         )
         self.storage_cleanup_log_retention_seconds = max(
             int(self.storage_cleanup_log_retention_seconds), 60
+        )
+        self.repo_hygiene_safely_prunable_age_seconds = max(
+            int(self.repo_hygiene_safely_prunable_age_seconds), 1
+        )
+        self.repo_hygiene_safely_prunable_count_warning = max(
+            int(self.repo_hygiene_safely_prunable_count_warning), 0
+        )
+        self.repo_hygiene_safely_prunable_count_critical = max(
+            int(self.repo_hygiene_safely_prunable_count_critical), 0
+        )
+        self.repo_hygiene_cleanup_error_threshold = max(
+            int(self.repo_hygiene_cleanup_error_threshold), 1
         )
         self.coordination_retention_seconds = max(
             int(self.coordination_retention_seconds), 60
@@ -1120,6 +1136,20 @@ class ServiceConfig:
                 "OOMPAH_STORAGE_CLEANUP_LOG_RETENTION_SECONDS",
                 None,
                 7 * 24 * 60 * 60,
+            ),
+            repo_hygiene_safely_prunable_age_seconds=_env_int(
+                "OOMPAH_REPO_HYGIENE_SAFELY_PRUNABLE_AGE_SECONDS",
+                None,
+                7 * 24 * 60 * 60,
+            ),
+            repo_hygiene_safely_prunable_count_warning=_env_int(
+                "OOMPAH_REPO_HYGIENE_SAFELY_PRUNABLE_COUNT_WARNING", None, 10
+            ),
+            repo_hygiene_safely_prunable_count_critical=_env_int(
+                "OOMPAH_REPO_HYGIENE_SAFELY_PRUNABLE_COUNT_CRITICAL", None, 50
+            ),
+            repo_hygiene_cleanup_error_threshold=_env_int(
+                "OOMPAH_REPO_HYGIENE_CLEANUP_ERROR_THRESHOLD", None, 3
             ),
             coordination_retention_seconds=_env_int(
                 "OOMPAH_COORDINATION_RETENTION_SECONDS",
