@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-07-31T11:27:40.415401Z'
+updated_at: '2026-07-31T11:28:01.109410Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -183,5 +183,10 @@ author: oompah
 created: 2026-07-31 11:27
 ---
 Root-cause correction from live service evidence: OOMPAH-655 did not lose a completed no-duplicate record across the 11:09/11:13 ticks. The service log records its 11:11 completion as outcome=retry, retry_count=1, retry_delay_seconds=60; the 11:15 run then completed outcome=checked. That second run was the configured retry after an inconclusive first run. The real unnecessary rescreen occurred earlier: OOMPAH-655 had outcome=checked at 10:39, then adding the finish-order dependency on OOMPAH-657 at 11:06 changed compute_task_fingerprint because it currently includes blocked_by dependencies, even though that scheduling-only change cannot affect duplicate identity. The task acceptance already says relevant title/description/source/parent/revision inputs; current fingerprint instead includes dependencies/labels and omits explicit source revision fields. Reproduce this exact checked-record plus finish-order dependency/other scheduler metadata change and prove it stays checked; retain retry behavior for genuinely inconclusive runs. Then add changed intake/source revision tests. Do not add a second cache around metadata or suppress legitimate retries based on the incorrect lost-record hypothesis.
+---
+author: oompah
+created: 2026-07-31 11:28
+---
+Second exact live confirmation of the corrected root cause: OOMPAH-650 completed duplicate screening with outcome=checked at 09:10. Adding only the OOMPAH-657 finish-order dependency at 11:17 and reopening the same implementation caused another duplicate screen, which completed checked at 11:24. This is revision-key overbreadth from blocked_by/scheduling metadata, not loss across ticks. Use OOMPAH-650 as the deterministic finish-dependency regression.
 ---
 <!-- COMMENTS:END -->
