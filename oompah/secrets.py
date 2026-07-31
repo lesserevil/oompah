@@ -130,16 +130,30 @@ SECRET_PATTERNS = [
 
 
 def _is_secret_key(key: Any) -> bool:
-    """Check if a key name suggests the value is a secret."""
+    """Check if a key name suggests the value is a secret.
+    
+    Uses exact match, plus selective substring matches for patterns that are
+    unlikely to match innocent keys (e.g., "password_reset" yes, "input_tokens" no).
+    """
     if not isinstance(key, str):
         return False
     key_lower = key.lower()
     # Direct match against known secret keys
     if key_lower in SECRET_KEYS:
         return True
-    # Substring matches for compound names
-    for secret_key in SECRET_KEYS:
-        if secret_key in key_lower:
+    # Selective substring matches only for specific multi-word patterns
+    # to avoid false positives like "input_tokens" matching "token"
+    substring_patterns = (
+        "password",  # matches: password_reset, password_hash, etc.
+        "secret",    # matches: api_secret, client_secret, etc.
+        "api_key",   # matches: app_api_key, etc.
+        "bearer",    # matches: bearer_token (already exact), but be conservative
+        "private_key",  # matches: rsa_private_key, etc.
+        "ssh_key",   # matches: ssh_key_file, etc.
+        "client_credentials",  # matches variants
+    )
+    for pattern in substring_patterns:
+        if pattern in key_lower:
             return True
     return False
 
