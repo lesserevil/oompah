@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:06.140108Z'
-updated_at: '2026-07-31T22:56:16.092368Z'
+updated_at: '2026-07-31T22:56:32.345532Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -823,5 +823,10 @@ author: oompah
 created: 2026-07-31 22:56
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-31 22:56
+---
+Understanding: Taking the CI-fix pass on OOMPAH-664 branch. The latest gate run at head 2b7d97927 has exactly 1 failing test: tests/test_orchestrator_profile_reload.py::TestStoreOrchestratorIntegration::test_tick_applies_pending_at_quiescent_point. I will read the test and relevant code, reproduce locally, make the minimal fix, and push.
 ---
 <!-- COMMENTS:END -->
