@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:07.401588Z'
-updated_at: '2026-07-31T21:55:45.111802Z'
+updated_at: '2026-07-31T21:56:43.661465Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -126,9 +126,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-665
-  head_sha: f8a1149911e51ebf0e0331ce7cc2a4705bb6a051
-  submitted_at: '2026-07-31T21:42:23.757320+00:00'
-  updated_at: '2026-07-31T21:42:23.757320+00:00'
+  head_sha: e395a94af15e30d7e7aed08a45134a56d4e3b9a8
+  submitted_at: '2026-07-31T21:56:42.681380+00:00'
+  updated_at: '2026-07-31T21:56:42.681380+00:00'
 ---
 ## Summary
 
@@ -566,5 +566,10 @@ author: oompah
 created: 2026-07-31 21:55
 ---
 Verification: the focused setup, terminal-audit observability, terminal-transition coordinator, and isolated timing suites pass (143 passed). Full make test exercised the new missing-UV fallback and terminal-audit scan successfully; 14,539 tests passed. The two failures are unrelated to this change: the host venv lacks hatchling for the isolated CLI packaging compatibility fixture, and a fire-and-forget timing test fails only under loaded parallel execution but passes in isolation.
+---
+author: oompah
+created: 2026-07-31 21:56
+---
+Completion: pushed CI bootstrap repair e395a94af to the existing OOMPAH-665 branch. Make test now passes the prior missing-uv bootstrap and terminal-audit scan; 143 focused tests pass. The local full run recorded 14,539 passing tests, with only the pre-existing host hatchling packaging prerequisite and a parallel timing flake failing. No PR/Actions run exists yet because the earlier gate blocked review creation; submission requests a fresh isolated gate for this exact head.
 ---
 <!-- COMMENTS:END -->
