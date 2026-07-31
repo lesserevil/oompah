@@ -1393,6 +1393,12 @@ def _gh_issue_to_issue(gh_issue: dict[str, Any], owner: str, repo: str) -> Issue
         intake=intake,
         duplicate_screening=duplicate_screening,
         integration=integration,
+        assignment_id=(
+            str(
+                meta.get("agent_run_id") or meta.get("oompah.agent_run_id") or ""
+            ).strip()
+            or None
+        ),
         tracker_kind="github_issues",
         tracker_owner=owner,
         tracker_repo=repo,

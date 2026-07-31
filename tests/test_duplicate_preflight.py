@@ -152,6 +152,11 @@ def _orch(tracker: _Tracker, *, slots: int = 3, preflight_limit: int = 1):
     orch._epic_maintenance_project_locks = {}
     orch._tracker_for_issue = lambda issue: tracker
     orch._tracker_for_project = lambda project_id: tracker
+    # Retry authority attributes added by OOMPAH-661; not present when
+    # Orchestrator is constructed via __new__ without __init__.
+    orch._retry_authority_lock = threading.RLock()
+    orch._retry_dispatching = {}
+    orch._persisted_retry_entries = []
     return orch
 
 

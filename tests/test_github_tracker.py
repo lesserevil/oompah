@@ -1408,6 +1408,16 @@ class TestGhIssueToIssue:
         assert issue.display_identifier == "oompah-tasks#42"
         assert issue.tracker_kind == "github_issues"
 
+    def test_agent_run_id_metadata_becomes_retry_assignment(self):
+        issue = self._convert(
+            body=(
+                "Issue body\n<!-- oompah:metadata\n"
+                '{"agent_run_id": "run-42"}\n-->'
+            )
+        )
+
+        assert issue.assignment_id == "run-42"
+
     def test_requestor_login_comes_from_github_issue_user(self):
         issue = self._convert(number=42, user_login="requestor")
         assert issue.requestor_login == "requestor"
