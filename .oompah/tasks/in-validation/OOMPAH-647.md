@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-647
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Make merge-conflict rebase continuation noninteractive and deadlock-safe
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:09:27.752943Z'
-updated_at: '2026-07-31T07:47:49.168068Z'
+updated_at: '2026-07-31T07:54:54.932377Z'
 work_branch: OOMPAH-647
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/612
@@ -98,6 +98,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/612
 oompah.review_number: '612'
 oompah.work_branch: OOMPAH-647
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-c373f00a8724
+    project_id: proj-14849f1b
+    task_id: OOMPAH-647
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: e30399b1964001c7e507aa7e9f3b8938b03bf4af6c5dc92fa2fa919bd6bef47b
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-31T07:54:50.402416+00:00'
+  - version: 1
+    audit_id: audit-dcbc7765d0dc
+    project_id: proj-14849f1b
+    task_id: OOMPAH-647
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: e30399b1964001c7e507aa7e9f3b8938b03bf4af6c5dc92fa2fa919bd6bef47b
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-31T07:54:50.402416+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -190,5 +229,15 @@ author: oompah
 created: 2026-07-31 07:47
 ---
 Branch quality gate passed for `79fbad71a4c5e735916e16db6fd546d455da3022` using `make test` in 270.4s. Review creation may proceed.
+---
+author: oompah
+created: 2026-07-31 07:54
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-07-31 07:54
+---
+YOLO: merged PR #612.
 ---
 <!-- COMMENTS:END -->
