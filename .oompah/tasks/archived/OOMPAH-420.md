@@ -13,7 +13,7 @@ labels:
 - focus-complete:refactor
 assignee: null
 created_at: '2026-07-23T19:41:55.025847Z'
-updated_at: '2026-07-31T02:16:59.139662Z'
+updated_at: '2026-07-31T02:17:11.350103Z'
 work_branch: epic-OOMPAH-418
 target_branch: null
 review_url: null
@@ -22,13 +22,13 @@ merged_at: null
 oompah.agent_run_id: 498df691-a454-4f10-b6d9-93fcf6a378c5
 oompah.work_branch: epic-OOMPAH-418
 oompah.task_costs:
-  total_input_tokens: 573413
-  total_output_tokens: 6172
+  total_input_tokens: 573456
+  total_output_tokens: 13233
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 573413
-      output_tokens: 6172
+      input_tokens: 573456
+      output_tokens: 13233
       cost_usd: 0.0
   runs:
   - profile: default
@@ -49,6 +49,12 @@ oompah.task_costs:
     output_tokens: 1565
     cost_usd: 0.0
     recorded_at: '2026-07-24T01:56:27.727400+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 43
+    output_tokens: 7061
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T02:17:07.907440+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
@@ -307,5 +313,15 @@ Safe evidence:
 - git_history: Commit 3aa8dd5e1 'Expose OpenAPI through embedded MCP gateway' is on main; subsequent hardening in OOMPAH-524 (224fd7305, ca4c062d7) and 8fc368e6d 'Allow configured network MCP access' also on main.
 - test_run: python -m pytest tests/test_mcp_gateway.py --rootdir=. -q → 14 passed, 2 deprecation warnings, exit 0.
 - previous_state: Merged; aged 7-day auto-archive.
+---
+author: oompah
+created: 2026-07-31 02:17
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 44, Tool calls: 37
+- Tokens: 43 in / 7.1K out [7.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 3m 16s
+- Log: OOMPAH-420__20260731T021358Z.jsonl
 ---
 <!-- COMMENTS:END -->
