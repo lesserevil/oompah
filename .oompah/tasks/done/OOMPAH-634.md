@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-634
 type: task
-status: Needs Human
+status: Done
 priority: 0
 title: Rebase epic-OOMPAH-460 onto main
 parent: OOMPAH-460
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T02:27:37.845123Z'
-updated_at: '2026-07-31T04:22:49.148102Z'
+updated_at: '2026-07-31T04:23:36.645765Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-634
 target_branch: null
 review_url: null
@@ -149,6 +149,25 @@ oompah.terminal_audit:
   applied_result_attempts:
     no-auditor-audit-9f1cb6c31d68-0: '2026-07-31T02:46:35.067836+00:00'
     no-auditor-audit-70f70ba2852d-0: '2026-07-31T04:22:44.100537+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-43d685d26a8e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-634
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 519681e9ac4912722a5210ab27286b30d44f75e6293b28649b0b33812d0ec353
+    authorized_by:
+      version: 1
+      identity: lesserevil
+      source: api
+    reason: The shared epic rebase was completed and force-pushed at 113e75ac8, verified
+      against then-current origin/main, and that commit is preserved in current OOMPAH-460
+      ancestry. The audit blocker is contributor independence, not a code or verification
+      failure.
+    created_at: '2026-07-31T04:23:34.448763+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -375,5 +394,12 @@ created: 2026-07-31 04:22
 Needs Human — Done audit requires operator input.
 
 No independent auditor candidate is available for this audit (All candidates are used by contributors.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then move the task back to Open to retry.
+---
+author: oompah
+created: 2026-07-31 04:23
+---
+Override by lesserevil: terminal transition to Done applied by project owner.
+
+Reason: The shared epic rebase was completed and force-pushed at 113e75ac8, verified against then-current origin/main, and that commit is preserved in current OOMPAH-460 ancestry. The audit blocker is contributor independence, not a code or verification failure.
 ---
 <!-- COMMENTS:END -->
