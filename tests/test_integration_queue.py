@@ -168,6 +168,18 @@ def test_owns_active_lease_requires_exact_current_claim(tmp_path):
         task_branch=first.task_branch,
         head_sha=first.head_sha,
         lease_owner=first.lease_owner,
+        now=10.5,
+    )
+    # Expiry withdraws authority even before a recovery/claim rewrites the
+    # durable row.  A stale executor cannot use the interval between deadline
+    # and replacement as an authorization window.
+    assert not store.owns_active_lease(
+        project_id=first.project_id,
+        task_id=first.task_id,
+        task_branch=first.task_branch,
+        head_sha=first.head_sha,
+        lease_owner=first.lease_owner,
+        now=11,
     )
     assert not store.owns_active_lease(
         project_id=first.project_id,
@@ -175,6 +187,7 @@ def test_owns_active_lease_requires_exact_current_claim(tmp_path):
         task_branch=first.task_branch,
         head_sha="different-head",
         lease_owner=first.lease_owner,
+        now=10.5,
     )
 
     replacement = store.claim_next(
@@ -192,6 +205,7 @@ def test_owns_active_lease_requires_exact_current_claim(tmp_path):
         task_branch=first.task_branch,
         head_sha=first.head_sha,
         lease_owner=first.lease_owner,
+        now=12,
     )
     assert store.owns_active_lease(
         project_id=replacement.project_id,
@@ -199,6 +213,7 @@ def test_owns_active_lease_requires_exact_current_claim(tmp_path):
         task_branch=replacement.task_branch,
         head_sha=replacement.head_sha,
         lease_owner=replacement.lease_owner,
+        now=12,
     )
 
 

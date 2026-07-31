@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import math
 import os
 import sqlite3
 import threading
@@ -463,6 +464,7 @@ class IntegrationQueueStore:
         task_branch: str,
         head_sha: str,
         lease_owner: str | None,
+        now: float | None = None,
     ) -> bool:
         """Return whether an executor still owns this exact integration row.
 
@@ -482,10 +484,18 @@ class IntegrationQueueStore:
         }
         if not all(values.values()):
             return False
+        observed_at: float | None = None
+        if now is not None:
+            try:
+                observed_at = float(now)
+            except (TypeError, ValueError, OverflowError):
+                return False
+            if not math.isfinite(observed_at):
+                return False
         with self._lock:
             row = self._conn.execute(
                 """
-                SELECT 1 FROM integration_queue
+                SELECT lease_expires_at FROM integration_queue
                 WHERE project_id = ? AND task_id = ?
                   AND task_branch = ? AND head_sha = ?
                   AND state = 'integrating' AND lease_owner = ?
@@ -498,7 +508,25 @@ class IntegrationQueueStore:
                     values["lease_owner"],
                 ),
             ).fetchone()
-        return row is not None
+            # Sample the production clock while the same lock still protects
+            # the row read.  A caller delayed on this lock cannot return old
+            # authority merely because its invocation began before expiry.
+            if observed_at is None:
+                observed_at = float(time.time())
+        if row is None:
+            return False
+        expires_at = row["lease_expires_at"]
+        if (
+            isinstance(expires_at, bool)
+            or not isinstance(expires_at, (int, float))
+        ):
+            return False
+        deadline = float(expires_at)
+        return (
+            math.isfinite(observed_at)
+            and math.isfinite(deadline)
+            and deadline > observed_at
+        )
 
     def items(
         self,

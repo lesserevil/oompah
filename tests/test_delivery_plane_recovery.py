@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from unittest import mock
 
 from oompah.config import ServiceConfig
@@ -300,6 +301,7 @@ def test_exact_ready_submission_is_required_for_executor_authority(tmp_path):
         # A queued submission has no executor authority until it has an exact
         # durable integrating lease.
         assert not orchestrator._integration_task_still_ready(row)
+        claimed_at = time.time()
         claimed = orchestrator.integration_queue.claim_next(
             project_id=project.id,
             epic_id=issue.parent_id or "EPIC-1",
@@ -307,7 +309,7 @@ def test_exact_ready_submission_is_required_for_executor_authority(tmp_path):
             dependency_map={issue.identifier: ()},
             satisfied=set(),
             lease_seconds=1,
-            now=10,
+            now=claimed_at,
         )
         assert claimed is not None
         assert orchestrator._integration_task_still_ready(claimed)

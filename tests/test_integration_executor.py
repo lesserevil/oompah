@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from contextlib import nullcontext
 import subprocess
+import time
 from unittest import mock
 
 from oompah.config import ServiceConfig
@@ -251,6 +252,7 @@ def test_expired_lease_discards_stale_gate_pass_before_epic_commit(tmp_path):
         task_head=task_head,
     )
     try:
+        claimed_at = time.time()
         queued = orchestrator.integration_queue.enqueue(
             project_id=project.id,
             epic_id=issue.parent_id or "E-1",
@@ -265,7 +267,7 @@ def test_expired_lease_discards_stale_gate_pass_before_epic_commit(tmp_path):
             dependency_map={issue.identifier: ()},
             satisfied=set(),
             lease_seconds=1,
-            now=100,
+            now=claimed_at,
         )
         assert stale is not None
         assert orchestrator._integration_task_still_ready(stale)
@@ -281,7 +283,7 @@ def test_expired_lease_discards_stale_gate_pass_before_epic_commit(tmp_path):
                     lease_owner="replacement-generation",
                     dependency_map={issue.identifier: ()},
                     satisfied=set(),
-                    now=102,
+                    now=claimed_at + 2,
                 )
                 assert replacement_item is not None
                 replacement.append(replacement_item)
