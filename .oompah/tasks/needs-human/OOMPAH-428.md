@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T21:34:08.303204Z'
-updated_at: '2026-07-30T22:39:42.569404Z'
+updated_at: '2026-07-31T06:00:14.504029Z'
 work_branch: epic-OOMPAH-426
 target_branch: null
 review_url: null
@@ -310,5 +310,10 @@ author: oompah
 created: 2026-07-30 22:39
 ---
 The parent epic OOMPAH-426 merged from epic-OOMPAH-426, but this task was Needs Human with work branch epic-OOMPAH-426. Its work is not proven to be in the merged epic. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
+---
+author: oompah
+created: 2026-07-31 06:00
+---
+Post-restart re-evaluation: prerequisite OOMPAH-427 landed in PR #544, but OOMPAH-428 pre-PR and reconciliation hardening was not implemented. Remaining accepted work is now tracked actionably in top-level OOMPAH-641 because this child belongs to an already-merged epic. Archiving this stale child as superseded, not as fully completed.
 ---
 <!-- COMMENTS:END -->

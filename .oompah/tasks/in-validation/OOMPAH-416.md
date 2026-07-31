@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-416
 type: task
-status: Needs Human
+status: In Validation
 priority: 0
 title: Post REFRESH_REQUESTED after orphan resets to wake dispatch immediately
 parent: OOMPAH-414
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-23T19:34:30.939292Z'
-updated_at: '2026-07-30T21:59:21.969621Z'
+updated_at: '2026-07-31T06:00:20.650823Z'
 work_branch: epic-OOMPAH-414
 target_branch: null
 review_url: null
@@ -51,7 +51,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-416
     target_state: Archived
-    request_state: pending
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -63,6 +63,23 @@ oompah.terminal_audit:
       source: auto_archive
     previous_state: Merged
     created_at: '2026-07-30T21:55:10.555620+00:00'
+  - version: 1
+    audit_id: audit-6c0bd4cc1c5c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-416
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9fc093cd387bcb85959ef34074ad6834ea52cd40583c89d7f37a0dcd91493aca
+    attempts: []
+    requested_by:
+      version: 1
+      identity: api-client
+      source: api
+    previous_state: Needs Human
+    created_at: '2026-07-31T06:00:18.996230+00:00'
   attempt_history: []
 ---
 ## Summary
@@ -278,5 +295,10 @@ author: oompah
 created: 2026-07-30 21:59
 ---
 The parent epic OOMPAH-414 merged from epic-OOMPAH-414, but this task was Needs Human with work branch epic-OOMPAH-414. Its work is not proven to be in the merged epic. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
+---
+author: oompah
+created: 2026-07-31 06:00
+---
+Post-restart re-evaluation: PR #543 and parent OOMPAH-414 audits prove commit c19f47ca4 and orphan-reset wake coverage are on main. The old Needs Human transition interrupted an aged-Merged archive audit; re-queueing Archived.
 ---
 <!-- COMMENTS:END -->

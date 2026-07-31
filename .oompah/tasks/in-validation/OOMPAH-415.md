@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-415
 type: task
-status: Needs Human
+status: In Validation
 priority: 0
 title: Decouple stale-dispatch threshold from full_sync_interval and reduce recovery
   latency
@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-23T19:34:14.691327Z'
-updated_at: '2026-07-30T21:59:18.794994Z'
+updated_at: '2026-07-31T06:00:24.632050Z'
 work_branch: epic-OOMPAH-414
 target_branch: null
 review_url: null
@@ -71,7 +71,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-415
     target_state: Archived
-    request_state: pending
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -83,7 +83,51 @@ oompah.terminal_audit:
       source: auto_archive
     previous_state: Merged
     created_at: '2026-07-30T21:55:05.620477+00:00'
-  attempt_history: []
+  - version: 1
+    audit_id: audit-90aebadce0cc
+    project_id: proj-14849f1b
+    task_id: OOMPAH-415
+    target_state: Archived
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 509e60f15351a0c0197bc11585adec852f1ca6bd98acf7e302396e44b1abaac0
+    attempts:
+    - version: 1
+      attempt_id: attempt-fb6ac34bed18
+      target_state: Archived
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 509e60f15351a0c0197bc11585adec852f1ca6bd98acf7e302396e44b1abaac0
+      created_at: '2026-07-31T06:00:21.443202+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-31T06:00:21.443202+00:00'
+      branch_key: epic-OOMPAH-414
+    requested_by:
+      version: 1
+      identity: api-client
+      source: api
+    previous_state: Needs Human
+    created_at: '2026-07-31T06:00:15.218893+00:00'
+    updated_at: '2026-07-31T06:00:21.443202+00:00'
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-fb6ac34bed18
+    target_state: Archived
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 509e60f15351a0c0197bc11585adec852f1ca6bd98acf7e302396e44b1abaac0
+    created_at: '2026-07-31T06:00:21.443202+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-31T06:00:21.443202+00:00'
+    branch_key: epic-OOMPAH-414
 ---
 ## Summary
 
@@ -483,5 +527,15 @@ author: oompah
 created: 2026-07-30 21:59
 ---
 The parent epic OOMPAH-414 merged from epic-OOMPAH-414, but this task was Needs Human with work branch epic-OOMPAH-414. Its work is not proven to be in the merged epic. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
+---
+author: oompah
+created: 2026-07-31 06:00
+---
+Post-restart re-evaluation: PR #543 and parent OOMPAH-414 audits prove commits c9b72babb and e8dca97b4 are on main, with threshold regression coverage green. The old Needs Human transition interrupted an aged-Merged archive audit; re-queueing Archived.
+---
+author: oompah
+created: 2026-07-31 06:00
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
 ---
 <!-- COMMENTS:END -->
