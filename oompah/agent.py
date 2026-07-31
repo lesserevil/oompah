@@ -282,6 +282,7 @@ class AgentSession:
         self.env = dict(env or {})
         self._process: asyncio.subprocess.Process | None = None
         self._process_identity: ProcessIdentity | None = None
+        self._stderr_task: asyncio.Task[None] | None = None
         self._thread_id: str | None = None
         self._turn_id: str | None = None
         self._request_id = 0
@@ -346,7 +347,7 @@ class AgentSession:
                 self._process_identity = record.identity
 
         # Start draining stderr in the background
-        asyncio.create_task(self._drain_stderr())
+        self._stderr_task = asyncio.create_task(self._drain_stderr())
 
     async def _drain_stderr(self) -> None:
         """Read and log stderr without treating it as protocol."""
@@ -622,27 +623,45 @@ class AgentSession:
             os.name == "posix" and pid is not None and hasattr(os, "killpg")
         )
 
-        def _owned_process() -> bool:
-            """Check PID, start time, session, group, and workspace."""
+        def _ownership_state() -> str:
+            """Return ``owned``, ``gone``, or ``mismatch`` for the child PID."""
             if pid is None:
-                return False
+                return "mismatch"
             identity = self._process_identity
             if identity is None:
                 # Mocked/non-Linux process handles do not expose procfs.  Keep
                 # the old fallback for test doubles.  Real subprocess handles
                 # without an identity are never safe to signal broadly.
-                return not isinstance(process, asyncio.subprocess.Process)
+                return (
+                    "owned"
+                    if not isinstance(process, asyncio.subprocess.Process)
+                    else "mismatch"
+                )
             record = _linux_process_record(pid)
-            return bool(
-                record
-                and record.identity == identity
+            if record is None:
+                # The original child exited.  Its asyncio Process handle still
+                # needs to observe that exit and close its pipe transports.
+                return "gone"
+            return (
+                "owned"
+                if record.identity == identity
                 and record.identity.cwd == os.path.realpath(self.workspace_path)
+                else "mismatch"
             )
 
+        def _owned_process() -> bool:
+            """Check PID, start time, session, group, and workspace."""
+            return _ownership_state() == "owned"
+
         def _tree_is_running() -> bool:
-            if not _owned_process():
+            ownership = _ownership_state()
+            if ownership == "mismatch":
                 return False
             parent_running = process.returncode is None
+            if ownership == "gone":
+                # Do not signal a vanished identity, but keep the stop
+                # coroutine alive until asyncio reaps the exact child handle.
+                return parent_running
             if not use_process_group:
                 return parent_running
             try:
@@ -704,8 +723,24 @@ class AgentSession:
                 await asyncio.sleep(min(STOP_POLL_INTERVAL_S, remaining))
             return True
 
+        async def _join_process_transport() -> None:
+            """Finish asyncio's exact child handle and stderr pipe task."""
+
+            if not isinstance(process, asyncio.subprocess.Process):
+                return
+            if process.returncode is None:
+                return
+            await process.wait()
+            stderr_task = self._stderr_task
+            if stderr_task is not None and stderr_task is not asyncio.current_task():
+                await asyncio.gather(stderr_task, return_exceptions=True)
+            # Pipe ``connection_lost`` callbacks may be queued by the final
+            # read; let them close before a short-lived test loop is torn down.
+            await asyncio.sleep(0)
+
         timeout_s = max(float(timeout_s), 0.0)
         if not _tree_is_running():
+            await _join_process_transport()
             logger.info("Agent process stopped pid=%s", pid)
             return
 
@@ -738,4 +773,5 @@ class AgentSession:
             )
             raise
 
+        await _join_process_transport()
         logger.info("Agent process stopped pid=%s", pid)

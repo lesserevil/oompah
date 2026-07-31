@@ -140,6 +140,9 @@ async def test_stop_refuses_reused_or_reassigned_process_identity(tmp_path):
     finally:
         process.kill()
         await process.wait()
+        assert session._stderr_task is not None
+        await asyncio.wait_for(session._stderr_task, timeout=1.0)
+        await asyncio.sleep(0)
 
 
 @pytest.mark.asyncio
@@ -164,6 +167,9 @@ async def test_stop_kills_spawned_descendant(tmp_path):
         assert child_pid is not None
 
         await session.stop(timeout_s=0.5)
+
+        assert session._stderr_task is not None
+        assert session._stderr_task.done()
 
         for _ in range(100):
             if not _pid_exists(parent_pid) and not _pid_exists(child_pid):
