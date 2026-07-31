@@ -1729,18 +1729,18 @@ class TestApplyPassChainedTargets:
 
     def test_pass_cancels_sibling_audits_with_same_fingerprint(self) -> None:
         """When a PASS is recorded, sibling audits with the same fingerprint/target are superseded.
-        
+
         This prevents duplicate audits for the same evidence fingerprint
         (OOMPAH-653: duplicate audit race condition).
         """
         tracker = _MemoryTracker()
         fp = _fingerprint()
-        
+
         # Create two PENDING records with the same target and fingerprint
         # (simulating a race condition where two audits for the same fingerprint exist)
         sibling1 = _pending_record(audit_id="audit-sibling-1", fingerprint=fp)
         sibling2 = _pending_record(audit_id="audit-sibling-2", fingerprint=fp)
-        
+
         issue = _seed_and_validation(tracker, [sibling1, sibling2])
         coord = _coordinator(tracker)
 
@@ -1754,11 +1754,11 @@ class TestApplyPassChainedTargets:
         store = TerminalAuditMetadataStore(tracker, _LockStore(), PROJECT_ID)
         doc = store.read(TASK_ID)
         assert len(doc.pending_chain) == 2
-        
+
         # First sibling should be COMPLETED
         assert doc.pending_chain[0].audit_id == "audit-sibling-1"
         assert doc.pending_chain[0].request_state == RequestState.COMPLETED
-        
+
         # Second sibling should be SUPERSEDED (cancelled)
         assert doc.pending_chain[1].audit_id == "audit-sibling-2"
         assert doc.pending_chain[1].request_state == RequestState.SUPERSEDED
