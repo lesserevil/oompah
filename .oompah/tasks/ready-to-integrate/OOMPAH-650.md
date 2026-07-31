@@ -8,11 +8,12 @@ parent: OOMPAH-619
 children: []
 blocked_by:
 - OOMPAH-652
+- OOMPAH-657
 start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T11:17:20.984324Z'
+updated_at: '2026-07-31T11:17:38.830302Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -47,13 +48,17 @@ oompah.integration:
   submitted_at: '2026-07-31T11:17:17.108213+00:00'
   updated_at: '2026-07-31T11:17:17.108213+00:00'
 oompah.task_costs:
-  total_input_tokens: 1607393
-  total_output_tokens: 9207
+  total_input_tokens: 1607548
+  total_output_tokens: 13912
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 1607393
       output_tokens: 9207
+      cost_usd: 0.0
+    opus:
+      input_tokens: 155
+      output_tokens: 4705
       cost_usd: 0.0
   runs:
   - profile: default
@@ -80,6 +85,12 @@ oompah.task_costs:
     output_tokens: 83
     cost_usd: 0.0
     recorded_at: '2026-07-31T10:32:21.587388+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 155
+    output_tokens: 4705
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T11:17:34.552368+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-650__20260731T090726Z
@@ -578,5 +589,20 @@ author: oompah
 created: 2026-07-31 11:17
 ---
 Grant lifetime bound to worker session via server-owned heartbeat lease with generation-bound owner_id. Custom TTL preserved on refresh and heartbeat. Forced termination revokes even when replacement entry is present. Endpoint returns explicit handoff_expired/handoff_revoked codes and aborts tracker mutation when refresh races termination. No Basic-auth fallback in worker environments. 534 focused tests pass.
+---
+author: oompah
+created: 2026-07-31 11:17
+---
+Run #3 [attempt=3, profile=deep, role=deep -> Claude/opus]
+- Turns: 0, Tool calls: 102
+- Tokens: 155 in / 4.7K out [4.9K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 15m 10s
+- Log: OOMPAH-650__20260731T110232Z.jsonl
+---
+author: oompah
+created: 2026-07-31 11:17
+---
+Finish-order safety dependency added: implementation may continue, but final integration/gate evidence must wait until OOMPAH-657 immutable exact-head snapshots and stale-generation cancellation are merged/deployed.
 ---
 <!-- COMMENTS:END -->

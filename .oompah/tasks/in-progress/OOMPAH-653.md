@@ -9,11 +9,12 @@ parent: null
 children: []
 blocked_by:
 - OOMPAH-652
+- OOMPAH-657
 start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T11:12:35.518591Z'
+updated_at: '2026-07-31T11:17:41.638411Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -597,5 +598,10 @@ author: oompah
 created: 2026-07-31 11:12
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-31 11:17
+---
+Finish-order safety dependency added: implementation may continue, but final integration/gate evidence must wait until OOMPAH-657 immutable exact-head snapshots and stale-generation cancellation are merged/deployed.
 ---
 <!-- COMMENTS:END -->
