@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-650
 type: bug
-status: Ready to Integrate
+status: In Progress
 priority: 1
 title: Keep scoped task handoff credentials valid for the full worker lifetime
 parent: OOMPAH-619
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T11:58:14.447899Z'
+updated_at: '2026-07-31T11:58:31.775046Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -45,18 +45,16 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 446cee71-6f45-4807-a82d-f2b46f38e668
+oompah.agent_run_id: e892c454-e20d-44c1-b756-6ade461f0e43
 oompah.work_branch: epic-OOMPAH-619--task-OOMPAH-650
 oompah.integration:
   version: 2
-  state: ready
+  state: working
   attempts: 0
   task_branch: epic-OOMPAH-619--task-OOMPAH-650
-  base_branch: main
-  base_sha: 54dd2509c6cbc73aaadbda2a3fdc7cfbb14530eb
-  head_sha: c70b41fefc6b6f67694b303997352432cf283cd4
-  submitted_at: '2026-07-31T11:56:23.551436+00:00'
-  updated_at: '2026-07-31T11:56:46.679815+00:00'
+  base_branch: epic-OOMPAH-619
+  base_sha: 3fcdf30caa62fb7709d0cd9e1553320dd11b3877
+  updated_at: '2026-07-31T11:58:29.570961+00:00'
 oompah.task_costs:
   total_input_tokens: 3449443
   total_output_tokens: 20967
@@ -1028,5 +1026,15 @@ author: oompah
 created: 2026-07-31 11:58
 ---
 Operator rejects submitted head c70b41fef. It does not fix comment 72: OperationPermit.is_valid still releases the store lock before every awaited mutation, so revoke can occur after the check and the stale tracker call still starts. The new mid-operation test explicitly revokes inside add_comment after the mutation begins and permits it, with no assertion that the endpoint prevented the write. The so-called restart atomic replacement test is a store-level issue/revoke sequence, not orchestrator graceful restart/recovery or a live old-token/new-token worker path. Implement a real per-grant operation linearization protocol and the exact lifecycle tests in comment 72. The branch also fails git diff --check with extensive trailing whitespace and carries unused permit scaffolding. Full gate remains finish-order blocked on OOMPAH-657.
+---
+author: oompah
+created: 2026-07-31 11:58
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-31 11:58
+---
+Focus: Security Auditor
 ---
 <!-- COMMENTS:END -->

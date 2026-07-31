@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T11:06:15.542774Z'
-updated_at: '2026-07-31T11:44:29.488905Z'
+updated_at: '2026-07-31T11:58:37.713839Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -234,5 +234,10 @@ author: oompah
 created: 2026-07-31 11:44
 ---
 Current dirty retry closes several integration windows, but exact review still finds blocking gaps. (1) _revoke_standalone_delivery_authority is only defined; rg finds no call sites. _review_quality_gate_passes passes generation but no is_current callback, so standalone Ready-to-Open authority withdrawal is not wired to either a live pre-spawn check or cancellation. Wire fresh tracker state/head/revision revocation into the reconciliation path and pass a live authority predicate before snapshot, before spawn, during execution, and before consuming pass. Add the actual Ready-to-Open standalone barrier regression. (2) run() clears a generation tombstone unconditionally in each caller's finally. If two same-generation callers exist or one waits behind the evidence-key lock, the first interrupted caller can clear cancellation and let the later stale caller launch. Cancellation must remain authoritative for that generation until the generation is retired, using a bounded generation registry/refcount/retirement token rather than per-run discard. (3) _key_locks remains unbounded. (4) _create_snapshot deletes its directory after git worktree add/verification failure without removing a possibly registered worktree; clean registration fail-closed. Keep the current integration Ready-to-Open fix and deterministic pre-spawn/Popen barriers, but cover these production paths before submission.
+---
+author: oompah
+created: 2026-07-31 11:58
+---
+Sixth live authority/alert reproduction: rejected OOMPAH-658 was moved Ready to Integrate -> Open and is now actively In Progress on a replacement worker, but state still exposes warning standalone_ready_delivery:proj-14849f1b:OOMPAH-658 saying the Ready task has no active delivery. A stale standalone authority/gate alert was not revoked or cleared by the tracker transition. Wire reconciliation of every non-Ready current status to revoke the exact authority/generation and clear its alert; add Ready->Open->replacement In Progress regression. This also confirms the terminal-coordinator callback alone cannot handle dashboard/task-status rejection.
 ---
 <!-- COMMENTS:END -->
