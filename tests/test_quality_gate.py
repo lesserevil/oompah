@@ -683,13 +683,17 @@ def test_sandbox_command_binds_operator_venv_at_absolute_path_for_shebang_resolu
 
         command = BranchQualityGate._sandbox_command("true", str(snapshot), run_root)
 
-        # Parse --ro-bind (src, dst) pairs from the flat command list.
+        # Parse bind (src, dst) pairs from the flat command list.
+        bind_pairs: list[tuple[str, str]] = []
         ro_bind_pairs: list[tuple[str, str]] = []
         for i in range(len(command) - 2):
+            if command[i] == "--bind":
+                bind_pairs.append((command[i + 1], command[i + 2]))
             if command[i] == "--ro-bind":
                 ro_bind_pairs.append((command[i + 1], command[i + 2]))
 
-        runtime_prefix = str(Path(sys.prefix).resolve())
+        runtime_prefix_path = Path(sys.prefix).resolve()
+        runtime_prefix = str(runtime_prefix_path)
         snapshot_venv = str((snapshot / ".venv").resolve())
 
         # The operator venv is bound at snapshot/.venv (existing behaviour).
@@ -705,6 +709,14 @@ def test_sandbox_command_binds_operator_venv_at_absolute_path_for_shebang_resolu
                 f"operator venv not bound at its own absolute path for shebang "
                 f"resolution.  runtime_prefix={runtime_prefix!r}  "
                 f"ro_bind_pairs={ro_bind_pairs!r}"
+            )
+        if runtime_prefix_path != Path(sys.base_prefix).resolve():
+            assert (
+                str(snapshot.resolve()),
+                str(runtime_prefix_path.parent),
+            ) in bind_pairs, (
+                "candidate snapshot not projected at the editable runtime's "
+                f"source checkout: {bind_pairs!r}"
             )
     finally:
         BranchQualityGate._cleanup_gate_run_root(run_root)

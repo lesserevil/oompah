@@ -113,13 +113,9 @@ help:
 
 ifneq ($(_PYTEST_GATE),)
 # In gate mode the operator's venv is pre-mounted read-only by the bubblewrap
-# sandbox and uv is not on the restricted PATH.  Make setup and test-setup
-# no-ops so 'make test' never invokes uv.  The sandbox bind-mounts the correct
-# Python installation and all required packages before the gate command runs.
+# sandbox and uv is not on the restricted PATH.  Avoid setup's uv invocation;
+# test-setup below instead validates the trusted runtime before tests run.
 setup:
-	@:
-
-test-setup:
 	@:
 else
 setup: $(VENV)/.uv-setup
@@ -129,13 +125,6 @@ $(VENV)/.uv-setup: pyproject.toml
 	uv pip install -e '.[server]'
 	@touch $@
 	@echo "Setup complete. Run 'make start' to launch oompah."
-
-test-setup: $(VENV)/.uv-test-setup
-
-$(VENV)/.uv-test-setup: pyproject.toml $(VENV)/.uv-setup
-	uv pip install -e '.[dev]'
-	@touch $@
-	@echo "Test dependencies installed."
 endif
 
 sync-cli: setup
