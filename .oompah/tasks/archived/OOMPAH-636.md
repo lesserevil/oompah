@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T02:48:03.196366Z'
-updated_at: '2026-07-31T04:21:47.057752Z'
+updated_at: '2026-07-31T04:21:49.797966Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-636
 target_branch: null
 review_url: null
@@ -121,5 +121,10 @@ created: 2026-07-31 04:21
 Override by lesserevil: terminal transition to Archived applied by project owner.
 
 Reason: This automatic rebase task duplicated OOMPAH-634 after the same shared-branch rebase had already landed at 113e75ac8. It has no unique implementation or remaining action and must not block epic rollup.
+---
+author: oompah
+created: 2026-07-31 04:21
+---
+Archived as an obsolete duplicate of completed OOMPAH-634.
 ---
 <!-- COMMENTS:END -->
