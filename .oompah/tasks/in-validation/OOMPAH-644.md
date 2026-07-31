@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-644
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Make native task reads atomic across status-file moves
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:46:11.947079Z'
-updated_at: '2026-07-31T07:30:50.986663Z'
+updated_at: '2026-07-31T07:38:14.652476Z'
 work_branch: OOMPAH-644
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/611
@@ -95,6 +95,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/611
 oompah.review_number: '611'
 oompah.work_branch: OOMPAH-644
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-710535de2bba
+    project_id: proj-14849f1b
+    task_id: OOMPAH-644
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0df6c64231ea0cc330c24b6722280e8d3de176fedcf80a8d9a7680a38727410b
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-31T07:38:09.160039+00:00'
+  - version: 1
+    audit_id: audit-68272593d90a
+    project_id: proj-14849f1b
+    task_id: OOMPAH-644
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0df6c64231ea0cc330c24b6722280e8d3de176fedcf80a8d9a7680a38727410b
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-31T07:38:09.160039+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -181,5 +220,15 @@ author: oompah
 created: 2026-07-31 07:30
 ---
 Branch quality gate passed for `ab4cab20c0697076098bd429d529fd3d8d3434e9` using `make test` in 272.8s. Review creation may proceed.
+---
+author: oompah
+created: 2026-07-31 07:38
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-07-31 07:38
+---
+YOLO: merged PR #611.
 ---
 <!-- COMMENTS:END -->
