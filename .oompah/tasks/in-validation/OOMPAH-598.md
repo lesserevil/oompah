@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-598
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Detect and deliver standalone Ready to Integrate tasks without PRs
 parent: OOMPAH-587
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:29.695490Z'
-updated_at: '2026-07-31T01:49:20.644911Z'
+updated_at: '2026-07-31T01:54:15.355777Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-598
 target_branch: null
 review_url: null
@@ -43,12 +43,15 @@ oompah.agent_run_id: ef756d66-4afe-4ceb-9c44-19eb8946d427
 oompah.work_branch: epic-OOMPAH-587--task-OOMPAH-598
 oompah.integration:
   version: 1
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-587--task-OOMPAH-598
+  base_branch: epic-OOMPAH-587
+  base_sha: 8a875b1c321d5d1a0ae5623158a3eb98ad940313
   head_sha: 9b51b35a065906909c98a205fbeab27c3f691692
+  integrated_sha: 9b51b35a065906909c98a205fbeab27c3f691692
   submitted_at: '2026-07-31T01:49:16.486589+00:00'
-  updated_at: '2026-07-31T01:49:16.486589+00:00'
+  updated_at: '2026-07-31T01:54:11.276413+00:00'
 oompah.task_costs:
   total_input_tokens: 1166036
   total_output_tokens: 7396
@@ -97,6 +100,28 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-587--task-OOMPAH-598
     source_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
     completed_at: '2026-07-30T15:40:21.961176+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-51fd55d0fd33
+    project_id: proj-14849f1b
+    task_id: OOMPAH-598
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a761ad424ec26077f41c55f08702a2d65a5fc74a7233d884128bd6c94d8cd525
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-31T01:54:12.844272+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -442,5 +467,10 @@ author: oompah
 created: 2026-07-31 01:49
 ---
 Rewrote the repaired branch linearly onto authoritative parent 8a875b1c3 so the executor can replay it without dropping a merge-resolution commit. Head 9b51b35a0 preserves both standalone Ready delivery and integration repair backoff; 49 focused conflict/standalone tests pass. Force-push was lease-fenced to prior head ef40deab8.
+---
+author: oompah
+created: 2026-07-31 01:54
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
