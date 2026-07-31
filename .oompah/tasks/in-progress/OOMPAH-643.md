@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-643
 type: task
-status: Needs Rebase
+status: In Progress
 priority: 0
 title: Reconcile stale terminal-audit enforcement records and live queue metrics
 parent: null
@@ -12,7 +12,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-07-31T06:17:38.708513Z'
-updated_at: '2026-07-31T07:03:00.021375Z'
+updated_at: '2026-07-31T07:03:36.735117Z'
 work_branch: OOMPAH-643
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/610
@@ -43,7 +43,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: c8fbc288-7c20-42a9-a664-d87b0aa3352e
+oompah.agent_run_id: 3c9ac0af-0b42-4380-86dd-c3611c48f318
 oompah.task_costs:
   total_input_tokens: 9848237
   total_output_tokens: 41002
@@ -217,5 +217,15 @@ author: oompah
 created: 2026-07-31 07:02
 ---
 YOLO: Merge conflict detected on MR #610. Rebase onto main and resolve conflicts.
+---
+author: oompah
+created: 2026-07-31 07:03
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-31 07:03
+---
+Focus: Merge Conflict Resolver
 ---
 <!-- COMMENTS:END -->
