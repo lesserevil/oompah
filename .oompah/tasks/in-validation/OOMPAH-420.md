@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-420
 type: feature
-status: Merged
+status: In Validation
 priority: 1
 title: Implement an embedded oompah OpenAPI MCP gateway
 parent: OOMPAH-418
@@ -13,7 +13,7 @@ labels:
 - focus-complete:refactor
 assignee: null
 created_at: '2026-07-23T19:41:55.025847Z'
-updated_at: '2026-07-24T02:04:09.096080Z'
+updated_at: '2026-07-31T02:09:12.761054Z'
 work_branch: epic-OOMPAH-418
 target_branch: null
 review_url: null
@@ -49,6 +49,28 @@ oompah.task_costs:
     output_tokens: 1565
     cost_usd: 0.0
     recorded_at: '2026-07-24T01:56:27.727400+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-c2fe6e6662fb
+    project_id: proj-14849f1b
+    task_id: OOMPAH-420
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 2178a6e107209e16f4095233608656cf984f1bfe96633d93ac979f15182245c7
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-07-31T02:09:10.586194+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -221,5 +243,10 @@ author: oompah
 created: 2026-07-24 02:03
 ---
 Implemented and deployed in 3aa8dd5e1. Live verification succeeded: /.well-known/mcp returns discovery metadata; MCP initialize/list-tools returns 42 approved tools, including state; orchestrator restart is excluded.
+---
+author: oompah
+created: 2026-07-31 02:09
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
