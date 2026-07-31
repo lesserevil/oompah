@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T21:32:57.017227Z'
-updated_at: '2026-07-31T22:59:26.398877Z'
+updated_at: '2026-07-31T23:01:29.769295Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -133,5 +133,10 @@ author: oompah
 created: 2026-07-31 22:59
 ---
 Understanding: the Makefile's virtualenv PATH must support internal tooling without changing the PATH used to validate the canonical user CLI. I will trace the lifecycle scripts and existing tests, implement the smallest separation, add coverage for sync/restart success and refusal/rollback cases, then run focused checks.
+---
+author: oompah
+created: 2026-07-31 23:01
+---
+Discovery: Makefile line 3 prepends .venv/bin globally, and restart's recursive make would otherwise re-capture that polluted PATH. The safe design is to capture OOMPAH_OPERATOR_PATH before export, export it for recursive targets, and pass --operator-path to sync/start/restart/force-restart. sync_canonical_cli and canonical_cli_cutover will keep internal PATH for UV/Python while using the explicit operator path for strict launcher resolution and CLI verification.
 ---
 <!-- COMMENTS:END -->
