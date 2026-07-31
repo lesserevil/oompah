@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-645
 type: task
-status: Ready to Integrate
+status: In Review
 priority: 0
 title: Clear recovered terminal-audit transport failures without contaminating later
   audits
@@ -16,11 +16,11 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T06:47:58.732088Z'
-updated_at: '2026-07-31T15:05:52.598124Z'
+updated_at: '2026-07-31T15:06:03.416230Z'
 work_branch: null
 target_branch: null
-review_url: null
-review_number: null
+review_url: https://github.com/lesserevil/oompah/pull/623
+review_number: '623'
 merged_at: null
 oompah.duplicate_screening:
   schema_version: 1
@@ -169,6 +169,8 @@ oompah.integration:
   submitted_at: '2026-07-31T14:59:02.674308+00:00'
   updated_at: '2026-07-31T14:59:18.389406+00:00'
 oompah.start_blocked_by: *id001
+oompah.review_url: https://github.com/lesserevil/oompah/pull/623
+oompah.review_number: '623'
 ---
 ## Summary
 
