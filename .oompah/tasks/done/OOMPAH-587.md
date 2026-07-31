@@ -15,11 +15,10 @@ children:
 blocked_by: []
 start_blocked_by: []
 labels:
-- rebase-requested
-- epic:rebasing
+- epic:rebased
 assignee: null
 created_at: '2026-07-30T14:13:38.093049Z'
-updated_at: '2026-07-31T04:54:51.435290Z'
+updated_at: '2026-07-31T05:00:14.246138Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -168,5 +167,10 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: normal, Duration: 8m 31s
 - Log: OOMPAH-587__20260731T044623Z.jsonl
+---
+author: oompah
+created: 2026-07-31 05:00
+---
+Operator self-hosting recovery: old runtime cannot perform the required nested epic-to-epic synchronization, while that fix is contained in the recovery branch. Rebased origin/epic-OOMPAH-587 onto exact parent origin/epic-OOMPAH-584 b1425f6be with lease 88adebe11; preserved the newer wrong-worktree fence during the OOMPAH-576 overlap; pushed exact new head c1b23d67e. Focused delivery/rebase/auth suite: 262 passed, 1 xfailed. Makefile terminal mutation scan passed. Parent comparison is now 0 behind / 15 ahead.
 ---
 <!-- COMMENTS:END -->
