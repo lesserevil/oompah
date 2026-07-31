@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:47:58.732088Z'
-updated_at: '2026-07-31T07:27:45.600838Z'
+updated_at: '2026-07-31T07:27:52.931403Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -232,5 +232,22 @@ Tests added in tests/test_terminal_audit_health.py (43 total, all pass):
 - TestAlertTextRefersOnlyToUnresolvedAudits (2 new tests)
 
 All 211 focused tests pass (terminal_audit_health, dashboard_terminal_audit_health, terminal_audit_health_api, terminal_audit_observability, terminal_audit_enforcement, terminal_audit_scanner, terminal_transition_coordinator).
+---
+author: oompah
+created: 2026-07-31 07:27
+---
+Verification: All focused tests pass.
+
+- tests/test_terminal_audit_health.py: 43 passed (11 new)
+- tests/test_dashboard_terminal_audit_health.py: 18 passed
+- tests/test_terminal_audit_health_api.py: 2 passed
+- tests/test_terminal_audit_observability.py: 8 passed
+- tests/test_terminal_audit_enforcement.py: 18 passed
+- tests/test_terminal_audit_scanner.py: 11 passed
+- tests/test_terminal_transition_coordinator.py: 108 passed
+
+Total: 211 passed, 0 failed
+
+The terminal mutation scan passes (test_repository_has_no_unauthorized_terminal_mutations). The fix is minimal and surgical — only 3 lines changed in the production code (the guard condition) with 18 lines of comments explaining the rationale.
 ---
 <!-- COMMENTS:END -->
