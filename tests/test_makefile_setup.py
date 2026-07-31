@@ -195,6 +195,9 @@ def test_make_targets_export_venv_bin_on_path():
     text = _makefile_text()
 
     assert "export PATH := $(abspath $(VENV)/bin):$(PATH)" in text
+    assert "OPERATOR_PATH := $(if $(OOMPAH_OPERATOR_PATH),$(OOMPAH_OPERATOR_PATH),$(PATH))" in text
+    assert "export OOMPAH_OPERATOR_PATH := $(OPERATOR_PATH)" in text
+    assert '--operator-path "$(OPERATOR_PATH)"' in text
 
 
 def test_make_start_does_not_force_default_port_flag():

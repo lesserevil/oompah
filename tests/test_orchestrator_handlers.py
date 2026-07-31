@@ -3144,13 +3144,24 @@ class TestTickDelegation:
         assert "auto_update" not in call_order
 
     def test_tick_notifies_observers(self, tmp_path):
-        """_tick() calls _notify_observers() to broadcast state changes."""
+        """_tick() calls _notify_observers() to broadcast state changes.
+
+        Fire-and-forget maintenance methods run on the tick thread pool and
+        can transitively touch orchestrator state under xdist CPU contention.
+        Mock them so ``assert_called_once`` only observes the explicit
+        _notify_observers call inside _tick(), the invariant the test targets.
+        Same isolation pattern OOMPAH-652 applied to TestRunStep5cEpicMaintenance.
+        """
         orch = _make_orchestrator(tmp_path)
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
         orch._handle_dispatch_needed = AsyncMock()
         orch._handle_yolo_review = AsyncMock(return_value=0.0)
         orch._handle_auto_update = AsyncMock()
+        orch._maybe_run_watchdog = MagicMock()
+        orch._run_step5b_maintenance = MagicMock()
+        orch._run_step5c_epic_maintenance = MagicMock()
+        orch._recover_release_addendum_leases = MagicMock(return_value=0)
         orch._notify_observers = MagicMock()
 
         with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
@@ -3159,13 +3170,22 @@ class TestTickDelegation:
         orch._notify_observers.assert_called_once()
 
     def test_tick_notifies_observers_even_on_config_error(self, tmp_path):
-        """_tick() notifies observers even when config validation fails (for UI updates)."""
+        """_tick() notifies observers even when config validation fails (for UI updates).
+
+        Mock the fire-and-forget maintenance methods for the same reason as
+        ``test_tick_notifies_observers``: the config-error branch also relies on
+        _notify_observers being called exactly once.
+        """
         orch = _make_orchestrator(tmp_path)
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
         orch._handle_dispatch_needed = AsyncMock()
         orch._handle_yolo_review = AsyncMock(return_value=0.0)
         orch._handle_auto_update = AsyncMock()
+        orch._maybe_run_watchdog = MagicMock()
+        orch._run_step5b_maintenance = MagicMock()
+        orch._run_step5c_epic_maintenance = MagicMock()
+        orch._recover_release_addendum_leases = MagicMock(return_value=0)
         orch._notify_observers = MagicMock()
 
         with patch(

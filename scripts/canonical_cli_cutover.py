@@ -403,10 +403,12 @@ def verify_pair(
     canonical: Path,
     url: str,
     environ: dict[str, str] | None = None,
+    operator_path: str | None = None,
     request: Request | None = None,
 ) -> str:
     """Verify command resolution and equality for an already-running service."""
     env = dict(os.environ if environ is None else environ)
+    validation_path = env.get("PATH", "") if operator_path is None else operator_path
     if request is None:
         def request(method, path, body):
             return _http_request(
@@ -433,7 +435,7 @@ def verify_pair(
             "health and authenticated state must report the same non-null "
             "service instance"
         )
-    resolved = shutil.which("oompah", path=env.get("PATH"))
+    resolved = shutil.which("oompah", path=validation_path)
     if resolved is None or os.path.abspath(resolved) != os.path.abspath(canonical):
         raise CutoverError(
             "command -v oompah does not resolve to the canonical launcher "
@@ -441,7 +443,7 @@ def verify_pair(
         )
     result = subprocess.run(
         [str(canonical), "--version"],
-        env=env,
+        env={**env, "PATH": validation_path},
         capture_output=True,
         text=True,
         check=False,
@@ -471,6 +473,7 @@ def graceful_cutover(
     tool_dir: Path | None = None,
     bin_dir: Path | None = None,
     environ: dict[str, str] | None = None,
+    operator_path: str | None = None,
     request: Request | None = None,
     stage: Callable[..., StagedCLI] = stage_candidate,
     activate: Callable[..., Activation] = activate_candidate,
@@ -485,9 +488,17 @@ def graceful_cutover(
 ) -> str:
     """Perform a pause, stage, activate, restart, and identity transaction."""
     env = dict(os.environ if environ is None else environ)
+    validation_path = env.get("PATH", "") if operator_path is None else operator_path
+    operator_env = {**env, "PATH": validation_path}
     home = Path(env.get("HOME", str(Path.home())))
     tool_dir = tool_dir or Path(env.get("UV_TOOL_DIR", home / ".local/share/uv/tools"))
     bin_dir = bin_dir or Path(env.get("UV_TOOL_BIN_DIR", canonical.parent))
+    resolved = shutil.which("oompah", path=validation_path)
+    if resolved is None or os.path.abspath(resolved) != os.path.abspath(canonical):
+        raise CutoverError(
+            "command -v oompah does not resolve to the canonical launcher "
+            f"{canonical} (resolved {resolved or 'not found'})"
+        )
     if request is None:
         def request(method, path, body):
             return _http_request(
@@ -520,7 +531,7 @@ def graceful_cutover(
     old_revision = old_health_revision
     current = subprocess.run(
         [str(canonical), "--version"],
-        env=env,
+        env=operator_env,
         capture_output=True,
         text=True,
         check=False,
@@ -583,6 +594,7 @@ def graceful_cutover(
             source_url=source_url,
             uv=uv,
             environ=env,
+            operator_path=operator_path,
         )
         activation = activate(
             staged,
@@ -590,6 +602,7 @@ def graceful_cutover(
             tool_dir=tool_dir,
             bin_dir=bin_dir,
             environ=env,
+            operator_path=operator_path,
         )
 
         # This request is the cutover point: the old process has drained, and
@@ -713,6 +726,10 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--uv", default="uv")
     parser.add_argument("--tool-dir", type=Path)
     parser.add_argument("--bin-dir", type=Path)
+    parser.add_argument(
+        "--operator-path",
+        help="PATH from the operator shell for canonical CLI validation",
+    )
     parser.add_argument("--timeout", type=float, default=3600)
     parser.add_argument("--health-timeout", type=float, default=3660)
     parser.add_argument("--pid-file", type=Path)
@@ -739,6 +756,7 @@ def main(argv: list[str] | None = None) -> int:
                 repo=args.repo,
                 canonical=args.canonical,
                 url=args.url,
+                operator_path=args.operator_path,
             )
         else:
             revision = graceful_cutover(
@@ -749,6 +767,7 @@ def main(argv: list[str] | None = None) -> int:
                 uv=args.uv,
                 tool_dir=args.tool_dir,
                 bin_dir=args.bin_dir,
+                operator_path=args.operator_path,
                 timeout=args.timeout,
                 health_timeout=args.health_timeout,
                 force=args.force,

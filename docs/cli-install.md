@@ -132,10 +132,14 @@ recover with:
 make install-cli
 ```
 
-If that command reports a PATH error, put `$HOME/.local/bin` before project
-virtualenv directories in `PATH`, then rerun `make install-cli`. Verify the
-pair with `command -v oompah`, `oompah --version`, the public health check,
-and an authenticated state request before retrying a lifecycle operation.
+The Makefile keeps the project virtualenv first for its internal Python and UV
+tools, but preserves the operator shell's original `PATH` for canonical CLI
+validation. Therefore normal `make install-cli` and `make restart` commands do
+not need a PATH workaround. A genuine shadowing `oompah` executable is still
+rejected; put `$HOME/.local/bin` before that executable in the operator shell's
+`PATH`, then rerun `make install-cli`. Verify the pair with `command -v
+oompah`, `oompah --version`, the public health check, and an authenticated state
+request before retrying a lifecycle operation.
 
 ## What you get
 

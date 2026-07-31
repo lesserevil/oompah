@@ -1,5 +1,11 @@
 VENV := .venv
 PYTHON := $(VENV)/bin/python
+# Keep the operator's command-resolution contract separate from the internal
+# tool path exported to recipes.  Exporting the latter is useful for Make's
+# Python/UV helpers, but it must not make a project-local oompah launcher win
+# the canonical CLI checks.  Preserve this across recursive $(MAKE) calls.
+OPERATOR_PATH := $(if $(OOMPAH_OPERATOR_PATH),$(OOMPAH_OPERATOR_PATH),$(PATH))
+export OOMPAH_OPERATOR_PATH := $(OPERATOR_PATH)
 export PATH := $(abspath $(VENV)/bin):$(PATH)
 _PYTEST_GATE := $(filter 1 true yes,$(strip $(OOMPAH_PYTEST_GATE)))
 ifeq ($(_PYTEST_GATE),)
@@ -132,7 +138,8 @@ sync-cli: setup
 		--repo . \
 		--canonical "$(CANONICAL_CLI)" \
 		--source-url "$(CLI_SOURCE_URL)" \
-		--uv "$(UV)"
+		--uv "$(UV)" \
+		--operator-path "$(OPERATOR_PATH)"
 
 install-cli: sync-cli
 
@@ -194,6 +201,7 @@ start: setup
 			--repo . \
 			--canonical "$(CANONICAL_CLI)" \
 			--url "$(LOCAL_HTTP_URL)" \
+			--operator-path "$(OPERATOR_PATH)" \
 			--verify-only || exit 1; \
 	else \
 		rm -f "$(PID_FILE)" "$(PID_META_FILE)"; \
@@ -205,7 +213,8 @@ start: setup
 			--repo . \
 			--canonical "$(CANONICAL_CLI)" \
 			--source-url "$(CLI_SOURCE_URL)" \
-			--uv "$(UV)" || exit 1; \
+			--uv "$(UV)" \
+			--operator-path "$(OPERATOR_PATH)" || exit 1; \
 		if command -v setsid >/dev/null 2>&1; then \
 			setsid $(PYTHON) -m oompah server >> $(LOG_FILE) 2>&1 </dev/null & \
 		else \
@@ -241,6 +250,7 @@ start: setup
 			--repo . \
 			--canonical "$(CANONICAL_CLI)" \
 			--url "$(LOCAL_HTTP_URL)" \
+			--operator-path "$(OPERATOR_PATH)" \
 			--verify-only; then \
 			echo "ERROR: oompah started but CLI/server build identities do not match; stopping it."; \
 			$(MAKE) --no-print-directory stop; \
@@ -304,6 +314,7 @@ restart: setup
 			--repo . \
 			--canonical "$(CANONICAL_CLI)" \
 			--url "$(LOCAL_HTTP_URL)" \
+			--operator-path "$(OPERATOR_PATH)" \
 			--source-url "$(CLI_SOURCE_URL)" \
 			--uv "$(UV)" \
 			--pid-file "$(PID_FILE)" \
@@ -328,6 +339,7 @@ force-restart: setup
 			--repo . \
 			--canonical "$(CANONICAL_CLI)" \
 			--url "$(LOCAL_HTTP_URL)" \
+			--operator-path "$(OPERATOR_PATH)" \
 			--source-url "$(CLI_SOURCE_URL)" \
 			--uv "$(UV)" \
 			--pid-file "$(PID_FILE)" \
