@@ -20,7 +20,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-30T21:24:41.452666Z'
-updated_at: '2026-07-31T20:36:35.093078Z'
+updated_at: '2026-07-31T20:54:03.731766Z'
 work_branch: epic-OOMPAH-619
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/626
@@ -207,5 +207,10 @@ author: oompah
 created: 2026-07-31 20:36
 ---
 A second hosted CI pass exposed two more boundedness bugs: the exact-revision test re-resolved dependencies for five minutes, and the free-port macro ran lsof after ss had already reported no listener. Fixed at 755797119 by installing only the pinned package against the already-installed dependency directory and making ss authoritative with lsof used only when ss is absent. Verification: 7 focused regressions passed; full make test passed with 14,535 passed, 7 skipped, 1 xfailed.
+---
+author: oompah
+created: 2026-07-31 20:54
+---
+Final hosted-CI boundedness fix pushed at ba5e86c7e. The exact-revision CLI test now avoids redundant dependency installation and build isolation while preserving VCS revision metadata, lifecycle port checks use ss authoritatively instead of falling through to unbounded lsof scans, and hatchling is explicit in the dev environment. Focused hosted-failure reproductions: 6 passed. Complete branch gate: 14,535 passed, 7 skipped, 1 xfailed in 376.02s. PR #626 auto-merge remains armed; waiting for the fresh matrix on this exact head.
 ---
 <!-- COMMENTS:END -->
