@@ -592,6 +592,59 @@ def test_sandbox_command_uses_an_empty_root_and_private_runtime_mounts(
         BranchQualityGate._cleanup_gate_run_root(run_root)
 
 
+def test_sandbox_command_overlays_writable_uv_sentinels_over_ro_venv(
+    tmp_path, monkeypatch
+):
+    """Sentinel overlays prevent stale-mtime Make rebuilds when uv is absent.
+
+    Git archive stamps all snapshot files with the commit timestamp.  When
+    that timestamp is newer than the .uv-setup / .uv-test-setup sentinels
+    inside the ro-mounted operator venv, Make tries to run ``uv pip install``
+    — which fails because uv is not in the restricted sandbox PATH and the
+    venv is mounted read-only.  ``_sandbox_command`` must create writable
+    sentinel files in run_root and bind them over the read-only venv so Make
+    sees them as current.
+    """
+    snapshot = tmp_path / "snapshot"
+    snapshot.mkdir()
+    run_root = BranchQualityGate._gate_run_root()
+    try:
+        monkeypatch.setattr(shutil, "which", lambda _name: "/usr/bin/bwrap")
+        monkeypatch.setattr(
+            subprocess,
+            "run",
+            lambda args, **_kwargs: subprocess.CompletedProcess(args, 0),
+        )
+
+        command = BranchQualityGate._sandbox_command("true", str(snapshot), run_root)
+
+        # Sentinels must be created as writable files in run_root.
+        assert (run_root / ".uv-setup").exists(), (
+            ".uv-setup sentinel not created in run_root"
+        )
+        assert (run_root / ".uv-test-setup").exists(), (
+            ".uv-test-setup sentinel not created in run_root"
+        )
+
+        # Parse --bind flag dst triplets from the flat command list.
+        bind_map: dict[str, str] = {}
+        for i in range(len(command) - 2):
+            if command[i] == "--bind":
+                bind_map[command[i + 1]] = command[i + 2]
+
+        # Sentinels must be bound at the venv path inside the snapshot so
+        # they override the earlier --ro-bind of the operator venv.
+        repo = snapshot.resolve()
+        assert bind_map.get(str(run_root / ".uv-setup")) == str(
+            repo / ".venv" / ".uv-setup"
+        ), ".uv-setup not bound at venv/.uv-setup inside the sandbox"
+        assert bind_map.get(str(run_root / ".uv-test-setup")) == str(
+            repo / ".venv" / ".uv-test-setup"
+        ), ".uv-test-setup not bound at venv/.uv-test-setup inside the sandbox"
+    finally:
+        BranchQualityGate._cleanup_gate_run_root(run_root)
+
+
 def test_default_boundary_blocks_literal_host_pid_and_localhost_attack(tmp_path):
     """A capable sandbox protects a live host sentinel while candidate code runs."""
     repo = _git_repo(tmp_path)

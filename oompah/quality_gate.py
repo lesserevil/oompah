@@ -779,6 +779,24 @@ class BranchQualityGate:
                     str(python_destination),
                 ]
             )
+            # Overlay writable sentinel files over the read-only venv mount so
+            # Make skips uv-based setup steps inside the gate.  Git archive
+            # stamps every file in the snapshot with the commit timestamp,
+            # which can be newer than the sentinel files in the ro-mounted
+            # venv; Make then tries to rebuild them by running uv, which is
+            # unavailable in the sandbox PATH.  Creating fresh sentinels in
+            # run_root and binding them over the venv paths ensures Make sees
+            # setup as current without any uv invocation or write access.
+            for _sentinel_name in (".uv-setup", ".uv-test-setup"):
+                _writable_sentinel = run_root / _sentinel_name
+                _writable_sentinel.touch()
+                runtime_binds.extend(
+                    [
+                        "--bind",
+                        str(_writable_sentinel),
+                        str(repo / ".venv" / _sentinel_name),
+                    ]
+                )
 
         add_destination(repo)
         add_destination(_SANDBOX_RUN_ROOT)
