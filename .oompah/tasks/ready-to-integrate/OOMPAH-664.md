@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T16:04:06.140108Z'
-updated_at: '2026-07-31T18:38:51.050910Z'
+updated_at: '2026-07-31T18:39:10.041707Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,13 +44,17 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 87dfad04-582f-46f6-93ca-0ea8552ab073
 oompah.task_costs:
-  total_input_tokens: 1952826
-  total_output_tokens: 7746
+  total_input_tokens: 1952876
+  total_output_tokens: 9091
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 1952826
       output_tokens: 7746
+      cost_usd: 0.0
+    sonnet:
+      input_tokens: 50
+      output_tokens: 1345
       cost_usd: 0.0
   runs:
   - profile: default
@@ -59,6 +63,12 @@ oompah.task_costs:
     output_tokens: 7746
     cost_usd: 0.0
     recorded_at: '2026-07-31T18:16:36.824552+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 50
+    output_tokens: 1345
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T18:39:01.905344+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-664__20260731T181337Z
@@ -169,5 +179,33 @@ author: oompah
 created: 2026-07-31 18:38
 ---
 Bound issue-list snapshots to state-branch generation: added get_state_branch_generation(), add_read_change_callback()/_notify_read_change() to OompahMarkdownTracker for synchronous cache invalidation; extended _issues_snapshot with source_generations + invalidated fields in server.py; generation-aware _detail_cache_get/_detail_cache_set for detail endpoint parity; _fetch_all_issues with include_source_generations path; all 6 required deterministic tests pass (barrier, checkpoint invalidation, two-project isolation, list/detail parity, restart, read-failure stale preservation). 59 focused tests pass.
+---
+author: oompah
+created: 2026-07-31 18:39
+---
+Run #2 [attempt=2, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 0, Tool calls: 31
+- Tokens: 50 in / 1.3K out [1.4K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 5m 27s
+- Log: OOMPAH-664__20260731T183338Z.jsonl
+---
+author: oompah
+created: 2026-07-31 18:39
+---
+Branch quality gate blocked review creation.
+
+Branch: `OOMPAH-664`
+Target: `main`
+Head: `db975da26c71bb65456d0df87549cc65ce582095`
+Command: `make test`
+Result: `needs_rebase`
+
+Required: rebase this branch onto the current deployed base so it contains the lifecycle safety prerequisite and does not replace the protected gate entrypoints. Run the full command, commit and push the repair, then leave the task in Done; Oompah will rerun the gate for the new head before creating the PR/MR.
+
+Output tail:
+```text
+OS-enforced quality-gate sandbox is unavailable; refusing to execute candidate code: cannot prepare an immutable candidate snapshot: unsafe link in candidate archive: '.oompah-no-hooks/prepare-commit-msg' -> '/home/shedwards/src/oompah/oompah/git_hooks/prepare-commit-msg'
+```
 ---
 <!-- COMMENTS:END -->
