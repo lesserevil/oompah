@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-07-31T13:42:08.197694Z'
+updated_at: '2026-07-31T13:42:21.995049Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,8 +42,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 8faade4e-a799-4a63-866b-4617d74ec8c7
 oompah.task_costs:
-  total_input_tokens: 928429
-  total_output_tokens: 17298
+  total_input_tokens: 928456
+  total_output_tokens: 21696
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -51,8 +51,8 @@ oompah.task_costs:
       output_tokens: 5456
       cost_usd: 0.0
     opus:
-      input_tokens: 221
-      output_tokens: 11842
+      input_tokens: 248
+      output_tokens: 16240
       cost_usd: 0.0
   runs:
   - profile: default
@@ -91,6 +91,12 @@ oompah.task_costs:
     output_tokens: 2668
     cost_usd: 0.0
     recorded_at: '2026-07-31T12:15:10.307191+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 27
+    output_tokens: 4398
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T13:42:15.784288+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-658__20260731T111938Z
@@ -117,14 +123,24 @@ oompah.work_contributors:
     source_branch: OOMPAH-658
     source_sha: 1b49ab0f4732ca40bfb7355f726a8da6bacc234f
     completed_at: '2026-07-31T12:15:10.310898+00:00'
+  - run_id: OOMPAH-658__20260731T133851Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: opus
+    focus: ci_fix
+    source_branch: OOMPAH-658
+    source_sha: 6e27fb150b7bd711c98c7aa5c94e355200dfa325
+    completed_at: '2026-07-31T13:42:15.788803+00:00'
 oompah.integration:
   version: 2
   state: ready
   attempts: 0
   task_branch: OOMPAH-658
+  base_branch: main
+  base_sha: 507534cf21032d8bd94ce6e9d5dcd4d1497b3a65
   head_sha: 6e27fb150b7bd711c98c7aa5c94e355200dfa325
   submitted_at: '2026-07-31T13:42:05.125921+00:00'
-  updated_at: '2026-07-31T13:42:05.125921+00:00'
+  updated_at: '2026-07-31T13:42:21.066263+00:00'
 oompah.start_blocked_by: *id001
 ---
 ## Summary
@@ -758,5 +774,20 @@ author: oompah
 created: 2026-07-31 13:42
 ---
 Adapter-backed duplicate-preflight deduplication rebased onto OOMPAH-657. Fingerprint composes (title, description with Triggered-by header, project, type, parent, intake.proposal_fingerprint); scheduling metadata (deps, labels, updated_at, last_validated_at) excluded. Native persisted regressions verify zero re-screens across ticks/fresh orchestrator on unchanged intake, exactly-one claim under concurrent ticks on mutated intake proposal_fingerprint, and continued retry for inconclusive verdicts. 450 focused tests pass at head 6e27fb150.
+---
+author: oompah
+created: 2026-07-31 13:42
+---
+Agent completed successfully in 209s (4425 tokens)
+---
+author: oompah
+created: 2026-07-31 13:42
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Claude/opus]
+- Turns: 29, Tool calls: 21
+- Tokens: 27 in / 4.4K out [4.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 3m 29s
+- Log: OOMPAH-658__20260731T133851Z.jsonl
 ---
 <!-- COMMENTS:END -->

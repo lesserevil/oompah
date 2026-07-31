@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-660
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: 0
 title: Rebase epic-OOMPAH-619 onto main
 parent: OOMPAH-619
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T12:53:39.335817Z'
-updated_at: '2026-07-31T13:34:50.880405Z'
+updated_at: '2026-07-31T13:42:32.383487Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-660
 target_branch: null
 review_url: null
@@ -21,15 +21,15 @@ oompah.agent_run_id: 3cf063d3-d17d-4af1-9ff8-32955c601387
 oompah.work_branch: epic-OOMPAH-619--task-OOMPAH-660
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 1
+  state: integrated
+  attempts: 2
   task_branch: epic-OOMPAH-619--task-OOMPAH-660
   base_branch: epic-OOMPAH-619
   base_sha: 17658b95e32641e8cf2dbfff06f780c0f6b57916
   head_sha: 793bcc7969d39634dab560ed0a10b9dcad7a9716
+  integrated_sha: 793bcc7969d39634dab560ed0a10b9dcad7a9716
   submitted_at: '2026-07-31T13:33:58.150340+00:00'
-  updated_at: '2026-07-31T13:34:50.011434+00:00'
-  last_error: Combined-tree quality gate interrupted by service shutdown
+  updated_at: '2026-07-31T13:42:25.718089+00:00'
 oompah.task_costs:
   total_input_tokens: 247076
   total_output_tokens: 16441
@@ -146,6 +146,28 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-8bf132785a1e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-660
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ab40139d20357c96bd12885b6e5d66faa752c6e577b3dc2c5bf215c2d3646e02
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-31T13:42:29.739266+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -615,5 +637,10 @@ Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: normal, Duration: 11m 43s
 - Log: OOMPAH-660__20260731T132301Z.jsonl
+---
+author: oompah
+created: 2026-07-31 13:42
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
