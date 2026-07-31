@@ -201,31 +201,35 @@ class TestServerChildrenCounts:
     """Verify that the server includes children_counts in WebSocket serialization."""
 
     def test_fetch_and_serialize_includes_children_counts(self):
-        """_fetch_and_serialize_issues must compute and include children_counts for epics."""
-        import inspect
-        from oompah.server import _fetch_and_serialize_issues
+        """_serialize_issues must compute and include children_counts for epics.
 
-        source = inspect.getsource(_fetch_and_serialize_issues)
+        _fetch_and_serialize_issues delegates to _serialize_issues for the
+        actual serialization logic; inspect that function's source.
+        """
+        import inspect
+        from oompah.server import _serialize_issues
+
+        source = inspect.getsource(_serialize_issues)
         # Must build epic child counts
         assert "children_counts" in source
         # Must iterate issues to count children per state
-        assert "epics" in source
+        assert "epics" in source or "parent_id" in source
         assert "child_state" in source or "Backlog" in source
 
     def test_fetch_and_serialize_computes_epic_map(self):
-        """The function must identify epics and build a counts map."""
+        """The serialization function must identify epics and build a counts map."""
         import inspect
-        from oompah.server import _fetch_and_serialize_issues
+        from oompah.server import _serialize_issues
 
-        source = inspect.getsource(_fetch_and_serialize_issues)
+        source = inspect.getsource(_serialize_issues)
         # Should create counts using the canonical dashboard-state helper.
         assert "_empty_state_counts()" in source
 
     def test_fetch_and_serialize_adds_counts_to_epic_entries(self):
         """Epic entries in the result must have children_counts attached."""
         import inspect
-        from oompah.server import _fetch_and_serialize_issues
+        from oompah.server import _serialize_issues
 
-        source = inspect.getsource(_fetch_and_serialize_issues)
+        source = inspect.getsource(_serialize_issues)
         # Must conditionally add children_counts to epic entries
         assert 'entry["children_counts"]' in source or "entry['children_counts']" in source

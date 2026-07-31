@@ -797,6 +797,23 @@ class BranchQualityGate:
                         str(repo / ".venv" / _sentinel_name),
                     ]
                 )
+            # Also bind the operator venv at its original absolute path so
+            # that entry-point scripts (e.g. the ``oompah`` console-script)
+            # whose shebangs reference that absolute path can execute inside
+            # the sandbox.  Without this, the shebang
+            # ``#!/path/to/operator/.venv/bin/python3`` resolves to a path
+            # that is not visible in the sandbox, causing subprocess calls to
+            # the binary entry point to fail with ENOENT.  The venv is still
+            # mounted read-only; no operator state is writable.
+            if runtime_prefix != (repo / ".venv").resolve():
+                add_destination(runtime_prefix)
+                runtime_binds.extend(
+                    [
+                        "--ro-bind",
+                        str(runtime_prefix),
+                        str(runtime_prefix),
+                    ]
+                )
 
         add_destination(repo)
         add_destination(_SANDBOX_RUN_ROOT)
