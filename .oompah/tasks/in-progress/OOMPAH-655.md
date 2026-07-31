@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T11:01:40.816757Z'
+updated_at: '2026-07-31T11:05:40.564252Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -243,5 +243,10 @@ author: oompah
 created: 2026-07-31 11:01
 ---
 Understanding: Previous substring-matching preflight was rejected because hostile Makefiles can contain marker strings in comments but still execute attacks. Implementing proper fix: replace substring matching with exact git ancestry verification. Candidate branch must contain OOMPAH-652 safety head (ec0ec7d89) in its git history. Tests must prove spoofed fixtures never execute (checking sentinel side effects, not allowing execution). Will update _verify_isolation_contract() to use 'git merge-base --is-ancestor' check instead of substring search.
+---
+author: oompah
+created: 2026-07-31 11:05
+---
+Discovery: Replaced substring-matching preflight with proper git ancestry verification. Implementation: (1) Updated _verify_isolation_contract() to use 'git merge-base --is-ancestor' to verify candidate branch contains OOMPAH-652 safety head (ec0ec7d89), (2) Added OOMPAH_TEST_SAFETY_HEAD environment variable for testing, (3) Updated test helper _git_repo() to create synthetic safety head commit, (4) Updated tests to verify spoofed markers are still rejected without proper ancestry, (5) Tests verify hostile code never executes (checking sentinel side effects).
 ---
 <!-- COMMENTS:END -->
