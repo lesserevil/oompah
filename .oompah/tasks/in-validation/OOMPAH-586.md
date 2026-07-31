@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:13:33.901470Z'
-updated_at: '2026-07-31T01:16:57.686144Z'
+updated_at: '2026-07-31T01:17:16.292971Z'
 work_branch: epic-OOMPAH-586
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/597
@@ -107,18 +107,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-586
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 7ec996cebca2945e2652e98dc89274cd1af9d7bdde38cc50c6952e38fcdafa3d
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-6fadf019ce9c
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 7ec996cebca2945e2652e98dc89274cd1af9d7bdde38cc50c6952e38fcdafa3d
+      created_at: '2026-07-31T01:17:11.031839+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-31T01:17:11.031839+00:00'
+      branch_key: epic-OOMPAH-586
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-07-31T00:36:41.194797+00:00'
+    updated_at: '2026-07-31T01:17:11.031839+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-9b8858a0a4d1
@@ -132,6 +146,19 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: opus
     started_at: '2026-07-31T00:36:56.855747+00:00'
+    branch_key: epic-OOMPAH-586
+  - version: 1
+    attempt_id: attempt-6fadf019ce9c
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7ec996cebca2945e2652e98dc89274cd1af9d7bdde38cc50c6952e38fcdafa3d
+    created_at: '2026-07-31T01:17:11.031839+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-31T01:17:11.031839+00:00'
     branch_key: epic-OOMPAH-586
 ---
 ## Summary
@@ -277,5 +304,15 @@ author: oompah
 created: 2026-07-31 01:16
 ---
 Restored validation ownership for the already-pending Merged audit audit-0ed1029671bd; this is a temporary operator workaround for the pre-OOMPAH-630/631 runtime race.
+---
+author: oompah
+created: 2026-07-31 01:17
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-07-31 01:17
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
