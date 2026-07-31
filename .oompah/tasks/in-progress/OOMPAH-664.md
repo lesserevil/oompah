@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:06.140108Z'
-updated_at: '2026-07-31T22:37:21.091588Z'
+updated_at: '2026-07-31T22:37:44.179413Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -691,5 +691,16 @@ author: oompah
 created: 2026-07-31 22:37
 ---
 Implementation: Updated BranchQualityGate._sandbox_command() to bind the immutable candidate snapshot at the trusted editable environment's original checkout path. Existing absolute virtualenv mapping remains read-only, so console-script shebangs and editable imports now both resolve within the candidate, never the operator worktree. Extended the sandbox-command regression test to require this candidate-source projection.
+---
+author: oompah
+created: 2026-07-31 22:37
+---
+Verification: 68 focused tests pass: tests/test_quality_gate.py, TestCurrentInstallSmoke, and TestTickDelegation (including the nine previously reported failures). make[1]: Entering directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-664'
+:
+.venv/bin/python scripts/find_terminal_mutations.py oompah
+OOMPAH_PYTEST_WORKERS="4" \
+	OOMPAH_PYTEST_TEMP_ROOT="~/.oompah/tmp" \
+	scripts/run-tests.sh parallel
+make[1]: Leaving directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-664' shows no uv invocation. The current container cannot start a nested bwrap namespace, so direct in-sandbox reproduction is unavailable; the new regression inspects the exact mount command used by the gate.
 ---
 <!-- COMMENTS:END -->
