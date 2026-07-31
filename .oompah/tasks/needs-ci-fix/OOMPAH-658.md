@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-658
 type: bug
-status: Ready to Integrate
+status: Needs CI Fix
 priority: 2
 title: Deduplicate duplicate-preflight runs across deferred dispatch ticks
 parent: null
@@ -9,10 +9,11 @@ children: []
 blocked_by:
 - OOMPAH-657
 start_blocked_by: []
-labels: []
+labels:
+- ci-fix
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-07-31T11:47:32.939634Z'
+updated_at: '2026-07-31T11:53:02.522722Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -348,5 +349,55 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 15m 3s
 - Log: OOMPAH-658__20260731T113234Z.jsonl
+---
+author: oompah
+created: 2026-07-31 11:53
+---
+Branch quality gate blocked review creation.
+
+Branch: `OOMPAH-658`
+Target: `main`
+Head: `1fc7b264210d129e9492b9251af5072f9a45fc0a`
+Command: `make test`
+Result: `failed`
+
+Required: run the command in the task worktree, fix the failure, commit and push the repair, then leave the task in Done. Oompah will rerun the gate for the new head before creating the PR/MR.
+
+Output tail:
+```text
+py::TestPutRolesCandidatesValidation::test_second_bad_candidate_still_rejected 
+[gw1] [ 79%] PASSED tests/test_roles_api.py::TestPutRolesBodyValidation::test_rejects_non_dict_body 
+tests/test_roles_api.py::TestPutRolesAtomicity::test_invalid_new_format_candidate_rolls_back_all 
+tests/test_roles_api.py::TestPutRolesAtomicity::test_invalid_strategy_rolls_back_all 
+[gw3] [ 79%] PASSED tests/test_roles_api.py::TestPutRolesBodyValidation::test_rejects_non_dict_role_row 
+[gw0] [ 79%] PASSED tests/test_roles_api.py::TestPutRolesAtomicity::test_invalid_new_format_candidate_rolls_back_all 
+tests/test_roles_api.py::TestPutRolesAtomicity::test_three_good_one_bad_new_format_atomic 
+[gw2] [ 79%] PASSED tests/test_roles_api.py::TestPutRolesBodyValidation::test_rejects_missing_role 
+[gw1] [ 79%] PASSED tests/test_roles_api.py::TestPutRolesAtomicity::test_invalid_strategy_rolls_back_all 
+[gw0] [ 79%] PASSED tests/test_roles_api.py::TestPutRolesAtomicity::test_three_good_one_bad_new_format_atomic 
+tests/test_roles_api.py::TestPutRolesAtomicity::test_legacy_format_atomicity 
+tests/test_round_robin_atomic_dispatch.py::TestConcurrentDispatchAlternation::test_two_concurrent_dispatches_select_different_providers 
+tests/test_round_robin_atomic_dispatch.py::TestConcurrentDispatchAlternation::test_n_concurrent_dispatches_balance_providers 
+tests/test_round_robin_atomic_dispatch.py::TestConcurrentDispatchAlternation::test_dispatches_alternate_before_any_worker_completes 
+[gw2] [ 79%] PASSED tests/test_roles_api.py::TestPutRolesAtomicity::test_legacy_format_atomicity 
+tests/test_round_robin_atomic_dispatch.py::TestStartupFailoverReservation::test_startup_failure_falls_back_to_second_candidate 
+[gw2] [ 79%] PASSED tests/test_round_robin_atomic_dispatch.py::TestStartupFailoverReservation::test_startup_failure_falls_back_to_second_candidate 
+tests/test_round_robin_atomic_dispatch.py::TestClaudeCodexRegression::test_five_concurrent_dispatches_include_codex 
+[gw3] [ 79%] PASSED tests/test_round_robin_atomic_dispatch.py::TestConcurrentDispatchAlternation::test_two_concurrent_dispatches_select_different_providers 
+tests/test_round_robin_atomic_dispatch.py::TestPreflightFailoverReservation::test_preflight_failure_falls_back_to_second_candidate 
+[gw1] [ 79%] PASSED tests/test_round_robin_atomic_dispatch.py::TestConcurrentDispatchAlternation::test_dispatches_alternate_before_any_worker_completes 
+tests/test_round_robin_atomic_dispatch.py::TestStartupFailoverReservation::test_next_dispatch_after_startup_failure_gets_correct_candidate 
+[gw0] [ 79%] PASSED tests/test_round_robin_atomic_dispatch.py::TestConcurrentDispatchAlternation::test_n_concurrent_dispatches_balance_providers 
+tests/test_round_robin_atomic_dispatch.py::TestPreflightFailoverReservation::test_next_dispatch_after_preflight_failure_gets_correct_next_candidate 
+[gw3] [ 79%] PASSED tests/test_round_robin_atomic_dispatch.py::TestPreflightFailoverReservation::test_preflight_failure_falls_back_to_second_candidate 
+tests/test_round_robin_atomic_dispatch.py::TestPriorityRoleNotAffected::test_priority_role_always_returns_first_candidate 
+[gw2] [ 79%] PASSED tests/test_round_robin_atomic_dispatch.py::TestClaudeCodexRegression::test_five_concurrent_dispatches_include_codex 
+tests/test_round_robin_atomic_dispatch.py::TestClaudeCodexRegression::test_five_sequential_dispatches_alternate_claude_codex 
+[gw1] [ 79%] PASSED tests/test_round_robin_atomic_dispatch.py::TestStartupFailoverReservation::test_next_dispatch_after_startup_failure_gets_correct_candidate 
+tests/test_round_robin_atomic_dispatch.py::TestPriorityRoleNotAffected::test_priority_role_does_not_stamp_usage 
+[gw0] [ 79%] PASSED tests/test_round_robin_atomic_dispatch.py::TestPreflightFailoverReservation::test_next_dispatch_after_preflight_failure_gets_correct_next_candidate 
+tests/test_round_robin_atomic_dispatch.py::TestStartupFailoverReservation::test_repeated_startup_failures_do_not_repeat_failed_candidate 
+make[1]: *** [Makefile:295: test] Terminated
+```
 ---
 <!-- COMMENTS:END -->
