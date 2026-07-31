@@ -64,8 +64,10 @@ class TestFullSyncIntervalConfig:
         cfg = ServiceConfig.from_workflow(wf)
         assert cfg.full_sync_interval_ms == 300_000
 
-    def test_from_workflow_custom(self):
+    def test_from_workflow_custom(self, monkeypatch):
         """full_sync_interval_ms can be set via polling section."""
+        # Clear the env var so it cannot override the YAML value in the server env.
+        monkeypatch.delenv("OOMPAH_FULL_SYNC_INTERVAL_MS", raising=False)
         wf = WorkflowDefinition(
             config={"polling": {"interval_ms": 5000, "full_sync_interval_ms": 600_000}},
             prompt_template="test",
@@ -73,8 +75,10 @@ class TestFullSyncIntervalConfig:
         cfg = ServiceConfig.from_workflow(wf)
         assert cfg.full_sync_interval_ms == 600_000
 
-    def test_from_workflow_string_value(self):
+    def test_from_workflow_string_value(self, monkeypatch):
         """Handles string values (YAML may parse numbers as strings)."""
+        # Clear the env var so it cannot override the YAML string value in the server env.
+        monkeypatch.delenv("OOMPAH_FULL_SYNC_INTERVAL_MS", raising=False)
         wf = WorkflowDefinition(
             config={"polling": {"full_sync_interval_ms": "900000"}},
             prompt_template="test",
