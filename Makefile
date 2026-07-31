@@ -129,7 +129,7 @@ $(VENV)/.uv-test-setup: pyproject.toml $(VENV)/.uv-setup
 	@touch $@
 	@echo "Test dependencies installed."
 
-start: setup sync-cli
+start: setup
 	@mkdir -p "$$(dirname "$(PID_FILE)")" "$$(dirname "$(PID_META_FILE)")"; \
 	EXISTING_PID=$$(cat "$(PID_FILE)" 2>/dev/null || true); \
 	if [ -n "$$EXISTING_PID" ] && kill -0 "$$EXISTING_PID" 2>/dev/null; then \
@@ -146,6 +146,11 @@ start: setup sync-cli
 			echo "ERROR: Port $(PORT) is already in use. Cannot start oompah."; \
 			exit 1; \
 		fi; \
+		$(PYTHON) scripts/sync_canonical_cli.py \
+			--repo . \
+			--canonical "$(CANONICAL_CLI)" \
+			--source-url "$(CLI_SOURCE_URL)" \
+			--uv "$(UV)" || exit 1; \
 		if command -v setsid >/dev/null 2>&1; then \
 			setsid $(PYTHON) -m oompah server >> $(LOG_FILE) 2>&1 </dev/null & \
 		else \
@@ -206,7 +211,7 @@ stop:
 		echo "oompah is not running"; \
 	fi
 
-restart: setup sync-cli
+restart: setup
 	@PID=$$(cat "$(PID_FILE)" 2>/dev/null || :); \
 	if [ -n "$$PID" ] && kill -0 "$$PID" 2>/dev/null; then \
 		HEALTHZ_URL="http://127.0.0.1:$(PORT)/healthz"; \
@@ -250,6 +255,12 @@ restart: setup sync-cli
 		while [ $$ELAPSED -lt $(RESTART_HEALTH_TIMEOUT) ]; do \
 			AFTER=$$(OOMPAH_SERVER_URL="$(LOCAL_HTTP_URL)" $(PYTHON) scripts/oompah_http.py GET "$$STATE_PATH" 2>/dev/null | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('service_instance_id') or '')" 2>/dev/null || true); \
 			if [ -n "$$AFTER" ] && { [ -z "$$BEFORE" ] || [ "$$AFTER" != "$$BEFORE" ]; }; then \
+				echo "Old service instance drained and replaced. Synchronizing CLI..."; \
+				$(PYTHON) scripts/sync_canonical_cli.py \
+					--repo . \
+					--canonical "$(CANONICAL_CLI)" \
+					--source-url "$(CLI_SOURCE_URL)" \
+					--uv "$(UV)" || exit 1; \
 				echo "oompah restarted successfully and passed its health check (instance $$AFTER)."; \
 				exit 0; \
 			fi; \
@@ -267,11 +278,16 @@ restart: setup sync-cli
 
 graceful: restart
 
-# The emergency implementation remains an explicit stop followed by start;
-# synchronization is deliberately completed before the stop operation.
-# force-restart: stop start
-force-restart: sync-cli
+# The emergency implementation is an explicit stop followed by start,
+# with CLI synchronization occurring after the old service is stopped
+# but before the new one starts (the safe point for synchronization).
+force-restart: setup
 	@$(MAKE) --no-print-directory stop
+	$(PYTHON) scripts/sync_canonical_cli.py \
+		--repo . \
+		--canonical "$(CANONICAL_CLI)" \
+		--source-url "$(CLI_SOURCE_URL)" \
+		--uv "$(UV)" || exit 1
 	@$(MAKE) --no-print-directory start
 
 # Run oompah in the foreground using the Granian ASGI server.

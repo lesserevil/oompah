@@ -43,4 +43,3 @@ async def test_health_and_state_report_same_build_id():
 
     assert health["build_id"]["revision"]
     assert state["build_id"] == health["build_id"]
-
