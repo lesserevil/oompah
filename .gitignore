@@ -36,6 +36,10 @@ build/
 .env
 .env.*
 .htpasswd
+
+# Generated per-worktree hook directory. It contains absolute installation
+# links and must never be included in source archives.
+.oompah-no-hooks/
 .htpasswd.*
 
 *.log
