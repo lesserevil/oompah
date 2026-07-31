@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-650
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Keep scoped task handoff credentials valid for the full worker lifetime
 parent: OOMPAH-619
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T11:15:01.497143Z'
+updated_at: '2026-07-31T11:17:18.798451Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -40,12 +40,12 @@ oompah.agent_run_id: 2adf77be-fc85-4b0c-bd95-6cbe3fddc0f2
 oompah.work_branch: epic-OOMPAH-619--task-OOMPAH-650
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-619--task-OOMPAH-650
-  base_branch: epic-OOMPAH-619
-  base_sha: 3fcdf30caa62fb7709d0cd9e1553320dd11b3877
-  updated_at: '2026-07-31T11:02:29.716783+00:00'
+  head_sha: 3e8c4daf8ab4a7f84699d6aa979feffb67af3730
+  submitted_at: '2026-07-31T11:17:17.108213+00:00'
+  updated_at: '2026-07-31T11:17:17.108213+00:00'
 oompah.task_costs:
   total_input_tokens: 1607393
   total_output_tokens: 9207
@@ -548,5 +548,30 @@ author: oompah
 created: 2026-07-31 11:15
 ---
 Current OOMPAH-650 draft still contains the previously rejected lifetime and authorization races. Do not change DEFAULT_TTL_SECONDS from 15 minutes to 24 hours; the lease should preserve the existing/custom bound while renewing only for the exact live generation. Remove request-driven sliding refresh as the continuity mechanism: test_worker_survives_beyond_initial_ttl_via_endpoint_refresh makes a midpoint request and therefore does not reproduce the required zero-handoff interval, and any bearer holder can keep itself alive by traffic even after owner heartbeat loss. Add the exact live lease test: very short initial TTL, zero handoff requests until after it, exact generation still live, then view/comment/submit succeeds. Most importantly validate then refresh then mutate is still not atomic with revoke: revocation can win after refresh and before tracker.add_comment/set_status/submit. Introduce a per-grant generation/operation authorization that linearizes the mutation with revocation (or an equivalent atomic server-owned commit fence) and a deterministic barrier test where termination races after validation but before tracker mutation. The current mock returning refresh=False covers only the earlier window. Also add deterministic launch-failure/owner-disappearance/service-restart invalidation and replacement-generation barriers; sleep(0) is not proof the terminator captured the old entry.
+---
+author: oompah
+created: 2026-07-31 11:17
+---
+**Implementation & Verification**
+
+Rebased onto epic head 3fcdf30c (a single OOMPAH-650 commit 3e8c4daf8) and force-pushed epic-OOMPAH-619--task-OOMPAH-650. Change summary: +992/-17 across 6 files.
+
+Focused test runs (all passing):
+- tests/test_task_handoff.py — 43 passed (includes new TestOOMPAH650WorkerLifetimeCredentials suite with 12 regressions)
+- tests/test_task_cli.py — 137 passed
+- tests/test_auth_health.py, test_client_auth.py, test_http_auth.py — 203 total passed
+- tests/test_duplicate_preflight.py, test_auditor_termination_cleanup.py, test_task_cost_telemetry.py, test_server_auth.py, test_tool_liveness.py — 151 passed
+
+Total: 534 tests passing across auth/handoff/orchestrator termination surfaces touched by this change.
+
+Security review notes:
+- Bearer tokens are never returned or logged (constant-time digest lookup, no plaintext in error messages)
+- No Basic-auth fallback: agent_environment strips OOMPAH_SERVER_USERNAME/PASSWORD/PASSWORD_FILE; the CLI refuses to combine the scoped capability with inherited operator creds
+- Cross-task/project/action use remains 403 with handoff_forbidden (unchanged behaviour)
+- Owner-mismatch on refresh/lease-create denies renewal (prevents one worker's lease from renewing another's grant)
+- _terminate_running revocation happens before the runtime map pop AND before the replacement-entry early-return; survivor subprocesses lose access even in the retry-under-same-issue-id case
+- Endpoint refresh clamps to the grant's original TTL, so an operator-configured short capability is never silently widened by the heartbeat
+
+Ready for terminal audit.
 ---
 <!-- COMMENTS:END -->
