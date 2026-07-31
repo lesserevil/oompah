@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-644
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Make native task reads atomic across status-file moves
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:46:11.947079Z'
-updated_at: '2026-07-31T07:12:30.241511Z'
+updated_at: '2026-07-31T07:22:01.473740Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -83,6 +83,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-644
     source_sha: 6a8d6e9fbb53e12dc4739e89a0eabf56c6ad25f5
     completed_at: '2026-07-31T06:49:10.721264+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-644
+  head_sha: ab4cab20c0697076098bd429d529fd3d8d3434e9
+  submitted_at: '2026-07-31T07:21:58.711048+00:00'
+  updated_at: '2026-07-31T07:21:58.711048+00:00'
 ---
 ## Summary
 
@@ -149,5 +157,10 @@ author: oompah
 created: 2026-07-31 07:12
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-07-31 07:22
+---
+Atomic native task reads across status moves
 ---
 <!-- COMMENTS:END -->
