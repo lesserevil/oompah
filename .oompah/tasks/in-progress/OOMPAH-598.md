@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:29.695490Z'
-updated_at: '2026-07-31T01:25:45.375114Z'
+updated_at: '2026-07-31T01:27:03.841321Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-598
 target_branch: null
 review_url: null
@@ -331,5 +331,10 @@ Approach:
 - Verify the 4 broken tasks get valid delivery paths
 
 Starting with code exploration.
+---
+author: oompah
+created: 2026-07-31 01:27
+---
+Live conflict-repair correction: do not reimplement the already-present standalone reconciliation from scratch. The queue row is blocked because head 131913c09676 must be reconciled with current origin/epic-OOMPAH-587 at 8a875b1c3; integration reported a conflict applying e474c0021. The service-owned epic checkout is now clean/aligned. Reconcile this canonical task branch onto/with that exact base, resolve the existing implementation conflict while preserving later base fixes, run focused standalone/integration tests, push, and resubmit the repaired head.
 ---
 <!-- COMMENTS:END -->

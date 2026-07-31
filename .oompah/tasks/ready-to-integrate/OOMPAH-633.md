@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-633
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Repair stale integration queues in nested epics
 parent: OOMPAH-584
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:54:49.391955Z'
-updated_at: '2026-07-31T01:22:58.410667Z'
+updated_at: '2026-07-31T01:27:00.419261Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-633
 target_branch: null
 review_url: null
@@ -47,12 +47,12 @@ oompah.agent_run_id: eb3ab5fa-47fb-4f9b-836f-bab3f5f80f5b
 oompah.work_branch: epic-OOMPAH-584--task-OOMPAH-633
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-584--task-OOMPAH-633
-  base_branch: epic-OOMPAH-584
-  base_sha: 63f8d043c4ffa718a0b26858d701e54fc3c9bc88
-  updated_at: '2026-07-31T01:21:31.729805+00:00'
+  head_sha: ef3ba804da463a0e0dbcedecd715f8feaffe48e5
+  submitted_at: '2026-07-31T01:26:57.759303+00:00'
+  updated_at: '2026-07-31T01:26:57.759303+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-633__20260731T010158Z
@@ -368,5 +368,46 @@ Key code locations:
 - _detect_and_repair_integration_queue_staleness_block (line 5272) - checks parent epic target
 - _epic_synchronization_decision (line 10326) - validates parent target authorization
 - tests/test_parallel_epic_children.py - where tests need fixing
+---
+author: oompah
+created: 2026-07-31 01:26
+---
+Verification: Test Coverage Defects Fixed
+
+All test coverage issues identified by the auditor have been resolved:
+
+✓ Fixed test_nested_epic_queue_repair_denies_unrelated_epic_target:
+  - Properly mocks _resolve_parent_epic to return actual parent (EPIC-P)
+  - Sets target to unrelated epic branch (epic-EPIC-X)
+  - Correctly verifies rejection when parent != target
+
+✓ Added test_nested_epic_queue_repair_skips_already_reachable_nonterminal_dependencies:
+  - Verifies repair is skipped for nonterminal dependencies
+  - Tests In Progress state on target branch
+  - Ensures queue waits for terminal state
+
+✓ Added test_nested_epic_queue_repair_with_successful_parent_sync_allows_claim_next:
+  - Verifies successful parent rebase enables queue advancement
+  - Tests dependency satisfaction lets claim_next work
+  - Demonstrates complete repair workflow
+
+Test Results:
+- test_parallel_epic_children.py: 26/26 PASSED (up from 24, added 2 new tests)
+- test_epic_strategy.py: 213/213 PASSED
+- Total focused tests: 239/239 PASSED
+
+Implementation properly covers:
+1. Parent epic target detection and validation
+2. Authorization flow via rebase-requested label and Needs Rebase state
+3. Duplicate/cooldown fencing preservation
+4. Queue advancement after successful parent sync
+
+Branch: epic-OOMPAH-584--task-OOMPAH-633
+Head: ef3ba804d (pushed to origin)
+---
+author: oompah
+created: 2026-07-31 01:27
+---
+Fixed test coverage defects: unrelated epic denial, nonterminal dependency skipping, and successful parent sync enabling queue advancement. All 239 focused tests passing.
 ---
 <!-- COMMENTS:END -->
