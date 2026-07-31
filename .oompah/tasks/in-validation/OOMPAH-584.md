@@ -20,7 +20,7 @@ labels:
 - epic:stale
 assignee: null
 created_at: '2026-07-30T14:13:01.872040Z'
-updated_at: '2026-07-31T05:12:34.393027Z'
+updated_at: '2026-07-31T05:12:47.934068Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,18 +35,45 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-584
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: c4a0fd600972ec3a5d8ffdd99f0986dabfc9e170eb09eccbf6944bf2066d1d9f
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-4132c39c1619
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: c4a0fd600972ec3a5d8ffdd99f0986dabfc9e170eb09eccbf6944bf2066d1d9f
+      created_at: '2026-07-31T05:12:43.491182+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-31T05:12:43.491182+00:00'
+      branch_key: OOMPAH-584
     requested_by:
       version: 1
       identity: orchestrator
     previous_state: Open
     created_at: '2026-07-31T05:12:30.587245+00:00'
-  attempt_history: []
+    updated_at: '2026-07-31T05:12:43.491182+00:00'
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-4132c39c1619
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c4a0fd600972ec3a5d8ffdd99f0986dabfc9e170eb09eccbf6944bf2066d1d9f
+    created_at: '2026-07-31T05:12:43.491182+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-31T05:12:43.491182+00:00'
+    branch_key: OOMPAH-584
 ---
 ## Summary
 
@@ -89,5 +116,15 @@ author: oompah
 created: 2026-07-31 05:12
 ---
 Queued for terminal transition to Done. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-07-31 05:12
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-07-31 05:12
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
