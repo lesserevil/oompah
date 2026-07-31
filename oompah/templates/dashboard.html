@@ -2504,6 +2504,7 @@ let userToggledSwimlanes = {};  // Tracks explicit user toggles (true = user ove
 let orchPaused = false;
 let lastRunningAgents = [];
 let currentProjects = [];
+let httpAuthEnabled = false;  // HTTP Basic auth status from server state
 
 // --- Edit-state tracking ---
 // Bug fix: Track when user is inline-editing a card field so that incoming
@@ -3004,6 +3005,9 @@ function handleStateUpdate(state) {
     pauseBtn.textContent = 'Pause';
     pauseBtn.classList.remove('btn-paused');
   }
+
+  // Update HTTP auth state (used by mutations to conditionally omit actor)
+  httpAuthEnabled = (state.http_auth && state.http_auth.enabled) || false;
 
   // Render alerts inline in agent bar.
   const warningsEl = document.getElementById('agent-warnings');
@@ -3631,7 +3635,9 @@ async function updateIssue(identifier, fields) {
     outgoing.project_id = projectId;
   }
   const apiIdentifier = issue && issue.identifier ? issue.identifier : identifier;
-  if (outgoing.status !== undefined && !outgoing.actor_login) {
+  // When auth is enabled, omit actor_login so server derives from authenticated principal.
+  // When auth is disabled, send actor_login for backward compatibility.
+  if (!httpAuthEnabled && outgoing.status !== undefined && !outgoing.actor_login) {
     let project = currentProjects.find(p => p.id === (projectId || (issue && issue.project_id)));
     if (
       statusChangeNeedsProjectActor(issue, project, outgoing.status) &&
@@ -6195,17 +6201,23 @@ async function archiveIssueFromDetail(identifier) {
 
 async function performIntakeAction(identifier, action) {
   const projectId = document.getElementById('detail-panel-body').dataset.projectId;
-  let actor = intakeActorLogin();
-  if (!actor) {
-    const project = currentProjects.find(p => p.id === projectId) || null;
-    actor = projectStatusActorLogin(project);
-  }
-  if (!actor) {
-    const entered = prompt('GitHub login', '');
-    if (entered === null) return;
-    actor = entered.trim();
-    if (!actor) return;
-    localStorage.setItem('oompah_intake_actor', actor);
+  
+  // When auth is enabled, omit actor so server derives from authenticated principal.
+  // When auth is disabled, collect actor for backward compatibility.
+  let actor = null;
+  if (!httpAuthEnabled) {
+    actor = intakeActorLogin();
+    if (!actor) {
+      const project = currentProjects.find(p => p.id === projectId) || null;
+      actor = projectStatusActorLogin(project);
+    }
+    if (!actor) {
+      const entered = prompt('GitHub login', '');
+      if (entered === null) return;
+      actor = entered.trim();
+      if (!actor) return;
+      localStorage.setItem('oompah_intake_actor', actor);
+    }
   }
 
   let message = '';
@@ -6219,7 +6231,8 @@ async function performIntakeAction(identifier, action) {
     message = entered.trim();
   }
 
-  const payload = {actor, project_id: projectId};
+  const payload = {project_id: projectId};
+  if (actor) payload.actor = actor;  // Only include actor if not authenticated
   if (message) payload.message = message;
 
   let res;
@@ -6259,11 +6272,15 @@ async function openDetailPanel(identifier) {
 
   const issue = allIssuesFlat.find(i => i.identifier === identifier);
   const projectId = issue && issue.project_id ? issue.project_id : '';
-  const intakeActor = intakeActorLogin();
-  const project = currentProjects.find(p => p.id === projectId) || null;
-  const effectiveIntakeActor = intakeActor || projectStatusActorLogin(project);
+  // When auth is enabled, omit actor so server derives from authenticated principal.
+  // When auth is disabled, send actor for backward compatibility.
   const detailParams = {project_id: projectId};
-  if (effectiveIntakeActor) detailParams.actor = effectiveIntakeActor;
+  if (!httpAuthEnabled) {
+    const intakeActor = intakeActorLogin();
+    const project = currentProjects.find(p => p.id === projectId) || null;
+    const effectiveIntakeActor = intakeActor || projectStatusActorLogin(project);
+    if (effectiveIntakeActor) detailParams.actor = effectiveIntakeActor;
+  }
   // Start release-picks fetch in parallel; failures are caught and handled below.
   const _rpFetch = fetch(issueApiUrl(identifier, '/release-picks', {project_id: projectId})).catch(() => null);
   // Also fetch release addendums in parallel (OOMPAH-180).
