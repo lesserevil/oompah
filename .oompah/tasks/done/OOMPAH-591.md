@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-591
 type: task
-status: In Validation
+status: Done
 priority: 1
 title: Reconcile the pending audit backlog and stale In Validation tasks
 parent: OOMPAH-585
@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:26.620047Z'
-updated_at: '2026-07-31T00:04:00.023835Z'
+updated_at: '2026-07-31T00:06:56.273293Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-591
 target_branch: null
 review_url: null
@@ -156,6 +156,7 @@ oompah.terminal_audit:
   applied_result_attempts:
     no-auditor-audit-37099e414d25-3: '2026-07-30T19:43:55.856470+00:00'
     attempt-03cc29dbf171: '2026-07-30T22:38:42.932141+00:00'
+    attempt-4757deb0494f: '2026-07-31T00:06:54.147334+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -375,7 +376,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-591
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -384,7 +385,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-4757deb0494f
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -394,13 +395,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T00:03:52.836830+00:00'
       branch_key: epic-OOMPAH-585--task-OOMPAH-591
+      verdict: pass
+      completed_at: '2026-07-31T00:06:54.147204+00:00'
+      ended_at: '2026-07-31T00:06:54.147204+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Needs Human
     created_at: '2026-07-30T23:53:41.572906+00:00'
-    updated_at: '2026-07-31T00:03:52.836830+00:00'
+    updated_at: '2026-07-31T00:06:54.147204+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-870b1c4d15ed
@@ -967,5 +971,26 @@ author: oompah
 created: 2026-07-31 00:04
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 00:06
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- branch: epic-OOMPAH-585--task-OOMPAH-591
+- branch_head: 5c45358226b238c1c9c2bdeee8bf9c85489d6f19
+- work_commit: 3af9b8104c091984dee8d7f9066b2e14ef275691
+- work_commit_files_changed: tests/test_terminal_audit_enforcement.py (+258)
+- ancestry_of_merged_target: 5c4535822 -> ... -> c45e47bb3 (epic-OOMPAH-585 merge point on epic-OOMPAH-584)
+- merged_target_head: f9f1e78ae25afb462d71a360bf93cc2d4f0804a2
+- recovery_implementation: oompah/terminal_audit_enforcement.py:662 recover_pending_audits()
+- startup_wiring: oompah/orchestrator.py:1402 _run_terminal_audit_enforcement invoked from _tick_pool at 3678, 3939
+- tests_focused: tests/test_terminal_audit_enforcement.py 18 passed
+- tests_backlog_recovery: TestAuditBacklogRecovery 5 passed (test_multi_request_audit_chain_deduplicates_on_recovery, test_stale_fingerprint_superseded_record_not_requeued, test_completed_audit_leaves_no_pending, test_restart_recovery_preserves_attempt_chain, test_repeated_recovery_pass_is_idempotent)
+- tests_related: test_terminal_audit_metadata + test_terminal_audit_health + test_terminal_transition_coordinator 157 passed; test_terminal_audit 28 passed
+- working_tree: clean; up to date with origin
 ---
 <!-- COMMENTS:END -->
