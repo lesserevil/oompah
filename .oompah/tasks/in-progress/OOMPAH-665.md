@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-665
 type: task
-status: Ready to Integrate
+status: In Progress
 priority: null
 title: Retire legacy no-auditor alerts after terminal task completion
 parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- needs-rebase
 assignee: null
 created_at: '2026-07-31T16:04:07.401588Z'
-updated_at: '2026-07-31T18:45:01.647683Z'
+updated_at: '2026-07-31T18:45:15.813075Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -56,15 +57,19 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 5a6f160c-903b-4b2a-b755-739440fbe9b4
+oompah.agent_run_id: feef7a6d-45b1-4e65-a2a5-303469c28e40
 oompah.task_costs:
-  total_input_tokens: 170
-  total_output_tokens: 4135
+  total_input_tokens: 225
+  total_output_tokens: 5403
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 170
       output_tokens: 4135
+      cost_usd: 0.0
+    sonnet:
+      input_tokens: 55
+      output_tokens: 1268
       cost_usd: 0.0
   runs:
   - profile: default
@@ -73,6 +78,12 @@ oompah.task_costs:
     output_tokens: 4135
     cost_usd: 0.0
     recorded_at: '2026-07-31T18:19:02.169216+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 55
+    output_tokens: 1268
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T18:45:08.346008+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-665__20260731T181648Z
@@ -197,5 +208,25 @@ Output tail:
 ```text
 OS-enforced quality-gate sandbox is unavailable; refusing to execute candidate code: cannot prepare an immutable candidate snapshot: unsafe link in candidate archive: '.oompah-no-hooks/prepare-commit-msg' -> '/home/shedwards/src/oompah/oompah/git_hooks/prepare-commit-msg'
 ```
+---
+author: oompah
+created: 2026-07-31 18:45
+---
+Run #2 [attempt=2, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 0, Tool calls: 27
+- Tokens: 55 in / 1.3K out [1.3K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 3m 35s
+- Log: OOMPAH-665__20260731T184138Z.jsonl
+---
+author: oompah
+created: 2026-07-31 18:45
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-31 18:45
+---
+Focus: Event Api Redaction Specialist
 ---
 <!-- COMMENTS:END -->
