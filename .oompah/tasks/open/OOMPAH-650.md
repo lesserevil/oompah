@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-650
 type: bug
-status: Ready to Integrate
+status: Open
 priority: 1
 title: Keep scoped task handoff credentials valid for the full worker lifetime
 parent: OOMPAH-619
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T11:17:38.830302Z'
+updated_at: '2026-07-31T11:19:37.245139Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -604,5 +604,10 @@ author: oompah
 created: 2026-07-31 11:17
 ---
 Finish-order safety dependency added: implementation may continue, but final integration/gate evidence must wait until OOMPAH-657 immutable exact-head snapshots and stale-generation cancellation are merged/deployed.
+---
+author: oompah
+created: 2026-07-31 11:19
+---
+Returned to Open: submitted head 3e8c4daf8 retains every blocking issue in comment 49. It widens the default TTL to 24 hours, its claimed lifetime test makes a midpoint request instead of zero handoff traffic, endpoint refresh remains bearer-driven, and tracker mutation can still race revocation after refresh. Replace these production paths and tests rather than resubmitting the same design.
 ---
 <!-- COMMENTS:END -->
