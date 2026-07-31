@@ -20,7 +20,7 @@ labels:
 - epic:stale
 assignee: null
 created_at: '2026-07-30T14:13:01.872040Z'
-updated_at: '2026-07-31T05:13:54.084367Z'
+updated_at: '2026-07-31T05:14:16.216702Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -74,6 +74,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-07-31T05:12:43.491182+00:00'
     branch_key: OOMPAH-584
+oompah.task_costs:
+  total_input_tokens: 33
+  total_output_tokens: 988
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 33
+      output_tokens: 988
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 33
+    output_tokens: 988
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T05:14:14.677987+00:00'
 ---
 ## Summary
 
@@ -131,5 +147,15 @@ author: oompah
 created: 2026-07-31 05:13
 ---
 Operator race fence: outer validation started while required child epic OOMPAH-588 is Done but not Merged. Returning the outer epic to Open until OOMPAH-588 is rebased onto current parent 145b6b67e, passes exact-head verification, and merges. This prevents a stale audit from authorizing an incomplete outer review.
+---
+author: oompah
+created: 2026-07-31 05:14
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 18
+- Tokens: 33 in / 988 out [1.0K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 1m 29s
+- Log: OOMPAH-584__20260731T051250Z.jsonl
 ---
 <!-- COMMENTS:END -->
