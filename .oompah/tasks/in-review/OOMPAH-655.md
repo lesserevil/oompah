@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-655
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Enforce full-gate service isolation outside candidate branch code
 parent: null
@@ -13,10 +13,10 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T16:34:18.209977Z'
+updated_at: '2026-07-31T16:40:48.626292Z'
 work_branch: null
 target_branch: null
-review_url: null
+review_url: https://github.com/lesserevil/oompah/pull/625
 review_number: null
 merged_at: null
 oompah.duplicate_screening:
@@ -187,6 +187,7 @@ oompah.integration:
   submitted_at: '2026-07-31T16:33:59.138350+00:00'
   updated_at: '2026-07-31T16:33:59.138350+00:00'
 oompah.start_blocked_by: *id001
+oompah.review_url: https://github.com/lesserevil/oompah/pull/625
 ---
 ## Summary
 
@@ -1154,5 +1155,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 24m 36s
 - Log: OOMPAH-655__20260731T160943Z.jsonl
+---
+author: oompah
+created: 2026-07-31 16:40
+---
+Branch quality gate passed for `8da703b5f921db6987355ccc3bce10d3ac0b7881` using `make test` in 379.1s. Review creation may proceed.
 ---
 <!-- COMMENTS:END -->
