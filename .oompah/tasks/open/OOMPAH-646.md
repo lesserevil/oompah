@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-646
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Serialize review capacity across reconciliation sweeps and webhook lag
 parent: null
@@ -11,12 +11,26 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:55:23.505409Z'
-updated_at: '2026-07-31T06:55:23.505409Z'
+updated_at: '2026-07-31T06:56:15.454330Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 8cea44fcdd02f4e924fa57935fdd74f9d999884b52f2399da3ce04e65229127f
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 88ed357b-e7ea-4a2d-a67b-5c0f1d8642e2
+  claim_owner: d12922aa-baf6-4258-aa45-02da3deea710
+  claimed_at: '2026-07-31T06:56:14.634093+00:00'
+  claim_expires_at: '2026-07-31T07:26:14.634093+00:00'
+  retry_count: 0
+  retry_after: null
 ---
 ## Summary
 
