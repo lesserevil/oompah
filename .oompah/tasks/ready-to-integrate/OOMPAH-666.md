@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-666
 type: bug
-status: Needs Human
+status: Ready to Integrate
 priority: 1
 title: Fix dashboard vertical scrolling when alerts precede the Kanban board
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T21:19:38.816688Z'
-updated_at: '2026-07-31T23:30:36.878643Z'
+updated_at: '2026-07-31T23:45:25.684308Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -207,5 +207,10 @@ author: oompah
 created: 2026-07-31 23:30
 ---
 Direct operator recovery: I reviewed the completed branch and am holding the task in Needs Human solely to prevent scheduler reassignment while I independently verify it. No further implementation worker should be dispatched; I will reconcile it directly to Ready to Integrate after validation.
+---
+author: oompah
+created: 2026-07-31 23:45
+---
+Direct operator validation complete. Reviewed the dashboard flex/overflow change and regression coverage; the exact pushed head 8d3da62bf488a6537a188303934957293b2d2951 passed the full Makefile gate: 14,546 passed, 7 skipped, 1 expected xfail. The prior Needs Human state was only a task-handoff transport failure after successful implementation, so the existing ready integration record is authoritative.
 ---
 <!-- COMMENTS:END -->
