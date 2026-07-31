@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-643
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Reconcile stale terminal-audit enforcement records and live queue metrics
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:17:38.708513Z'
-updated_at: '2026-07-31T06:19:23.172727Z'
+updated_at: '2026-07-31T06:19:35.486212Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,7 +42,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 4c26d494-92b3-40d5-84b1-a992a04c101e
+oompah.agent_run_id: ceb8d701-da58-45ea-bc6f-05bffed5768e
 oompah.task_costs:
   total_input_tokens: 250094
   total_output_tokens: 1841
@@ -105,5 +105,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 4s
 - Log: OOMPAH-643__20260731T061819Z.jsonl
+---
+author: oompah
+created: 2026-07-31 06:19
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-31 06:19
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
