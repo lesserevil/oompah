@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-597
 type: task
-status: Needs Human
+status: In Validation
 priority: 1
 title: Recover and drain the OOMPAH-460 ordered integration chain
 parent: OOMPAH-587
@@ -13,7 +13,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:28.342383Z'
-updated_at: '2026-07-31T05:09:45.353576Z'
+updated_at: '2026-07-31T05:09:58.761012Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-597
 target_branch: null
 review_url: null
@@ -271,13 +271,32 @@ oompah.terminal_audit:
       version: 1
       algorithm: sha256
       digest: ca36a08d209c7c87e9762bfc0759e706e7fccf798cd774f319c89a0e8604f180
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-5c0a32cf48cc
+      target_state: Done
+      request_state: pending
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: ca36a08d209c7c87e9762bfc0759e706e7fccf798cd774f319c89a0e8604f180
+      created_at: '2026-07-31T05:09:50.868660+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-31T05:09:50.868660+00:00'
+      branch_key: epic-OOMPAH-587--task-OOMPAH-597
+      failure_classification: infrastructure_error
+      ended_at: '2026-07-31T05:09:55.585763+00:00'
+      failure_reason: Epic branch epic-OOMPAH-587 diverged from origin/epic-OOMPAH-587;
+        reconcile both heads before dispatching more children
+      next_retry_at: '2026-07-31T05:10:05.585727+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Needs Human
     created_at: '2026-07-31T05:09:44.608326+00:00'
+    updated_at: '2026-07-31T05:09:55.585763+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-5af1aa0b5fd2
@@ -320,6 +339,24 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-07-31T04:21:24.784226+00:00'
     branch_key: epic-OOMPAH-587--task-OOMPAH-597
+  - version: 1
+    attempt_id: attempt-5c0a32cf48cc
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ca36a08d209c7c87e9762bfc0759e706e7fccf798cd774f319c89a0e8604f180
+    created_at: '2026-07-31T05:09:50.868660+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-31T05:09:50.868660+00:00'
+    branch_key: epic-OOMPAH-587--task-OOMPAH-597
+    failure_classification: infrastructure_error
+    ended_at: '2026-07-31T05:09:55.585763+00:00'
+    failure_reason: Epic branch epic-OOMPAH-587 diverged from origin/epic-OOMPAH-587;
+      reconcile both heads before dispatching more children
+    next_retry_at: '2026-07-31T05:10:05.585727+00:00'
 ---
 ## Summary
 
@@ -944,5 +981,24 @@ author: oompah
 created: 2026-07-31 05:09
 ---
 The parent epic OOMPAH-587 merged from epic-OOMPAH-587, but this task was Done with work branch epic-OOMPAH-587--task-OOMPAH-597. Its work is not proven to be in the merged epic. Git evidence: OOMPAH-597 branch epic-OOMPAH-587--task-OOMPAH-597 has 2 unlanded commit(s), including 4faf51fcaa73. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
+---
+author: oompah
+created: 2026-07-31 05:09
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-07-31 05:09
+---
+Run #1 [attempt=1, profile=auditor, role=— -> unknown/unknown]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 1s
+---
+author: oompah
+created: 2026-07-31 05:09
+---
+Auditor attempt ended: Epic branch epic-OOMPAH-587 diverged from origin/epic-OOMPAH-587; reconcile both heads before dispatching more children. A different independent auditor will be tried on the next scheduler tick.
 ---
 <!-- COMMENTS:END -->
