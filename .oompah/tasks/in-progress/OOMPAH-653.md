@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T09:13:16.522081Z'
+updated_at: '2026-07-31T09:14:39.121173Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -152,5 +152,32 @@ author: oompah
 created: 2026-07-31 09:13
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-31 09:14
+---
+**Understanding & Plan**
+
+The issue describes two live regressions:
+1. OOMPAH-648: Audit PASS recorded but a second audit for same transition was dispatched, eventually moving task to Needs Human
+2. OOMPAH-644: Owner override succeeded but superseded audit's error alert remained stale across restart
+
+**Root Cause**: Multiple audits can be created for the same fingerprint (project/task/target-state/evidence), and when one succeeds via PASS or override, sibling pending/in-progress audits aren't cancelled and their alerts remain actionable.
+
+**Implementation Plan**:
+1. Enforce one canonical live audit per fingerprint - deduplicate on dispatch
+2. Make PASS/override atomic and idempotent - cancel all siblings atomically
+3. Prevent reconciliation from recreating audits for already-applied fingerprints
+4. Ensure alert registry clears superseded audit conditions
+5. Add tests for race conditions: PASS persistence vs reconcile scan, concurrent override/no-candidate routing, restart after pass/override
+6. Verify acceptance criteria: no second audit after PASS, override immediately clears all alerts
+
+**Key files to modify**:
+- terminal_transition_coordinator.py (dispatch/coalescing logic)
+- terminal_audit_observability.py (alert condition lifecycle)
+- orchestrator.py (PASS/override result handling)
+- terminal_mutation_scanner.py (reconciliation to prevent re-dispatch)
+
+Starting investigation now.
 ---
 <!-- COMMENTS:END -->
