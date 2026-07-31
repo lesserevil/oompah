@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T13:52:05.961085Z'
-updated_at: '2026-07-31T14:07:59.680344Z'
+updated_at: '2026-07-31T14:11:33.729880Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -125,5 +125,26 @@ created: 2026-07-31 14:07
 4. Terminal audit enforcement (terminal_audit_enforcement.py) also uses \`compute_issue_evidence_fingerprint\`
 
 The issue appears to be that during integration, the issue object passed to fingerprint computation might contain different evidence data (e.g., epic branch data or git-branch contributor data) compared to when the override is applied later. The fingerprint functions fall back to integration record data when available, so the key is ensuring the SAME issue snapshot is used across all paths (integration staging, API override, and restart recovery).
+---
+author: oompah
+created: 2026-07-31 14:11
+---
+**Implementation Analysis**: Verified all code paths use canonical fingerprint computation:
+
+1. **Orchestrator integration path** (orchestrator.py:27443): Uses \`compute_issue_evidence_fingerprint(current, project_id)\` ✓
+2. **API override path** (server.py:4190): Uses \`_terminal_evidence_fingerprint\` which calls \`compute_issue_evidence_fingerprint\` ✓
+3. **ACP override path** (acp_tools.py:445): Uses \`_task_evidence_fingerprint\` which calls \`compute_issue_evidence_fingerprint\` ✓  
+4. **Restart recovery** (terminal_audit_enforcement.py): Uses \`compute_issue_evidence_fingerprint\` for grandfather baseline ✓
+
+**Auditor-independence separation verified**: 
+- \`EvidenceFingerprint\` is auditor-independent and does NOT include auditor identity, model, or provider data
+- \`AuditAttempt\` fields like provider_id, model, started_at, ended_at are separate from evidence_fingerprint ✓
+
+**Test coverage added**: Created test_terminal_fingerprint_canonicalization.py with 3 regression tests covering:
+- Integrated task audit staged and overridden with canonical fingerprint
+- Genuinely changed integration SHA still fails closed
+- API and orchestrator paths use identical computation
+
+All regression tests pass. Next: Ensure documentation clarity and verify edge cases.
 ---
 <!-- COMMENTS:END -->
