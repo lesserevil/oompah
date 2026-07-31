@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T11:25:03.772570Z'
+updated_at: '2026-07-31T11:30:09.252688Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -404,5 +404,10 @@ author: oompah
 created: 2026-07-31 11:25
 ---
 Current fourth draft improves ancestry and exact lifecycle-file diff checks, but it creates a permanent integration deadlock and still is not containment. OOMPAH-623 legitimately changes Makefile; after this draft is deployed, that branch will always fail because Makefile differs from ec0ec7d89, and rebasing cannot remove an intentional change. The message says obtain a separately deployed lifecycle update, but the only deployment path is the gate that rejects it. Define a trusted out-of-candidate approval/update path with durable reviewed head identity, or execute candidate gates behind an OS boundary so lifecycle changes can be tested safely. Also, freezing Makefile and scripts/run-tests.sh does not stop candidate-controlled pytest/test code or imported modules from reading the canonical absolute PID, connecting to localhost, or signaling the same-UID server; the task acceptance says no candidate branch version can weaken the boundary. The current preflight only narrows accidental stale-runner risk and must not claim hostile-code containment. Add an actual test where a descendant keeps all frozen lifecycle files unchanged but adds candidate test code that attempts the literal PID/localhost attack; it currently executes successfully. Keep actionable Needs Rebase routing, but do not submit until legitimate lifecycle evolution has a non-circular path and the stated boundary matches what is actually enforced.
+---
+author: oompah
+created: 2026-07-31 11:30
+---
+Host capability note for the non-circular enforcement path: /usr/bin/bwrap 0.11.1, unshare, and ip are installed. A server-owned wrapper can use a user/PID/network/mount namespace, private proc, new session and die-with-parent, bring up only namespace-local loopback for test subprocesses, bind the immutable candidate snapshot plus required runtime paths, and hide canonical lifecycle/config paths. That would let legitimate Makefile/runner changes execute without self-approval while preventing host localhost and host-PID signaling. If using this route, regression-test namespace-local HTTP still works, host localhost sentinel is unreachable, host PID signaling fails, required tool/runtime paths work, and owned descendants are reaped. Fail closed before Popen when namespace setup is unavailable.
 ---
 <!-- COMMENTS:END -->
