@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-416
 type: task
-status: In Validation
+status: Archived
 priority: 0
 title: Post REFRESH_REQUESTED after orphan resets to wake dispatch immediately
 parent: OOMPAH-414
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-23T19:34:30.939292Z'
-updated_at: '2026-07-31T06:00:20.650823Z'
+updated_at: '2026-07-31T06:01:14.806351Z'
 work_branch: epic-OOMPAH-414
 target_branch: null
 review_url: null
@@ -44,6 +44,23 @@ oompah.task_costs:
     recorded_at: '2026-07-23T20:24:14.898021+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-c780c21d82b6
+    project_id: proj-14849f1b
+    task_id: OOMPAH-416
+    target_state: Archived
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9fc093cd387bcb85959ef34074ad6834ea52cd40583c89d7f37a0dcd91493aca
+    authorized_by:
+      version: 1
+      identity: lesserevil
+      source: api
+    reason: 'Archive previously merged and audited task after verifying its commit
+      in main PR #543; prior archive audit was interrupted by stale landing evidence.'
+    created_at: '2026-07-31T06:01:07.720956+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -300,5 +317,12 @@ author: oompah
 created: 2026-07-31 06:00
 ---
 Post-restart re-evaluation: PR #543 and parent OOMPAH-414 audits prove commit c19f47ca4 and orphan-reset wake coverage are on main. The old Needs Human transition interrupted an aged-Merged archive audit; re-queueing Archived.
+---
+author: oompah
+created: 2026-07-31 06:01
+---
+Override by lesserevil: terminal transition to Archived applied by project owner.
+
+Reason: Archive previously merged and audited task after verifying its commit in main PR #543; prior archive audit was interrupted by stale landing evidence.
 ---
 <!-- COMMENTS:END -->
