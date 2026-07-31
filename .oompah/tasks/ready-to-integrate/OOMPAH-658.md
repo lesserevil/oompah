@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-07-31T12:05:25.135797Z'
+updated_at: '2026-07-31T12:05:38.532596Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,13 +41,17 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: b7590642-7937-466b-84e2-ed38592f9662
 oompah.task_costs:
-  total_input_tokens: 928208
-  total_output_tokens: 5456
+  total_input_tokens: 928363
+  total_output_tokens: 9951
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 928208
       output_tokens: 5456
+      cost_usd: 0.0
+    opus:
+      input_tokens: 155
+      output_tokens: 4495
       cost_usd: 0.0
   runs:
   - profile: default
@@ -62,6 +66,12 @@ oompah.task_costs:
     output_tokens: 526
     cost_usd: 0.0
     recorded_at: '2026-07-31T11:30:17.280391+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 155
+    output_tokens: 4495
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T12:05:36.529135+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-658__20260731T111938Z
@@ -467,5 +477,15 @@ author: oompah
 created: 2026-07-31 12:05
 ---
 Duplicate-preflight fingerprint uses production intake fields; scheduling metadata excluded. Native adapter-backed regressions prove zero re-screens on unchanged intake, exactly-one claim on mutated intake proposal_fingerprint, and continued retry for inconclusive verdicts.
+---
+author: oompah
+created: 2026-07-31 12:05
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Claude/opus]
+- Turns: 0, Tool calls: 104
+- Tokens: 155 in / 4.5K out [4.7K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 12m 7s
+- Log: OOMPAH-658__20260731T115338Z.jsonl
 ---
 <!-- COMMENTS:END -->
