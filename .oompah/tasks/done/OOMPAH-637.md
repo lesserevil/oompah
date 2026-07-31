@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-637
 type: task
-status: In Validation
+status: Done
 priority: 0
 title: Rebase epic-OOMPAH-587 onto main
 parent: OOMPAH-587
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T02:48:10.674366Z'
-updated_at: '2026-07-31T02:54:58.258643Z'
+updated_at: '2026-07-31T02:56:53.009786Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-637
 target_branch: null
 review_url: null
@@ -55,6 +55,8 @@ oompah.work_contributors:
     completed_at: '2026-07-31T02:51:10.557021+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-95810ea92b6f: '2026-07-31T02:56:50.537224+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -62,7 +64,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-637
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -71,7 +73,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-95810ea92b6f
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -81,13 +83,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T02:54:53.219660+00:00'
       branch_key: epic-OOMPAH-587--task-OOMPAH-637
+      verdict: pass
+      completed_at: '2026-07-31T02:56:50.536984+00:00'
+      ended_at: '2026-07-31T02:56:50.536984+00:00'
     requested_by:
       version: 1
       identity: api-client
       source: api
     previous_state: In Progress
     created_at: '2026-07-31T02:54:47.513192+00:00'
-    updated_at: '2026-07-31T02:54:53.219660+00:00'
+    updated_at: '2026-07-31T02:56:50.536984+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-95810ea92b6f
@@ -196,5 +201,24 @@ author: oompah
 created: 2026-07-31 02:54
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 02:56
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- remote_epic_head: 53bdc0f8036c3c8e1ecac521c1f6139b7606e684
+- local_epic_head: 53bdc0f8036c3c8e1ecac521c1f6139b7606e684
+- origin_main_head: 24bd5d6c166af7f8c839e9d5c9e4f3f17d17508e
+- merge_parents: 9b51b35a065906909c98a205fbeab27c3f691692 24bd5d6c166af7f8c839e9d5c9e4f3f17d17508e
+- prior_epic_tip: 9b51b35a065906909c98a205fbeab27c3f691692
+- merge_precedent_commit: d8d265b9a Merge current main into epic OOMPAH-585
+- merge_subject: Merge current main into epic OOMPAH-587
+- merge_diffstat: 9 files changed, 876 insertions(+), 14 deletions(-)
+- conflict_markers_in_worktree: none
+- task_worktree_branch: epic-OOMPAH-587--task-OOMPAH-637 at 9b51b35a0 (expected: task branch predates the epic merge push)
 ---
 <!-- COMMENTS:END -->
