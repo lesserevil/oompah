@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-607
 type: bug
-status: Needs CI Fix
+status: In Progress
 priority: 0
 title: Canonicalize project aliases before terminal owner authorization
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-30T18:17:13.371379Z'
-updated_at: '2026-07-31T06:09:51.252163Z'
+updated_at: '2026-07-31T06:10:02.251970Z'
 work_branch: OOMPAH-607
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/605
@@ -57,7 +57,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 85d8a8e7-484e-4493-be3d-9c22b0062aed
+oompah.agent_run_id: 963d0113-7086-40b7-a869-80f896cee092
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-607__20260730T181838Z
@@ -352,5 +352,15 @@ author: oompah
 created: 2026-07-31 06:09
 ---
 YOLO: CI tests failed on MR #605. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
+---
+author: oompah
+created: 2026-07-31 06:10
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-31 06:10
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
