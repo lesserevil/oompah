@@ -20,7 +20,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-30T21:24:41.452666Z'
-updated_at: '2026-07-31T21:33:50.281226Z'
+updated_at: '2026-07-31T21:33:52.929329Z'
 work_branch: epic-OOMPAH-619
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/626
@@ -72,8 +72,9 @@ oompah.terminal_audit:
     status: Merged
     audit_ids:
     - audit-a04daf8508ab
-    applied: false
+    applied: true
     created_at: '2026-07-31T21:33:47.207068+00:00'
+    applied_at: '2026-07-31T21:33:52.081337+00:00'
   version: 1
   pending_chain:
   - version: 1
