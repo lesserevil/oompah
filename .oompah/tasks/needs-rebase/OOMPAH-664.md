@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-664
 type: task
-status: In Review
+status: Needs Rebase
 priority: 0
 title: Make issue-list snapshots advance with canonical state-branch task changes
 parent: null
@@ -12,9 +12,10 @@ start_blocked_by: &id001
 labels:
 - needs-rebase
 - ci-fix
+- merge-conflict
 assignee: null
 created_at: '2026-07-31T16:04:06.140108Z'
-updated_at: '2026-07-31T23:22:55.388769Z'
+updated_at: '2026-07-31T23:23:40.043803Z'
 work_branch: OOMPAH-664
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/628
@@ -871,5 +872,10 @@ author: oompah
 created: 2026-07-31 23:22
 ---
 Branch quality gate passed for `34c5751b727880fc621df76cb50e17ae5f9321c4` using `make test` in 430.0s. Review creation may proceed.
+---
+author: oompah
+created: 2026-07-31 23:23
+---
+YOLO: Merge conflict detected on MR #628. Rebase onto main and resolve conflicts.
 ---
 <!-- COMMENTS:END -->
