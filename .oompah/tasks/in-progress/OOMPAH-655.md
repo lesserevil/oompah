@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T10:52:16.027798Z'
+updated_at: '2026-07-31T10:53:02.572835Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -187,5 +187,10 @@ author: oompah
 created: 2026-07-31 10:52
 ---
 Discovery: Implemented fail-closed preflight validation. Before executing any candidate command, quality_gate.py now verifies that the Makefile contains OOMPAH-652 isolation logic (OOMPAH_PYTEST_GATE, OOMPAH_TEST_PID_FILE, OOMPAH_PYTEST_RUN_ROOT, OOMPAH_TEST_SERVER_PORT variables). Branches without these variables route to 'needs_rebase' status instead of executing. Added 3 regression tests: rejects old Makefile without isolation, allows compliant Makefile, rejects missing Makefile. All 20 quality_gate tests pass.
+---
+author: oompah
+created: 2026-07-31 10:53
+---
+Review of the second draft: fail-closed before Popen is the right direction, but substring checks for four variable names are not a trust/containment proof. A hostile Makefile can put all four strings in comments or assign private-looking variables, then still read an absolute canonical PID path/curl localhost/kill the same-UID service; the draft's own 'compliant Makefile + hostile script' test demonstrates it can execute and reaches localhost, then weakens the assertion with . Require git ancestry of the exact trusted OOMPAH-652 safety head plus a non-spoofable contract for lifecycle-critical files (e.g. exact trusted hashes/AST-like target validation, or execute a server-owned immutable wrapper); any candidate modification of that boundary must fail closed for separate review. Tests must prove a Makefile containing all marker strings but literal hostile commands is rejected before a sentinel changes, and must not use assertions that permit connection/signal success. Also ensure QualityGateResult status needs_rebase is mapped by callers into actionable task/base repair rather than an unknown generic gate failure.
 ---
 <!-- COMMENTS:END -->
