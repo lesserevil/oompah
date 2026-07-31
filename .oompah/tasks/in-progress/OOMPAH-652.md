@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-652
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Isolate the full Makefile test gate from a running Oompah service
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:15.160957Z'
-updated_at: '2026-07-31T09:40:12.026054Z'
+updated_at: '2026-07-31T09:40:26.225422Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,7 +37,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: a941a406-c0cf-451a-a9bc-37f56adab7fd
+oompah.agent_run_id: e277c191-f91f-404d-96a9-40432266a464
 oompah.task_costs:
   total_input_tokens: 20730993
   total_output_tokens: 60215
@@ -147,5 +147,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 34m 1s
 - Log: OOMPAH-652__20260731T090435Z.jsonl
+---
+author: oompah
+created: 2026-07-31 09:40
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-31 09:40
+---
+Focus: Refactoring Specialist
 ---
 <!-- COMMENTS:END -->
