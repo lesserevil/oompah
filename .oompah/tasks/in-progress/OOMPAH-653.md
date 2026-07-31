@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T11:42:38.479033Z'
+updated_at: '2026-07-31T11:44:30.904494Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -675,5 +675,10 @@ author: oompah
 created: 2026-07-31 11:42
 ---
 **Understanding**: This task requires fixing critical recovery defects in terminal audit enforcement that were identified in prior code review. The issues are: (1) _recover_terminal_override selects the first unapplied override without validating its evidence_fingerprint against current task evidence, allowing stale overrides to terminalize revised tasks; (2) _recover_terminal_result uses list-order authority instead of validated created_at timestamps; (3) evidence test relies on dynamically attached fields rather than native task model evidence. Must add deterministic override/result selection, validate evidence before applying, retire stale intents, and add comprehensive tests with native Markdown task mutations.
+---
+author: oompah
+created: 2026-07-31 11:44
+---
+**Discovery**: Located the defects in terminal_audit_enforcement.py. Key issues: (1) _recover_terminal_override uses next() to select first unapplied override without validating evidence_fingerprint against current task evidence - must compute current fingerprint from issue description and select newest by created_at, retiring stale ones; (2) _recover_terminal_result uses candidates[-1] (list order) not validated created_at timestamps. (3) Current tests use dynamically attached evidence_fingerprint field; need production-like native Markdown task tests. Starting implementation of override selection authority validation and created_at-based result ordering.
 ---
 <!-- COMMENTS:END -->

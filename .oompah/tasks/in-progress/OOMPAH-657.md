@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T11:06:15.542774Z'
-updated_at: '2026-07-31T11:38:05.366098Z'
+updated_at: '2026-07-31T11:44:29.488905Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -229,5 +229,10 @@ Plan:
 - Check is_current() at these same barrier points
 - In _retire_inactive_integration_rows: change inactive_states logic to retire when NOT READY_TO_INTEGRATE, and call cancel_generation for each retired row
 - Add deterministic barrier tests for pre-spawn revocation and Ready-to-Open retirement
+---
+author: oompah
+created: 2026-07-31 11:44
+---
+Current dirty retry closes several integration windows, but exact review still finds blocking gaps. (1) _revoke_standalone_delivery_authority is only defined; rg finds no call sites. _review_quality_gate_passes passes generation but no is_current callback, so standalone Ready-to-Open authority withdrawal is not wired to either a live pre-spawn check or cancellation. Wire fresh tracker state/head/revision revocation into the reconciliation path and pass a live authority predicate before snapshot, before spawn, during execution, and before consuming pass. Add the actual Ready-to-Open standalone barrier regression. (2) run() clears a generation tombstone unconditionally in each caller's finally. If two same-generation callers exist or one waits behind the evidence-key lock, the first interrupted caller can clear cancellation and let the later stale caller launch. Cancellation must remain authoritative for that generation until the generation is retired, using a bounded generation registry/refcount/retirement token rather than per-run discard. (3) _key_locks remains unbounded. (4) _create_snapshot deletes its directory after git worktree add/verification failure without removing a possibly registered worktree; clean registration fail-closed. Keep the current integration Ready-to-Open fix and deterministic pre-spawn/Popen barriers, but cover these production paths before submission.
 ---
 <!-- COMMENTS:END -->
