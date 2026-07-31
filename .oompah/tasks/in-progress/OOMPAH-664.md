@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:06.140108Z'
-updated_at: '2026-07-31T22:34:38.131479Z'
+updated_at: '2026-07-31T22:36:43.839070Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -681,5 +681,10 @@ author: oompah
 created: 2026-07-31 22:34
 ---
 Coordination: OOMPAH-668 is now running its canonical exact-head gate at 9e520df9a and owns the durable fixes for the eight installed-CLI failures, projected editable paths, exact-revision metadata, and nested-gate assertion. A hard-start dependency is now recorded. Preserve OOMPAH-664's snapshot-generation/core behavior and its three task-specific collapsed-epic test updates; do not add more overlapping gate work. Once OOMPAH-668 merges/deploys, rebase onto that main and resolve overlaps in favor of OOMPAH-668.
+---
+author: oompah
+created: 2026-07-31 22:36
+---
+Discovery: GitHub has no PR or Actions run for OOMPAH-664; the reported failures are from Oompah's internal bwrap gate. The eight CLI-smoke failures share one cause: mapping the trusted virtualenv at its absolute shebang path is insufficient because its editable-install import metadata still points at the hidden operator checkout. The candidate snapshot must be projected at that source-checkout path. Local execution confirms the affected tests pass outside bwrap; reproducing a nested bwrap here is unavailable because this environment disallows unprivileged user namespaces.
 ---
 <!-- COMMENTS:END -->
