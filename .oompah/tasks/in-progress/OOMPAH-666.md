@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T21:19:38.816688Z'
-updated_at: '2026-07-31T22:57:08.880199Z'
+updated_at: '2026-07-31T22:57:32.195157Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -125,5 +125,10 @@ author: oompah
 created: 2026-07-31 22:57
 ---
 Focus: Event Api Redaction Specialist
+---
+author: oompah
+created: 2026-07-31 22:57
+---
+Understanding: I will trace dashboard document/application scroll ownership and the height/overflow rules around alerts, board, columns, sticky controls, and drag/drop. I will add regression coverage for no-alert and alert-present layouts, preserve horizontal/per-column scrolling, then run focused tests and the project gate as configured.
 ---
 <!-- COMMENTS:END -->
