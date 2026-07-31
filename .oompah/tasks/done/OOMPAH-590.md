@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-590
 type: bug
-status: Needs Human
+status: Done
 priority: 1
 title: Retry terminal audits after auditor launch or transport failure
 parent: OOMPAH-585
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:22.194798Z'
-updated_at: '2026-07-31T00:05:31.339805Z'
+updated_at: '2026-07-31T05:58:25.303085Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-590
 target_branch: null
 review_url: null
@@ -100,6 +100,23 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-95f921448d19: '2026-07-30T18:39:43.069467+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-1ffae259df23
+    project_id: proj-14849f1b
+    task_id: OOMPAH-590
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ecaa1c4f71b63d4d318085acee72a033b7bcddcfb0ef3582930d6218a906c540
+    authorized_by:
+      version: 1
+      identity: lesserevil
+      source: api
+    reason: Restore prior Audit PASS Done after verifying exact task ref is contained
+      in merged main.
+    created_at: '2026-07-31T05:58:22.869765+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -465,5 +482,17 @@ author: oompah
 created: 2026-07-31 00:05
 ---
 Re-arming terminal validation after deployment of the stale-target refresh and active-validation ownership fixes. Commit cc261493377c is an ancestor of the merged OOMPAH-585 target; the previous Needs Human transition was a rollup race, not missing work.
+---
+author: oompah
+created: 2026-07-31 05:58
+---
+Post-restart re-evaluation: audited implementation commit cc2614933 and the current exact task ref are contained in merged main PR #603. The Needs Human state was stale landing evidence, not missing work. Restoring audited Done.
+---
+author: oompah
+created: 2026-07-31 05:58
+---
+Override by lesserevil: terminal transition to Done applied by project owner.
+
+Reason: Restore prior Audit PASS Done after verifying exact task ref is contained in merged main.
 ---
 <!-- COMMENTS:END -->
