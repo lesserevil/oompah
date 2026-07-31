@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-633
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Repair stale integration queues in nested epics
 parent: OOMPAH-584
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:54:49.391955Z'
-updated_at: '2026-07-31T01:11:03.276146Z'
+updated_at: '2026-07-31T01:11:12.167018Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-633
 target_branch: null
 review_url: null
@@ -47,12 +47,12 @@ oompah.agent_run_id: e2428db0-e77f-4d48-b59c-862bb86666e2
 oompah.work_branch: epic-OOMPAH-584--task-OOMPAH-633
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-584--task-OOMPAH-633
-  base_branch: epic-OOMPAH-584
-  base_sha: d62dd4cff702ae2b818418407d7d15b7a643213e
-  updated_at: '2026-07-31T01:03:59.694485+00:00'
+  head_sha: 53c0a985f4552bb1b2aef5cff52f1dc82a2a4273
+  submitted_at: '2026-07-31T01:11:08.465874+00:00'
+  updated_at: '2026-07-31T01:11:08.465874+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-633__20260731T010158Z
@@ -198,5 +198,10 @@ Acceptance criteria met:
 ✓ Nested Ready queues can advance beyond attempts=0 when parent advances
 ✓ Focused queue/rebase tests added and passing
 ✓ Complete test gate passes
+---
+author: oompah
+created: 2026-07-31 01:11
+---
+Nested epic queue repair enabled: extended stale ancestry detection to parent epic targets while preserving authorization and duplicate fencing
 ---
 <!-- COMMENTS:END -->
