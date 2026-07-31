@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-488
 type: task
-status: Ready to Integrate
+status: Done
 priority: 1
 title: Validate the complete task Done-Merged-Archived audit lifecycle
 parent: OOMPAH-460
@@ -19,7 +19,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:27.238658Z'
-updated_at: '2026-07-29T19:40:11.256555Z'
+updated_at: '2026-07-31T03:57:19.767915Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-488
 target_branch: null
 review_url: null
@@ -125,6 +125,32 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-460--task-OOMPAH-488
     source_sha: b0ceda2643cbc37c166ac58bed9a9b6f3898b681
     completed_at: '2026-07-29T18:45:49.626900+00:00'
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-b3d5ef37db02
+    project_id: proj-14849f1b
+    task_id: OOMPAH-488
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ef70d3db523ec85a70efe0f5ccf80986bd299426f03774a4d52034193fda9b05
+    authorized_by:
+      version: 1
+      identity: lesserevil
+      source: api
+    reason: 'Tracker reconciliation after operator-approved linearized recovery: each
+      task implementation is preserved in OOMPAH-597 integrated head 44e5c5579, whose
+      configured combined-tree gate passed 14,098 tests, 7 skipped, 1 expected xfail;
+      the independent OOMPAH-597 auditor additionally passed 376 focused checks. The
+      obsolete original per-child queue row cannot be replayed without duplicating/conflicting
+      with the recovered content. This override closes bookkeeping only and does not
+      waive code verification.'
+    created_at: '2026-07-31T03:57:15.385143+00:00'
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
@@ -314,5 +340,12 @@ Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: terminated, Duration: 49m 6s
 - Log: OOMPAH-488__20260729T185110Z.jsonl
+---
+author: oompah
+created: 2026-07-31 03:57
+---
+Override by lesserevil: terminal transition to Done applied by project owner.
+
+Reason: Tracker reconciliation after operator-approved linearized recovery: each task implementation is preserved in OOMPAH-597 integrated head 44e5c5579, whose configured combined-tree gate passed 14,098 tests, 7 skipped, 1 expected xfail; the independent OOMPAH-597 auditor additionally passed 376 focused checks. The obsolete original per-child queue row cannot be replayed without duplicating/conflicting with the recovered content. This override closes bookkeeping only and does not waive code verification.
 ---
 <!-- COMMENTS:END -->

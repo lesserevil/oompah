@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:26.170630Z'
-updated_at: '2026-07-31T03:57:09.838703Z'
+updated_at: '2026-07-31T03:57:14.168430Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-487
 target_branch: null
 review_url: null
@@ -391,5 +391,10 @@ created: 2026-07-31 03:57
 Override by lesserevil: terminal transition to Done applied by project owner.
 
 Reason: Tracker reconciliation after operator-approved linearized recovery: each task implementation is preserved in OOMPAH-597 integrated head 44e5c5579, whose configured combined-tree gate passed 14,098 tests, 7 skipped, 1 expected xfail; the independent OOMPAH-597 auditor additionally passed 376 focused checks. The obsolete original per-child queue row cannot be replayed without duplicating/conflicting with the recovered content. This override closes bookkeeping only and does not waive code verification.
+---
+author: oompah
+created: 2026-07-31 03:57
+---
+Delivered through the verified OOMPAH-597 linearized recovery head 44e5c5579; stale original delivery row reconciled.
 ---
 <!-- COMMENTS:END -->
