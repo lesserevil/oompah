@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T13:12:19.387161Z'
-updated_at: '2026-07-31T14:29:47.910658Z'
+updated_at: '2026-07-31T14:30:04.864432Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -53,7 +53,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 08b01a46-209f-48ac-9d6d-fd0eca3071f9
+oompah.agent_run_id: 0c78b242-c254-45ac-8933-17ee1f7d026a
 oompah.task_costs:
   total_input_tokens: 154
   total_output_tokens: 3957
@@ -132,5 +132,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 32m 1s
 - Log: OOMPAH-661__20260731T135749Z.jsonl
+---
+author: oompah
+created: 2026-07-31 14:30
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-31 14:30
+---
+Focus: Event Api Redaction Specialist
 ---
 <!-- COMMENTS:END -->
