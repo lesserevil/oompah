@@ -149,6 +149,7 @@ from oompah.terminal_audit import (
     TargetState,
     Verdict,
     compute_evidence_fingerprint,
+    compute_issue_evidence_fingerprint,
 )
 from oompah.terminal_audit_metadata import TerminalAuditMetadataStore
 from oompah.terminal_audit_enforcement import TerminalAuditEnforcement
@@ -2847,23 +2848,9 @@ class Orchestrator:
             )
 
         if evidence_fingerprint is None:
-            contributors = getattr(current_issue, "contributors", ()) or ()
-            if isinstance(contributors, str):
-                contributors = (contributors,)
-            evidence_fingerprint = compute_evidence_fingerprint(
-                requirements_text=str(current_issue.description or ""),
-                project_id=str(effective_project_id),
-                task_id=str(current_issue.identifier),
-                source_branch=str(
-                    getattr(current_issue, "source_branch", None)
-                    or current_issue.work_branch
-                    or current_issue.branch_name
-                    or ""
-                ),
-                target_branch=str(current_issue.target_branch or ""),
-                review_id=str(current_issue.review_number or ""),
-                review_state=str(getattr(current_issue, "review_state", "") or ""),
-                contributors=contributors,
+            evidence_fingerprint = compute_issue_evidence_fingerprint(
+                current_issue,
+                str(effective_project_id),
             )
 
         return await self.terminal_transition_coordinator.request_transition(
@@ -2920,24 +2907,9 @@ class Orchestrator:
         try:
             issue.project_id = project_id
             if evidence_fingerprint is None:
-                # Auto-compute fingerprint from issue fields
-                contributors = getattr(issue, "contributors", ()) or ()
-                if isinstance(contributors, str):
-                    contributors = (contributors,)
-                evidence_fingerprint = compute_evidence_fingerprint(
-                    requirements_text=str(issue.description or ""),
-                    project_id=str(project_id),
-                    task_id=str(issue.identifier),
-                    source_branch=str(
-                        getattr(issue, "source_branch", None)
-                        or issue.work_branch
-                        or issue.branch_name
-                        or ""
-                    ),
-                    target_branch=str(issue.target_branch or ""),
-                    review_id=str(issue.review_number or ""),
-                    review_state=str(getattr(issue, "review_state", "") or ""),
-                    contributors=contributors,
+                evidence_fingerprint = compute_issue_evidence_fingerprint(
+                    issue,
+                    str(project_id),
                 )
             return asyncio.run(
                 self.request_terminal_transition(
@@ -9482,24 +9454,9 @@ class Orchestrator:
                 )
                 return
 
-            # Build evidence fingerprint from epic state
-            contributors = getattr(epic, "contributors", ()) or ()
-            if isinstance(contributors, str):
-                contributors = (contributors,)
-            fingerprint = compute_evidence_fingerprint(
-                requirements_text=str(epic.description or ""),
-                project_id=str(epic.project_id or ""),
-                task_id=str(epic.identifier),
-                source_branch=str(
-                    getattr(epic, "source_branch", None)
-                    or epic.work_branch
-                    or epic.branch_name
-                    or ""
-                ),
-                target_branch=str(epic.target_branch or ""),
-                review_id=str(epic.review_number or ""),
-                review_state=str(getattr(epic, "review_state", "") or ""),
-                contributors=contributors,
+            fingerprint = compute_issue_evidence_fingerprint(
+                epic,
+                str(epic.project_id or ""),
             )
 
             # Request the transition through the coordinator
@@ -27209,12 +27166,9 @@ class Orchestrator:
                                 )
                             else:
                                 try:
-                                    evidence_fp = compute_evidence_fingerprint(
-                                        requirements_text=current.description or "",
-                                        project_id=project_id,
-                                        task_id=current.id,
-                                        source_branch=entry.issue.branch_name or "",
-                                        target_branch="main",
+                                    evidence_fp = compute_issue_evidence_fingerprint(
+                                        current,
+                                        project_id,
                                     )
                                     orchestrator_trigger = ContributorIdentity(
                                         identity="orchestrator",

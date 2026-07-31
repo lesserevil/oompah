@@ -159,7 +159,7 @@ from oompah.terminal_audit import (
     ContributorIdentity,
     EvidenceFingerprint,
     TargetState,
-    compute_evidence_fingerprint,
+    compute_issue_evidence_fingerprint,
 )
 from oompah.terminal_transition_coordinator import (
     OverrideRejection,
@@ -4031,27 +4031,7 @@ def _terminal_evidence_fingerprint(
     project_id: str,
 ) -> EvidenceFingerprint:
     """Build the tracker-neutral evidence fingerprint used by API callers."""
-
-    contributors = getattr(issue, "contributors", ()) or ()
-    if isinstance(contributors, str):
-        contributors = (contributors,)
-    return compute_evidence_fingerprint(
-        requirements_text=str(getattr(issue, "description", "") or ""),
-        project_id=str(project_id),
-        task_id=str(getattr(issue, "identifier", "") or getattr(issue, "id", "")),
-        source_branch=str(
-            getattr(issue, "source_branch", None)
-            or getattr(issue, "work_branch", None)
-            or getattr(issue, "branch_name", None)
-            or ""
-        ),
-        source_sha=str(getattr(issue, "source_sha", "") or ""),
-        target_branch=str(getattr(issue, "target_branch", "") or ""),
-        target_sha=str(getattr(issue, "target_sha", "") or ""),
-        review_id=str(getattr(issue, "review_number", "") or ""),
-        review_state=str(getattr(issue, "review_state", "") or ""),
-        contributors=contributors,
-    )
+    return compute_issue_evidence_fingerprint(issue, str(project_id))
 
 
 def _safe_terminal_transition_error(result, *, override: bool = False) -> tuple[str, int]:

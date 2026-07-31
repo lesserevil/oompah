@@ -5,17 +5,25 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import replace
+from itertools import permutations
 
+import pytest
+
+from oompah.integration import IntegrationRecord
 from oompah.models import Issue
 from oompah.config import ServiceConfig
+from oompah.oompah_md_tracker import OompahMarkdownTracker
 from oompah.orchestrator import Orchestrator
 from oompah.terminal_audit import (
     AuditAttempt,
+    ContributorIdentity,
     EvidenceFingerprint,
+    OverrideRecord,
     RequestState,
     TargetState,
     TerminalAuditRecord,
     compute_evidence_fingerprint,
+    compute_issue_evidence_fingerprint,
 )
 from oompah.terminal_audit_enforcement import (
     PendingAudit,
@@ -24,6 +32,7 @@ from oompah.terminal_audit_enforcement import (
     TERMINAL_RESULT_INTENTS_KEY,
     TerminalAuditEnforcement,
     TerminalAuditEnforcementState,
+    _authority_key,
 )
 from oompah.terminal_audit_metadata import (
     METADATA_KEY,
@@ -118,6 +127,27 @@ def _enforcer(tmp_path, *, terminal_states=("Done",)):
         str(tmp_path / "service_state.json"),
         terminal_states=terminal_states,
         project_store=_LockStore(),
+    )
+
+
+def _native_tracker(root) -> OompahMarkdownTracker:
+    root.mkdir(parents=True, exist_ok=True)
+    return OompahMarkdownTracker(
+        active_states=["Open"],
+        terminal_states=["Done"],
+        cwd=str(root),
+        default_branch="main",
+        git_sync=False,
+    )
+
+
+def _native_integration(*, head_sha: str) -> IntegrationRecord:
+    return IntegrationRecord(
+        state="ready",
+        task_branch="TASK-branch",
+        base_branch="main",
+        base_sha="b" * 40,
+        head_sha=head_sha,
     )
 
 
@@ -257,7 +287,7 @@ def test_recovery_replaces_mixed_persisted_rows_with_live_metadata_per_project(t
             _issue("TASK-4", "In Validation", "evidence-a"),
         ]
     )
-    tracker_a.issues[-1].evidence_fingerprint = EvidenceFingerprint("b" * 64)  # type: ignore[attr-defined]
+    tracker_a.issues[-1].description = "requirements updated"
     tracker_b = _Tracker([])
     tracker_a.metadata["TASK-1"] = {
         METADATA_KEY: TerminalAuditMetadata(pending_chain=[live]).to_dict()
@@ -512,6 +542,197 @@ def test_override_recovery_preserves_concurrent_ledger_append(tmp_path):
     assert overrides[1]["applied"] is False
 
 
+def test_authority_key_uses_aware_time_then_stable_persisted_id():
+    """Malformed/equal timestamps never fall back to input list position."""
+
+    assert _authority_key("2026-07-31T10:00:00+02:00", ("intent-a",)) < (
+        _authority_key("2026-07-31T09:00:00Z", ("intent-a",))
+    )
+    assert _authority_key("malformed", ("intent-a",)) < _authority_key(
+        "malformed", ("intent-z",)
+    )
+    assert _authority_key("2026-07-31T09:00:00", ("intent-a",)) < _authority_key(
+        None, ("intent-z",)
+    )
+
+
+@pytest.mark.parametrize("order", list(permutations(("a", "z"))))
+@pytest.mark.parametrize(
+    ("created_a", "created_z", "selected_id", "expected_status"),
+    [
+        (
+            "2026-07-31T09:00:00Z",
+            "2026-07-31T09:00:00Z",
+            "override-z-done",
+            "Done",
+        ),
+        ("malformed", None, "override-z-done", "Done"),
+        (
+            "2026-07-31T10:00:00Z",
+            "2026-07-31T09:00:00Z",
+            "override-a-merged",
+            "Merged",
+        ),
+    ],
+    ids=("equal", "malformed", "newest"),
+)
+def test_override_recovery_authority_is_permutation_invariant(
+    tmp_path,
+    order,
+    created_a,
+    created_z,
+    selected_id,
+    expected_status,
+):
+    """One override wins and every same-evidence sibling retires in one pass."""
+
+    tracker = _Tracker([_issue("TASK-1", "In Validation", "ignored")])
+    record = _pending_record("project-a", "TASK-1", "audit-pending")
+
+    def _override(
+        override_id: str,
+        target: TargetState,
+        created_at: object,
+    ) -> dict[str, object]:
+        raw = OverrideRecord(
+            override_id=override_id,
+            project_id="project-a",
+            task_id="TASK-1",
+            target_state=target,
+            evidence_fingerprint=record.evidence_fingerprint,
+            authorized_by=ContributorIdentity("owner", "oompah"),
+            reason="restart recovery",
+            created_at=created_at if isinstance(created_at, str) else None,
+        ).to_dict()
+        if created_at is None:
+            raw.pop("created_at", None)
+        raw["applied"] = False
+        return raw
+
+    candidates = {
+        "a": _override("override-a-merged", TargetState.MERGED, created_a),
+        "z": _override("override-z-done", TargetState.DONE, created_z),
+    }
+    tracker.metadata["TASK-1"] = {
+        METADATA_KEY: TerminalAuditMetadata(
+            pending_chain=[record],
+            unknown_fields={
+                TERMINAL_OVERRIDE_RECORDS_KEY: [candidates[key] for key in order]
+            },
+        ).to_dict()
+    }
+
+    enforcer = _enforcer(tmp_path)
+    assert enforcer.recover_pending_audits([("project-a", tracker)]) == []
+    assert tracker.status_updates == [("TASK-1", expected_status)]
+
+    stored = TerminalAuditMetadata.from_dict(tracker.metadata["TASK-1"][METADATA_KEY])
+    by_id = {
+        item["override_id"]: item
+        for item in stored.unknown_fields[TERMINAL_OVERRIDE_RECORDS_KEY]
+    }
+    assert all(item["applied"] is True for item in by_id.values())
+    loser_id = ({"override-a-merged", "override-z-done"} - {selected_id}).pop()
+    assert by_id[loser_id]["retired_reason"] == "superseded_by_newer_override"
+    assert "retired_reason" not in by_id[selected_id]
+
+    assert enforcer.recover_pending_audits([("project-a", tracker)]) == []
+    assert tracker.status_updates == [("TASK-1", expected_status)]
+
+
+@pytest.mark.parametrize("order", list(permutations(("a", "z"))))
+@pytest.mark.parametrize(
+    ("created_a", "created_z", "selected_audit", "expected_status"),
+    [
+        (
+            "2026-07-31T09:00:00Z",
+            "2026-07-31T09:00:00Z",
+            "audit-z-done",
+            "Done",
+        ),
+        ("malformed", None, "audit-z-done", "Done"),
+        (
+            "2026-07-31T10:00:00Z",
+            "2026-07-31T09:00:00Z",
+            "audit-a-merged",
+            "Merged",
+        ),
+    ],
+    ids=("equal", "malformed", "newest"),
+)
+def test_result_recovery_authority_is_permutation_invariant(
+    tmp_path,
+    order,
+    created_a,
+    created_z,
+    selected_audit,
+    expected_status,
+):
+    """Recovery performs only the deterministic winning terminal write."""
+
+    tracker = _Tracker([_issue("TASK-1", "In Validation", "ignored")])
+    done_record = _pending_record(
+        "project-a",
+        "TASK-1",
+        "audit-z-done",
+        request_state=RequestState.COMPLETED,
+    )
+    merged_record = replace(
+        done_record,
+        audit_id="audit-a-merged",
+        target_state=TargetState.MERGED,
+    )
+
+    def _intent(
+        record: TerminalAuditRecord,
+        attempt_id: str,
+        created_at: object,
+    ) -> dict[str, object]:
+        intent: dict[str, object] = {
+            "project_id": "project-a",
+            "task_id": "TASK-1",
+            "audit_id": record.audit_id,
+            "attempt_id": attempt_id,
+            "target_state": record.target_state.value,
+            "evidence_fingerprint": record.evidence_fingerprint.digest,
+            "status": record.target_state.value,
+            "audit_ids": [record.audit_id],
+            "applied": False,
+        }
+        if created_at is not None:
+            intent["created_at"] = created_at
+        return intent
+
+    intents = {
+        "a": _intent(merged_record, "attempt-a", created_a),
+        "z": _intent(done_record, "attempt-z", created_z),
+    }
+    tracker.metadata["TASK-1"] = {
+        METADATA_KEY: TerminalAuditMetadata(
+            pending_chain=[merged_record, done_record],
+            unknown_fields={
+                TERMINAL_RESULT_INTENTS_KEY: [intents[key] for key in order]
+            },
+        ).to_dict()
+    }
+
+    enforcer = _enforcer(tmp_path)
+    assert enforcer.recover_pending_audits([("project-a", tracker)]) == []
+    assert tracker.status_updates == [("TASK-1", expected_status)]
+
+    stored = TerminalAuditMetadata.from_dict(tracker.metadata["TASK-1"][METADATA_KEY])
+    by_audit = {
+        item["audit_id"]: item
+        for item in stored.unknown_fields[TERMINAL_RESULT_INTENTS_KEY]
+    }
+    assert all(item["applied"] is True for item in by_audit.values())
+    loser_audit = ({"audit-a-merged", "audit-z-done"} - {selected_audit}).pop()
+    assert by_audit[loser_audit]["retired_reason"] == "superseded_by_newer_intent"
+    assert by_audit[selected_audit]["retired_reason"] == "recovered_current_intent"
+    assert enforcer.recover_pending_audits([("project-a", tracker)]) == []
+    assert tracker.status_updates == [("TASK-1", expected_status)]
+
+
 def test_restart_replays_unacknowledged_result_status_and_is_idempotent(tmp_path):
     """A PASS persisted before its tracker write is recovered exactly once."""
     tracker = _Tracker([_issue("TASK-1", "In Validation", "evidence-a")])
@@ -562,7 +783,7 @@ def test_recovery_retires_result_intent_after_task_evidence_changes(tmp_path):
     record = _pending_record(
         "project-a", "TASK-1", "audit-pass", request_state=RequestState.COMPLETED
     )
-    tracker.issues[0].evidence_fingerprint = EvidenceFingerprint("c" * 64)  # type: ignore[attr-defined]
+    tracker.issues[0].description = "requirements updated"
     tracker.metadata["TASK-1"] = {
         METADATA_KEY: TerminalAuditMetadata(
             pending_chain=[record],
@@ -592,6 +813,140 @@ def test_recovery_retires_result_intent_after_task_evidence_changes(tmp_path):
     assert intent["applied"] is True
     assert intent["retired_reason"] == "current_evidence_mismatch"
     assert stored.pending_chain[0].request_state == RequestState.COMPLETED
+
+
+def test_native_markdown_restart_replays_current_result_intent(tmp_path):
+    """Fresh native adapters derive the same persisted revision fingerprint."""
+
+    repo = tmp_path / "native-repo"
+    tracker = _native_tracker(repo)
+    issue = tracker.create_issue(
+        "Native recovery",
+        description="requirements",
+        initial_status="In Validation",
+    )
+    tracker.set_metadata_field(
+        issue.identifier,
+        "oompah.integration",
+        _native_integration(head_sha="a" * 40).to_dict(),
+    )
+    current = tracker.fetch_issue_detail(issue.identifier)
+    assert current is not None
+    fingerprint = compute_issue_evidence_fingerprint(current, "project-a")
+    record = TerminalAuditRecord(
+        audit_id="audit-native-pass",
+        project_id="project-a",
+        task_id=issue.identifier,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.COMPLETED,
+    )
+    intent = {
+        "project_id": "project-a",
+        "task_id": issue.identifier,
+        "audit_id": record.audit_id,
+        "attempt_id": "attempt-native-pass",
+        "target_state": "Done",
+        "evidence_fingerprint": fingerprint.digest,
+        "status": "Done",
+        "audit_ids": [record.audit_id],
+        "applied": False,
+        "created_at": "2026-07-31T09:00:00Z",
+    }
+    TerminalAuditMetadataStore(tracker, _LockStore(), "project-a").write(
+        issue.identifier,
+        TerminalAuditMetadata(
+            pending_chain=[record],
+            unknown_fields={TERMINAL_RESULT_INTENTS_KEY: [intent]},
+        ),
+    )
+
+    restarted = _native_tracker(repo)
+    assert _enforcer(tmp_path / "restart").recover_pending_audits(
+        [("project-a", restarted)]
+    ) == []
+    refreshed = restarted.fetch_issue_detail(issue.identifier)
+    assert refreshed is not None
+    assert refreshed.state == "Done"
+    stored = TerminalAuditMetadata.from_dict(
+        restarted.get_metadata(issue.identifier)[METADATA_KEY]
+    )
+    assert stored.unknown_fields[TERMINAL_RESULT_INTENTS_KEY][0]["applied"] is True
+
+
+def test_native_markdown_source_revision_retires_stale_override_without_write(
+    tmp_path,
+):
+    """A revised native source head cannot inherit an older owner override."""
+
+    repo = tmp_path / "native-repo"
+    tracker = _native_tracker(repo)
+    issue = tracker.create_issue(
+        "Native override recovery",
+        description="requirements",
+        initial_status="In Validation",
+    )
+    tracker.set_metadata_field(
+        issue.identifier,
+        "oompah.integration",
+        _native_integration(head_sha="a" * 40).to_dict(),
+    )
+    audited = tracker.fetch_issue_detail(issue.identifier)
+    assert audited is not None
+    audited_fingerprint = compute_issue_evidence_fingerprint(audited, "project-a")
+    record = TerminalAuditRecord(
+        audit_id="audit-native-pending",
+        project_id="project-a",
+        task_id=issue.identifier,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=audited_fingerprint,
+        request_state=RequestState.PENDING,
+    )
+    override = OverrideRecord(
+        override_id="override-native-stale",
+        project_id="project-a",
+        task_id=issue.identifier,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=audited_fingerprint,
+        authorized_by=ContributorIdentity("owner", "oompah"),
+        reason="recover interrupted override",
+        created_at="2026-07-31T09:00:00Z",
+    ).to_dict()
+    override["applied"] = False
+    TerminalAuditMetadataStore(tracker, _LockStore(), "project-a").write(
+        issue.identifier,
+        TerminalAuditMetadata(
+            pending_chain=[record],
+            unknown_fields={TERMINAL_OVERRIDE_RECORDS_KEY: [override]},
+        ),
+    )
+
+    tracker.set_metadata_field(
+        issue.identifier,
+        "oompah.integration",
+        _native_integration(head_sha="c" * 40).to_dict(),
+    )
+    restarted = _native_tracker(repo)
+    revised = restarted.fetch_issue_detail(issue.identifier)
+    assert revised is not None
+    assert compute_issue_evidence_fingerprint(revised, "project-a") != audited_fingerprint
+
+    assert _enforcer(tmp_path / "restart").recover_pending_audits(
+        [("project-a", restarted)]
+    ) == []
+    refreshed = restarted.fetch_issue_detail(issue.identifier)
+    assert refreshed is not None
+    assert refreshed.state == "In Validation"
+    assert not (
+        repo / ".oompah" / "tasks" / "done" / f"{issue.identifier}.md"
+    ).exists()
+    stored = TerminalAuditMetadata.from_dict(
+        restarted.get_metadata(issue.identifier)[METADATA_KEY]
+    )
+    retired = stored.unknown_fields[TERMINAL_OVERRIDE_RECORDS_KEY][0]
+    assert retired["applied"] is True
+    assert retired["retired_reason"] == "evidence_mismatch"
+    assert stored.pending_chain[0].request_state == RequestState.PENDING
 
 
 def test_recovery_selects_one_newest_current_result_intent(tmp_path):
@@ -794,9 +1149,10 @@ def test_new_orchestrator_recovers_after_operator_repairs_corrupt_state(tmp_path
 class TestAuditBacklogRecovery:
     """Test idempotent recovery of pending audit backlog."""
 
-    def test_multi_request_audit_chain_deduplicates_on_recovery(self, tmp_path):
-        """Multiple pending records in the same chain are deduplicated."""
+    def test_multi_request_audit_chain_recovers_only_current_revision(self, tmp_path):
+        """Only the pending record for the current native evidence is actionable."""
         tracker = _Tracker([_issue("TASK-1", "In Validation", "evidence-a")])
+        tracker.issues[0].description = "requirements v2"
         fingerprint_a = compute_evidence_fingerprint(
             requirements_text="requirements v1", project_id="project-a", task_id="TASK-1"
         )
@@ -844,20 +1200,17 @@ class TestAuditBacklogRecovery:
         enforcer = _enforcer(tmp_path)
         enforcer.initialize([("project-a", tracker)])
         
-        # Both audits should be recovered
-        assert len(enforcer.pending_audits) == 2
-        audit_ids = {item.audit_id for item in enforcer.pending_audits}
-        assert audit_ids == {"audit-1", "audit-2"}
+        assert [item.audit_id for item in enforcer.pending_audits] == ["audit-2"]
         
         # Recovery is idempotent: repeated pass doesn't duplicate
         restarted = _enforcer(tmp_path)
         restarted.initialize([("project-a", tracker)])
-        assert len(restarted.pending_audits) == 2
-        assert {item.audit_id for item in restarted.pending_audits} == {"audit-1", "audit-2"}
+        assert [item.audit_id for item in restarted.pending_audits] == ["audit-2"]
 
     def test_stale_fingerprint_superseded_record_not_requeued(self, tmp_path):
         """Superseded records with old evidence are not requeued."""
         tracker = _Tracker([_issue("TASK-1", "In Validation", "evidence-b")])
+        tracker.issues[0].description = "requirements updated"
         fingerprint_a = compute_evidence_fingerprint(
             requirements_text="requirements", project_id="project-a", task_id="TASK-1"
         )

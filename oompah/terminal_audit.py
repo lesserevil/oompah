@@ -376,6 +376,69 @@ def compute_evidence_fingerprint(
     )
 
 
+def compute_issue_evidence_fingerprint(
+    issue: Any,
+    project_id: str,
+) -> EvidenceFingerprint:
+    """Build the canonical fingerprint for a normalized tracker issue.
+
+    Terminal-transition entry points and restart recovery must derive evidence
+    from exactly the same fields.  Native Markdown issues expose immutable git
+    revision evidence through their persisted integration record rather than
+    ad-hoc ``source_sha``/``target_sha`` attributes, so those values are used
+    as fallbacks when present.
+    """
+
+    integration = getattr(issue, "integration", None)
+    contributors = getattr(issue, "contributors", ()) or ()
+    if isinstance(contributors, str):
+        contributors = (contributors,)
+    child_digests = getattr(issue, "child_audit_digests", ()) or ()
+    if isinstance(child_digests, str):
+        child_digests = (child_digests,)
+
+    return compute_evidence_fingerprint(
+        requirements_text=str(getattr(issue, "description", None) or ""),
+        project_id=str(project_id),
+        task_id=str(
+            getattr(issue, "identifier", None)
+            or getattr(issue, "id", None)
+            or ""
+        ),
+        source_branch=str(
+            getattr(issue, "source_branch", None)
+            or getattr(issue, "work_branch", None)
+            or getattr(integration, "task_branch", None)
+            or getattr(issue, "branch_name", None)
+            or ""
+        ),
+        source_sha=str(
+            getattr(issue, "source_sha", None)
+            or getattr(integration, "head_sha", None)
+            or ""
+        ),
+        target_branch=str(
+            getattr(issue, "target_branch", None)
+            or getattr(integration, "base_branch", None)
+            or ""
+        ),
+        target_sha=str(
+            getattr(issue, "target_sha", None)
+            or getattr(integration, "integrated_sha", None)
+            or getattr(integration, "base_sha", None)
+            or ""
+        ),
+        review_id=str(
+            getattr(issue, "review_id", None)
+            or getattr(issue, "review_number", None)
+            or ""
+        ),
+        review_state=str(getattr(issue, "review_state", None) or ""),
+        child_audit_digests=child_digests,
+        contributors=contributors,
+    )
+
+
 @dataclass
 class AuditAttempt:
     """One auditor execution associated with a terminal-audit request."""
@@ -708,4 +771,5 @@ __all__ = [
     "TerminalState",
     "Verdict",
     "compute_evidence_fingerprint",
+    "compute_issue_evidence_fingerprint",
 ]
