@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T10:41:08.275915Z'
+updated_at: '2026-07-31T10:41:54.992794Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -108,5 +108,10 @@ author: oompah
 created: 2026-07-31 10:41
 ---
 Understanding: Post-OOMPAH-652 regression. The quality_gate.py subprocess spawns candidate branch commands without enforcing lifecycle isolation. A candidate branch with an old Makefile ignores OOMPAH_PYTEST_GATE/RUN_ROOT variables and uses canonical .oompah.pid, allowing it to discover/signal the live operator service. Fix: Enforce full lifecycle isolation (private temp root, PID files, port, HOME/tool state, process group/session capture, ownership cleanup) at the quality_gate.py subprocess launch boundary BEFORE executing any candidate command, not relying on candidate code cooperation. Will audit quality_gate.py subprocess.Popen() call and agent_environment() setup. Starting discovery phase.
+---
+author: oompah
+created: 2026-07-31 10:41
+---
+Discovery: Found the issue in quality_gate.py:287-296. The subprocess.Popen() call uses agent_environment() which only removes client credentials, but doesn't enforce lifecycle isolation variables (OOMPAH_PYTEST_GATE, OOMPAH_PYTEST_RUN_ROOT, OOMPAH_TEST_SERVER_PORT, OOMPAH_TEST_PID_FILE). Old candidate Makefiles will use canonical .oompah.pid. Solution: Create quality_gate_environment() function in client_auth.py that sets up full lifecycle isolation (private temp root, PID files, ephemeral port, HOME state) and use it in quality_gate.py subprocess call. Implements the server-controlled launch boundary isolation that doesn't rely on candidate code cooperation.
 ---
 <!-- COMMENTS:END -->
