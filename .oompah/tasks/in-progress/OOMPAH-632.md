@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:46:34.785511Z'
-updated_at: '2026-07-31T00:52:35.634069Z'
+updated_at: '2026-07-31T00:53:39.676888Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-632
 target_branch: null
 review_url: null
@@ -150,5 +150,10 @@ created: 2026-07-31 00:52
 - oompah/orchestrator.py: Added refresh function and modified _mark_epic_merged()
 
 Now implementing tests to verify the fix works correctly.
+---
+author: oompah
+created: 2026-07-31 00:53
+---
+The server successfully dispatched its own implementation worker after duplicate screening, so the operator is yielding the canonical task branch to that worker as requested. Reproduction confirmed: refs/heads/epic-OOMPAH-586--task-OOMPAH-595 remained ca49d0c while refs/remotes/origin/... was 04d072a and 04d072a is contained by merged parent cd08185c. A local backup fix (not pushed) passes 597 focused epic/transition tests by refreshing existing candidate refs, preferring origin over stale local refs, and deferring on candidate-fetch failure.
 ---
 <!-- COMMENTS:END -->
