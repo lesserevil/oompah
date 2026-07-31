@@ -13,7 +13,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:28.342383Z'
-updated_at: '2026-07-31T01:24:00.182495Z'
+updated_at: '2026-07-31T01:24:25.658882Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-597
 target_branch: null
 review_url: null
@@ -38,7 +38,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 1
   retry_after: null
-oompah.agent_run_id: 47da7eb8-03e1-410b-84a1-f1b4e5134b14
+oompah.agent_run_id: 901fd880-ec81-4848-8b78-b50274b48349
 oompah.work_branch: epic-OOMPAH-587--task-OOMPAH-597
 oompah.integration:
   version: 1
@@ -286,5 +286,10 @@ Run #1 [attempt=1, profile=standard, role=— -> Claude/sonnet]
 - Tokens: 0 in / 0 out [0 total]
 - Cost: $0.0000
 - Exit: error, Duration: 1s
+---
+author: oompah
+created: 2026-07-31 01:24
+---
+Agent dispatched (profile: standard)
 ---
 <!-- COMMENTS:END -->
