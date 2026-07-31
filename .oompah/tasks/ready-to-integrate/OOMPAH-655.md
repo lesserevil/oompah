@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-655
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Enforce full-gate service isolation outside candidate branch code
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T10:58:41.632108Z'
+updated_at: '2026-07-31T10:59:01.236551Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -72,9 +72,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-655
-  head_sha: dd520b1adc45b7010451e3b4dfadde05fbedf0f3
-  submitted_at: '2026-07-31T10:47:05.503364+00:00'
-  updated_at: '2026-07-31T10:47:05.503364+00:00'
+  head_sha: 2713e14ea933ea14555b6e5561fb122500d9d55f
+  submitted_at: '2026-07-31T10:58:53.216651+00:00'
+  updated_at: '2026-07-31T10:58:53.216651+00:00'
 ---
 ## Summary
 
@@ -197,5 +197,15 @@ author: oompah
 created: 2026-07-31 10:58
 ---
 Implementation Complete: Preflight validation enforces full-gate service isolation. Added _verify_isolation_contract() method to BranchQualityGate that checks candidate Makefile for OOMPAH-652 isolation logic (OOMPAH_PYTEST_GATE, OOMPAH_TEST_PID_FILE, OOMPAH_PYTEST_RUN_ROOT, OOMPAH_TEST_SERVER_PORT). Non-compliant branches route to 'needs_rebase' before subprocess execution. Added 5 regression tests proving: old Makefiles rejected, hostile code cannot execute, compliant branches allowed. All 22 quality_gate tests pass.
+---
+author: oompah
+created: 2026-07-31 10:58
+---
+Enforce full-gate service isolation via fail-closed preflight validation. Candidate Makefile must contain OOMPAH-652 lifecycle isolation logic (OOMPAH_PYTEST_GATE, OOMPAH_TEST_PID_FILE, OOMPAH_PYTEST_RUN_ROOT, OOMPAH_TEST_SERVER_PORT) before subprocess execution. Non-compliant branches route to 'needs_rebase' status. Added _verify_isolation_contract() method and 5 regression tests. All 22 quality_gate tests pass, 62 client_auth tests pass, 1 orchestrator quality_gate test passes.
+---
+author: oompah
+created: 2026-07-31 10:59
+---
+Verification: All tests pass. Quality gate tests (22): PASSED. Client auth tests (62): PASSED. Orchestrator quality_gate test: PASSED. Branch OOMPAH-655 pushed to origin. Task submitted for integration. Work complete.
 ---
 <!-- COMMENTS:END -->
