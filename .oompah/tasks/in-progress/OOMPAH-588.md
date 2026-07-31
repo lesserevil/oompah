@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-588
 type: epic
-status: Open
+status: In Progress
 priority: 1
 title: Finish safe repository hygiene and maintenance correctness
 parent: OOMPAH-584
@@ -15,7 +15,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:13:46.482910Z'
-updated_at: '2026-07-31T04:11:47.755544Z'
+updated_at: '2026-07-31T04:14:13.323903Z'
 work_branch: null
 target_branch: null
 review_url: null
