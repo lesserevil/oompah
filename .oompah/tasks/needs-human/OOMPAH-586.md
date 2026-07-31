@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-586
 type: epic
-status: In Validation
+status: Needs Human
 priority: 0
 title: Restore least-privilege task and lifecycle access
 parent: OOMPAH-584
@@ -15,7 +15,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-30T14:13:33.901470Z'
-updated_at: '2026-07-31T00:37:04.386822Z'
+updated_at: '2026-07-31T00:39:48.070764Z'
 work_branch: epic-OOMPAH-586
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/597
@@ -54,6 +54,8 @@ oompah.work_contributors:
     completed_at: '2026-07-31T00:27:37.421183+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-9b8858a0a4d1: '2026-07-31T00:39:45.680453+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -61,7 +63,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-586
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -70,7 +72,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-9b8858a0a4d1
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -80,13 +82,17 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T00:36:56.855747+00:00'
       branch_key: epic-OOMPAH-586
+      verdict: needs_human
+      failure_classification: incomplete
+      completed_at: '2026-07-31T00:39:45.680156+00:00'
+      ended_at: '2026-07-31T00:39:45.680156+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-07-31T00:36:41.194797+00:00'
-    updated_at: '2026-07-31T00:36:56.855747+00:00'
+    updated_at: '2026-07-31T00:39:45.680156+00:00'
   - version: 1
     audit_id: audit-0ed1029671bd
     project_id: proj-14849f1b
@@ -230,5 +236,17 @@ author: oompah
 created: 2026-07-31 00:37
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 00:39
+---
+Needs Human — Done audit requires operator input.
+
+[REDACTED]
+
+Instructions:
+- Reconcile child OOMPAH-595 tracker state (advance to a terminal state or explicitly re-audit) before re-dispatching an epic terminal audit for OOMPAH-586.
+- If OOMPAH-595's Needs Human is only a handoff-service artefact and the underlying auth-health work is complete (commit 04d072a5f delivers it), record that reconciliation on OOMPAH-595 and let the child audit complete first.
+- Optionally run `make test` at current epic head cd08185c9 to confirm the post-rebase full gate before terminal transition; only the pre-rebase head (ca49d0c25) has a recorded full-gate pass.
 ---
 <!-- COMMENTS:END -->
