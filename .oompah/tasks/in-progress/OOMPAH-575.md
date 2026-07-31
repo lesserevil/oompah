@@ -12,7 +12,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-07-30T02:15:25.255613Z'
-updated_at: '2026-07-31T05:58:31.904039Z'
+updated_at: '2026-07-31T05:59:01.476673Z'
 work_branch: OOMPAH-575
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/604
@@ -321,5 +321,10 @@ author: oompah
 created: 2026-07-31 05:58
 ---
 Focus: Merge Conflict Resolver
+---
+author: oompah
+created: 2026-07-31 05:59
+---
+Understanding: Branch OOMPAH-575 has one commit (e404d6eb7) that adds regression tests to tests/test_acp_codex_backend.py and tests/test_task_handoff.py. Main has diverged significantly — several other commits also touched both those test files (OOMPAH-576, OOMPAH-593, OOMPAH-628, OOMPAH-600, OOMPAH-631). Starting rebase onto origin/main to resolve conflicts.
 ---
 <!-- COMMENTS:END -->
