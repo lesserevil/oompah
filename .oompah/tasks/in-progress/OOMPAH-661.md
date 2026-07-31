@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T13:12:19.387161Z'
-updated_at: '2026-07-31T15:25:49.910112Z'
+updated_at: '2026-07-31T15:27:14.022684Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -417,5 +417,10 @@ author: oompah
 created: 2026-07-31 15:25
 ---
 Discovery: The 3 failing tests in test_duplicate_preflight.py all use the _orch() helper that creates an Orchestrator via __new__ (bypassing __init__). The OOMPAH-661 implementation added _retry_authority_lock, _retry_dispatching, and _persisted_retry_entries in __init__, but _orch() doesn't initialize them. The fix is minimal: add these 3 attributes to the _orch() helper.
+---
+author: oompah
+created: 2026-07-31 15:27
+---
+Implementation: Fixed 3 failing tests in tests/test_duplicate_preflight.py. Root cause: the _orch() helper creates an Orchestrator via __new__ (bypassing __init__), so the three retry authority attributes added by OOMPAH-661 (_retry_authority_lock, _retry_dispatching, _persisted_retry_entries) were never initialized. Tests calling _dispatch() and _reconcile() hit AttributeError when those methods accessed _retry_authority_lock. Fix: added 3 lines to _orch() to initialize the missing attributes with the same initial values as __init__. All 23 tests in test_duplicate_preflight.py pass; all 22 tests in test_retry_authority_generation.py + test_worker_submission.py pass. Commit: e1c6e394e
 ---
 <!-- COMMENTS:END -->
