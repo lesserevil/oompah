@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-603
 type: feature
-status: In Validation
+status: Open
 priority: 2
 title: Define and enforce repository hygiene health thresholds
 parent: OOMPAH-588
@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:03.538398Z'
-updated_at: '2026-07-31T04:07:03.125009Z'
+updated_at: '2026-07-31T04:11:22.212907Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-603
 target_branch: null
 review_url: null
@@ -103,6 +103,8 @@ oompah.task_costs:
     recorded_at: '2026-07-30T16:39:59.815675+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-8da7556bb1d0: '2026-07-31T04:11:19.916133+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -110,7 +112,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-603
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -119,7 +121,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-8da7556bb1d0
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -129,13 +131,17 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T04:06:58.472347+00:00'
       branch_key: epic-OOMPAH-588--task-OOMPAH-603
+      verdict: fail
+      failure_classification: incomplete
+      completed_at: '2026-07-31T04:11:19.915990+00:00'
+      ended_at: '2026-07-31T04:11:19.915990+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-31T04:06:53.081994+00:00'
-    updated_at: '2026-07-31T04:06:58.472347+00:00'
+    updated_at: '2026-07-31T04:11:19.915990+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-8da7556bb1d0
@@ -413,5 +419,19 @@ author: oompah
 created: 2026-07-31 04:07
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 04:11
+---
+Audit FAIL — incomplete. Routing task to Open.
+
+[REDACTED]
+
+Instructions:
+- Populate the worktree and branch inventories in the orchestrator health evaluator from the live workspace registry and per-project git branch listings; classify each into active, dirty, unmerged, terminal_protected, shared_owner, or safely_prunable using existing terminal-state and ownership metadata.
+- Compute overdue artifacts by comparing terminal-state age against the configured age threshold; include worktree path or branch name plus project id and task id.
+- Extend the dashboard template to render inventory, overdue artifacts, and health summary, and add a rendering test analogous to the existing terminal audit health dashboard test.
+- Add orchestrator-level tests that seed synthetic worktrees and branches, run the maintenance tick, and assert inventory counts appear in the maintenance status, overdue detection fires when the age threshold is exceeded, is_healthy flips back to True after cleanup, and the health state survives an orchestrator restart with the same config.
+- Add a snapshot-level test that asserts the health payload is present under the orchestrator maintenance metrics with the documented schema.
 ---
 <!-- COMMENTS:END -->
