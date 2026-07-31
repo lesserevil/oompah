@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-665
 type: task
-status: In Progress
+status: Needs Human
 priority: null
 title: Retire legacy no-auditor alerts after terminal task completion
 parent: null
@@ -12,7 +12,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-07-31T16:04:07.401588Z'
-updated_at: '2026-07-31T19:10:31.693204Z'
+updated_at: '2026-07-31T19:19:10.775090Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -59,8 +59,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 9a906e06-c250-4763-868c-866a893d6e4b
 oompah.task_costs:
-  total_input_tokens: 430
-  total_output_tokens: 11169
+  total_input_tokens: 2388341
+  total_output_tokens: 18625
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -68,8 +68,8 @@ oompah.task_costs:
       output_tokens: 4135
       cost_usd: 0.0
     sonnet:
-      input_tokens: 260
-      output_tokens: 7034
+      input_tokens: 2388171
+      output_tokens: 14490
       cost_usd: 0.0
   runs:
   - profile: default
@@ -96,6 +96,12 @@ oompah.task_costs:
     output_tokens: 3781
     cost_usd: 0.0
     recorded_at: '2026-07-31T19:10:01.736230+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 2387911
+    output_tokens: 7456
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T19:19:05.475832+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-665__20260731T181648Z
@@ -106,6 +112,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-665
     source_sha: a1dd3287d1faeeccf777c57764b9283cb653304d
     completed_at: '2026-07-31T18:19:02.180724+00:00'
+  - run_id: OOMPAH-665__20260731T191032Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-terra
+    focus: event_api
+    source_branch: OOMPAH-665
+    source_sha: ccae8b8236d994df4ca11364841cf15619664e5d
+    completed_at: '2026-07-31T19:19:05.478766+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -430,5 +444,20 @@ author: oompah
 created: 2026-07-31 19:10
 ---
 Focus: Event Api Redaction Specialist
+---
+author: oompah
+created: 2026-07-31 19:19
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Codex/gpt-5.6-terra]
+- Turns: 1, Tool calls: 12
+- Tokens: 2.4M in / 7.5K out [2.4M total]
+- Cost: $0.0000
+- Exit: normal, Duration: 8m 37s
+- Log: OOMPAH-665__20260731T191032Z.jsonl
+---
+author: oompah
+created: 2026-07-31 19:19
+---
+Task handoff failed after the worker ran: the server-owned, task-scoped tracker capability could not update this task. The task is held in Needs Human and will not be redispatched automatically; verify the handoff service and reconcile the worker's branch before resuming it.
 ---
 <!-- COMMENTS:END -->
