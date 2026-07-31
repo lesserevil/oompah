@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-632
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Refresh candidate refs before child landing reconciliation
 parent: OOMPAH-584
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:46:34.785511Z'
-updated_at: '2026-07-31T01:29:05.246707Z'
+updated_at: '2026-07-31T01:37:15.913716Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-632
 target_branch: null
 review_url: null
@@ -39,12 +39,15 @@ oompah.agent_run_id: db4bcefb-81fe-4d50-a88c-fee7dd67cf47
 oompah.work_branch: epic-OOMPAH-584--task-OOMPAH-632
 oompah.integration:
   version: 1
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-584--task-OOMPAH-632
-  head_sha: f0398435f4825bfe0e34c5a21b2d9e18964d9aaf
+  base_branch: epic-OOMPAH-584
+  base_sha: ef3ba804da463a0e0dbcedecd715f8feaffe48e5
+  head_sha: b1425f6be8a8914c336d4dcb748ad4e10dc7a372
+  integrated_sha: b1425f6be8a8914c336d4dcb748ad4e10dc7a372
   submitted_at: '2026-07-31T01:28:48.937013+00:00'
-  updated_at: '2026-07-31T01:28:48.937013+00:00'
+  updated_at: '2026-07-31T01:37:12.426010+00:00'
 oompah.task_costs:
   total_input_tokens: 9925350
   total_output_tokens: 31940
@@ -104,7 +107,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-632
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -134,6 +137,23 @@ oompah.terminal_audit:
     previous_state: Ready to Integrate
     created_at: '2026-07-31T01:08:14.614625+00:00'
     updated_at: '2026-07-31T01:11:36.064437+00:00'
+  - version: 1
+    audit_id: audit-43947e8dd832
+    project_id: proj-14849f1b
+    task_id: OOMPAH-632
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7064d2d8f779a754e7cec0c7d7f4230dcce7880f372768d3b635163360bf64b7
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-31T01:37:14.210926+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-4e25047be4f6
