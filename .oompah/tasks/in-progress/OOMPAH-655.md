@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T11:39:33.197971Z'
+updated_at: '2026-07-31T11:42:44.303346Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -419,5 +419,10 @@ author: oompah
 created: 2026-07-31 11:39
 ---
 OOMPAH-623 follow-up coordination: pushed head 3c65ddb648b49ecd396bbf600bf6467ca21ed430 intentionally changes Makefile restart/force-restart recipes to pass PID_FILE, PID_META_FILE, and STOP_TIMEOUT into canonical_cli_cutover.py for exact-process quarantine. It does not change quality_gate/client_auth interfaces. Please treat this Makefile delta as legitimate lifecycle evolution in OOMPAH-655's non-circular isolation design; the exact change is six recipe lines and is covered by lifecycle assertions.
+---
+author: oompah
+created: 2026-07-31 11:42
+---
+Operator stopped only exact test process group 2152948 in the OOMPAH-655 worktree. Although the branch was clean, OOMPAH-657 has not yet deployed immutable exact-head gates and the candidate still requires exact sandbox-boundary review, so this repository-wide make test was premature and is not a test failure. Continue focused checks; the server should run the one exact review-ready full gate after the dependency is satisfied.
 ---
 <!-- COMMENTS:END -->

@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T11:41:37.202350Z'
+updated_at: '2026-07-31T11:42:38.479033Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -670,5 +670,10 @@ author: oompah
 created: 2026-07-31 11:41
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-31 11:42
+---
+**Understanding**: This task requires fixing critical recovery defects in terminal audit enforcement that were identified in prior code review. The issues are: (1) _recover_terminal_override selects the first unapplied override without validating its evidence_fingerprint against current task evidence, allowing stale overrides to terminalize revised tasks; (2) _recover_terminal_result uses list-order authority instead of validated created_at timestamps; (3) evidence test relies on dynamically attached fields rather than native task model evidence. Must add deterministic override/result selection, validate evidence before applying, retire stale intents, and add comprehensive tests with native Markdown task mutations.
 ---
 <!-- COMMENTS:END -->
