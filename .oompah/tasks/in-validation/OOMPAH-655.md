@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-655
 type: task
-status: Needs Human
+status: In Validation
 priority: 0
 title: Enforce full-gate service isolation outside candidate branch code
 parent: null
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T16:51:54.031331Z'
+updated_at: '2026-07-31T16:58:57.338374Z'
 work_branch: OOMPAH-655
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/625
@@ -205,6 +205,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/625
 oompah.review_number: '625'
 oompah.work_branch: OOMPAH-655
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-544b218c2db1
+    project_id: proj-14849f1b
+    task_id: OOMPAH-655
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b3083e23d7d8a3b89d09aa3a765b39d972dfc736cd6fc703f569fab2d2506516
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: Needs Human
+    created_at: '2026-07-31T16:58:51.486423+00:00'
+  - version: 1
+    audit_id: audit-b4c7c782ecb4
+    project_id: proj-14849f1b
+    task_id: OOMPAH-655
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b3083e23d7d8a3b89d09aa3a765b39d972dfc736cd6fc703f569fab2d2506516
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: Needs Human
+    created_at: '2026-07-31T16:58:51.486423+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -1207,5 +1246,15 @@ author: oompah
 created: 2026-07-31 16:51
 ---
 Task handoff failed after the worker ran: the server-owned, task-scoped tracker capability could not update this task. The task is held in Needs Human and will not be redispatched automatically; verify the handoff service and reconcile the worker's branch before resuming it.
+---
+author: oompah
+created: 2026-07-31 16:58
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-07-31 16:58
+---
+YOLO: merged PR #625.
 ---
 <!-- COMMENTS:END -->
