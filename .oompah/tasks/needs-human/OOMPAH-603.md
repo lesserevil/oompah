@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-603
 type: feature
-status: In Validation
+status: Needs Human
 priority: 2
 title: Define and enforce repository hygiene health thresholds
 parent: OOMPAH-588
@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:03.538398Z'
-updated_at: '2026-07-31T05:28:29.379772Z'
+updated_at: '2026-07-31T05:29:08.165180Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-603
 target_branch: null
 review_url: null
@@ -138,6 +138,7 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-8da7556bb1d0: '2026-07-31T04:11:19.916133+00:00'
     attempt-34a8bb89257f: '2026-07-31T05:01:29.951742+00:00'
+    no-auditor-audit-8311680f859c-3: '2026-07-31T05:29:05.398716+00:00'
   oompah.terminal_override_records:
   - version: 1
     override_id: override-fa9ad9e24672
@@ -263,7 +264,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-603
     target_state: Done
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -325,13 +326,25 @@ oompah.terminal_audit:
       failure_reason: Epic branch epic-OOMPAH-588 diverged from origin/epic-OOMPAH-588;
         reconcile both heads before dispatching more children
       next_retry_at: '2026-07-31T05:29:02.076222+00:00'
+    - version: 1
+      attempt_id: no-auditor-audit-8311680f859c-3
+      target_state: Done
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: df964e750e0bd59ee93123beeb881d17c15dcbc78b42b319c5a4517f0e31926e
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-07-31T05:29:05.398553+00:00'
+      completed_at: '2026-07-31T05:29:05.398553+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Needs Human
     created_at: '2026-07-31T05:27:38.043550+00:00'
-    updated_at: '2026-07-31T05:28:22.076263+00:00'
+    updated_at: '2026-07-31T05:29:05.398553+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-8da7556bb1d0
@@ -909,5 +922,12 @@ author: oompah
 created: 2026-07-31 05:28
 ---
 Auditor attempt ended: Epic branch epic-OOMPAH-588 diverged from origin/epic-OOMPAH-588; reconcile both heads before dispatching more children. A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-07-31 05:29
+---
+Needs Human — Done audit requires operator input.
+
+No independent auditor candidate is available for this audit (Audit reached the maximum of 3 attempts.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then move the task back to Open to retry.
 ---
 <!-- COMMENTS:END -->
