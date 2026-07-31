@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-584
 type: epic
-status: In Progress
+status: Needs CI Fix
 priority: 0
 title: Return the oompah delivery control plane to green
 parent: null
@@ -22,7 +22,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-30T14:13:01.872040Z'
-updated_at: '2026-07-31T05:35:05.578130Z'
+updated_at: '2026-07-31T05:36:19.235407Z'
 work_branch: epic-OOMPAH-584
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/603
@@ -237,6 +237,24 @@ Understanding: Starting merge conflict resolution for MR #603. Branch epic-OOMPA
 ---
 author: oompah
 created: 2026-07-31 05:35
+---
+Branch quality gate blocked review creation.
+
+Branch: `epic-OOMPAH-584`
+Target: `main`
+Head: `unknown`
+Command: `make test`
+Result: `error`
+
+Required: run the command in the task worktree, fix the failure, commit and push the repair, then leave the task in Done. Oompah will rerun the gate for the new head before creating the PR/MR.
+
+Output tail:
+```text
+No existing worktree matched the review branch tip. Recreate the task worktree before retrying.
+```
+---
+author: oompah
+created: 2026-07-31 05:36
 ---
 Branch quality gate blocked review creation.
 
