@@ -11,12 +11,27 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T13:12:19.387161Z'
-updated_at: '2026-07-31T13:38:29.115061Z'
+updated_at: '2026-07-31T13:55:28.613058Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 562b7ed72adf9027a7d9db34d9cd19fb86ef816ab27561e4814477ad1a341fc4
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 7bd05caf-08d5-49fc-b27c-d8ca0bd9585b
+  claim_owner: 660099b4-9353-48a0-9b6d-9b3e8f3b8896
+  claimed_at: '2026-07-31T13:55:23.303752+00:00'
+  claim_expires_at: '2026-07-31T14:25:23.303752+00:00'
+  retry_count: 0
+  retry_after: null
+oompah.agent_run_id: ba777a5b-33f5-4fb3-82a5-9d27827304b9
 ---
 ## Summary
 
@@ -28,3 +43,16 @@ Live reproduction on 2026-07-31: OOMPAH-660 failed implementation dispatch becau
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-31 13:55
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-07-31 13:55
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
