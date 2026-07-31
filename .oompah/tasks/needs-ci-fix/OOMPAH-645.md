@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-645
 type: task
-status: Ready to Integrate
+status: Needs CI Fix
 priority: null
 title: Clear recovered terminal-audit transport failures without contaminating later
   audits
@@ -9,10 +9,11 @@ parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- ci-fix
 assignee: null
 created_at: '2026-07-31T06:47:58.732088Z'
-updated_at: '2026-07-31T07:28:13.897206Z'
+updated_at: '2026-07-31T07:43:06.689071Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -297,5 +298,136 @@ Run #2 [attempt=2, profile=standard, role=standard -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: normal, Duration: 13m 51s
 - Log: OOMPAH-645__20260731T071422Z.jsonl
+---
+author: oompah
+created: 2026-07-31 07:43
+---
+Branch quality gate blocked review creation.
+
+Branch: `OOMPAH-645`
+Target: `main`
+Head: `7d1019194f919691333bf00b78cff1a7f73fdb33`
+Command: `make test`
+Result: `failed`
+
+Required: run the command in the task worktree, fix the failure, commit and push the repair, then leave the task in Done. Oompah will rerun the gate for the new head before creating the PR/MR.
+
+Output tail:
+```text
+_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 104, in close
+      proto.pipe.close()
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 568, in close
+      self._close(None)
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 592, in _close
+      self._loop.call_soon(self._call_connection_lost, exc)
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 799, in call_soon
+      self._check_closed()
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 545, in _check_closed
+      raise RuntimeError('Event loop is closed')
+  RuntimeError: Event loop is closed
+  
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_client_auth.py::TestCurrentClientEnvironment::test_current_dotenv_replaces_stale_client_inputs
+= 1 failed, 14186 passed, 7 skipped, 1 xfailed, 54 warnings in 273.66s (0:04:33) =
+make[1]: Leaving directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-645'
+
+Using CPython 3.12.12
+Creating virtual environment at: .venv
+Activate with: source .venv/bin/activate
+Resolved 53 packages in 228ms
+   Building oompah @ file:///home/shedwards/.oompah/worktrees/oompah/OOMPAH-645
+      Built oompah @ file:///home/shedwards/.oompah/worktrees/oompah/OOMPAH-645
+Prepared 1 package in 274ms
+Installed 53 packages in 82ms
+ + annotated-doc==0.0.5
+ + annotated-types==0.8.0
+ + anyio==4.14.2
+ + attrs==26.1.0
+ + babel==2.18.0
+ + bcrypt==4.3.0
+ + certifi==2026.7.22
+ + cffi==2.1.0
+ + click==8.4.2
+ + cryptography==49.0.0
+ + fastapi==0.141.1
+ + h11==0.16.0
+ + httpcore==1.0.9
+ + httptools==0.8.0
+ + httpx==0.28.1
+ + httpx-sse==0.4.3
+ + idna==3.18
+ + jinja2==3.1.6
+ + jsonschema==4.26.0
+ + jsonschema-specifications==2025.9.1
+ + markupsafe==3.0.3
+ + mcp==1.29.0
+ + oompah==0.1.0 (from file:///home/shedwards/.oompah/worktrees/oompah/OOMPAH-645)
+ + passlib==1.7.4
+ + pycparser==3.0
+ + pydantic==2.13.4
+ + pydantic-core==2.46.4
+ + pydantic-settings==2.14.2
+ + pyjwt==2.13.0
+ + python-dateutil==2.9.0.post0
+ + python-dotenv==1.2.2
+ + python-liquid==2.3.0
+ + python-multipart==0.0.32
+ + pytz==2026.3.post1
+ + pyyaml==6.0.3
+ + referencing==0.37.0
+ + rpds-py==2026.6.3
+ + six==1.17.0
+ + sse-starlette==3.4.6
+ + starlette==1.3.1
+ + tree-sitter==0.26.0
+ + tree-sitter-javascript==0.25.0
+ + tree-sitter-markdown==0.5.1
+ + tree-sitter-python==0.25.0
+ + tree-sitter-rust==0.24.2
+ + tree-sitter-typescript==0.23.2
+ + tree-sitter-yaml==0.7.2
+ + typing-extensions==4.16.0
+ + typing-inspection==0.4.2
+ + uvicorn==0.52.0
+ + uvloop==0.22.1
+ + watchfiles==1.2.0
+ + websockets==17.0
+Resolved 74 packages in 137ms
+   Building oompah @ file:///home/shedwards/.oompah/worktrees/oompah/OOMPAH-645
+      Built oompah @ file:///home/shedwards/.oompah/worktrees/oompah/OOMPAH-645
+Prepared 1 package in 232ms
+Uninstalled 2 packages in 3ms
+Installed 23 packages in 73ms
+ + charset-normalizer==3.4.9
+ + claude-agent-sdk==0.2.128
+ + distro==1.9.0
+ + execnet==2.1.2
+ + granian==2.7.9
+ + griffelib==2.1.0
+ + iniconfig==2.3.0
+ + jiter==0.16.0
+ ~ oompah==0.1.0 (from file:///home/shedwards/.oompah/worktrees/oompah/OOMPAH-645)
+ + openai==2.51.0
+ + openai-agents==0.17.8
+ + packaging==26.2
+ + pluggy==1.6.0
+ + pygments==2.20.0
+ + pytest==9.1.1
+ + pytest-asyncio==1.4.0
+ + pytest-timeout==2.4.0
+ + pytest-xdist==3.8.0
+ + requests==2.34.2
+ + sniffio==1.3.1
+ + tqdm==4.70.0
+ + urllib3==2.7.0
+ - websockets==17.0
+ + websockets==16.1.1
+make[1]: *** [Makefile:225: test] Error 1
+```
 ---
 <!-- COMMENTS:END -->
