@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T09:24:58.048147Z'
+updated_at: '2026-07-31T09:25:14.212776Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,13 +46,13 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 73df26fb-6cfb-4ef6-95d8-2c9e6b85a3f8
 oompah.task_costs:
-  total_input_tokens: 673204
-  total_output_tokens: 9250
+  total_input_tokens: 675258
+  total_output_tokens: 9809
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 673204
-      output_tokens: 9250
+      input_tokens: 675258
+      output_tokens: 9809
       cost_usd: 0.0
   runs:
   - profile: default
@@ -67,6 +67,12 @@ oompah.task_costs:
     output_tokens: 3716
     cost_usd: 0.0
     recorded_at: '2026-07-31T09:12:25.796555+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 2054
+    output_tokens: 559
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T09:25:12.195749+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-653__20260731T090421Z
@@ -266,5 +272,15 @@ author: oompah
 created: 2026-07-31 09:24
 ---
 Implemented duplicate audit prevention and alert clearing for OOMPAH-648 and OOMPAH-644 regressions. Canonical live audit identity per fingerprint enforced through sibling cancellation on PASS/override. Alerts cleared atomically via metrics. All 340 related tests pass. Ready for integration.
+---
+author: oompah
+created: 2026-07-31 09:25
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 117
+- Tokens: 2.1K in / 559 out [2.6K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 11m 59s
+- Log: OOMPAH-653__20260731T091319Z.jsonl
 ---
 <!-- COMMENTS:END -->
