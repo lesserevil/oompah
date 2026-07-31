@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T10:08:31.405810Z'
+updated_at: '2026-07-31T10:17:17.359218Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -390,5 +390,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 16m 37s
 - Log: OOMPAH-650__20260731T095203Z.jsonl
+---
+author: oompah
+created: 2026-07-31 10:17
+---
+Additional live evidence while fenced: OOMPAH-623 ran for ~24 minutes, committed and pushed clean head eaa58a2b7, then its provider process exited without a completion/submit comment; the task remained In Progress and auth_health:worker reported 3 token-missing/expired failures in the last 15 minutes. Operator had to move it to Needs Human to clear the running lease. Treat this as the exact long-lived worker/final-handoff regression: successful final submit must be authorized for the exact active task generation, while replacement or terminated generations must not retain authorization.
 ---
 <!-- COMMENTS:END -->
