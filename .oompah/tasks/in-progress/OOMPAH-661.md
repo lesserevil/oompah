@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-661
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Cancel stale implementation retries when task authority changes
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T13:12:19.387161Z'
-updated_at: '2026-07-31T13:57:23.478094Z'
+updated_at: '2026-07-31T13:57:48.661613Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -53,7 +53,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: ba777a5b-33f5-4fb3-82a5-9d27827304b9
+oompah.agent_run_id: 08b01a46-209f-48ac-9d6d-fd0eca3071f9
 oompah.task_costs:
   total_input_tokens: 154
   total_output_tokens: 3957
@@ -112,5 +112,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 53s
 - Log: OOMPAH-661__20260731T135529Z.jsonl
+---
+author: oompah
+created: 2026-07-31 13:57
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-31 13:57
+---
+Focus: Event Api Redaction Specialist
 ---
 <!-- COMMENTS:END -->

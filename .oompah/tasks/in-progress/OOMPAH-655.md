@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-655
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Enforce full-gate service isolation outside candidate branch code
 parent: null
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T13:57:26.757670Z'
+updated_at: '2026-07-31T13:57:43.797898Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -57,7 +57,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 1
   retry_after: null
-oompah.agent_run_id: 5f524e17-3b32-4578-b7d6-b2fd16dcb585
+oompah.agent_run_id: d3721ca8-3c2b-4a62-916e-26de670e906e
 oompah.task_costs:
   total_input_tokens: 7047374
   total_output_tokens: 49395
@@ -649,5 +649,24 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 18m 31s
 - Log: OOMPAH-655__20260731T133858Z.jsonl
+---
+author: oompah
+created: 2026-07-31 13:57
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-31 13:57
+---
+Agent failed: Task worktree /home/shedwards/.oompah/worktrees/oompah/OOMPAH-655 is on OOMPAH-655-final, not expected branch OOMPAH-655; refusing to reset it. Retrying in 20s (attempt #2)
+---
+author: oompah
+created: 2026-07-31 13:57
+---
+Run #2 [attempt=2, profile=standard, role=— -> Claude/sonnet]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 2s
 ---
 <!-- COMMENTS:END -->
