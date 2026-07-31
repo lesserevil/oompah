@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-658
 type: bug
-status: Needs CI Fix
+status: Open
 priority: 2
 title: Deduplicate duplicate-preflight runs across deferred dispatch ticks
 parent: null
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-07-31T11:53:02.522722Z'
+updated_at: '2026-07-31T11:53:13.648147Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -399,5 +399,10 @@ tests/test_round_robin_atomic_dispatch.py::TestPriorityRoleNotAffected::test_pri
 tests/test_round_robin_atomic_dispatch.py::TestStartupFailoverReservation::test_repeated_startup_failures_do_not_repeat_failed_candidate 
 make[1]: *** [Makefile:295: test] Terminated
 ```
+---
+author: oompah
+created: 2026-07-31 11:53
+---
+Operator review rejects Ready head 1fc7b2642. The fingerprint direction is correct for finish-order metadata, but the new Issue.source/source_revision fields are not populated by any native Markdown, GitHub, or GitLab adapter, so production source revisions cannot invalidate a completed screen; only direct dataclass tests exercise them. Add an actual persisted native task regression across fresh adapter/orchestrator instances: checked record + only finish dependency/transient scheduler metadata => zero screens; mutate the real persisted intake/source revision => exactly one new claim under concurrent ticks; inconclusive result remains retryable. Do not use generic updated_at. I also terminated only this task's exact full-gate PGID 2487891 because final gate authority is finish-order blocked on OOMPAH-657; this is not a test failure. Two orphan test-server groups from its earlier interrupted run were cleaned up as well.
 ---
 <!-- COMMENTS:END -->

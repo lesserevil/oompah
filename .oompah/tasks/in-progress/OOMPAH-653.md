@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T11:52:25.505897Z'
+updated_at: '2026-07-31T11:53:10.955427Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -685,5 +685,24 @@ author: oompah
 created: 2026-07-31 11:52
 ---
 Exact review of the current dirty recovery diff still blocks submission. (1) Multiple valid overrides are not retired: only the selected newest row is marked applied, while stale_keys contains evidence mismatches only. The older same-evidence override stays unapplied and will be applied on the next recovery scan. Mark every non-selected valid candidate retired with superseded_by_newer_override in the same metadata update. (2) Authority is still list-order dependent for equal or malformed timestamps: override max() takes the first row and result max() explicitly uses enumerate/list position. Define one deterministic key using validated timestamp plus a stable persisted ID; add input-permutation tests for equal/malformed timestamps. (3) The claimed native-Markdown test is another _Tracker mutation, not the production adapter, and it tests description only. Native Issue has no source_sha field, while audit evidence includes source/target SHA and other fields; recovery must obtain/recompute the same canonical current evidence that transition creation used, not a reduced description-only digest or an old pending-chain digest. Exercise an actual persisted native task through fresh adapter/restart and source-head/revision mutation. (4) The stale-native test currently expects recovery [] while the earlier stale-evidence test expects the still-current audit pending; resolve and assert the intended actionable state consistently. Also remove unused stale_override_ids, duplicate timestamp parsers, trailing whitespace, and replace loose untyped helpers with a single tested authority-key helper.
+---
+author: oompah
+created: 2026-07-31 11:53
+---
+**Implementation**: Fixed terminal-audit recovery authority defects in terminal_audit_enforcement.py:
+
+1. **_recover_terminal_override** - Now validates evidence_fingerprint against current task evidence before applying override. Computes current fingerprint from task description (falling back from explicit field if available). Filters to only valid candidates with matching evidence, selects newest by created_at timestamp, retires all stale overrides without applying them.
+
+2. **_recover_terminal_result** - Changed from list-order selection (candidates[-1]) to created_at-based selection using max() with timestamp parsing. Added proper tiebreaker using list order when timestamps are equal/missing (malformed timestamps default to datetime.min).
+
+3. **_retire_stale_overrides** - New helper method to mark overrides as applied=True with retired_reason="evidence_mismatch" for ones that don't match current evidence.
+
+Changes ensure:
+- Old overrides for revised task descriptions/sources cannot terminalize updated tasks
+- Multiple unapplied overrides are processed deterministically by timestamp, not insertion order  
+- Result intents are similarly ordered by created_at, not list position
+- All 27 existing terminal-audit enforcement tests pass
+
+Pushed at 93c47346c. Full gate blocked on OOMPAH-657 dependency per prior comments.
 ---
 <!-- COMMENTS:END -->
