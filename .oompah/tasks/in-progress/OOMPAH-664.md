@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-664
 type: task
-status: Needs Rebase
+status: In Progress
 priority: 0
 title: Make issue-list snapshots advance with canonical state-branch task changes
 parent: null
@@ -15,7 +15,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-07-31T16:04:06.140108Z'
-updated_at: '2026-07-31T23:23:40.043803Z'
+updated_at: '2026-07-31T23:23:53.677682Z'
 work_branch: OOMPAH-664
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/628
@@ -46,7 +46,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 6d2a29bc-900a-4a34-853a-40f1cad17cbc
+oompah.agent_run_id: 4fc5175b-cb02-48d8-9dd6-6da87e4510a2
 oompah.task_costs:
   total_input_tokens: 6888169
   total_output_tokens: 52496
@@ -877,5 +877,15 @@ author: oompah
 created: 2026-07-31 23:23
 ---
 YOLO: Merge conflict detected on MR #628. Rebase onto main and resolve conflicts.
+---
+author: oompah
+created: 2026-07-31 23:23
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-31 23:23
+---
+Focus: Merge Conflict Resolver
 ---
 <!-- COMMENTS:END -->
