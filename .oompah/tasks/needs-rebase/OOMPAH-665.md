@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-665
 type: task
-status: Ready to Integrate
+status: Needs Rebase
 priority: null
 title: Retire legacy no-auditor alerts after terminal task completion
 parent: null
@@ -12,7 +12,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-07-31T16:04:07.401588Z'
-updated_at: '2026-07-31T18:50:51.068894Z'
+updated_at: '2026-07-31T18:50:54.400399Z'
 work_branch: null
 target_branch: null
 review_url: null
