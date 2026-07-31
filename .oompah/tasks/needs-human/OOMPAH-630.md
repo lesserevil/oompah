@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-630
 type: task
-status: Done
+status: Needs Human
 priority: null
 title: Fetch rollup targets before judging child landing evidence
 parent: OOMPAH-584
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T23:37:58.090708Z'
-updated_at: '2026-07-31T00:27:43.089956Z'
+updated_at: '2026-07-31T05:48:17.003647Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-630
 target_branch: null
 review_url: null
@@ -348,5 +348,10 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 5m 51s
 - Log: OOMPAH-630__20260731T002155Z.jsonl
+---
+author: oompah
+created: 2026-07-31 05:48
+---
+The parent epic OOMPAH-584 merged from epic-OOMPAH-584, but this task was Done with work branch epic-OOMPAH-584--task-OOMPAH-630. Its work is not proven to be in the merged epic. Git evidence: OOMPAH-630 branch epic-OOMPAH-584--task-OOMPAH-630 has 1 unlanded commit(s), including 4510fb912aeb. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
 ---
 <!-- COMMENTS:END -->

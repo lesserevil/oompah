@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-632
 type: bug
-status: Done
+status: Needs Human
 priority: 1
 title: Refresh candidate refs before child landing reconciliation
 parent: OOMPAH-584
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:46:34.785511Z'
-updated_at: '2026-07-31T01:42:26.804679Z'
+updated_at: '2026-07-31T05:48:11.681574Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-632
 target_branch: null
 review_url: null
@@ -486,5 +486,10 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 5m 0s
 - Log: OOMPAH-632__20260731T013732Z.jsonl
+---
+author: oompah
+created: 2026-07-31 05:48
+---
+The parent epic OOMPAH-584 merged from epic-OOMPAH-584, but this task was Done with work branch epic-OOMPAH-584--task-OOMPAH-632. Its work is not proven to be in the merged epic. Git evidence: OOMPAH-632 branch epic-OOMPAH-584--task-OOMPAH-632 has 1 unlanded commit(s), including 4510fb912aeb. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
 ---
 <!-- COMMENTS:END -->

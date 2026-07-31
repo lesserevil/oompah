@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-631
 type: bug
-status: Done
+status: Needs Human
 priority: 1
 title: Restore validation ownership when terminal retries coalesce
 parent: OOMPAH-584
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:08:00.758352Z'
-updated_at: '2026-07-31T00:54:30.220247Z'
+updated_at: '2026-07-31T05:48:08.511654Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-631
 target_branch: null
 review_url: null
@@ -427,5 +427,10 @@ Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: terminated, Duration: 3m 41s
 - Log: OOMPAH-631__20260731T005053Z.jsonl
+---
+author: oompah
+created: 2026-07-31 05:48
+---
+The parent epic OOMPAH-584 merged from epic-OOMPAH-584, but this task was Done with work branch epic-OOMPAH-584--task-OOMPAH-631. Its work is not proven to be in the merged epic. Git evidence: OOMPAH-631 branch epic-OOMPAH-584--task-OOMPAH-631 has 1 unlanded commit(s), including 4510fb912aeb. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
 ---
 <!-- COMMENTS:END -->
