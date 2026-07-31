@@ -1189,37 +1189,34 @@ def test_nested_epic_queue_repair_denies_unrelated_epic_target(tmp_path):
     """Nested epic queue repair denies unrelated epic branches.
     
     When a nested epic's target is an unrelated epic (not its parent),
-    the queue repair should be denied.
+    the queue repair should be denied. Tests that parent resolution is
+    properly wired: EPIC-2 resolves to parent EPIC-P with branch epic-EPIC-P,
+    but target_branch is epic-EPIC-X (an unrelated epic), so repair denied.
     """
     project = _make_project_record(epic_strategy="shared")
     project.repo_path = str(tmp_path)
     orchestrator = _make_orch(tmp_path, projects=[project])
     
-    # Create parent epic
+    # Create proper parent epic
     parent_epic = _make_issue(
-        identifier="EPIC-1",
+        identifier="EPIC-P",
         issue_type="epic",
         project_id=project.id,
     )
     
-    # Create nested epic with different parent
+    # Create nested epic with parent EPIC-P
     nested_epic = _make_issue(
         identifier="EPIC-2",
         issue_type="epic",
-        parent_id="EPIC-OTHER",  # Different parent
+        parent_id=parent_epic.identifier,
         project_id=project.id,
     )
     
     # Create unrelated epic
     unrelated_epic = _make_issue(
-        identifier="EPIC-OTHER",
+        identifier="EPIC-X",
         issue_type="epic",
         project_id=project.id,
-    )
-    
-    # Mock _resolve_epic_target_branch to return unrelated epic branch
-    orchestrator._resolve_epic_target_branch = MagicMock(
-        return_value="epic-EPIC-OTHER"
     )
     
     # Queue item for nested epic's child
@@ -1242,9 +1239,16 @@ def test_nested_epic_queue_repair_denies_unrelated_epic_target(tmp_path):
     # Create upstream task that's terminal
     upstream_task = _make_issue(
         identifier="TASK-1",
-        parent_id="EPIC-1",
+        parent_id=parent_epic.identifier,
         project_id=project.id,
         state="Merged",
+    )
+    
+    # Properly mock _resolve_parent_epic to return the parent epic
+    orchestrator._resolve_parent_epic = MagicMock(return_value=parent_epic)
+    # Mock _resolve_epic_target_branch to return unrelated epic branch
+    orchestrator._resolve_epic_target_branch = MagicMock(
+        return_value="epic-EPIC-X"
     )
 
     with patch(
@@ -1255,12 +1259,192 @@ def test_nested_epic_queue_repair_denies_unrelated_epic_target(tmp_path):
             orchestrator._detect_and_repair_integration_queue_staleness_block(
                 project_id=project.id,
                 epic_id=nested_epic.identifier,
-                issues=[nested_epic, unrelated_epic, upstream_task],
+                issues=[nested_epic, parent_epic, unrelated_epic, upstream_task],
                 queue_items=[queued],
                 dependency_map={"TASK-2": ("TASK-1",)},
                 satisfied=set(),
             )
         )
 
-    # Should NOT repair: unrelated epic target is denied
+    # Should NOT repair: target is unrelated epic, not the parent
     assert repaired is False
+
+
+def test_nested_epic_queue_repair_skips_already_reachable_nonterminal_dependencies(
+    tmp_path,
+):
+    """Queue repair is not triggered for nonterminal dependencies on target.
+    
+    When a nested epic's dependency is already reachable from the target
+    branch but not in a terminal state (not Merged/Done/Archived),
+    the queue repair should not be triggered since the dependency may
+    still change.
+    """
+    project = _make_project_record(epic_strategy="shared")
+    project.repo_path = str(tmp_path)
+    orchestrator = _make_orch(tmp_path, projects=[project])
+    
+    # Create parent epic
+    parent_epic = _make_issue(
+        identifier="EPIC-1",
+        issue_type="epic",
+        project_id=project.id,
+        state="In Progress",
+    )
+    
+    # Create nested epic
+    nested_epic = _make_issue(
+        identifier="EPIC-2",
+        issue_type="epic",
+        parent_id=parent_epic.identifier,
+        project_id=project.id,
+    )
+    
+    # Create dependency that's In Progress (nonterminal) but already on target
+    upstream_task = _make_issue(
+        identifier="TASK-1",
+        parent_id=parent_epic.identifier,
+        project_id=project.id,
+        state="In Progress",  # Nonterminal state
+    )
+    
+    # Queue item for nested epic's child
+    queued = IntegrationQueueItem(
+        project_id=project.id,
+        epic_id=nested_epic.identifier,
+        task_id="TASK-2",
+        task_branch="epic-EPIC-2--task-TASK-2",
+        head_sha="a" * 40,
+        base_sha="b" * 40,
+        priority=1,
+        submitted_at="2026-07-29T00:00:00+00:00",
+        state="ready",
+        attempts=0,
+        lease_owner=None,
+        lease_expires_at=None,
+        updated_at="2026-07-29T00:00:00+00:00",
+    )
+    
+    tracker = MagicMock()
+    orchestrator._tracker_for_project = MagicMock(return_value=tracker)
+    orchestrator._resolve_parent_epic = MagicMock(return_value=parent_epic)
+    
+    # Simulate dependency already on target (ancestor check returns 0)
+    ancestor_check = subprocess.CompletedProcess(
+        [], 0, stdout="", stderr=""
+    )
+    
+    with patch(
+        "oompah.orchestrator.subprocess.run",
+        return_value=ancestor_check,
+    ):
+        repaired = (
+            orchestrator._detect_and_repair_integration_queue_staleness_block(
+                project_id=project.id,
+                epic_id=nested_epic.identifier,
+                issues=[nested_epic, parent_epic, upstream_task],
+                queue_items=[queued],
+                dependency_map={"TASK-2": ("TASK-1",)},
+                satisfied=set(),
+            )
+        )
+    
+    # Should NOT repair: nonterminal dependency means we wait for it to finish
+    assert repaired is False
+
+
+def test_nested_epic_queue_repair_with_successful_parent_sync_allows_claim_next(
+    tmp_path,
+):
+    """Successful parent epic sync lets claim_next work on nested epic queue.
+    
+    When a parent epic's rebase completes successfully and the dependency
+    becomes reachable, the nested epic's claim_next should be able to
+    advance past the stale queue item.
+    """
+    project = _make_project_record(epic_strategy="shared")
+    project.repo_path = str(tmp_path)
+    orchestrator = _make_orch(tmp_path, projects=[project])
+    
+    # Create parent epic with terminal status
+    parent_epic = _make_issue(
+        identifier="EPIC-1",
+        issue_type="epic",
+        project_id=project.id,
+        state="Merged",  # Parent is landed
+    )
+    
+    # Create nested epic
+    nested_epic = _make_issue(
+        identifier="EPIC-2",
+        issue_type="epic",
+        parent_id=parent_epic.identifier,
+        project_id=project.id,
+    )
+    
+    # Create terminal dependency (merged sibling)
+    upstream_task = _make_issue(
+        identifier="TASK-1",
+        parent_id=parent_epic.identifier,
+        project_id=project.id,
+        state="Merged",
+    )
+    upstream_task.integration = IntegrationRecord(
+        state="integrated",
+        integrated_sha="d" * 40,
+    )
+    
+    tracker = MagicMock()
+    orchestrator._tracker_for_project = MagicMock(return_value=tracker)
+    orchestrator._tracker_for_issue = MagicMock(return_value=tracker)
+    orchestrator._resolve_parent_epic = MagicMock(return_value=parent_epic)
+    orchestrator._find_active_epic_rebase_sibling = MagicMock(
+        return_value=None
+    )
+    orchestrator._file_rebase_task = MagicMock()
+    orchestrator._set_epic_rebase_state = MagicMock()
+
+    # Enqueue queue item for nested epic's child with dependency
+    queued = orchestrator.integration_queue.enqueue(
+        project_id=project.id,
+        epic_id=nested_epic.identifier,
+        task_id="TASK-2",
+        task_branch="epic-EPIC-2--task-TASK-2",
+        head_sha="a" * 40,
+        priority=1,
+    )
+    
+    # Simulate successful ancestor check (dependency is reachable)
+    with patch(
+        "oompah.orchestrator.subprocess.run",
+        return_value=subprocess.CompletedProcess([], 0, stdout="", stderr=""),
+    ):
+        repaired = (
+            orchestrator._detect_and_repair_integration_queue_staleness_block(
+                project_id=project.id,
+                epic_id=nested_epic.identifier,
+                issues=[nested_epic, parent_epic, upstream_task],
+                queue_items=[queued],
+                dependency_map={"TASK-2": ("TASK-1",)},
+                satisfied=set(),
+            )
+        )
+
+    # Should repair: terminal dependency on parent epic
+    assert repaired is True
+    # Verify rebase was filed for the nested epic
+    orchestrator._file_rebase_task.assert_called_once()
+    orchestrator._set_epic_rebase_state.assert_called_once()
+    
+    # After successful parent sync, nested epic can advance
+    # Verify claim_next can now proceed (queue state allows it)
+    claimed = orchestrator.integration_queue.claim_next(
+        project_id=project.id,
+        epic_id=nested_epic.identifier,
+        lease_owner="test-lease",
+        dependency_map={"TASK-2": ("TASK-1",)},
+        satisfied={"TASK-1"},  # After parent sync, dependency is satisfied
+    )
+    # Should be able to claim the item once dependency is satisfied
+    assert claimed is not None
+    assert claimed.task_id == "TASK-2"
