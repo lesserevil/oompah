@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-07-31T11:53:33.424947Z'
+updated_at: '2026-07-31T11:55:30.077994Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -414,5 +414,10 @@ author: oompah
 created: 2026-07-31 11:53
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-31 11:55
+---
+Understanding: The previous rejection at head 1fc7b264 is specific — the fingerprint direction (finish-order metadata excluded, intake/source revision included) is correct, but the newly added Issue.source/source_revision fields are not populated by any oompah_md/GitHub/GitLab adapter, so replace()-based direct dataclass tests can pass while production intake changes cannot invalidate a completed screen. Also, the full make test gate was terminated by the operator (finish-order authority on OOMPAH-657), not a real test failure. Plan: (1) drop the dead Issue.source/source_revision fields and derive both fingerprint inputs from already-normalized production data — 'Triggered by:' header parsed from description (server writes this for follow-ups) and intake.proposal_fingerprint from the shared IntakeReadiness schema (populated by all adapters via oompah.intake). (2) Replace the direct-replace tests with a native oompah_md_tracker-backed regression: persist a checked task on disk, add only finish-order deps/transient scheduler labels, spin up a fresh orchestrator, and confirm zero re-screens; then mutate the persisted intake.proposal_fingerprint and confirm exactly one new screening claim under two concurrent ticks; and confirm inconclusive result remains retryable. (3) Focused suites only until OOMPAH-657 lands.
 ---
 <!-- COMMENTS:END -->
