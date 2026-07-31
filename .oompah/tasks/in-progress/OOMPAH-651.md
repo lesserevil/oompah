@@ -17,7 +17,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T16:20:54.194544Z'
+updated_at: '2026-07-31T16:29:55.848251Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -1127,5 +1127,10 @@ author: oompah
 created: 2026-07-31 16:20
 ---
 Discovery: Found two gaps in the last_message redaction path (state-visible field exposed via HTML + state API). Both are on legacy/API agent paths — the ACP path already redacts via _redact_console_event and the payload-derived summary loop in orchestrator._on_event. Gaps: (1) oompah/agent.py::AgentSession._classify_message packaged raw subprocess message text into AgentEvent.payload without redaction; (2) oompah/orchestrator.py _handle_agent_event and the ApiAgentResult handler wrote raw last_message strings to sess.last_message. Both are now redacted at the boundary via redact_sensitive_data.
+---
+author: oompah
+created: 2026-07-31 16:29
+---
+Implementation: Two changes on top of the accepted redaction baseline. (1) oompah/agent.py::AgentSession._classify_message now redacts message summary via redact_sensitive_data before packaging into AgentEvent.payload, and oompah/orchestrator.py _handle_agent_event + API-agent result path now redact before assigning to LiveSession.last_message (state-API + HTML visible). (2) tests/conftest.py adds an autouse fixture clearing the process-local registered-secret registry between tests. Fixes cross-test isolation where a preceding test registering a short credential value ('p') would cause 'unsafe permissions'/'group'/'oompah/tmp/...' substrings in later log-assertion tests to be partially redacted. New tests in tests/test_secrets.py cover TestLegacyAgentClassifiedMessageRedaction (URL userinfo, Bearer header, registered opaque secret, non-secret pass-through) and TestOrchestratorLastMessageRedaction (mirrors _handle_agent_event + ApiAgentResult redaction shape).
 ---
 <!-- COMMENTS:END -->
