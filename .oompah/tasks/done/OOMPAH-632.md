@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-632
 type: bug
-status: In Validation
+status: Done
 priority: 1
 title: Refresh candidate refs before child landing reconciliation
 parent: OOMPAH-584
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:46:34.785511Z'
-updated_at: '2026-07-31T05:54:38.956898Z'
+updated_at: '2026-07-31T05:55:47.872370Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-632
 target_branch: null
 review_url: null
@@ -110,6 +110,23 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-4e25047be4f6: '2026-07-31T01:11:36.064660+00:00'
     attempt-e1419da9c61c: '2026-07-31T01:42:02.889212+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-a0804deb0115
+    project_id: proj-14849f1b
+    task_id: OOMPAH-632
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 19a92356cfab7a1ca8683861f06b4da799bc0a1e44ab53adddb393aae1460ef3
+    authorized_by:
+      version: 1
+      identity: lesserevil
+      source: api
+    reason: Restore previously audited Done after false post-merge landing regression;
+      refreshed exact task ref is contained in main.
+    created_at: '2026-07-31T05:55:43.702582+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -585,5 +602,12 @@ author: oompah
 created: 2026-07-31 05:54
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 05:55
+---
+Override by lesserevil: terminal transition to Done applied by project owner.
+
+Reason: Restore previously audited Done after false post-merge landing regression; refreshed exact task ref is contained in main.
 ---
 <!-- COMMENTS:END -->
