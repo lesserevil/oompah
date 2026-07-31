@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-663
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Canonicalize integrated-task fingerprints for owner overrides
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T13:52:05.961085Z'
-updated_at: '2026-07-31T14:04:04.513891Z'
+updated_at: '2026-07-31T14:04:21.362555Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,7 +37,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: cd436e5a-c0f6-4cc3-8afc-7b0258555ee2
+oompah.agent_run_id: 8d63f73f-78c2-4e47-97e1-e15c730c90cd
 oompah.task_costs:
   total_input_tokens: 3662929
   total_output_tokens: 8902
@@ -96,5 +96,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 3m 30s
 - Log: OOMPAH-663__20260731T140033Z.jsonl
+---
+author: oompah
+created: 2026-07-31 14:04
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-31 14:04
+---
+Focus: Event Api Redaction Specialist
 ---
 <!-- COMMENTS:END -->

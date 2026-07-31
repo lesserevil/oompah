@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-662
 type: task
-status: In Validation
+status: Needs Human
 priority: 0
 title: Rebase epic-OOMPAH-619 onto main
 parent: OOMPAH-619
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T13:49:37.853904Z'
-updated_at: '2026-07-31T14:03:46.715603Z'
+updated_at: '2026-07-31T14:04:14.950460Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-662
 target_branch: null
 review_url: null
@@ -65,6 +65,31 @@ oompah.work_contributors:
     completed_at: '2026-07-31T13:52:17.473821+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    no-auditor-audit-f0f4f01732f7-2: '2026-07-31T14:04:11.055007+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-662
+    target_state: Done
+    evidence_fingerprint: c64e79f4807e9af5dfdb9d7db78dac2a509792baa3d326243d34b00569983a56
+    audit_ids:
+    - audit-f0f4f01732f7
+    kind: result
+    applied: true
+    retired_at: '2026-07-31T14:04:11.055015+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-662
+    audit_id: audit-f0f4f01732f7
+    attempt_id: no-auditor-audit-f0f4f01732f7-2
+    target_state: Done
+    evidence_fingerprint: c64e79f4807e9af5dfdb9d7db78dac2a509792baa3d326243d34b00569983a56
+    status: Needs Human
+    audit_ids:
+    - audit-f0f4f01732f7
+    applied: true
+    created_at: '2026-07-31T14:04:11.055026+00:00'
+    applied_at: '2026-07-31T14:04:13.986250+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -72,7 +97,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-662
     target_state: Done
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -115,13 +140,25 @@ oompah.terminal_audit:
       failure_reason: Epic branch epic-OOMPAH-619 diverged from origin/epic-OOMPAH-619;
         reconcile both heads before dispatching more children
       next_retry_at: '2026-07-31T14:04:04.397984+00:00'
+    - version: 1
+      attempt_id: no-auditor-audit-f0f4f01732f7-2
+      target_state: Done
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: c64e79f4807e9af5dfdb9d7db78dac2a509792baa3d326243d34b00569983a56
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-07-31T14:04:11.054925+00:00'
+      completed_at: '2026-07-31T14:04:11.054925+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: api
     previous_state: In Progress
     created_at: '2026-07-31T14:02:49.264319+00:00'
-    updated_at: '2026-07-31T14:03:44.398028+00:00'
+    updated_at: '2026-07-31T14:04:11.054925+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-2cbbf43f8d6a
@@ -272,5 +309,12 @@ author: oompah
 created: 2026-07-31 14:03
 ---
 Auditor attempt ended: Epic branch epic-OOMPAH-619 diverged from origin/epic-OOMPAH-619; reconcile both heads before dispatching more children. A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-07-31 14:04
+---
+Needs Human — Done audit requires operator input.
+
+No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then move the task back to Open to retry.
 ---
 <!-- COMMENTS:END -->
