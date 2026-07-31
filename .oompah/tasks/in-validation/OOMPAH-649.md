@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-649
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Preserve dirty task worktrees across worker termination and retry
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:19:33.053515Z'
-updated_at: '2026-07-31T09:01:43.864866Z'
+updated_at: '2026-07-31T09:09:14.993012Z'
 work_branch: OOMPAH-649
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/615
@@ -95,6 +95,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/615
 oompah.review_number: '615'
 oompah.work_branch: OOMPAH-649
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-4e11fcd2a697
+    project_id: proj-14849f1b
+    task_id: OOMPAH-649
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 5c7c785b0ad9de53a432a8fab0781ca91d005931a783046c2586155076f0efc7
+    attempts: []
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-31T09:09:10.429787+00:00'
+  - version: 1
+    audit_id: audit-1e014b11292a
+    project_id: proj-14849f1b
+    task_id: OOMPAH-649
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 5c7c785b0ad9de53a432a8fab0781ca91d005931a783046c2586155076f0efc7
+    attempts: []
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-31T09:09:10.429787+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -192,5 +231,15 @@ author: oompah
 created: 2026-07-31 09:01
 ---
 Deadlock recovery: the server reran the exact full gate successfully, but OOMPAH-652 terminated the live service at gate completion before the success callback/PR creation could persist. Since exact head 0957d9955 already has two complete green gates, the operator created the PR directly to resume at the normal review/merge stage; no quality requirement was bypassed.
+---
+author: oompah
+created: 2026-07-31 09:09
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-07-31 09:09
+---
+YOLO: merged PR #615.
 ---
 <!-- COMMENTS:END -->
