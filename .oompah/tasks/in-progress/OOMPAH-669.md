@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T21:52:16.588312Z'
-updated_at: '2026-07-31T23:02:18.174104Z'
+updated_at: '2026-07-31T23:09:21.844691Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -108,5 +108,14 @@ author: oompah
 created: 2026-07-31 23:02
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-31 23:09
+---
+Understanding: The bug is in _persist_worker_submission (oompah/server.py). When a task has an existing 'ready' integration record with matching head/branch AND its canonical tracker status was moved via other paths (In Progress / Needs Human / Needs CI Fix), _submission_record returns the same existing IntegrationRecord object. Then _persist_worker_submission's guard 'if record is existing and head/branch match' fires and returns early — WITHOUT reconciling the tracker status back to Ready to Integrate or posting the fresh submission comment. The 201 response lies about the actual lifecycle.
+
+Plan: swap the identity-based idempotency guard for a lifecycle-based one. Fully idempotent only when (a) the durable record is truly unchanged AND (b) the canonical tracker status is already Ready to Integrate. Any other observed status must trigger tracker.update_issue(Ready to Integrate) + fresh summary comment. Metadata is rewritten only for a genuinely new record. This keeps duplicate submits at Ready/queued/integrating idempotent while making same-head recovery from other statuses correct. Queue rearm behavior from OOMPAH-628 stays as-is.
+
+Tests to add in tests/test_worker_submission.py: same-head resubmit from In Progress / Needs Human / Needs CI Fix atomically writes status+comment; duplicate same-head submit already at Ready to Integrate is fully idempotent; queue rearm still fires; unrelated projects stay isolated.
 ---
 <!-- COMMENTS:END -->

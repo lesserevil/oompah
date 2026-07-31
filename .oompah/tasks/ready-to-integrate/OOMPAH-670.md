@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-670
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Dashboard authenticated mutations must omit client-supplied actor identities
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T22:56:06.058439Z'
-updated_at: '2026-07-31T23:08:44.223710Z'
+updated_at: '2026-07-31T23:09:34.461898Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -63,6 +63,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-670
     source_sha: d96740a6ecdca353e40ef87e94a4ee91b8828df0
     completed_at: '2026-07-31T23:02:39.124795+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-670
+  head_sha: 67026d0685754ad20beabc267934bc96bdf84456
+  submitted_at: '2026-07-31T23:09:31.166027+00:00'
+  updated_at: '2026-07-31T23:09:31.166027+00:00'
 ---
 ## Summary
 
@@ -148,5 +156,48 @@ Created 13 regression tests verifying:
 - Actor collection/inclusion only happens when auth is disabled
 - Code has explanatory comments
 All tests pass ✓
+---
+author: oompah
+created: 2026-07-31 23:09
+---
+Verification: All tests pass ✓
+
+Dashboard tests: 887/887 passed
+- New authenticated mutations test suite: 13/13 tests pass
+- All neighboring dashboard suites: 874/874 pass
+
+Key behavior verified:
+✓ httpAuthEnabled flag defaults to false (legacy compatibility)
+✓ handleStateUpdate() captures and syncs http_auth.enabled from server
+✓ updateIssue() conditionally omits actor_login when auth enabled
+✓ performIntakeAction() conditionally omits actor when auth enabled  
+✓ openDetailPanel() conditionally omits actor param when auth enabled
+✓ All comments explain auth-based behavior in code
+
+Acceptance criteria met:
+✓ Authenticated operators can move Backlog→Open without actor_mismatch
+✓ Authenticated operators can perform owner intake actions without actor_mismatch
+✓ Network payload omits client actor when auth enabled
+✓ Unauthenticated deployments still send configured actor (backward compat)
+✓ Server-side spoofing rejection unchanged (already validated by _resolve_authorization_actor)
+✓ All focused tests pass
+
+Branch ready for review: OOMPAH-670
+---
+author: oompah
+created: 2026-07-31 23:09
+---
+Dashboard authenticated mutations omit client-supplied actor identities
+
+With HTTP Basic authentication enabled, the dashboard now omits actor/actor_login from status mutations and intake actions, allowing the server to derive the principal from authenticated credentials. This prevents actor_mismatch rejections when the authenticated user differs from the configured project actor.
+
+Key changes:
+- Added httpAuthEnabled global flag synced from server state.http_auth.enabled
+- Updated updateIssue() to conditionally skip actor_login for authenticated requests
+- Updated performIntakeAction() to conditionally skip actor for authenticated requests
+- Updated openDetailPanel() to conditionally skip actor query param for authenticated requests
+- Preserved legacy actor path for unauthenticated deployments
+
+Implementation verified by 13 regression tests covering authenticated status moves, authenticated intake actions, auth-state refresh, and backward compatibility. All 887 dashboard tests pass.
 ---
 <!-- COMMENTS:END -->

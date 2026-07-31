@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-665
 type: task
-status: Needs CI Fix
+status: In Progress
 priority: 0
 title: Retire legacy no-auditor alerts after terminal task completion
 parent: null
@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:07.401588Z'
-updated_at: '2026-07-31T23:09:13.878543Z'
+updated_at: '2026-07-31T23:09:39.665814Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -59,7 +59,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 488f38cf-f5de-483d-b679-350c2e2920b9
+oompah.agent_run_id: 57004dc6-4e48-4c28-9024-8679bbe3dd1c
 oompah.task_costs:
   total_input_tokens: 2590496
   total_output_tokens: 25179
@@ -622,5 +622,15 @@ author: oompah
 created: 2026-07-31 23:07
 ---
 Operator claim: the user directed the primary Codex session to take this task out of Needs Human and complete it directly. No human decision is outstanding. I am preserving the existing pushed branch and will reconcile it against the satisfied lifecycle prerequisites before resubmission.
+---
+author: oompah
+created: 2026-07-31 23:09
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-31 23:09
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->

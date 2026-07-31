@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-651
 type: bug
-status: Needs CI Fix
+status: In Progress
 priority: 0
 title: Redact secrets from agent tool inputs, outputs, and JSONL event logs
 parent: null
@@ -19,7 +19,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T23:09:12.689156Z'
+updated_at: '2026-07-31T23:09:30.666883Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -52,7 +52,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: e076de11-c3ec-47d8-b353-63b590d73b9b
+oompah.agent_run_id: 4aa3adc7-cf83-4002-af79-6b3175f24ccf
 oompah.task_costs:
   total_input_tokens: 24517753
   total_output_tokens: 145309
@@ -1378,5 +1378,15 @@ author: oompah
 created: 2026-07-31 23:07
 ---
 Operator claim: the user directed the primary Codex session to take this task out of Needs Human and complete it directly. No human decision is outstanding. I am preserving the existing pushed branch and will reconcile it against the satisfied lifecycle prerequisites before resubmission.
+---
+author: oompah
+created: 2026-07-31 23:09
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-31 23:09
+---
+Focus: Event Api Redaction Specialist
 ---
 <!-- COMMENTS:END -->
