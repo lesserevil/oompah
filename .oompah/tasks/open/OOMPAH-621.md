@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-621
 type: task
-status: Needs Human
+status: Open
 priority: 1
 title: Document and integration-test CLI credential precedence
 parent: OOMPAH-619
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:25:29.809048Z'
-updated_at: '2026-07-30T22:56:17.155454Z'
+updated_at: '2026-07-31T06:02:23.034306Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-621
 target_branch: null
 review_url: null
@@ -451,5 +451,10 @@ author: oompah
 created: 2026-07-30 22:56
 ---
 Task handoff failed after the worker ran: the server-owned, task-scoped tracker capability could not update this task. The task is held in Needs Human and will not be redispatched automatically; verify the handoff service and reconcile the worker's branch before resuming it.
+---
+author: oompah
+created: 2026-07-31 06:02
+---
+Post-restart re-evaluation: the prior scoped handoff failure is fixed. The task branch has one pushed recovery commit b2191c92f (netrc docs and contract fixes) ahead of current epic-OOMPAH-619, while the earlier exact-revision compatibility test is already on the epic at 9d1101420. Reopening so Oompah can validate/integrate the recovered commit and complete the normal terminal audit.
 ---
 <!-- COMMENTS:END -->
