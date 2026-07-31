@@ -4,12 +4,19 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from types import SimpleNamespace
 
 from oompah.terminal_audit_observability import (
     AuditAlertCondition,
     TerminalAuditAlertRegistry,
     TerminalAuditMetrics,
     threshold_conditions,
+)
+from oompah.terminal_audit import (
+    EvidenceFingerprint,
+    RequestState,
+    TargetState,
+    TerminalAuditRecord,
 )
 from oompah.config import ServiceConfig
 from oompah.models import Issue, RunningEntry
@@ -85,6 +92,56 @@ def test_queue_age_and_project_isolation_survive_restart() -> None:
     assert snapshot["projects"]["project-b"]["queued"] == 1
     assert snapshot["projects"]["project-b"]["retried"] == 0
     assert snapshot["retried"] == 1
+
+
+def test_sync_pending_uses_only_live_records_and_counts_a_stale_identity_once() -> None:
+    now = datetime(2026, 7, 29, 12, tzinfo=timezone.utc)
+    metrics = TerminalAuditMetrics(clock=_Clock(now))
+    fingerprint = EvidenceFingerprint("a" * 64)
+    live = TerminalAuditRecord(
+        audit_id="audit-live",
+        project_id="project-a",
+        task_id="TASK-1",
+        target_state=TargetState.DONE,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.PENDING,
+    )
+    superseded = TerminalAuditRecord(
+        audit_id="audit-stale",
+        project_id="project-a",
+        task_id="TASK-2",
+        target_state=TargetState.DONE,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.SUPERSEDED,
+    )
+    metrics.record_running("project-a", "TASK-2", "audit-stale")
+
+    entries = [
+        SimpleNamespace(
+            project_id=live.project_id,
+            task_id=live.task_id,
+            audit_id=live.audit_id,
+            record=live,
+        ),
+        SimpleNamespace(
+            project_id=superseded.project_id,
+            task_id=superseded.task_id,
+            audit_id=superseded.audit_id,
+            record=superseded,
+        ),
+    ]
+    metrics.sync_pending(entries)
+    metrics.sync_pending(entries)
+
+    snapshot = metrics.snapshot(now=now)
+    assert snapshot["queued"] == 1
+    assert snapshot["running"] == 0
+    assert snapshot["queued_total"] == 1
+    assert snapshot["oldest_queue_task_id"] == "TASK-1"
+
+    metrics.record_stale_discarded("project-a", "TASK-2", "audit-stale")
+    metrics.record_stale_discarded("project-a", "TASK-2", "audit-stale")
+    assert metrics.snapshot()["stale_discarded"] == 1
 
 
 def test_threshold_alerts_deduplicate_and_clear_on_recovery() -> None:

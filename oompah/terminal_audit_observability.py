@@ -182,7 +182,12 @@ class TerminalAuditMetrics:
         self._queued: dict[tuple[str, str, str], dict[str, Any]] = {}
         self._running: dict[tuple[str, str, str], dict[str, Any]] = {}
         self._seen: dict[str, set[tuple[str, str, str]]] = {
-            name: set() for name in ("grandfathered", "no_independent_candidate")
+            name: set()
+            for name in (
+                "stale_discarded",
+                "grandfathered",
+                "no_independent_candidate",
+            )
         }
         self._no_candidate: dict[tuple[str, str, str], str] = {}
         self._last_successful_audit_at: str | None = None
@@ -370,7 +375,7 @@ class TerminalAuditMetrics:
         for key in tuple(self._running):
             if key not in live:
                 self._finish(key)
-                self._increment("stale_discarded", key)
+                self._count_once("stale_discarded", key)
         self._persist()
 
     def _finish(self, key: tuple[str, str, str]) -> None:
@@ -412,7 +417,7 @@ class TerminalAuditMetrics:
     def record_stale_discarded(self, project_id: str, task_id: str, audit_id: str) -> None:
         key = _identity(project_id, task_id, audit_id)
         self._finish(key)
-        self._increment("stale_discarded", key)
+        self._count_once("stale_discarded", key)
         self._persist()
 
     @_synchronized
@@ -446,7 +451,13 @@ class TerminalAuditMetrics:
 
     @_synchronized
     def sync_pending(self, entries: Iterable[Any]) -> None:
-        """Mirror recovered enforcement entries without creating duplicates."""
+        """Mirror only live, metadata-backed audit records.
+
+        Enforcement persistence is a restart cache; it is not evidence that a
+        task can still be dispatched.  Callers normally provide a reconciled
+        set, but filtering here as well prevents a stale cache row from
+        resurrecting a completed, superseded, or overridden queue gauge.
+        """
 
         observed: set[tuple[str, str, str]] = set()
         for entry in entries:
@@ -455,11 +466,27 @@ class TerminalAuditMetrics:
             audit_id = getattr(entry, "audit_id", None)
             if project_id is None and isinstance(entry, Mapping):
                 project_id, task_id, audit_id = (entry.get(name) for name in ("project_id", "task_id", "audit_id"))
-            key = _identity(project_id, task_id, audit_id)
-            observed.add(key)
             record = getattr(entry, "record", None)
+            if record is None and isinstance(entry, Mapping):
+                record = entry.get("record")
             request_state = getattr(record, "request_state", None)
-            if str(getattr(request_state, "value", request_state)) == "in_progress":
+            if request_state is None and isinstance(record, Mapping):
+                request_state = record.get("request_state")
+            request_state = str(getattr(request_state, "value", request_state))
+            if request_state not in {"pending", "in_progress"}:
+                continue
+            record_project_id = getattr(record, "project_id", project_id)
+            record_task_id = getattr(record, "task_id", task_id)
+            record_audit_id = getattr(record, "audit_id", audit_id)
+            if isinstance(record, Mapping):
+                record_project_id = record.get("project_id", record_project_id)
+                record_task_id = record.get("task_id", record_task_id)
+                record_audit_id = record.get("audit_id", record_audit_id)
+            key = _identity(project_id, task_id, audit_id)
+            if (record_project_id, record_task_id, record_audit_id) != key:
+                continue
+            observed.add(key)
+            if request_state == "in_progress":
                 self.record_running(*key, attempts=len(getattr(record, "attempts", ()) or ()))
             else:
                 self.record_queued(*key, attempts=len(getattr(record, "attempts", ()) or ()))

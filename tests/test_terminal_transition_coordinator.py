@@ -14,6 +14,7 @@ import copy
 import threading
 import time
 from dataclasses import dataclass, field, replace
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -164,6 +165,9 @@ class _MetricsRecorder:
 
     def record_stale_discarded(self, *args: Any, **_kwargs: Any) -> None:
         self.calls.append(("stale_discarded", args))
+
+    def record_overridden(self, *args: Any, **_kwargs: Any) -> None:
+        self.calls.append(("overridden", args))
 
 
 # ---------------------------------------------------------------------------
@@ -661,6 +665,7 @@ class TestSuperseding:
         assert late.reason == ResultRejection.STATE_MISMATCH
         assert tracker.current_status(TASK_ID) == IN_VALIDATION
 
+
     def test_identical_request_coalesces_with_in_progress_audit(self) -> None:
         tracker = _MemoryTracker()
         coord = _coordinator(tracker, post_comments=False)
@@ -740,6 +745,45 @@ class TestSuperseding:
         assert result1.audit_id in audit_ids
         assert result2.audit_id in audit_ids
         assert len(doc.pending_chain) == 2
+
+
+# ---------------------------------------------------------------------------
+# TestOwnerOverrides
+# ---------------------------------------------------------------------------
+
+
+class TestOwnerOverrides:
+    def test_owner_override_cancels_live_audit_and_finishes_its_gauge(self) -> None:
+        tracker = _MemoryTracker()
+        metrics = _MetricsRecorder()
+        record = _pending_done_record()
+        _seed_metadata(tracker, [record])
+        coordinator = _coordinator(tracker, post_comments=False, metrics=metrics)
+        owner = ContributorIdentity("project-owner", "github")
+        project = SimpleNamespace(
+            tracker_owner="project-owner",
+            status_actor_login=None,
+            status_label_authorized_logins=["project-owner"],
+        )
+
+        result = _run(
+            coordinator.override_transition(
+                _issue(IN_VALIDATION),
+                TargetState.DONE,
+                owner,
+                PROJECT_ID,
+                _fingerprint(),
+                "Project owner approved this terminal transition.",
+                project,
+            )
+        )
+
+        assert result.success is True
+        assert result.overridden_audit_ids == [record.audit_id]
+        assert tracker.current_status(TASK_ID) == DONE
+        stored = TerminalAuditMetadataStore(tracker, _LockStore(), PROJECT_ID).read(TASK_ID)
+        assert stored.pending_chain[0].request_state == RequestState.CANCELLED
+        assert ("overridden", (PROJECT_ID, TASK_ID, record.audit_id)) in metrics.calls
 
 
 # ---------------------------------------------------------------------------

@@ -4,20 +4,24 @@ from __future__ import annotations
 
 import json
 import logging
+from dataclasses import replace
 
 from oompah.models import Issue
 from oompah.config import ServiceConfig
 from oompah.orchestrator import Orchestrator
 from oompah.terminal_audit import (
     AuditAttempt,
+    EvidenceFingerprint,
     RequestState,
     TargetState,
     TerminalAuditRecord,
     compute_evidence_fingerprint,
 )
 from oompah.terminal_audit_enforcement import (
+    PendingAudit,
     SERVICE_STATE_KEY,
     TerminalAuditEnforcement,
+    TerminalAuditEnforcementState,
 )
 from oompah.terminal_audit_metadata import METADATA_KEY, TerminalAuditMetadata
 
@@ -75,6 +79,28 @@ def _enforcer(tmp_path, *, terminal_states=("Done",)):
     )
 
 
+def _pending_record(
+    project_id: str,
+    task_id: str,
+    audit_id: str,
+    *,
+    request_state: RequestState = RequestState.PENDING,
+) -> TerminalAuditRecord:
+    fingerprint = compute_evidence_fingerprint(
+        requirements_text="requirements",
+        project_id=project_id,
+        task_id=task_id,
+    )
+    return TerminalAuditRecord(
+        audit_id=audit_id,
+        project_id=project_id,
+        task_id=task_id,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=fingerprint,
+        request_state=request_state,
+    )
+
+
 def test_first_startup_snapshots_existing_terminal_tasks_and_second_reuses_it(tmp_path):
     tracker = _Tracker([_issue("TASK-1", "Done", "evidence-a")])
     enforcer = _enforcer(tmp_path)
@@ -97,21 +123,21 @@ def test_first_startup_snapshots_existing_terminal_tasks_and_second_reuses_it(tm
     assert second["grandfathered"] == 1
 
 
-def test_evidence_change_requires_one_fresh_audit_and_deduplicates_restart(tmp_path):
+def test_evidence_change_is_retained_as_invalidated_but_not_a_dispatch_queue_row(tmp_path):
     tracker = _Tracker([_issue("TASK-1", "Done", "evidence-a")])
     _enforcer(tmp_path).initialize([("project-a", tracker)])
 
     tracker.issues[0].evidence_fingerprint = "evidence-b"  # type: ignore[attr-defined]
     restarted = _enforcer(tmp_path)
     result = restarted.initialize([("project-a", tracker)])
-    assert result["pending_audits"] == 1
-    first_audit_id = restarted.pending_audits[0].audit_id
+    assert result["pending_audits"] == 0
+    assert len(restarted.state.invalidated) == 1
 
     second = _enforcer(tmp_path)
     result = second.initialize([("project-a", tracker)])
-    assert result["pending_audits"] == 1
-    assert len({entry.audit_id for entry in second.pending_audits}) == 1
-    assert second.state.pending_audits[0].audit_id == first_audit_id
+    assert result["pending_audits"] == 0
+    assert len(second.state.invalidated) == 1
+    assert second.state.pending_audits == []
 
 
 def test_terminal_to_nonterminal_to_terminal_is_not_grandfathered(tmp_path):
@@ -125,7 +151,7 @@ def test_terminal_to_nonterminal_to_terminal_is_not_grandfathered(tmp_path):
 
     tracker.issues[0].state = "Done"
     reentered = _enforcer(tmp_path).initialize([("project-a", tracker)])
-    assert reentered["pending_audits"] == 1
+    assert reentered["pending_audits"] == 0
     assert reentered["grandfathered"] == 0
 
 
@@ -172,6 +198,71 @@ def test_pending_validation_metadata_recovers_without_writing_or_duplicating_att
     assert tracker.set_calls == 0
 
 
+def test_recovery_replaces_mixed_persisted_rows_with_live_metadata_per_project(tmp_path):
+    """Only current In Validation metadata is retained as a launchable queue."""
+
+    live = _pending_record("project-a", "TASK-1", "audit-live")
+    stale_status = _pending_record("project-a", "TASK-2", "audit-archived")
+    stale_revision = _pending_record("project-a", "TASK-3", "audit-revision")
+    stale_evidence = _pending_record("project-a", "TASK-4", "audit-evidence")
+    stale_missing = _pending_record("project-b", "TASK-1", "audit-missing")
+
+    tracker_a = _Tracker(
+        [
+            _issue("TASK-1", "In Validation", "evidence-a"),
+            _issue("TASK-2", "Archived", "evidence-a"),
+            _issue("TASK-3", "In Validation", "evidence-a"),
+            _issue("TASK-4", "In Validation", "evidence-a"),
+        ]
+    )
+    tracker_a.issues[-1].evidence_fingerprint = EvidenceFingerprint("b" * 64)  # type: ignore[attr-defined]
+    tracker_b = _Tracker([])
+    tracker_a.metadata["TASK-1"] = {
+        METADATA_KEY: TerminalAuditMetadata(pending_chain=[live]).to_dict()
+    }
+    tracker_a.metadata["TASK-3"] = {
+        METADATA_KEY: TerminalAuditMetadata(
+            pending_chain=[replace(stale_revision, request_state=RequestState.SUPERSEDED)]
+        ).to_dict()
+    }
+    tracker_a.metadata["TASK-4"] = {
+        METADATA_KEY: TerminalAuditMetadata(pending_chain=[stale_evidence]).to_dict()
+    }
+
+    state = TerminalAuditEnforcementState(
+        pending_audits=[
+            PendingAudit.from_record(live),
+            PendingAudit.from_record(stale_status),
+            PendingAudit.from_record(stale_revision),
+            PendingAudit.from_record(stale_evidence),
+            PendingAudit.from_record(stale_missing),
+        ]
+    )
+    (tmp_path / "service_state.json").write_text(
+        json.dumps({SERVICE_STATE_KEY: state.to_dict()}), encoding="utf-8"
+    )
+
+    enforcer = _enforcer(tmp_path)
+    recovered = enforcer.initialize(
+        [("project-a", tracker_a), ("project-b", tracker_b)]
+    )
+
+    assert recovered["pending_audits"] == 1
+    assert [(entry.project_id, entry.task_id, entry.audit_id) for entry in enforcer.pending_audits] == [
+        ("project-a", "TASK-1", "audit-live")
+    ]
+    persisted = json.loads((tmp_path / "service_state.json").read_text())
+    assert [entry["audit_id"] for entry in persisted[SERVICE_STATE_KEY]["pending_audits"]] == [
+        "audit-live"
+    ]
+
+    repeated = _enforcer(tmp_path).initialize(
+        [("project-a", tracker_a), ("project-b", tracker_b)]
+    )
+    assert repeated["pending_audits"] == 1
+    assert repeated["scan_complete"] is True
+
+
 def test_corrupt_service_state_fails_closed_and_is_observable(tmp_path, caplog):
     state_path = tmp_path / "service_state.json"
     state_path.write_text("not-json")
@@ -182,7 +273,7 @@ def test_corrupt_service_state_fails_closed_and_is_observable(tmp_path, caplog):
         result = enforcer.initialize([("project-a", tracker)])
 
     assert result["quarantined"] is True
-    assert result["pending_audits"] == 1
+    assert result["pending_audits"] == 0
     assert "service_state_corrupt" in result["errors"]
     assert any("service_state_corrupt" in record.message for record in caplog.records)
     assert state_path.read_text() == "not-json"
@@ -197,7 +288,7 @@ def test_corrupt_enforcement_entry_is_replaced_with_quarantine_record(tmp_path, 
         result = _enforcer(tmp_path).initialize([("project-a", tracker)])
 
     assert result["quarantined"] is True
-    assert result["pending_audits"] == 1
+    assert result["pending_audits"] == 0
     persisted = json.loads(state_path.read_text())[SERVICE_STATE_KEY]
     assert persisted["version"] == 1
     assert persisted["quarantined"] is True
@@ -247,7 +338,8 @@ def test_mark_audit_passed_reestablishes_grandfather_baseline(tmp_path):
     tracker.issues[0].evidence_fingerprint = "evidence-b"  # type: ignore[attr-defined]
     enforcer = _enforcer(tmp_path)
     enforcer.initialize([("project-a", tracker)])
-    assert len(enforcer.pending_audits) == 1
+    assert enforcer.pending_audits == []
+    assert len(enforcer.state.invalidated) == 1
 
     enforcer.mark_audit_passed("project-a", tracker.issues[0], "evidence-b")
     restarted = _enforcer(tmp_path)
@@ -272,6 +364,66 @@ def test_orchestrator_runs_enforcement_before_dispatch_startup(tmp_path):
     assert orchestrator._maintenance_status["terminal_audit_enforcement"][
         "baseline_initialized"
     ] is True
+
+
+def test_orchestrator_recovery_converges_live_queue_metrics_and_health(tmp_path):
+    """A recovery scan cannot rehydrate a terminal or superseded audit row."""
+
+    live = _pending_record("project-a", "TASK-1", "audit-live")
+    stale_terminal = _pending_record("project-a", "TASK-2", "audit-terminal")
+    tracker = _Tracker(
+        [
+            _issue("TASK-1", "In Validation", "evidence-a"),
+            _issue("TASK-2", "Done", "evidence-a"),
+        ]
+    )
+    tracker.metadata["TASK-1"] = {
+        METADATA_KEY: TerminalAuditMetadata(pending_chain=[live]).to_dict()
+    }
+    state_path = tmp_path / "service_state.json"
+    state_path.write_text(
+        json.dumps(
+            {
+                SERVICE_STATE_KEY: TerminalAuditEnforcementState(
+                    pending_audits=[
+                        PendingAudit.from_record(live),
+                        PendingAudit.from_record(stale_terminal),
+                    ]
+                ).to_dict()
+            }
+        ),
+        encoding="utf-8",
+    )
+    orchestrator = Orchestrator(
+        ServiceConfig(workspace_root=str(tmp_path / "workspace")),
+        str(tmp_path / "WORKFLOW.md"),
+        state_path=str(state_path),
+    )
+    try:
+        orchestrator._terminal_audit_scopes = lambda: [("project-a", tracker)]
+        # Simulate the stale running gauge that a prior process left behind.
+        orchestrator._terminal_audit_metrics.record_running(
+            "project-a", "TASK-2", "audit-terminal"
+        )
+
+        orchestrator._run_terminal_audit_enforcement()
+        first = orchestrator.get_snapshot()
+
+        assert first["terminal_audit_enforcement"]["pending_audits"] == 1
+        assert first["terminal_audit"]["queued"] == 1
+        assert first["terminal_audit"]["running"] == 0
+        assert first["terminal_audit"]["oldest_queue_task_id"] == "TASK-1"
+        assert first["terminal_audit_health"]["pending_count"] == 1
+        assert first["terminal_audit_health"]["in_progress_count"] == 0
+
+        orchestrator._run_terminal_audit_enforcement()
+        second = orchestrator.get_snapshot()
+        assert second["terminal_audit"]["queued_total"] == 1
+        assert second["terminal_audit"]["stale_discarded"] == 0
+        assert second["terminal_audit_health"]["pending_count"] == 1
+    finally:
+        orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
+        orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
 
 
 def test_orchestrator_terminal_audit_merge_preserves_unrelated_state(tmp_path):

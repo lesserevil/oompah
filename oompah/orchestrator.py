@@ -1495,6 +1495,19 @@ class Orchestrator:
             )
             metrics = self._terminal_audit_metrics
             metrics.sync_pending(self._terminal_audit_enforcement.pending_audits)
+            # Recovery just rebuilt the same metadata-backed set used by the
+            # dispatch lane.  Derive health from it immediately so a restart
+            # cannot expose an empty health queue beside stale observability
+            # gauges until the next scheduler tick.
+            self._refresh_terminal_audit_health(
+                [
+                    entry.record
+                    for entry in self._terminal_audit_enforcement.pending_audits
+                    if entry.record is not None
+                ],
+                scan_complete=bool(result.get("scan_complete", True)),
+                scan_error_count=int(result.get("scan_error_count", 0)),
+            )
             for entry in self._terminal_audit_enforcement.state.grandfathered:
                 metrics.record_grandfathered(
                     entry.project_id,
