@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-633
 type: bug
-status: In Validation
+status: Done
 priority: 1
 title: Repair stale integration queues in nested epics
 parent: OOMPAH-584
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:54:49.391955Z'
-updated_at: '2026-07-31T01:32:13.113509Z'
+updated_at: '2026-07-31T01:37:56.145695Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-633
 target_branch: null
 review_url: null
@@ -108,6 +108,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-70d2d55461f6: '2026-07-31T01:20:42.727325+00:00'
+    attempt-a2e3da846065: '2026-07-31T01:37:53.871077+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -149,7 +150,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-633
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -158,7 +159,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-a2e3da846065
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -168,13 +169,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T01:32:07.936051+00:00'
       branch_key: epic-OOMPAH-584--task-OOMPAH-633
+      verdict: pass
+      completed_at: '2026-07-31T01:37:53.870947+00:00'
+      ended_at: '2026-07-31T01:37:53.870947+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-31T01:31:59.841804+00:00'
-    updated_at: '2026-07-31T01:32:07.936051+00:00'
+    updated_at: '2026-07-31T01:37:53.870947+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-70d2d55461f6
@@ -482,5 +486,31 @@ author: oompah
 created: 2026-07-31 01:32
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 01:37
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- branch: epic-OOMPAH-584--task-OOMPAH-633
+- head_sha: ef3ba804da463a0e0dbcedecd715f8feaffe48e5
+- origin_head_sha: ef3ba804da463a0e0dbcedecd715f8feaffe48e5
+- origin_matches_head: true
+- working_tree: clean
+- commits_on_branch: 2 (63f8d043c production+2 tests; ef3ba804d test fix+2 tests)
+- commit_trailer: Co-authored-by: oompah <lesserevil@users.noreply.github.com>
+- orchestrator_changes: _detect_and_repair_integration_queue_staleness_block (5310-5324); _epic_synchronization_decision (10326-10356)
+- focus_tests_parallel_epic_children: 26 passed
+- focus_tests_epic_strategy: 213 passed
+- focus_tests_integration_queue: 9 passed
+- focus_tests_integration_executor: 5 passed
+- combined_focus_tests: 253 passed
+- new_tests_added: test_nested_epic_queue_repair_with_parent_target, test_nested_epic_queue_repair_denies_unrelated_epic_target (fixed), test_nested_epic_queue_repair_skips_already_reachable_nonterminal_dependencies (new), test_nested_epic_queue_repair_with_successful_parent_sync_allows_claim_next (new)
+- pre_audit_unrelated_epic_test_status: fixed_resolves_parent_via_mock
+- pre_audit_nonterminal_coverage_status: added
+- pre_audit_claim_next_coverage_status: added_deterministic
 ---
 <!-- COMMENTS:END -->
