@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-647
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Make merge-conflict rebase continuation noninteractive and deadlock-safe
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:09:27.752943Z'
-updated_at: '2026-07-31T07:25:03.074542Z'
+updated_at: '2026-07-31T07:25:18.310669Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -70,6 +70,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-647
     source_sha: 50625abed5be36e106dbd281871a2e464c671303
     completed_at: '2026-07-31T07:10:54.580031+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-647
+  head_sha: 79fbad71a4c5e735916e16db6fd546d455da3022
+  submitted_at: '2026-07-31T07:25:16.774548+00:00'
+  updated_at: '2026-07-31T07:25:16.774548+00:00'
 ---
 ## Summary
 
@@ -132,5 +140,10 @@ author: oompah
 created: 2026-07-31 07:25
 ---
 **Verification**: All 230 tests pass across the 5 affected suites (test_git_noninteractive: 18 new tests, test_integration_executor: 7, test_integration_conflict_repair: 9, test_cherry_pick_pr_creator: 58, test_focus: 138). All 5 acceptance criteria verified by test:\n- AC1: Real conflict + unset editor → rebase --continue succeeds\n- AC2: Hostile EDITOR never invoked\n- AC3: Commit message + attribution trailer preserved\n- AC4: Timeout kill leaves REBASE_HEAD intact\n- AC5: Repeated recovery is idempotent\n\nBranch pushed: 79fbad71a
+---
+author: oompah
+created: 2026-07-31 07:25
+---
+**Completion**: Delivered OOMPAH-647 (Make merge-conflict rebase continuation noninteractive and deadlock-safe).\n\nFiles changed:\n- `oompah/git_noninteractive.py` (new): NONINTERACTIVE_GIT_ENV, run_git_noninteractive(), run_rebase_continue() with bounded process-group kill, _is_rebase_in_progress()\n- `oompah/integration_executor.py`: _git() now passes NONINTERACTIVE_GIT_ENV to all git subprocess calls\n- `oompah/cherry_pick_pr_creator.py`: All 6 git subprocess calls now pass noninteractive env\n- `oompah/focus.py`: merge_conflict focus updated with GIT_EDITOR=true must_do and must_not_do\n- `tests/test_git_noninteractive.py` (new): 18 tests covering all 5 AC\n- `tests/test_cherry_pick_pr_creator.py`: Updated 2 exact-call assertions\n- `tests/test_focus.py`: Updated 2 wording assertions\n\nThe OOMPAH-643 deadlock is now prevented at two layers: (1) server-side subprocess calls force GIT_EDITOR=true via env, (2) agent instructions in merge_conflict focus explicitly prohibit bare 'git rebase --continue'.
 ---
 <!-- COMMENTS:END -->
