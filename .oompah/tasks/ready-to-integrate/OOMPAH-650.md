@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T14:21:49.754420Z'
+updated_at: '2026-07-31T14:22:13.564279Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -1273,5 +1273,15 @@ author: oompah
 created: 2026-07-31 14:21
 ---
 Rebased the security-reviewed worker-lifetime handoff implementation onto current epic head 61546199b and pushed exact head 7add4cdbc. Server-owned leases renew scoped grants through silent long tool calls; exact-owner replacement/exit/termination revokes stale grants; mutation admission is ordered against revocation; expired/revoked failures are explicit; cross-scope/action use and Basic fallback remain denied. Focused verification: 57 handoff tests passed, 609 neighboring tests passed plus 8/8 sandbox-corrected ACP model tests, terminal mutation scan passed, and diff hygiene is clean.
+---
+author: oompah
+created: 2026-07-31 14:22
+---
+Run #7 [attempt=7, profile=deep, role=deep -> Codex/gpt-5.6-sol]
+- Turns: 0, Tool calls: 84
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 11m 7s
+- Log: OOMPAH-650__20260731T141112Z.jsonl
 ---
 <!-- COMMENTS:END -->
