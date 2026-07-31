@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T11:53:10.955427Z'
+updated_at: '2026-07-31T11:53:31.817654Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -704,5 +704,22 @@ Changes ensure:
 - All 27 existing terminal-audit enforcement tests pass
 
 Pushed at 93c47346c. Full gate blocked on OOMPAH-657 dependency per prior comments.
+---
+author: oompah
+created: 2026-07-31 11:53
+---
+**Verification**: Focused test suite results:
+- test_terminal_audit_enforcement.py: 27 passed ✓
+- test_terminal_transition_coordinator.py: 116 passed ✓  
+- Total: 143 tests pass
+
+Recovery authority validation is now in place:
+✓ Overrides validated against current evidence, stale overrides retire without applying
+✓ Override selection based on created_at timestamp (newest wins)
+✓ Result intent selection based on created_at, not list order
+✓ Malformed timestamps handled gracefully
+✓ All existing terminal-audit and transition tests pass
+
+The implementation closes the specific defects identified in code review (comments 62-64) regarding recovery authority selection and evidence validation. Full integration gate remains blocked on OOMPAH-657 as documented.
 ---
 <!-- COMMENTS:END -->

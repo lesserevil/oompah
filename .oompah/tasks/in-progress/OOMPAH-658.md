@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-658
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: Deduplicate duplicate-preflight runs across deferred dispatch ticks
 parent: null
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-07-31T11:53:13.648147Z'
+updated_at: '2026-07-31T11:53:33.424947Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,7 +39,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 9bdb1808-6fdf-41c2-9ddf-5c10d8719de7
+oompah.agent_run_id: b7590642-7937-466b-84e2-ed38592f9662
 oompah.task_costs:
   total_input_tokens: 928208
   total_output_tokens: 5456
@@ -404,5 +404,15 @@ author: oompah
 created: 2026-07-31 11:53
 ---
 Operator review rejects Ready head 1fc7b2642. The fingerprint direction is correct for finish-order metadata, but the new Issue.source/source_revision fields are not populated by any native Markdown, GitHub, or GitLab adapter, so production source revisions cannot invalidate a completed screen; only direct dataclass tests exercise them. Add an actual persisted native task regression across fresh adapter/orchestrator instances: checked record + only finish dependency/transient scheduler metadata => zero screens; mutate the real persisted intake/source revision => exactly one new claim under concurrent ticks; inconclusive result remains retryable. Do not use generic updated_at. I also terminated only this task's exact full-gate PGID 2487891 because final gate authority is finish-order blocked on OOMPAH-657; this is not a test failure. Two orphan test-server groups from its earlier interrupted run were cleaned up as well.
+---
+author: oompah
+created: 2026-07-31 11:53
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-31 11:53
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
