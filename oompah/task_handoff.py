@@ -329,15 +329,21 @@ class TaskHandoffGrantStore:
         # Keep delayed shutdown/error events safe without retaining every
         # revoked bearer for the original grant lifetime.  The redaction
         # registry consumes the value only to register its digest-independent
-        # literal; this path never logs or returns the token.
-        from oompah.secrets import (
-            SECRET_REDACTION_GRACE_SECONDS,
-            retire_secret,
-        )
+        # literal; this path never logs or returns the token.  The module-
+        # level ``retire_secret`` binding is used deliberately so tests can
+        # patch ``oompah.task_handoff.retire_secret`` to observe the call;
+        # the grace value is looked up on ``oompah.secrets`` at call time so
+        # ``monkeypatch.setattr(secrets_module, "SECRET_REDACTION_GRACE_SECONDS", ...)``
+        # is honored even after this module has cached the initial import.
+        import oompah.secrets as _secrets_module
 
         retire_secret(
             token,
-            grace_seconds=SECRET_REDACTION_GRACE_SECONDS,
+            grace_seconds=getattr(
+                _secrets_module,
+                "SECRET_REDACTION_GRACE_SECONDS",
+                SECRET_REDACTION_GRACE_SECONDS,
+            ),
         )
 
     def record_failure(self, token: str | None, reason: str) -> None:
