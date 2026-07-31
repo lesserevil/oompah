@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T16:04:06.140108Z'
-updated_at: '2026-07-31T18:37:22.861340Z'
+updated_at: '2026-07-31T18:37:30.593581Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -136,5 +136,10 @@ author: oompah
 created: 2026-07-31 18:37
 ---
 Understanding: This issue requires binding API list/board snapshots to the exact state-branch generation so that task status changes (like OOMPAH-651/655 in Needs Human) are never silently hidden behind a stale cached board. Plan: (1) add get_state_branch_generation() to OompahMarkdownTracker combining commit SHA + local read epoch, (2) add add_read_change_callback() + _notify_read_change() so direct writes and checkpoint flushes fire synchronous cache invalidation, (3) bind _issues_snapshot to source_generations dict, reject stale snapshots on read, (4) add generation-bound detail cache helpers, (5) tests for all required scenarios from the issue.
+---
+author: oompah
+created: 2026-07-31 18:37
+---
+Discovery: Root cause analysis confirmed: the _issues_snapshot was keyed only by TTL and checkpoint timestamp, not by the exact source generation. A mutation via a separate tracker instance advanced the state-branch generation without touching the snapshot's staleness indicator, causing the cached board to serve pre-mutation data as authoritative. Key files changed: oompah/oompah_md_tracker.py (get_state_branch_generation, add_read_change_callback, _notify_read_change), oompah/server.py (_tracker_source_generation, _wire_tracker_issue_cache_invalidation, _invalidate_issue_caches, _detail_cache_get/_set helpers, source_generations in _issues_snapshot, _fetch_all_issues extended to return generations).
 ---
 <!-- COMMENTS:END -->
