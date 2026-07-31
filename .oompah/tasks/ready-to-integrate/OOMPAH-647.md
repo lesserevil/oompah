@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:09:27.752943Z'
-updated_at: '2026-07-31T07:25:20.680903Z'
+updated_at: '2026-07-31T07:25:36.448968Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -45,13 +45,13 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: f04374c6-0574-41a8-8715-8a7b627a01d5
 oompah.task_costs:
-  total_input_tokens: 269782
-  total_output_tokens: 1487
+  total_input_tokens: 269870
+  total_output_tokens: 36312
   total_cost_usd: 0.0
   by_model:
     sonnet:
-      input_tokens: 269782
-      output_tokens: 1487
+      input_tokens: 269870
+      output_tokens: 36312
       cost_usd: 0.0
   runs:
   - profile: standard
@@ -60,6 +60,12 @@ oompah.task_costs:
     output_tokens: 1487
     cost_usd: 0.0
     recorded_at: '2026-07-31T07:10:54.563272+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 88
+    output_tokens: 34825
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T07:25:32.013615+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-647__20260731T070958Z
@@ -70,14 +76,24 @@ oompah.work_contributors:
     source_branch: OOMPAH-647
     source_sha: 50625abed5be36e106dbd281871a2e464c671303
     completed_at: '2026-07-31T07:10:54.580031+00:00'
+  - run_id: OOMPAH-647__20260731T071117Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: sonnet
+    focus: merge_conflict
+    source_branch: OOMPAH-647
+    source_sha: 79fbad71a4c5e735916e16db6fd546d455da3022
+    completed_at: '2026-07-31T07:25:32.018503+00:00'
 oompah.integration:
   version: 2
   state: ready
   attempts: 0
   task_branch: OOMPAH-647
+  base_branch: main
+  base_sha: d48b971c58b8622e9c63de4923db08b755b5434b
   head_sha: 79fbad71a4c5e735916e16db6fd546d455da3022
   submitted_at: '2026-07-31T07:25:16.774548+00:00'
-  updated_at: '2026-07-31T07:25:16.774548+00:00'
+  updated_at: '2026-07-31T07:25:34.003940+00:00'
 ---
 ## Summary
 
@@ -150,5 +166,20 @@ author: oompah
 created: 2026-07-31 07:25
 ---
 Added oompah/git_noninteractive.py with NONINTERACTIVE_GIT_ENV dict and run_rebase_continue() with bounded process-group kill. Updated integration_executor._git() and all cherry_pick_pr_creator subprocess calls to pass noninteractive env. Updated merge_conflict focus in focus.py with GIT_EDITOR=true instructions. Added 18 tests covering all 5 acceptance criteria (real conflict, hostile editor, message preservation, timeout recovery, idempotency).
+---
+author: oompah
+created: 2026-07-31 07:25
+---
+Agent completed successfully in 866s (34913 tokens)
+---
+author: oompah
+created: 2026-07-31 07:25
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 156, Tool calls: 103
+- Tokens: 88 in / 34.8K out [34.9K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 14m 26s
+- Log: OOMPAH-647__20260731T071117Z.jsonl
 ---
 <!-- COMMENTS:END -->
