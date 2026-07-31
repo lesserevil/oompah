@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-657
 type: task
-status: In Progress
+status: Backlog
 priority: null
 title: Run branch quality gates from immutable exact-head snapshots
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:06:15.542774Z'
-updated_at: '2026-07-31T12:32:20.680184Z'
+updated_at: '2026-07-31T12:35:42.474225Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -59,8 +59,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 4586b6e5-7918-43ab-aca0-6fa11a8ed1e0
 oompah.task_costs:
-  total_input_tokens: 718070
-  total_output_tokens: 13622
+  total_input_tokens: 5168841
+  total_output_tokens: 45826
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -68,8 +68,8 @@ oompah.task_costs:
       output_tokens: 13082
       cost_usd: 0.0
     sonnet:
-      input_tokens: 3
-      output_tokens: 540
+      input_tokens: 4450774
+      output_tokens: 32744
       cost_usd: 0.0
   runs:
   - profile: default
@@ -90,6 +90,12 @@ oompah.task_costs:
     output_tokens: 540
     cost_usd: 0.0
     recorded_at: '2026-07-31T12:01:24.090757+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 4450771
+    output_tokens: 32204
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T12:35:40.753673+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-657__20260731T110710Z
@@ -497,5 +503,20 @@ author: oompah
 created: 2026-07-31 12:32
 ---
 Dirty lease-owner direction is correct, but owns_active_lease currently omits lease_expires_at. An integrating row with the same owner/head remains authorized after its lease deadline until some later claim_next/recover call rewrites the row; the stale executor can finish and mutate during that gap. Expiry itself must withdraw authority (compare the durable lease deadline to the store clock, fail closed on missing/malformed/expired), not only replacement. Add a direct expires-without-reclaim assertion and the requested deterministic integration/gate barrier: old generation is running, deadline passes (or is reclaimed), liveness interrupts/discards it before epic mutation, and only a newly claimed exact owner can proceed. If long gates are expected to exceed the lease, either renew the exact lease server-side or make the configured claim lifetime safely encompass the gate; never silently treat an expired lease as current.
+---
+author: oompah
+created: 2026-07-31 12:35
+---
+Operator is taking over the final review correction directly because this worker's scoped handoff credential has expired and both task view/submit return 401 (the deployed OOMPAH-650 defect). Current pushed head a62dab737 remains rejected only for the missing lease_expires_at authority predicate/direct expiry regression from comment 37. Moving briefly to Backlog terminates the stale worker without treating this as a CI failure; operator will patch, test, commit, push, and resume the exact branch.
+---
+author: oompah
+created: 2026-07-31 12:35
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Codex/gpt-5.6-terra]
+- Turns: 0, Tool calls: 104
+- Tokens: 4.5M in / 32.2K out [4.5M total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 32m 27s
+- Log: OOMPAH-657__20260731T120318Z.jsonl
 ---
 <!-- COMMENTS:END -->
