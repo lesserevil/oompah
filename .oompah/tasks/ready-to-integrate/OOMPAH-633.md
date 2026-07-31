@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:54:49.391955Z'
-updated_at: '2026-07-31T01:11:12.167018Z'
+updated_at: '2026-07-31T01:11:31.673329Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-633
 target_branch: null
 review_url: null
@@ -64,13 +64,13 @@ oompah.work_contributors:
     source_sha: d62dd4cff702ae2b818418407d7d15b7a643213e
     completed_at: '2026-07-31T01:03:25.102978+00:00'
 oompah.task_costs:
-  total_input_tokens: 550486
-  total_output_tokens: 3268
+  total_input_tokens: 551308
+  total_output_tokens: 3468
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 550486
-      output_tokens: 3268
+      input_tokens: 551308
+      output_tokens: 3468
       cost_usd: 0.0
   runs:
   - profile: default
@@ -79,6 +79,12 @@ oompah.task_costs:
     output_tokens: 3268
     cost_usd: 0.0
     recorded_at: '2026-07-31T01:03:25.097293+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 822
+    output_tokens: 200
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T01:11:30.268815+00:00'
 ---
 ## Summary
 
@@ -203,5 +209,15 @@ author: oompah
 created: 2026-07-31 01:11
 ---
 Nested epic queue repair enabled: extended stale ancestry detection to parent epic targets while preserving authorization and duplicate fencing
+---
+author: oompah
+created: 2026-07-31 01:11
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 45
+- Tokens: 822 in / 200 out [1.0K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 7m 36s
+- Log: OOMPAH-633__20260731T010403Z.jsonl
 ---
 <!-- COMMENTS:END -->
