@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-584
 type: epic
-status: Open
+status: In Progress
 priority: 1
 title: Return the oompah delivery control plane to green
 parent: null
@@ -20,7 +20,7 @@ labels:
 - epic:stale
 assignee: null
 created_at: '2026-07-30T14:13:01.872040Z'
-updated_at: '2026-07-31T05:14:16.216702Z'
+updated_at: '2026-07-31T05:14:41.792934Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -90,6 +90,7 @@ oompah.task_costs:
     output_tokens: 988
     cost_usd: 0.0
     recorded_at: '2026-07-31T05:14:14.677987+00:00'
+oompah.agent_run_id: 75d2b45c-3d2c-4777-9bd9-578d0e0c0cb9
 ---
 ## Summary
 
@@ -157,5 +158,15 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 1m 29s
 - Log: OOMPAH-584__20260731T051250Z.jsonl
+---
+author: oompah
+created: 2026-07-31 05:14
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-31 05:14
+---
+Focus: Epic Planner
 ---
 <!-- COMMENTS:END -->
