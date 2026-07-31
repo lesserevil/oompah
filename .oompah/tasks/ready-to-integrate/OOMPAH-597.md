@@ -13,7 +13,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:28.342383Z'
-updated_at: '2026-07-31T03:25:51.360074Z'
+updated_at: '2026-07-31T03:26:10.999365Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-597
 target_branch: null
 review_url: null
@@ -45,9 +45,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: epic-OOMPAH-587--task-OOMPAH-597
-  head_sha: b193e8491240715e6382a572c8c277666c1ad974
-  submitted_at: '2026-07-31T03:25:49.102323+00:00'
-  updated_at: '2026-07-31T03:25:49.102323+00:00'
+  head_sha: 44e5c5579d2d56ecc0ddc801d77e28d74dd734ce
+  submitted_at: '2026-07-31T03:26:08.556541+00:00'
+  updated_at: '2026-07-31T03:26:08.556541+00:00'
 oompah.task_costs:
   total_input_tokens: 1271487
   total_output_tokens: 24947
@@ -594,6 +594,11 @@ Old-runtime cache workaround: identical tree rearmed at fresh empty commit b193e
 ---
 author: oompah
 created: 2026-07-31 03:25
+---
+Fresh submission identity on identical tested recovery tree to bypass the pre-fix same-head failed-result cache.
+---
+author: oompah
+created: 2026-07-31 03:26
 ---
 Fresh submission identity on identical tested recovery tree to bypass the pre-fix same-head failed-result cache.
 ---
