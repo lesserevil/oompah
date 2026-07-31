@@ -401,6 +401,16 @@ class TestMakefileStructure:
         assert "ss" in body, "port_in_use must use ss for port detection"
         assert "lsof" in body, "port_in_use must fall back to lsof"
 
+    def test_port_in_use_does_not_scan_lsof_when_ss_reports_free(self):
+        """A successful ss probe is authoritative even with no listener."""
+        text = _makefile_text()
+        start = text.index("define port_in_use")
+        end = text.index("endef", start)
+        body = text[start:end]
+        assert "if command -v ss" in body
+        assert "elif command -v lsof" in body
+        assert "[ $$? -eq 0 ] ||" not in body
+
 
 # ---------------------------------------------------------------------------
 # 2. Functional: port_in_use shell logic
@@ -466,8 +476,13 @@ class TestPortInUseDetection:
         _, port = listening_socket
         # Reproduce the exact Makefile port_in_use logic in a shell one-liner
         script = textwrap.dedent(f"""\
-            command -v ss >/dev/null 2>&1 && ss -ltn "sport = :{port}" 2>/dev/null | grep -q LISTEN;
-            [ $? -eq 0 ] || (command -v lsof >/dev/null 2>&1 && lsof -ti:"{port}" -sTCP:LISTEN 2>/dev/null | grep -q .)
+            if command -v ss >/dev/null 2>&1; then
+                ss -ltn "sport = :{port}" 2>/dev/null | grep -q LISTEN
+            elif command -v lsof >/dev/null 2>&1; then
+                lsof -ti:"{port}" -sTCP:LISTEN 2>/dev/null | grep -q .
+            else
+                false
+            fi
         """)
         r = subprocess.run(["sh", "-c", script], capture_output=True)
         assert r.returncode == 0, (
@@ -483,8 +498,13 @@ class TestPortInUseDetection:
         port = find_free_port()
         # Port is free after the socket closes
         script = textwrap.dedent(f"""\
-            command -v ss >/dev/null 2>&1 && ss -ltn "sport = :{port}" 2>/dev/null | grep -q LISTEN;
-            [ $? -eq 0 ] || (command -v lsof >/dev/null 2>&1 && lsof -ti:"{port}" -sTCP:LISTEN 2>/dev/null | grep -q .)
+            if command -v ss >/dev/null 2>&1; then
+                ss -ltn "sport = :{port}" 2>/dev/null | grep -q LISTEN
+            elif command -v lsof >/dev/null 2>&1; then
+                lsof -ti:"{port}" -sTCP:LISTEN 2>/dev/null | grep -q .
+            else
+                false
+            fi
         """)
         r = subprocess.run(["sh", "-c", script], capture_output=True)
         assert r.returncode != 0, (
@@ -512,18 +532,22 @@ class TestWaitForStopBehavior:
         # loop is exercised even on hosts without ss (iproute2) or lsof.
         port_in_use() {
             PORT="$1"
-            command -v ss >/dev/null 2>&1 && ss -ltn "sport = :${PORT}" 2>/dev/null | grep -q LISTEN
-            [ $? -eq 0 ] && return 0
-            command -v lsof >/dev/null 2>&1 && lsof -ti:"${PORT}" -sTCP:LISTEN 2>/dev/null | grep -q .
-            [ $? -eq 0 ] && return 0
-            # Pure-Python fallback: exit 0 if something accepts connections on PORT
-            python3 -c "
+            if command -v ss >/dev/null 2>&1; then
+                ss -ltn "sport = :${PORT}" 2>/dev/null | grep -q LISTEN
+                return $?
+            elif command -v lsof >/dev/null 2>&1; then
+                lsof -ti:"${PORT}" -sTCP:LISTEN 2>/dev/null | grep -q .
+                return $?
+            else
+                # Pure-Python fallback: exit 0 if something accepts connections on PORT
+                python3 -c "
 import socket, sys
 s = socket.socket()
 s.settimeout(0.2)
 sys.exit(0 if s.connect_ex(('127.0.0.1', int(sys.argv[1]))) == 0 else 1)
 " "${PORT}" 2>/dev/null
-            return $?
+                return $?
+            fi
         }
         wait_for_stop() {
             PID="$1"; PORT="$2"; TIMEOUT="${3:-30}"

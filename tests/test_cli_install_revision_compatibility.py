@@ -29,6 +29,7 @@ import venv
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import httpx
 import pytest
 
 from oompah.client_auth import (
@@ -267,7 +268,7 @@ uvicorn.run(
 
 @pytest.mark.integration
 @pytest.mark.xdist_group("cli_install_revision")
-@pytest.mark.timeout(360)
+@pytest.mark.timeout(180)
 def test_installed_cli_from_exact_revision_reads_matching_authenticated_server(tmp_path):
     """Install an exact revision, then exercise task and admin read paths.
 
@@ -284,6 +285,12 @@ def test_installed_cli_from_exact_revision_reads_matching_authenticated_server(t
         text=True,
     ).strip()
     cli_env_dir = tmp_path / "cli-env"
+    # CI already installed this revision's declared dependencies.  Install
+    # only the pinned source package below and expose the parent interpreter's
+    # dependency directory to child commands; dependency resolution is not
+    # part of this revision-compatibility contract and can stall on restricted
+    # runners.  Editable .pth files are not processed through PYTHONPATH, so
+    # this cannot redirect the child back to the source checkout.
     venv.EnvBuilder(with_pip=True, clear=True).create(str(cli_env_dir))
     cli_python = cli_env_dir / "bin" / "python"
     cli_binary = cli_env_dir / "bin" / "oompah"
@@ -297,12 +304,13 @@ def test_installed_cli_from_exact_revision_reads_matching_authenticated_server(t
             "install",
             "--disable-pip-version-check",
             "--no-input",
+            "--no-deps",
             source_ref,
         ],
         cwd=str(tmp_path),
         capture_output=True,
         text=True,
-        timeout=300,
+        timeout=120,
     )
     assert install.returncode == 0, (
         "exact-revision standalone CLI installation failed:\n"
@@ -312,6 +320,7 @@ def test_installed_cli_from_exact_revision_reads_matching_authenticated_server(t
 
     isolated_env = os.environ.copy()
     isolated_env.pop("PYTHONPATH", None)
+    dependency_site = str(Path(httpx.__file__).resolve().parent.parent)
 
     version_probe = subprocess.run(
         [
@@ -385,6 +394,7 @@ def test_installed_cli_from_exact_revision_reads_matching_authenticated_server(t
         {
             "OOMPAH_SERVER_USERNAME": username,
             "OOMPAH_SERVER_PASSWORD_FILE": str(password_file),
+            "PYTHONPATH": dependency_site,
         }
     )
 
@@ -406,6 +416,7 @@ def test_installed_cli_from_exact_revision_reads_matching_authenticated_server(t
             capture_output=True,
             text=True,
             check=True,
+            env=isolated_env,
         )
         assert revision in cli_version.stdout
 

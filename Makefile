@@ -75,8 +75,13 @@ endef
 # Returns 0 (true) if port is in use, 1 (false) if free.
 # Uses ss if available, falls back to lsof.
 define port_in_use
-	command -v ss >/dev/null 2>&1 && ss -ltn "sport = :$1" 2>/dev/null | grep -q LISTEN; \
-	[ $$? -eq 0 ] || (command -v lsof >/dev/null 2>&1 && lsof -ti:"$1" -sTCP:LISTEN 2>/dev/null | grep -q .)
+	if command -v ss >/dev/null 2>&1; then \
+		ss -ltn "sport = :$1" 2>/dev/null | grep -q LISTEN; \
+	elif command -v lsof >/dev/null 2>&1; then \
+		lsof -ti:"$1" -sTCP:LISTEN 2>/dev/null | grep -q .; \
+	else \
+		false; \
+	fi
 endef
 
 .PHONY: help setup test-setup sync-cli install-cli start stop restart graceful force-restart status logs test test-serial terminal-audit-scan clean install-hooks check-secrets install-gh-extensions run-granian runner-setup runner-start runner-stop runner-status
