@@ -24,7 +24,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:13:32.577860Z'
-updated_at: '2026-07-30T23:57:15.739156Z'
+updated_at: '2026-07-31T00:03:55.852622Z'
 work_branch: epic-OOMPAH-585
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/596
@@ -43,7 +43,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-585
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -66,13 +66,27 @@ oompah.terminal_audit:
       ended_at: '2026-07-30T23:57:12.903573+00:00'
       failure_reason: normal
       next_retry_at: '2026-07-30T23:57:22.903546+00:00'
+    - version: 1
+      attempt_id: attempt-b4197d025ad2
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 0cfb98eafc768e5e2b01af3fc05a46d57c2174f15a248e0583518caca77a559e
+      created_at: '2026-07-31T00:03:51.620034+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-07-31T00:03:51.620034+00:00'
+      branch_key: epic-OOMPAH-585
+      candidate_rotation_count: 1
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-07-30T23:32:29.243227+00:00'
-    updated_at: '2026-07-30T23:57:12.903573+00:00'
+    updated_at: '2026-07-31T00:03:51.620034+00:00'
   - version: 1
     audit_id: audit-6806c4fdb604
     project_id: proj-14849f1b
@@ -108,6 +122,20 @@ oompah.terminal_audit:
     ended_at: '2026-07-30T23:57:12.903573+00:00'
     failure_reason: normal
     next_retry_at: '2026-07-30T23:57:22.903546+00:00'
+  - version: 1
+    attempt_id: attempt-b4197d025ad2
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0cfb98eafc768e5e2b01af3fc05a46d57c2174f15a248e0583518caca77a559e
+    created_at: '2026-07-31T00:03:51.620034+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-07-31T00:03:51.620034+00:00'
+    branch_key: epic-OOMPAH-585
+    candidate_rotation_count: 1
 oompah.task_costs:
   total_input_tokens: 6
   total_output_tokens: 89
@@ -181,5 +209,15 @@ author: oompah
 created: 2026-07-30 23:57
 ---
 Auditor attempt ended: auditor exited (normal) without a result. A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-07-31 00:03
+---
+Auditor dispatched (attempt #2, candidate: prov-651d553c/sonnet)
+---
+author: oompah
+created: 2026-07-31 00:03
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
