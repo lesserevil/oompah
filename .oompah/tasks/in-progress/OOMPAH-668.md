@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-668
 type: bug
-status: Needs Human
+status: In Progress
 priority: 1
 title: Use the trusted test virtualenv without reinstalling inside quality-gate sandbox
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T21:35:20.853943Z'
-updated_at: '2026-07-31T21:47:28.391680Z'
+updated_at: '2026-07-31T21:48:05.923218Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,7 +35,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 261a3168-9d13-403c-9b2b-4c82263ecd22
+oompah.agent_run_id: 63c33ca0-ceeb-40a8-aec9-493b348fa22d
 oompah.task_costs:
   total_input_tokens: 634211
   total_output_tokens: 4078
@@ -304,5 +304,20 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Codex/gpt-5.6-
 - Cost: $0.0000
 - Exit: terminated, Duration: 49s
 - Log: OOMPAH-668__20260731T214643Z.jsonl
+---
+author: oompah
+created: 2026-07-31 21:47
+---
+The active retry is drained. Verified the unregistered checkout was clean and exactly matched pushed head 1fe2181a2, removed that checkout, and pruned its Git worktree metadata. Reopening now so Oompah can create and register the managed worktree from the preserved branch.
+---
+author: oompah
+created: 2026-07-31 21:48
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-31 21:48
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
