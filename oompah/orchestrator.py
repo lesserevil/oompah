@@ -15,6 +15,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
+from fnmatch import fnmatchcase
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from enum import Enum
@@ -58,7 +59,7 @@ from oompah.duplicate_screening import (
     new_claim_record,
     save_record as save_duplicate_screening_record,
 )
-from oompah.integration import IntegrationRecord
+from oompah.integration import IntegrationRecord, classify_conflict_repair_failure
 from oompah.integration_executor import (
     IntegrationExecutionResult,
     execute_integration,
@@ -129,6 +130,11 @@ from oompah.storage_cleanup import (
     cleanup_owned_storage,
     inspect_storage_pressure,
 )
+from oompah.repo_hygiene import (
+    HealthThresholds,
+    OverdueArtifact,
+    RepoHygieneHealth,
+)
 from oompah.terminal_audit import (
     AuditAttempt,
     ContributorIdentity,
@@ -141,6 +147,19 @@ from oompah.terminal_audit import (
 )
 from oompah.terminal_audit_metadata import TerminalAuditMetadataStore
 from oompah.terminal_audit_enforcement import TerminalAuditEnforcement
+from oompah.terminal_audit_observability import (
+    AuditAlertCondition,
+    TerminalAuditAlertRegistry,
+    TerminalAuditMetrics,
+    threshold_conditions,
+)
+from oompah.terminal_audit_health import (
+    AuditHealthObservation,
+    HEALTH_ALERT_PREFIX,
+    TerminalAuditHealth,
+    build_terminal_audit_health,
+    terminal_audit_health_alerts,
+)
 from oompah.terminal_transition_coordinator import (
     TerminalTransitionCoordinator,
     TransitionResult,
@@ -152,6 +171,11 @@ from oompah.task_handoff import (
     consume_task_handoff_failure,
     issue_task_handoff_token,
     revoke_task_handoff_token,
+)
+from oompah.auth_health import (
+    auth_health_alerts,
+    auth_health_snapshot,
+    record_worker_token_minted,
 )
 from oompah.auditor import (
     AUDITOR_ALLOWED_TOOLS,
@@ -251,6 +275,23 @@ logger = logging.getLogger(__name__)
 # compilers, or browser tooling in addition to the model client itself.
 _AUTO_CONCURRENCY_CPU_THREADS_PER_AGENT = 4
 _AUTO_CONCURRENCY_MEMORY_BYTES_PER_AGENT = 4 * 1024**3
+
+
+def _acp_session_is_read_only(focus: Any, running_entry: Any | None) -> bool:
+    """Return the authority mode for an ACP dispatch.
+
+    Completion auditors are always read-only, independently of duplicate
+    preflight state.  This matters for ACP backends with native tools (most
+    notably the subscription Codex CLI), where the action-policy catalog
+    cannot constrain the subprocess sandbox.
+    """
+    return (
+        str(getattr(focus, "name", "")).casefold() == AUDITOR_FOCUS_NAME
+        or bool(
+            running_entry
+            and getattr(running_entry, "duplicate_preflight", False)
+        )
+    )
 
 
 def _available_memory_bytes() -> int | None:
@@ -833,6 +874,11 @@ class Orchestrator:
             tracker=self._tracker_for_project,
             project_store=self.project_store,
         )
+        # Serializes the final implementation status claim with terminal-audit
+        # staging for one task.  The terminal path installs its in-memory fence
+        # before waiting for this lock, so a slow dispatch setup cannot starve
+        # an audit request, while the tracker writes themselves cannot cross.
+        self._issue_transition_locks: dict[str, asyncio.Lock] = {}
         # Per-project branch-to-issue index: maps work_branch → identifier.
         # Built lazily the first time _resolve_task_for_branch needs it for
         # a project and cleared with tracker read caches each tick so the
@@ -865,6 +911,21 @@ class Orchestrator:
         self._alerts: list[
             dict[str, str]
         ] = []  # {"level": "warning", "message": "..."}
+        # Terminal-audit metrics are durable service state, not tracker
+        # metadata.  The metrics sink is attached to the coordinator below
+        # after construction and also to the bootstrap replacement.
+        self._terminal_audit_metrics = TerminalAuditMetrics(
+            load_state=self._load_state_for_terminal_audit,
+            save_state=self._save_state_for_terminal_audit,
+        )
+        self._terminal_audit_alerts = TerminalAuditAlertRegistry()
+        self._terminal_audit_manual_alerts: dict[
+            tuple[str, str, str, str], AuditAlertCondition
+        ] = {}
+        # A failed enforcement scan is actionable until a later scan confirms
+        # recovery.  Keep that condition separate from the per-audit metric
+        # conditions so a read-only snapshot cannot accidentally clear it.
+        self._terminal_audit_recovery_alert: AuditAlertCondition | None = None
         self._rate_limit_until: float = 0.0  # epoch time until which dispatch is paused
         # Throttle for _auto_archive: it does a full-corpus read per project
         # but only ever acts on issues closed >= _ARCHIVE_DAYS ago, so it
@@ -877,6 +938,13 @@ class Orchestrator:
             dict(cursors) if isinstance(cursors, dict) else {}
         )
         self._maintenance_status: dict[str, Any] = {}
+        self.terminal_transition_coordinator.set_metrics(self._terminal_audit_metrics)
+        # Repository hygiene is a derived view, but retain the last complete
+        # evaluation so a restart does not briefly hide known hygiene debt
+        # while the first Git/tracker scan is running.
+        persisted_hygiene = state_data.get("repo_hygiene_health")
+        if isinstance(persisted_hygiene, dict):
+            self._maintenance_status["repo_hygiene_health"] = persisted_hygiene
         self._last_tick_metrics: dict[str, Any] = {}
         self._last_dispatch_metrics: dict[str, Any] = {}
         self._dispatch_pending_event_keys: set[str] = set()
@@ -970,8 +1038,15 @@ class Orchestrator:
             "exhaustion_count": 0,
             "pending_count": 0,
             "in_progress_count": 0,
+            "launch_failure_count": 0,
+            "transport_failure_count": 0,
+            "retry_exhausted_count": 0,
+            "oldest_pending_age_seconds": None,
+            "stale_in_validation_count": 0,
             "last_error": None,
         }
+        # Aggregated terminal-audit health, rebuilt after every lane scan.
+        self._audit_health: TerminalAuditHealth = TerminalAuditHealth()
         # Maintenance lane scheduling state (TASK-466.4).
         # Maps job name → MaintenanceJobState for in-flight coalescing,
         # skip counters, throttle timestamps, and observability.
@@ -1095,6 +1170,22 @@ class Orchestrator:
         # Counts events that were drained from the dispatch queue and coalesced
         # into the current tick so slow-tick logs can report burst size.
         self._last_coalesced_event_count: int = 0
+        # Repository hygiene health thresholds (OOMPAH-603).
+        # Configured via .env variables; tracks health status in maintenance_status.
+        self._repo_hygiene_thresholds: HealthThresholds = HealthThresholds(
+            safely_prunable_age_seconds=(
+                config.repo_hygiene_safely_prunable_age_seconds
+            ),
+            safely_prunable_count_warning=(
+                config.repo_hygiene_safely_prunable_count_warning
+            ),
+            safely_prunable_count_critical=(
+                config.repo_hygiene_safely_prunable_count_critical
+            ),
+            cleanup_error_threshold=(
+                config.repo_hygiene_cleanup_error_threshold
+            ),
+        )
         # ---- Bounded per-project refresh infrastructure (TASK-467.2) ----
         # Per-project semaphores for bounded concurrency. Created on-demand
         # when a project is first refreshed.
@@ -1369,38 +1460,193 @@ class Orchestrator:
             result = self._terminal_audit_enforcement.initialize(
                 self._terminal_audit_scopes()
             )
-            self._maintenance_status["terminal_audit_enforcement"] = result
-            if result.get("errors") and not any(
-                alert.get("source") == "terminal_audit_enforcement"
-                for alert in self._alerts
-            ):
-                self._alerts.append(
-                    {
-                        "level": "error",
-                        "source": "terminal_audit_enforcement",
-                        "message": "Terminal-audit enforcement requires operator attention",
-                    }
+            metrics = self._terminal_audit_metrics
+            metrics.sync_pending(self._terminal_audit_enforcement.pending_audits)
+            for entry in self._terminal_audit_enforcement.state.grandfathered:
+                metrics.record_grandfathered(
+                    entry.project_id,
+                    entry.task_id,
+                    self._terminal_audit_enforcement._audit_id(entry),
                 )
+            metrics_snapshot = metrics.snapshot()
+            self._terminal_audit_enforcement.last_result = {
+                **result,
+                "metrics": metrics_snapshot,
+            }
+            self._maintenance_status["terminal_audit_enforcement"] = {
+                **result,
+                "metrics": metrics_snapshot,
+            }
+            self._maintenance_status["terminal_audit"] = metrics_snapshot
+            self._sync_terminal_audit_observability_alerts(
+                result.get("errors") or None,
+                recovery_complete=not bool(result.get("errors")),
+            )
         except Exception as exc:  # noqa: BLE001 - startup must remain observable
             logger.exception("terminal-audit enforcement startup failed")
             self._maintenance_status["terminal_audit_enforcement"] = {
                 "quarantined": True,
                 "errors": [type(exc).__name__],
             }
-            if not any(
-                alert.get("source") == "terminal_audit_enforcement"
-                for alert in self._alerts
-            ):
-                self._alerts.append(
-                    {
-                        "level": "error",
-                        "source": "terminal_audit_enforcement",
-                        "message": "Terminal-audit enforcement startup failed closed",
-                    }
-                )
+            self._terminal_audit_enforcement.last_result = dict(
+                self._maintenance_status["terminal_audit_enforcement"]
+            )
+            self._sync_terminal_audit_observability_alerts([type(exc).__name__])
         finally:
             self._terminal_audit_started = True
             self._terminal_audit_last_scan = time.monotonic()
+
+    def _sync_terminal_audit_observability_alerts(
+        self,
+        recovery_errors: list[str] | None = None,
+        *,
+        recovery_complete: bool = False,
+    ) -> None:
+        """Refresh only actionable terminal-audit alerts.
+
+        Queued, running, and successful audits intentionally contribute no
+        alert condition.  Conditions are keyed by project/task/audit, so a
+        repeated maintenance scan replaces one alert instead of appending a
+        duplicate, and an empty subsequent scan clears recovered conditions.
+        """
+
+        metrics = self._terminal_audit_metrics
+        conditions = threshold_conditions(
+            metrics,
+            max_attempts=max(1, int(getattr(self.config, "audit_max_attempts", 3))),
+            max_age_seconds=max(
+                1.0,
+                float(getattr(self.config, "audit_attempt_ttl_seconds", 3600)),
+            ),
+        )
+        if recovery_errors:
+            detail = ", ".join(str(error) for error in recovery_errors)
+            corrupt = any(
+                token in detail.lower()
+                for token in ("corrupt", "quarantin", "metadata")
+            )
+            kind = "persistence_corrupt" if corrupt else "queue_recovery"
+            self._terminal_audit_recovery_alert = AuditAlertCondition(
+                kind,
+                "service",
+                "terminal-audit",
+                "recovery",
+                f"Terminal-audit queue recovery failed: {detail}.",
+                "Inspect the terminal-audit persistence and restart the service after repair.",
+            )
+        elif recovery_complete:
+            self._terminal_audit_recovery_alert = None
+        if self._terminal_audit_recovery_alert is not None:
+            conditions.append(self._terminal_audit_recovery_alert)
+        # A newly queued retry is the recovery signal for a prior
+        # no-candidate condition.  Drop the one-shot manual mirror so the
+        # same project/task/audit does not keep warning after recovery.
+        self._terminal_audit_manual_alerts = {
+            key: condition
+            for key, condition in self._terminal_audit_manual_alerts.items()
+            if condition.kind != "no_independent_candidate"
+            or key[1:] in metrics._no_candidate
+        }
+        conditions.extend(self._terminal_audit_manual_alerts.values())
+        alerts = self._terminal_audit_alerts.sync(conditions)
+        terminal_sources = {
+            condition.source for condition in self._terminal_audit_alerts.conditions
+        }
+        self._alerts = [
+            alert
+            for alert in self._alerts
+            if not str(alert.get("source", "")).startswith("terminal_audit:")
+            or str(alert.get("source", "")) in terminal_sources
+        ]
+        existing_sources = {str(alert.get("source", "")) for alert in self._alerts}
+        self._alerts.extend(
+            alert for alert in alerts if str(alert.get("source", "")) not in existing_sources
+        )
+
+    def record_terminal_audit_no_candidate(
+        self, project_id: str, task_id: str, audit_id: str, *, reason: str = "no eligible candidate"
+    ) -> None:
+        """Record and surface an actionable no-independent-candidate outcome."""
+
+        self._terminal_audit_metrics.record_no_independent_candidate(
+            project_id, task_id, audit_id
+        )
+        condition = AuditAlertCondition(
+            "no_independent_candidate",
+            project_id,
+            task_id,
+            audit_id,
+            f"No independent auditor candidate is available ({reason}).",
+            "Configure a healthy auditor provider/model independent of the task contributors, then retry the audit.",
+        )
+        self._terminal_audit_manual_alerts[condition.key] = condition
+        self._sync_terminal_audit_observability_alerts()
+
+    def clear_terminal_audit_alert(
+        self, project_id: str, task_id: str, audit_id: str
+    ) -> None:
+        """Clear an audit's actionable condition after recovery."""
+
+        self._terminal_audit_metrics.clear_actionable_alert(
+            project_id, task_id, audit_id
+        )
+        self._terminal_audit_manual_alerts = {
+            key: condition
+            for key, condition in self._terminal_audit_manual_alerts.items()
+            if key[1:] != (project_id, task_id, audit_id)
+        }
+        self._terminal_audit_alerts.clear(project_id, task_id, audit_id)
+        self._sync_terminal_audit_observability_alerts()
+
+    def _refresh_terminal_audit_health(
+        self,
+        observations: list[AuditHealthObservation],
+        *,
+        scan_complete: bool,
+        scan_error_count: int,
+    ) -> None:
+        """Replace the derived audit-health alerts after a queue scan.
+
+        A failed or partial scan never clears an existing audit alert: the
+        service cannot claim recovery while tracker state is unknown.  A
+        complete scan derives all alert state from the durable records, which
+        makes clearing deterministic after recovery and restart.
+        """
+        stale_after = getattr(self.config, "audit_stale_pending_seconds", 3600)
+        max_attempts = getattr(self.config, "audit_max_attempts", 3)
+        health = build_terminal_audit_health(
+            observations,
+            now=datetime.now(timezone.utc),
+            stale_after_seconds=stale_after,
+            max_attempts=max_attempts,
+            scan_complete=scan_complete,
+            scan_error_count=scan_error_count,
+        )
+        self._audit_health = health
+        # Update the raw metrics so callers reading _audit_metrics still work.
+        self._audit_metrics.update({
+            "pending_count": health.pending_count,
+            "in_progress_count": health.in_progress_count,
+            "launch_failure_count": health.launch_failure_count,
+            "transport_failure_count": health.transport_failure_count,
+            "retry_exhausted_count": health.retry_exhausted_count,
+            "oldest_pending_age_seconds": health.oldest_pending_age_seconds,
+            "stale_in_validation_count": health.stale_in_validation_count,
+            "health_scan_complete": scan_complete,
+            "health_scan_error_count": scan_error_count,
+        })
+        # Remove stale health alerts and replace them from the current facts.
+        # A partial scan preserves existing alerts rather than clearing them.
+        if not scan_complete:
+            return
+        self._alerts = [
+            a for a in self._alerts
+            if not str(a.get("source", "")).startswith(HEALTH_ALERT_PREFIX)
+            and a.get("source") != "terminal_audit_health"
+        ]
+        self._alerts.extend(terminal_audit_health_alerts(health))
+        if health.degraded:
+            self._save_state(terminal_audit_health=health.to_dict())
 
     def _load_paused_state(self) -> bool:
         """Load persisted paused state from disk. Returns False if not found."""
@@ -2485,6 +2731,11 @@ class Orchestrator:
             evidence_fingerprint=evidence_fingerprint,
         )
 
+    def issue_transition_lock(self, issue_id: str) -> asyncio.Lock:
+        """Return the event-loop lock for dispatch/audit ownership of a task."""
+
+        return self._issue_transition_locks.setdefault(issue_id, asyncio.Lock())
+
     def _request_terminal_transition_from_maintenance(self, **kwargs: Any):
         """Bridge a synchronous maintenance observation to terminal auditing.
 
@@ -2572,6 +2823,116 @@ class Orchestrator:
                 "refusing to use the unscoped legacy tracker"
             )
         return self.tracker
+
+    def _resolve_issue_project_id(
+        self,
+        issue: Issue,
+        fallback_project_id: str | None = None,
+        *,
+        source_project_id: str | None = None,
+    ) -> str | None:
+        """Resolve an issue's owning project when project_id is missing.
+
+        When an issue lacks project_id, searches all managed projects for canonical
+        ownership. If found in exactly one project, returns that project_id. If found
+        in multiple projects, raises even when a fallback is available: choosing a
+        fallback would allow an identifier collision to mutate the wrong tracker.
+        ``source_project_id`` identifies the managed tracker that produced the
+        record and is used to reject explicit or discovered cross-project
+        mismatches.
+
+        Args:
+            issue: The issue to resolve project for.
+            fallback_project_id: Project to use if resolution is ambiguous or not found.
+            source_project_id: Project whose tracker produced ``issue``.
+
+        Returns:
+            Resolved project_id, or None if not found and no fallback provided.
+
+        Raises:
+            ProjectError: If ownership is ambiguous, a record conflicts with
+                its source project, or a managed tracker cannot be queried.
+        """
+        explicit_project_id = str(issue.project_id or "").strip()
+        source_project_id = str(source_project_id or "").strip() or None
+        fallback_project_id = str(fallback_project_id or "").strip() or None
+        if explicit_project_id:
+            if source_project_id and explicit_project_id != source_project_id:
+                raise ProjectError(
+                    f"Issue {issue.identifier!r} declares project "
+                    f"{explicit_project_id!r} but was fetched from "
+                    f"project {source_project_id!r}; refusing to mutate"
+                )
+            return explicit_project_id
+
+        projects = self.project_store.list_all()
+        if not projects:
+            # Legacy mode — no managed projects
+            return fallback_project_id
+
+        # Search all projects to find where this issue belongs
+        found_projects: list[str] = []
+        lookup_errors: list[tuple[str, Exception]] = []
+        for project in projects:
+            try:
+                project_id = str(project.id)
+                tracker = self._tracker_for_project(project_id)
+                fetched_issue = tracker.fetch_issue_detail(issue.identifier)
+                if fetched_issue is not None:
+                    found_projects.append(project_id)
+            except Exception as exc:  # noqa: BLE001 - fail closed below
+                lookup_errors.append((str(getattr(project, "id", "")), exc))
+
+        if lookup_errors:
+            failed_projects = [project_id for project_id, _ in lookup_errors]
+            raise ProjectError(
+                f"Could not resolve ownership for issue {issue.identifier!r}; "
+                f"tracker lookup failed for projects {failed_projects!r}"
+            )
+        if len(found_projects) == 1:
+            # Canonical ownership found
+            resolved_project_id = found_projects[0]
+            if source_project_id and resolved_project_id != source_project_id:
+                raise ProjectError(
+                    f"Issue {issue.identifier!r} was fetched from project "
+                    f"{source_project_id!r} but canonical ownership is "
+                    f"{resolved_project_id!r}; refusing to mutate"
+                )
+            return resolved_project_id
+        elif len(found_projects) > 1:
+            # Ambiguous ownership
+            raise ProjectError(
+                f"Ambiguous ownership: issue {issue.identifier!r} found in "
+                f"projects {found_projects!r}; refusing to mutate without "
+                f"explicit scope"
+            )
+        else:
+            # Not found in any project
+            return fallback_project_id
+
+    def _scope_issue_for_maintenance(
+        self,
+        issue: Issue,
+        source_project_id: str,
+    ) -> tuple[str, TrackerProtocol]:
+        """Resolve a maintenance record and return its scoped tracker.
+
+        Maintenance sweeps iterate a project-scoped tracker, but legacy records
+        may not carry ``project_id``.  Keep the normalization and tracker
+        selection together so a later write cannot accidentally use the
+        iterator's stale or unscoped tracker.
+        """
+        resolved_project_id = self._resolve_issue_project_id(
+            issue,
+            fallback_project_id=source_project_id,
+            source_project_id=source_project_id,
+        )
+        if not resolved_project_id:
+            raise ProjectError(
+                f"Issue {issue.identifier!r} has no resolvable managed project"
+            )
+        issue.project_id = resolved_project_id
+        return resolved_project_id, self._tracker_for_project(resolved_project_id)
 
     def _invalidate_tracker_read_caches(self) -> None:
         """Clear the per-tick task-record cache on every tracker.
@@ -2789,24 +3150,31 @@ class Orchestrator:
         self,
         project: Any,
         issue: Issue,
-    ) -> bool:
-        """Remove one terminal issue's owned worktree/branch when supported."""
+    ) -> tuple[bool, str | None]:
+        """Remove one terminal issue's owned worktree/branch when supported.
+        
+        Returns (changed, skip_reason). skip_reason is None if the branch was
+        removed or attempted, or a category string if skipped.
+        """
 
         cleanup = getattr(type(self.project_store), "cleanup_terminal_issue", None)
         if cleanup is not None:
-            return bool(
-                self.project_store.cleanup_terminal_issue(
-                    project.id,
-                    issue.identifier,
-                    branch_name=str(issue.work_branch or "").strip() or None,
-                    is_epic=_is_epic_issue(issue),
-                    issue_number=(
-                        str(issue.issue_number).strip()
-                        if issue.issue_number
-                        else None
-                    ),
-                )
+            result = self.project_store.cleanup_terminal_issue(
+                project.id,
+                issue.identifier,
+                branch_name=str(issue.work_branch or "").strip() or None,
+                is_epic=_is_epic_issue(issue),
+                issue_number=(
+                    str(issue.issue_number).strip()
+                    if issue.issue_number
+                    else None
+                ),
             )
+            # Handle both old bool return and new (bool, skip_reason) tuple
+            if isinstance(result, tuple):
+                return result
+            else:
+                return bool(result), None
 
         # Compatibility for third-party/custom stores that only implement the
         # older worktree API. A successful call retains its historical
@@ -2824,7 +3192,7 @@ class Orchestrator:
                 project.id,
                 issue.identifier,
             )
-        return True
+        return True, None
 
     def _cleanup_terminal_worktrees(self, projects: list | None = None) -> int:
         """Remove worktrees and branches for issues safe to discard.
@@ -2838,6 +3206,13 @@ class Orchestrator:
         cleanup for other projects.
         """
         cleaned = 0
+        # Track categorized skip reasons to avoid warning floods
+        skip_reasons: dict[str, int] = {
+            "shared_epic_branch": 0,
+            "protected_branch": 0,
+            "checked_out_in_worktree": 0,
+            "not_owned": 0,
+        }
         limit = getattr(self.config, "worktree_cleanup_batch_size", 100)
         if limit <= 0:
             self._maintenance_status["worktree_cleanup"] = {
@@ -2879,7 +3254,7 @@ class Orchestrator:
                             }
                             return cleaned
                         try:
-                            changed = self._cleanup_terminal_project_issue(
+                            changed, skip_reason = self._cleanup_terminal_project_issue(
                                 project,
                                 issue,
                             )
@@ -2891,6 +3266,9 @@ class Orchestrator:
                                     project.name,
                                     issue.identifier,
                                 )
+                            elif skip_reason:
+                                # Track categorized skip for aggregated summary
+                                skip_reasons[skip_reason] = skip_reasons.get(skip_reason, 0) + 1
                         except Exception as exc:
                             logger.warning(
                                 "Failed to clean worktree/branch "
@@ -2988,12 +3366,28 @@ class Orchestrator:
             except TrackerError as exc:
                 logger.warning("Terminal workspace cleanup failed: %s", exc)
         self._set_maintenance_cursor("worktree_cleanup", None)
+        
+        # Emit structured summary of skipped branches (aggregated, not per-issue warnings)
+        skipped_total = sum(skip_reasons.values())
+        if skipped_total > 0:
+            skip_summary = ", ".join(
+                f"{reason}={count}"
+                for reason, count in sorted(skip_reasons.items())
+                if count > 0
+            )
+            logger.info(
+                "Terminal branch cleanup skipped branches: %s (total=%d)",
+                skip_summary,
+                skipped_total,
+            )
+        
         self._maintenance_status["worktree_cleanup"] = {
             "last_run_at": datetime.now(timezone.utc).isoformat(),
             "cleaned": cleaned,
             "limit": limit,
             "deferred": False,
             "cursor": None,
+            "skipped_branches": skip_reasons,
         }
         return cleaned
 
@@ -3341,6 +3735,392 @@ class Orchestrator:
                 self._cleanup_error_last = str(exc)
                 logger.warning("Terminal worktree cleanup failed during maintenance: %s", exc)
 
+    @staticmethod
+    def _repo_hygiene_timestamp(value: Any) -> float | None:
+        """Convert tracker timestamps and epoch values into UTC seconds."""
+        if isinstance(value, datetime):
+            stamp = value
+            if stamp.tzinfo is None:
+                stamp = stamp.replace(tzinfo=timezone.utc)
+            return stamp.timestamp()
+        if isinstance(value, (int, float)) and value > 0:
+            return float(value)
+        if isinstance(value, str) and value.strip():
+            try:
+                stamp = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+            except ValueError:
+                return None
+            if stamp.tzinfo is None:
+                stamp = stamp.replace(tzinfo=timezone.utc)
+            return stamp.timestamp()
+        return None
+
+    @staticmethod
+    def _repo_hygiene_git_worktrees(repo_path: str) -> list[dict[str, Any]]:
+        """Return registered worktrees and their checked-out branches."""
+        result = subprocess.run(
+            ["git", "worktree", "list", "--porcelain"],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"git worktree list failed: {result.stderr.strip()[:500]}"
+            )
+
+        records: list[dict[str, Any]] = []
+        current: dict[str, Any] | None = None
+
+        def flush() -> None:
+            nonlocal current
+            if current is None or not current.get("path"):
+                current = None
+                return
+            path = os.path.realpath(str(current["path"]))
+            status = subprocess.run(
+                ["git", "status", "--porcelain", "--untracked-files=all"],
+                cwd=path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=30,
+            )
+            current["path"] = path
+            current["dirty"] = status.returncode != 0 or bool(
+                (status.stdout or "").strip()
+            )
+            records.append(current)
+            current = None
+
+        for line in (result.stdout or "").splitlines():
+            if line.startswith("worktree "):
+                flush()
+                current = {"path": line[len("worktree ") :].strip()}
+            elif current is not None and line.startswith("branch refs/heads/"):
+                current["branch"] = line[len("branch refs/heads/") :].strip()
+            elif current is not None and line == "detached":
+                current["detached"] = True
+        flush()
+        return records
+
+    @staticmethod
+    def _repo_hygiene_git_refs(repo_path: str) -> list[dict[str, Any]]:
+        """Return local and origin refs with their latest commit timestamp."""
+        result = subprocess.run(
+            [
+                "git",
+                "for-each-ref",
+                "--format=%(refname)\t%(refname:short)\t%(committerdate:unix)",
+                "refs/heads",
+                "refs/remotes/origin",
+            ],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"git branch listing failed: {result.stderr.strip()[:500]}"
+            )
+        refs: list[dict[str, Any]] = []
+        for line in (result.stdout or "").splitlines():
+            fields = line.split("\t", 2)
+            if len(fields) != 3:
+                continue
+            raw_ref, short_ref, raw_timestamp = fields
+            # A symbolic origin/HEAD is not a branch artifact and would make
+            # every repository look as though it had one extra shared branch.
+            if short_ref.endswith("/HEAD"):
+                continue
+            try:
+                commit_timestamp = float(raw_timestamp or 0)
+            except ValueError:
+                commit_timestamp = 0.0
+            refs.append(
+                {
+                    "ref": raw_ref,
+                    "name": short_ref,
+                    "remote": raw_ref.startswith("refs/remotes/"),
+                    "commit_timestamp": commit_timestamp,
+                }
+            )
+        return refs
+
+    @staticmethod
+    def _repo_hygiene_branch_merged(
+        repo_path: str,
+        ref: str,
+        default_branch: str,
+    ) -> bool:
+        """Return whether *ref* is an ancestor of the project's default ref."""
+        default_ref = f"refs/remotes/origin/{default_branch}"
+        remote_default = subprocess.run(
+            ["git", "show-ref", "--verify", "--quiet", default_ref],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+        if remote_default.returncode != 0:
+            default_ref = f"refs/heads/{default_branch}"
+        result = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", ref, default_ref],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+        return result.returncode == 0
+
+    def _repo_hygiene_inventory_for_project(
+        self,
+        project: Project,
+        health: RepoHygieneHealth,
+        now: float,
+    ) -> None:
+        """Populate one project's live worktree and branch inventory."""
+        tracker = self._tracker_for_project(project.id)
+        issues = tracker.fetch_all_issues()
+        issue_by_branch: dict[str, Issue] = {}
+        issue_by_identifier: dict[str, Issue] = {}
+        for issue in issues:
+            issue_by_identifier[str(issue.identifier)] = issue
+            for branch in (
+                getattr(issue, "work_branch", None),
+                getattr(issue, "branch_name", None),
+            ):
+                if branch:
+                    issue_by_branch[str(branch)] = issue
+
+        worktrees = self._repo_hygiene_git_worktrees(project.repo_path)
+        dirty_branches = {
+            str(record.get("branch"))
+            for record in worktrees
+            if record.get("dirty") and record.get("branch")
+        }
+        for record in worktrees:
+            path = str(record["path"])
+            branch = str(record.get("branch") or "")
+            issue = issue_by_branch.get(branch)
+            if issue is None:
+                issue = issue_by_identifier.get(os.path.basename(path))
+            if record.get("dirty"):
+                health.worktrees.dirty += 1
+            elif issue is None:
+                health.worktrees.shared_owner += 1
+            elif not is_terminal_status(issue.state):
+                health.worktrees.active += 1
+            else:
+                merged = self._repo_hygiene_branch_merged(
+                    project.repo_path,
+                    f"refs/heads/{branch}" if branch else "HEAD",
+                    project.default_branch,
+                )
+                if not merged:
+                    health.worktrees.unmerged += 1
+                elif canonicalize_status(issue.state) == DONE:
+                    health.worktrees.terminal_protected += 1
+                else:
+                    health.worktrees.safely_prunable += 1
+
+            if issue is not None and is_terminal_status(issue.state):
+                terminal_timestamp = self._repo_hygiene_timestamp(
+                    getattr(issue, "closed_at", None)
+                    or getattr(issue, "merged_at", None)
+                    or getattr(issue, "updated_at", None)
+                )
+                if terminal_timestamp is None:
+                    try:
+                        terminal_timestamp = os.path.getmtime(path)
+                    except OSError:
+                        terminal_timestamp = now
+                if (
+                    not record.get("dirty")
+                    and canonicalize_status(issue.state) in {MERGED, ARCHIVED}
+                    and self._repo_hygiene_branch_merged(
+                        project.repo_path,
+                        f"refs/heads/{branch}" if branch else "HEAD",
+                        project.default_branch,
+                    )
+                    and now - terminal_timestamp
+                    >= self._repo_hygiene_thresholds.safely_prunable_age_seconds
+                ):
+                    health.overdue_artifacts.append(
+                        OverdueArtifact(
+                            artifact_type="worktree",
+                            identifier=path,
+                            category="safely_prunable",
+                            age_seconds=max(0, int(now - terminal_timestamp)),
+                            threshold_seconds=(
+                                self._repo_hygiene_thresholds.safely_prunable_age_seconds
+                            ),
+                            project_id=project.id,
+                            task_id=issue.identifier,
+                        )
+                    )
+
+        protected_branches = {
+            str(value).strip()
+            for value in (
+                project.default_branch,
+                project.branch,
+                project.state_branch_name,
+                *(project.supported_release_branches or []),
+            )
+            if str(value or "").strip()
+        }
+        for ref in self._repo_hygiene_git_refs(project.repo_path):
+            name = str(ref["name"])
+            branch = name.removeprefix("origin/")
+            issue = issue_by_branch.get(branch)
+            checked_out = (
+                not ref["remote"]
+                and branch in {
+                    str(record.get("branch"))
+                    for record in worktrees
+                    if record.get("branch")
+                }
+            )
+            configured_owner = any(
+                pattern and fnmatchcase(branch, str(pattern).strip())
+                for pattern in (project.branches or [])
+            )
+            if not ref["remote"] and branch in dirty_branches:
+                category = "dirty"
+            elif branch in protected_branches or configured_owner or issue is None:
+                category = "shared_owner"
+            elif not is_terminal_status(issue.state):
+                category = "active"
+            elif not self._repo_hygiene_branch_merged(
+                project.repo_path, str(ref["ref"]), project.default_branch
+            ):
+                category = "unmerged"
+            elif canonicalize_status(issue.state) == DONE or checked_out:
+                category = "terminal_protected"
+            else:
+                category = "safely_prunable"
+
+            inventory = health.branches_remote if ref["remote"] else health.branches_local
+            setattr(inventory, category, getattr(inventory, category) + 1)
+
+            if category == "safely_prunable":
+                terminal_timestamp = (
+                    self._repo_hygiene_timestamp(
+                        getattr(issue, "closed_at", None)
+                        or getattr(issue, "merged_at", None)
+                        or getattr(issue, "updated_at", None)
+                    )
+                    if issue is not None
+                    else None
+                )
+                age_start = terminal_timestamp or float(ref["commit_timestamp"] or 0)
+                if age_start and now - age_start >= self._repo_hygiene_thresholds.safely_prunable_age_seconds:
+                    health.overdue_artifacts.append(
+                        OverdueArtifact(
+                            artifact_type="branch",
+                            identifier=name,
+                            category=category,
+                            age_seconds=max(0, int(now - age_start)),
+                            threshold_seconds=(
+                                self._repo_hygiene_thresholds.safely_prunable_age_seconds
+                            ),
+                            project_id=project.id,
+                            task_id=issue.identifier if issue is not None else None,
+                        )
+                    )
+
+    def _evaluate_repo_hygiene_health(self) -> RepoHygieneHealth:
+        """Evaluate repository hygiene health status (OOMPAH-603).
+
+        Builds a RepoHygieneHealth snapshot with current inventory counts,
+        overdue artifacts, and cleanup errors. Used to populate
+        maintenance_status for dashboard and API display.
+
+        Returns:
+            RepoHygieneHealth instance with current status and thresholds applied.
+        """
+        health = RepoHygieneHealth()
+
+        now = time.time()
+        health.thresholds = {
+            "safely_prunable_age_seconds": (
+                self._repo_hygiene_thresholds.safely_prunable_age_seconds
+            ),
+            "safely_prunable_count_warning": (
+                self._repo_hygiene_thresholds.safely_prunable_count_warning
+            ),
+            "safely_prunable_count_critical": (
+                self._repo_hygiene_thresholds.safely_prunable_count_critical
+            ),
+            "cleanup_error_threshold": (
+                self._repo_hygiene_thresholds.cleanup_error_threshold
+            ),
+        }
+
+        for project in self.project_store.list_all():
+            try:
+                self._repo_hygiene_inventory_for_project(project, health, now)
+            except Exception as exc:  # noqa: BLE001 - keep other projects visible
+                message = f"project {project.id}: {type(exc).__name__}: {exc}"
+                health.cleanup_errors.append(message)
+                logger.warning("Repository hygiene inventory failed: %s", message)
+
+        # Track most recent cleanup error if present
+        if self._cleanup_error_last:
+            health.cleanup_errors.append(self._cleanup_error_last)
+
+        # Evaluate health against thresholds
+        is_healthy, summary = self._repo_hygiene_thresholds.evaluate_health(health)
+        health.is_healthy = is_healthy
+        health.summary = summary
+        health.last_evaluated_at = now
+
+        return health
+
+    def _update_repo_hygiene_health(self) -> None:
+        """Update repository hygiene health status in maintenance_status.
+
+        Called periodically as part of maintenance sweep. Exposes health
+        status to dashboard and API via orchestrator_metrics.
+        """
+        try:
+            health = self._evaluate_repo_hygiene_health()
+            payload = health.to_dict()
+            self._maintenance_status["repo_hygiene_health"] = payload
+            self._save_state(repo_hygiene_health=payload)
+            # Replace only this feature's derived alert.  Recent but
+            # safely-prunable artifacts remain green; an alert exists only
+            # for overdue debt or a cleanup/inventory error.
+            self._alerts = [
+                alert
+                for alert in self._alerts
+                if alert.get("source") != "repo_hygiene_health"
+            ]
+            if not health.is_healthy:
+                self._alerts.append(
+                    {
+                        "level": "warning",
+                        "source": "repo_hygiene_health",
+                        "message": health.summary,
+                    }
+                )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Failed to evaluate repository hygiene health: %s", exc)
+            # Maintain previous state rather than failing the entire maintenance sweep
+            if "repo_hygiene_health" not in self._maintenance_status:
+                self._maintenance_status["repo_hygiene_health"] = {
+                    "is_healthy": False,
+                    "summary": "Health evaluation error",
+                    "error": str(exc),
+                }
+
     def _storage_cleanup_paths(self) -> tuple[str, str, list[str]]:
         log_root = os.environ.get("OOMPAH_AGENT_LOG_DIR") or os.path.join(
             os.path.expanduser("~"), ".oompah", "agent-logs"
@@ -3469,6 +4249,7 @@ class Orchestrator:
         self._maybe_heal_repos()
         self._maybe_cleanup_worktrees()
         self._maybe_cleanup_storage()
+        self._update_repo_hygiene_health()
         self._auto_archive()
         self._maybe_open_deferred_done_reviews()
         self._maybe_run_merged_labels()
@@ -4291,6 +5072,20 @@ class Orchestrator:
                 return True
         return False
 
+    def _release_audit_branch_claim(
+        self,
+        branch_key: str | None,
+        attempt_id: str | None,
+    ) -> bool:
+        """Release an audit branch fence only when *attempt_id* still owns it."""
+
+        if not branch_key or not attempt_id:
+            return False
+        if self._audit_branch_claims.get(branch_key) != attempt_id:
+            return False
+        self._audit_branch_claims.pop(branch_key, None)
+        return True
+
     def _audit_selector(self, issue: Issue) -> AuditorCandidateSelector:
         project = None
         if issue.project_id:
@@ -4303,6 +5098,22 @@ class Orchestrator:
             self.provider_store,
             project_config=project,
         )
+
+    def _record_audit_outcome_ownership(self, issue_id: str, outcome: Any) -> None:
+        """Keep ordinary-dispatch fencing aligned with an applied audit result."""
+
+        if not getattr(outcome, "success", False):
+            return
+        applied_status = str(getattr(outcome, "applied_status", "") or "")
+        if is_dispatchable_status(applied_status):
+            # An incomplete audit intentionally returns work to Open.  Release
+            # the terminal-transition fence so the implementation lane can
+            # repair the findings after the auditor exits.
+            self.state.completed.discard(issue_id)
+            return
+        # Passed, Needs Human, and other non-dispatchable outcomes must remain
+        # unavailable to ordinary implementation dispatch.
+        self.state.completed.add(issue_id)
 
     async def _route_no_auditor(
         self,
@@ -4332,6 +5143,7 @@ class Orchestrator:
         outcome = await self.terminal_transition_coordinator.apply_audit_result(
             issue, result, str(issue.project_id or "legacy")
         )
+        self._record_audit_outcome_ownership(issue.id, outcome)
         if outcome.success:
             self._audit_metrics["exhaustion_count"] += 1
         else:
@@ -4372,6 +5184,9 @@ class Orchestrator:
             candidates = candidates[:limit]
         metrics["pending_count"] = len(candidates)
         dispatched = 0
+        # Health-scan state: one observation per In Validation issue.
+        observations: list[AuditHealthObservation] = []
+        _audit_scan_error_count: int = 0
 
         for issue in candidates:
             if self._available_slots() <= 0:
@@ -4382,6 +5197,19 @@ class Orchestrator:
                     self._tick_pool, store.read, issue.identifier
                 )
                 record = AuditorDispatchLane.pending_record(document.pending_chain)
+                # Collect a health observation for this In Validation task regardless
+                # of whether it has a pending record.  The observation is used by
+                # _refresh_terminal_audit_health() to compute backlog age and stale-
+                # validation metrics without exposing provider details or model output.
+                observations.append(
+                    AuditHealthObservation(
+                        project_id=str(issue.project_id) if issue.project_id else None,
+                        issue_identifier=str(issue.identifier),
+                        issue_created_at=issue.created_at,
+                        record=record,
+                        quarantined=document.is_quarantined,
+                    )
+                )
                 if record is None:
                     continue
                 selector = self._audit_selector(issue)
@@ -4405,7 +5233,10 @@ class Orchestrator:
                     running = self.state.running.get(issue.id)
                     if running and running.is_auditor:
                         await self._terminate_running(issue.id, cleanup_workspace=False)
-                        self._audit_branch_claims.pop(branch_key, None)
+                        self._release_audit_branch_claim(
+                            branch_key,
+                            running.audit_attempt_id,
+                        )
                         active.discard(running.audit_attempt_id)
                         recovery = lane.recover(
                             record, active_attempt_ids=active
@@ -4465,7 +5296,7 @@ class Orchestrator:
                     # creation must release the branch claim and leave the
                     # attempt retryable. Otherwise a scheduler exception can
                     # strand the audit indefinitely in ``in_progress``.
-                    self._audit_branch_claims.pop(branch_key, None)
+                    self._release_audit_branch_claim(branch_key, plan.attempt_id)
                     failed = AuditorDispatchLane.finish_attempt(
                         persisted,
                         plan.attempt_id,
@@ -4478,6 +5309,7 @@ class Orchestrator:
                                 )
                             )
                         ),
+                        failure_classification=FailureClassification.INFRASTRUCTURE_ERROR,
                     )
                     await asyncio.get_running_loop().run_in_executor(
                         self._tick_pool,
@@ -4494,6 +5326,7 @@ class Orchestrator:
                 if plan.rotation_count:
                     metrics["rotation_count"] += 1
             except Exception as exc:  # noqa: BLE001 - one audit must not starve all work
+                _audit_scan_error_count += 1
                 metrics["last_error"] = f"{type(exc).__name__}: {exc}"
                 logger.exception("Audit dispatch failed for %s", issue.identifier)
 
@@ -4501,6 +5334,15 @@ class Orchestrator:
             1 for entry in self.state.running.values() if entry.is_auditor
         )
         metrics["last_dispatched_count"] = dispatched
+        # Rebuild health metrics and alerts from the durable audit observations.
+        # A scan that processed all candidates (no early slot exhaustion) is
+        # considered complete for alert-clearing purposes.
+        scan_complete = self._available_slots() > 0 or not candidates
+        self._refresh_terminal_audit_health(
+            observations,
+            scan_complete=scan_complete and _audit_scan_error_count == 0,
+            scan_error_count=_audit_scan_error_count,
+        )
         return {
             "audit_scan": (time.monotonic() - started) * 1000,
             "audit_dispatch": (time.monotonic() - started) * 1000,
@@ -4728,6 +5570,7 @@ class Orchestrator:
                     project.name,
                     exc,
                 )
+                self._audit_blocked_integration_rows(project.id, tracker)
                 continue
             for issue in ready:
                 issue.project_id = project.id
@@ -4740,6 +5583,9 @@ class Orchestrator:
                     or not record.head_sha
                 ):
                     continue
+                automatic_retry = (
+                    str(record.state or "").strip().lower() == "ready"
+                )
                 self.integration_queue.enqueue(
                     project_id=project.id,
                     epic_id=epic_id,
@@ -4749,8 +5595,608 @@ class Orchestrator:
                     base_sha=record.base_sha,
                     priority=issue.priority,
                     submitted_at=record.submitted_at,
-                    explicit_retry=False,  # Background sync is idempotent
+                    explicit_retry=automatic_retry,
                 )
+            self._audit_blocked_integration_rows(project.id, tracker)
+
+    def _arm_integration_delivery_alert(
+        self,
+        project_id: str,
+        task_id: str,
+        reason: str,
+    ) -> None:
+        """Surface one idempotent alert for an unexplained blocked row."""
+
+        source = f"integration_delivery:{project_id}:{task_id}"
+        self._alerts = [
+            alert for alert in self._alerts if alert.get("source") != source
+        ]
+        self._alerts.append(
+            {
+                "level": "warning",
+                "source": source,
+                "message": (
+                    f"Blocked integration task {task_id} has no active retry "
+                    f"or actionable human reason: {reason}."
+                ),
+            }
+        )
+
+    def _clear_integration_delivery_alert(
+        self,
+        project_id: str,
+        task_id: str,
+    ) -> None:
+        """Clear the blocked-row alert once recovery is explained."""
+
+        source = f"integration_delivery:{project_id}:{task_id}"
+        self._alerts = [
+            alert for alert in self._alerts if alert.get("source") != source
+        ]
+
+    def _audit_blocked_integration_rows(self, project_id: str, tracker) -> None:
+        """Alert when a blocked queue row has no retry or human handoff."""
+
+        delivery_prefix = f"integration_delivery:{project_id}:"
+        scan_source = f"integration_delivery_scan:{project_id}"
+        blocked = [
+            item
+            for item in self.integration_queue.items(project_id=project_id)
+            if item.state == "blocked"
+        ]
+        blocked_sources = {
+            f"{delivery_prefix}{item.task_id}" for item in blocked
+        }
+        self._alerts = [
+            alert
+            for alert in self._alerts
+            if not (
+                str(alert.get("source", "")).startswith(delivery_prefix)
+                and alert.get("source") not in blocked_sources
+            )
+        ]
+        if not blocked:
+            self._alerts = [
+                alert
+                for alert in self._alerts
+                if alert.get("source") != scan_source
+            ]
+            return
+        try:
+            issues = tracker.fetch_all_issues()
+        except Exception as exc:  # noqa: BLE001 - preserve an actionable alert
+            self._alerts = [
+                alert
+                for alert in self._alerts
+                if alert.get("source") != scan_source
+            ]
+            self._alerts.append(
+                {
+                    "level": "warning",
+                    "source": scan_source,
+                    "message": (
+                        f"Could not audit blocked integration rows for "
+                        f"project {project_id}: {exc}"
+                    ),
+                }
+            )
+            return
+        self._alerts = [
+            alert
+            for alert in self._alerts
+            if alert.get("source") != scan_source
+        ]
+
+        by_alias: dict[str, Issue] = {}
+        for issue in issues or []:
+            for alias in (getattr(issue, "id", None), issue.identifier):
+                if str(alias or "").strip():
+                    by_alias[str(alias).strip()] = issue
+
+        human_states = {NEEDS_HUMAN, NEEDS_CI_FIX, NEEDS_REBASE}
+        for item in blocked:
+            issue = by_alias.get(item.task_id)
+            record = getattr(issue, "integration", None) if issue else None
+            task_state = canonicalize_status(getattr(issue, "state", ""))
+            reason = str(
+                getattr(record, "last_error", None)
+                or getattr(record, "repair_failure_reason", None)
+                or item.last_error
+                or ""
+            ).strip()
+            if task_state in human_states and reason:
+                self._clear_integration_delivery_alert(
+                    project_id,
+                    item.task_id,
+                )
+                continue
+
+            if issue is None:
+                missing_reason = "the queue task is missing from the tracker"
+            elif task_state not in human_states:
+                missing_reason = (
+                    f"tracker state is {getattr(issue, 'state', '') or '<empty>'}"
+                )
+            else:
+                missing_reason = "the human handoff has no recorded reason"
+            self._arm_integration_delivery_alert(
+                project_id,
+                item.task_id,
+                missing_reason,
+            )
+
+    def _is_integration_item_in_backoff(
+        self,
+        item: IntegrationQueueItem,
+        issue: Issue | None,
+    ) -> bool:
+        """Return True if the item is currently in a conflict repair backoff period.
+        
+        When a conflict repair worker encounters a recoverable infrastructure failure
+        (auth, provider, timeout), the item is marked for backoff with a backoff_until
+        timestamp. During the backoff period, the item should remain in 'ready' state
+        but not be claimed for integration.
+        """
+        if issue is None:
+            return False
+        integration = getattr(issue, "integration", None)
+        if integration is None:
+            return False
+        if not integration.backoff_until:
+            return False
+        try:
+            backoff_time = datetime.fromisoformat(integration.backoff_until)
+            now = datetime.now(timezone.utc)
+            return now < backoff_time
+        except (ValueError, TypeError):
+            # Invalid timestamp format, treat as no backoff
+            return False
+
+    def _reconcile_standalone_ready_to_integrate_tasks(self) -> None:
+        """Deliver stranded standalone submissions through their review path.
+
+        Epic children are recovered by :meth:`_sync_ready_integration_submissions`.
+        A top-level task instead owns a PR/MR against the project's default
+        branch.  This sweep is the restart-safe fallback for a task whose
+        submission reached the tracker but whose worker exited before review
+        creation completed.
+        """
+        for project in self.project_store.list_all():
+            project_id = str(project.id)
+            tracker = self._tracker_for_project(project_id)
+            try:
+                ready = tracker.fetch_issues_by_states([READY_TO_INTEGRATE])
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "Could not scan Ready to Integrate submissions for %s: %s",
+                    project.name,
+                    exc,
+                )
+                continue
+
+            standalone = [
+                issue
+                for issue in ready
+                if not str(issue.parent_id or "").strip()
+                and not _is_epic_issue(issue)
+            ]
+            if not standalone:
+                continue
+
+            # A queue row is already a durable delivery path.  It may be an
+            # active integration, a completed integration awaiting audit, or a
+            # blocked row with its own actionable error.  Never create a
+            # competing standalone review for the same task.
+            try:
+                queued_by_task = {
+                    item.task_id: item
+                    for item in self.integration_queue.items(project_id=project_id)
+                }
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "Could not inspect integration delivery rows for %s: %s",
+                    project.name,
+                    exc,
+                )
+                continue
+
+            pending_review: list[Issue] = []
+            for issue in standalone:
+                task_id = issue.identifier
+                queue_item = queued_by_task.get(task_id)
+                if queue_item is None:
+                    pending_review.append(issue)
+                    continue
+                self._clear_standalone_delivery_alert(project_id, task_id)
+                logger.debug(
+                    "Standalone Ready task %s already has integration "
+                    "delivery state %s",
+                    task_id,
+                    queue_item.state,
+                )
+            if not pending_review:
+                continue
+
+            provider = None
+            repo_slug = ""
+            provider_error = ""
+            try:
+                provider = detect_provider(
+                    project.repo_url,
+                    access_token=project.access_token,
+                )
+                if provider is not None:
+                    repo_slug = extract_repo_slug(project.repo_url)
+                else:
+                    provider_error = (
+                        f"no supported forge provider was detected for "
+                        f"{project.repo_url or '<missing repo URL>'}; configure "
+                        "a GitHub or GitLab project repo_url"
+                    )
+            except Exception as exc:  # noqa: BLE001
+                provider_error = f"SCM provider setup failed: {exc}"
+
+            target_branch = str(project.default_branch or "").strip()
+            review_count, review_limit, _ = self._project_review_capacity(
+                project_id
+            )
+            counted_review_ids = {
+                str(getattr(review, "id", "") or "").strip()
+                for review in getattr(self, "_reviews_cache", {}).get(
+                    project_id,
+                    [],
+                )
+                if not getattr(review, "draft", False)
+                and str(getattr(review, "id", "") or "").strip()
+            }
+            for issue in pending_review:
+                issue.project_id = project_id
+                task_id = issue.identifier
+
+                if provider is None or not repo_slug:
+                    reason = provider_error or (
+                        "repository slug could not be resolved; configure a "
+                        "supported project repo_url"
+                    )
+                    self._arm_standalone_delivery_alert(project_id, task_id, reason)
+                    logger.warning(
+                        "Standalone Ready task %s is undeliverable: %s",
+                        task_id,
+                        reason,
+                    )
+                    continue
+                if not target_branch:
+                    reason = "project default_branch is not configured"
+                    self._arm_standalone_delivery_alert(project_id, task_id, reason)
+                    logger.warning(
+                        "Standalone Ready task %s is undeliverable: %s",
+                        task_id,
+                        reason,
+                    )
+                    continue
+
+                task_branch = self._branch_for_issue(issue, project)
+                if not task_branch:
+                    reason = "task work branch is not recorded"
+                    self._arm_standalone_delivery_alert(project_id, task_id, reason)
+                    logger.warning(
+                        "Standalone Ready task %s is undeliverable: %s",
+                        task_id,
+                        reason,
+                    )
+                    continue
+
+                try:
+                    branch_head = provider.get_branch_head_sha(
+                        repo_slug,
+                        task_branch,
+                    )
+                    if not branch_head:
+                        reason = (
+                            f"branch {task_branch} is not present on the remote; "
+                            "push it or correct oompah.work_branch metadata"
+                        )
+                        self._arm_standalone_delivery_alert(
+                            project_id,
+                            task_id,
+                            reason,
+                        )
+                        logger.warning(
+                            "Standalone Ready task %s branch %s not found on remote",
+                            task_id,
+                            task_branch,
+                        )
+                        continue
+                except Exception as exc:
+                    reason = f"remote branch check failed: {exc}"
+                    self._arm_standalone_delivery_alert(
+                        project_id,
+                        task_id,
+                        reason,
+                    )
+                    logger.warning(
+                        "Could not check if branch exists for %s: %s",
+                        task_id,
+                        exc,
+                    )
+                    continue
+
+                try:
+                    existing_pr = provider.find_pr_for_branch(
+                        repo_slug,
+                        task_branch,
+                    )
+                except Exception as exc:
+                    reason = f"review lookup failed: {exc}"
+                    self._arm_standalone_delivery_alert(
+                        project_id,
+                        task_id,
+                        reason,
+                    )
+                    logger.warning(
+                        "Could not check for existing PR for %s: %s",
+                        task_id,
+                        exc,
+                    )
+                    continue
+
+                review_state = str(
+                    getattr(existing_pr, "state", "") or ""
+                ).strip().lower()
+                if existing_pr is not None and review_state == "open":
+                    existing_review_id = str(
+                        getattr(existing_pr, "id", "") or ""
+                    ).strip()
+                    if (
+                        not existing_review_id
+                        or existing_review_id not in counted_review_ids
+                    ):
+                        review_count += 1
+                        if existing_review_id:
+                            counted_review_ids.add(existing_review_id)
+                    try:
+                        tracker.update_issue(task_id, status=IN_REVIEW)
+                        self._write_review_metadata(
+                            tracker,
+                            task_id,
+                            review_id=getattr(existing_pr, "id", None),
+                            review_url=getattr(existing_pr, "url", None),
+                            source_branch=task_branch,
+                            target_branch=target_branch,
+                        )
+                        self._clear_standalone_delivery_alert(
+                            project_id,
+                            task_id,
+                        )
+                    except Exception as exc:  # noqa: BLE001
+                        self._arm_standalone_delivery_alert(
+                            project_id,
+                            task_id,
+                            f"existing review metadata update failed: {exc}",
+                        )
+                        logger.warning(
+                            "Could not update %s to In Review: %s",
+                            task_id,
+                            exc,
+                        )
+                    continue
+
+                if existing_pr is not None and review_state == "merged":
+                    issue.work_branch = task_branch
+                    issue.branch_name = task_branch
+                    issue.target_branch = target_branch
+                    issue.review_number = str(
+                        getattr(existing_pr, "id", "") or ""
+                    ) or None
+                    issue.review_url = getattr(existing_pr, "url", None)
+                    self._write_review_metadata(
+                        tracker,
+                        task_id,
+                        review_id=issue.review_number,
+                        review_url=issue.review_url,
+                        source_branch=task_branch,
+                        target_branch=target_branch,
+                    )
+                    transition = self._request_merged_via_coordinator(
+                        issue,
+                        project_id,
+                        trigger_identity="standalone-ready-reconciliation",
+                        trigger_source="oompah",
+                    )
+                    if transition is not None and transition.success:
+                        self._clear_standalone_delivery_alert(
+                            project_id,
+                            task_id,
+                        )
+                        logger.info(
+                            "Staged merged standalone task %s for terminal audit "
+                            "from review #%s",
+                            task_id,
+                            getattr(existing_pr, "id", "?"),
+                        )
+                    else:
+                        reason = (
+                            transition.reason
+                            if transition is not None
+                            else "terminal audit transition failed"
+                        )
+                        self._arm_standalone_delivery_alert(
+                            project_id,
+                            task_id,
+                            f"merged review could not enter terminal audit: {reason}",
+                        )
+                    continue
+
+                if existing_pr is not None and review_state != "closed":
+                    reason = (
+                        f"review #{getattr(existing_pr, 'id', '?')} has "
+                        f"unrecognized state {review_state or '<empty>'}"
+                    )
+                    self._arm_standalone_delivery_alert(
+                        project_id,
+                        task_id,
+                        reason,
+                    )
+                    logger.warning(
+                        "Standalone Ready task %s is undeliverable: %s",
+                        task_id,
+                        reason,
+                    )
+                    continue
+
+                if review_count >= review_limit:
+                    reason = (
+                        "waiting for review capacity "
+                        f"({review_count}/{review_limit} open)"
+                    )
+                    # Capacity is a healthy, retryable wait rather than an
+                    # undeliverable submission.  Clear any stale failure alert
+                    # and let the next serialized sweep retry after a review
+                    # closes.
+                    self._clear_standalone_delivery_alert(project_id, task_id)
+                    logger.info(
+                        "Deferred standalone review for %s: %s",
+                        task_id,
+                        reason,
+                    )
+                    continue
+
+                if not self._review_quality_gate_passes(
+                    project,
+                    issue,
+                    task_branch,
+                    target_branch,
+                ):
+                    self._arm_standalone_delivery_alert(
+                        project_id,
+                        task_id,
+                        "configured branch quality gate did not pass",
+                    )
+                    continue
+
+                title = f"{task_id}: {issue.title}" if issue.title else task_id
+                description = issue.description or ""
+                hub_link = self._build_pr_body(
+                    issue,
+                    target_branch,
+                    repo_slug,
+                    project.default_branch,
+                )
+                if hub_link:
+                    description = (
+                        f"{hub_link}\n\n{description}".strip()
+                        if description
+                        else hub_link
+                    )
+
+                try:
+                    result = provider.create_review(
+                        repo_slug,
+                        title,
+                        task_branch,
+                        target_branch=target_branch,
+                        description=description,
+                    )
+                except Exception as exc:
+                    self._arm_standalone_delivery_alert(
+                        project_id,
+                        task_id,
+                        f"review creation failed: {exc}",
+                    )
+                    logger.warning(
+                        "Failed to create PR for standalone Ready task %s: %s",
+                        task_id,
+                        exc,
+                    )
+                    continue
+
+                if result is None:
+                    self._arm_standalone_delivery_alert(
+                        project_id,
+                        task_id,
+                        "forge provider returned no review",
+                    )
+                    logger.warning(
+                        "Failed to create PR for standalone Ready task %s "
+                        "(provider returned None)",
+                        task_id,
+                    )
+                    continue
+
+                created_review_id = str(
+                    getattr(result, "id", "") or ""
+                ).strip()
+                if (
+                    not created_review_id
+                    or created_review_id not in counted_review_ids
+                ):
+                    # Reserve the slot before tracker metadata writes.  The
+                    # review exists even if those writes fail, and later tasks
+                    # in this same sweep must observe the consumed capacity.
+                    review_count += 1
+                    if created_review_id:
+                        counted_review_ids.add(created_review_id)
+
+                try:
+                    tracker.update_issue(task_id, status=IN_REVIEW)
+                    self._write_review_metadata(
+                        tracker,
+                        task_id,
+                        review_id=getattr(result, "id", None),
+                        review_url=getattr(result, "url", None),
+                        source_branch=task_branch,
+                        target_branch=target_branch,
+                    )
+                    self._clear_standalone_delivery_alert(project_id, task_id)
+                    logger.info(
+                        "Created PR for standalone Ready task %s (PR #%s)",
+                        task_id,
+                        getattr(result, "id", "?"),
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to update %s to In Review after PR creation: %s",
+                        task_id,
+                        exc,
+                    )
+                    self._arm_standalone_delivery_alert(
+                        project_id,
+                        task_id,
+                        f"created review but tracker update failed: {exc}",
+                    )
+
+    def _arm_standalone_delivery_alert(
+        self,
+        project_id: str,
+        task_id: str,
+        reason: str,
+    ) -> None:
+        """Surface one idempotent actionable alert for a stranded submission."""
+        source = f"standalone_ready_delivery:{project_id}:{task_id}"
+        self._alerts = [
+            alert for alert in self._alerts if alert.get("source") != source
+        ]
+        self._alerts.append(
+            {
+                "level": "warning",
+                "source": source,
+                "message": (
+                    f"Standalone Ready task {task_id} has no active delivery: "
+                    f"{reason}."
+                ),
+            }
+        )
+
+    def _clear_standalone_delivery_alert(
+        self,
+        project_id: str,
+        task_id: str,
+    ) -> None:
+        """Clear the stranded-submission alert once a delivery path exists."""
+        source = f"standalone_ready_delivery:{project_id}:{task_id}"
+        self._alerts = [
+            alert for alert in self._alerts if alert.get("source") != source
+        ]
 
     def _integration_satisfied_dependencies(
         self,
@@ -4909,6 +6355,61 @@ class Orchestrator:
             )
         return result
 
+    def _integration_task_still_ready(
+        self,
+        item: IntegrationQueueItem,
+    ) -> bool:
+        """Return whether the tracker still authorizes this exact submission."""
+
+        tracker = self._tracker_for_project(item.project_id)
+        issue = tracker.fetch_issue_detail(item.task_id)
+        if issue is None:
+            return False
+        record = getattr(issue, "integration", None)
+        return bool(
+            canonicalize_status(issue.state) == READY_TO_INTEGRATE
+            and record is not None
+            and str(record.task_branch or "").strip() == item.task_branch
+            and str(record.head_sha or "").strip() == item.head_sha
+        )
+
+    def _retire_inactive_integration_rows(
+        self,
+        project_id: str,
+        issues: list[Issue],
+        queue_items: list[IntegrationQueueItem],
+    ) -> int:
+        """Cancel stale delivery rows whose tracker task left the queue lane."""
+
+        by_alias: dict[str, Issue] = {}
+        for issue in issues:
+            for alias in (issue.id, issue.identifier):
+                if str(alias or "").strip():
+                    by_alias[str(alias).strip()] = issue
+        inactive_states = set(TERMINAL_STATUSES) | {
+            IN_VALIDATION,
+            NEEDS_HUMAN,
+        }
+        retired = 0
+        for item in queue_items:
+            if item.state not in {"ready", "integrating", "blocked"}:
+                continue
+            issue = by_alias.get(item.task_id)
+            status = canonicalize_status(getattr(issue, "state", ""))
+            if issue is None or status not in inactive_states:
+                continue
+            if self.integration_queue.cancel(
+                project_id,
+                item.task_id,
+                reason=f"tracker state is {status}",
+            ):
+                retired += 1
+                self._clear_integration_delivery_alert(
+                    project_id,
+                    item.task_id,
+                )
+        return retired
+
     def _execute_integration_item(
         self,
         item: IntegrationQueueItem,
@@ -4948,6 +6449,7 @@ class Orchestrator:
             quality_command=self._quality_gate_command(project),
             repo_identity=project.repo_url or project.repo_path or project.id,
             retry_forced=item.retry_forced,
+            commit_allowed=lambda: self._integration_task_still_ready(item),
         )
 
     def _route_integration_failure(
@@ -4955,7 +6457,13 @@ class Orchestrator:
         item: IntegrationQueueItem,
         result: IntegrationExecutionResult,
     ) -> None:
-        """Persist a recoverable repair state without deleting any branch."""
+        """Persist a recoverable repair state without deleting any branch.
+        
+        Handles three categories of failures:
+        1. Executor retryable (epic_head_race, interrupted): auto-retry immediately
+        2. Conflict with infrastructure failure: backoff and retry after cooldown
+        3. Real conflicts or hard failures: dispatch to human (NEEDS_REBASE status)
+        """
 
         # An epic-head race is safe to retry from the rebased private head
         # that this executor already pushed. A task-branch push race means a
@@ -4974,6 +6482,40 @@ class Orchestrator:
         existing = getattr(issue, "integration", None) if issue else None
         head_sha = result.rebased_task_sha or item.head_sha
         state = "ready" if retryable else "blocked"
+        
+        # Track repair failure classification for conflicts
+        repair_failure_reason: str | None = None
+        backoff_until: str | None = None
+        
+        if result.status == "conflict":
+            # Classify the failure to detect infrastructure vs real conflicts
+            repair_failure_reason = classify_conflict_repair_failure(result.message)
+            
+            # Infrastructure failures (auth, provider, timeout, etc.) should retry with backoff
+            if repair_failure_reason and repair_failure_reason != "conflict":
+                # Calculate exponential backoff: 5m, 15m, 45m, then needs_human
+                backoff_delays = [300, 900, 2700]  # seconds
+                repair_attempts = 0
+                if existing is not None:
+                    # Count how many times this repair has been attempted
+                    repair_attempts = item.attempts
+                    if repair_attempts >= 1:  # Attempts start at 1 on first try
+                        repair_attempts -= 1
+                
+                max_repair_attempts = 4  # 3 backoff retries + needs_human
+                if repair_attempts < max_repair_attempts:
+                    # Still have retries left
+                    if repair_attempts < len(backoff_delays):
+                        backoff_seconds = backoff_delays[repair_attempts]
+                    else:
+                        backoff_seconds = backoff_delays[-1]
+                    backoff_time = datetime.now(timezone.utc) + timedelta(seconds=backoff_seconds)
+                    backoff_until = backoff_time.isoformat()
+                    state = "ready"
+                else:
+                    # Exhausted repair attempts, transition to needs_human
+                    state = "needs_human"
+        
         tracker.set_metadata_field(
             item.task_id,
             "oompah.integration",
@@ -4989,6 +6531,8 @@ class Orchestrator:
                 ),
                 updated_at=datetime.now(timezone.utc).isoformat(),
                 last_error=result.message,
+                backoff_until=backoff_until,
+                repair_failure_reason=repair_failure_reason,
             ).to_dict(),
         )
         if retryable:
@@ -5010,6 +6554,57 @@ class Orchestrator:
                 result.message,
             )
             return
+        
+        # Handle conflict with retryable infrastructure failure
+        if result.status == "conflict" and backoff_until and state == "ready":
+            instruction = (
+                f"Integration found a rebase conflict on `{item.task_branch}`, "
+                f"but the conflict-repair worker encountered a recoverable infrastructure failure "
+                f"({repair_failure_reason}). Oompah will retry conflict resolution automatically.\n\n"
+                f"Error details:\n```\n{result.message[-2000:]}\n```"
+            )
+            tracker.add_comment(item.task_id, instruction, author="oompah")
+            self.state.completed.discard(item.task_id)
+            self.request_refresh()
+            logger.info(
+                "Retryable conflict repair failure for %s with backoff until %s: %s",
+                item.task_id,
+                backoff_until,
+                repair_failure_reason,
+            )
+            return
+        
+        # Handle exhausted repairs (needs_human transition)
+        if state == "needs_human":
+            repair_status = NEEDS_REBASE
+            tracker.update_issue(item.task_id, status=repair_status)
+            instruction = (
+                f"**Conflict repair exhausted**: Integration found a rebase conflict on "
+                f"`{item.task_branch}`, and after several retries due to recoverable infrastructure "
+                f"failures ({repair_failure_reason}), the repair worker has given up.\n\n"
+                f"**Action required**: Please resolve the conflict manually:\n\n"
+                f"1. Fetch the latest `{self.project_store.epic_branch_name(item.epic_id)}` "
+                f"(the epic branch)\n"
+                f"2. Fetch your private branch `{item.task_branch}`\n"
+                f"3. Rebase `{item.task_branch}` onto `{self.project_store.epic_branch_name(item.epic_id)}`\n"
+                f"4. Resolve all conflicts\n"
+                f"5. Run the required tests\n"
+                f"6. Force-push the resolved branch: `git push --force-with-lease origin {item.task_branch}`\n"
+                f"7. Run `oompah task submit` to resubmit\n\n"
+                f"Last error:\n```\n{result.message[-2000:]}\n```"
+            )
+            tracker.add_comment(item.task_id, instruction, author="oompah")
+            self.state.completed.discard(item.task_id)
+            self.request_refresh()
+            logger.warning(
+                "Conflict repair exhausted for %s (failure reason: %s): %s",
+                item.task_id,
+                repair_failure_reason,
+                result.message[:500],
+            )
+            return
+        
+        # Handle real conflicts and other non-retryable failures
         repair_status = {
             "conflict": NEEDS_REBASE,
             "ci_failure": NEEDS_CI_FIX,
@@ -5154,8 +6749,18 @@ class Orchestrator:
             epic_branch = self.project_store.epic_branch_name(epic_id)
             target_branch = self._resolve_epic_target_branch(epic, project) or "main"
 
+            # Nested epics may target their parent epic's branch. Allow repair
+            # if target_branch is the authoritative parent's branch; reject if
+            # it's an unrelated epic branch (epic-to-epic not via parent).
             if target_branch.startswith("epic-"):
-                return False
+                parent_epic = self._resolve_parent_epic(epic)
+                if parent_epic is None:
+                    # Epic branches without a parent are not allowed.
+                    return False
+                parent_branch = self._epic_branch_for_issue(parent_epic)
+                if target_branch != parent_branch:
+                    # Target is an unrelated epic branch, not the parent.
+                    return False
 
             with self.project_store.project_write_lock(project_id):
                 refreshed = subprocess.run(
@@ -5326,7 +6931,36 @@ class Orchestrator:
             self._tick_pool,
             self._sync_ready_integration_submissions,
         )
+        # Reconcile standalone Ready to Integrate tasks (no epic parent)
+        await loop.run_in_executor(
+            self._tick_pool,
+            self._reconcile_standalone_ready_to_integrate_tasks,
+        )
         self.integration_queue.recover_expired()
+
+        # Tracker state is authoritative. Retire stale queue rows before
+        # grouping or claiming so completed/reviewing tasks cannot be
+        # resurrected by an old durable submission.
+        for project in self.project_store.list_all():
+            tracker = self._tracker_for_project(project.id)
+            try:
+                project_issues = await loop.run_in_executor(
+                    self._tick_pool,
+                    tracker.fetch_all_issues,
+                )
+            except Exception as exc:  # noqa: BLE001 - executor also fails closed
+                logger.warning(
+                    "Could not reconcile integration queue authority for %s: %s",
+                    project.name,
+                    exc,
+                )
+                continue
+            self._retire_inactive_integration_rows(
+                project.id,
+                project_issues,
+                self.integration_queue.items(project_id=project.id),
+            )
+
         all_items = self.integration_queue.items()
 
         # Crash recovery: a git integration can finish just before audit
@@ -5393,11 +7027,59 @@ class Orchestrator:
                     ),
                 )
                 continue
+            
+            # Check if this item is in a conflict repair backoff period
+            # (recoverable infrastructure failure). If so, release the lease
+            # and skip it for now.
+            claimed_issue = next(
+                (iss for iss in issues if iss.identifier == item.task_id),
+                None,
+            )
+            if self._is_integration_item_in_backoff(item, claimed_issue):
+                # Release the lease by marking as ready again
+                self.integration_queue.fail(
+                    item.project_id,
+                    item.task_id,
+                    lease_owner=item.lease_owner or "",
+                    error=item.last_error or "",
+                    retryable=True,
+                )
+                logger.debug(
+                    "Skipping integration item %s: still in conflict repair backoff",
+                    item.task_id,
+                )
+                continue
+            
             result = await loop.run_in_executor(
                 self._tick_pool,
                 self._execute_integration_item,
                 item,
             )
+            if result.status == "cancelled":
+                self.integration_queue.cancel(
+                    item.project_id,
+                    item.task_id,
+                    reason=result.message,
+                )
+                self._clear_integration_delivery_alert(
+                    item.project_id,
+                    item.task_id,
+                )
+                continue
+            if result.status == "authority_unavailable":
+                self.integration_queue.fail(
+                    item.project_id,
+                    item.task_id,
+                    lease_owner=item.lease_owner or "",
+                    error=result.message,
+                    retryable=True,
+                )
+                logger.warning(
+                    "Deferred integration for %s: %s",
+                    item.task_id,
+                    result.message,
+                )
+                continue
             if not result.integrated:
                 await loop.run_in_executor(
                     self._tick_pool,
@@ -6606,7 +8288,30 @@ class Orchestrator:
                 }
                 for issue in issues:
                     if pid:
-                        issue.project_id = pid
+                        try:
+                            resolved_id = self._resolve_issue_project_id(
+                                issue,
+                                fallback_project_id=pid,
+                                source_project_id=pid,
+                            )
+                        except ProjectError as exc:
+                            logger.warning(
+                                "Skipping non-terminal epic %s due to scope conflict "
+                                "in project %s: %s",
+                                issue.identifier,
+                                pid,
+                                exc,
+                            )
+                            continue
+                        if not resolved_id:
+                            logger.warning(
+                                "Skipping non-terminal epic %s with unresolved scope "
+                                "in project %s",
+                                issue.identifier,
+                                pid,
+                            )
+                            continue
+                        issue.project_id = resolved_id
                     status = canonicalize_status(issue.state)
                     labels = {str(label).strip().lower() for label in issue.labels or []}
                     if (
@@ -7628,35 +9333,221 @@ class Orchestrator:
 
     @staticmethod
     def _resolve_git_branch_refs(repo_path: str, branch: str) -> tuple[str, ...]:
-        """Return available local refs for ``branch`` without fetching.
+        """Return the authoritative available ref for ``branch``.
 
         Managed repositories are fetched elsewhere in the scheduling tick.
-        Inspect both remote-tracking and local refs: the former catches pushed
-        child work while the latter lets a freshly-updated epic branch pass the
-        pre-push rollup gate.
+        Prefer the remote-tracking ref whenever it exists because a local
+        branch may be left at a pre-rebase commit after a force-push.  Fall
+        back to the local branch only when no remote-tracking ref is present.
         """
         if not branch:
             return ()
-        candidates = (
-            f"refs/remotes/origin/{branch}",
-            f"refs/heads/{branch}",
-        )
-        found: list[str] = []
-        for ref in candidates:
+        remote_ref = f"refs/remotes/origin/{branch}"
+        try:
+            result = subprocess.run(
+                [
+                    "git",
+                    "rev-parse",
+                    "--verify",
+                    "--quiet",
+                    f"{remote_ref}^{{commit}}",
+                ],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return ()
+        if result.returncode == 0:
+            return (remote_ref,)
+
+        local_ref = f"refs/heads/{branch}"
+        try:
+            result = subprocess.run(
+                [
+                    "git",
+                    "rev-parse",
+                    "--verify",
+                    "--quiet",
+                    f"{local_ref}^{{commit}}",
+                ],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return ()
+        if result.returncode == 0:
+            return (local_ref,)
+        return ()
+
+    @staticmethod
+    def _refresh_landing_evidence_target_refs(
+        repo_path: str,
+        branches: tuple[str, ...],
+    ) -> tuple[bool, str | None]:
+        """Refresh authoritative rollup targets before containment checks.
+
+        Merged-review webhooks can be processed before the managed clone's
+        remote-tracking ref advances.  Comparing a child against that stale
+        ref falsely reports landed commits as missing.  Fetch only the exact
+        target refs with a bounded command; callers defer child mutation when
+        the refresh cannot be proven successful.
+        """
+        if not (
+            repo_path
+            and os.path.isdir(repo_path)
+            and os.path.exists(os.path.join(repo_path, ".git"))
+        ):
+            return True, None
+
+        for branch in dict.fromkeys(branches):
+            branch = str(branch or "").strip()
+            if not branch:
+                continue
+            full_ref = f"refs/heads/{branch}"
             try:
-                result = subprocess.run(
-                    ["git", "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"],
+                valid = subprocess.run(
+                    ["git", "check-ref-format", full_ref],
                     cwd=repo_path,
                     capture_output=True,
                     text=True,
-                    timeout=10,
+                    timeout=5,
                     check=False,
                 )
-            except (OSError, subprocess.TimeoutExpired):
-                return tuple(found)
-            if result.returncode == 0:
-                found.append(ref)
-        return tuple(found)
+            except subprocess.TimeoutExpired:
+                return False, "validation timed out"
+            except OSError:
+                return False, "validation could not start"
+            if valid.returncode != 0:
+                return False, "target branch is invalid"
+
+            remote_ref = f"refs/remotes/origin/{branch}"
+            try:
+                fetched = subprocess.run(
+                    [
+                        "git",
+                        "fetch",
+                        "--no-tags",
+                        "--quiet",
+                        "origin",
+                        f"+{full_ref}:{remote_ref}",
+                    ],
+                    cwd=repo_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=15,
+                    check=False,
+                )
+            except subprocess.TimeoutExpired:
+                return False, "fetch timed out"
+            except OSError:
+                return False, "fetch could not start"
+            if fetched.returncode != 0:
+                return False, "fetch failed"
+
+        return True, None
+
+    @staticmethod
+    def _refresh_landing_evidence_candidate_refs(
+        repo_path: str,
+        branches: tuple[str, ...],
+    ) -> tuple[bool, str | None]:
+        """Refresh candidate branch refs before patch comparisons.
+
+        A force-pushed rebase must not be judged from stale refs/heads when
+        refs/remotes/origin contains the rewritten commit. Fetch every
+        candidate task branch to ensure local tracking refs match the
+        authoritative remote. Missing remote branches are tolerated gracefully
+        (they may have been deleted after merge). Callers defer child mutation
+        only when fetch operations themselves fail, preserving fail-closed
+        behavior for genuine network issues.
+        """
+        if not (
+            repo_path
+            and os.path.isdir(repo_path)
+            and os.path.exists(os.path.join(repo_path, ".git"))
+        ):
+            return True, None
+
+        for branch in dict.fromkeys(branches):
+            branch = str(branch or "").strip()
+            if not branch:
+                continue
+            full_ref = f"refs/heads/{branch}"
+            try:
+                valid = subprocess.run(
+                    ["git", "check-ref-format", full_ref],
+                    cwd=repo_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                    check=False,
+                )
+            except subprocess.TimeoutExpired:
+                return False, f"candidate branch {branch}: validation timed out"
+            except OSError:
+                return False, f"candidate branch {branch}: validation could not start"
+            if valid.returncode != 0:
+                return False, f"candidate branch {branch}: invalid ref format"
+
+            remote_ref = f"refs/remotes/origin/{branch}"
+            try:
+                fetched = subprocess.run(
+                    [
+                        "git",
+                        "fetch",
+                        "--no-tags",
+                        "--quiet",
+                        "origin",
+                        f"+{full_ref}:{remote_ref}",
+                    ],
+                    cwd=repo_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=15,
+                    check=False,
+                )
+            except subprocess.TimeoutExpired:
+                return False, f"candidate branch {branch}: fetch timed out"
+            except OSError:
+                return False, f"candidate branch {branch}: fetch could not start"
+            if fetched.returncode == 0:
+                continue
+
+            # A candidate branch may have been deleted after its work landed.
+            # Treat that as a proven absence, but do not confuse a transport
+            # failure with a missing branch: ``ls-remote --exit-code`` uses 2
+            # for a missing ref and a different nonzero status for transport
+            # errors.
+            try:
+                remote_probe = subprocess.run(
+                    [
+                        "git",
+                        "ls-remote",
+                        "--exit-code",
+                        "--heads",
+                        "origin",
+                        full_ref,
+                    ],
+                    cwd=repo_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=15,
+                    check=False,
+                )
+            except subprocess.TimeoutExpired:
+                return False, f"candidate branch {branch}: probe timed out"
+            except OSError:
+                return False, f"candidate branch {branch}: probe could not start"
+            if remote_probe.returncode != 2:
+                return False, f"candidate branch {branch}: fetch failed"
+
+        return True, None
 
     def _child_landing_evidence_block_reason(
         self,
@@ -8029,13 +9920,18 @@ class Orchestrator:
     def _create_workspace_for_issue(
         self,
         issue: Issue,
+        *,
+        persist_dispatch_metadata: bool = True,
     ) -> tuple[str, Issue | None]:
         """Resolve and create the workspace path used to dispatch ``issue``.
 
         Returns ``(workspace_path, epic_for_shared_mode)``. Parallel epic
         children receive private branches cut from the newest clean published
         epic head and return None as the second element. Legacy shared mode
-        returns the parent epic as the second element.
+        returns the parent epic as the second element. Completion auditors set
+        ``persist_dispatch_metadata=False`` because their workspace is a
+        read-only view of already-integrated evidence, not a new implementation
+        attempt.
         """
         if not issue.project_id:
             workspace = self.workspace_mgr.create_for_issue(issue.identifier)
@@ -8086,29 +9982,30 @@ class Orchestrator:
                             parent_epic.identifier,
                         )
                     )
-                    try:
-                        tracker = self._tracker_for_issue(issue)
-                        tracker.set_metadata_field(
-                            issue.identifier,
-                            "oompah.work_branch",
-                            private_branch,
-                        )
-                        tracker.set_metadata_field(
-                            issue.identifier,
-                            "oompah.integration",
-                            IntegrationRecord(
-                                state="working",
-                                task_branch=private_branch,
-                                base_branch=epic_branch,
-                                base_sha=base_sha,
-                                updated_at=datetime.now(timezone.utc).isoformat(),
-                            ).to_dict(),
-                        )
-                    except Exception as exc:  # noqa: BLE001
-                        raise ProjectError(
-                            f"Could not persist private branch for "
-                            f"{issue.identifier}: {exc}"
-                        ) from exc
+                    if persist_dispatch_metadata:
+                        try:
+                            tracker = self._tracker_for_issue(issue)
+                            tracker.set_metadata_field(
+                                issue.identifier,
+                                "oompah.work_branch",
+                                private_branch,
+                            )
+                            tracker.set_metadata_field(
+                                issue.identifier,
+                                "oompah.integration",
+                                IntegrationRecord(
+                                    state="working",
+                                    task_branch=private_branch,
+                                    base_branch=epic_branch,
+                                    base_sha=base_sha,
+                                    updated_at=datetime.now(timezone.utc).isoformat(),
+                                ).to_dict(),
+                            )
+                        except Exception as exc:  # noqa: BLE001
+                            raise ProjectError(
+                                f"Could not persist private branch for "
+                                f"{issue.identifier}: {exc}"
+                            ) from exc
                     wp = self.project_store.create_worktree(
                         issue.project_id,
                         issue.identifier,
@@ -10016,13 +11913,25 @@ class Orchestrator:
         """Return whether an epic branch may be synchronized and why.
 
         A periodic stale observation is never sufficient authority to modify
-        an unfinished branch.  Epic-to-epic synchronization is prohibited;
-        those branches integrate through main.  The ``rebase-requested`` label
-        is the durable operator-request signal, while ``Needs Rebase`` is the
-        existing merge-conflict/PR-repair workflow signal.
+        an unfinished branch.  Epic-to-epic synchronization is prohibited
+        except for nested epics syncing with their authoritative parent branch.
+        The ``rebase-requested`` label is the durable operator-request signal,
+        while ``Needs Rebase`` is the existing merge-conflict/PR-repair workflow
+        signal.
         """
         if target_branch.startswith("epic-"):
-            return False, "epic_to_epic_prohibited"
+            # Nested epics may sync with their parent epic's branch.
+            parent_epic = self._resolve_parent_epic(issue)
+            if parent_epic is None:
+                # No parent: unrelated epic branch is prohibited.
+                return False, "epic_to_epic_prohibited"
+            parent_branch = self._epic_branch_for_issue(parent_epic)
+            if target_branch != parent_branch:
+                # Target is an unrelated epic, not the authoritative parent.
+                return False, "epic_to_epic_prohibited"
+            # Target is the parent epic's branch; continue to label/state
+            # checks below.
+
         labels = {str(label).strip().lower() for label in issue.labels or []}
         if "rebase-requested" in labels:
             return True, "operator_requested"
@@ -12026,8 +13935,18 @@ class Orchestrator:
                     return
                 if self._project_review_capacity(project_id)[2]:
                     break
-                if not issue.project_id:
-                    issue.project_id = project_id
+                try:
+                    project_id, tracker = self._scope_issue_for_maintenance(
+                        issue, project_id
+                    )
+                except ProjectError as exc:
+                    logger.error(
+                        "Scope conflict while processing done-review issue %s in project %s: %s",
+                        issue.identifier,
+                        project_id,
+                        exc,
+                    )
+                    continue
                 if canonicalize_status(issue.state) != DONE:
                     continue
                 if (issue.issue_type or "").strip().lower() == "epic":
@@ -12462,8 +14381,18 @@ class Orchestrator:
             for issue in closed_issues:
                 if self._job_deadline_exceeded("merged_labels"):
                     return
-                if not issue.project_id:
-                    issue.project_id = project_id
+                try:
+                    project_id, tracker = self._scope_issue_for_maintenance(
+                        issue, project_id
+                    )
+                except ProjectError as exc:
+                    logger.error(
+                        "Scope conflict while processing merged issue %s in project %s: %s",
+                        issue.identifier,
+                        project_id,
+                        exc,
+                    )
+                    continue
                 issue_status = canonicalize_status(issue.state)
                 labels = set(issue.labels or [])
                 if (
@@ -12574,8 +14503,18 @@ class Orchestrator:
             for issue in issues:
                 if self._job_deadline_exceeded("merged_labels"):
                     return
-                if not issue.project_id:
-                    issue.project_id = project_id
+                try:
+                    project_id, tracker = self._scope_issue_for_maintenance(
+                        issue, project_id
+                    )
+                except ProjectError as exc:
+                    logger.error(
+                        "Scope conflict while processing stale-in-review issue %s in project %s: %s",
+                        issue.identifier,
+                        project_id,
+                        exc,
+                    )
+                    continue
                 if canonicalize_status(issue.state) != IN_REVIEW:
                     continue
 
@@ -12678,8 +14617,18 @@ class Orchestrator:
             for issue in issues:
                 if self._job_deadline_exceeded("merged_labels"):
                     return
-                if not issue.project_id:
-                    issue.project_id = project_id
+                try:
+                    project_id, tracker = self._scope_issue_for_maintenance(
+                        issue, project_id
+                    )
+                except ProjectError as exc:
+                    logger.error(
+                        "Scope conflict while processing terminal-open-review issue %s in project %s: %s",
+                        issue.identifier,
+                        project_id,
+                        exc,
+                    )
+                    continue
                 if canonicalize_status(issue.state) != MERGED:
                     continue
 
@@ -12897,8 +14846,19 @@ class Orchestrator:
             for issue in issues:
                 if self._job_deadline_exceeded("merged_labels"):
                     return
-                if not issue.project_id:
-                    issue.project_id = project_id
+                try:
+                    project_id, tracker = self._scope_issue_for_maintenance(
+                        issue, project_id
+                    )
+                except ProjectError as exc:
+                    logger.error(
+                        "Scope conflict while processing stale-in-review issue %s "
+                        "in project %s: %s",
+                        issue.identifier,
+                        project_id,
+                        exc,
+                    )
+                    continue
                 if canonicalize_status(issue.state) != IN_REVIEW:
                     continue
                 branch = self._stale_in_review_effective_branch(
@@ -14129,7 +16089,32 @@ class Orchestrator:
             }
             for issue in issues:
                 if pid:
-                    issue.project_id = pid
+                    # Resolve project_id from canonical ownership and verify that
+                    # this record belongs to the tracker that produced it.
+                    try:
+                        resolved_id = self._resolve_issue_project_id(
+                            issue,
+                            fallback_project_id=pid,
+                            source_project_id=pid,
+                        )
+                        if not resolved_id:
+                            logger.warning(
+                                "Skipping merged epic %s with unresolved scope "
+                                "in project %s",
+                                issue.identifier,
+                                pid,
+                            )
+                            continue
+                        issue.project_id = resolved_id
+                    except ProjectError as exc:
+                        logger.warning(
+                            "Skipping merged epic %s due to scope conflict in "
+                            "project %s: %s",
+                            issue.identifier,
+                            pid,
+                            exc,
+                        )
+                        continue
                 if canonicalize_status(issue.state) != MERGED:
                     continue
                 is_declared_epic = (
@@ -14269,6 +16254,9 @@ class Orchestrator:
             if EPIC_INDEPENDENTLY_MERGED_LABEL.lower() in existing_labels:
                 # Already annotated — idempotent skip.
                 continue
+            source_project_id = str(
+                getattr(parent_epic, "project_id", None) or ""
+            ).strip()
             logger.warning(
                 "Child %s (branch=%s) was merged to main independently, "
                 "bypassing parent epic %s (expected branch=%s). "
@@ -14280,13 +16268,22 @@ class Orchestrator:
                 EPIC_INDEPENDENTLY_MERGED_LABEL,
             )
             try:
-                tracker = self._tracker_for_issue(child)
+                if source_project_id:
+                    _resolved_project_id, _scoped_child_tracker = (
+                        self._scope_issue_for_maintenance(
+                            child,
+                            source_project_id,
+                        )
+                    )
+                    tracker = self._tracker_for_issue(parent_epic)
+                else:
+                    tracker = self._tracker_for_issue(child)
                 tracker.update_issue(
                     child.identifier,
                     add_label=EPIC_INDEPENDENTLY_MERGED_LABEL,
                 )
                 annotated += 1
-            except TrackerError as exc:
+            except (ProjectError, TrackerError) as exc:
                 logger.debug(
                     "Failed to annotate independently-merged child %s: %s",
                     child.identifier,
@@ -14328,6 +16325,24 @@ class Orchestrator:
         except Exception:  # noqa: BLE001 - metadata checks still apply
             landed_target = ""
         containment_targets = (landed_target,) if landed_target else (epic_branch,)
+        repo_path = (
+            os.fspath(getattr(project, "repo_path", ""))
+            if project is not None and getattr(project, "repo_path", None)
+            else ""
+        )
+        landing_refs_fresh, landing_refresh_error = (
+            self._refresh_landing_evidence_target_refs(
+                repo_path,
+                containment_targets,
+            )
+        )
+        if not landing_refs_fresh:
+            logger.warning(
+                "Deferring Done-child landing reconciliation for epic %s: "
+                "authoritative target ref %s",
+                epic.identifier,
+                landing_refresh_error or "refresh failed",
+            )
 
         tracker = self._tracker_for_issue(epic)
         project_id = getattr(epic, "project_id", None) or ""
@@ -14355,9 +16370,77 @@ class Orchestrator:
             children = self._fetch_epic_children(epic)
         except Exception:  # noqa: BLE001
             children = []
+
+        candidate_refs_fresh = True
+        candidate_refresh_error: str | None = None
+
+        # Collect candidate branches from Done children and refresh them.
+        # This ensures stale force-pushed rebases are not misjudged.  A
+        # candidate fetch failure is evidence that the source cannot be
+        # authoritatively compared, so defer Done-child reconciliation for
+        # this pass instead of using stale local refs.
+        if landing_refs_fresh:
+            candidate_branches_set: set[str] = set()
+            for child in children:
+                if canonicalize_status(child.state) == DONE:
+                    # Use both recorded work_branch and child identifier as
+                    # candidates (see _child_landing_evidence_block_reason).
+                    recorded_branch = (child.work_branch or "").strip()
+                    if recorded_branch and recorded_branch not in containment_targets:
+                        candidate_branches_set.add(recorded_branch)
+                    child_id = (child.identifier or "").strip()
+                    if child_id and child_id not in containment_targets:
+                        candidate_branches_set.add(child_id)
+            if candidate_branches_set:
+                candidate_branches = tuple(dict.fromkeys(candidate_branches_set))
+                candidate_refs_fresh, candidate_refresh_error = (
+                    self._refresh_landing_evidence_candidate_refs(
+                        repo_path,
+                        candidate_branches,
+                    )
+                )
+                if not candidate_refs_fresh:
+                    logger.warning(
+                        "Deferring Done-child landing reconciliation for epic %s: "
+                        "authoritative candidate ref %s",
+                        epic.identifier,
+                        candidate_refresh_error or "refresh failed",
+                    )
+
         for child in children:
             if self._job_deadline_exceeded("merged_labels"):
                 return
+            child_project_id = str(
+                getattr(child, "project_id", None) or project_id or ""
+            ).strip()
+            child_tracker = tracker
+            if project_id:
+                try:
+                    child_project_id, _scoped_child_tracker = (
+                        self._scope_issue_for_maintenance(
+                            child,
+                            project_id,
+                        )
+                    )
+                except ProjectError as exc:
+                    logger.warning(
+                        "Skipping epic child %s due to scope conflict in project "
+                        "%s: %s",
+                        child.identifier,
+                        project_id,
+                        exc,
+                    )
+                    continue
+            elif child_project_id:
+                try:
+                    child_tracker = self._tracker_for_issue(child)
+                except ProjectError as exc:
+                    logger.warning(
+                        "Skipping legacy epic child %s due to scope conflict: %s",
+                        child.identifier,
+                        exc,
+                    )
+                    continue
             if canonicalize_status(child.state) in (MERGED, ARCHIVED):
                 self._cleanup_landed_private_child_branch(epic, child)
                 continue
@@ -14365,12 +16448,27 @@ class Orchestrator:
             child_branch = (child.work_branch or "").strip()
             landing_reason = None
             if child_status == DONE:
+                if not landing_refs_fresh or not candidate_refs_fresh:
+                    logger.info(
+                        "Leaving epic child %s Done until authoritative refs for "
+                        "epic %s can be refreshed",
+                        child.identifier,
+                        epic.identifier,
+                    )
+                    continue
                 landing_reason = self._child_landing_evidence_block_reason(
                     epic,
                     child,
                     expected_work_branch=epic_branch,
                     container_branches=containment_targets,
                 )
+            if child_status == IN_VALIDATION:
+                logger.info(
+                    "Leaving epic child %s In Validation while its terminal "
+                    "transition owns the task",
+                    child.identifier,
+                )
+                continue
             if child_status != DONE or landing_reason:
                 evidence_detail = (
                     f" Git evidence: {landing_reason}."
@@ -14397,7 +16495,7 @@ class Orchestrator:
                 if (
                     child_status == NEEDS_HUMAN
                     and self._tracker_comment_matches(
-                        tracker,
+                        child_tracker,
                         child.identifier,
                         instruction,
                     )
@@ -14410,7 +16508,7 @@ class Orchestrator:
                     continue
                 try:
                     self._mark_needs_human(
-                        tracker,
+                        child_tracker,
                         child.identifier,
                         instruction,
                     )
@@ -14438,10 +16536,9 @@ class Orchestrator:
                     epic.identifier,
                 )
                 continue
-            project_id = getattr(child, "project_id", None) or ""
             result = self._request_merged_via_coordinator(
                 child,
-                project_id,
+                child_project_id,
                 trigger_identity="epic-rollup-reconciliation",
                 trigger_source="oompah",
             )
@@ -19555,6 +21652,7 @@ class Orchestrator:
     ) -> None:
         """Dispatch a worker for an issue."""
         duplicate_preflight = duplicate_preflight_claim is not None
+        implementation_dispatch = auditor_plan is None and not duplicate_preflight
 
         async def _release_preflight(reason: str) -> None:
             if duplicate_preflight_claim is None or not duplicate_preflight_claim.claim_id:
@@ -19582,7 +21680,21 @@ class Orchestrator:
             self.state.claimed_issues.pop(issue.id, None)
             await _release_preflight("dispatch aborted because orchestrator is paused")
             if auditor_plan:
-                self._audit_branch_claims.pop(auditor_plan.branch_key, None)
+                self._release_audit_branch_claim(
+                    auditor_plan.branch_key,
+                    auditor_plan.attempt_id,
+                )
+            return
+        # A terminal transition places this marker before awaiting durable audit
+        # staging.  Retry callbacks may already have popped their RetryEntry, so
+        # this fence is the only state visible to an in-flight dispatch.
+        if implementation_dispatch and issue.id in self.state.completed:
+            logger.info(
+                "Skipping implementation dispatch of %s: terminal transition owns task",
+                issue.identifier,
+            )
+            self.state.claimed.discard(issue.id)
+            self.state.claimed_issues.pop(issue.id, None)
             return
         self.state.reject_streak.pop(issue.id, None)
 
@@ -19716,21 +21828,34 @@ class Orchestrator:
         if refreshed:
             cur_state = _state_key(refreshed[0].state)
             terminal = {_state_key(s) for s in self.config.tracker_terminal_states}
-            if cur_state in terminal:
+            implementation_blocked = (
+                implementation_dispatch
+                and (
+                    issue.id in self.state.completed
+                    or cur_state not in self._retryable_state_keys()
+                )
+            )
+            if cur_state in terminal or implementation_blocked:
                 logger.info(
-                    "Aborting dispatch of %s: state moved to %r since fetch",
+                    "Aborting dispatch of %s: state moved to %r or terminal "
+                    "transition took ownership since fetch",
                     issue.identifier,
                     cur_state,
                 )
                 self.state.claimed.discard(issue.id)
                 self.state.claimed_issues.pop(issue.id, None)
                 if auditor_plan:
-                    self._audit_branch_claims.pop(auditor_plan.branch_key, None)
-                self.state.completed.add(issue.id)
+                    self._release_audit_branch_claim(
+                        auditor_plan.branch_key,
+                        auditor_plan.attempt_id,
+                    )
+                if cur_state in terminal or implementation_blocked:
+                    self.state.completed.add(issue.id)
                 await _release_preflight(
-                    "dispatch aborted because task became terminal"
+                    "dispatch aborted because task left the implementation lane"
                 )
-                # Drop any pending retry too — the issue is done.
+                # Drop any pending retry too — implementation no longer owns
+                # this task.
                 rt = self.state.retry_attempts.pop(issue.id, None)
                 if rt and rt.timer_handle and not rt.timer_handle.cancelled():
                     rt.timer_handle.cancel()
@@ -19776,21 +21901,65 @@ class Orchestrator:
         # Implementation work moves to In Progress. Duplicate preflight is a
         # qualification lane, so its tracker state remains Open. Auditors
         # are read-only and never mutate the task's status either.
-        if not duplicate_preflight and auditor_plan is None:
-            try:
-                await asyncio.get_event_loop().run_in_executor(
-                    self._tick_pool,
-                    lambda: tracker.update_issue(issue.identifier, status=IN_PROGRESS),
-                )
-            except Exception as exc:
-                logger.warning(
-                    "Failed to set in_progress for %s: %s — aborting dispatch",
-                    issue.identifier,
-                    exc,
-                )
-                self.state.claimed.discard(issue.id)
-                self.state.claimed_issues.pop(issue.id, None)
-                return
+        if implementation_dispatch:
+            async with self.issue_transition_lock(issue.id):
+                # The first recheck above protects against stale candidate
+                # snapshots.  Repeat it while holding the ownership lock so a
+                # concurrent non-terminal UI move also cannot be overwritten
+                # between that read and the In Progress write.
+                if issue.id in self.state.completed:
+                    logger.info(
+                        "Aborting implementation dispatch of %s before tracker "
+                        "write: terminal transition acquired ownership",
+                        issue.identifier,
+                    )
+                    self.state.claimed.discard(issue.id)
+                    self.state.claimed_issues.pop(issue.id, None)
+                    return
+                try:
+                    locked_state = await asyncio.get_event_loop().run_in_executor(
+                        self._tick_pool,
+                        lambda: tracker.fetch_issue_states_by_ids([issue.id]),
+                    )
+                except Exception as exc:
+                    logger.debug(
+                        "Locked pre-write state recheck failed for %s: %s — "
+                        "using the prior validated snapshot",
+                        issue.identifier,
+                        exc,
+                    )
+                    locked_state = []
+                if locked_state and (
+                    issue.id in self.state.completed
+                    or _state_key(locked_state[0].state)
+                    not in self._retryable_state_keys()
+                ):
+                    logger.info(
+                        "Aborting implementation dispatch of %s before tracker "
+                        "write: state moved to %r",
+                        issue.identifier,
+                        _state_key(locked_state[0].state),
+                    )
+                    self.state.claimed.discard(issue.id)
+                    self.state.claimed_issues.pop(issue.id, None)
+                    self.state.completed.add(issue.id)
+                    return
+                try:
+                    await asyncio.get_event_loop().run_in_executor(
+                        self._tick_pool,
+                        lambda: tracker.update_issue(
+                            issue.identifier, status=IN_PROGRESS
+                        ),
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to set in_progress for %s: %s — aborting dispatch",
+                        issue.identifier,
+                        exc,
+                    )
+                    self.state.claimed.discard(issue.id)
+                    self.state.claimed_issues.pop(issue.id, None)
+                    return
 
         # Shared tracker claim-and-verify protocol (TASK-461.2).
         # For trackers with an external/default-branch source of truth, stamp a
@@ -19880,6 +22049,29 @@ class Orchestrator:
                     None,
                 ):
                     setattr(running_issue, attr, getattr(issue, attr))
+            post_state = _state_key(running_issue.state)
+            if implementation_dispatch and (
+                issue.id in self.state.completed
+                or post_state not in self._retryable_state_keys()
+            ):
+                logger.info(
+                    "Aborting implementation dispatch of %s before worker start: "
+                    "post-update state=%r terminal_fence=%s",
+                    issue.identifier,
+                    post_state,
+                    issue.id in self.state.completed,
+                )
+                self.state.claimed.discard(issue.id)
+                self.state.claimed_issues.pop(issue.id, None)
+                self.state.completed.add(issue.id)
+                retry = self.state.retry_attempts.pop(issue.id, None)
+                if (
+                    retry
+                    and retry.timer_handle
+                    and not retry.timer_handle.cancelled()
+                ):
+                    retry.timer_handle.cancel()
+                return
             if (
                 auditor_plan is None
                 and not duplicate_preflight
@@ -19891,6 +22083,20 @@ class Orchestrator:
                         self.config.tracker_active_states
                     ),
                 )
+
+        # The terminal fence may have been installed while the post-update
+        # tracker read was in flight.  There are no awaits between this check
+        # and worker registration, so a successful check is the final ownership
+        # boundary before an implementation worker can start.
+        if implementation_dispatch and issue.id in self.state.completed:
+            logger.info(
+                "Aborting implementation dispatch of %s before worker start: "
+                "terminal transition fence appeared during state refresh",
+                issue.identifier,
+            )
+            self.state.claimed.discard(issue.id)
+            self.state.claimed_issues.pop(issue.id, None)
+            return
 
         # Remove from retry if present
         retry = self.state.retry_attempts.pop(issue.id, None)
@@ -20012,7 +22218,7 @@ class Orchestrator:
         if not issue.project_id:
             return None
         try:
-            return issue_task_handoff_token(
+            token = issue_task_handoff_token(
                 project_id=issue.project_id,
                 task_identifier=issue.identifier,
                 allowed_actions={
@@ -20028,6 +22234,8 @@ class Orchestrator:
                     "remove-label",
                 },
             )
+            record_worker_token_minted()
+            return token
         except Exception as exc:
             logger.warning(
                 "Unable to mint task handoff capability for %s: %s",
@@ -20507,7 +22715,10 @@ class Orchestrator:
                 # Resolve workspace via the epic_strategy-aware helper:
                 # under epic_strategy='shared' a child of an epic uses
                 # the shared epic worktree; otherwise per-task path.
-                wp, _epic = self._create_workspace_for_issue(issue)
+                wp, _epic = self._create_workspace_for_issue(
+                    issue,
+                    persist_dispatch_metadata=not forced_auditor,
+                )
 
                 self._post_comment(
                     issue.identifier,
@@ -20710,6 +22921,7 @@ class Orchestrator:
                         _loop,
                     )
                     outcome = future.result(timeout=60)
+                    self._record_audit_outcome_ownership(_issue.id, outcome)
                     return {
                         "accepted": outcome.success,
                         "audit_id": outcome.audit_id,
@@ -21023,7 +23235,10 @@ class Orchestrator:
 
             def _setup_worker():
                 # Resolve workspace via the epic_strategy-aware helper.
-                wp, _epic = self._create_workspace_for_issue(issue)
+                wp, _epic = self._create_workspace_for_issue(
+                    issue,
+                    persist_dispatch_metadata=not forced_auditor,
+                )
 
                 self._post_comment(
                     issue.identifier,
@@ -21190,6 +23405,7 @@ class Orchestrator:
                 running_entry
                 and getattr(running_entry, "duplicate_preflight", False)
             )
+            read_only_session = _acp_session_is_read_only(focus, running_entry)
 
             # Wire the same coordinator handler for ACP sessions that use
             # the Claude Agent SDK.  The handler shape and threading model
@@ -21214,6 +23430,7 @@ class Orchestrator:
                         _loop,
                     )
                     outcome = future.result(timeout=60)
+                    self._record_audit_outcome_ownership(_issue.id, outcome)
                     return {
                         "accepted": outcome.success,
                         "audit_id": outcome.audit_id,
@@ -21230,7 +23447,7 @@ class Orchestrator:
                 coordination_service=self,
                 task_identifier=issue.identifier,
                 terminal_transition_coordinator=self.terminal_transition_coordinator,
-                read_only=read_only_preflight,
+                read_only=read_only_session,
                 focus=focus,
                 auditor=focus.name.lower() == AUDITOR_FOCUS_NAME,
                 audit_target=audit_target,
@@ -21444,7 +23661,7 @@ class Orchestrator:
                 model=acp_model,
                 max_turns=max_turns,
                 tool_catalog=tool_catalog,
-                read_only=read_only_preflight,
+                read_only=read_only_session,
                 on_event=_on_event,
                 backend_name=acp_backend_name,
                 billing_model=acp_billing_model,
@@ -22934,7 +25151,12 @@ class Orchestrator:
         reason: str,
         error: str | None,
     ) -> bool:
-        """Persist an auditor exit only if no structured result won the race."""
+        """Persist an auditor exit only if no structured result won the race.
+        
+        Transient failures (crash, timeout, transport error) are classified as
+        INFRASTRUCTURE_ERROR to distinguish them from terminal audit failures.
+        The attempt is marked for retry with the next candidate.
+        """
 
         if not entry.audit_attempt_id:
             return False
@@ -22974,6 +25196,7 @@ class Orchestrator:
                         milliseconds=self._backoff_delay(rotation + 1)
                     )
                 ),
+                failure_classification=FailureClassification.INFRASTRUCTURE_ERROR,
             )
             self._audit_update_record(
                 store,
@@ -23083,8 +25306,10 @@ class Orchestrator:
             # result tool has already completed the durable audit record.
             self.state.claimed.discard(issue_id)
             self.state.claimed_issues.pop(issue_id, None)
-            if entry.branch_key:
-                self._audit_branch_claims.pop(entry.branch_key, None)
+            self._release_audit_branch_claim(
+                entry.branch_key,
+                entry.audit_attempt_id,
+            )
             ended = await asyncio.to_thread(
                 self._finish_audit_attempt,
                 entry,
@@ -23215,6 +25440,29 @@ class Orchestrator:
                         entry,
                         current,
                         project_id,
+                    )
+                elif (
+                    current
+                    and canonicalize_status(current.state) == IN_VALIDATION
+                ):
+                    # A successful terminal handoff stages the task in the
+                    # audit lane before the worker exits.  That is a completed
+                    # implementation handoff, not an incomplete session.  In
+                    # particular, never schedule an implementation retry that
+                    # can race the independent auditor for ownership.
+                    self.state.completed.add(issue_id)
+                    self._clear_reopen_count(issue_id)
+                    retry = self.state.retry_attempts.pop(issue_id, None)
+                    if (
+                        retry
+                        and retry.timer_handle
+                        and not retry.timer_handle.cancelled()
+                    ):
+                        retry.timer_handle.cancel()
+                    logger.info(
+                        "Worker handed %s to terminal audit; suppressing "
+                        "implementation retry",
+                        entry.identifier,
                     )
                 elif current and not _is_terminal_state(
                     current.state, self.config.tracker_terminal_states
@@ -25054,6 +27302,11 @@ Return ONLY a JSON object (no markdown fences, no commentary):
 
             self.state.claimed.discard(issue_id)
             self.state.claimed_issues.pop(issue_id, None)
+            if entry.is_auditor:
+                self._release_audit_branch_claim(
+                    entry.branch_key,
+                    entry.audit_attempt_id,
+                )
 
             if (
                 getattr(entry, "duplicate_preflight", False)
@@ -25122,6 +27375,35 @@ Return ONLY a JSON object (no markdown fences, no commentary):
     def get_snapshot(self) -> dict[str, Any]:
         """Return a snapshot of the current orchestrator state for the API."""
         now = datetime.now(timezone.utc)
+        live_audit_keys: set[tuple[str, str, str]] = set()
+        auditor_tracking_available = False
+        for entry in self.state.running.values():
+            if not hasattr(entry, "is_auditor"):
+                continue
+            auditor_tracking_available = True
+            if not getattr(entry, "is_auditor", False) or not getattr(entry, "audit_id", None):
+                continue
+            issue = getattr(entry, "issue", None)
+            project_id = str(getattr(issue, "project_id", "") or "legacy")
+            task_id = str(getattr(issue, "identifier", "") or "")
+            audit_id = str(getattr(entry, "audit_id", "") or "")
+            if task_id and audit_id:
+                key = (project_id, task_id, audit_id)
+                live_audit_keys.add(key)
+                self._terminal_audit_metrics.record_running(
+                    *key,
+                    attempts=int(getattr(entry, "attempt", 0) or 0),
+                )
+        if auditor_tracking_available:
+            self._terminal_audit_metrics.discard_missing_running(live_audit_keys)
+
+        # Coordinator callbacks can arrive between maintenance scans (for
+        # example a no-candidate result submitted by an auditor).  Refresh the
+        # small dashboard alert registry at read time so recovery and action
+        # signals are visible immediately without alerting on normal states.
+        # Do this after promoting live auditor entries from queued to running;
+        # otherwise a long-running audit can briefly emit a queue-age alert.
+        self._sync_terminal_audit_observability_alerts()
 
         running_rows = []
         live_seconds = 0.0
@@ -25200,6 +27482,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             )
 
         totals = self.state.agent_totals
+        terminal_audit_metrics = self._terminal_audit_metrics.snapshot(now=now)
         return {
             "generated_at": now.isoformat(),
             "paused": self._paused,
@@ -25299,7 +27582,16 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 getattr(self._terminal_audit_enforcement, "last_result", {}) or {}
             ),
             "audits": dict(getattr(self, "_audit_metrics", {}) or {}),
-            "alerts": list(self._alerts) + self._credential_error_alerts(),
+            # Stable top-level shape for API consumers that do not need the
+            # rest of orchestrator telemetry.
+            "terminal_audit": terminal_audit_metrics,
+            "terminal_audit_health": getattr(self, "_audit_health", TerminalAuditHealth()).to_dict(),
+            "health": {
+                "status": "degraded" if getattr(self, "_audit_health", TerminalAuditHealth()).degraded else "healthy",
+                "terminal_audit": getattr(self, "_audit_health", TerminalAuditHealth()).to_dict(),
+            },
+            "auth_health": auth_health_snapshot(),
+            "alerts": list(self._alerts) + self._credential_error_alerts() + auth_health_alerts(),
             "reviews_summary": self._reviews_summary(),
             "orchestrator_metrics": {
                 "last_tick": dict(getattr(self, "_last_tick_metrics", {}) or {}),
@@ -25310,6 +27602,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 "maintenance": dict(
                     getattr(self, "_maintenance_status", {}) or {}
                 ),
+                "terminal_audit": terminal_audit_metrics,
                 # Per-project, per-operation refresh timing and timeout counts.
                 # Operators can use this to identify which project or operation
                 # is causing slow ticks. Each entry has:
@@ -25359,6 +27652,16 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 "last_cleanup_at": self._last_cleanup_at if self._last_cleanup_at != 0.0 else None,
                 "cleanup_count": self._cleanup_count_last,
                 "cleanup_error": self._cleanup_error_last,
+                # Keep the derived hygiene payload alongside the legacy
+                # maintenance summary as well as under orchestrator_metrics.
+                # This gives API consumers one stable maintenance location
+                # while preserving the documented metrics namespace.
+                "repo_hygiene_health": dict(
+                    getattr(self, "_maintenance_status", {}).get(
+                        "repo_hygiene_health", {}
+                    )
+                    or {}
+                ),
                 "jobs": {
                     name: {
                         "status": state.last_status,
@@ -25372,6 +27675,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     }
                     for name, state in self._maintenance_jobs.items()
                 },
+                "terminal_audit": terminal_audit_metrics,
             },
             # Fine-grained tick telemetry (TASK-465.1).  Empty dict until the
             # first tick completes.  Top-level keys are phase timings in ms;

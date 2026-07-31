@@ -15,6 +15,9 @@ path to read and mutate ProjectStore tracker fields for managed projects.
 from __future__ import annotations
 
 import json
+import sys
+import threading
+import types
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
@@ -627,6 +630,29 @@ class TestBuildToolCatalogProjectTools:
 
         assert "Error: command timed out after 1s" in text
 
+    def test_run_command_tool_runs_subprocess_helper_off_event_loop(self, tmp_path):
+        """Claude shell subprocesses must not block the scheduler loop."""
+        import asyncio
+
+        from oompah import api_agent
+        from oompah.acp_tools import build_tool_catalog
+
+        event_loop_thread = threading.get_ident()
+        execution_threads: list[int] = []
+
+        def fake_exec_run_command(*args, **kwargs):
+            execution_threads.append(threading.get_ident())
+            return "command complete"
+
+        with patch.object(api_agent, "_exec_run_command", fake_exec_run_command):
+            cat = build_tool_catalog(str(tmp_path))
+            tool = next(t for t in cat if t.name == "run_command")
+            result = asyncio.run(tool.handler({"command": "echo test"}))
+
+        assert result["content"][0]["text"] == "command complete"
+        assert len(execution_threads) == 1
+        assert execution_threads[0] != event_loop_thread
+
     def test_run_command_tool_intercepts_oompah_task_comment(self, tmp_path):
         """ACP run_command routes task CLI commands directly through tracker."""
         import asyncio
@@ -987,3 +1013,70 @@ class TestBuildCodexToolCatalogProjectTools:
             "update_project_by_id",
         ):
             assert all(forbidden not in str(name) for name in names)
+
+    def test_run_command_tool_runs_subprocess_helper_off_event_loop(self, tmp_path):
+        """Codex shell subprocesses must not block the scheduler loop."""
+        import asyncio
+
+        from oompah import api_agent
+        from oompah.acp_tools import build_codex_tool_catalog
+
+        event_loop_thread = threading.get_ident()
+        execution_threads: list[int] = []
+
+        def fake_exec_run_command(*args, **kwargs):
+            execution_threads.append(threading.get_ident())
+            return "command complete"
+
+        with patch.object(api_agent, "_exec_run_command", fake_exec_run_command):
+            cat = build_codex_tool_catalog(str(tmp_path))
+            tool = next(t for t in cat if t.name == "run_command")
+            result = asyncio.run(
+                tool.on_invoke_tool(MagicMock(), '{"command":"echo test"}')
+            )
+
+        assert result == "command complete"
+        assert len(execution_threads) == 1
+        assert execution_threads[0] != event_loop_thread
+
+
+def test_opencode_run_command_tool_runs_subprocess_helper_off_event_loop(
+    tmp_path,
+    monkeypatch,
+):
+    """OpenCode shell subprocesses must not block the scheduler loop."""
+    import asyncio
+
+    from oompah import api_agent
+    from oompah.acp_tools import build_opencode_tool_catalog
+
+    fake_opencode = types.ModuleType("opencode")
+
+    def fake_tool(name, description, schema):
+        del description, schema
+
+        def decorate(handler):
+            handler.name = name
+            handler.handler = handler
+            return handler
+
+        return decorate
+
+    fake_opencode.tool = fake_tool
+    monkeypatch.setitem(sys.modules, "opencode", fake_opencode)
+
+    event_loop_thread = threading.get_ident()
+    execution_threads: list[int] = []
+
+    def fake_exec_run_command(*args, **kwargs):
+        execution_threads.append(threading.get_ident())
+        return "command complete"
+
+    with patch.object(api_agent, "_exec_run_command", fake_exec_run_command):
+        cat = build_opencode_tool_catalog(str(tmp_path))
+        tool = next(t for t in cat if t.name == "run_command")
+        result = asyncio.run(tool.handler({"command": "echo test"}))
+
+    assert result["content"][0]["text"] == "command complete"
+    assert len(execution_threads) == 1
+    assert execution_threads[0] != event_loop_thread

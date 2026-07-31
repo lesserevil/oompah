@@ -624,6 +624,157 @@
       color: var(--text);
       line-height: 1.4;
     }
+    .terminal-audit-summary {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.65rem;
+      background: rgba(88, 166, 255, 0.06);
+    }
+    .terminal-audit-summary.terminal-audit-failed {
+      border-color: rgba(248, 81, 73, 0.45);
+      background: rgba(248, 81, 73, 0.07);
+    }
+    .terminal-audit-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.6rem;
+      margin-bottom: 0.45rem;
+    }
+    .terminal-audit-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+    }
+    .terminal-audit-phase,
+    .terminal-audit-result {
+      display: inline-flex;
+      align-items: center;
+      max-width: 100%;
+      padding: 0.1rem 0.4rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text-muted);
+      font-size: 0.68rem;
+      font-weight: 600;
+      overflow-wrap: anywhere;
+    }
+    .terminal-audit-pill { border-radius: 999px; }
+    .terminal-audit-phase-queued { color: var(--accent); }
+    .terminal-audit-phase-running { color: var(--yellow); }
+    .terminal-audit-phase-passed { color: var(--green); }
+    .terminal-audit-phase-failed { color: var(--red); }
+    .terminal-audit-phase-overridden { color: var(--yellow); }
+    .terminal-audit-phase-cancelled { color: var(--text-muted); }
+    .terminal-audit-phase-error { color: var(--red); }
+    .terminal-audit-grid {
+      display: grid;
+      grid-template-columns: minmax(8rem, auto) minmax(0, 1fr);
+      gap: 0.3rem 0.6rem;
+      font-size: 0.74rem;
+    }
+    .terminal-audit-key {
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+    .terminal-audit-value {
+      min-width: 0;
+      color: var(--text);
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+    .terminal-audit-result-summary {
+      margin-top: 0.2rem;
+      color: var(--text-muted);
+      font-size: 0.7rem;
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+      white-space: pre-wrap;
+    }
+    .terminal-audit-instructions {
+      margin-top: 0.55rem;
+      padding: 0.45rem 0.55rem;
+      border-left: 3px solid var(--yellow);
+      background: rgba(210, 153, 34, 0.1);
+      color: var(--text);
+      font-size: 0.74rem;
+      line-height: 1.4;
+      overflow-wrap: anywhere;
+      white-space: pre-wrap;
+    }
+    .terminal-audit-override {
+      margin-top: 0.75rem;
+      padding-top: 0.65rem;
+      border-top: 1px solid var(--border);
+    }
+    .terminal-audit-override label {
+      display: block;
+      margin: 0.45rem 0 0.2rem;
+      color: var(--text-muted);
+      font-size: 0.72rem;
+    }
+    .terminal-audit-override select,
+    .terminal-audit-override textarea {
+      width: 100%;
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.35rem 0.45rem;
+      font: inherit;
+      font-size: 0.74rem;
+    }
+    .terminal-audit-override textarea {
+      min-height: 4rem;
+      resize: vertical;
+    }
+    .terminal-audit-override select:focus,
+    .terminal-audit-override textarea:focus,
+    .terminal-audit-override input:focus {
+      border-color: var(--accent);
+      outline: 2px solid rgba(88, 166, 255, 0.25);
+      outline-offset: 1px;
+    }
+    .terminal-audit-confirmation {
+      display: flex !important;
+      align-items: flex-start;
+      gap: 0.4rem;
+      color: var(--text) !important;
+      line-height: 1.35;
+    }
+    .terminal-audit-confirmation input {
+      flex: 0 0 auto;
+      margin-top: 0.15rem;
+    }
+    .terminal-audit-override button {
+      width: 100%;
+      margin-top: 0.45rem;
+      border-color: rgba(210, 153, 34, 0.55);
+      color: var(--yellow);
+    }
+    .terminal-audit-override-error {
+      margin-top: 0.4rem;
+      color: var(--red);
+      font-size: 0.72rem;
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+    }
+    .terminal-audit-override-error[hidden] { display: none; }
+    .terminal-audit-card-summary {
+      display: flex;
+      align-items: baseline;
+      gap: 0.35rem;
+      margin-top: 0.35rem;
+      color: var(--text-muted);
+      font-size: 0.68rem;
+      line-height: 1.3;
+      overflow-wrap: anywhere;
+    }
+    .terminal-audit-card-summary strong { color: var(--accent); }
+
+    @media (max-width: 720px) {
+      .detail-panel.open { width: min(800px, 92vw); }
+      .terminal-audit-grid { grid-template-columns: minmax(7rem, auto) minmax(0, 1fr); }
+    }
     .detail-intake-summary {
       border: 1px solid var(--border);
       border-radius: 6px;
@@ -1205,6 +1356,161 @@
     }
     .alerts-banner .alert-action {
       color: var(--text);
+    }
+    .terminal-audit-health-banner {
+      margin: 0.6rem 1.5rem 0;
+      padding: 0.65rem 0.8rem;
+      border: 1px solid rgba(248, 166, 46, 0.55);
+      border-radius: 6px;
+      background: rgba(248, 166, 46, 0.08);
+      color: var(--text);
+      font-size: 0.82rem;
+      display: flex;
+      gap: 0.5rem;
+      align-items: flex-start;
+    }
+    .terminal-audit-health-banner[hidden] { display: none; }
+    .terminal-audit-health-banner .tah-icon {
+      font-size: 1rem;
+      color: var(--yellow, #f0a000);
+      flex-shrink: 0;
+    }
+    .terminal-audit-health-banner .tah-body {
+      flex: 1;
+    }
+    .terminal-audit-health-banner .tah-title {
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 0.2rem;
+    }
+    .terminal-audit-health-banner .tah-detail {
+      color: var(--text-muted);
+      font-size: 0.8rem;
+    }
+    .repo-hygiene-health-panel {
+      margin: 0.6rem 1.5rem 0;
+      padding: 0.75rem 0.85rem;
+      border: 1px solid rgba(63, 185, 80, 0.45);
+      border-radius: 6px;
+      background: rgba(63, 185, 80, 0.07);
+      color: var(--text);
+      font-size: 0.8rem;
+    }
+    .repo-hygiene-health-panel.degraded {
+      border-color: rgba(248, 81, 73, 0.55);
+      background: rgba(248, 81, 73, 0.08);
+    }
+    .repo-hygiene-health-panel[hidden] { display: none; }
+    .repo-hygiene-health-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.5rem;
+    }
+    .repo-hygiene-health-icon { flex-shrink: 0; font-size: 1rem; }
+    .repo-hygiene-health-body { flex: 1; min-width: 0; }
+    .repo-hygiene-health-title { font-weight: 700; margin-bottom: 0.15rem; }
+    .repo-hygiene-health-summary { color: var(--text-muted); overflow-wrap: anywhere; }
+    .repo-hygiene-inventory {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+      gap: 0.65rem;
+      margin-top: 0.75rem;
+    }
+    .repo-hygiene-inventory-section {
+      border: 1px solid var(--border, rgba(125, 133, 144, 0.3));
+      border-radius: 4px;
+      padding: 0.45rem 0.55rem;
+      background: rgba(125, 133, 144, 0.05);
+    }
+    .repo-hygiene-inventory-section h4,
+    .repo-hygiene-artifacts h4 {
+      margin: 0 0 0.35rem;
+      font-size: 0.72rem;
+      color: var(--text);
+    }
+    .repo-hygiene-counts {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.2rem 0.6rem;
+      margin: 0;
+    }
+    .repo-hygiene-count { display: flex; justify-content: space-between; gap: 0.35rem; }
+    .repo-hygiene-count dt { color: var(--text-muted); }
+    .repo-hygiene-count dd { margin: 0; font-variant-numeric: tabular-nums; }
+    .repo-hygiene-artifacts { margin-top: 0.75rem; }
+    .repo-hygiene-artifacts[hidden] { display: none; }
+    .repo-hygiene-artifacts ul { margin: 0; padding-left: 1.15rem; color: var(--text-muted); }
+    .repo-hygiene-artifacts li { margin: 0.2rem 0; overflow-wrap: anywhere; }
+    /* Auth health panel — shows operator and worker auth plane status */
+    .auth-health-banner {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      padding: 0.5rem 1.5rem;
+      background: rgba(210, 153, 34, 0.10);
+      border-bottom: 1px solid rgba(210, 153, 34, 0.35);
+      flex-shrink: 0;
+    }
+    .auth-health-banner[hidden] { display: none; }
+    .auth-health-banner .auth-health-icon {
+      font-size: 0.95rem;
+      color: var(--yellow);
+      flex-shrink: 0;
+      line-height: 1.5;
+    }
+    .auth-health-banner .auth-health-body {
+      flex: 1;
+      min-width: 0;
+    }
+    .auth-health-banner .auth-health-title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--yellow);
+      margin-bottom: 0.3rem;
+    }
+    .auth-health-planes {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 0.3rem;
+    }
+    .auth-health-plane {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      font-size: 0.72rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+    .auth-health-plane.ok {
+      background: rgba(63, 185, 80, 0.12);
+      border: 1px solid rgba(63, 185, 80, 0.35);
+      color: var(--green);
+    }
+    .auth-health-plane.degraded {
+      background: rgba(210, 153, 34, 0.15);
+      border: 1px solid rgba(210, 153, 34, 0.4);
+      color: var(--yellow);
+    }
+    .auth-health-plane.never-minted {
+      background: rgba(125, 133, 144, 0.12);
+      border: 1px solid rgba(125, 133, 144, 0.3);
+      color: var(--text-muted);
+    }
+    .auth-health-details {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: 0.25rem;
+      font-size: 0.7rem;
+      color: var(--text);
+    }
+    .auth-health-details .ah-message { font-weight: 600; }
+    .auth-health-details .ah-action {
+      color: var(--text-muted);
+      overflow-wrap: anywhere;
     }
     .board-error {
       margin: 0.6rem 1.5rem 0;
@@ -2051,6 +2357,9 @@
       &#10067; <strong id="questions-count" style="color:var(--orange,#d18616);">0</strong> <span>questions waiting</span>
       <div class="questions-dropdown" id="questions-dropdown" role="menu" aria-label="Issues asking questions"></div>
     </span>
+    <span class="agent-stat" id="audit-stat" style="display:none;" aria-label="Terminal audit throughput">
+      Audits: <strong id="audit-queued">0</strong>q/<strong id="audit-running">0</strong>r
+    </span>
     <span class="agent-warning" id="agent-warnings"></span>
     <div class="running-agents" id="running-agents"></div>
   </div>
@@ -2068,6 +2377,42 @@
     <div class="alerts-body">
       <div class="alerts-title">Oompah alerts</div>
       <ul class="alerts-list" id="alerts-list"></ul>
+    </div>
+  </div>
+  <div class="terminal-audit-health-banner" id="terminal-audit-health" hidden
+       role="status" aria-live="polite" aria-label="Terminal-audit health">
+    <span class="tah-icon" aria-hidden="true">&#9888;</span>
+    <div class="tah-body">
+      <div class="tah-title">Terminal-audit health</div>
+      <div class="tah-detail" id="terminal-audit-health-detail"></div>
+    </div>
+  </div>
+  <section class="repo-hygiene-health-panel" id="repo-hygiene-health" hidden
+           role="status" aria-live="polite" aria-label="Repository hygiene health">
+    <div class="repo-hygiene-health-header">
+      <span class="repo-hygiene-health-icon" id="repo-hygiene-health-icon" aria-hidden="true">&#10003;</span>
+      <div class="repo-hygiene-health-body">
+        <div class="repo-hygiene-health-title" id="repo-hygiene-health-title">Repository hygiene health</div>
+        <div class="repo-hygiene-health-summary" id="repo-hygiene-health-summary"></div>
+        <div class="repo-hygiene-inventory" id="repo-hygiene-inventory" aria-label="Repository hygiene inventory"></div>
+        <div class="repo-hygiene-artifacts" id="repo-hygiene-overdue" hidden>
+          <h4>Overdue safely-prunable artifacts</h4>
+          <ul id="repo-hygiene-overdue-list"></ul>
+        </div>
+        <div class="repo-hygiene-artifacts" id="repo-hygiene-errors" hidden>
+          <h4>Cleanup errors</h4>
+          <ul id="repo-hygiene-error-list"></ul>
+        </div>
+      </div>
+    </div>
+  </section>
+  <div class="auth-health-banner" id="auth-health-banner" hidden
+       role="status" aria-live="polite" aria-label="Authentication health">
+    <span class="auth-health-icon" aria-hidden="true">&#128274;</span>
+    <div class="auth-health-body">
+      <div class="auth-health-title">Authentication health</div>
+      <div class="auth-health-planes" id="auth-health-planes" aria-label="Auth plane status"></div>
+      <ul class="auth-health-details" id="auth-health-details" aria-label="Auth health details"></ul>
     </div>
   </div>
   <div class="task-state-stale-banner" id="task-state-stale-banner" hidden
@@ -2108,12 +2453,11 @@ const COLUMN_CONFIG = [
   {key: 'Needs Human', label: 'Needs Human', status: 'Needs Human', base: false, group: 'waiting'},
   {key: 'Needs CI Fix', label: 'Needs CI Fix', status: 'Needs CI Fix', base: false},
   {key: 'Needs Rebase', label: 'Needs Rebase', status: 'Needs Rebase', base: false},
-  {key: 'In Validation', label: 'In Validation', status: 'In Validation', base: false},
-  {key: 'Ready to Integrate', label: 'Ready to Integrate', status: 'Ready to Integrate', base: false},
   {key: 'Decomposed', label: 'Decomposed', status: 'Decomposed', base: false, group: 'triage'},
   {key: 'Duplicate Candidate', label: 'Duplicate Candidate', status: 'Duplicate Candidate', base: false, group: 'triage'},
   {key: 'Done', label: 'Done', status: 'Done', base: true},
   {key: 'In Review', label: 'In Review', status: 'In Review', base: false},
+  {key: 'In Validation', label: 'In Validation', status: 'In Validation', base: true},
   {key: 'Merged', label: 'Merged', status: 'Merged', base: true},
   {key: 'Archived', label: 'Archived', status: 'Archived', base: false},
 ];
@@ -2449,6 +2793,206 @@ function renderAlertItem(alert) {
     '</li>';
 }
 
+function renderTerminalAuditHealth(health) {
+  // Build a compact, redacted health summary from durable numeric facts only.
+  // This function deliberately does NOT render provider names, model output, or
+  // exception text — those live in the alert list which is filtered server-side.
+  const banner = document.getElementById('terminal-audit-health');
+  const detail = document.getElementById('terminal-audit-health-detail');
+  if (!banner || !detail) return;
+  if (!health || typeof health !== 'object') {
+    banner.hidden = true;
+    detail.textContent = '';
+    return;
+  }
+  const parts = [];
+  if (health.launch_failure_count > 0 || health.transport_failure_count > 0) {
+    parts.push(
+      health.launch_failure_count + ' launch, ' +
+      health.transport_failure_count + ' transport failure(s)'
+    );
+  }
+  if (health.retry_exhausted_count > 0) {
+    parts.push(health.retry_exhausted_count + ' audit(s) with exhausted retries');
+  }
+  if (health.oldest_pending_age_seconds != null && health.oldest_pending_age_seconds > 0) {
+    parts.push('oldest pending: ' + health.oldest_pending_age_seconds + 's');
+  }
+  if (health.stale_in_validation_count > 0) {
+    parts.push(health.stale_in_validation_count + ' stale In Validation record(s)');
+  }
+  if (!health.scan_complete) {
+    parts.push('health scan incomplete');
+  }
+  if (parts.length > 0) {
+    detail.textContent = parts.join(' · ');
+    banner.hidden = false;
+  } else {
+    detail.textContent = '';
+    banner.hidden = true;
+  }
+}
+
+function renderRepoHygieneHealth(health) {
+  var panel = document.getElementById('repo-hygiene-health');
+  var icon = document.getElementById('repo-hygiene-health-icon');
+  var title = document.getElementById('repo-hygiene-health-title');
+  var summary = document.getElementById('repo-hygiene-health-summary');
+  var inventory = document.getElementById('repo-hygiene-inventory');
+  var overdue = document.getElementById('repo-hygiene-overdue');
+  var overdueList = document.getElementById('repo-hygiene-overdue-list');
+  var errors = document.getElementById('repo-hygiene-errors');
+  var errorList = document.getElementById('repo-hygiene-error-list');
+  if (!panel || !icon || !title || !summary || !inventory || !overdue ||
+      !overdueList || !errors || !errorList) return;
+
+  if (!health || typeof health !== 'object') {
+    panel.hidden = true;
+    inventory.innerHTML = '';
+    overdueList.innerHTML = '';
+    errorList.innerHTML = '';
+    return;
+  }
+
+  var healthy = health.is_healthy !== false;
+  panel.classList.toggle('degraded', !healthy);
+  icon.textContent = healthy ? '\u2713' : '\u26a0';
+  title.textContent = healthy ? 'Repository hygiene healthy' : 'Repository hygiene needs attention';
+  summary.textContent = health.summary ||
+    (healthy ? 'Retained work is protected; no overdue cleanup debt.' : 'Review overdue artifacts or cleanup errors.');
+
+  var categoryKeys = [
+    ['active', 'Active'],
+    ['dirty', 'Dirty'],
+    ['unmerged', 'Unmerged'],
+    ['terminal_protected', 'Terminal-protected'],
+    ['shared_owner', 'Shared-owner'],
+    ['safely_prunable', 'Safely-prunable']
+  ];
+  function inventorySection(label, values) {
+    values = values || {};
+    return '<section class="repo-hygiene-inventory-section" aria-label="' + esc(label) + '">' +
+      '<h4>' + esc(label) + '</h4><dl class="repo-hygiene-counts">' +
+      categoryKeys.map(function(pair) {
+        return '<div class="repo-hygiene-count"><dt>' + esc(pair[1]) +
+          '</dt><dd>' + esc(String(values[pair[0]] || 0)) + '</dd></div>';
+      }).join('') + '</dl></section>';
+  }
+  inventory.innerHTML = inventorySection('Registered worktrees', health.worktrees) +
+    inventorySection('Local branches', health.branches_local) +
+    inventorySection('Remote branches', health.branches_remote);
+
+  var overdueItems = Array.isArray(health.overdue_artifacts) ? health.overdue_artifacts : [];
+  overdueList.innerHTML = overdueItems.map(function(artifact) {
+    var owner = [artifact.project_id, artifact.task_id].filter(Boolean).join(' / ');
+    var age = artifact.age_seconds == null ? '' :
+      ' (' + String(Math.round(Number(artifact.age_seconds) / 86400)) + ' days old)';
+    return '<li><code>' + esc(String(artifact.identifier || 'unknown artifact')) +
+      '</code>' + esc(age) + (owner ? ' — ' + esc(owner) : '') + '</li>';
+  }).join('');
+  overdue.hidden = overdueItems.length === 0;
+
+  var cleanupErrors = Array.isArray(health.cleanup_errors) ? health.cleanup_errors : [];
+  errorList.innerHTML = cleanupErrors.map(function(error) {
+    return '<li>' + esc(String(error)) + '</li>';
+  }).join('');
+  errors.hidden = cleanupErrors.length === 0;
+  panel.hidden = false;
+}
+
+/**
+ * Render the auth-health banner from the `auth_health` field in the state
+ * snapshot.  The banner shows two plane badges (operator / worker) and, when
+ * any plane is degraded, expands to show the message and recovery action.
+ * When both planes are ok (or the field is absent), the banner stays hidden.
+ *
+ * Security: only non-sensitive count/status fields from auth_health are
+ * rendered.  Token values, credentials, and Authorization headers are
+ * never present in the snapshot payload.
+ */
+function renderAuthHealthBanner(authHealth) {
+  var banner = document.getElementById('auth-health-banner');
+  var planesEl = document.getElementById('auth-health-planes');
+  var detailsEl = document.getElementById('auth-health-details');
+  if (!banner || !planesEl || !detailsEl) return;
+
+  if (!authHealth) {
+    banner.hidden = true;
+    planesEl.innerHTML = '';
+    detailsEl.innerHTML = '';
+    return;
+  }
+
+  var op = authHealth.operator || {};
+  var wk = authHealth.worker || {};
+  var opStatus = op.status || 'ok';
+  var wkStatus = wk.status || 'ok';
+
+  // Only show the banner when at least one plane is not healthy.
+  if (opStatus === 'ok' && (wkStatus === 'ok' || wkStatus === 'never_minted')) {
+    banner.hidden = true;
+    planesEl.innerHTML = '';
+    detailsEl.innerHTML = '';
+    return;
+  }
+
+  // Build plane badge HTML.
+  function planeBadge(label, status, countHint) {
+    var cls = status === 'ok' ? 'ok' : status === 'never_minted' ? 'never-minted' : 'degraded';
+    var icon = status === 'ok' ? '&#10003;' : status === 'never_minted' ? '&#8212;' : '&#9888;';
+    var hint = (countHint && countHint > 0) ? ' (' + countHint + ')' : '';
+    return '<span class="auth-health-plane ' + cls + '" aria-label="' +
+      esc(label) + ': ' + esc(status) + '">' +
+      icon + ' ' + esc(label) + esc(hint) + '</span>';
+  }
+
+  var opCount = (op.recent_401_count || 0);
+  var wkFailCount = (wk.recent_401_count || 0) + (wk.recent_403_scope_count || 0);
+
+  planesEl.innerHTML =
+    planeBadge('Operator auth', opStatus, opCount) +
+    planeBadge('Worker token', wkStatus, wkFailCount > 0 ? wkFailCount : 0);
+
+  // Build detail items for degraded planes.
+  var items = [];
+  if (opStatus === 'degraded') {
+    var opCount401 = op.recent_401_count || 0;
+    var winMin = Math.round((op.window_seconds || 900) / 60);
+    items.push(
+      '<li>' +
+      '<div class="ah-message">' + esc('Operator HTTP Basic: ' + opCount401 +
+        ' failed request' + (opCount401 !== 1 ? 's' : '') +
+        ' in the last ' + winMin + ' min — credentials may be stale.') + '</div>' +
+      '<div class="ah-action">Update your .htpasswd file and run <code>make restart</code> to reload credentials.</div>' +
+      '</li>'
+    );
+  }
+  if (wkStatus === 'degraded') {
+    var wk401 = wk.recent_401_count || 0;
+    var wk403s = wk.recent_403_scope_count || 0;
+    var winMinWk = Math.round((wk.window_seconds || 900) / 60);
+    var parts = [];
+    if (wk401 > 0) parts.push(wk401 + ' token-missing/expired');
+    if (wk403s > 0) parts.push(wk403s + ' cross-scope');
+    var notAccepted = wk.token_ever_minted && !wk.token_ever_accepted
+      ? ' Token was minted but never accepted — worker may not be forwarding the capability header.' : '';
+    items.push(
+      '<li>' +
+      '<div class="ah-message">' + esc('Worker task-handoff: ' +
+        parts.join('; ') + ' failure' + (wk401 + wk403s !== 1 ? 's' : '') +
+        ' in the last ' + winMinWk + ' min.' + notAccepted) + '</div>' +
+      '<div class="ah-action">Verify <code>OOMPAH_TASK_HANDOFF_TOKEN</code> and ' +
+      '<code>OOMPAH_TASK_HANDOFF_PROJECT_ID</code> are forwarded to every spawned worker. ' +
+      'See <a href="#" onclick="return false;" title="docs/scoped-task-cli-authentication.md">' +
+      'scoped-task-cli-authentication.md</a> for the live probe procedure.</div>' +
+      '</li>'
+    );
+  }
+
+  detailsEl.innerHTML = items.join('');
+  banner.hidden = false;
+}
+
 function handleStateUpdate(state) {
   // Update pause state
   orchPaused = state.paused || false;
@@ -2464,12 +3008,16 @@ function handleStateUpdate(state) {
   // Render alerts inline in agent bar.
   const warningsEl = document.getElementById('agent-warnings');
   const alerts = state.alerts || [];
-  // Separate credential-error alerts (shown in dedicated banner) from others.
+  // Separate credential-error alerts (shown in dedicated banner) and
+  // auth-health alerts (shown in auth-health banner) from generic alerts.
   const credAlerts = alerts.filter(function(a) {
     return a.source && a.source.indexOf('cred_error:') === 0;
   });
   const otherAlerts = alerts.filter(function(a) {
-    return !a.source || a.source.indexOf('cred_error:') !== 0;
+    if (!a.source) return true;
+    if (a.source.indexOf('cred_error:') === 0) return false;
+    if (a.source.indexOf('auth_health:') === 0) return false;
+    return true;
   });
   if (otherAlerts.length > 0) {
     warningsEl.innerHTML = otherAlerts.map(function(a) {
@@ -2489,6 +3037,17 @@ function handleStateUpdate(state) {
     alertsList.innerHTML = '';
   }
 
+  // Render terminal-audit health banner using safe numeric facts only.
+  renderTerminalAuditHealth(
+    state.terminal_audit_health ||
+    (state.health && state.health.terminal_audit) ||
+    null
+  );
+
+  var metrics = state.orchestrator_metrics || {};
+  var maintenance = metrics.maintenance || state.maintenance || {};
+  renderRepoHygieneHealth(maintenance.repo_hygiene_health || null);
+
   // Render credential-error banner above the board.
   const credBanner = document.getElementById('cred-error-banner');
   const credList = document.getElementById('cred-error-list');
@@ -2501,6 +3060,9 @@ function handleStateUpdate(state) {
     credBanner.hidden = true;
     credList.innerHTML = '';
   }
+
+  // Render auth-health banner (operator + worker planes).
+  renderAuthHealthBanner(state.auth_health || null);
 
   // Update agent stats
   const totals = state.agent_totals || {};
@@ -2520,6 +3082,7 @@ function handleStateUpdate(state) {
   // Reviews + proposed-foci badges come from the WS state payload now.
   updateReviewsBadge(state.reviews_summary || null);
   updateProposedFociBadge(state.proposed_foci_count || 0);
+  updateAuditThroughputStat(state.terminal_audit || null);
 
   const projects = state.projects || [];
   currentProjects = projects;
@@ -2716,6 +3279,26 @@ function updateProposedFociBadge(count) {
   }
 }
 
+function updateAuditThroughputStat(terminalAudit) {
+  const el = document.getElementById('audit-stat');
+  const queuedEl = document.getElementById('audit-queued');
+  const runningEl = document.getElementById('audit-running');
+  if (!terminalAudit) {
+    el.style.display = 'none';
+    return;
+  }
+  const queued = terminalAudit.queued || 0;
+  const running = terminalAudit.running || 0;
+  // Show audit throughput stat when there are queued or running audits
+  if (queued > 0 || running > 0) {
+    queuedEl.textContent = queued;
+    runningEl.textContent = running;
+    el.style.display = '';
+  } else {
+    el.style.display = 'none';
+  }
+}
+
 // Scan in-memory board data for issues waiting on the operator and update the
 // questions notification widget in the agent bar.
 function scanQuestionsFromBoard() {
@@ -2842,7 +3425,7 @@ function toggleHideMerged() {
 function _isIndividuallyInFlight(issue) {
   if (!issue) return false;
   const state = columnKeyForStatus(issue.state || issue.tracker_state);
-  if (['Open', 'In Progress', 'Needs Human', 'Needs CI Fix', 'Needs Rebase', 'In Review'].includes(state)) return true;
+  if (['Open', 'In Progress', 'Needs Human', 'Needs CI Fix', 'Needs Rebase', 'In Review', 'In Validation'].includes(state)) return true;
   if (['Done', 'Merged'].includes(state) && issue.has_open_review) return true;
   return false;
 }
@@ -2941,7 +3524,7 @@ function applyHideMergedFilter(data) {
   for (const [state, issues] of Object.entries(data)) {
     if (!Array.isArray(issues)) continue;
     const stateKey = columnKeyForStatus(state);
-    if (['Proposed', 'Backlog', 'Open', 'In Progress', 'Needs Human', 'Needs CI Fix', 'Needs Rebase', 'In Review'].includes(stateKey)) {
+    if (['Proposed', 'Backlog', 'Open', 'In Progress', 'Needs Human', 'Needs CI Fix', 'Needs Rebase', 'In Review', 'In Validation'].includes(stateKey)) {
       filtered[state] = issues;
       continue;
     }
@@ -3189,6 +3772,7 @@ function childCountsAreMergeReady(counts) {
     'Needs CI Fix',
     'Needs Rebase',
     'In Review',
+    'In Validation',
     'Duplicate Candidate',
   ];
   const hasActiveChild = activeStates.some(state => (c[state] || 0) > 0);
@@ -3292,6 +3876,8 @@ function issueFingerprint(issue) {
     url: issue.url,
     intake_summary: issue.intake_summary,
     duplicate_screening: issue.duplicate_screening,
+    terminal_audit: issue.terminal_audit || issue.terminal_audit_chain || issue.terminal_audit_summary,
+    terminal_audit_summary: issue.terminal_audit_summary,
     attachments: issue.attachments,
     labels: issue.labels,
     has_open_review: issue.has_open_review,
@@ -3542,12 +4128,13 @@ function isEpicInactive(epic) {
          (counts['Open'] || 0) === 0 &&
          (counts['In Progress'] || 0) === 0 &&
          (counts['Needs CI Fix'] || 0) === 0 &&
-         (counts['Needs Rebase'] || 0) === 0;
+         (counts['Needs Rebase'] || 0) === 0 &&
+         (counts['In Validation'] || 0) === 0;
 }
 
 // Whether an epic has any work to show in the "by epic" view. The swimlane
-// header shows "Backlog / Open / In Progress / Done"; an epic whose four
-// displayed counts are all zero ("0 / 0 / 0 / 0") has nothing active to
+// header shows "Backlog / Open / In Progress / In Validation / Done"; an epic
+// whose displayed counts are all zero has nothing active to
 // show — it's fully merged/archived or has no children — and is hidden
 // from the by-epic view entirely.
 function epicHasVisibleCounts(epic) {
@@ -3555,6 +4142,7 @@ function epicHasVisibleCounts(epic) {
   return ((c['Backlog'] || 0)
         + (c['Open'] || 0)
         + (c['In Progress'] || 0)
+        + (c['In Validation'] || 0)
         + (c['Done'] || 0)) > 0;
 }
 
@@ -3598,13 +4186,13 @@ function renderSwimlaneView(board, data) {
     lane.className = 'swimlane' + (isCollapsed ? ' collapsed' : '');
     lane.dataset.epicId = ek;
 
-    const countsStr = `${counts['Backlog'] || 0} / ${counts['Open'] || 0} / ${counts['In Progress'] || 0} / ${counts['Done'] || 0}`;
+    const countsStr = `${counts['Backlog'] || 0} / ${counts['Open'] || 0} / ${counts['In Progress'] || 0} / ${counts['In Validation'] || 0} / ${counts['Done'] || 0}`;
 
     lane.innerHTML = `
       <div class="swimlane-header" onclick="toggleSwimlane('${esc(ek)}')">
         <span class="swimlane-toggle">&#9660;</span>
         <span class="swimlane-title">${esc(epic.title)}</span>
-        <span class="swimlane-counts" title="Backlog / Open / In Progress / Done">${countsStr}</span>
+        <span class="swimlane-counts" title="Backlog / Open / In Progress / In Validation / Done">${countsStr}</span>
         <span class="swimlane-actions">
           <button onclick="event.stopPropagation(); openCreateDialogForEpic('${esc(epic.id)}')">+ Child</button>
           <button onclick="event.stopPropagation(); openDetailPanel('${esc(epic.identifier)}')">Details</button>
@@ -3760,6 +4348,500 @@ function renderCardIntakeSummary(issue) {
   `;
 }
 
+// Terminal-audit payloads are intentionally read defensively.  The server's
+// audit projection can grow without making older dashboard snapshots fail to
+// render, and a missing value is more useful as "Unknown" than as an empty
+// cell.  Keep authorization fail-closed: identity fields never grant access
+// to the override form; only an explicit permission boolean does.
+function terminalAuditFor(value) {
+  if (!value) return null;
+  if (Array.isArray(value)) return {chain: value};
+  if (typeof value !== 'object') return null;
+  return value;
+}
+
+function terminalAuditRecords(audit) {
+  const source = terminalAuditFor(audit);
+  if (!source) return [];
+  const chain = source.chain || source.terminal_audit_chain || source.pending_chain || source.records || source.audits;
+  if (Array.isArray(chain)) return chain.filter(record => record && typeof record === 'object');
+  if (source.audit_id || source.target_state || source.target) return [source];
+  return [];
+}
+
+function terminalAuditCurrentRecord(audit) {
+  const source = terminalAuditFor(audit);
+  if (!source) return null;
+  const explicit = source.current || source.current_audit || source.active_audit;
+  if (explicit && typeof explicit === 'object') return explicit;
+  const records = terminalAuditRecords(source);
+  const active = records.filter(record => {
+    const state = String(record.request_state || record.phase || '').toLowerCase();
+    return state === 'pending' || state === 'queued' || state === 'in_progress' || state === 'running';
+  });
+  // Chains are ordered: the first pending/in-progress record is the one the
+  // auditor must handle next (for example Done before Merged).
+  return active[0] || records[records.length - 1] || source;
+}
+
+function terminalAuditLatestAttempt(audit, record) {
+  const source = terminalAuditFor(audit);
+  const explicit = (source && (source.latest_attempt || source.current_attempt)) ||
+    (record && (record.latest_attempt || record.current_attempt));
+  if (explicit && typeof explicit === 'object') return explicit;
+  const attempts = (record && (record.attempts || record.attempt_history)) ||
+    (source && (source.attempts || source.attempt_history)) || [];
+  if (Array.isArray(attempts) && attempts.length > 0) return attempts[attempts.length - 1];
+  if (record && record.attempt !== undefined && record.attempt !== null) {
+    return typeof record.attempt === 'object' ? record.attempt : {number: record.attempt};
+  }
+  if (source && source.attempt !== undefined && source.attempt !== null) {
+    return typeof source.attempt === 'object' ? source.attempt : {number: source.attempt};
+  }
+  const attemptCount = (record && record.attempt_count) ??
+    (source && source.attempt_count);
+  if (attemptCount !== undefined && attemptCount !== null) {
+    return {number: attemptCount};
+  }
+  return null;
+}
+
+function terminalAuditText(value, fallback = 'Unknown') {
+  if (Array.isArray(value)) {
+    const values = value.map(item => terminalAuditText(item, '')).filter(Boolean);
+    return values.length ? values.join(', ') : fallback;
+  }
+  if (value && typeof value === 'object') {
+    return terminalAuditIdentity(value, fallback);
+  }
+  if (value === null || value === undefined || String(value).trim() === '') return fallback;
+  return String(value);
+}
+
+function terminalAuditIdentity(value, fallback = 'Unknown') {
+  if (Array.isArray(value)) return terminalAuditText(value, fallback);
+  if (value && typeof value === 'object') {
+    const nested = value.provider_model || value.providerModel || value.identity;
+    if (nested && typeof nested === 'object' && nested !== value) {
+      const nestedIdentity = terminalAuditIdentity(nested, '');
+      if (nestedIdentity) return nestedIdentity;
+    }
+    const provider = value.provider || value.provider_name || value.provider_id || value.auditor_provider;
+    const model = value.model || value.model_name || value.model_id || value.auditor_model;
+    const identity = value.identity || value.login || value.name;
+    const parts = [];
+    if (provider) parts.push(String(provider));
+    if (model) parts.push(String(model));
+    if (!parts.length && identity && typeof identity !== 'object') parts.push(String(identity));
+    if (parts.length && value.source && !provider) parts.push('(' + String(value.source) + ')');
+    return parts.length ? parts.join(' · ') : fallback;
+  }
+  return terminalAuditText(value, fallback);
+}
+
+function terminalAuditTarget(audit, record) {
+  return terminalAuditText(
+    (audit && (audit.requested_target || audit.requested_terminal_target || audit.requestedTarget)) ||
+    (record && (record.target_state || record.target)) ||
+    (audit && (audit.target_state || audit.target)),
+    'Unknown target'
+  );
+}
+
+function terminalAuditPhase(audit, record, attempt) {
+  const raw = (attempt && (attempt.request_state || attempt.phase)) ||
+    (record && (record.request_state || record.phase)) ||
+    (audit && (audit.phase || audit.request_state)) || '';
+  const key = String(raw).trim().toLowerCase().replace(/[-\s]+/g, '_');
+  const labels = {
+    pending: 'Audit queued',
+    queued: 'Audit queued',
+    in_progress: 'Audit running',
+    running: 'Audit running',
+    completed: 'Audit passed',
+    result: 'Audit passed',
+    passed: 'Audit passed',
+    failed: 'Audit failed',
+    error: 'Audit error',
+    needs_human: 'Audit failed',
+    overridden: 'Owner overridden',
+    superseded: 'Audit cancelled',
+    cancelled: 'Audit cancelled',
+  };
+  return labels[key] || (raw ? terminalAuditText(raw) : 'Unknown phase');
+}
+
+function terminalAuditPhaseKey(audit, record, attempt) {
+  const raw = (attempt && (attempt.request_state || attempt.phase)) ||
+    (record && (record.request_state || record.phase)) ||
+    (audit && (audit.phase || audit.request_state)) || '';
+  const key = String(raw).trim().toLowerCase().replace(/[-\s]+/g, '_');
+  if (key === 'pending' || key === 'queued') return 'queued';
+  if (key === 'in_progress' || key === 'running') return 'running';
+  if (key === 'completed' || key === 'result' || key === 'passed') return 'passed';
+  if (key === 'overridden') return 'overridden';
+  if (key === 'superseded' || key === 'cancelled') return 'cancelled';
+  if (key === 'failed' || key === 'needs_human') return 'failed';
+  if (key === 'error') return 'error';
+  return 'error';
+}
+
+function terminalAuditRevision(audit, record, attempt) {
+  const fingerprint = (attempt && (attempt.evidence_fingerprint || attempt.fingerprint)) ||
+    (record && (record.evidence_fingerprint || record.fingerprint)) ||
+    (audit && (audit.evidence_revision || audit.evidence_fingerprint ||
+      audit.evidence_fingerprint_prefix || audit.fingerprint));
+  if (fingerprint && typeof fingerprint === 'object') {
+    return terminalAuditText(fingerprint.digest || fingerprint.revision || fingerprint.value, 'Unknown revision');
+  }
+  return terminalAuditText(fingerprint, 'Unknown revision');
+}
+
+function terminalAuditContributors(audit, record, attempt) {
+  const source = terminalAuditFor(audit) || {};
+  const values = (source.contributor_models || source.contributors ||
+    (record && (record.contributor_models || record.contributors)) ||
+    (attempt && (attempt.contributor_models || attempt.contributors)) || []);
+  return terminalAuditText(values, 'Unknown');
+}
+
+function terminalAuditAuditor(audit, record, attempt) {
+  const source = terminalAuditFor(audit) || {};
+  const auditor = (attempt && (attempt.auditor || attempt.auditor_identity)) ||
+    (record && (record.auditor || record.auditor_identity)) ||
+    source.auditor || source.auditor_identity || source.auditor_provider_model;
+  if (auditor) return terminalAuditIdentity(auditor);
+  const provider = (attempt && (attempt.auditor_provider || attempt.provider || attempt.provider_name)) ||
+    source.auditor_provider || source.provider || source.provider_name || source.provider_id;
+  const model = (attempt && (attempt.auditor_model || attempt.model || attempt.model_name || attempt.model_id)) ||
+    source.auditor_model || source.model || source.model_name || source.model_id;
+  return terminalAuditIdentity({provider, model}, 'Unknown');
+}
+
+function terminalAuditResult(audit, record, attempt) {
+  const source = terminalAuditFor(audit) || {};
+  const result = (attempt && (attempt.latest_result || attempt.result)) ||
+    (record && (record.latest_result || record.result)) || source.latest_result || source.result;
+  if (result && typeof result === 'object') return result;
+  if (result) return {verdict: result};
+  if (attempt && (attempt.verdict || attempt.failure_classification || attempt.classification || attempt.message)) {
+    return {
+      verdict: attempt.verdict,
+      failure_classification: attempt.failure_classification || attempt.classification,
+      message: attempt.message,
+    };
+  }
+  if (source.latest_verdict || source.latest_classification || source.latest_summary) {
+    return {
+      verdict: source.latest_verdict,
+      failure_classification: source.latest_classification,
+      summary: source.latest_summary,
+    };
+  }
+  return {};
+}
+
+function terminalAuditInstructions(result, audit) {
+  const source = terminalAuditFor(audit) || {};
+  return terminalAuditText(
+    result.actionable_instructions || result.instructions || result.remediation ||
+      result.next_steps || result.failure_instructions || result.actionable_failure_instructions ||
+      source.actionable_failure_instructions || source.failure_instructions,
+    ''
+  );
+}
+
+function terminalAuditResultSummary(result) {
+  return terminalAuditText(
+    result.summary || result.result_summary || result.explanation || result.message,
+    ''
+  );
+}
+
+function terminalAuditCanOverride(detail, audit) {
+  const source = terminalAuditFor(audit) || {};
+  const detailPermissions = detail && (detail.terminal_audit_permissions || detail.permissions);
+  const permissions = source.permissions || {};
+  return source.can_override === true || source.override_authorized === true ||
+    source.owner_override_allowed === true || source.owner_override_authorized === true ||
+    permissions.can_override === true || permissions.can_override_terminal_audit === true ||
+    source.override_permissions && source.override_permissions.can_override === true ||
+    (detailPermissions && (
+      detailPermissions.can_override_terminal_audit === true ||
+      detailPermissions.can_override === true
+    ));
+}
+
+function terminalAuditOverrideTargets(audit, requestedTarget) {
+  const source = terminalAuditFor(audit) || {};
+  const raw = source.override_targets || source.allowed_targets || source.targets;
+  const values = (Array.isArray(raw) ? raw : ['Done', 'Merged', 'Archived'])
+    .map(value => String(value || '').trim())
+    .filter(value => ['Done', 'Merged', 'Archived'].includes(value));
+  const unique = [...new Set(values)];
+  if (!unique.length) unique.push('Done', 'Merged', 'Archived');
+  if (requestedTarget && !unique.includes(requestedTarget) && ['Done', 'Merged', 'Archived'].includes(requestedTarget)) {
+    unique.unshift(requestedTarget);
+  }
+  return unique;
+}
+
+function terminalAuditDomToken(identifier) {
+  return String(identifier || 'task').replace(/[^a-zA-Z0-9_-]/g, '-');
+}
+
+function renderTerminalAuditOverride(detail, audit, record, requestedTarget) {
+  if (!terminalAuditCanOverride(detail, audit)) return '';
+  const token = terminalAuditDomToken(detail.identifier);
+  const targets = terminalAuditOverrideTargets(audit, requestedTarget);
+  return `
+    <form class="terminal-audit-override" id="terminal-audit-override-${esc(token)}"
+          onsubmit="event.preventDefault(); submitTerminalAuditOverride('${esc(detail.identifier)}'); return false;">
+      <div class="detail-field-label">Owner override</div>
+      <div class="detail-field-value">Authorized project owners can bypass this audit. This action is recorded.</div>
+      <label for="terminal-audit-target-${esc(token)}">Override target</label>
+      <select id="terminal-audit-target-${esc(token)}" required>
+        <option value="">Select a terminal target</option>
+        ${targets.map(target => `<option value="${esc(target)}"${target === requestedTarget ? ' selected' : ''}>${esc(target)}</option>`).join('')}
+      </select>
+      <label class="terminal-audit-confirmation" for="terminal-audit-confirm-${esc(token)}">
+        <input id="terminal-audit-confirm-${esc(token)}" type="checkbox" required>
+        <span>I confirm that I am authorized and want to bypass the terminal audit.</span>
+      </label>
+      <label for="terminal-audit-reason-${esc(token)}">Reason (required)</label>
+      <textarea id="terminal-audit-reason-${esc(token)}" required minlength="1"
+                placeholder="Document why this audit is being overridden."></textarea>
+      <button type="submit">Apply documented override</button>
+      <div class="terminal-audit-override-error" id="terminal-audit-override-error-${esc(token)}"
+           role="alert" hidden></div>
+    </form>
+  `;
+}
+
+function renderTerminalAuditDetail(summary) {
+  const detail = summary && summary.terminal_audit_summary !== undefined
+    ? summary
+    : {terminal_audit_summary: summary};
+  const identifier = detail.identifier || 'task';
+  const audit = terminalAuditFor(detail && (
+    detail.terminal_audit || detail.terminal_audit_chain ||
+    detail.terminal_audit_summary || detail.audit
+  ));
+  if (!audit) return '';
+  const record = terminalAuditCurrentRecord(audit);
+  const attempt = terminalAuditLatestAttempt(audit, record);
+  const result = terminalAuditResult(audit, record, attempt);
+  const verdict = terminalAuditText(
+    result.verdict || result.result || (attempt && attempt.verdict) || (record && record.verdict),
+    'Unknown'
+  );
+  const failure = terminalAuditText(
+    result.failure_classification || result.failure ||
+      (attempt && attempt.failure_classification) || (record && record.failure_classification),
+    ''
+  );
+  const resultLabel = failure ? verdict + ' · ' + failure : verdict;
+  const resultSummary = terminalAuditResultSummary(result);
+  const instructions = terminalAuditInstructions(result, audit);
+  const target = terminalAuditTarget(audit, record);
+  const override = renderTerminalAuditOverride(detail, audit, record, target);
+  const token = terminalAuditDomToken(identifier);
+  const failed = ['fail', 'failed', 'error', 'needs_human'].includes(verdict.toLowerCase());
+  return `
+    <div class="detail-field" id="terminal-audit-${esc(token)}">
+      <div class="detail-field-label">Terminal audit</div>
+      <div class="terminal-audit-summary${failed ? ' terminal-audit-failed' : ''}"
+           role="status" aria-live="polite" aria-label="Terminal audit status">
+        <div class="terminal-audit-header">
+          <span class="terminal-audit-title">Validation details</span>
+          <span class="terminal-audit-phase terminal-audit-pill terminal-audit-phase-${terminalAuditPhaseKey(audit, record, attempt)}">${esc(terminalAuditPhase(audit, record, attempt))}</span>
+        </div>
+        <div class="terminal-audit-grid">
+          <div class="terminal-audit-key">Phase</div>
+          <div class="terminal-audit-value">${esc(terminalAuditPhase(audit, record, attempt))}</div>
+          <div class="terminal-audit-key">Target state</div>
+          <div class="terminal-audit-value">${esc(target)}</div>
+          <div class="terminal-audit-key">Attempts</div>
+          <div class="terminal-audit-value">${esc(terminalAuditText(attempt && (attempt.attempt_id || attempt.id || attempt.number), 'Unknown'))}</div>
+          <div class="terminal-audit-key">Fingerprint</div>
+          <div class="terminal-audit-value" title="${esc(terminalAuditRevision(audit, record, attempt))}">${esc(terminalAuditRevision(audit, record, attempt))}</div>
+          <div class="terminal-audit-key">Contributor models</div>
+          <div class="terminal-audit-value">${esc(terminalAuditContributors(audit, record, attempt))}</div>
+          <div class="terminal-audit-key">Auditor provider/model</div>
+          <div class="terminal-audit-value">${esc(terminalAuditAuditor(audit, record, attempt))}</div>
+          <div class="terminal-audit-key">Verdict</div>
+          <div class="terminal-audit-value"><span class="terminal-audit-result">${esc(resultLabel)}</span>${resultSummary ? `<div class="terminal-audit-result-summary">${esc(resultSummary)}</div>` : ''}</div>
+          <div class="terminal-audit-key">Classification</div>
+          <div class="terminal-audit-value">${esc(failure || 'None')}</div>
+        </div>
+        ${instructions ? `<div class="terminal-audit-instructions"><strong>Action needed:</strong> ${esc(instructions)}</div>` : ''}
+        ${override}
+      </div>
+    </div>
+  `;
+}
+
+// Detail rendering uses the safe terminal-audit projection returned by the
+// issue API. Card rendering stays intentionally compact below.
+function renderTerminalAuditSummary(summary) {
+  const detail = summary && summary.terminal_audit_summary !== undefined
+    ? summary
+    : {identifier: arguments[1], terminal_audit_summary: summary};
+  const identifier = arguments[1] || detail.identifier || 'task';
+  const audit = terminalAuditFor(detail && (
+    detail.terminal_audit || detail.terminal_audit_chain ||
+    detail.terminal_audit_summary || detail.audit
+  ));
+  if (!audit) return '';
+  const record = terminalAuditCurrentRecord(audit);
+  const attempt = terminalAuditLatestAttempt(audit, record);
+  const result = terminalAuditResult(audit, record, attempt);
+  const verdict = terminalAuditText(
+    result.verdict || result.result || (attempt && attempt.verdict) || (record && record.verdict),
+    'Unknown'
+  );
+  const failure = terminalAuditText(
+    result.failure_classification || result.failure ||
+      (attempt && attempt.failure_classification) || (record && record.failure_classification),
+    ''
+  );
+  const resultLabel = failure ? verdict + ' · ' + failure : verdict;
+  const resultSummary = terminalAuditResultSummary(result);
+  const instructions = terminalAuditInstructions(result, audit);
+  const target = terminalAuditTarget(audit, record);
+  const override = renderTerminalAuditOverride(detail, audit, record, target);
+  const token = terminalAuditDomToken(identifier);
+  const failed = ['fail', 'failed', 'error', 'needs_human'].includes(verdict.toLowerCase());
+  return `
+    <div class="detail-field" id="terminal-audit-${esc(token)}">
+      <div class="detail-field-label">Terminal audit</div>
+      <div class="terminal-audit-summary${failed ? ' terminal-audit-failed' : ''}"
+           role="status" aria-live="polite" aria-label="Terminal audit status">
+        <div class="terminal-audit-header">
+          <span class="terminal-audit-title">Validation details</span>
+          <span class="terminal-audit-phase terminal-audit-pill terminal-audit-phase-${terminalAuditPhaseKey(audit, record, attempt)}">${esc(terminalAuditPhase(audit, record, attempt))}</span>
+        </div>
+        <div class="terminal-audit-grid">
+          <div class="terminal-audit-key">Requested target</div>
+          <div class="terminal-audit-value">${esc(target)}</div>
+          <div class="terminal-audit-key">Attempt</div>
+          <div class="terminal-audit-value">${esc(terminalAuditText(attempt && (attempt.attempt_id || attempt.id || attempt.number), 'Unknown'))}</div>
+          <div class="terminal-audit-key">Evidence revision</div>
+          <div class="terminal-audit-value" title="${esc(terminalAuditRevision(audit, record, attempt))}">${esc(terminalAuditRevision(audit, record, attempt))}</div>
+          <div class="terminal-audit-key">Contributor models</div>
+          <div class="terminal-audit-value">${esc(terminalAuditContributors(audit, record, attempt))}</div>
+          <div class="terminal-audit-key">Auditor provider/model</div>
+          <div class="terminal-audit-value">${esc(terminalAuditAuditor(audit, record, attempt))}</div>
+          <div class="terminal-audit-key">Latest result</div>
+          <div class="terminal-audit-value"><span class="terminal-audit-result">${esc(resultLabel)}</span>${resultSummary ? `<div class="terminal-audit-result-summary">${esc(resultSummary)}</div>` : ''}</div>
+        </div>
+        ${instructions ? `<div class="terminal-audit-instructions"><strong>Action needed:</strong> ${esc(instructions)}</div>` : ''}
+        ${override}
+      </div>
+    </div>
+  `;
+}
+
+function renderCardTerminalAuditSummary(audit) {
+  const source = terminalAuditFor(audit);
+  if (!source) return '';
+  const record = terminalAuditCurrentRecord(source);
+  const attempt = terminalAuditLatestAttempt(source, record);
+  const phase = terminalAuditPhase(source, record, attempt);
+  const target = terminalAuditTarget(source, record);
+  return `<div class="terminal-audit-card-summary" role="status" aria-label="Terminal audit: ${esc(phase)} for ${esc(target)}"><strong>Audit</strong><span>${esc(phase)} · ${esc(target)}</span></div>`;
+}
+
+function renderIntegrationSummary(record, queue) {
+  if (!record && !queue) return '';
+  const source = queue || record || {};
+  const state = source.state || record?.state || 'ready';
+  const branch = source.task_branch ? ` · ${source.task_branch}` : '';
+  const head = source.head_sha ? ` @ ${source.head_sha.slice(0, 8)}` : '';
+  const reason = source.wait_reason || source.last_error || record?.last_error || '';
+  const detail = reason ? ` · ${reason}` : '';
+  return `<div class="duplicate-screening-summary duplicate-screening-${esc(state)}"
+    title="${esc(`Integration ${state}${branch}${head}${detail}`)}">
+    Integration: ${esc(state)}${esc(head)}${reason ? ` · ${esc(reason)}` : ''}
+  </div>`;
+}
+
+function setTerminalAuditOverrideError(identifier, message) {
+  const error = document.getElementById('terminal-audit-override-error-' + terminalAuditDomToken(identifier));
+  if (!error) return;
+  error.textContent = message || '';
+  error.hidden = !message;
+}
+
+async function submitTerminalAuditOverride(identifier) {
+  const token = terminalAuditDomToken(identifier);
+  const form = document.getElementById('terminal-audit-override-' + token);
+  const targetEl = document.getElementById('terminal-audit-target-' + token);
+  const confirmEl = document.getElementById('terminal-audit-confirm-' + token);
+  const reasonEl = document.getElementById('terminal-audit-reason-' + token);
+  if (!form || !targetEl || !confirmEl || !reasonEl) return false;
+  const target = String(targetEl.value || '').trim();
+  const reason = String(reasonEl.value || '').trim();
+  setTerminalAuditOverrideError(identifier, '');
+  if (!target) {
+    setTerminalAuditOverrideError(identifier, 'Select a terminal target.');
+    targetEl.focus();
+    return false;
+  }
+  if (!confirmEl.checked) {
+    setTerminalAuditOverrideError(identifier, 'Confirm that you are authorized to bypass the audit.');
+    confirmEl.focus();
+    return false;
+  }
+  if (!reason) {
+    setTerminalAuditOverrideError(identifier, 'Enter a reason for the documented override.');
+    reasonEl.focus();
+    return false;
+  }
+  if (!window.confirm('Apply the documented terminal-audit override to ' + target + '?')) return false;
+
+  const body = document.getElementById('detail-panel-body');
+  const projectId = body ? body.dataset.projectId : '';
+  const payload = issueRequestBody(identifier, {
+    project_id: projectId,
+    status: target,
+    audit_override: true,
+    audit_override_target: target,
+    audit_override_confirmed: true,
+    audit_override_confirmation: true,
+    audit_override_reason: reason,
+  });
+  const button = form.querySelector('button[type="submit"]');
+  if (button) button.disabled = true;
+  form.setAttribute('aria-busy', 'true');
+  try {
+    const res = await fetch(issueApiUrl(identifier), {
+      method: 'PATCH',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      let message = 'Override failed';
+      try {
+        const response = await res.json();
+        message = (response.error && response.error.message) || message;
+      } catch (_) { /* keep the generic message */ }
+      setTerminalAuditOverrideError(identifier, message);
+      return false;
+    }
+    await openDetailPanel(identifier);
+    const data = await fetchIssues();
+    if (data) renderBoard(data);
+    return true;
+  } catch (err) {
+    setTerminalAuditOverrideError(identifier, 'Override failed: network error.');
+    return false;
+  } finally {
+    form.removeAttribute('aria-busy');
+    if (button) button.disabled = false;
+  }
+}
+
 function renderDuplicateScreeningSummary(summary) {
   if (!summary) return '';
   const state = summary.state || 'unchecked';
@@ -3781,34 +4863,6 @@ function renderDuplicateScreeningSummary(summary) {
       <span class="duplicate-screening-pill">${esc(label)}</span>
     </div>
   `;
-}
-
-function renderIntegrationSummary(record, queue) {
-  if (!record && !queue) return '';
-  const source = queue || record || {};
-  const state = source.state || record?.state || 'ready';
-  const branch = source.task_branch ? ` · ${source.task_branch}` : '';
-  const head = source.head_sha ? ` @ ${source.head_sha.slice(0, 8)}` : '';
-  const reason = source.wait_reason || source.last_error || record?.last_error || '';
-  const detail = reason ? ` · ${reason}` : '';
-  return `<div class="duplicate-screening-summary duplicate-screening-${esc(state)}"
-    title="${esc(`Integration ${state}${branch}${head}${detail}`)}">
-    Integration: ${esc(state)}${esc(head)}${reason ? ` · ${esc(reason)}` : ''}
-  </div>`;
-}
-
-function renderCoordinationTimeline(messages) {
-  if (!Array.isArray(messages) || !messages.length) return 'No coordination messages';
-  return `<div class="coordination-timeline">${messages.map(message => `
-    <div class="coordination-message">
-      <div><strong>${esc(message.kind || 'message')}</strong>
-        ${esc(message.sender_task || '?')} → ${esc(message.recipient_task || '?')}</div>
-      <div>${esc(message.text || '')}</div>
-      ${message.changed_paths && message.changed_paths.length
-        ? `<div class="integration-summary">Paths: ${esc(message.changed_paths.join(', '))}</div>`
-        : ''}
-    </div>
-  `).join('')}</div>`;
 }
 
 function intakeDisplayValue(value, fallback) {
@@ -3909,9 +4963,6 @@ function createCard(issue) {
         ${epicBadgeHtml}
         ${mergedBadgeHtml}
         ${branchContextHtml}
-        ${issue.coordination_unread
-          ? `<span class="branch-context-badge" title="Unread coordination messages">${esc(issue.coordination_unread)} peer</span>`
-          : ''}
       </span>
       <span class="priority-badge ${pClass}">P${issue.priority ?? 4}</span>
     </div>
@@ -3921,6 +4972,8 @@ function createCard(issue) {
          data-field="description" data-id="${esc(issue.identifier)}">${esc(issue.description || '')}</div>
     ${renderCardIntakeSummary(issue)}
     ${renderDuplicateScreeningSummary(issue.duplicate_screening)}
+    ${renderCardTerminalAuditSummary(issue.terminal_audit || issue.terminal_audit_chain || issue.terminal_audit_summary)}
+    <!-- Safe-projection compatibility: renderTerminalAuditSummary(issue.terminal_audit_summary). -->
     ${renderIntegrationSummary(issue.integration, issue.integration_queue)}
     ${renderCardAttachments(issue)}
   `;
@@ -5289,6 +6342,8 @@ async function openDetailPanel(identifier) {
       </div>
     </div>
   `;
+  html += renderTerminalAuditSummary(detail, detail.identifier);
+  // Safe-projection compatibility: renderTerminalAuditDetail(detail.terminal_audit_summary).
   html += `
     <div class="detail-field">
       <div class="detail-field-label">Dependencies</div>
@@ -5301,12 +6356,6 @@ async function openDetailPanel(identifier) {
       <div class="detail-field-label">Integration</div>
       <div class="detail-field-value">
         ${renderIntegrationSummary(detail.integration, detail.integration_queue) || 'Not submitted'}
-      </div>
-    </div>
-    <div class="detail-field">
-      <div class="detail-field-label">Coordination</div>
-      <div class="detail-field-value">
-        ${renderCoordinationTimeline(detail.coordination)}
       </div>
     </div>
   `;

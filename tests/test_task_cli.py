@@ -29,6 +29,7 @@ import pytest
 
 from oompah import task_cli
 from oompah.client_auth import ClientCredentials
+from oompah.task_handoff import TASK_HANDOFF_TOKEN_ENV
 
 
 # ---------------------------------------------------------------------------
@@ -740,6 +741,30 @@ class TestCmdSetStatus:
         out = capsys.readouterr().out
         assert "Terminal transition queued: Done" in out
         assert "In Validation" in out
+        assert "audit-5" in out
+
+    def test_prints_truthful_unstaged_terminal_response(self, capsys):
+        args = _make_args(
+            subcommand="set-status",
+            identifier="TASK-5",
+            status="Done",
+            summary=None,
+            project=None,
+        )
+        with _make_http_mock(
+            {
+                "ok": True,
+                "status": "Needs Human",
+                "requested_target": "Done",
+                "audit_id": "audit-5",
+                "status_staged": False,
+            }
+        ):
+            task_cli._cmd_set_status("http://localhost:8080", args)
+
+        out = capsys.readouterr().out
+        assert "Terminal transition recorded: Done" in out
+        assert "status remains: Needs Human" in out
         assert "audit-5" in out
 
 
@@ -1486,6 +1511,32 @@ class TestBuildParser:
 
 
 class TestMainDispatch:
+    @pytest.fixture(autouse=True)
+    def _clean_client_auth_environment(self, monkeypatch):
+        for key in (
+            "OOMPAH_SERVER_USERNAME",
+            "OOMPAH_SERVER_PASSWORD",
+            "OOMPAH_SERVER_PASSWORD_FILE",
+            TASK_HANDOFF_TOKEN_ENV,
+        ):
+            monkeypatch.delenv(key, raising=False)
+
+    def test_operator_main_refreshes_current_client_environment(self, monkeypatch):
+        refresh = MagicMock()
+        monkeypatch.setattr(task_cli, "load_client_environment", refresh)
+        monkeypatch.delenv(TASK_HANDOFF_TOKEN_ENV, raising=False)
+        with patch.object(task_cli, "_cmd_view"):
+            task_cli.main(["view", "TASK-1"])
+        refresh.assert_called_once_with()
+
+    def test_worker_main_never_reloads_client_environment(self, monkeypatch):
+        refresh = MagicMock()
+        monkeypatch.setattr(task_cli, "load_client_environment", refresh)
+        monkeypatch.setenv(TASK_HANDOFF_TOKEN_ENV, "scoped-capability")
+        with patch.object(task_cli, "_cmd_view"):
+            task_cli.main(["view", "TASK-1"])
+        refresh.assert_not_called()
+
     def test_main_dispatches_view(self):
         with patch.object(task_cli, "_cmd_view") as mock_view:
             with patch.object(task_cli, "_http", return_value={"identifier": "T", "title": "t"}):

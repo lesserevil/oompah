@@ -490,6 +490,12 @@ async def _stage_acp_terminal_status(
         if result.reason == "already completed":
             return "Error: terminal transition has already been completed"
         return "Error: terminal transition could not be staged"
+    if not result.status_staged:
+        return (
+            f"Terminal transition recorded: {target.value} "
+            f"(status remains: {canonicalize_status(issue.state or '') or 'unchanged'}, "
+            f"audit ID: {result.audit_id or 'pending'})"
+        )
     return (
         f"Terminal transition queued: {target.value} "
         f"(status: In Validation, audit ID: {result.audit_id or 'pending'})"
@@ -1133,7 +1139,8 @@ def build_tool_catalog(
         if direct is not None:
             return _wrap_text(direct)
         return _wrap_text(
-            _exec_run_command(
+            await asyncio.to_thread(
+                _exec_run_command,
                 workspace,
                 args,
                 timeout=run_command_timeout_s,
@@ -1450,7 +1457,8 @@ def build_codex_tool_catalog(
         )
         if direct is not None:
             return direct
-        return _exec_run_command(
+        return await asyncio.to_thread(
+            _exec_run_command,
             workspace,
             {"command": command},
             timeout=run_command_timeout_s,
@@ -1752,7 +1760,8 @@ def build_opencode_tool_catalog(
         if direct is not None:
             return _wrap_text(direct)
         return _wrap_text(
-            _exec_run_command(
+            await asyncio.to_thread(
+                _exec_run_command,
                 workspace,
                 args,
                 timeout=run_command_timeout_s,

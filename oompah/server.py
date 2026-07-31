@@ -109,11 +109,24 @@ from oompah.github_intake_bridge import (
 from oompah.issue_validator import validate_issue
 from oompah.models import AgentProfile
 from oompah.mcp_gateway import build_mcp_gateway, discovery_document
+from oompah.terminal_audit import OverrideRecord
+from oompah.terminal_audit_metadata import (
+    METADATA_KEY as TERMINAL_AUDIT_METADATA_KEY,
+    TerminalAuditMetadata,
+    TerminalAuditMetadataError,
+)
 from oompah.mcp_exposure_policy import MCP_DISCOVERY_PATH, MCP_ENDPOINT_PATH
 from oompah.task_handoff import (
     TASK_HANDOFF_HEADER,
     record_task_handoff_failure,
     validate_task_handoff_token,
+)
+from oompah.auth_health import (
+    record_operator_401,
+    record_worker_401,
+    record_worker_403_scope,
+    record_worker_403_action,
+    record_worker_token_accepted,
 )
 from oompah.projects import ProjectError, ProjectStore
 from oompah.integration_queue import IntegrationQueueStore
@@ -604,6 +617,7 @@ class _BasicAuthMiddleware:
                 return
 
             # Deny with 401 Basic challenge — no credential disclosure.
+            record_operator_401()
             body = self._DENY_BODY
             await send({
                 "type": "http.response.start",
@@ -1158,6 +1172,36 @@ def set_http_credentials(creds: Any) -> None:
         logger.debug("HTTP Basic auth disabled")
 
 
+def _http_auth_reload_status() -> dict[str, object]:
+    """Return the redacted HTTP-auth reload state for protected status APIs."""
+    creds = _http_credentials
+    if creds is None or not getattr(creds, "enabled", False):
+        return {
+            "enabled": False,
+            "reload": {
+                "state": "disabled",
+                "generation": 0,
+                "retaining_last_known_good": False,
+            },
+        }
+    status = getattr(creds, "reload_status", None)
+    if callable(status):
+        try:
+            result = status()
+            if isinstance(result, dict):
+                return result
+        except Exception:  # noqa: BLE001 - status must never break the API
+            pass
+    return {
+        "enabled": True,
+        "reload": {
+            "state": "static",
+            "generation": 0,
+            "retaining_last_known_good": False,
+        },
+    }
+
+
 def remove_draft_labels_from_epics(tracker) -> int:
     """Compatibility migration: remove the 'draft' label from all existing epics.
 
@@ -1564,6 +1608,146 @@ def _issue_duplicate_screening_summary(issue, orch) -> dict[str, Any] | None:
     )
     result = assessment.to_public_dict()
     result["required"] = enabled and eligible_for_model_screening(issue)
+    return result
+
+
+def _terminal_audit_phase(document: "TerminalAuditMetadata", record: object, latest_attempt: object) -> str:
+    """Return a human-readable phase label for the audit state."""
+    if getattr(document, "is_quarantined", False):
+        return "error"
+    if record is None:
+        return "queued"
+    request_state = getattr(getattr(record, "request_state", None), "value", None)
+    if request_state in ("pending",):
+        return "queued"
+    if request_state in ("in_progress",):
+        return "running"
+    if request_state in ("completed",):
+        verdict = getattr(getattr(latest_attempt, "verdict", None), "value", None)
+        if verdict == "pass":
+            return "passed"
+        if verdict in ("fail", "needs_human", "error"):
+            return "failed"
+        return "completed"
+    if request_state in ("superseded", "cancelled"):
+        return "cancelled"
+    return "queued"
+
+
+def _issue_terminal_audit_summary(
+    issue: Any,
+    tracker: Any = None,
+) -> "dict[str, Any] | None":
+    """Return safe operator-facing terminal-audit state for an issue.
+
+    Returns None for issues that have never been audited (no metadata), or
+    for grandfathered tasks (omit by convention — they have no pending chain).
+
+    The returned dict never contains credentials, prompts, full diffs, hidden
+    tracker metadata, or untrusted model output.  Only stable, safe fields
+    from the TerminalAuditMetadata record are exposed.
+    """
+    # First try to get from cached issue.terminal_audit (when tracker adapters
+    # populate it — same pattern as issue.duplicate_screening).
+    raw_metadata = getattr(issue, "terminal_audit", None)
+
+    # For detail views where a tracker is provided, fall back to a direct
+    # metadata read.  One read per detail call is acceptable; list views only
+    # expose data that tracker adapters have already loaded onto the issue.
+    if raw_metadata is None and tracker is not None:
+        try:
+            meta = tracker.get_metadata(
+                getattr(issue, "identifier", None) or str(getattr(issue, "id", ""))
+            ) or {}
+            raw_metadata = meta.get(TERMINAL_AUDIT_METADATA_KEY)
+        except Exception:  # noqa: BLE001 – metadata read must not break the response
+            return None
+
+    if raw_metadata is None:
+        return None
+
+    # Decode the metadata envelope, safely quarantining malformed payloads.
+    try:
+        document = TerminalAuditMetadata.from_dict(raw_metadata)
+    except (TypeError, ValueError, TerminalAuditMetadataError):
+        return {"phase": "error", "quarantined": True}
+
+    # Grandfathered tasks have an empty pending_chain and no attempt history.
+    if not document.pending_chain and not document.attempt_history and not document.is_quarantined:
+        return None
+
+    # Take the first (oldest) pending record as the primary record.  In the
+    # common case there is exactly one record per task.
+    record = document.pending_chain[0] if document.pending_chain else None
+
+    # Find the latest attempt across the primary record.
+    latest_attempt = None
+    if record is not None and record.attempts:
+        latest_attempt = record.attempts[-1]
+    elif document.attempt_history:
+        latest_attempt = document.attempt_history[-1]
+
+    # Detect owner override: stored under unknown_fields to preserve the
+    # TerminalAuditMetadata forward-compatible design.
+    override_records_raw = document.unknown_fields.get("oompah.terminal_override_records") or []
+    is_overridden = bool(
+        isinstance(override_records_raw, list) and override_records_raw
+    )
+
+    # Expose safe override metadata (who, when — no reason text).
+    override_info: dict[str, Any] | None = None
+    if is_overridden and isinstance(override_records_raw, list) and override_records_raw:
+        latest_override_raw = override_records_raw[-1]
+        if isinstance(latest_override_raw, dict):
+            try:
+                override_obj = OverrideRecord.from_dict(latest_override_raw)
+                override_info = {
+                    "authorized_by": {
+                        "identity": override_obj.authorized_by.identity,
+                        "source": override_obj.authorized_by.source,
+                    },
+                    "created_at": override_obj.created_at,
+                    "target_state": override_obj.target_state.value,
+                }
+            except (TypeError, ValueError):
+                override_info = {"authorized_by": None, "created_at": None, "target_state": None}
+
+    # Build the safe summary.
+    result: dict[str, Any] = {
+        "phase": _terminal_audit_phase(document, record, latest_attempt),
+        "target_state": record.target_state.value if record is not None else None,
+        "request_state": record.request_state.value if record is not None else None,
+        "attempt_count": (
+            len(record.attempts) if record is not None else len(document.attempt_history)
+        ),
+        "fingerprint_prefix": (
+            record.evidence_fingerprint.digest[:12] if record is not None else None
+        ),
+        "verdict": (
+            latest_attempt.verdict.value
+            if latest_attempt is not None and latest_attempt.verdict is not None
+            else None
+        ),
+        "failure_classification": (
+            latest_attempt.failure_classification.value
+            if latest_attempt is not None and latest_attempt.failure_classification is not None
+            else None
+        ),
+        "requested_by": (
+            {
+                "identity": record.requested_by.identity,
+                "source": record.requested_by.source,
+            }
+            if record is not None and record.requested_by is not None
+            else None
+        ),
+        "created_at": record.created_at if record is not None else None,
+        "updated_at": record.updated_at if record is not None else None,
+        "quarantined": document.is_quarantined,
+        "is_overridden": is_overridden,
+    }
+    if override_info is not None:
+        result["override"] = override_info
     return result
 
 
@@ -2235,6 +2419,9 @@ def _fetch_and_serialize_issues(orch) -> dict[str, list]:
         duplicate_screening = _issue_duplicate_screening_summary(issue, orch)
         if duplicate_screening is not None:
             entry["duplicate_screening"] = duplicate_screening
+        terminal_audit_summary = _issue_terminal_audit_summary(issue)
+        if terminal_audit_summary is not None:
+            entry["terminal_audit_summary"] = terminal_audit_summary
         if issue.id in parents:
             entry["children_counts"] = parents[issue.id]
         result[state].append(entry)
@@ -2771,6 +2958,7 @@ async def api_state():
             duration_ms = (time.monotonic() - t_start) * 1000
             _record_api_latency("/api/v1/state", duration_ms)
             snapshot["api_metrics"] = _api_metrics_snapshot()
+            snapshot["http_auth"] = _http_auth_reload_status()
             return JSONResponse(snapshot)
 
         # Combined mode: prefer the cached snapshot to avoid recomputing
@@ -2779,6 +2967,7 @@ async def api_state():
         duration_ms = (time.monotonic() - t_start) * 1000
         _record_api_latency("/api/v1/state", duration_ms)
         snapshot["api_metrics"] = _api_metrics_snapshot()
+        snapshot["http_auth"] = _http_auth_reload_status()
         return JSONResponse(snapshot)
     except Exception as exc:
         _record_api_latency(
@@ -2924,6 +3113,10 @@ def _enqueue_worker_submission(
         priority=getattr(issue, "priority", None),
         submitted_at=record.submitted_at,
         explicit_retry=explicit_retry,
+        rearm_integrated=(
+            explicit_retry
+            and str(getattr(record, "state", "")).strip().lower() == "ready"
+        ),
     )
 
 
@@ -3251,6 +3444,7 @@ async def api_task_handoff(request: Request):
     """
     token = request.scope.get(_TASK_HANDOFF_SCOPE_CAPABILITY)
     if not isinstance(token, str) or not token:
+        record_worker_401()
         return JSONResponse(
             {"error": {"code": "handoff_unauthorized", "message": "task handoff capability required"}},
             status_code=401,
@@ -3285,6 +3479,8 @@ async def api_task_handoff(request: Request):
         "add-label",
         "remove-label",
     }:
+        # Intentional least-privilege denial — not a health signal.
+        record_worker_403_action()
         return JSONResponse(
             {"error": {"code": "handoff_forbidden", "message": "task handoff action is not granted"}},
             status_code=403,
@@ -3305,10 +3501,17 @@ async def api_task_handoff(request: Request):
         # Do not expose whether a token exists for another task/project.
         record_task_handoff_failure(token, "task handoff scope validation failed")
         status_code = 401 if "invalid" in reason or "missing" in reason else 403
+        # Count by auth-plane failure type for health signals.
+        if status_code == 401:
+            record_worker_401()
+        else:
+            record_worker_403_scope()
         return JSONResponse(
             {"error": {"code": "handoff_forbidden", "message": reason}},
             status_code=status_code,
         )
+    # Token presented and scope validated — record acceptance before dispatch.
+    record_worker_token_accepted()
 
     try:
         orch = _get_orchestrator()
@@ -3493,6 +3696,8 @@ async def api_task_handoff(request: Request):
             )
             _api_cache.invalidate("issues:all")
             _api_cache.invalidate_prefix(f"detail:{project_id}:{identifier}")
+            if terminal_payload is not None:
+                orch.request_refresh()
             await broadcast_issues()
             return JSONResponse(terminal_payload or {"ok": True})
 
@@ -3567,6 +3772,8 @@ async def api_task_handoff(request: Request):
             await _run_api_io(tracker.remove_label, identifier, label)
         _api_cache.invalidate("issues:all")
         _api_cache.invalidate_prefix(f"detail:{project_id}:{identifier}")
+        if terminal_payload is not None:
+            orch.request_refresh()
         await broadcast_issues()
         return JSONResponse(terminal_payload or {"ok": True})
     except ValueError as exc:
@@ -3795,6 +4002,8 @@ def _safe_terminal_transition_error(result, *, override: bool = False) -> tuple[
 def _terminal_transition_payload(
     target: TargetState,
     result: TransitionResult | OverrideResult,
+    *,
+    current_status: str | None = None,
 ) -> dict[str, Any]:
     """Return the public terminal-transition response shape."""
 
@@ -3809,11 +4018,17 @@ def _terminal_transition_payload(
 
     return {
         "ok": True,
-        "status": IN_VALIDATION,
+        "status": (
+            IN_VALIDATION
+            if result.status_staged
+            else canonicalize_status(current_status or "")
+        ),
         "requested_target": target.value,
         "audit_id": result.audit_id,
         "queued_targets": [item.value for item in result.queued_targets],
         "coalesced": result.coalesced,
+        "status_staged": result.status_staged,
+        "status_repaired": result.status_repaired,
     }
 
 
@@ -3859,33 +4074,73 @@ async def _stage_terminal_transition(
     ):
         return None, ("Terminal transition service is unavailable.", 503)
 
+    # Fence ordinary dispatch before the first await below.  A retry timer
+    # removes its RetryEntry before fetching tracker state, so the generic
+    # retry-cancellation pass cannot see a callback that is already in flight.
+    # ``state.completed`` is also consulted by dispatch immediately before it
+    # mutates tracker state and starts a worker.  Keeping the fence through a
+    # successful staged transition makes terminal-audit ownership authoritative;
+    # a later explicit reopen clears the marker through the existing API path.
+    issue_id = str(getattr(issue, "id", "") or "")
+    completed = getattr(getattr(orch, "state", None), "completed", None)
+    was_completed = bool(
+        issue_id and completed is not None and issue_id in completed
+    )
+    if issue_id and completed is not None:
+        completed.add(issue_id)
+
+    async def _with_issue_ownership_lock(operation):
+        lock_factory = getattr(orch, "issue_transition_lock", None)
+        if not issue_id or not callable(lock_factory):
+            return await operation()
+        async with lock_factory(issue_id):
+            return await operation()
+
+    def _rollback_dispatch_fence() -> None:
+        if issue_id and completed is not None and not was_completed:
+            completed.discard(issue_id)
+        # A retry callback may have observed the temporary fence and exited.
+        # Wake ordinary dispatch so a failed terminal request cannot strand
+        # otherwise-dispatchable work.
+        refresh = getattr(orch, "request_refresh", None)
+        if callable(refresh):
+            refresh()
+
     actor = _request_actor_login(body, request)
     if audit_override:
         reason = body.get("override_reason")
         if not isinstance(reason, str) or not reason.strip():
+            _rollback_dispatch_fence()
             return None, (
                 "override_reason is required when audit_override=true.",
                 400,
             )
         if not actor:
+            _rollback_dispatch_fence()
             return None, (
                 "An actor identity is required when audit_override=true.",
                 400,
             )
         try:
-            result = await coordinator.override_transition(
-                current_issue=issue,
-                requested_target=target,
-                authorized_actor=ContributorIdentity(actor, "api"),
-                project_id=str(project_id),
-                evidence_fingerprint=_terminal_evidence_fingerprint(issue, str(project_id)),
-                reason=reason,
-                project=_project_by_id(orch, str(project_id)),
+            result = await _with_issue_ownership_lock(
+                lambda: coordinator.override_transition(
+                    current_issue=issue,
+                    requested_target=target,
+                    authorized_actor=ContributorIdentity(actor, "api"),
+                    project_id=str(project_id),
+                    evidence_fingerprint=_terminal_evidence_fingerprint(
+                        issue, str(project_id)
+                    ),
+                    reason=reason,
+                    project=_project_by_id(orch, str(project_id)),
+                )
             )
         except (TypeError, ValueError) as exc:
+            _rollback_dispatch_fence()
             logger.info("Rejected terminal override request: %s", exc)
             return None, ("The terminal override request is invalid.", 400)
         except Exception:
+            _rollback_dispatch_fence()
             logger.exception("Terminal override request failed")
             return None, (
                 "The terminal transition could not be staged. Retry the request or "
@@ -3893,21 +4148,32 @@ async def _stage_terminal_transition(
                 503,
             )
         if not result.success:
+            _rollback_dispatch_fence()
             return None, _safe_terminal_transition_error(result, override=True)
-        return _terminal_transition_payload(target, result), None
+        return _terminal_transition_payload(
+            target,
+            result,
+            current_status=getattr(issue, "state", None),
+        ), None
 
     try:
-        result = await coordinator.request_transition(
-            current_issue=issue,
-            requested_target=target,
-            trigger_identity=ContributorIdentity(actor or "api-client", "api"),
-            project_id=str(project_id),
-            evidence_fingerprint=_terminal_evidence_fingerprint(issue, str(project_id)),
+        result = await _with_issue_ownership_lock(
+            lambda: coordinator.request_transition(
+                current_issue=issue,
+                requested_target=target,
+                trigger_identity=ContributorIdentity(actor or "api-client", "api"),
+                project_id=str(project_id),
+                evidence_fingerprint=_terminal_evidence_fingerprint(
+                    issue, str(project_id)
+                ),
+            )
         )
     except (TypeError, ValueError) as exc:
+        _rollback_dispatch_fence()
         logger.info("Rejected terminal transition request: %s", exc)
         return None, ("The terminal transition request is invalid.", 400)
     except Exception:
+        _rollback_dispatch_fence()
         logger.exception("Terminal transition request failed")
         return None, (
             "The terminal transition could not be staged. Retry the request or ask "
@@ -3915,8 +4181,13 @@ async def _stage_terminal_transition(
             503,
         )
     if not result.success:
+        _rollback_dispatch_fence()
         return None, _safe_terminal_transition_error(result)
-    return _terminal_transition_payload(target, result), None
+    return _terminal_transition_payload(
+        target,
+        result,
+        current_status=getattr(issue, "state", None),
+    ), None
 
 
 def _request_bool(body: dict | None, *keys: str) -> bool:
@@ -8968,7 +9239,13 @@ async def api_update_issue(identifier: str, request: Request):
         # event-driven scheduler.  Without this, a task moved from Backlog or
         # Needs Human to Open waits for the long safety-net poll even when
         # capacity is immediately available.
-        if (
+        if terminal_transition_payload is not None:
+            # Wake only after the terminal fence, running-worker termination,
+            # and retry cancellation above are all visible. Waking while the
+            # old branch owner is still registered can make the audit lane skip
+            # this request until the periodic safety-net poll.
+            orch.request_refresh()
+        elif (
             new_status is not None
             and is_dispatchable_status(new_status)
             and (
@@ -9304,6 +9581,8 @@ async def api_add_label(identifier: str, request: Request):
         )
         _api_cache.invalidate("issues:all")
         _api_cache.invalidate_prefix(f"detail:{project_id}:{resolved_identifier}")
+        if terminal_payload is not None:
+            orch.request_refresh()
         await broadcast_issues()
         return JSONResponse(terminal_payload or {"ok": True}, status_code=201)
     except Exception as exc:
@@ -10023,6 +10302,9 @@ async def api_issue_full_detail(identifier: str, request: Request):
         duplicate_screening = _issue_duplicate_screening_summary(issue, orch)
         if duplicate_screening is not None:
             result["duplicate_screening"] = duplicate_screening
+        terminal_audit_summary = _issue_terminal_audit_summary(issue, tracker=tracker)
+        if terminal_audit_summary is not None:
+            result["terminal_audit_summary"] = terminal_audit_summary
         if issue.issue_type in ("epic", "feature"):
             children = tracker.fetch_children(issue.id)
             result["children"] = [
@@ -10460,24 +10742,36 @@ async def api_agent_activity(identifier: str):
         orch = _get_orchestrator()
         for entry in orch.state.running.values():
             if entry.identifier == identifier:
-                return JSONResponse(
-                    {
-                        "identifier": identifier,
-                        "profile": entry.agent_profile_name,
-                        "provider_name": entry.provider_name,
-                        "model_name": entry.model_name,
-                        "work_kind": (
-                            "duplicate_screening"
-                            if getattr(entry, "duplicate_preflight", False)
-                            else "implementation"
-                        ),
-                        "duplicate_preflight": bool(
-                            getattr(entry, "duplicate_preflight", False)
-                        ),
-                        "started_at": entry.started_at.isoformat(),
-                        "activity": [a.to_dict() for a in entry.activity_log],
-                    }
-                )
+                issue = getattr(entry, "issue", None)
+                project_id = issue.project_id if issue else None
+                terminal_audit_summary: dict[str, Any] | None = None
+                if issue is not None:
+                    try:
+                        tracker = orch._tracker_for_project(project_id) if project_id else getattr(orch, "tracker", None)
+                        terminal_audit_summary = _issue_terminal_audit_summary(
+                            issue, tracker=tracker
+                        )
+                    except Exception:  # noqa: BLE001 – audit read must not break activity
+                        pass
+                payload: dict[str, Any] = {
+                    "identifier": identifier,
+                    "profile": entry.agent_profile_name,
+                    "provider_name": entry.provider_name,
+                    "model_name": entry.model_name,
+                    "work_kind": (
+                        "duplicate_screening"
+                        if getattr(entry, "duplicate_preflight", False)
+                        else "implementation"
+                    ),
+                    "duplicate_preflight": bool(
+                        getattr(entry, "duplicate_preflight", False)
+                    ),
+                    "started_at": entry.started_at.isoformat(),
+                    "activity": [a.to_dict() for a in entry.activity_log],
+                }
+                if terminal_audit_summary is not None:
+                    payload["terminal_audit_summary"] = terminal_audit_summary
+                return JSONResponse(payload)
         return JSONResponse({"identifier": identifier, "activity": []})
     except Exception as exc:
         return JSONResponse({"error": str(exc)}, status_code=500)

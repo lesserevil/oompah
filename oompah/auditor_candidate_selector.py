@@ -44,6 +44,7 @@ _REASONS = frozenset(
         "all_over_budget",
         "all_are_contributors",
         "all_attempted",
+        "missing_audit_capability",
         "unknown_acp_models_only",
         "invalid_model",
         "invalid_base_url",
@@ -265,12 +266,17 @@ class AuditorCandidateSelector:
             "unhealthy": [],
             "invalid_model": [],
             "over_budget": [],
+            "missing_audit_capability": [],
         }
         for candidate in candidates:
             provider = self.provider_store.get(candidate.provider_id)
             label = self._provider_label(provider, candidate.provider_id)
             if provider is None:
                 failures["no_providers"].append(label)
+                continue
+
+            if not self._supports_audit_verdict(provider):
+                failures["missing_audit_capability"].append(label)
                 continue
 
             # ACP sessions do not use the OpenAI-compatible transport.  Every
@@ -451,6 +457,19 @@ class AuditorCandidateSelector:
         return mode == "acp" and (
             billing == "subscription" or bool(getattr(provider, "acp_subscription_only", False))
         )
+
+    @classmethod
+    def _supports_audit_verdict(cls, provider: Any) -> bool:
+        """Whether this provider transport can submit a terminal verdict.
+
+        Subscription-backed Codex uses the native Codex CLI tool surface.
+        Unlike the per-token OpenAI Agents SDK path, that surface cannot
+        expose oompah's ``submit_audit_result`` tool.  Selecting it for an
+        audit therefore produces a successful review with no durable verdict
+        and strands the task in validation.
+        """
+        backend = str(getattr(provider, "backend", "") or "claude").casefold()
+        return not (backend == "codex" and cls._is_subscription_acp(provider))
 
     def _model_is_valid(self, provider: Any, model: str) -> bool:
         mode = str(getattr(provider, "mode", "api") or "api").casefold()
@@ -677,6 +696,7 @@ class AuditorCandidateSelector:
                 "unhealthy": "all_unhealthy",
                 "invalid_model": "invalid_model",
                 "over_budget": "all_over_budget",
+                "missing_audit_capability": "missing_audit_capability",
             }
             return NoCandidateReason(reason_map[key], ", ".join(values))
         return NoCandidateReason(

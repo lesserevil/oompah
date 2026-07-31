@@ -72,6 +72,29 @@ def _make_project(
     return p
 
 
+@pytest.mark.parametrize(
+    ("focus_name", "duplicate_preflight", "expected"),
+    [
+        ("auditor", False, True),
+        ("feature", True, True),
+        ("feature", False, False),
+    ],
+)
+def test_acp_session_read_only_authority(
+    focus_name,
+    duplicate_preflight,
+    expected,
+):
+    from oompah.orchestrator import _acp_session_is_read_only
+
+    focus = MagicMock()
+    focus.name = focus_name
+    running_entry = MagicMock()
+    running_entry.duplicate_preflight = duplicate_preflight
+
+    assert _acp_session_is_read_only(focus, running_entry) is expected
+
+
 def _make_review(
     review_id: str = "1",
     source_branch: str = "feat-branch",
@@ -1900,6 +1923,62 @@ class TestTerminalWorktreeCleanup:
             ["Merged", "Archived"]
         )
         orch.workspace_mgr.remove_workspace.assert_called_once_with("TASK-2")
+
+    def test_cleanup_terminal_worktrees_aggregates_skip_reasons_without_per_issue_warnings(
+        self, tmp_path
+    ):
+        """Verify that shared epic branch skips are aggregated in maintenance status
+        instead of emitted as individual warnings (avoids warning floods)."""
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        
+        # Override the project_store with one that can return categorized skip reasons
+        class SkipTrackingStore(self.StaleCleanupStore):
+            def cleanup_terminal_issue(
+                self,
+                project_id,
+                issue_identifier,
+                *,
+                branch_name=None,
+                is_epic=False,
+                issue_number=None,
+            ):
+                if issue_identifier.startswith("CHILD-"):
+                    # Child tasks skip (shared epic branch)
+                    return False, "shared_epic_branch"
+                else:
+                    # Epic task is removed
+                    return True, None
+            
+            def cleanup_stale_worktree_dirs(self, project_id, limit=None):
+                return 0, False
+            
+            def cleanup_stale_local_branches(self, project_id, limit=None):
+                return 0, False
+        
+        store = SkipTrackingStore([project])
+        orch.project_store = store
+        
+        tracker = MagicMock()
+        # Simulate multiple child tasks that share epic branch (common case)
+        tracker.fetch_issues_by_states.return_value = [
+            _make_issue("EPIC-1", state="Merged", project_id=project.id),
+            _make_issue("CHILD-1", state="Merged", project_id=project.id),
+            _make_issue("CHILD-2", state="Merged", project_id=project.id),
+            _make_issue("CHILD-3", state="Merged", project_id=project.id),
+        ]
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+
+        cleaned = orch._cleanup_terminal_worktrees()
+
+        # Only the epic was cleaned (children returned False with skip_reason)
+        assert cleaned == 1
+        # Verify skip reasons are aggregated in maintenance status
+        assert "skipped_branches" in orch._maintenance_status["worktree_cleanup"]
+        skip_reasons = orch._maintenance_status["worktree_cleanup"]["skipped_branches"]
+        assert skip_reasons["shared_epic_branch"] == 3
+        # Verify the maintenance status has the final counts
+        assert orch._maintenance_status["worktree_cleanup"]["cleaned"] == 1
 
     def test_maybe_heal_repos_does_only_repo_sync_not_cleanup(self, tmp_path):
         """_maybe_heal_repos() drives sync_all_sources and alerts; worktree cleanup
@@ -4479,6 +4558,41 @@ class TestRateLimitAlertIncludesProviderAndModel:
 
 
 class TestNeedsHumanTransitions:
+    def test_normal_exit_in_validation_does_not_schedule_implementation_retry(
+        self, tmp_path
+    ):
+        project = _make_project("proj-1")
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        issue = _make_issue(
+            "TASK-1",
+            state="In Validation",
+            project_id="proj-1",
+        )
+        entry = RunningEntry(
+            worker_task=None,
+            identifier=issue.identifier,
+            issue=issue,
+            session=None,
+            retry_attempt=0,
+            started_at=datetime.now(timezone.utc),
+            agent_profile_name="deep",
+        )
+        orch.state.running[issue.id] = entry
+        orch.state.reopen_counts[issue.id] = 1
+        orch._fire_task_cost_record = MagicMock()
+        orch._fire_telemetry_comment = MagicMock()
+        orch._post_comment = MagicMock()
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+
+        asyncio.run(orch._on_worker_exit(issue.id, "normal", None))
+
+        tracker.update_issue.assert_not_called()
+        assert issue.id in orch.state.completed
+        assert issue.id not in orch.state.retry_attempts
+        assert issue.id not in orch.state.reopen_counts
+
     def test_completed_without_closing_marks_needs_human_with_comment(self, tmp_path):
         project = _make_project("proj-1")
         orch = _make_orchestrator(tmp_path, projects=[project])

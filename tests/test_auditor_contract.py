@@ -256,7 +256,10 @@ def test_acp_catalogs_expose_only_auditor_capabilities(tmp_path):
     from oompah.acp_tools import build_tool_catalog
 
     catalog = build_tool_catalog(
-        str(tmp_path), auditor=True, action_policy=auditor_policy("TASK-1")
+        str(tmp_path),
+        auditor=True,
+        read_only=True,
+        action_policy=auditor_policy("TASK-1"),
     )
     assert {tool.name for tool in catalog} == AUDITOR_ALLOWED_TOOLS
 

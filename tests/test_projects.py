@@ -1087,13 +1087,14 @@ class TestRemoveWorktreeCleanup:
             return MagicMock(returncode=0, stdout="", stderr="")
 
         with patch("oompah.projects.subprocess.run", side_effect=fake_run):
-            changed = store.cleanup_terminal_issue(
+            changed, skip_reason = store.cleanup_terminal_issue(
                 project.id,
                 "TASK-42",
                 branch_name="TASK-42",
             )
 
         assert changed is True
+        assert skip_reason is None
         assert ["git", "push", "origin", "--delete", "TASK-42"] in calls
         assert ["git", "branch", "-D", "--", "TASK-42"] in calls
 
@@ -1172,13 +1173,14 @@ class TestRemoveWorktreeCleanup:
         )
         store._projects[project.id] = project
 
-        changed = store.cleanup_terminal_issue(
+        changed, skip_reason = store.cleanup_terminal_issue(
             project.id,
             "TASK-42",
             branch_name="TASK-42",
         )
 
         assert changed is True
+        assert skip_reason is None
         assert (
             subprocess.run(
                 ["git", "show-ref", "--verify", "--quiet", "refs/heads/TASK-42"],
@@ -1285,7 +1287,7 @@ class TestRemoveWorktreeCleanup:
             text=True,
         )
 
-        changed = store.cleanup_terminal_issue(
+        changed, skip_reason = store.cleanup_terminal_issue(
             project.id,
             "TASK-42",
             branch_name=recorded_branch,
@@ -1293,6 +1295,7 @@ class TestRemoveWorktreeCleanup:
         )
 
         assert changed is True
+        assert skip_reason is None
         assert not os.path.exists(legacy_worktree)
         assert (
             subprocess.run(
@@ -1328,13 +1331,14 @@ class TestRemoveWorktreeCleanup:
             return MagicMock(returncode=0, stdout="", stderr="")
 
         with patch("oompah.projects.subprocess.run", side_effect=fake_run):
-            changed = store.cleanup_terminal_issue(
+            changed, skip_reason = store.cleanup_terminal_issue(
                 project.id,
                 "TASK-42",
                 branch_name="epic-TASK-EPIC",
             )
 
         assert changed is False
+        assert skip_reason == "shared_epic_branch"
         assert not any(call[:2] == ["git", "push"] for call in calls)
         assert not any(call[:3] == ["git", "branch", "-D"] for call in calls)
         assert store._is_owned_issue_branch(
@@ -1573,7 +1577,7 @@ class TestEpicRepairWorkspaceCleanup:
         )
 
         # Simulate terminal epic cleanup with work_branch=epic-<id>
-        changed = store.cleanup_terminal_issue(
+        changed, skip_reason = store.cleanup_terminal_issue(
             project.id,
             "EPIC-1",
             branch_name=epic_branch,
@@ -1581,6 +1585,7 @@ class TestEpicRepairWorkspaceCleanup:
         )
 
         assert changed is True
+        assert skip_reason is None
 
         # Primary epic worktree and branch removed
         assert not os.path.exists(epic_wt)
@@ -1852,13 +1857,14 @@ class TestEpicRepairWorkspaceCleanup:
         )
 
         # Non-epic cleanup: removes the task worktree normally
-        changed = store.cleanup_terminal_issue(
+        changed, skip_reason = store.cleanup_terminal_issue(
             project.id,
             "TASK-NE",
             branch_name="TASK-NE",
             is_epic=False,
         )
         assert changed is True
+        assert skip_reason is None
         # Worktree was removed (normal path, not repair cleanup)
         assert not os.path.isdir(repair_wt)
 

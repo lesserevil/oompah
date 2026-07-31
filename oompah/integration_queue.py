@@ -144,12 +144,15 @@ class IntegrationQueueStore:
         priority: int | None = None,
         submitted_at: str | None = None,
         explicit_retry: bool = False,
+        rearm_integrated: bool = False,
     ) -> IntegrationQueueItem:
         """Insert or refresh a submission; identical resubmits are idempotent.
 
-        ``explicit_retry`` only revives an identical blocked submission.
-        Ready, integrating, and integrated rows remain idempotent so an
-        operator retry cannot duplicate active or completed integration.
+        ``explicit_retry`` revives an identical blocked or cancelled submission.
+        ``rearm_integrated`` additionally revives an identical integrated row
+        when the explicit submission carries a fresh canonical ``ready``
+        integration record. Ready and integrating rows remain idempotent so
+        an operator retry cannot reset active integration.
         """
 
         values = {
@@ -176,15 +179,21 @@ class IntegrationQueueStore:
                 and existing["head_sha"] == values["head_sha"]
                 and existing["task_branch"] == values["task_branch"]
             )
-            retry_blocked = bool(
+            retry_inactive = bool(
                 identical
                 and explicit_retry
-                and existing["state"] == "blocked"
+                and existing["state"] in {"blocked", "cancelled"}
             )
-            if identical and not retry_blocked:
+            retry_integrated = bool(
+                identical
+                and explicit_retry
+                and rearm_integrated
+                and existing["state"] == "integrated"
+            )
+            if identical and not retry_inactive and not retry_integrated:
                 return self._from_row(existing)
-            # Set retry_forced=1 only when explicit_retry resets a blocked row
-            retry_forced_val = 1 if retry_blocked else 0
+            # Preserve that a human/durable retry reset an inactive row.
+            retry_forced_val = 1 if retry_inactive else 0
             self._conn.execute(
                 """
                 INSERT INTO integration_queue(
@@ -382,6 +391,39 @@ class IntegrationQueueStore:
             state="ready" if retryable else "blocked",
             last_error=str(error),
         )
+
+    def cancel(
+        self,
+        project_id: str,
+        task_id: str,
+        *,
+        reason: str | None = None,
+    ) -> bool:
+        """Retire a stale nonterminal row and invalidate any active lease.
+
+        Keeping the row as ``cancelled`` preserves delivery history while the
+        state predicate prevents a late executor from completing or failing
+        the invalidated lease.
+        """
+
+        with self._lock:
+            result = self._conn.execute(
+                """
+                UPDATE integration_queue
+                SET state = 'cancelled', lease_owner = NULL,
+                    lease_expires_at = NULL, updated_at = ?, last_error = ?
+                WHERE project_id = ? AND task_id = ?
+                  AND state IN ('ready', 'integrating', 'blocked')
+                """,
+                (
+                    _now_iso(),
+                    str(reason or "").strip() or None,
+                    project_id,
+                    task_id,
+                ),
+            )
+            self._conn.commit()
+        return bool(result.rowcount)
 
     def _finish(
         self,

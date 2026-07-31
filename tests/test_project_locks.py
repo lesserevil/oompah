@@ -647,13 +647,20 @@ class TestResetOrphanedInProgressUsesProjectLock:
 
         started_at: dict[str, float] = {}
         finished_at: dict[str, float] = {}
+        rendezvous = threading.Barrier(2, timeout=5.0)
+        rendezvous_failures: list[str] = []
 
         def slow_update(identifier, **kwargs):
-            # Only record timing for our two test identifiers
-            pid = identifier.split("-")[1]  # ISSUE-projA → "projA"
             started_at[identifier] = time.monotonic()
-            time.sleep(0.1)
-            finished_at[identifier] = time.monotonic()
+            try:
+                # Both updates must enter while holding their respective
+                # project locks.  A shared/global lock leaves the first
+                # update waiting here until the barrier breaks.
+                rendezvous.wait()
+            except threading.BrokenBarrierError:
+                rendezvous_failures.append(identifier)
+            finally:
+                finished_at[identifier] = time.monotonic()
 
         tracker_a = MagicMock()
         tracker_a.update_issue = slow_update
@@ -680,6 +687,11 @@ class TestResetOrphanedInProgressUsesProjectLock:
 
         # proj-a and proj-b should overlap (concurrent execution)
         assert "ISSUE-A" in started_at and "ISSUE-B" in started_at
+        assert not rendezvous_failures, (
+            "Expected ISSUE-A (proj-a) and ISSUE-B (proj-b) to reach the "
+            "update rendezvous concurrently; a shared project lock serialized "
+            f"the updates: {rendezvous_failures}"
+        )
         overlap = (
             started_at["ISSUE-A"] < finished_at["ISSUE-B"]
             and started_at["ISSUE-B"] < finished_at["ISSUE-A"]

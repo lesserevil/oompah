@@ -178,6 +178,49 @@ class TestTaskCliHandoff:
         assert request.call_args.args[2]["audit_override"] is True
         assert request.call_args.args[2]["override_reason"] == "Approved"
 
+    def test_spawned_comment_includes_required_scope_fields(self):
+        """The handoff endpoint requires the exact task identifier."""
+        from oompah import task_cli
+
+        args = task_cli.build_parser().parse_args(
+            [
+                "comment",
+                "TASK-1",
+                "--project",
+                "proj-a",
+                "--message",
+                "handoff",
+            ]
+        )
+        with patch.object(
+            task_cli, "_task_handoff_request", return_value={"ok": True}
+        ) as request:
+            task_cli._cmd_comment("http://server", args)
+
+        request.assert_called_once()
+        assert request.call_args.args[1] == "comment"
+        payload = request.call_args.args[2]
+        assert payload["identifier"] == "TASK-1"
+        assert payload["project_id"] == "proj-a"
+
+    def test_spawned_add_label_includes_required_scope_fields(self):
+        """Scoped label changes must be bound to their assigned task."""
+        from oompah import task_cli
+
+        args = task_cli.build_parser().parse_args(
+            ["add-label", "TASK-1", "needs:devops", "--project", "proj-a"]
+        )
+        with patch.object(
+            task_cli, "_task_handoff_request", return_value={"ok": True}
+        ) as request:
+            task_cli._cmd_add_label("http://server", args)
+
+        request.assert_called_once()
+        assert request.call_args.args[1] == "add-label"
+        payload = request.call_args.args[2]
+        assert payload["identifier"] == "TASK-1"
+        assert payload["project_id"] == "proj-a"
+
 
 class TestTaskScopeDirectPath:
     def test_direct_acp_command_allows_only_assigned_task_and_actions(self):
@@ -396,6 +439,7 @@ class TestTaskHandoffEndpoint:
             priority=1,
         )
         record = SimpleNamespace(
+            state="ready",
             task_branch="epic-EPIC-1--task-TASK-1",
             head_sha="a" * 40,
             base_sha="b" * 40,
@@ -407,6 +451,35 @@ class TestTaskHandoffEndpoint:
         assert (
             orch.integration_queue.enqueue.call_args.kwargs["explicit_retry"]
             is True
+        )
+        assert (
+            orch.integration_queue.enqueue.call_args.kwargs["rearm_integrated"]
+            is True
+        )
+
+    def test_api_submission_does_not_rearm_without_fresh_ready_record(self):
+        from oompah.server import _enqueue_worker_submission
+
+        orch = MagicMock()
+        orch.config.parallel_epic_children_enabled = True
+        issue = SimpleNamespace(
+            identifier="TASK-1",
+            parent_id="EPIC-1",
+            priority=1,
+        )
+        record = SimpleNamespace(
+            state="integrated",
+            task_branch="epic-EPIC-1--task-TASK-1",
+            head_sha="a" * 40,
+            base_sha="b" * 40,
+            submitted_at="2026-07-30T00:00:00+00:00",
+        )
+
+        _enqueue_worker_submission(orch, "proj-a", issue, record)
+
+        assert (
+            orch.integration_queue.enqueue.call_args.kwargs["rearm_integrated"]
+            is False
         )
 
     def test_authenticated_worker_can_comment_and_transition_own_task(self):
@@ -437,6 +510,7 @@ class TestTaskHandoffEndpoint:
                 success=True,
                 audit_id="audit-handoff-1",
                 queued_targets=[TargetState.DONE],
+                status_staged=True,
             )
         )
         token = issue_task_handoff_token(
@@ -700,3 +774,570 @@ class TestFailedHandoffLifecycle:
 
         assert issue.id in orch.state.completed
         assert not orch.state.retry_attempts
+
+
+class TestHandoffTokenFailClosed:
+    """OOMPAH-575 regression: missing, invalid, and cross-scope tokens must
+    fail closed.  The handoff endpoint must never grant access when the
+    capability is absent, bogus, or scoped to a different task/project.
+
+    These tests complement TestTaskHandoffEndpoint by explicitly covering
+    the failure modes asserted in the acceptance criteria:
+    - missing/expired tokens return 401
+    - unrelated tasks remain unauthorized (403)
+    - server-wide credentials are never usable via the handoff path
+    """
+
+    def _make_server_context(self, server_module):
+        """Return (old_orch, old_creds, orch) and set up the module globals."""
+        from unittest.mock import MagicMock
+
+        orch = MagicMock()
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = Issue(
+            id="issue-1",
+            identifier="TASK-1",
+            title="Task",
+            description="body",
+            state="In Progress",
+            project_id="proj-a",
+        )
+        orch._tracker_for_project.return_value = tracker
+        orch.project_store.get.return_value = None
+        return orch, tracker
+
+    def test_missing_capability_header_returns_401(self):
+        """POST to /api/v1/task-handoff with no capability header must return
+        401 with a clear 'required' error message."""
+        from fastapi.testclient import TestClient
+
+        import oompah.server as server
+        from oompah.server import app
+
+        orch, _tracker = self._make_server_context(server)
+        old_orch = server._orchestrator
+        old_creds = server._http_credentials
+        server._orchestrator = orch
+        server._http_credentials = None
+        try:
+            with TestClient(app, raise_server_exceptions=False) as client:
+                response = client.post(
+                    "/api/v1/task-handoff",
+                    json={
+                        "action": "view",
+                        "project_id": "proj-a",
+                        "identifier": "TASK-1",
+                    },
+                )
+        finally:
+            server._orchestrator = old_orch
+            server._http_credentials = old_creds
+
+        assert response.status_code == 401
+        body = response.json()
+        msg = body.get("error", {}).get("message", "")
+        assert "capability required" in msg or "missing" in msg.lower()
+
+    def test_invalid_token_returns_401(self):
+        """An unrecognized (never-issued) token string must be rejected 401.
+        Responses must not reveal whether a valid grant exists for another
+        task/project at the same digest."""
+        from fastapi.testclient import TestClient
+
+        import oompah.server as server
+        from oompah.server import app
+
+        orch, _tracker = self._make_server_context(server)
+        old_orch = server._orchestrator
+        old_creds = server._http_credentials
+        server._orchestrator = orch
+        server._http_credentials = None
+        try:
+            with TestClient(app, raise_server_exceptions=False) as client:
+                response = client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: "never-issued-garbage-token"},
+                    json={
+                        "action": "view",
+                        "project_id": "proj-a",
+                        "identifier": "TASK-1",
+                    },
+                )
+        finally:
+            server._orchestrator = old_orch
+            server._http_credentials = old_creds
+
+        assert response.status_code == 401
+        body = response.json()
+        msg = body.get("error", {}).get("message", "")
+        # The response must say "invalid or expired" (no information about
+        # whether a grant for another task/project exists)
+        assert "invalid" in msg.lower() or "expired" in msg.lower()
+        # The garbage token must not appear verbatim in the response
+        assert "never-issued-garbage-token" not in response.text
+
+    def test_wrong_project_scope_returns_403(self):
+        """A valid token scoped to proj-a must be rejected when used against
+        proj-other — even for the same task identifier."""
+        from fastapi.testclient import TestClient
+
+        import oompah.server as server
+        from oompah.server import app
+        from oompah.task_handoff import issue_task_handoff_token
+
+        token = issue_task_handoff_token(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"view", "comment"},
+        )
+
+        orch, _tracker = self._make_server_context(server)
+        old_orch = server._orchestrator
+        old_creds = server._http_credentials
+        server._orchestrator = orch
+        server._http_credentials = None
+        try:
+            with TestClient(app, raise_server_exceptions=False) as client:
+                response = client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: token},
+                    json={
+                        "action": "view",
+                        "project_id": "proj-other",
+                        "identifier": "TASK-1",
+                    },
+                )
+        finally:
+            server._orchestrator = old_orch
+            server._http_credentials = old_creds
+
+        assert response.status_code == 403
+        body = response.json()
+        msg = body.get("error", {}).get("message", "")
+        assert "another project" in msg
+
+    def test_wrong_task_scope_returns_403(self):
+        """A valid token scoped to TASK-1 must be rejected when the request
+        body targets TASK-99 in the same project."""
+        from fastapi.testclient import TestClient
+
+        import oompah.server as server
+        from oompah.server import app
+        from oompah.task_handoff import issue_task_handoff_token
+
+        token = issue_task_handoff_token(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"view", "comment"},
+        )
+
+        orch, _tracker = self._make_server_context(server)
+        old_orch = server._orchestrator
+        old_creds = server._http_credentials
+        server._orchestrator = orch
+        server._http_credentials = None
+        try:
+            with TestClient(app, raise_server_exceptions=False) as client:
+                response = client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: token},
+                    json={
+                        "action": "view",
+                        "project_id": "proj-a",
+                        "identifier": "TASK-99",
+                    },
+                )
+        finally:
+            server._orchestrator = old_orch
+            server._http_credentials = old_creds
+
+        assert response.status_code == 403
+        body = response.json()
+        msg = body.get("error", {}).get("message", "")
+        assert "another task" in msg
+
+    def test_ungranted_action_returns_403(self):
+        """A token that was issued without 'create' in its allowed_actions
+        must return 403 when the request asks for 'create'-equivalent actions.
+        Only the exact set of granted operations is accepted."""
+        from fastapi.testclient import TestClient
+
+        import oompah.server as server
+        from oompah.server import app
+        from oompah.task_handoff import issue_task_handoff_token
+
+        # Issue a token without the "add-label" action
+        token = issue_task_handoff_token(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"view", "comment"},
+        )
+
+        orch, _tracker = self._make_server_context(server)
+        old_orch = server._orchestrator
+        old_creds = server._http_credentials
+        server._orchestrator = orch
+        server._http_credentials = None
+        try:
+            with TestClient(app, raise_server_exceptions=False) as client:
+                response = client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: token},
+                    json={
+                        "action": "add-label",
+                        "project_id": "proj-a",
+                        "identifier": "TASK-1",
+                        "label": "needs:attention",
+                    },
+                )
+        finally:
+            server._orchestrator = old_orch
+            server._http_credentials = old_creds
+
+        # 403 because action not in granted set
+        assert response.status_code == 403
+
+    def test_codex_assigned_session_can_view_and_comment_its_task(self):
+        """Integration path: a Codex-session CLI env with a valid scoped token
+        can call the view and comment operations for its own task.
+
+        This test exercises the full capability chain:
+        1. Orchestrator mints a scoped token (simulated via issue_task_handoff_token)
+        2. Token ends up in the Codex subprocess env (verified by
+           TestCodexHandoffAuth.test_cli_session_injects_task_handoff_token_and_project_id)
+        3. task_cli routes via the token, hitting /api/v1/task-handoff
+        4. Server validates the token scope and executes the operation
+        """
+        from fastapi.testclient import TestClient
+
+        import oompah.server as server
+        from oompah.server import app
+        from oompah.task_handoff import issue_task_handoff_token
+
+        issue = Issue(
+            id="issue-codex-1",
+            identifier="OOMPAH-479",
+            title="Repair session",
+            description="Repair body",
+            state="In Progress",
+            project_id="proj-a",
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        tracker.fetch_comments.return_value = []
+        orch = MagicMock()
+        orch._tracker_for_project.return_value = tracker
+        orch.project_store.get.return_value = None
+
+        # Simulate what the orchestrator issues for a Codex repair session
+        token = issue_task_handoff_token(
+            project_id="proj-a",
+            task_identifier="OOMPAH-479",
+            allowed_actions={"view", "comment", "submit", "set-status"},
+        )
+
+        old_orch = server._orchestrator
+        old_creds = server._http_credentials
+        old_broadcast = server.broadcast_issues
+        server._orchestrator = orch
+        server._http_credentials = None
+        server.broadcast_issues = AsyncMock()
+        try:
+            with TestClient(app, raise_server_exceptions=False) as client:
+                headers = {TASK_HANDOFF_HEADER: token}
+
+                # Assigned agent can VIEW its own task (no 401)
+                view_resp = client.post(
+                    "/api/v1/task-handoff",
+                    headers=headers,
+                    json={
+                        "action": "view",
+                        "project_id": "proj-a",
+                        "identifier": "OOMPAH-479",
+                    },
+                )
+                # Assigned agent can COMMENT on its own task
+                comment_resp = client.post(
+                    "/api/v1/task-handoff",
+                    headers=headers,
+                    json={
+                        "action": "comment",
+                        "project_id": "proj-a",
+                        "identifier": "OOMPAH-479",
+                        "message": "Implementation complete",
+                        "author": "oompah",
+                    },
+                )
+                # Cross-task access MUST be unauthorized
+                cross_task_resp = client.post(
+                    "/api/v1/task-handoff",
+                    headers=headers,
+                    json={
+                        "action": "view",
+                        "project_id": "proj-a",
+                        "identifier": "OOMPAH-999",
+                    },
+                )
+                # Cross-project access MUST be unauthorized
+                cross_proj_resp = client.post(
+                    "/api/v1/task-handoff",
+                    headers=headers,
+                    json={
+                        "action": "comment",
+                        "project_id": "proj-other",
+                        "identifier": "OOMPAH-479",
+                        "message": "escape",
+                    },
+                )
+        finally:
+            server._orchestrator = old_orch
+            server._http_credentials = old_creds
+            server.broadcast_issues = old_broadcast
+
+        # View and comment succeed
+        assert view_resp.status_code == 200, f"view failed: {view_resp.text}"
+        assert comment_resp.status_code == 200, f"comment failed: {comment_resp.text}"
+        view_detail = view_resp.json().get("detail", {})
+        assert view_detail.get("identifier") == "OOMPAH-479"
+
+        # Cross-scope requests are rejected
+        assert cross_task_resp.status_code == 403, (
+            f"cross-task should be 403, got {cross_task_resp.status_code}"
+        )
+        assert cross_proj_resp.status_code == 403, (
+            f"cross-project should be 403, got {cross_proj_resp.status_code}"
+        )
+
+
+class TestOrchestratorHandoffTokenMint:
+    """OOMPAH-593 live-path reproducer: verify Orchestrator._issue_task_handoff_token
+    mints a capability whose scope and action set are exactly what a
+    service-launched Codex worker needs to complete its own task CLI workflow.
+
+    If any of these tests fail, the live path returns 401/403 for a real worker
+    against its own assigned task — the failure mode explicitly called out in
+    the OOMPAH-593 acceptance criteria ("If the live path still returns 401,
+    fix the actual launch/environment propagation gap with tests before
+    resubmission.").  The rest of the handoff pipeline (env injection,
+    endpoint validation) is covered by TestCodexHandoffAuth and
+    TestHandoffTokenFailClosed; this suite closes the remaining gap between
+    those two by exercising the orchestrator's mint step directly.
+    """
+
+    # Actions the task CLI ever dispatches through /api/v1/task-handoff.
+    # Keep in sync with oompah/task_cli.py and oompah/server.py.
+    _CLI_DISPATCHED_ACTIONS = frozenset(
+        {
+            "view",
+            "comment",
+            "set-status",
+            "submit",
+            "add-label",
+            "remove-label",
+            "coordination-peers",
+            "coordination-inbox",
+            "coordination-send",
+            "coordination-checkpoint",
+        }
+    )
+
+    def _make_orch(self, tmp_path):
+        from oompah.config import ServiceConfig
+        from oompah.orchestrator import Orchestrator
+
+        return Orchestrator(
+            config=ServiceConfig(),
+            workflow_path="WORKFLOW.md",
+            state_path=str(tmp_path / "state.json"),
+        )
+
+    def test_orchestrator_mints_scoped_token_for_valid_issue(self, tmp_path):
+        """The orchestrator's mint returns a non-empty token that is
+        scoped to the exact issue.identifier and issue.project_id.  This is
+        the smoke test for the live-path — if this returns None the worker
+        would launch without any tracker credential and fail closed on its
+        first CLI call."""
+        from oompah.task_handoff import validate_task_handoff_token
+
+        orch = self._make_orch(tmp_path)
+        issue = Issue(
+            id="issue-live-1",
+            identifier="OOMPAH-999",
+            title="Live probe",
+            description="body",
+            state="In Progress",
+            project_id="proj-live",
+        )
+
+        token = orch._issue_task_handoff_token(issue)
+
+        assert token, "orchestrator must mint a non-empty capability for scoped issues"
+        allowed, reason = validate_task_handoff_token(
+            token,
+            project_id="proj-live",
+            task_identifier="OOMPAH-999",
+            action="view",
+        )
+        assert allowed, f"minted token should validate for its own scope: {reason}"
+
+    def test_orchestrator_mint_returns_none_when_issue_has_no_project(
+        self, tmp_path
+    ):
+        """When issue.project_id is None the orchestrator must fail closed at
+        mint time.  Returning a token here would grant an unscoped capability
+        because task_handoff.issue() requires project_id."""
+        orch = self._make_orch(tmp_path)
+        issue = Issue(
+            id="issue-unscoped",
+            identifier="ORPHAN-1",
+            title="No project",
+            description="body",
+            state="In Progress",
+            project_id=None,
+        )
+
+        token = orch._issue_task_handoff_token(issue)
+
+        assert token is None
+
+    def test_orchestrator_grants_every_action_the_cli_dispatches(self, tmp_path):
+        """Drift guard: every action the task CLI can dispatch must be in the
+        orchestrator's granted set.  If someone widens the CLI without
+        updating the mint, a live worker gets 403 when it tries the missing
+        action.  This is the "live path still returns 401/403" scenario
+        called out in the OOMPAH-593 acceptance criteria."""
+        from oompah.task_handoff import validate_task_handoff_token
+
+        orch = self._make_orch(tmp_path)
+        issue = Issue(
+            id="issue-drift",
+            identifier="OOMPAH-1000",
+            title="Drift probe",
+            description="body",
+            state="In Progress",
+            project_id="proj-drift",
+        )
+
+        token = orch._issue_task_handoff_token(issue)
+        assert token
+
+        missing_actions = []
+        for action in self._CLI_DISPATCHED_ACTIONS:
+            allowed, _reason = validate_task_handoff_token(
+                token,
+                project_id="proj-drift",
+                task_identifier="OOMPAH-1000",
+                action=action,
+            )
+            if not allowed:
+                missing_actions.append(action)
+
+        assert not missing_actions, (
+            f"orchestrator mint is missing CLI-dispatched actions: "
+            f"{sorted(missing_actions)} — a live worker will get 403 when it "
+            f"invokes any of these operations. Add them to "
+            f"Orchestrator._issue_task_handoff_token.allowed_actions."
+        )
+
+    def test_orchestrator_token_denies_actions_outside_grant_set(self, tmp_path):
+        """Least-privilege guard: the minted token must NOT grant actions the
+        orchestrator did not explicitly list.  A future action the CLI hasn't
+        opted into (e.g. "delete", "archive") must fail closed unless it is
+        also added to the grant set."""
+        from oompah.task_handoff import validate_task_handoff_token
+
+        orch = self._make_orch(tmp_path)
+        issue = Issue(
+            id="issue-least-priv",
+            identifier="OOMPAH-1001",
+            title="Least priv probe",
+            description="body",
+            state="In Progress",
+            project_id="proj-lp",
+        )
+
+        token = orch._issue_task_handoff_token(issue)
+        assert token
+
+        # These actions are not in the CLI dispatch set and must be refused.
+        for action in ("delete", "archive", "reassign", "close", "admin"):
+            allowed, _reason = validate_task_handoff_token(
+                token,
+                project_id="proj-lp",
+                task_identifier="OOMPAH-1001",
+                action=action,
+            )
+            assert not allowed, (
+                f"orchestrator minted a token that grants '{action}' — this "
+                f"widens least-privilege. Remove it from allowed_actions."
+            )
+
+    def test_orchestrator_token_denies_cross_task_and_cross_project_access(
+        self, tmp_path
+    ):
+        """A token minted for issue A/project P must not authorise operations
+        on a different task or a different project.  This is the live-path
+        equivalent of TestHandoffTokenFailClosed.test_wrong_task_scope_returns_403
+        and test_wrong_project_scope_returns_403 — verified through the actual
+        orchestrator mint rather than a hand-built issue_task_handoff_token
+        call, so drift in the orchestrator's scope arguments is caught here."""
+        from oompah.task_handoff import validate_task_handoff_token
+
+        orch = self._make_orch(tmp_path)
+        issue = Issue(
+            id="issue-scope-a",
+            identifier="OOMPAH-2001",
+            title="Scope-A",
+            description="body",
+            state="In Progress",
+            project_id="proj-a",
+        )
+
+        token = orch._issue_task_handoff_token(issue)
+        assert token
+
+        # Same project, different task — must be denied
+        wrong_task_ok, _reason = validate_task_handoff_token(
+            token,
+            project_id="proj-a",
+            task_identifier="OOMPAH-9999",
+            action="view",
+        )
+        assert not wrong_task_ok
+
+        # Different project, same task identifier — must be denied
+        wrong_proj_ok, _reason = validate_task_handoff_token(
+            token,
+            project_id="proj-other",
+            task_identifier="OOMPAH-2001",
+            action="view",
+        )
+        assert not wrong_proj_ok
+
+    def test_orchestrator_mint_survives_issue_task_handoff_token_exception(
+        self, monkeypatch, tmp_path
+    ):
+        """If the underlying task_handoff module raises (e.g. the grant store
+        is unavailable), the orchestrator must return None rather than raising
+        — a dispatch failure is preferable to letting the worker launch
+        without a scoped capability and then falling back to operator creds."""
+        orch = self._make_orch(tmp_path)
+        issue = Issue(
+            id="issue-broken",
+            identifier="OOMPAH-3001",
+            title="Broken grant store",
+            description="body",
+            state="In Progress",
+            project_id="proj-broken",
+        )
+
+        def _boom(**_kwargs):
+            raise RuntimeError("grant store unavailable")
+
+        import oompah.orchestrator as orch_mod
+
+        monkeypatch.setattr(orch_mod, "issue_task_handoff_token", _boom)
+
+        token = orch._issue_task_handoff_token(issue)
+
+        assert token is None

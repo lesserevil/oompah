@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import copy
 import threading
+import time
 from dataclasses import dataclass, field, replace
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -117,6 +118,29 @@ class _FailingUpdateTracker(_MemoryTracker):
         super().update_issue(identifier, **kwargs)
 
 
+class _BlockingMetadataTracker(_MemoryTracker):
+    """Block the first metadata write to force cross-loop lock contention."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.first_write_entered = threading.Event()
+        self.release_first_write = threading.Event()
+        self._block_guard = threading.Lock()
+        self._blocked_once = False
+
+    def set_metadata_field(self, identifier: str, key: str, value: Any) -> None:
+        should_block = False
+        with self._block_guard:
+            if not self._blocked_once:
+                self._blocked_once = True
+                should_block = True
+        if should_block:
+            self.first_write_entered.set()
+            if not self.release_first_write.wait(timeout=5):
+                raise TimeoutError("test did not release the first metadata write")
+        super().set_metadata_field(identifier, key, value)
+
+
 class _TrackerFactory:
     """Project-aware tracker provider used by integration coverage."""
 
@@ -127,6 +151,19 @@ class _TrackerFactory:
     def __call__(self, project_id: str) -> _MemoryTracker:
         self.calls.append(project_id)
         return self.trackers[project_id]
+
+
+class _MetricsRecorder:
+    """Small metrics sink used to verify coordinator lifecycle callbacks."""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, tuple[Any, ...]]] = []
+
+    def record_queued(self, *args: Any, **_kwargs: Any) -> None:
+        self.calls.append(("queued", args))
+
+    def record_stale_discarded(self, *args: Any, **_kwargs: Any) -> None:
+        self.calls.append(("stale_discarded", args))
 
 
 # ---------------------------------------------------------------------------
@@ -155,11 +192,16 @@ def _issue(state: str = "In Progress") -> Issue:
     return Issue(id=TASK_ID, identifier=TASK_ID, title="Test task", state=state)
 
 
-def _coordinator(tracker: _MemoryTracker | None = None, post_comments: bool = True) -> TerminalTransitionCoordinator:
+def _coordinator(
+    tracker: _MemoryTracker | None = None,
+    post_comments: bool = True,
+    metrics: Any | None = None,
+) -> TerminalTransitionCoordinator:
     return TerminalTransitionCoordinator(
         tracker=tracker or _MemoryTracker(),
         project_store=_LockStore(),
         post_comments=post_comments,
+        metrics=metrics,
     )
 
 
@@ -459,11 +501,55 @@ class TestCoalescing:
         ))
         initial_update_count = len(tracker.update_calls)
 
-        _run(coord.request_transition(
-            _issue(), TargetState.DONE, _trigger(), PROJECT_ID, fp
+        result = _run(coord.request_transition(
+            _issue(IN_VALIDATION), TargetState.DONE, _trigger(), PROJECT_ID, fp
         ))
 
         # Second call should not trigger any new tracker updates
+        assert len(tracker.update_calls) == initial_update_count
+        assert result.status_staged is True
+        assert result.status_repaired is False
+
+    def test_explicit_coalesced_retry_repairs_validation_status_drift(self) -> None:
+        tracker = _MemoryTracker()
+        coord = _coordinator(tracker)
+        fp = _fingerprint()
+
+        first = _run(coord.request_transition(
+            _issue(), TargetState.DONE, _trigger(), PROJECT_ID, fp
+        ))
+        tracker.update_issue(TASK_ID, status="Needs Human")
+        initial_comment_count = len(tracker.comment_calls)
+
+        repeated = _run(coord.request_transition(
+            _issue("Needs Human"), TargetState.DONE, _trigger(), PROJECT_ID, fp
+        ))
+
+        assert repeated.success is True
+        assert repeated.coalesced is True
+        assert repeated.audit_id == first.audit_id
+        assert repeated.status_repaired is True
+        assert repeated.status_staged is True
+        assert tracker.current_status(TASK_ID) == IN_VALIDATION
+        assert len(tracker.comment_calls) == initial_comment_count
+
+    def test_coalesced_retry_does_not_regress_terminal_status(self) -> None:
+        tracker = _MemoryTracker()
+        pending = _pending_done_record()
+        _seed_metadata(tracker, [pending])
+        tracker.update_issue(TASK_ID, status=DONE)
+        coord = _coordinator(tracker)
+        initial_update_count = len(tracker.update_calls)
+
+        result = _run(coord.request_transition(
+            _issue(DONE), TargetState.DONE, _trigger(), PROJECT_ID, _fingerprint()
+        ))
+
+        assert result.success is True
+        assert result.coalesced is True
+        assert result.status_repaired is False
+        assert result.status_staged is False
+        assert tracker.current_status(TASK_ID) == DONE
         assert len(tracker.update_calls) == initial_update_count
 
 
@@ -500,6 +586,141 @@ class TestSuperseding:
         new = next(r for r in doc.pending_chain if r.audit_id == result2.audit_id)
         assert new.request_state == RequestState.PENDING
         assert new.evidence_fingerprint == _fingerprint("b")
+
+    def test_superseded_audit_is_counted_as_stale_discarded(self) -> None:
+        tracker = _MemoryTracker()
+        metrics = _MetricsRecorder()
+        coord = _coordinator(tracker, post_comments=False, metrics=metrics)
+
+        first = _run(coord.request_transition(
+            _issue(), TargetState.DONE, _trigger(), PROJECT_ID, _fingerprint("a")
+        ))
+        second = _run(coord.request_transition(
+            _issue(), TargetState.DONE, _trigger(), PROJECT_ID, _fingerprint("b")
+        ))
+
+        assert ("stale_discarded", (PROJECT_ID, TASK_ID, first.audit_id)) in metrics.calls
+        assert ("queued", (PROJECT_ID, TASK_ID, second.audit_id)) in metrics.calls
+
+    def test_changed_fingerprint_supersedes_in_progress_audit(self) -> None:
+        """A new revision invalidates an auditor already checking old evidence."""
+        tracker = _MemoryTracker()
+        coord = _coordinator(tracker, post_comments=False)
+        store = TerminalAuditMetadataStore(tracker, _LockStore(), PROJECT_ID)
+
+        old_result = _run(coord.request_transition(
+            _issue(), TargetState.DONE, _trigger(), PROJECT_ID, _fingerprint("a")
+        ))
+        store.update(
+            TASK_ID,
+            lambda doc: replace(
+                doc,
+                pending_chain=[
+                    replace(record, request_state=RequestState.IN_PROGRESS)
+                    if record.audit_id == old_result.audit_id
+                    else record
+                    for record in doc.pending_chain
+                ],
+            ),
+        )
+
+        fresh_result = _run(coord.request_transition(
+            _issue(state=IN_VALIDATION),
+            TargetState.DONE,
+            _trigger(),
+            PROJECT_ID,
+            _fingerprint("b"),
+        ))
+
+        doc = store.read(TASK_ID)
+        old = next(
+            record
+            for record in doc.pending_chain
+            if record.audit_id == old_result.audit_id
+        )
+        fresh = next(
+            record
+            for record in doc.pending_chain
+            if record.audit_id == fresh_result.audit_id
+        )
+        assert old.request_state == RequestState.SUPERSEDED
+        assert fresh.request_state == RequestState.PENDING
+        assert [
+            record.audit_id
+            for record in doc.pending_chain
+            if record.request_state
+            in (RequestState.PENDING, RequestState.IN_PROGRESS)
+        ] == [fresh.audit_id]
+
+        late = _apply(
+            coord,
+            _issue(state=IN_VALIDATION),
+            _pass_result(old),
+        )
+        assert late.success is False
+        assert late.reason == ResultRejection.STATE_MISMATCH
+        assert tracker.current_status(TASK_ID) == IN_VALIDATION
+
+    def test_identical_request_coalesces_with_in_progress_audit(self) -> None:
+        tracker = _MemoryTracker()
+        coord = _coordinator(tracker, post_comments=False)
+        store = TerminalAuditMetadataStore(tracker, _LockStore(), PROJECT_ID)
+        initial = _run(coord.request_transition(
+            _issue(), TargetState.DONE, _trigger(), PROJECT_ID, _fingerprint("a")
+        ))
+        store.update(
+            TASK_ID,
+            lambda doc: replace(
+                doc,
+                pending_chain=[
+                    replace(record, request_state=RequestState.IN_PROGRESS)
+                    for record in doc.pending_chain
+                ],
+            ),
+        )
+
+        repeated = _run(coord.request_transition(
+            _issue(state=IN_VALIDATION),
+            TargetState.DONE,
+            _trigger(),
+            PROJECT_ID,
+            _fingerprint("a"),
+        ))
+
+        assert repeated.success is True
+        assert repeated.coalesced is True
+        assert repeated.audit_id == initial.audit_id
+        assert len(store.read(TASK_ID).pending_chain) == 1
+
+    def test_coalescing_fresh_request_repairs_stale_active_revision(self) -> None:
+        tracker = _MemoryTracker()
+        coord = _coordinator(tracker, post_comments=False)
+        store = TerminalAuditMetadataStore(tracker, _LockStore(), PROJECT_ID)
+        stale = _pending_record(
+            audit_id="audit-stale",
+            fingerprint=_fingerprint("a"),
+        )
+        fresh = _pending_record(
+            audit_id="audit-fresh",
+            fingerprint=_fingerprint("b"),
+        )
+        _seed_metadata(tracker, [stale, fresh])
+
+        repeated = _run(coord.request_transition(
+            _issue(state=IN_VALIDATION),
+            TargetState.DONE,
+            _trigger(),
+            PROJECT_ID,
+            _fingerprint("b"),
+        ))
+
+        assert repeated.success is True
+        assert repeated.coalesced is True
+        assert repeated.audit_id == fresh.audit_id
+        assert repeated.superseded_audit_id == stale.audit_id
+        old, current = store.read(TASK_ID).pending_chain
+        assert old.request_state == RequestState.SUPERSEDED
+        assert current.request_state == RequestState.PENDING
 
     def test_superseded_chain_retains_both_records(self) -> None:
         """The full chain is preserved: superseded record is not deleted."""
@@ -841,39 +1062,69 @@ class TestSimultaneousRequests:
 
 
 class TestPerProjectLocking:
-    def test_per_project_locks_are_independent(self) -> None:
-        """Requests for two different projects use different locks."""
-        coord = _coordinator(post_comments=False)
-        # Accessing private _async_locks after requests
+    def test_same_project_is_safe_across_concurrent_event_loops(self) -> None:
+        """Server and orchestrator loops may use one coordinator concurrently."""
+        tracker = _BlockingMetadataTracker()
+        coord = TerminalTransitionCoordinator(
+            tracker=tracker,
+            project_store=_LockStore(),
+            post_comments=False,
+        )
         fp = _fingerprint()
-        tracker = _MemoryTracker()
-        coord2 = TerminalTransitionCoordinator(tracker=tracker, project_store=_LockStore(), post_comments=False)
+        results: list[TransitionResult] = []
+        errors: list[BaseException] = []
 
-        async def _run_both():
-            issue_a = Issue(id="A-1", identifier="A-1", title="Task A", state="Open")
-            issue_b = Issue(id="B-1", identifier="B-1", title="Task B", state="Open")
-            await coord2.request_transition(issue_a, TargetState.DONE, _trigger(), "proj-a", fp)
-            await coord2.request_transition(issue_b, TargetState.DONE, _trigger(), "proj-b", fp)
+        def _request(identifier: str) -> None:
+            issue = Issue(
+                id=identifier,
+                identifier=identifier,
+                title=identifier,
+                state="Open",
+            )
+            try:
+                results.append(
+                    asyncio.run(
+                        coord.request_transition(
+                            issue,
+                            TargetState.DONE,
+                            _trigger(),
+                            PROJECT_ID,
+                            fp,
+                        )
+                    )
+                )
+            except BaseException as exc:  # noqa: BLE001 - asserted below
+                errors.append(exc)
 
-        asyncio.run(_run_both())
-        # Each project should have its own lock
-        assert "proj-a" in coord2._async_locks
-        assert "proj-b" in coord2._async_locks
-        assert coord2._async_locks["proj-a"] is not coord2._async_locks["proj-b"]
+        first = threading.Thread(target=_request, args=("TASK-A",), daemon=True)
+        second = threading.Thread(target=_request, args=("TASK-B",), daemon=True)
+        third = threading.Thread(target=_request, args=("TASK-C",), daemon=True)
+        first.start()
+        assert tracker.first_write_entered.wait(timeout=2)
+        second.start()
+        time.sleep(0.1)
+        third.start()
+        time.sleep(0.1)
+        tracker.release_first_write.set()
 
-    def test_same_project_uses_same_lock(self) -> None:
-        tracker = _MemoryTracker()
-        coord = _coordinator(tracker, post_comments=False)
-        fp = _fingerprint()
+        for thread in (first, second, third):
+            thread.join(timeout=5)
+            assert not thread.is_alive()
 
-        async def _run_two():
-            issue = _issue()
-            await coord.request_transition(issue, TargetState.DONE, _trigger(), PROJECT_ID, fp)
-            await coord.request_transition(issue, TargetState.DONE, _trigger(), PROJECT_ID, fp)
+        assert errors == []
+        assert len(results) == 3
+        assert all(result.success for result in results)
 
-        asyncio.run(_run_two())
-        # There should be exactly one lock for PROJECT_ID
-        assert list(coord._async_locks.keys()) == [PROJECT_ID]
+        fourth = _run(
+            coord.request_transition(
+                Issue(id="TASK-D", identifier="TASK-D", title="D", state="Open"),
+                TargetState.DONE,
+                _trigger(),
+                PROJECT_ID,
+                fp,
+            )
+        )
+        assert fourth.success
 
 
 class TestProjectTrackerFactory:

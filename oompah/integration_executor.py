@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import subprocess
-from typing import ContextManager
+from typing import Callable, ContextManager
 
 from oompah.quality_gate import BranchQualityGate, QualityGateResult
 
@@ -43,7 +43,7 @@ def _sha(repo_path: str, ref: str) -> str | None:
 
 
 def _current_branch(repo_path: str) -> str | None:
-    result = _git(repo_path, "symbolic-ref", "--short", "HEAD", timeout=15)
+    result = _git(repo_path, "branch", "--show-current", timeout=15)
     return result.stdout.strip() if result.returncode == 0 else None
 
 
@@ -59,20 +59,48 @@ def execute_integration(
     quality_command: str,
     repo_identity: str,
     retry_forced: bool = False,
+    commit_allowed: Callable[[], bool] | None = None,
 ) -> IntegrationExecutionResult:
     """Rebase, test, and compare-and-swap one task onto an epic branch."""
 
     expected_epic_sha: str | None = None
     rebased_sha: str | None = None
+
+    def _authority_failure(stage: str) -> IntegrationExecutionResult | None:
+        if commit_allowed is None:
+            return None
+        try:
+            allowed = commit_allowed()
+        except Exception as exc:  # fail closed when tracker authority is unknown
+            return IntegrationExecutionResult(
+                status="authority_unavailable",
+                message=(
+                    f"could not verify integration authority {stage}: {exc}"
+                ),
+                expected_epic_sha=expected_epic_sha,
+                rebased_task_sha=rebased_sha,
+            )
+        if allowed:
+            return None
+        return IntegrationExecutionResult(
+            status="cancelled",
+            message=f"integration authority was withdrawn {stage}",
+            expected_epic_sha=expected_epic_sha,
+            rebased_task_sha=rebased_sha,
+        )
+
     try:
         with project_lock:
-            registered_task_branch = _current_branch(task_worktree)
-            if registered_task_branch != task_branch:
+            authority_failure = _authority_failure("before preparation")
+            if authority_failure is not None:
+                return authority_failure
+            current_task_branch = _current_branch(task_worktree)
+            if current_task_branch != task_branch:
                 return IntegrationExecutionResult(
-                    status="branch_mismatch",
+                    status="wrong_worktree",
                     message=(
                         "task worktree is on "
-                        f"{registered_task_branch or 'a detached HEAD'}, not "
+                        f"{current_task_branch or 'a detached HEAD'}, not "
                         f"queued branch {task_branch}; refusing to reset it"
                     ),
                 )
@@ -105,18 +133,22 @@ def execute_integration(
                     message=f"remote epic branch {epic_branch} does not exist",
                 )
             checkout = _git(task_worktree, "checkout", task_branch)
+            if checkout.returncode != 0:
+                return IntegrationExecutionResult(
+                    status="error",
+                    message=checkout.stderr.strip()[:1000],
+                    expected_epic_sha=expected_epic_sha,
+                )
             reset_task = _git(
                 task_worktree,
                 "reset",
                 "--hard",
                 f"origin/{task_branch}",
             )
-            if checkout.returncode != 0 or reset_task.returncode != 0:
+            if reset_task.returncode != 0:
                 return IntegrationExecutionResult(
                     status="error",
-                    message=(
-                        checkout.stderr.strip() or reset_task.stderr.strip()
-                    )[:1000],
+                    message=reset_task.stderr.strip()[:1000],
                     expected_epic_sha=expected_epic_sha,
                 )
             rebased = _git(task_worktree, "rebase", expected_epic_sha, timeout=600)
@@ -192,6 +224,9 @@ def execute_integration(
 
     try:
         with project_lock:
+            authority_failure = _authority_failure("before epic commit")
+            if authority_failure is not None:
+                return authority_failure
             fetched = _git(epic_worktree, "fetch", "origin", epic_branch)
             if fetched.returncode != 0:
                 return IntegrationExecutionResult(

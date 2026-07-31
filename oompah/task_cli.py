@@ -45,6 +45,7 @@ from oompah.client_auth import (
     ClientCredentials,
     CredentialError,
     format_auth_error,
+    load_client_environment,
     resolve_client_credentials,
     sanitize_server_url,
 )
@@ -413,6 +414,7 @@ def _cmd_comment(base_url: str, args: argparse.Namespace) -> None:
     data: dict[str, Any] = {
         "text": args.message,
         "author": args.author,
+        "identifier": identifier,
         "issue_key": identifier,
     }
     _add_project_or_managed_repo(data, identifier, getattr(args, "project", None))
@@ -548,6 +550,13 @@ def _print_status_result(result: dict[str, Any], requested_status: str) -> None:
             f"Terminal transition queued: {result['requested_target']} "
             f"(status: In Validation, audit ID: {audit_id})"
         )
+    elif result.get("requested_target"):
+        audit_id = result.get("audit_id") or "pending"
+        current_status = result.get("status") or "unchanged"
+        print(
+            f"Terminal transition recorded: {result['requested_target']} "
+            f"(status remains: {current_status}, audit ID: {audit_id})"
+        )
     elif result.get("audit_override"):
         print(
             f"Status set by owner override: "
@@ -668,6 +677,7 @@ def _cmd_add_label(base_url: str, args: argparse.Namespace) -> None:
     identifier = args.identifier
     data: dict[str, Any] = {
         "label": args.label,
+        "identifier": identifier,
         "issue_key": identifier,
     }
     actor_arg = getattr(args, "actor", None)
@@ -1296,6 +1306,12 @@ def main(argv: list[str] | None = None) -> None:
     """Entry point for the ``oompah task`` subcommand surface."""
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    # Operator invocations should use the current client settings from .env
+    # after an htpasswd rotation.  A spawned worker must not reload them: it
+    # receives only a scoped handoff capability, never reusable Basic auth.
+    if not _task_handoff_token():
+        load_client_environment()
 
     # A spawned worker may only use the four task-handoff operations routed
     # above.  Reject broader commands before any request is made; in
