@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-632
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Refresh candidate refs before child landing reconciliation
 parent: OOMPAH-584
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:46:34.785511Z'
-updated_at: '2026-07-31T00:48:59.904176Z'
+updated_at: '2026-07-31T00:49:16.989757Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-632
 target_branch: null
 review_url: null
@@ -35,7 +35,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 8c95c3d6-1f5f-4d13-860c-7355e3432abf
+oompah.agent_run_id: 0d410b5d-40d5-4b37-a317-49d3daaa7c7c
 oompah.work_branch: epic-OOMPAH-584--task-OOMPAH-632
 oompah.integration:
   version: 1
@@ -44,7 +44,7 @@ oompah.integration:
   task_branch: epic-OOMPAH-584--task-OOMPAH-632
   base_branch: epic-OOMPAH-584
   base_sha: d62dd4cff702ae2b818418407d7d15b7a643213e
-  updated_at: '2026-07-31T00:47:31.212817+00:00'
+  updated_at: '2026-07-31T00:49:13.696647+00:00'
 oompah.task_costs:
   total_input_tokens: 595655
   total_output_tokens: 3140
@@ -108,5 +108,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 27s
 - Log: OOMPAH-632__20260731T004738Z.jsonl
+---
+author: oompah
+created: 2026-07-31 00:49
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-31 00:49
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
