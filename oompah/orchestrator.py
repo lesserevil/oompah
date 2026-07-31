@@ -5012,6 +5012,7 @@ class Orchestrator:
                     project.name,
                     exc,
                 )
+                self._audit_blocked_integration_rows(project.id, tracker)
                 continue
             for issue in ready:
                 issue.project_id = project.id
@@ -5024,6 +5025,9 @@ class Orchestrator:
                     or not record.head_sha
                 ):
                     continue
+                automatic_retry = (
+                    str(record.state or "").strip().lower() == "ready"
+                )
                 self.integration_queue.enqueue(
                     project_id=project.id,
                     epic_id=epic_id,
@@ -5033,8 +5037,135 @@ class Orchestrator:
                     base_sha=record.base_sha,
                     priority=issue.priority,
                     submitted_at=record.submitted_at,
-                    explicit_retry=False,  # Background sync is idempotent
+                    explicit_retry=automatic_retry,
                 )
+            self._audit_blocked_integration_rows(project.id, tracker)
+
+    def _arm_integration_delivery_alert(
+        self,
+        project_id: str,
+        task_id: str,
+        reason: str,
+    ) -> None:
+        """Surface one idempotent alert for an unexplained blocked row."""
+
+        source = f"integration_delivery:{project_id}:{task_id}"
+        self._alerts = [
+            alert for alert in self._alerts if alert.get("source") != source
+        ]
+        self._alerts.append(
+            {
+                "level": "warning",
+                "source": source,
+                "message": (
+                    f"Blocked integration task {task_id} has no active retry "
+                    f"or actionable human reason: {reason}."
+                ),
+            }
+        )
+
+    def _clear_integration_delivery_alert(
+        self,
+        project_id: str,
+        task_id: str,
+    ) -> None:
+        """Clear the blocked-row alert once recovery is explained."""
+
+        source = f"integration_delivery:{project_id}:{task_id}"
+        self._alerts = [
+            alert for alert in self._alerts if alert.get("source") != source
+        ]
+
+    def _audit_blocked_integration_rows(self, project_id: str, tracker) -> None:
+        """Alert when a blocked queue row has no retry or human handoff."""
+
+        delivery_prefix = f"integration_delivery:{project_id}:"
+        scan_source = f"integration_delivery_scan:{project_id}"
+        blocked = [
+            item
+            for item in self.integration_queue.items(project_id=project_id)
+            if item.state == "blocked"
+        ]
+        blocked_sources = {
+            f"{delivery_prefix}{item.task_id}" for item in blocked
+        }
+        self._alerts = [
+            alert
+            for alert in self._alerts
+            if not (
+                str(alert.get("source", "")).startswith(delivery_prefix)
+                and alert.get("source") not in blocked_sources
+            )
+        ]
+        if not blocked:
+            self._alerts = [
+                alert
+                for alert in self._alerts
+                if alert.get("source") != scan_source
+            ]
+            return
+        try:
+            issues = tracker.fetch_all_issues()
+        except Exception as exc:  # noqa: BLE001 - preserve an actionable alert
+            self._alerts = [
+                alert
+                for alert in self._alerts
+                if alert.get("source") != scan_source
+            ]
+            self._alerts.append(
+                {
+                    "level": "warning",
+                    "source": scan_source,
+                    "message": (
+                        f"Could not audit blocked integration rows for "
+                        f"project {project_id}: {exc}"
+                    ),
+                }
+            )
+            return
+        self._alerts = [
+            alert
+            for alert in self._alerts
+            if alert.get("source") != scan_source
+        ]
+
+        by_alias: dict[str, Issue] = {}
+        for issue in issues or []:
+            for alias in (getattr(issue, "id", None), issue.identifier):
+                if str(alias or "").strip():
+                    by_alias[str(alias).strip()] = issue
+
+        human_states = {NEEDS_HUMAN, NEEDS_CI_FIX, NEEDS_REBASE}
+        for item in blocked:
+            issue = by_alias.get(item.task_id)
+            record = getattr(issue, "integration", None) if issue else None
+            task_state = canonicalize_status(getattr(issue, "state", ""))
+            reason = str(
+                getattr(record, "last_error", None)
+                or getattr(record, "repair_failure_reason", None)
+                or item.last_error
+                or ""
+            ).strip()
+            if task_state in human_states and reason:
+                self._clear_integration_delivery_alert(
+                    project_id,
+                    item.task_id,
+                )
+                continue
+
+            if issue is None:
+                missing_reason = "the queue task is missing from the tracker"
+            elif task_state not in human_states:
+                missing_reason = (
+                    f"tracker state is {getattr(issue, 'state', '') or '<empty>'}"
+                )
+            else:
+                missing_reason = "the human handoff has no recorded reason"
+            self._arm_integration_delivery_alert(
+                project_id,
+                item.task_id,
+                missing_reason,
+            )
 
     def _is_integration_item_in_backoff(
         self,
@@ -5666,6 +5797,61 @@ class Orchestrator:
             )
         return result
 
+    def _integration_task_still_ready(
+        self,
+        item: IntegrationQueueItem,
+    ) -> bool:
+        """Return whether the tracker still authorizes this exact submission."""
+
+        tracker = self._tracker_for_project(item.project_id)
+        issue = tracker.fetch_issue_detail(item.task_id)
+        if issue is None:
+            return False
+        record = getattr(issue, "integration", None)
+        return bool(
+            canonicalize_status(issue.state) == READY_TO_INTEGRATE
+            and record is not None
+            and str(record.task_branch or "").strip() == item.task_branch
+            and str(record.head_sha or "").strip() == item.head_sha
+        )
+
+    def _retire_inactive_integration_rows(
+        self,
+        project_id: str,
+        issues: list[Issue],
+        queue_items: list[IntegrationQueueItem],
+    ) -> int:
+        """Cancel stale delivery rows whose tracker task left the queue lane."""
+
+        by_alias: dict[str, Issue] = {}
+        for issue in issues:
+            for alias in (issue.id, issue.identifier):
+                if str(alias or "").strip():
+                    by_alias[str(alias).strip()] = issue
+        inactive_states = set(TERMINAL_STATUSES) | {
+            IN_VALIDATION,
+            NEEDS_HUMAN,
+        }
+        retired = 0
+        for item in queue_items:
+            if item.state not in {"ready", "integrating", "blocked"}:
+                continue
+            issue = by_alias.get(item.task_id)
+            status = canonicalize_status(getattr(issue, "state", ""))
+            if issue is None or status not in inactive_states:
+                continue
+            if self.integration_queue.cancel(
+                project_id,
+                item.task_id,
+                reason=f"tracker state is {status}",
+            ):
+                retired += 1
+                self._clear_integration_delivery_alert(
+                    project_id,
+                    item.task_id,
+                )
+        return retired
+
     def _execute_integration_item(
         self,
         item: IntegrationQueueItem,
@@ -5705,6 +5891,7 @@ class Orchestrator:
             quality_command=self._quality_gate_command(project),
             repo_identity=project.repo_url or project.repo_path or project.id,
             retry_forced=item.retry_forced,
+            commit_allowed=lambda: self._integration_task_still_ready(item),
         )
 
     def _route_integration_failure(
@@ -6192,6 +6379,30 @@ class Orchestrator:
             self._reconcile_standalone_ready_to_integrate_tasks,
         )
         self.integration_queue.recover_expired()
+
+        # Tracker state is authoritative. Retire stale queue rows before
+        # grouping or claiming so completed/reviewing tasks cannot be
+        # resurrected by an old durable submission.
+        for project in self.project_store.list_all():
+            tracker = self._tracker_for_project(project.id)
+            try:
+                project_issues = await loop.run_in_executor(
+                    self._tick_pool,
+                    tracker.fetch_all_issues,
+                )
+            except Exception as exc:  # noqa: BLE001 - executor also fails closed
+                logger.warning(
+                    "Could not reconcile integration queue authority for %s: %s",
+                    project.name,
+                    exc,
+                )
+                continue
+            self._retire_inactive_integration_rows(
+                project.id,
+                project_issues,
+                self.integration_queue.items(project_id=project.id),
+            )
+
         all_items = self.integration_queue.items()
 
         # Crash recovery: a git integration can finish just before audit
@@ -6286,6 +6497,31 @@ class Orchestrator:
                 self._execute_integration_item,
                 item,
             )
+            if result.status == "cancelled":
+                self.integration_queue.cancel(
+                    item.project_id,
+                    item.task_id,
+                    reason=result.message,
+                )
+                self._clear_integration_delivery_alert(
+                    item.project_id,
+                    item.task_id,
+                )
+                continue
+            if result.status == "authority_unavailable":
+                self.integration_queue.fail(
+                    item.project_id,
+                    item.task_id,
+                    lease_owner=item.lease_owner or "",
+                    error=result.message,
+                    retryable=True,
+                )
+                logger.warning(
+                    "Deferred integration for %s: %s",
+                    item.task_id,
+                    result.message,
+                )
+                continue
             if not result.integrated:
                 await loop.run_in_executor(
                     self._tick_pool,

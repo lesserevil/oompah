@@ -104,6 +104,42 @@ def test_concurrent_claimers_only_receive_one_lease(tmp_path):
     assert len([item for item in claimed if item is not None]) == 1
 
 
+def test_cancel_invalidates_active_lease_and_rejects_late_finish(tmp_path):
+    store = IntegrationQueueStore(str(tmp_path / "queue.sqlite3"))
+    _enqueue(store, "A")
+    claimed = store.claim_next(
+        project_id="p1",
+        epic_id="E-1",
+        lease_owner="worker-1",
+        dependency_map={"A": []},
+        satisfied=set(),
+    )
+    assert claimed is not None
+
+    assert store.cancel("p1", "A", reason="task became Done")
+    retired = store.items(project_id="p1", epic_id="E-1")[0]
+    assert retired.state == "cancelled"
+    assert retired.lease_owner is None
+    assert retired.last_error == "task became Done"
+    assert not store.complete("p1", "A", lease_owner="worker-1")
+    assert not store.fail(
+        "p1",
+        "A",
+        lease_owner="worker-1",
+        error="late failure",
+    )
+    reflowed = store.enqueue(
+        project_id="p1",
+        epic_id="E-1",
+        task_id="A",
+        task_branch=retired.task_branch,
+        head_sha=retired.head_sha,
+        explicit_retry=True,
+    )
+    assert reflowed.state == "ready"
+    assert reflowed.retry_forced is True
+
+
 def test_explicit_retry_unblocks_blocked_row_with_same_head(tmp_path):
     store = IntegrationQueueStore(str(tmp_path / "queue.sqlite3"))
     original = _enqueue(store, "A")

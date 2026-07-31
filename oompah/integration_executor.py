@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import subprocess
-from typing import ContextManager
+from typing import Callable, ContextManager
 
 from oompah.quality_gate import BranchQualityGate, QualityGateResult
 
@@ -59,13 +59,41 @@ def execute_integration(
     quality_command: str,
     repo_identity: str,
     retry_forced: bool = False,
+    commit_allowed: Callable[[], bool] | None = None,
 ) -> IntegrationExecutionResult:
     """Rebase, test, and compare-and-swap one task onto an epic branch."""
 
     expected_epic_sha: str | None = None
     rebased_sha: str | None = None
+
+    def _authority_failure(stage: str) -> IntegrationExecutionResult | None:
+        if commit_allowed is None:
+            return None
+        try:
+            allowed = commit_allowed()
+        except Exception as exc:  # fail closed when tracker authority is unknown
+            return IntegrationExecutionResult(
+                status="authority_unavailable",
+                message=(
+                    f"could not verify integration authority {stage}: {exc}"
+                ),
+                expected_epic_sha=expected_epic_sha,
+                rebased_task_sha=rebased_sha,
+            )
+        if allowed:
+            return None
+        return IntegrationExecutionResult(
+            status="cancelled",
+            message=f"integration authority was withdrawn {stage}",
+            expected_epic_sha=expected_epic_sha,
+            rebased_task_sha=rebased_sha,
+        )
+
     try:
         with project_lock:
+            authority_failure = _authority_failure("before preparation")
+            if authority_failure is not None:
+                return authority_failure
             current_task_branch = _current_branch(task_worktree)
             if current_task_branch != task_branch:
                 return IntegrationExecutionResult(
@@ -196,6 +224,9 @@ def execute_integration(
 
     try:
         with project_lock:
+            authority_failure = _authority_failure("before epic commit")
+            if authority_failure is not None:
+                return authority_failure
             fetched = _git(epic_worktree, "fetch", "origin", epic_branch)
             if fetched.returncode != 0:
                 return IntegrationExecutionResult(
