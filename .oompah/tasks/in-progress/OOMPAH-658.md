@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-658
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: Deduplicate duplicate-preflight runs across deferred dispatch ticks
 parent: null
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-07-31T12:10:08.329400Z'
+updated_at: '2026-07-31T12:10:21.133440Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,7 +39,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: eac89fad-6ddc-453a-b594-4d70621ad4a1
+oompah.agent_run_id: 0a177c31-b61e-414e-bb59-6cb43faae632
 oompah.task_costs:
   total_input_tokens: 928381
   total_output_tokens: 13992
@@ -603,5 +603,15 @@ created: 2026-07-31 12:10
 **Evidence:** Recent comment indicates CI is now passing or PR has been merged; safe to reopen for dispatch.
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-07-31 12:10
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-31 12:10
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
