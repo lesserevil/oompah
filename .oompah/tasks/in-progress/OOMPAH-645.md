@@ -16,7 +16,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T06:47:58.732088Z'
-updated_at: '2026-07-31T14:58:38.854247Z'
+updated_at: '2026-07-31T14:58:53.040396Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -626,5 +626,10 @@ author: oompah
 created: 2026-07-31 14:58
 ---
 Implementation: Rebased OOMPAH-645 onto current origin/main (8c75a201e, 51 commits ahead). Resolved one conflict in tests/test_client_auth.py (kept both the comment from HEAD and the monkeypatch.delenv line from our commit). Force-pushed 9e4a0c877 to origin/OOMPAH-645. Files changed: oompah/terminal_audit_health.py (failure classification guarded by PENDING check), tests/test_terminal_audit_health.py (+360 lines of recovery scenario tests), tests/test_client_auth.py (delenv CLIENT_AUTH_DISABLED_ENV isolation), tests/test_oompah_http.py (same isolation).
+---
+author: oompah
+created: 2026-07-31 14:58
+---
+Verification: All 43 terminal_audit_health tests pass. All 63 client_auth + oompah_http tests pass (106 total). The pre-existing test_orchestrator_full_sync.py::TestFullSyncIntervalConfig failures (2) are present on origin/main too — not introduced by this branch. Branch is up to date with origin/OOMPAH-645 at 9e4a0c877.
 ---
 <!-- COMMENTS:END -->
