@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-489
 type: task
-status: In Validation
+status: Done
 priority: 1
 title: Validate nested epic auditing, repair planning, races, and cross-tracker behavior
 parent: OOMPAH-460
@@ -16,7 +16,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:28.198709Z'
-updated_at: '2026-07-31T04:17:34.921461Z'
+updated_at: '2026-07-31T04:19:47.664488Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-489
 target_branch: null
 review_url: null
@@ -159,6 +159,8 @@ oompah.terminal_audit:
       waive code verification.'
     created_at: '2026-07-31T03:57:24.408336+00:00'
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-43399ec755b0: '2026-07-31T04:19:45.447367+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -166,7 +168,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-489
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -175,7 +177,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-43399ec755b0
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -185,13 +187,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T04:17:28.737762+00:00'
       branch_key: epic-OOMPAH-460--task-OOMPAH-489
+      verdict: pass
+      completed_at: '2026-07-31T04:19:45.447179+00:00'
+      ended_at: '2026-07-31T04:19:45.447179+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Needs Human
     created_at: '2026-07-31T04:17:23.331609+00:00'
-    updated_at: '2026-07-31T04:17:28.737762+00:00'
+    updated_at: '2026-07-31T04:19:45.447179+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-43399ec755b0
@@ -551,5 +556,27 @@ author: oompah
 created: 2026-07-31 04:17
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 04:19
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: 0d7c3578f56f2939e4d9d3b73b5a92cad10d203a
+- contract_file: tests/test_epic_terminal_audit_contract.py
+- contract_file_lines: 670
+- contract_tests_passed: 20
+- contract_tests_xfailed: 1
+- neighboring_terminal_audit_pass_count: 164
+- auditor_candidate_selector_pass_count: 46
+- prior_gate_failing_test: test_no_independent_candidate_is_actionable_when_auditor_branch_is_available
+- prior_gate_failing_test_status_now: PASSED
+- xfail_test_blocker: OOMPAH-482
+- tracker_adapters_exercised: native,github,gitlab
+- race_scenarios_covered: evidence-change-supersession,duplicate-webhook+polling,restart-recovery,authorized-owner-override,no-independent-candidate
+- working_tree_status: clean, up to date with origin/epic-OOMPAH-460--task-OOMPAH-489
 ---
 <!-- COMMENTS:END -->
