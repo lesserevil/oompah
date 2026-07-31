@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:17:38.708513Z'
-updated_at: '2026-07-31T06:20:00.709556Z'
+updated_at: '2026-07-31T06:21:35.696082Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -120,5 +120,10 @@ author: oompah
 created: 2026-07-31 06:20
 ---
 Understanding: Investigating the reconciliation issue between stale terminal_audit_enforcement records and live queue metrics. The problem is that after runtime recovery, stale entries are being rehydrated by sync_pending, causing incorrect counts and metrics. Need to ensure enforcement records, dispatchable audits, health scans, and observability gauges all converge correctly. Will examine terminal_audit_enforcement.py, terminal_audit_observability.py, and related files to understand the data flow and implement reconciliation logic.
+---
+author: oompah
+created: 2026-07-31 06:21
+---
+Discovery: The issue involves reconciliation between three components: 1) TerminalAuditEnforcement (persists pending_audits), 2) TerminalAuditMetrics (tracks queued/running gauges), 3) TerminalTransitionCoordinator (manages live audit set). Root cause: sync_pending() rehydrates stale entries from enforcement.pending_audits after health scan discards them, causing stale_discarded counter to grow. Solution approach: (1) Reconcile enforcement.pending_audits with live coordinator set during recovery, (2) Filter stale entries in sync_pending, (3) Ensure health scan accuracy, (4) Add comprehensive reconciliation tests.
 ---
 <!-- COMMENTS:END -->
