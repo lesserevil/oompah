@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-653
 type: bug
-status: Needs CI Fix
+status: Open
 priority: 1
 title: Make terminal-audit success and owner override retire every duplicate record
   and alert
@@ -15,7 +15,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T11:57:42.367200Z'
+updated_at: '2026-07-31T11:57:52.288448Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -797,5 +797,10 @@ tests/test_orchestrator_handlers.py::TestRunStep5bMaintenanceExtended::test_call
 tests/test_orchestrator_handlers.py::TestRunStep5cEpicMaintenance::test_tick_skips_new_epic_maintenance_when_previous_still_running 
 make[1]: *** [Makefile:295: test] Terminated
 ```
+---
+author: oompah
+created: 2026-07-31 11:57
+---
+Operator rejects submitted head 93c47346c. Its own completion comment confirms it uses list order as the equal/malformed timestamp tiebreaker, exactly the nondeterminism rejected in comment 74. The code also leaves older same-evidence valid overrides unapplied (stale_keys contains evidence mismatches only), so the next scan can apply an older override after the newest; the claimed native test is still an in-memory _Tracker description mutation, not a persisted native adapter/source-head restart case. I terminated only its exact premature full-gate PGID 2578505; this is not a test failure, and final gate authority remains finish-order blocked on OOMPAH-657. Implement every item in comment 74 rather than resubmitting the same list-order design.
 ---
 <!-- COMMENTS:END -->
