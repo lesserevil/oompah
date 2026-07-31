@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:29:49.323393Z'
-updated_at: '2026-07-31T10:35:48.326018Z'
+updated_at: '2026-07-31T10:36:07.099175Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,13 +36,13 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: fc45554e-d0f5-4f0a-b99f-edb1a44f941b
 oompah.task_costs:
-  total_input_tokens: 496817
-  total_output_tokens: 2667
+  total_input_tokens: 497399
+  total_output_tokens: 2796
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 496817
-      output_tokens: 2667
+      input_tokens: 497399
+      output_tokens: 2796
       cost_usd: 0.0
   runs:
   - profile: default
@@ -51,6 +51,12 @@ oompah.task_costs:
     output_tokens: 2667
     cost_usd: 0.0
     recorded_at: '2026-07-31T10:32:21.577657+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 582
+    output_tokens: 129
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T10:36:05.049533+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-654__20260731T103119Z
@@ -136,5 +142,15 @@ author: oompah
 created: 2026-07-31 10:35
 ---
 Fixed regression where .oompah.pid.meta and temporary atomic files (.oompah.pid.meta.tmp.*) created during make restart would dirty git status. Updated .gitignore with *.pid.meta and *.pid.meta.tmp.* patterns (specific to lifecycle metadata, not broad .meta ignoring). Added comprehensive regression test (test_pid_meta_gitignore.py) verifying lifecycle artifacts don't dirty git status while unrelated .meta files remain visible. All 58 focused tests pass.
+---
+author: oompah
+created: 2026-07-31 10:36
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 33
+- Tokens: 582 in / 129 out [711 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 3m 29s
+- Log: OOMPAH-654__20260731T103240Z.jsonl
 ---
 <!-- COMMENTS:END -->
