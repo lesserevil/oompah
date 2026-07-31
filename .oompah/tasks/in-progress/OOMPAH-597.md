@@ -13,7 +13,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:28.342383Z'
-updated_at: '2026-07-31T01:44:43.767902Z'
+updated_at: '2026-07-31T01:49:39.749464Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-597
 target_branch: null
 review_url: null
@@ -325,5 +325,10 @@ author: oompah
 created: 2026-07-31 01:44
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-07-31 01:49
+---
+Important executor invariant discovered from OOMPAH-598: a merge-based repair is not sufficient because integration rebases unique task commits and drops the merge-resolution commit. Before push/submit, linearize this repaired content onto origin/epic-OOMPAH-587 (or squash the exact net task delta atop it), preserve the newly corrected recovered audit lifecycle tests, and prove merge-base --is-ancestor plus a no-conflict dry rebase. Do not submit f08b/1a650 as a merge-only head; it will repeat the conflict.
 ---
 <!-- COMMENTS:END -->
