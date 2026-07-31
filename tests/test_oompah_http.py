@@ -6,6 +6,8 @@ import importlib.util
 import sys
 from pathlib import Path
 
+from oompah.client_auth import CLIENT_AUTH_DISABLED_ENV
+
 
 ROOT = Path(__file__).resolve().parents[1]
 HELPER_PATH = ROOT / "scripts" / "oompah_http.py"
@@ -30,6 +32,7 @@ def test_lifecycle_helper_refreshes_current_dotenv_client_inputs(tmp_path, monke
     monkeypatch.delenv("OOMPAH_SERVER_USERNAME", raising=False)
     monkeypatch.delenv("OOMPAH_SERVER_PASSWORD", raising=False)
     monkeypatch.delenv("OOMPAH_SERVER_PASSWORD_FILE", raising=False)
+    monkeypatch.delenv(CLIENT_AUTH_DISABLED_ENV, raising=False)
     monkeypatch.setattr(sys, "argv", [str(HELPER_PATH), "GET", "/api/v1/state"])
     calls: list[tuple[str, str, str | None]] = []
     monkeypatch.setattr(
