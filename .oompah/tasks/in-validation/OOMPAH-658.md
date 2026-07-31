@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-658
 type: bug
-status: In Review
+status: In Validation
 priority: 2
 title: Deduplicate duplicate-preflight runs across deferred dispatch ticks
 parent: null
@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-07-31T13:49:22.127043Z'
+updated_at: '2026-07-31T13:57:12.005050Z'
 work_branch: OOMPAH-658
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/621
@@ -146,6 +146,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/621
 oompah.review_number: '621'
 oompah.work_branch: OOMPAH-658
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-8140a0bd5721
+    project_id: proj-14849f1b
+    task_id: OOMPAH-658
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7b601a0c846d29144f10dd9b6c4410fb286457ab82f64927c5f527a1a9d28131
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-31T13:57:06.950079+00:00'
+  - version: 1
+    audit_id: audit-851d2f008316
+    project_id: proj-14849f1b
+    task_id: OOMPAH-658
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7b601a0c846d29144f10dd9b6c4410fb286457ab82f64927c5f527a1a9d28131
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-31T13:57:06.950079+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -798,5 +837,15 @@ author: oompah
 created: 2026-07-31 13:49
 ---
 Branch quality gate passed for `6e27fb150b7bd711c98c7aa5c94e355200dfa325` using `make test` in 379.0s. Review creation may proceed.
+---
+author: oompah
+created: 2026-07-31 13:57
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-07-31 13:57
+---
+YOLO: merged PR #621.
 ---
 <!-- COMMENTS:END -->
