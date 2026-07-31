@@ -13,7 +13,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:28.342383Z'
-updated_at: '2026-07-31T03:39:42.422345Z'
+updated_at: '2026-07-31T03:39:57.595055Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-597
 target_branch: null
 review_url: null
@@ -183,18 +183,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-597
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: ca36a08d209c7c87e9762bfc0759e706e7fccf798cd774f319c89a0e8604f180
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-77ab0745d9d4
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: ca36a08d209c7c87e9762bfc0759e706e7fccf798cd774f319c89a0e8604f180
+      created_at: '2026-07-31T03:39:53.008111+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-31T03:39:53.008111+00:00'
+      branch_key: epic-OOMPAH-587--task-OOMPAH-597
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Needs Human
     created_at: '2026-07-31T03:39:39.068911+00:00'
+    updated_at: '2026-07-31T03:39:53.008111+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-5af1aa0b5fd2
@@ -211,6 +225,19 @@ oompah.terminal_audit:
     branch_key: epic-OOMPAH-587--task-OOMPAH-597
     ended_at: '2026-07-31T03:39:22.497364+00:00'
     failure_reason: auditor session abandoned; no live worker owns the attempt
+  - version: 1
+    attempt_id: attempt-77ab0745d9d4
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ca36a08d209c7c87e9762bfc0759e706e7fccf798cd774f319c89a0e8604f180
+    created_at: '2026-07-31T03:39:53.008111+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-31T03:39:53.008111+00:00'
+    branch_key: epic-OOMPAH-587--task-OOMPAH-597
 ---
 ## Summary
 
@@ -732,5 +759,15 @@ created: 2026-07-31 03:39
 Needs Human — Done audit requires operator input.
 
 No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then move the task back to Open to retry.
+---
+author: oompah
+created: 2026-07-31 03:39
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-07-31 03:39
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
