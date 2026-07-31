@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T09:15:53.734716Z'
+updated_at: '2026-07-31T09:17:46.234483Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -171,5 +171,10 @@ DISCOVERY & IMPLEMENTATION
 - Integration with console event serialization
 
 All tests passing - ready for integration testing.
+---
+author: oompah
+created: 2026-07-31 09:17
+---
+In-progress operator review: commit 7228d5814 does not yet satisfy the central-boundary claim. Orchestrator _run_acp_worker writes ev.payload directly to per-agent JSONL and derives AgentActivity detail/session.last_message from the same raw payload; get_state/get_issue_detail then expose last_message. Codex and OpenCode _emit_agent_event/_make_backend_event also forward raw payloads, and ConsoleSession persists event.to_dict but fans out the original unredacted ConsoleEvent. Claude-only _truncate_for_log plus ConsoleEvent.to_dict therefore leaves the reproduced Codex tool-output/state leak open. Apply redaction before every AgentEvent/BackendEvent fan-out or at the shared orchestrator callback before JSONL, activity, state, telemetry, and websocket use; add sentinel tests through Codex/OpenCode/API/legacy paths and state snapshots. Also fail closed at max-depth/dataclass reconstruction/unknown credential-like repr: current code returns the original unredacted value in several fallback paths.
 ---
 <!-- COMMENTS:END -->
