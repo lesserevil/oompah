@@ -598,6 +598,9 @@ class GitHubProvider(SCMProvider):
         # the env/CLI fallback so per-project auth wins over the global default.
         self._token: str | None = access_token
         self._token_resolved = bool(access_token)
+        # Capacity acquisition needs to distinguish a confirmed empty forge
+        # listing from the provider's historical empty-on-error fallback.
+        self.last_open_reviews_fetch_ok = True
 
     def _headers(self) -> dict[str, str]:
         if not self._token_resolved:
@@ -1218,6 +1221,7 @@ class GitHubProvider(SCMProvider):
         return "passed"
 
     def list_open_reviews(self, repo: str) -> list[ReviewRequest]:
+        self.last_open_reviews_fetch_ok = False
         try:
             r = self._api("GET", f"/repos/{repo}/pulls", params={
                 "state": "open",
@@ -1230,6 +1234,7 @@ class GitHubProvider(SCMProvider):
         except (httpx.HTTPError, json.JSONDecodeError) as exc:
             logger.warning("GitHub list_open_reviews failed for %s: %s", repo, exc)
             return []
+        self.last_open_reviews_fetch_ok = True
 
         # Batch-fetch CI status for all PRs (reuses HTTP connection pool)
         sha_map: dict[str, str] = {}
@@ -1994,6 +1999,7 @@ class GitLabProvider(SCMProvider):
         # the env/CLI fallback so per-project auth wins over the global default.
         self._token: str | None = access_token
         self._token_resolved = bool(access_token)
+        self.last_open_reviews_fetch_ok = True
 
     def _headers(self) -> dict[str, str]:
         if not self._token_resolved:
@@ -2026,6 +2032,7 @@ class GitLabProvider(SCMProvider):
             return False
 
     def list_open_reviews(self, repo: str) -> list[ReviewRequest]:
+        self.last_open_reviews_fetch_ok = False
         encoded = self._project_path(repo)
         try:
             r = self._api("GET", f"/projects/{encoded}/merge_requests", params={
@@ -2039,6 +2046,7 @@ class GitLabProvider(SCMProvider):
         except (httpx.HTTPError, json.JSONDecodeError) as exc:
             logger.warning("GitLab list_open_reviews failed for %s: %s", repo, exc)
             return []
+        self.last_open_reviews_fetch_ok = True
 
         results = []
         for mr in data:

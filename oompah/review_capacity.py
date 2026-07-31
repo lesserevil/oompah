@@ -1,0 +1,433 @@
+"""Durable per-project review-capacity reservations.
+
+The forge is the authority for reviews which already exist.  This store fills
+the small but important gap between the capacity check and the forge create
+call: a reservation is acquired atomically before creation and committed to
+the resulting review identity afterwards.  Uncommitted reservations expire so
+an interrupted create does not permanently consume capacity; committed
+reservations remain durable until the review is observed closed/merged or an
+explicit release arrives.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+import os
+import sqlite3
+import threading
+import time
+from typing import Iterable
+
+
+REVIEW_CAPACITY_SCHEMA_VERSION = 1
+DEFAULT_REVIEW_RESERVATION_TTL_SECONDS = 15 * 60
+_INITIALIZE_LOCK = threading.Lock()
+
+
+@dataclass(frozen=True)
+class ReviewCapacityReservation:
+    reservation_id: str
+    project_id: str
+    task_id: str
+    source_branch: str
+    target_branch: str
+    review_id: str | None
+    acquired_at: float
+    lease_expires_at: float | None
+    # True only for the caller that inserted the reservation.  A competing
+    # sweep may observe the existing row; it must defer instead of treating
+    # that observation as permission to call the forge create API again.
+    acquired_new: bool = False
+
+
+_SCHEMA = """
+CREATE TABLE IF NOT EXISTS schema_meta (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS review_capacity_reservations (
+    reservation_id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    task_id TEXT NOT NULL,
+    source_branch TEXT NOT NULL,
+    target_branch TEXT NOT NULL,
+    review_id TEXT,
+    acquired_at REAL NOT NULL,
+    lease_expires_at REAL,
+    released_at REAL
+);
+CREATE INDEX IF NOT EXISTS review_capacity_project_idx
+    ON review_capacity_reservations(project_id, released_at, lease_expires_at);
+CREATE UNIQUE INDEX IF NOT EXISTS review_capacity_active_task_idx
+    ON review_capacity_reservations(project_id, task_id)
+    WHERE released_at IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS review_capacity_active_branch_idx
+    ON review_capacity_reservations(project_id, source_branch, target_branch)
+    WHERE released_at IS NULL;
+"""
+
+
+class ReviewCapacityStore:
+    """SQLite-backed review reservations with compare-and-swap acquisition."""
+
+    def __init__(self, path: str):
+        self.path = os.path.abspath(path)
+        os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
+        self._lock = threading.RLock()
+        self._conn = sqlite3.connect(
+            self.path,
+            check_same_thread=False,
+            timeout=10,
+        )
+        self._conn.row_factory = sqlite3.Row
+        with _INITIALIZE_LOCK, self._lock:
+            self._conn.execute("PRAGMA busy_timeout=10000")
+            self._conn.execute("PRAGMA journal_mode=WAL")
+            self._conn.executescript(_SCHEMA)
+            self._conn.execute(
+                "INSERT OR REPLACE INTO schema_meta(key, value) VALUES(?, ?)",
+                ("version", str(REVIEW_CAPACITY_SCHEMA_VERSION)),
+            )
+            self._conn.commit()
+
+    def close(self) -> None:
+        with self._lock:
+            self._conn.close()
+
+    @staticmethod
+    def _from_row(row: sqlite3.Row) -> ReviewCapacityReservation:
+        return ReviewCapacityReservation(
+            reservation_id=str(row["reservation_id"]),
+            project_id=str(row["project_id"]),
+            task_id=str(row["task_id"]),
+            source_branch=str(row["source_branch"]),
+            target_branch=str(row["target_branch"]),
+            review_id=(str(row["review_id"]) if row["review_id"] else None),
+            acquired_at=float(row["acquired_at"]),
+            lease_expires_at=(
+                float(row["lease_expires_at"])
+                if row["lease_expires_at"] is not None
+                else None
+            ),
+        )
+
+    @staticmethod
+    def _review_keys(review_ids: Iterable[str] | None) -> set[str]:
+        return {
+            str(review_id).strip()
+            for review_id in (review_ids or ())
+            if str(review_id).strip()
+        }
+
+    def _drop_expired_uncommitted(self, now: float) -> None:
+        self._conn.execute(
+            """
+            UPDATE review_capacity_reservations
+               SET released_at = ?
+             WHERE released_at IS NULL
+               AND review_id IS NULL
+               AND lease_expires_at IS NOT NULL
+               AND lease_expires_at <= ?
+            """,
+            (now, now),
+        )
+
+    def _active_rows(self, project_id: str, now: float) -> list[sqlite3.Row]:
+        return list(
+            self._conn.execute(
+                """
+                SELECT *
+                  FROM review_capacity_reservations
+                 WHERE project_id = ?
+                   AND released_at IS NULL
+                   AND (review_id IS NOT NULL OR lease_expires_at > ?)
+                """,
+                (str(project_id), now),
+            ).fetchall()
+        )
+
+    @staticmethod
+    def _occupied_count(
+        rows: Iterable[sqlite3.Row],
+        open_review_ids: set[str],
+    ) -> int:
+        """Count forge reviews and reservations without double-counting commits."""
+        occupied_review_ids = set(open_review_ids)
+        count = len(occupied_review_ids)
+        for row in rows:
+            review_id = str(row["review_id"] or "").strip()
+            if review_id and review_id in occupied_review_ids:
+                continue
+            count += 1
+            if review_id:
+                occupied_review_ids.add(review_id)
+        return count
+
+    def count(self, project_id: str, open_review_ids: Iterable[str] | None = None) -> int:
+        """Return forge-open reviews plus active durable reservations."""
+        now = time.time()
+        with self._lock:
+            self._drop_expired_uncommitted(now)
+            rows = self._active_rows(str(project_id), now)
+            count = self._occupied_count(rows, self._review_keys(open_review_ids))
+            self._conn.commit()
+            return count
+
+    def active(self, project_id: str) -> list[ReviewCapacityReservation]:
+        """Return active reservations, primarily for reconciliation/diagnostics."""
+        now = time.time()
+        with self._lock:
+            self._drop_expired_uncommitted(now)
+            rows = self._active_rows(str(project_id), now)
+            self._conn.commit()
+            return [self._from_row(row) for row in rows]
+
+    def acquire(
+        self,
+        *,
+        project_id: str,
+        task_id: str,
+        source_branch: str,
+        target_branch: str,
+        limit: int,
+        open_review_ids: Iterable[str] | None = None,
+        reservation_id: str,
+        lease_ttl_seconds: float = DEFAULT_REVIEW_RESERVATION_TTL_SECONDS,
+    ) -> ReviewCapacityReservation | None:
+        """CAS-acquire one project slot, or return ``None`` at capacity.
+
+        The immediate transaction serializes competing reconciliation sweeps,
+        including sweeps running in separate service processes that share the
+        same state directory.
+        """
+        project_id = str(project_id)
+        task_id = str(task_id)
+        source_branch = str(source_branch)
+        target_branch = str(target_branch)
+        now = time.time()
+        open_ids = self._review_keys(open_review_ids)
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                self._drop_expired_uncommitted(now)
+                existing = self._conn.execute(
+                    """
+                    SELECT *
+                      FROM review_capacity_reservations
+                     WHERE project_id = ?
+                       AND released_at IS NULL
+                       AND (review_id IS NOT NULL OR lease_expires_at > ?)
+                       AND (task_id = ? OR
+                            (source_branch = ? AND target_branch = ?))
+                     ORDER BY acquired_at
+                     LIMIT 1
+                    """,
+                    (project_id, now, task_id, source_branch, target_branch),
+                ).fetchone()
+                if existing is not None:
+                    self._conn.commit()
+                    return self._from_row(existing)
+
+                rows = self._active_rows(project_id, now)
+                if self._occupied_count(rows, open_ids) >= max(1, int(limit)):
+                    self._conn.rollback()
+                    return None
+
+                expires_at = now + max(1.0, float(lease_ttl_seconds))
+                self._conn.execute(
+                    """
+                    INSERT INTO review_capacity_reservations(
+                        reservation_id, project_id, task_id, source_branch,
+                        target_branch, review_id, acquired_at,
+                        lease_expires_at, released_at
+                    ) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, NULL)
+                    """,
+                    (
+                        str(reservation_id), project_id, task_id,
+                        source_branch, target_branch, now, expires_at,
+                    ),
+                )
+                self._conn.commit()
+                return ReviewCapacityReservation(
+                    reservation_id=str(reservation_id),
+                    project_id=project_id,
+                    task_id=task_id,
+                    source_branch=source_branch,
+                    target_branch=target_branch,
+                    review_id=None,
+                    acquired_at=now,
+                    lease_expires_at=expires_at,
+                    acquired_new=True,
+                )
+            except Exception:
+                self._conn.rollback()
+                raise
+
+    def commit(self, reservation_id: str, review_id: str) -> bool:
+        """Commit a reservation to a forge review identity."""
+        review_id = str(review_id or "").strip()
+        if not review_id:
+            return False
+        with self._lock:
+            cursor = self._conn.execute(
+                """
+                UPDATE review_capacity_reservations
+                   SET review_id = ?, lease_expires_at = NULL
+                 WHERE reservation_id = ?
+                   AND released_at IS NULL
+                """,
+                (review_id, str(reservation_id)),
+            )
+            self._conn.commit()
+            return cursor.rowcount > 0
+
+    def adopt(
+        self,
+        *,
+        project_id: str,
+        task_id: str,
+        source_branch: str,
+        target_branch: str,
+        review_id: str,
+        reservation_id: str,
+    ) -> ReviewCapacityReservation:
+        """Record an already-open forge review for future close/merge release."""
+        project_id = str(project_id)
+        task_id = str(task_id)
+        source_branch = str(source_branch)
+        target_branch = str(target_branch)
+        review_id = str(review_id).strip()
+        now = time.time()
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                existing = self._conn.execute(
+                    """
+                    SELECT *
+                      FROM review_capacity_reservations
+                     WHERE project_id = ?
+                       AND released_at IS NULL
+                       AND (review_id = ? OR task_id = ? OR
+                            (source_branch = ? AND target_branch = ?))
+                     ORDER BY acquired_at
+                     LIMIT 1
+                    """,
+                    (project_id, review_id, task_id, source_branch, target_branch),
+                ).fetchone()
+                if existing is not None:
+                    if not existing["review_id"]:
+                        self._conn.execute(
+                            "UPDATE review_capacity_reservations "
+                            "SET review_id = ?, lease_expires_at = NULL "
+                            "WHERE reservation_id = ?",
+                            (review_id, existing["reservation_id"]),
+                        )
+                        existing = self._conn.execute(
+                            "SELECT * FROM review_capacity_reservations "
+                            "WHERE reservation_id = ?",
+                            (existing["reservation_id"],),
+                        ).fetchone()
+                    self._conn.commit()
+                    return self._from_row(existing)
+
+                self._conn.execute(
+                    """
+                    INSERT INTO review_capacity_reservations(
+                        reservation_id, project_id, task_id, source_branch,
+                        target_branch, review_id, acquired_at,
+                        lease_expires_at, released_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL)
+                    """,
+                    (
+                        str(reservation_id), project_id, task_id,
+                        source_branch, target_branch, review_id, now,
+                    ),
+                )
+                self._conn.commit()
+                return ReviewCapacityReservation(
+                    reservation_id=str(reservation_id),
+                    project_id=project_id,
+                    task_id=task_id,
+                    source_branch=source_branch,
+                    target_branch=target_branch,
+                    review_id=review_id,
+                    acquired_at=now,
+                    lease_expires_at=None,
+                )
+            except Exception:
+                self._conn.rollback()
+                raise
+
+    def release(
+        self,
+        *,
+        project_id: str,
+        reservation_id: str | None = None,
+        review_id: str | None = None,
+        task_id: str | None = None,
+        source_branch: str | None = None,
+    ) -> int:
+        """Release active reservations matching the supplied review identity."""
+        clauses = ["project_id = ?", "released_at IS NULL"]
+        args: list[object] = [str(project_id)]
+        matchers: list[str] = []
+        if reservation_id:
+            matchers.append("reservation_id = ?")
+            args.append(str(reservation_id))
+        if review_id:
+            matchers.append("review_id = ?")
+            args.append(str(review_id).strip())
+        if task_id:
+            matchers.append("task_id = ?")
+            args.append(str(task_id))
+        if source_branch:
+            matchers.append("source_branch = ?")
+            args.append(str(source_branch))
+        if not matchers:
+            return 0
+        clauses.append("(" + " OR ".join(matchers) + ")")
+        with self._lock:
+            cursor = self._conn.execute(
+                "UPDATE review_capacity_reservations SET released_at = ? "
+                "WHERE " + " AND ".join(clauses),
+                [time.time(), *args],
+            )
+            self._conn.commit()
+            return int(cursor.rowcount)
+
+    def reconcile_open_reviews(
+        self,
+        project_id: str,
+        open_review_ids: Iterable[str],
+    ) -> int:
+        """Release committed reservations absent from a successful live listing."""
+        ids = self._review_keys(open_review_ids)
+        now = time.time()
+        released = 0
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                self._drop_expired_uncommitted(now)
+                rows = self._conn.execute(
+                    """
+                    SELECT reservation_id, review_id
+                      FROM review_capacity_reservations
+                     WHERE project_id = ?
+                       AND released_at IS NULL
+                       AND review_id IS NOT NULL
+                    """,
+                    (str(project_id),),
+                ).fetchall()
+                for row in rows:
+                    if str(row["review_id"]) not in ids:
+                        self._conn.execute(
+                            "UPDATE review_capacity_reservations "
+                            "SET released_at = ? WHERE reservation_id = ?",
+                            (now, row["reservation_id"]),
+                        )
+                        released += 1
+                self._conn.commit()
+            except Exception:
+                self._conn.rollback()
+                raise
+        return released

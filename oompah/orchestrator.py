@@ -65,6 +65,10 @@ from oompah.integration_executor import (
     execute_integration,
 )
 from oompah.integration_queue import IntegrationQueueItem, IntegrationQueueStore
+from oompah.review_capacity import (
+    ReviewCapacityReservation,
+    ReviewCapacityStore,
+)
 from oompah.config import (
     ServiceConfig,
     WorkflowError,
@@ -860,6 +864,13 @@ class Orchestrator:
         )
         self.integration_queue = IntegrationQueueStore(
             os.path.join(_state_dir, "integration_queue.sqlite3")
+        )
+        # Review creation has an external side effect, so the in-memory
+        # reviews cache cannot be the only capacity guard.  This durable
+        # SQLite ledger serializes reservations across sweeps and processes,
+        # and survives a service restart.
+        self.review_capacity_store = ReviewCapacityStore(
+            os.path.join(_state_dir, "review_capacity.sqlite3")
         )
         self._state_path = state_path or DEFAULT_SERVICE_STATE_PATH
         # Service state is shared by the dispatch loop, maintenance workers,
@@ -4609,6 +4620,7 @@ class Orchestrator:
             wait=True,
             cancel_futures=False,
         )
+        self.review_capacity_store.close()
 
     async def _tick(self) -> None:
         """One poll-and-dispatch cycle.
@@ -5893,18 +5905,6 @@ class Orchestrator:
                 provider_error = f"SCM provider setup failed: {exc}"
 
             target_branch = str(project.default_branch or "").strip()
-            review_count, review_limit, _ = self._project_review_capacity(
-                project_id
-            )
-            counted_review_ids = {
-                str(getattr(review, "id", "") or "").strip()
-                for review in getattr(self, "_reviews_cache", {}).get(
-                    project_id,
-                    [],
-                )
-                if not getattr(review, "draft", False)
-                and str(getattr(review, "id", "") or "").strip()
-            }
             for issue, authority in pending_review:
                 issue.project_id = project_id
                 task_id = issue.identifier
@@ -6030,13 +6030,14 @@ class Orchestrator:
                     existing_review_id = str(
                         getattr(existing_pr, "id", "") or ""
                     ).strip()
-                    if (
-                        not existing_review_id
-                        or existing_review_id not in counted_review_ids
-                    ):
-                        review_count += 1
-                        if existing_review_id:
-                            counted_review_ids.add(existing_review_id)
+                    if not getattr(existing_pr, "draft", False):
+                        self._adopt_open_review_capacity(
+                            project_id=project_id,
+                            task_id=task_id,
+                            source_branch=task_branch,
+                            target_branch=target_branch,
+                            review_id=existing_review_id,
+                        )
                     try:
                         self._clear_standalone_delivery_alert(
                             project_id,
@@ -6074,6 +6075,11 @@ class Orchestrator:
                     continue
 
                 if existing_pr is not None and review_state == "merged":
+                    self._release_review_capacity(
+                        project_id,
+                        review_id=getattr(existing_pr, "id", None),
+                        source_branch=task_branch,
+                    )
                     review_number = str(
                         getattr(existing_pr, "id", "") or ""
                     ) or None
@@ -6157,24 +6163,30 @@ class Orchestrator:
                     )
                     continue
 
-                if review_count >= review_limit:
-                    reason = (
-                        "waiting for review capacity "
-                        f"({review_count}/{review_limit} open)"
+                if existing_pr is not None and review_state == "closed":
+                    self._release_review_capacity(
+                        project_id,
+                        review_id=getattr(existing_pr, "id", None),
+                        source_branch=task_branch,
                     )
-                    # Capacity is a healthy, retryable wait rather than an
-                    # undeliverable submission.  Clear any stale failure alert
-                    # and let the next serialized sweep retry after a review
-                    # closes.
+
+                review_count, review_limit, at_capacity = self._project_review_capacity(
+                    project_id
+                )
+                if at_capacity:
+                    # The durable ledger catches reviews created earlier in
+                    # this process even when the cache/forge listing lags.
                     self._clear_standalone_delivery_alert(
                         project_id,
                         task_id,
                         authority=authority,
                     )
                     logger.info(
-                        "Deferred standalone review for %s: %s",
+                        "Deferred standalone review for %s: waiting for review "
+                        "capacity (%d/%d)",
                         task_id,
-                        reason,
+                        review_count,
+                        review_limit,
                     )
                     continue
 
@@ -6189,6 +6201,34 @@ class Orchestrator:
                         task_id,
                         "configured branch quality gate did not pass",
                         authority=authority,
+                    )
+                    continue
+
+                reservation = self._acquire_review_slot(
+                    project=project,
+                    provider=provider,
+                    repo_slug=repo_slug,
+                    task_id=task_id,
+                    source_branch=task_branch,
+                    target_branch=target_branch,
+                )
+                if reservation is None:
+                    review_count, review_limit, _ = self._project_review_capacity(
+                        project_id
+                    )
+                    # Capacity and an unavailable live listing are both
+                    # retryable.  Neither means the submission is stranded.
+                    self._clear_standalone_delivery_alert(
+                        project_id,
+                        task_id,
+                        authority=authority,
+                    )
+                    logger.info(
+                        "Deferred standalone review for %s: review capacity or "
+                        "live forge state unavailable (%d/%d)",
+                        task_id,
+                        review_count,
+                        review_limit,
                     )
                     continue
 
@@ -6220,6 +6260,10 @@ class Orchestrator:
                         ),
                     )
                 except Exception as exc:
+                    self._release_review_capacity(
+                        project_id,
+                        reservation_id=reservation.reservation_id,
+                    )
                     self._arm_standalone_delivery_alert(
                         project_id,
                         task_id,
@@ -6234,6 +6278,10 @@ class Orchestrator:
                     continue
 
                 if not created:
+                    self._release_review_capacity(
+                        project_id,
+                        reservation_id=reservation.reservation_id,
+                    )
                     self._record_superseded_standalone_delivery(
                         authority,
                         "delivery authority was revoked before review creation",
@@ -6241,6 +6289,10 @@ class Orchestrator:
                     continue
 
                 if result is None:
+                    self._release_review_capacity(
+                        project_id,
+                        reservation_id=reservation.reservation_id,
+                    )
                     self._arm_standalone_delivery_alert(
                         project_id,
                         task_id,
@@ -6257,16 +6309,22 @@ class Orchestrator:
                 created_review_id = str(
                     getattr(result, "id", "") or ""
                 ).strip()
-                if (
-                    not created_review_id
-                    or created_review_id not in counted_review_ids
-                ):
-                    # Reserve the slot before tracker metadata writes.  The
-                    # review exists even if those writes fail, and later tasks
-                    # in this same sweep must observe the consumed capacity.
-                    review_count += 1
-                    if created_review_id:
-                        counted_review_ids.add(created_review_id)
+                if not created_review_id:
+                    self._release_review_capacity(
+                        project_id,
+                        reservation_id=reservation.reservation_id,
+                    )
+                    self._arm_standalone_delivery_alert(
+                        project_id,
+                        task_id,
+                        "forge provider returned a review without an identity",
+                        authority=authority,
+                    )
+                    continue
+                # Commit before tracker metadata writes.  The review exists
+                # even if those writes fail, and later sweeps/restarts must
+                # continue to count this durable reservation.
+                self._commit_review_slot(reservation, created_review_id)
 
                 try:
                     self._clear_standalone_delivery_alert(
@@ -8584,14 +8642,242 @@ class Orchestrator:
     def _count_open_reviews(self, project_id: str | None) -> int:
         """Return the number of non-draft open MRs/PRs for a project.
 
-        Uses the per-tick reviews cache populated by ``_handle_review_check``.
+        The per-tick cache is useful for ordinary reads, but review creation
+        also has a durable reservation ledger.  Count the union of cached
+        forge reviews and active reservations so a later sweep cannot forget
+        a review created by an earlier sweep while its cache is stale.
         Returns 0 for legacy issues that have no project_id.
         """
         if not project_id:
             return 0
         reviews_cache = getattr(self, "_reviews_cache", {})
         project_reviews = reviews_cache.get(project_id, [])
-        return sum(1 for r in project_reviews if not r.draft)
+        open_review_ids = self._open_review_ids(project_reviews)
+        return self.review_capacity_store.count(project_id, open_review_ids)
+
+    @staticmethod
+    def _open_review_ids(reviews: Any) -> set[str]:
+        """Return stable identifiers for non-draft open review objects."""
+        result: set[str] = set()
+        for index, review in enumerate(reviews or []):
+            # Provider responses normally carry a string state, but older
+            # provider/test doubles may omit it.  Treat a non-string value as
+            # the historical default (open) instead of turning an incomplete
+            # review object into an unoccupied slot.
+            raw_state = getattr(review, "state", None)
+            state = raw_state.strip().lower() if isinstance(raw_state, str) else "open"
+            if state != "open" or bool(getattr(review, "draft", False)):
+                continue
+            raw_review_id = getattr(review, "id", None)
+            review_id = (
+                str(raw_review_id).strip()
+                if isinstance(raw_review_id, (str, int))
+                else ""
+            )
+            if review_id:
+                result.add(review_id)
+                continue
+            # A provider response without an ID is still an occupied forge
+            # review.  Use its branch pair as a stable counting key rather
+            # than allowing an incomplete API object to bypass the cap.
+            raw_source = getattr(review, "source_branch", None)
+            raw_target = getattr(review, "target_branch", None)
+            source = raw_source.strip() if isinstance(raw_source, str) else ""
+            target = raw_target.strip() if isinstance(raw_target, str) else ""
+            if source:
+                result.add(f"branch:{source}:{target}")
+            else:
+                # An ID-less response without branch metadata is still an
+                # occupied review.  Keep each such response distinct for the
+                # capacity count; it cannot be used to reconcile a committed
+                # reservation, but it must not bypass the limit.
+                result.add(f"anonymous:{index}")
+        return result
+
+    def _reconcile_review_capacity_from_live_reviews(
+        self,
+        project_id: str,
+        reviews: Any,
+    ) -> None:
+        """Release committed reservations absent from a successful forge list."""
+        try:
+            self.review_capacity_store.reconcile_open_reviews(
+                project_id,
+                self._open_review_ids(reviews),
+            )
+        except Exception as exc:  # noqa: BLE001 - capacity must not stop a tick
+            logger.warning(
+                "Could not reconcile review reservations for %s: %s",
+                project_id,
+                exc,
+            )
+
+    def _live_open_reviews_for_capacity(
+        self,
+        provider: Any,
+        repo_slug: str,
+        project_id: str,
+    ) -> list[Any] | None:
+        """Fetch forge-open reviews for a creation-time capacity decision.
+
+        A stale cache or an unavailable forge response is never treated as an
+        empty list.  Returning ``None`` makes callers defer and retry without
+        arming a stranded-delivery alert.
+        """
+        try:
+            reviews = provider.list_open_reviews(repo_slug)
+            if getattr(provider, "last_open_reviews_fetch_ok", True) is False:
+                logger.warning(
+                    "Forge review listing failed for capacity check on %s",
+                    project_id,
+                )
+                return None
+            if reviews is None:
+                logger.warning(
+                    "Forge returned no review listing for capacity check on %s",
+                    project_id,
+                )
+                return None
+            reviews = list(reviews)
+        except Exception as exc:  # noqa: BLE001 - fail closed for creation
+            logger.warning(
+                "Could not obtain live review capacity for %s: %s",
+                project_id,
+                exc,
+            )
+            return None
+        return reviews
+
+    def _acquire_review_slot(
+        self,
+        *,
+        project: Project,
+        provider: Any,
+        repo_slug: str,
+        task_id: str,
+        source_branch: str,
+        target_branch: str,
+        live_reviews: list[Any] | None = None,
+    ) -> ReviewCapacityReservation | None:
+        """Fetch authoritative forge state and atomically reserve one slot."""
+        if live_reviews is None:
+            live_reviews = self._live_open_reviews_for_capacity(
+                provider,
+                repo_slug,
+                str(project.id),
+            )
+        if live_reviews is None:
+            return None
+        limit = self._project_max_in_flight(str(project.id))
+        reservation = self.review_capacity_store.acquire(
+            project_id=str(project.id),
+            task_id=task_id,
+            source_branch=source_branch,
+            target_branch=target_branch,
+            limit=limit,
+            open_review_ids=self._open_review_ids(live_reviews),
+            reservation_id=str(uuid.uuid4()),
+        )
+        if reservation is not None and not reservation.acquired_new:
+            # Another sweep owns this task/branch reservation.  It may still
+            # be between forge create and reservation commit; either way this
+            # caller must not issue a second create request.
+            return None
+        return reservation
+
+    def _commit_review_slot(
+        self,
+        reservation: ReviewCapacityReservation | None,
+        review_id: Any,
+    ) -> None:
+        """Bind a pre-create reservation to the created forge review."""
+        if reservation is None:
+            return
+        try:
+            if not self.review_capacity_store.commit(
+                reservation.reservation_id,
+                str(review_id or ""),
+            ):
+                logger.warning(
+                    "Review capacity reservation %s could not be committed",
+                    reservation.reservation_id,
+                )
+        except Exception as exc:  # noqa: BLE001 - review already exists
+            logger.error(
+                "Failed to persist review capacity reservation %s: %s",
+                reservation.reservation_id,
+                exc,
+            )
+
+    def _release_review_capacity(
+        self,
+        project_id: str | None,
+        *,
+        review_id: Any = None,
+        task_id: str | None = None,
+        source_branch: str | None = None,
+        reservation_id: str | None = None,
+    ) -> None:
+        """Release a review slot after close/merge/create failure."""
+        if not project_id:
+            return
+        try:
+            self.review_capacity_store.release(
+                project_id=str(project_id),
+                review_id=(str(review_id).strip() if review_id else None),
+                task_id=task_id,
+                source_branch=source_branch,
+                reservation_id=reservation_id,
+            )
+        except Exception as exc:  # noqa: BLE001 - release is best effort
+            logger.warning(
+                "Could not release review capacity for %s: %s",
+                project_id,
+                exc,
+            )
+
+    def release_review_capacity(
+        self,
+        project_id: str | None,
+        review_id: Any = None,
+        *,
+        source_branch: str | None = None,
+    ) -> None:
+        """Public webhook/maintenance hook for a closed or merged review."""
+        self._release_review_capacity(
+            project_id,
+            review_id=review_id,
+            source_branch=source_branch,
+        )
+
+    def _adopt_open_review_capacity(
+        self,
+        *,
+        project_id: str,
+        task_id: str,
+        source_branch: str,
+        target_branch: str,
+        review_id: Any,
+    ) -> None:
+        """Associate a pre-existing open review with durable capacity state."""
+        review_id = str(review_id or "").strip()
+        if not review_id:
+            return
+        try:
+            self.review_capacity_store.adopt(
+                project_id=project_id,
+                task_id=task_id,
+                source_branch=source_branch,
+                target_branch=target_branch,
+                review_id=review_id,
+                reservation_id=str(uuid.uuid4()),
+            )
+        except Exception as exc:  # noqa: BLE001 - existing review is authoritative
+            logger.warning(
+                "Could not persist existing review reservation for %s: %s",
+                task_id,
+                exc,
+            )
 
     def _epic_in_flight_count(self, parent_id: str) -> int:
         """Number of branch-writing children that share ``parent_id``.
@@ -11179,7 +11465,6 @@ class Orchestrator:
         Returns the number of PRs opened.
         """
         opened = 0
-        opened_by_project: dict[str, int] = {}
         for issue in candidates:
             if canonicalize_status(issue.state) in {MERGED, ARCHIVED}:
                 continue  # epic itself has already landed or been discarded
@@ -11255,6 +11540,12 @@ class Orchestrator:
                 epic_branch,
                 target_branch,
             ):
+                # A missed webhook must not leave the durable reservation
+                # consuming this project's only review slot forever.
+                self._release_review_capacity(
+                    project_id,
+                    source_branch=epic_branch,
+                )
                 logger.info(
                     "Epic %s already landed (PR from %s merged to %s); "
                     "marking Merged instead of re-opening",
@@ -11276,6 +11567,14 @@ class Orchestrator:
                 epic_branch,
             )
             if existing_review is not None:
+                if not getattr(existing_review, "draft", False):
+                    self._adopt_open_review_capacity(
+                        project_id=project_id,
+                        task_id=issue.identifier,
+                        source_branch=epic_branch,
+                        target_branch=target_branch,
+                        review_id=getattr(existing_review, "id", None),
+                    )
                 if not self._review_quality_gate_passes(
                     project,
                     issue,
@@ -11292,14 +11591,13 @@ class Orchestrator:
                 continue
 
             n_open, limit, at_capacity = self._project_review_capacity(project_id)
-            reserved = opened_by_project.get(project_id, 0)
-            if at_capacity or n_open + reserved >= limit:
+            if at_capacity:
                 logger.info(
                     "Deferred epic PR for %s on %s: project review cap "
                     "reached (%d/%d)",
                     issue.identifier,
                     project.name,
-                    n_open + reserved,
+                    n_open,
                     limit,
                 )
                 continue
@@ -11374,6 +11672,26 @@ class Orchestrator:
             ):
                 continue
 
+            reservation = self._acquire_review_slot(
+                project=project,
+                provider=provider,
+                repo_slug=slug,
+                task_id=issue.identifier,
+                source_branch=epic_branch,
+                target_branch=target_branch,
+            )
+            if reservation is None:
+                n_open, limit, _ = self._project_review_capacity(project_id)
+                logger.info(
+                    "Deferred epic PR for %s on %s: review capacity or live "
+                    "forge state unavailable (%d/%d)",
+                    issue.identifier,
+                    project.name,
+                    n_open,
+                    limit,
+                )
+                continue
+
             title = (
                 f"{issue.identifier}: {issue.title}"
                 if issue.title
@@ -11397,6 +11715,10 @@ class Orchestrator:
                     description=description,
                 )
             except Exception as exc:
+                self._release_review_capacity(
+                    project_id,
+                    reservation_id=reservation.reservation_id,
+                )
                 logger.warning(
                     "Failed to create epic PR for %s on %s (target=%s): %s",
                     issue.identifier,
@@ -11407,6 +11729,10 @@ class Orchestrator:
                 continue
 
             if result is None:
+                self._release_review_capacity(
+                    project_id,
+                    reservation_id=reservation.reservation_id,
+                )
                 logger.warning(
                     "Failed to create epic PR for %s on %s (target=%s) "
                     "(provider returned None)",
@@ -11415,6 +11741,21 @@ class Orchestrator:
                     target_branch,
                 )
                 continue
+
+            created_review_id = str(getattr(result, "id", "") or "").strip()
+            if not created_review_id:
+                self._release_review_capacity(
+                    project_id,
+                    reservation_id=reservation.reservation_id,
+                )
+                logger.warning(
+                    "Failed to create epic PR for %s on %s: provider returned "
+                    "a review without an identity",
+                    issue.identifier,
+                    project.name,
+                )
+                continue
+            self._commit_review_slot(reservation, created_review_id)
 
             logger.info(
                 "Opened epic PR for %s on %s (review #%s, source=%s, target=%s)",
@@ -11448,7 +11789,6 @@ class Orchestrator:
                     exc,
                 )
             opened += 1
-            opened_by_project[project_id] = reserved + 1
         return opened
 
     def _find_open_epic_review(
@@ -11536,7 +11876,8 @@ class Orchestrator:
         source = str(getattr(review, "source_branch", "") or "")
         if source != branch:
             return False
-        state = str(getattr(review, "state", "open") or "open").lower()
+        raw_state = getattr(review, "state", None)
+        state = raw_state.strip().lower() if isinstance(raw_state, str) else "open"
         return state == "open"
 
     def _ensure_epic_in_review_metadata(
@@ -13992,6 +14333,14 @@ class Orchestrator:
         reviews = getattr(self, "_reviews_cache", {}).get(project_id, [])
         for r in reviews:
             if r.source_branch == branch:
+                if not getattr(r, "draft", False):
+                    self._adopt_open_review_capacity(
+                        project_id=project_id,
+                        task_id=entry.identifier,
+                        source_branch=branch,
+                        target_branch=target_branch,
+                        review_id=getattr(r, "id", None),
+                    )
                 self._mark_task_in_review(entry, project_id, r)
                 return True  # review already exists
 
@@ -14052,7 +14401,47 @@ class Orchestrator:
             return True
         slug = extract_repo_slug(project.repo_url)
 
-        if review_required:
+        live_reviews: list[Any] | None = None
+        if review_required or commit_error:
+            # A warm cache can be stale or skipped because a webhook is
+            # healthy.  Refresh before any capacity decision so an unrelated
+            # open review on another branch cannot be missed.
+            live_reviews = self._live_open_reviews_for_capacity(
+                provider,
+                slug,
+                str(project_id),
+            )
+            if live_reviews is None:
+                n_open, limit, _ = self._project_review_capacity(project_id)
+                self._defer_review_handoff(
+                    entry,
+                    project_id,
+                    branch,
+                    target_branch,
+                    commits_ahead,
+                    commit_lines,
+                    n_open,
+                    limit,
+                )
+                return True
+            for live_review in live_reviews:
+                if (
+                    str(getattr(live_review, "state", "open") or "open").lower()
+                    == "open"
+                    and not getattr(live_review, "draft", False)
+                    and getattr(live_review, "source_branch", None) == branch
+                ):
+                    self._adopt_open_review_capacity(
+                        project_id=str(project_id),
+                        task_id=entry.identifier,
+                        source_branch=branch,
+                        target_branch=target_branch,
+                        review_id=getattr(live_review, "id", None),
+                    )
+                    self._mark_task_in_review(entry, project_id, live_review)
+                    return True
+
+        if review_required or commit_error:
             n_open, limit, at_capacity = self._project_review_capacity(project_id)
             if at_capacity:
                 self._defer_review_handoff(
@@ -14080,6 +14469,28 @@ class Orchestrator:
         ):
             return False
 
+        reservation = self._acquire_review_slot(
+            project=project,
+            provider=provider,
+            repo_slug=slug,
+            task_id=entry.identifier,
+            source_branch=branch,
+            target_branch=target_branch,
+        )
+        if reservation is None:
+            n_open, limit, _ = self._project_review_capacity(project_id)
+            self._defer_review_handoff(
+                entry,
+                project_id,
+                branch,
+                target_branch,
+                commits_ahead,
+                commit_lines,
+                n_open,
+                limit,
+            )
+            return True
+
         # Create the review
         try:
             title = (
@@ -14101,6 +14512,25 @@ class Orchestrator:
                 description=pr_body,
             )
             if result:
+                review_id = str(getattr(result, "id", "") or "").strip()
+                if not review_id:
+                    self._release_review_capacity(
+                        project_id,
+                        reservation_id=reservation.reservation_id,
+                    )
+                    if review_required:
+                        self._reopen_missing_review(
+                            entry,
+                            project_id,
+                            branch,
+                            target_branch,
+                            commits_ahead,
+                            commit_lines,
+                            "forge provider returned a review without an identity",
+                        )
+                        return False
+                    return True
+                self._commit_review_slot(reservation, review_id)
                 logger.info(
                     "Auto-created review for %s on %s (review #%s, base=%s)",
                     entry.identifier,
@@ -14117,6 +14547,10 @@ class Orchestrator:
                     project.name,
                     target_branch,
                 )
+                self._release_review_capacity(
+                    project_id,
+                    reservation_id=reservation.reservation_id,
+                )
                 if review_required:
                     self._reopen_missing_review(
                         entry,
@@ -14129,6 +14563,10 @@ class Orchestrator:
                     )
                     return False
         except Exception as exc:
+            self._release_review_capacity(
+                project_id,
+                reservation_id=reservation.reservation_id,
+            )
             logger.warning("Error creating review for %s: %s", entry.identifier, exc)
             if review_required:
                 self._reopen_missing_review(
@@ -15745,6 +16183,10 @@ class Orchestrator:
         branch: str,
     ) -> None:
         project_id = getattr(issue, "project_id", None) or ""
+        # This path is also the restart-safe fallback when the forge webhook
+        # that reported the merge was missed.  Release by source branch so a
+        # persisted review reservation cannot strand project capacity.
+        self._release_review_capacity(project_id, source_branch=branch)
         result = self._request_merged_via_coordinator(
             issue,
             project_id,
@@ -17531,6 +17973,10 @@ class Orchestrator:
                         )
                         success, msg = provider.merge_review(slug, review_id)
                         if success:
+                            self._release_review_capacity(
+                                project.id,
+                                review_id=review_id,
+                            )
                             logger.info(
                                 "YOLO: direct-merge fallback succeeded for %s MR #%s",
                                 project.name,
@@ -17596,6 +18042,10 @@ class Orchestrator:
                         )
                         success, msg = provider.merge_review(slug, review_id)
                         if success:
+                            self._release_review_capacity(
+                                project.id,
+                                review_id=review_id,
+                            )
                             logger.info(
                                 "YOLO: merged %s MR #%s", project.name, review_id
                             )
@@ -18613,6 +19063,7 @@ class Orchestrator:
             )
             return True
 
+        self._release_review_capacity(project.id, review_id=review_id)
         logger.warning(
             "YOLO GATE: closed invalid standalone %s MR #%s — %s",
             project.name,

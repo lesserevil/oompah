@@ -14861,6 +14861,22 @@ def _handle_webhook_event(event: WebhookEvent, project) -> None:
 
     _project_id = project.id if project else None
 
+    # A forge close/merge webhook is an authoritative slot-release signal.
+    # Do this before scheduling the slower tracker reconciliation so a Ready
+    # sweep triggered by the same event can immediately acquire the slot.
+    if (
+        _project_id
+        and event.review_id
+        and (event.merged or event.action in ("closed", "merged"))
+    ):
+        release_capacity = getattr(orch, "release_review_capacity", None)
+        if callable(release_capacity):
+            release_capacity(
+                _project_id,
+                event.review_id,
+                source_branch=event.source_branch or None,
+            )
+
     if event.event_type in ("pull_request", "merge_group", "Merge Request Hook"):
         # PR / MR / merge-queue events affect the review board and may close issues.
         _api_cache.invalidate("reviews:all")
