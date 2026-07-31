@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:06.140108Z'
-updated_at: '2026-07-31T22:33:20.252326Z'
+updated_at: '2026-07-31T22:33:45.363859Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -669,5 +669,10 @@ author: oompah
 created: 2026-07-31 22:33
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-31 22:33
+---
+Understanding: I am taking the CI-fix pass on the existing OOMPAH-664 branch. I will synchronize the branch, inspect the failing GitHub Actions job, reproduce the evidenced failure locally where practical, then make and verify only the minimal repair before pushing and submitting.
 ---
 <!-- COMMENTS:END -->
