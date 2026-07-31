@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-584
 type: epic
-status: In Progress
+status: In Validation
 priority: 0
 title: Return the oompah delivery control plane to green
 parent: null
@@ -17,12 +17,11 @@ children:
 blocked_by: []
 start_blocked_by: []
 labels:
-- merge-conflict
 - epic:rebasing
 - ci-fix
 assignee: null
 created_at: '2026-07-30T14:13:01.872040Z'
-updated_at: '2026-07-31T05:40:07.101430Z'
+updated_at: '2026-07-31T05:40:32.183786Z'
 work_branch: epic-OOMPAH-584
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/603
@@ -37,7 +36,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-584
     target_state: Done
-    request_state: in_progress
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -62,6 +61,37 @@ oompah.terminal_audit:
     previous_state: Open
     created_at: '2026-07-31T05:12:30.587245+00:00'
     updated_at: '2026-07-31T05:12:43.491182+00:00'
+  - version: 1
+    audit_id: audit-1c6ea61fde42
+    project_id: proj-14849f1b
+    task_id: OOMPAH-584
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 71e10d8536db1e5d0af0a58ac7f3677534e5d5765c38be5fc4ba0e4e0b0a8e99
+    attempts:
+    - version: 1
+      attempt_id: attempt-a2bcda188bfb
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 71e10d8536db1e5d0af0a58ac7f3677534e5d5765c38be5fc4ba0e4e0b0a8e99
+      created_at: '2026-07-31T05:40:27.595345+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-31T05:40:27.595345+00:00'
+      branch_key: epic-OOMPAH-584
+    requested_by:
+      version: 1
+      identity: api-client
+      source: api
+    previous_state: In Progress
+    created_at: '2026-07-31T05:40:18.105657+00:00'
+    updated_at: '2026-07-31T05:40:27.595345+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-4132c39c1619
@@ -76,9 +106,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-07-31T05:12:43.491182+00:00'
     branch_key: OOMPAH-584
+  - version: 1
+    attempt_id: attempt-a2bcda188bfb
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 71e10d8536db1e5d0af0a58ac7f3677534e5d5765c38be5fc4ba0e4e0b0a8e99
+    created_at: '2026-07-31T05:40:27.595345+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-31T05:40:27.595345+00:00'
+    branch_key: epic-OOMPAH-584
 oompah.task_costs:
-  total_input_tokens: 477716
-  total_output_tokens: 4362
+  total_input_tokens: 477799
+  total_output_tokens: 6558
   total_cost_usd: 0.0
   by_model:
     unknown:
@@ -86,8 +129,8 @@ oompah.task_costs:
       output_tokens: 988
       cost_usd: 0.0
     opus:
-      input_tokens: 477683
-      output_tokens: 3374
+      input_tokens: 477766
+      output_tokens: 5570
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -102,6 +145,12 @@ oompah.task_costs:
     output_tokens: 3374
     cost_usd: 0.0
     recorded_at: '2026-07-31T05:16:23.357022+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 83
+    output_tokens: 2196
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T05:40:23.891351+00:00'
 oompah.agent_run_id: b1d8ec9a-282a-4935-8d82-ca5dc65deaa8
 oompah.work_contributors:
   runs:
@@ -288,5 +337,30 @@ Output tail:
 ```text
 No existing worktree matched the review branch tip. Recreate the task worktree before retrying.
 ```
+---
+author: oompah
+created: 2026-07-31 05:40
+---
+Final operator recovery rebase completed on exact head a3a577a489650c602ec3c62bd242eb53de631af4, now 0 commits behind origin/main. The rebased tree is byte-for-byte identical to the recovered pre-rebase outer tree. Conflict-focused suite: 370 passed. Full Makefile gate: 14,163 passed, 7 skipped, 1 xfailed, 57 warnings in 255.59s; terminal mutation scan passed. All existing descendant task refs rewritten by the rebase were refreshed atomically with exact leases to their contained patch-equivalent commits. Child epics OOMPAH-585 through OOMPAH-588 are merged. Requesting a fresh terminal audit for this final review-ready head.
+---
+author: oompah
+created: 2026-07-31 05:40
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Claude/opus]
+- Turns: 0, Tool calls: 49
+- Tokens: 83 in / 2.2K out [2.3K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 6m 13s
+- Log: OOMPAH-584__20260731T053416Z.jsonl
+---
+author: oompah
+created: 2026-07-31 05:40
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-07-31 05:40
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
