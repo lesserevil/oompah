@@ -14,6 +14,7 @@ import pytest
 from oompah.client_auth import ClientCredentials, agent_environment
 from oompah.models import Issue, RunningEntry
 from oompah.task_handoff import (
+    OperationPermitDenied,
     TASK_HANDOFF_HEADER,
     TASK_HANDOFF_PROJECT_ENV,
     TASK_HANDOFF_TOKEN_ENV,
@@ -1181,6 +1182,163 @@ class TestOrchestratorHandoffTokenMint:
         )
         assert allowed, f"minted token should validate for its own scope: {reason}"
 
+    def test_orchestrator_reissues_atomically_for_same_live_entry(self, tmp_path):
+        """A retry/restart replacement revokes the old worker token first."""
+        from oompah.task_handoff import validate_task_handoff_token
+
+        orch = self._make_orch(tmp_path)
+        issue = Issue(
+            id="issue-replacement",
+            identifier="OOMPAH-9991",
+            title="Replacement probe",
+            description="body",
+            state="In Progress",
+            project_id="proj-replacement",
+        )
+        entry = RunningEntry(
+            worker_task=None,
+            identifier=issue.identifier,
+            issue=issue,
+            session=None,
+            retry_attempt=0,
+            started_at=datetime.now(timezone.utc),
+        )
+        orch.state.running[issue.id] = entry
+
+        old_token = orch._issue_task_handoff_token(issue)
+        assert old_token is not None
+        new_token = orch._issue_task_handoff_token(issue)
+        assert new_token is not None
+        assert new_token != old_token
+        assert entry.task_handoff_token == new_token
+
+        valid_old, reason_old = validate_task_handoff_token(
+            old_token,
+            project_id=issue.project_id,
+            task_identifier=issue.identifier,
+            action="submit",
+        )
+        assert valid_old is False
+        assert "revoked" in reason_old.lower()
+        valid_new, reason_new = validate_task_handoff_token(
+            new_token,
+            project_id=issue.project_id,
+            task_identifier=issue.identifier,
+            action="submit",
+        )
+        assert valid_new, reason_new
+
+        from oompah.task_handoff import revoke_task_handoff_token
+
+        revoke_task_handoff_token(new_token)
+
+    def test_orchestrator_lease_revokes_when_running_entry_disappears(
+        self, monkeypatch, tmp_path
+    ):
+        """The live-entry callback revokes a grant after owner disappearance."""
+        import oompah.orchestrator as orchestrator_module
+        import oompah.task_handoff as task_handoff_module
+
+        orch = self._make_orch(tmp_path)
+        issue = Issue(
+            id="issue-owner-loss",
+            identifier="OOMPAH-9992",
+            title="Owner loss probe",
+            description="body",
+            state="In Progress",
+            project_id="proj-owner-loss",
+        )
+        entry = RunningEntry(
+            worker_task=None,
+            identifier=issue.identifier,
+            issue=issue,
+            session=None,
+            retry_attempt=0,
+            started_at=datetime.now(timezone.utc),
+        )
+        orch.state.running[issue.id] = entry
+        original_start = orchestrator_module.start_task_handoff_lease
+
+        def fast_start(token, **kwargs):
+            return original_start(
+                token, heartbeat_interval_seconds=0.005, **kwargs
+            )
+
+        monkeypatch.setattr(
+            orchestrator_module, "start_task_handoff_lease", fast_start
+        )
+        token = orch._issue_task_handoff_token(issue)
+        assert token is not None
+        orch.state.running.pop(issue.id)
+        try:
+            deadline = time.monotonic() + 1.0
+            while time.monotonic() < deadline:
+                grant = task_handoff_module._default_store._grants.get(
+                    task_handoff_module._default_store._digest(token)
+                )
+                if grant is not None and grant.revoked_at is not None:
+                    break
+                time.sleep(0.005)
+            grant = task_handoff_module._default_store._grants.get(
+                task_handoff_module._default_store._digest(token)
+            )
+            assert grant is not None
+            assert grant.revoked_at is not None
+        finally:
+            task_handoff_module._default_store.revoke(token)
+
+    def test_orchestrator_launch_failure_revokes_minted_capability(
+        self, monkeypatch, tmp_path
+    ):
+        """A worker without a lease is never left with a usable token."""
+        import oompah.orchestrator as orchestrator_module
+        import oompah.task_handoff as task_handoff_module
+
+        orch = self._make_orch(tmp_path)
+        issue = Issue(
+            id="issue-launch-failure",
+            identifier="OOMPAH-9993",
+            title="Launch failure probe",
+            description="body",
+            state="In Progress",
+            project_id="proj-launch-failure",
+        )
+        entry = RunningEntry(
+            worker_task=None,
+            identifier=issue.identifier,
+            issue=issue,
+            session=None,
+            retry_attempt=0,
+            started_at=datetime.now(timezone.utc),
+        )
+        orch.state.running[issue.id] = entry
+        minted: list[str] = []
+        original_issue = orchestrator_module.issue_task_handoff_token
+
+        def capture_issue(**kwargs):
+            token = original_issue(**kwargs)
+            minted.append(token)
+            return token
+
+        monkeypatch.setattr(
+            orchestrator_module, "issue_task_handoff_token", capture_issue
+        )
+        monkeypatch.setattr(
+            orchestrator_module, "start_task_handoff_lease", lambda *_args, **_kwargs: None
+        )
+
+        assert orch._issue_task_handoff_token(issue) is None
+        assert minted
+        valid, reason = task_handoff_module._default_store.validate(
+            minted[0],
+            project_id=issue.project_id,
+            task_identifier=issue.identifier,
+            action="submit",
+        )
+        assert valid is False
+        assert "revoked" in reason.lower()
+        assert entry.task_handoff_token is None
+
     def test_orchestrator_mint_returns_none_when_issue_has_no_project(
         self, tmp_path
     ):
@@ -1354,9 +1512,9 @@ class TestOOMPAH650WorkerLifetimeCredentials:
     * A worker outliving the wall-clock TTL can still view/comment/submit
       because the server-side lease renewed the grant while the worker was
       inside a long tool call.
-    * The endpoint refresh and lease heartbeat preserve the ORIGINAL TTL a
-      grant was minted with; a deliberately short capability is never
-      silently widened to the module default.
+    * The server-owned lease preserves the ORIGINAL TTL a grant was minted
+      with; a deliberately short capability is never silently widened to the
+      module default.
     * Ownership is generation-bound: a stale worker cannot renew after a
       replacement dispatch or forced termination has taken over the entry.
     * The task-handoff endpoint aborts the tracker mutation and returns an
@@ -1365,13 +1523,8 @@ class TestOOMPAH650WorkerLifetimeCredentials:
       failure from task failure.
     """
 
-    def test_endpoint_refresh_preserves_original_short_ttl(self):
-        """A grant minted with a 60 s TTL must never be widened to 24 h.
-
-        Refresh (either via the endpoint after a validated request or via
-        the lease heartbeat) uses the grant's own ``original_ttl_seconds``
-        when the caller does not supply an explicit override.
-        """
+    def test_lease_refresh_preserves_original_short_ttl(self):
+        """A grant minted with a 60 s TTL must never be widened to 24 h."""
         now = [1000.0]
         store = TaskHandoffGrantStore(now=lambda: now[0])
         token = store.issue(
@@ -1379,16 +1532,17 @@ class TestOOMPAH650WorkerLifetimeCredentials:
             task_identifier="TASK-1",
             allowed_actions={"comment"},
             ttl_seconds=60.0,
+            owner_id="worker-A",
         )
 
-        assert store.refresh(token) is True
+        assert store.refresh(token, owner_id="worker-A") is True
         grant = store._grants[store._digest(token)]
         # Refreshed at t=1000 with original TTL 60 → expires at 1060, not widened to default.
         assert grant.expires_at == pytest.approx(1060.0)
         assert grant.original_ttl_seconds == pytest.approx(60.0)
 
     def test_refresh_never_widens_grant_beyond_original_ttl(self):
-        """Even an explicit oversize ttl_seconds is clamped to the grant's
+        """Even an explicit oversize lease TTL is clamped to the grant's
         minted TTL. This preserves any deliberate operator bound."""
         now = [1000.0]
         store = TaskHandoffGrantStore(now=lambda: now[0])
@@ -1397,8 +1551,14 @@ class TestOOMPAH650WorkerLifetimeCredentials:
             task_identifier="TASK-1",
             allowed_actions={"comment"},
             ttl_seconds=60.0,
+            owner_id="worker-A",
         )
-        assert store.refresh(token, ttl_seconds=24 * 60 * 60) is True
+        assert (
+            store.refresh(
+                token, ttl_seconds=24 * 60 * 60, owner_id="worker-A"
+            )
+            is True
+        )
         grant = store._grants[store._digest(token)]
         # Clamped to original 60 s TTL, not extended to the requested 24 h.
         assert grant.expires_at <= 1060.0
@@ -1479,7 +1639,8 @@ class TestOOMPAH650WorkerLifetimeCredentials:
             action="comment",
         )
         assert permit is not None
-        assert permit.is_valid() is True
+        permit.begin()
+        permit.end()
         
         # Lease renews at t=1007 (before expiry).
         assert lease.heartbeat() is True
@@ -1498,7 +1659,8 @@ class TestOOMPAH650WorkerLifetimeCredentials:
             action="comment",
         )
         assert permit2 is not None
-        assert permit2.is_valid() is True
+        permit2.begin()
+        permit2.end()
         
         # This is the critical OOMPAH-650 case: worker is past initial TTL but
         # grant is still valid because lease kept it renewed.
@@ -1706,6 +1868,19 @@ class TestOOMPAH650WorkerLifetimeCredentials:
         # The right owner still works.
         assert store.refresh(token, owner_id="worker-A") is True
 
+    def test_bearer_only_refresh_is_denied(self):
+        """A bearer token alone cannot extend its grant lifetime."""
+        store = TaskHandoffGrantStore()
+        token = store.issue(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"comment"},
+            ttl_seconds=60,
+            owner_id="worker-A",
+        )
+
+        assert store.refresh(token) is False
+
     def test_lease_revokes_when_owner_generation_changes(self):
         """When the running-entry generation changes underneath a live lease
         (dispatch replaced the entry), the lease's ``owner_is_live`` check
@@ -1854,8 +2029,8 @@ class TestOOMPAH650WorkerLifetimeCredentials:
         """
         now = [1000.0]
         store = TaskHandoffGrantStore(now=lambda: now[0])
-        
-        # Mint with a very short TTL (10 seconds).
+        import threading
+
         token = store.issue(
             project_id="proj-a",
             task_identifier="TASK-1",
@@ -1863,68 +2038,44 @@ class TestOOMPAH650WorkerLifetimeCredentials:
             ttl_seconds=10.0,
             owner_id="worker-gen-1",
         )
-        # Grant expires at 1010
-        
-        # Verify it's initially valid.
-        valid, _ = store.validate(
+        heartbeat_seen = threading.Event()
+
+        def owner_is_live() -> bool:
+            heartbeat_seen.set()
+            return True
+
+        # Exercise the actual server-owned lease. No request-driven refresh
+        # or direct store.refresh call is made while the worker is idle.
+        lease = store.start_lease(
             token,
-            project_id="proj-a",
-            task_identifier="TASK-1",
-            action="comment",
+            owner_id="worker-gen-1",
+            heartbeat_interval_seconds=0.005,
+            owner_is_live=owner_is_live,
         )
-        assert valid is True
-        
-        # Manually simulate what a lease heartbeat does: advance time and refresh
-        # WITHOUT making any tracker handoff requests.
-        # This tests the critical scenario: worker is idle but grant stays alive
-        # via lease renewal.
-        
-        # Advance to t=1005 (before initial TTL expires at 1010).
-        now[0] = 1005.0
-        # Manually trigger a heartbeat by calling refresh directly, simulating
-        # what the background lease thread would do.
-        refreshed = store.refresh(token, owner_id="worker-gen-1")
-        assert refreshed is True, "First lease heartbeat should succeed"
-        
-        # After refresh, grant should now expire at ~1015 (1005 + original 10s TTL)
-        grant = store._grants.get(store._digest(token))
-        assert grant is not None
-        assert grant.expires_at > 1014.0, f"Expected renewal; got {grant.expires_at}"
-        
-        # Now advance to t=1012 (which is PAST the original initial TTL of 1010,
-        # but before the refreshed expiry of ~1015).
-        now[0] = 1012.0
-        
-        # Do another heartbeat to simulate continuous lease renewal.
-        refreshed = store.refresh(token, owner_id="worker-gen-1")
-        assert refreshed is True, "Second lease heartbeat should succeed"
-        
-        # Grant should now have been renewed again to ~1022.
-        grant = store._grants.get(store._digest(token))
-        assert grant is not None, "Grant should still exist after renewal"
-        assert grant.expires_at > 1020.0, (
-            f"Lease should have renewed; got {grant.expires_at} at now={now[0]}"
-        )
-        
-        # Most importantly: even though we're at t=1012 (past the initial 1010 expiry),
-        # the grant is still valid because the lease kept renewing it.
-        valid, reason = store.validate(
-            token,
-            project_id="proj-a",
-            task_identifier="TASK-1",
-            action="comment",
-        )
-        assert valid is True, f"Expected valid token; reason: {reason}"
-        assert reason == ""
-        
-        # And view action should also work.
-        valid, reason = store.validate(
-            token,
-            project_id="proj-a",
-            task_identifier="TASK-1",
-            action="view",
-        )
-        assert valid is True, f"Expected valid token for view; reason: {reason}"
+        assert lease is not None
+        try:
+            now[0] = 1006.0
+            assert heartbeat_seen.wait(1.0)
+            deadline = time.monotonic() + 1.0
+            while time.monotonic() < deadline:
+                grant = store._grants.get(store._digest(token))
+                if grant is not None and grant.expires_at > 1010.0:
+                    break
+                time.sleep(0.005)
+
+            # The worker is idle and past the original expiry, but the lease
+            # thread renewed the grant without any handoff request.
+            now[0] = 1012.0
+            valid, reason = store.validate(
+                token,
+                project_id="proj-a",
+                task_identifier="TASK-1",
+                action="comment",
+            )
+            assert valid is True, f"Expected valid token; reason: {reason}"
+            assert reason == ""
+        finally:
+            lease.stop()
 
     def test_no_basic_auth_environment_leaks_into_worker(self):
         """Worker environments must never receive reusable operator Basic
@@ -1948,11 +2099,7 @@ class TestOOMPAH650WorkerLifetimeCredentials:
         assert "OOMPAH_SERVER_PASSWORD_FILE" not in env
 
     def test_operation_permit_acquired_after_validation(self):
-        """Permit is acquired after validation succeeds and is valid until
-        revoked. A permit acquired before revocation has a specific generation
-        number captured at acquisition time."""
-        from oompah.task_handoff import acquire_task_handoff_permit
-        
+        """A permit admits work before revocation and fails closed afterward."""
         store = TaskHandoffGrantStore()
         token = store.issue(
             project_id="proj-a",
@@ -1978,19 +2125,19 @@ class TestOOMPAH650WorkerLifetimeCredentials:
             action="comment",
         )
         assert permit is not None
-        assert permit.is_valid() is True
+        permit.begin()
+        permit.end()
         
         # Permit captures current generation (initially 0).
         assert permit.generation_at_acquisition == 0
         
-        # After revocation, permit becomes invalid even if still in memory.
+        # After revocation, the same permit cannot begin another operation.
         store.revoke(token)
-        assert permit.is_valid() is False
+        with pytest.raises(OperationPermitDenied):
+            permit.begin()
 
     def test_revocation_invalidates_in_flight_permits(self):
-        """When revoke() is called, it increments operation_permit_generation.
-        Any permit acquired before the revocation will detect it's no longer
-        valid. This linearizes mutations with concurrent termination."""
+        """A permit acquired before revoke cannot admit a later mutation."""
         store = TaskHandoffGrantStore()
         token = store.issue(
             project_id="proj-a",
@@ -2012,8 +2159,9 @@ class TestOOMPAH650WorkerLifetimeCredentials:
         # Revoke the grant (simulates termination signal).
         store.revoke(token)
         
-        # Permit detects revocation via generation mismatch.
-        assert permit_before.is_valid() is False
+        # Permit detects revocation at the shared admission point.
+        with pytest.raises(OperationPermitDenied):
+            permit_before.begin()
         
         # New permit cannot be acquired.
         permit_after = store.acquire_permit(
@@ -2024,11 +2172,16 @@ class TestOOMPAH650WorkerLifetimeCredentials:
         )
         assert permit_after is None
 
-    def test_endpoint_rejects_mutation_if_permit_revoked_mid_operation(self):
-        """Integration test: between validation and mutation, if the grant is
-        revoked (e.g., by termination handler), the endpoint checks permit and
-        returns 401 without touching the tracker."""
+    def test_endpoint_rejects_mutation_if_revoked_before_operation_admission(self):
+        """Termination between authorization and adapter admission blocks the write.
+
+        The latch is after the real permit has been acquired but before the
+        endpoint enters the shared operation helper. This proves the actual
+        endpoint cannot perform a stale mutation after ``store.revoke`` wins
+        the grant admission race.
+        """
         from fastapi.testclient import TestClient
+        import threading
 
         import oompah.server as server
         import oompah.task_handoff as task_handoff_module
@@ -2062,45 +2215,94 @@ class TestOOMPAH650WorkerLifetimeCredentials:
         old_orch = server._orchestrator
         old_creds = server._http_credentials
         old_broadcast = server.broadcast_issues
+        old_acquire = server.acquire_task_handoff_permit
         server._orchestrator = orch
         server._http_credentials = None
         server.broadcast_issues = AsyncMock()
-        try:
-            # Mock the endpoint to simulate revocation after permit acquisition.
-            # The permit is acquired, but then we call revoke to simulate
-            # termination racing with the mutation.
-            original_add_comment = tracker.add_comment
-            def add_comment_with_revoke(*args, **kwargs):
-                # During add_comment, revoke the grant (simulates race)
-                store.revoke(token)
-                return original_add_comment(*args, **kwargs)
-            
-            tracker.add_comment = AsyncMock(side_effect=add_comment_with_revoke)
-            
+        permit_acquired = threading.Event()
+        release_admission = threading.Event()
+
+        def gated_acquire(*args, **kwargs):
+            permit = old_acquire(*args, **kwargs)
+            permit_acquired.set()
+            assert release_admission.wait(2.0)
+            return permit
+
+        server.acquire_task_handoff_permit = gated_acquire
+        result: dict[str, object] = {}
+
+        def issue_request() -> None:
             with TestClient(app, raise_server_exceptions=False) as client:
-                # First request: normal comment succeeds.
-                r = client.post(
+                result["response"] = client.post(
                     "/api/v1/task-handoff",
                     headers={TASK_HANDOFF_HEADER: token},
                     json={
                         "action": "comment",
                         "project_id": "proj-a",
                         "identifier": "TASK-1",
-                        "message": "normal comment",
+                        "message": "must not be written",
                     },
                 )
-            
-            # The request succeeded because we allowed add_comment to complete.
-            # But in the real scenario with permit checks before the mutation,
-            # it would have been rejected if permit became invalid.
-            # This test verifies the endpoint has the permit check in place.
-            # The actual race testing is done in the unit tests above.
-            
+
+        request_thread = threading.Thread(target=issue_request)
+        try:
+            request_thread.start()
+            assert permit_acquired.wait(2.0)
+            store.revoke(token)
+            release_admission.set()
+            request_thread.join(timeout=2.0)
+            assert not request_thread.is_alive()
         finally:
+            release_admission.set()
+            if request_thread.is_alive():
+                request_thread.join(timeout=2.0)
             task_handoff_module._default_store = old_store
             server._orchestrator = old_orch
             server._http_credentials = old_creds
             server.broadcast_issues = old_broadcast
+            server.acquire_task_handoff_permit = old_acquire
+
+        response = result["response"]
+        assert response.status_code == 401
+        assert response.json()["error"]["code"] == "handoff_revoked"
+        tracker.add_comment.assert_not_called()
+
+    def test_admitted_operation_is_ordered_before_revocation(self):
+        """An operation admitted first remains the sole in-flight mutation."""
+        import threading
+
+        store = TaskHandoffGrantStore()
+        token = store.issue(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"comment"},
+            ttl_seconds=60.0,
+        )
+        permit = store.acquire_permit(
+            token,
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            action="comment",
+        )
+        assert permit is not None
+        started = threading.Event()
+        release = threading.Event()
+
+        async def admitted_operation() -> None:
+            async with permit:
+                started.set()
+                await asyncio.to_thread(release.wait, 2.0)
+
+        async def exercise() -> None:
+            operation = asyncio.create_task(admitted_operation())
+            await asyncio.to_thread(started.wait, 2.0)
+            store.revoke(token)
+            assert store._operations[store._digest(token)].active == 1
+            release.set()
+            await operation
+
+        asyncio.run(exercise())
+        assert store._operations[store._digest(token)].active == 0
 
     def test_lease_heartbeat_with_deterministic_clock(self):
         """A server-owned lease renews a grant at intervals via heartbeat(),

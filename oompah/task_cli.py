@@ -334,8 +334,9 @@ def _task_handoff_request(
     should use the legacy tracker endpoint.  A capability is never sent to a
     general endpoint, even when a command is malformed.
     
-    Token refresh is handled server-side: the task-handoff endpoint validates
-    and automatically extends the TTL to keep it alive during long tool calls.
+    Grant renewal is handled only by the server-owned worker lease. The
+    task-handoff endpoint never extends a bearer token in response to a
+    request.
     """
     token = _task_handoff_token()
     if token is None:

@@ -23946,6 +23946,13 @@ class Orchestrator:
             # dispatches always create the RunningEntry before minting.
             return token
 
+        # Reissuing a capability for an existing dispatch is a replacement,
+        # not a second owner. Revoke the predecessor before publishing the
+        # new token so restart/retry recovery cannot leave an old worker with
+        # a usable bearer during the lease heartbeat window.
+        previous_token = getattr(entry, "task_handoff_token", None)
+        if previous_token:
+            revoke_task_handoff_token(previous_token)
         entry.task_handoff_owner_id = owner_id
         entry.task_handoff_token = token
 

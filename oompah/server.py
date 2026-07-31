@@ -19,7 +19,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any, Awaitable, Callable
 
 from fastapi import FastAPI, File, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, JSONResponse, Response
@@ -120,8 +120,9 @@ from oompah.mcp_exposure_policy import MCP_DISCOVERY_PATH, MCP_ENDPOINT_PATH
 from oompah.task_handoff import (
     TASK_HANDOFF_HEADER,
     acquire_task_handoff_permit,
+    OperationPermit,
+    OperationPermitDenied,
     record_task_handoff_failure,
-    refresh_task_handoff_token,
     validate_task_handoff_token,
 )
 from oompah.auth_health import (
@@ -1457,6 +1458,20 @@ async def _run_api_io(func: Callable[..., Any], /, *args: Any, **kwargs: Any) ->
     loop = asyncio.get_running_loop()
     call = functools.partial(func, *args, **kwargs)
     return await loop.run_in_executor(_api_thread_pool, call)
+
+
+async def _run_task_handoff_mutation(
+    permit: OperationPermit,
+    operation: Callable[[], Awaitable[Any]],
+) -> Any:
+    """Run one scoped mutation under the grant's linearizable admission gate.
+
+    Admission and revocation share the grant-store lock, while the active
+    operation refcount remains held across adapter I/O without holding a
+    threading lock across an await.
+    """
+    async with permit:
+        return await operation()
 
 
 def _env_positive_int_ms(name: str, default: int) -> int:
@@ -3705,42 +3720,6 @@ async def api_task_handoff(request: Request):
     # Token presented and scope validated — record acceptance before dispatch.
     record_worker_token_accepted()
 
-    # Acquire an operation permit to guard the tracker mutation. This permit
-    # will detect if the grant is revoked between now and the actual mutation.
-    # The server-owned lease (not bearer-driven refresh) keeps the grant alive.
-    permit = acquire_task_handoff_permit(
-        token,
-        project_id=project_id,
-        task_identifier=identifier,
-        action=action,
-    )
-    if permit is None:
-        # Grant was revoked or expired between validation and permit acquisition.
-        _still_allowed, permit_reason = validate_task_handoff_token(
-            token,
-            project_id=project_id,
-            task_identifier=identifier,
-            action=action,
-        )
-        permit_reason = permit_reason or (
-            "task handoff capability was revoked when the worker terminated"
-        )
-        record_task_handoff_failure(token, "task handoff capability authorization failed")
-        record_worker_401()
-        return JSONResponse(
-            {
-                "error": {
-                    "code": (
-                        "handoff_expired"
-                        if "expired" in permit_reason.lower()
-                        else "handoff_revoked"
-                    ),
-                    "message": permit_reason,
-                }
-            },
-            status_code=401,
-        )
-
     if orch is None:
         orch = _get_orchestrator()
     try:
@@ -3761,6 +3740,61 @@ async def api_task_handoff(request: Request):
                 {"error": {"code": "issue_not_found", "message": "task is not in the granted project"}},
                 status_code=404,
             )
+
+        # Reads do not need an operation permit. For mutations, acquire the
+        # ticket before entering the action branch, but admit it only in the
+        # shared helper immediately before the first awaited adapter call.
+        permit: OperationPermit | None = None
+        mutating_actions = {
+            "comment",
+            "set-status",
+            "submit",
+            "coordination-send",
+            "coordination-checkpoint",
+            "add-label",
+            "remove-label",
+        }
+        if action in mutating_actions:
+            permit = acquire_task_handoff_permit(
+                token,
+                project_id=project_id,
+                task_identifier=identifier,
+                action=action,
+            )
+            if permit is None:
+                _still_allowed, permit_reason = validate_task_handoff_token(
+                    token,
+                    project_id=project_id,
+                    task_identifier=identifier,
+                    action=action,
+                )
+                permit_reason = permit_reason or (
+                    "task handoff capability was revoked before the operation started"
+                )
+                record_task_handoff_failure(
+                    token, "task handoff capability authorization failed"
+                )
+                record_worker_401()
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": (
+                                "handoff_expired"
+                                if "expired" in permit_reason.lower()
+                                else "handoff_revoked"
+                            ),
+                            "message": permit_reason,
+                        }
+                    },
+                    status_code=401,
+                )
+
+        async def run_mutation(operation: Callable[[], Awaitable[Any]]) -> Any:
+            if permit is None:
+                raise OperationPermitDenied(
+                    "task handoff mutation was not granted"
+                )
+            return await _run_task_handoff_mutation(permit, operation)
 
         terminal_payload: dict[str, Any] | None = None
 
@@ -3804,44 +3838,32 @@ async def api_task_handoff(request: Request):
             return JSONResponse({"messages": messages})
 
         if action == "coordination-send":
-            # Check permit is still valid before mutation.
-            if not permit.is_valid():
-                record_task_handoff_failure(token, "task handoff capability revoked during operation")
-                record_worker_401()
-                return JSONResponse(
-                    {"error": {"code": "handoff_revoked", "message": "task handoff capability was revoked when the worker terminated"}},
-                    status_code=401,
+            message = await run_mutation(
+                lambda: _run_api_io(
+                    orch.coordination_send,
+                    project_id=project_id,
+                    sender=identifier,
+                    recipient=str(body.get("recipient") or "").strip(),
+                    text=str(body.get("text") or "").strip(),
+                    kind=str(body.get("kind") or "message").strip(),
+                    changed_paths=body.get("changed_paths"),
+                    commit_sha=body.get("commit_sha"),
+                    idempotency_key=body.get("idempotency_key"),
                 )
-            message = await _run_api_io(
-                orch.coordination_send,
-                project_id=project_id,
-                sender=identifier,
-                recipient=str(body.get("recipient") or "").strip(),
-                text=str(body.get("text") or "").strip(),
-                kind=str(body.get("kind") or "message").strip(),
-                changed_paths=body.get("changed_paths"),
-                commit_sha=body.get("commit_sha"),
-                idempotency_key=body.get("idempotency_key"),
             )
             await broadcast_issues()
             return JSONResponse({"message": message}, status_code=201)
 
         if action == "coordination-checkpoint":
-            # Check permit is still valid before mutation.
-            if not permit.is_valid():
-                record_task_handoff_failure(token, "task handoff capability revoked during operation")
-                record_worker_401()
-                return JSONResponse(
-                    {"error": {"code": "handoff_revoked", "message": "task handoff capability was revoked when the worker terminated"}},
-                    status_code=401,
+            checkpoint = await run_mutation(
+                lambda: _run_api_io(
+                    orch.coordination_checkpoint,
+                    project_id=project_id,
+                    identifier=identifier,
+                    changed_paths=body.get("changed_paths"),
+                    commit_sha=body.get("head_sha") or body.get("commit_sha"),
+                    summary=body.get("summary"),
                 )
-            checkpoint = await _run_api_io(
-                orch.coordination_checkpoint,
-                project_id=project_id,
-                identifier=identifier,
-                changed_paths=body.get("changed_paths"),
-                commit_sha=body.get("head_sha") or body.get("commit_sha"),
-                summary=body.get("summary"),
             )
             await broadcast_issues()
             return JSONResponse({"checkpoint": checkpoint}, status_code=201)
@@ -3854,44 +3876,36 @@ async def api_task_handoff(request: Request):
                     {"error": {"code": "validation", "message": "comment message is required"}},
                     status_code=400,
                 )
-            # Check permit is still valid before mutation.
-            if not permit.is_valid():
-                record_task_handoff_failure(token, "task handoff capability revoked during operation")
-                record_worker_401()
-                return JSONResponse(
-                    {"error": {"code": "handoff_revoked", "message": "task handoff capability was revoked when the worker terminated"}},
-                    status_code=401,
-                )
             # A spawned worker cannot impersonate a human/operator author.
-            await _run_api_io(tracker.add_comment, identifier, text, author="oompah")
+            await run_mutation(
+                lambda: _run_api_io(
+                    tracker.add_comment, identifier, text, author="oompah"
+                )
+            )
             return JSONResponse({"ok": True})
 
         if action == "submit":
-            # Check permit is still valid before mutation.
-            if not permit.is_valid():
-                record_task_handoff_failure(token, "task handoff capability revoked during operation")
-                record_worker_401()
-                return JSONResponse(
-                    {"error": {"code": "handoff_revoked", "message": "task handoff capability was revoked when the worker terminated"}},
-                    status_code=401,
-                )
             try:
-                record = _submission_record(issue, body)
-                cancel_retry = getattr(orch, "_cancel_retry_for_issue", None)
-                if callable(cancel_retry):
-                    cancel_retry(
-                        issue_id=getattr(issue, "id", None),
-                        identifier=identifier,
-                        project_id=project_id,
-                        reason="task submitted for integration",
+                async def persist_submission() -> Any:
+                    record = _submission_record(issue, body)
+                    cancel_retry = getattr(orch, "_cancel_retry_for_issue", None)
+                    if callable(cancel_retry):
+                        cancel_retry(
+                            issue_id=getattr(issue, "id", None),
+                            identifier=identifier,
+                            project_id=project_id,
+                            reason="task submitted for integration",
+                        )
+                    record = await _persist_worker_submission(
+                        tracker, issue, body, record=record
                     )
-                record = await _persist_worker_submission(
-                    tracker, issue, body, record=record
-                )
-                _enqueue_worker_submission(orch, project_id, issue, record)
-                _publish_submission_coordination(
-                    orch, project_id, issue, record, body
-                )
+                    _enqueue_worker_submission(orch, project_id, issue, record)
+                    _publish_submission_coordination(
+                        orch, project_id, issue, record, body
+                    )
+                    return record
+
+                record = await run_mutation(persist_submission)
             except ValueError as exc:
                 record_task_handoff_failure(
                     token, "task handoff submission validation failed"
@@ -3913,44 +3927,151 @@ async def api_task_handoff(request: Request):
                     {"error": {"code": "validation", "message": "status is required"}},
                     status_code=400,
                 )
-            # Check permit is still valid before mutation.
-            if not permit.is_valid():
-                record_task_handoff_failure(token, "task handoff capability revoked during operation")
-                record_worker_401()
-                return JSONResponse(
-                    {"error": {"code": "handoff_revoked", "message": "task handoff capability was revoked when the worker terminated"}},
-                    status_code=401,
+
+            async def apply_status_transition() -> JSONResponse:
+                # Preserve the existing intake/transition gate for
+                # forge-backed trackers instead of turning a scoped
+                # capability into a bypass.
+                (
+                    transition_result,
+                    transition_actor,
+                    transition_from_status,
+                    transition_to_status,
+                    rejection,
+                ) = _evaluate_api_intake_transition(
+                    orch=orch,
+                    tracker=tracker,
+                    project_id=project_id,
+                    identifier=identifier,
+                    existing_issue=issue,
+                    target_status=status,
+                    body={"actor_login": "oompah", "project_id": project_id},
+                    request=request,
                 )
-            # Preserve the existing intake/transition gate for forge-backed
-            # trackers instead of turning a scoped capability into a bypass.
-            (
-                transition_result,
-                transition_actor,
-                transition_from_status,
-                transition_to_status,
-                rejection,
-            ) = _evaluate_api_intake_transition(
-                orch=orch,
-                tracker=tracker,
-                project_id=project_id,
-                identifier=identifier,
-                existing_issue=issue,
-                target_status=status,
-                body={"actor_login": "oompah", "project_id": project_id},
-                request=request,
+                if rejection is not None:
+                    record_task_handoff_failure(
+                        token, "task handoff status transition rejected"
+                    )
+                    return rejection
+                terminal_payload: dict[str, Any] | None = None
+                terminal_target = _terminal_target_for_status(status)
+                if terminal_target is not None:
+                    # A task-scoped capability cannot impersonate an owner.
+                    # Keep the identity fixed to the handoff actor while
+                    # routing explicit override fields through the coordinator.
+                    transition_body = dict(body)
+                    transition_body["project_id"] = project_id
+                    transition_body["actor_login"] = "oompah"
+                    terminal_payload, terminal_error = await _stage_terminal_transition(
+                        orch=orch,
+                        tracker=tracker,
+                        project_id=project_id,
+                        issue=issue,
+                        target=terminal_target,
+                        body=transition_body,
+                        request=request,
+                    )
+                    if terminal_error is not None:
+                        record_task_handoff_failure(
+                            token, "task handoff terminal transition rejected"
+                        )
+                        if isinstance(terminal_error, JSONResponse):
+                            return terminal_error
+                        message, status_code = terminal_error
+                        return JSONResponse(
+                            {"error": {"code": "terminal_transition", "message": message}},
+                            status_code=status_code,
+                        )
+                    _cancel_retry_for_authority_change(
+                        orch,
+                        issue,
+                        identifier,
+                        project_id,
+                        status,
+                        None,
+                    )
+                else:
+                    _cancel_retry_for_authority_change(
+                        orch,
+                        issue,
+                        identifier,
+                        project_id,
+                        status,
+                        None,
+                    )
+                    await _run_api_io(tracker.update_issue, identifier, status=status)
+                summary = str(body.get("summary") or "").strip()
+                if summary:
+                    await _run_api_io(
+                        tracker.add_comment, identifier, summary, author="oompah"
+                    )
+                _record_owner_override_if_needed(
+                    tracker,
+                    identifier,
+                    transition_result,
+                    transition_actor,
+                    issue,
+                    transition_from_status,
+                    transition_to_status,
+                )
+                _api_cache.invalidate("issues:all")
+                _api_cache.invalidate_prefix(f"detail:{project_id}:{identifier}")
+                if terminal_payload is not None:
+                    orch.request_refresh()
+                await broadcast_issues()
+                return JSONResponse(terminal_payload or {"ok": True})
+
+            return await run_mutation(apply_status_transition)
+
+        label = str(body.get("label") or "").strip()
+        if not label:
+            record_task_handoff_failure(token, "task handoff label validation failed")
+            return JSONResponse(
+                {"error": {"code": "validation", "message": "label is required"}},
+                status_code=400,
             )
-            if rejection is not None:
-                record_task_handoff_failure(token, "task handoff status transition rejected")
-                return rejection
-            terminal_target = _terminal_target_for_status(status)
+        from oompah.label_auth import label_name_to_status
+
+        async def apply_label_mutation() -> JSONResponse:
+            status_from_label = label_name_to_status(label)
+            terminal_target = _terminal_target_for_status(status_from_label)
+            terminal_payload: dict[str, Any] | None = None
             if terminal_target is not None:
-                # A task-scoped capability cannot impersonate an owner. Keep
-                # the identity fixed to the handoff actor while still routing
-                # explicit override fields through the coordinator's owner
-                # authorization check.
-                transition_body = dict(body)
-                transition_body["project_id"] = project_id
-                transition_body["actor_login"] = "oompah"
+                if action == "remove-label":
+                    record_task_handoff_failure(
+                        token, "task handoff terminal label removal rejected"
+                    )
+                    return JSONResponse(
+                        {
+                            "error": {
+                                "code": "terminal_transition",
+                                "message": "Terminal status labels cannot be removed directly.",
+                            }
+                        },
+                        status_code=400,
+                    )
+                if body.get("audit_override") or body.get("override_reason") is not None:
+                    record_task_handoff_failure(
+                        token, "task handoff terminal label override rejected"
+                    )
+                    return JSONResponse(
+                        {
+                            "error": {
+                                "code": "terminal_transition",
+                                "message": (
+                                    "Status-label mutations cannot request an audit "
+                                    "override; use the task status operation with an "
+                                    "explicit override_reason."
+                                ),
+                            }
+                        },
+                        status_code=400,
+                    )
+                transition_body = {
+                    **body,
+                    "project_id": project_id,
+                    "actor_login": "oompah",
+                }
                 terminal_payload, terminal_error = await _stage_terminal_transition(
                     orch=orch,
                     tracker=tracker,
@@ -3962,10 +4083,8 @@ async def api_task_handoff(request: Request):
                 )
                 if terminal_error is not None:
                     record_task_handoff_failure(
-                        token, "task handoff terminal transition rejected"
+                        token, "task handoff terminal label transition rejected"
                     )
-                    # OOMPAH-624: A pre-built JSONResponse (e.g. actor
-                    # conflict) is forwarded verbatim.
                     if isinstance(terminal_error, JSONResponse):
                         return terminal_error
                     message, status_code = terminal_error
@@ -3978,31 +4097,13 @@ async def api_task_handoff(request: Request):
                     issue,
                     identifier,
                     project_id,
-                    status,
+                    status_from_label,
                     None,
                 )
+            elif action == "add-label":
+                await _run_api_io(tracker.add_label, identifier, label)
             else:
-                _cancel_retry_for_authority_change(
-                    orch,
-                    issue,
-                    identifier,
-                    project_id,
-                    status,
-                    None,
-                )
-                await _run_api_io(tracker.update_issue, identifier, status=status)
-            summary = str(body.get("summary") or "").strip()
-            if summary:
-                await _run_api_io(tracker.add_comment, identifier, summary, author="oompah")
-            _record_owner_override_if_needed(
-                tracker,
-                identifier,
-                transition_result,
-                transition_actor,
-                issue,
-                transition_from_status,
-                transition_to_status,
-            )
+                await _run_api_io(tracker.remove_label, identifier, label)
             _api_cache.invalidate("issues:all")
             _api_cache.invalidate_prefix(f"detail:{project_id}:{identifier}")
             if terminal_payload is not None:
@@ -4010,99 +4111,19 @@ async def api_task_handoff(request: Request):
             await broadcast_issues()
             return JSONResponse(terminal_payload or {"ok": True})
 
-        label = str(body.get("label") or "").strip()
-        if not label:
-            record_task_handoff_failure(token, "task handoff label validation failed")
-            return JSONResponse(
-                {"error": {"code": "validation", "message": "label is required"}},
-                status_code=400,
-            )
-        # Check permit is still valid before mutation.
-        if not permit.is_valid():
-            record_task_handoff_failure(token, "task handoff capability revoked during operation")
-            record_worker_401()
-            return JSONResponse(
-                {"error": {"code": "handoff_revoked", "message": "task handoff capability was revoked when the worker terminated"}},
-                status_code=401,
-            )
-        from oompah.label_auth import label_name_to_status
-
-        status_from_label = label_name_to_status(label)
-        terminal_target = _terminal_target_for_status(status_from_label)
-        if terminal_target is not None:
-            if action == "remove-label":
-                record_task_handoff_failure(
-                    token, "task handoff terminal label removal rejected"
-                )
-                return JSONResponse(
-                    {
-                        "error": {
-                            "code": "terminal_transition",
-                            "message": "Terminal status labels cannot be removed directly.",
-                        }
-                    },
-                    status_code=400,
-                )
-            if body.get("audit_override") or body.get("override_reason") is not None:
-                record_task_handoff_failure(
-                    token, "task handoff terminal label override rejected"
-                )
-                return JSONResponse(
-                    {
-                        "error": {
-                            "code": "terminal_transition",
-                            "message": (
-                                "Status-label mutations cannot request an audit "
-                                "override; use the task status operation with an "
-                                "explicit override_reason."
-                            ),
-                        }
-                    },
-                    status_code=400,
-                )
-            transition_body = {
-                **body,
-                "project_id": project_id,
-                "actor_login": "oompah",
-            }
-            terminal_payload, terminal_error = await _stage_terminal_transition(
-                orch=orch,
-                tracker=tracker,
-                project_id=project_id,
-                issue=issue,
-                target=terminal_target,
-                body=transition_body,
-                request=request,
-            )
-            if terminal_error is not None:
-                record_task_handoff_failure(
-                    token, "task handoff terminal label transition rejected"
-                )
-                if isinstance(terminal_error, JSONResponse):
-                    return terminal_error
-                message, status_code = terminal_error
-                return JSONResponse(
-                    {"error": {"code": "terminal_transition", "message": message}},
-                    status_code=status_code,
-                )
-            _cancel_retry_for_authority_change(
-                orch,
-                issue,
-                identifier,
-                project_id,
-                status_from_label,
-                None,
-            )
-        elif action == "add-label":
-            await _run_api_io(tracker.add_label, identifier, label)
-        else:
-            await _run_api_io(tracker.remove_label, identifier, label)
-        _api_cache.invalidate("issues:all")
-        _api_cache.invalidate_prefix(f"detail:{project_id}:{identifier}")
-        if terminal_payload is not None:
-            orch.request_refresh()
-        await broadcast_issues()
-        return JSONResponse(terminal_payload or {"ok": True})
+        return await run_mutation(apply_label_mutation)
+    except OperationPermitDenied as exc:
+        record_task_handoff_failure(token, "task handoff capability revoked before mutation")
+        record_worker_401()
+        return JSONResponse(
+            {
+                "error": {
+                    "code": "handoff_revoked",
+                    "message": str(exc),
+                }
+            },
+            status_code=401,
+        )
     except ValueError as exc:
         record_task_handoff_failure(
             token, "task handoff operation validation failed"
