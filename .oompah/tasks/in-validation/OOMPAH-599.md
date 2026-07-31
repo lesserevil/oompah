@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:31.072278Z'
-updated_at: '2026-07-31T05:12:42.231800Z'
+updated_at: '2026-07-31T05:20:32.760656Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-599
 target_branch: null
 review_url: null
@@ -102,6 +102,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-9e80dda6753b: '2026-07-31T04:45:29.862224+00:00'
+    attempt-1e4d69c1f121: '2026-07-31T05:20:31.267952+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -176,7 +177,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-599
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -185,7 +186,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-1e4d69c1f121
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -195,13 +196,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T05:12:36.551446+00:00'
       branch_key: epic-OOMPAH-587--task-OOMPAH-599
+      verdict: pass
+      completed_at: '2026-07-31T05:20:31.267773+00:00'
+      ended_at: '2026-07-31T05:20:31.267773+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Needs Human
     created_at: '2026-07-31T05:12:34.794570+00:00'
-    updated_at: '2026-07-31T05:12:36.551446+00:00'
+    updated_at: '2026-07-31T05:20:31.267773+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-a3ab71aa9f01
