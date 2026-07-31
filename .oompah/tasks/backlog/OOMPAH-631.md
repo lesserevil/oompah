@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-631
 type: bug
-status: In Progress
+status: Backlog
 priority: 1
 title: Restore validation ownership when terminal retries coalesce
 parent: OOMPAH-584
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:08:00.758352Z'
-updated_at: '2026-07-31T00:35:21.265219Z'
+updated_at: '2026-07-31T00:36:23.885370Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-631
 target_branch: null
 review_url: null
@@ -223,5 +223,10 @@ author: oompah
 created: 2026-07-31 00:35
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-31 00:36
+---
+Exact gate: 13,826 passed, 7 skipped; only TestConcurrentWrite::test_shadow_write_tracker_serializes_writes failed under load. It passes 30/30 alone. Root cause in the regression itself: global 5s pytest timeout conflicts with two 10s joins, and the test reads tracker state without asserting either worker ended. Operator is stabilizing it with an explicit bounded concurrency budget and liveness assertions before resubmission.
 ---
 <!-- COMMENTS:END -->
