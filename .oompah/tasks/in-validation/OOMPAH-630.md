@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-630
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: null
 title: Fetch rollup targets before judging child landing evidence
 parent: OOMPAH-584
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T23:37:58.090708Z'
-updated_at: '2026-07-31T00:17:04.484083Z'
+updated_at: '2026-07-31T00:21:40.444982Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-630
 target_branch: null
 review_url: null
@@ -35,12 +35,15 @@ oompah.agent_run_id: ae4b8567-559a-461a-bbce-4e9de1ef34b7
 oompah.work_branch: epic-OOMPAH-584--task-OOMPAH-630
 oompah.integration:
   version: 1
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-584--task-OOMPAH-630
+  base_branch: epic-OOMPAH-584
+  base_sha: f9f1e78ae25afb462d71a360bf93cc2d4f0804a2
   head_sha: c03e52f66f4e5123576f4de3f21e4a763cc9c4b1
+  integrated_sha: c03e52f66f4e5123576f4de3f21e4a763cc9c4b1
   submitted_at: '2026-07-31T00:17:01.449875+00:00'
-  updated_at: '2026-07-31T00:17:01.449875+00:00'
+  updated_at: '2026-07-31T00:21:36.903304+00:00'
 oompah.task_costs:
   total_input_tokens: 137
   total_output_tokens: 10429
@@ -67,6 +70,28 @@ oompah.task_costs:
     output_tokens: 10390
     cost_usd: 0.0
     recorded_at: '2026-07-31T00:15:26.415217+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-6fb95f1bb342
+    project_id: proj-14849f1b
+    task_id: OOMPAH-630
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 5b44c09d3b1f88503d3c2e4c366d66210c5fac08ef85f5e65ab5fb84d1c5eb4f
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-31T00:21:38.160095+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -240,5 +265,10 @@ author: oompah
 created: 2026-07-31 00:17
 ---
 Stale rollup refs, active-validation ownership, cross-event-loop transition locking, and deterministic concurrency-gate coverage are complete at c03e52f66.
+---
+author: oompah
+created: 2026-07-31 00:21
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
