@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-621
 type: task
-status: In Validation
+status: Open
 priority: 1
 title: Document and integration-test CLI credential precedence
 parent: OOMPAH-619
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:25:29.809048Z'
-updated_at: '2026-07-31T06:22:26.456005Z'
+updated_at: '2026-07-31T06:25:25.412948Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-621
 target_branch: null
 review_url: null
@@ -125,6 +125,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-8a79c55ddcf1: '2026-07-30T22:43:19.718125+00:00'
+    attempt-52c9129eca9e: '2026-07-31T06:25:23.085292+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -167,7 +168,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-621
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -176,7 +177,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-52c9129eca9e
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -186,13 +187,17 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T06:22:19.195657+00:00'
       branch_key: epic-OOMPAH-619--task-OOMPAH-621
+      verdict: fail
+      failure_classification: incomplete
+      completed_at: '2026-07-31T06:25:23.085081+00:00'
+      ended_at: '2026-07-31T06:25:23.085081+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-31T06:21:52.455730+00:00'
-    updated_at: '2026-07-31T06:22:19.195657+00:00'
+    updated_at: '2026-07-31T06:25:23.085081+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-8a79c55ddcf1
@@ -563,5 +568,19 @@ author: oompah
 created: 2026-07-31 06:22
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 06:25
+---
+Audit FAIL — incomplete. Routing task to Open.
+
+[REDACTED]
+
+Instructions:
+- Add an actual end-to-end test that provisions an isolated venv, installs oompah from a specific git revision (e.g., the branch HEAD via `uv tool install git+file://... @<rev>`), and asserts the installed binary imports and reports its version.
+- In the same or a companion test, launch a matching-revision oompah server bound to a loopback port with a temporary htpasswd file (bcrypt), then assert `oompah task view <known-task> --server http://127.0.0.1:<port>` succeeds using OOMPAH_SERVER_USERNAME + OOMPAH_SERVER_PASSWORD_FILE.
+- Assert a safe admin read (e.g., `oompah admin status` or an equivalent non-mutating admin subcommand) succeeds with the same credentials and returns non-error output; verify no plaintext credential appears in stdout/stderr.
+- Gate the end-to-end test behind a marker (e.g., @pytest.mark.integration) so make test can opt-in, but ensure it is exercised by the full Makefile gate as the task description requires (`install-from-revision compatibility is automated`).
+- If the environment truly cannot support a real git-revision install (network isolation, missing uv/pipx), file a follow-up Needs Human task documenting the missing capability rather than shipping a placeholder file whose docstring claims behaviour the tests do not perform.
 ---
 <!-- COMMENTS:END -->
