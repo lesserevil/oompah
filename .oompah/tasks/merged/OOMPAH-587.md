@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-587
 type: epic
-status: In Validation
+status: Merged
 priority: 1
 title: Drain integration queues and prevent stranded delivery states
 parent: OOMPAH-584
@@ -18,7 +18,7 @@ labels:
 - epic:rebased
 assignee: null
 created_at: '2026-07-30T14:13:38.093049Z'
-updated_at: '2026-07-31T05:09:15.056877Z'
+updated_at: '2026-07-31T05:11:41.369651Z'
 work_branch: epic-OOMPAH-587
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/601
@@ -28,6 +28,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-17be272b6055: '2026-07-31T04:54:32.668794+00:00'
+    attempt-a5cb7b6465d7: '2026-07-31T05:11:38.088543+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -68,7 +69,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-587
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -77,7 +78,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-a5cb7b6465d7
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -87,13 +88,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T05:09:08.245279+00:00'
       branch_key: epic-OOMPAH-587
+      verdict: pass
+      completed_at: '2026-07-31T05:11:38.088337+00:00'
+      ended_at: '2026-07-31T05:11:38.088337+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-07-31T05:08:58.797722+00:00'
-    updated_at: '2026-07-31T05:09:08.245279+00:00'
+    updated_at: '2026-07-31T05:11:38.088337+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-17be272b6055
@@ -245,5 +249,29 @@ author: oompah
 created: 2026-07-31 05:09
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 05:11
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- epic_branch_head: c1b23d67ef00f07af9fd31b968070c4533341173
+- parent_branch_head: 145b6b67e89257f8e6d6ef9b242260141d44caa2
+- merge_commit_second_parent: c1b23d67ef00f07af9fd31b968070c4533341173
+- merge_commit_first_parent: b1425f6be8a8914c336d4dcb748ad4e10dc7a372
+- merge_commit_message: Merge pull request #601 from lesserevil/epic-OOMPAH-587
+- commits_epic_ahead_of_parent: 0
+- commits_parent_ahead_of_epic: 1 (merge commit 145b6b67e)
+- children_terminal: OOMPAH-596=Done,OOMPAH-597=Done,OOMPAH-598=Done,OOMPAH-599=Done,OOMPAH-617=Done,OOMPAH-637=Done
+- standalone_ready_outcomes: OOMPAH-574 merged (PR #598), OOMPAH-576 merged (PR #599), OOMPAH-581 merged (PR #600), OOMPAH-575 landed via 9e8bf3323
+- pr_number: 601
+- pr_merged_head_at_merge_time: c1b23d67e
+- previous_audit_verdict_for_done: PASS (children_done_count=6)
+- branch_gate_status: pass @ 88adebe11 via make test in 262.3s (predecessor head)
+- requested_target: Merged
+- previous_state: In Review
 ---
 <!-- COMMENTS:END -->
