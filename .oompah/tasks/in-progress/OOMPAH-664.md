@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-664
 type: task
-status: Needs CI Fix
+status: In Progress
 priority: 0
 title: Make issue-list snapshots advance with canonical state-branch task changes
 parent: null
@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:06.140108Z'
-updated_at: '2026-07-31T22:55:58.926898Z'
+updated_at: '2026-07-31T22:56:16.092368Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -45,7 +45,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 87e65040-8e07-47a3-b412-d61038221b43
+oompah.agent_run_id: 6d2a29bc-900a-4a34-853a-40f1cad17cbc
 oompah.task_costs:
   total_input_tokens: 6888157
   total_output_tokens: 49425
@@ -813,5 +813,15 @@ FAILED tests/test_orchestrator_profile_reload.py::TestStoreOrchestratorIntegrati
 
 make: *** [Makefile:344: test] Error 1
 ```
+---
+author: oompah
+created: 2026-07-31 22:56
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-31 22:56
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
