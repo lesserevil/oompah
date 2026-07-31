@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-646
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Serialize review capacity across reconciliation sweeps and webhook lag
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:55:23.505409Z'
-updated_at: '2026-07-31T08:02:08.546899Z'
+updated_at: '2026-07-31T08:02:19.304364Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -81,6 +81,14 @@ oompah.task_costs:
     output_tokens: 4804
     cost_usd: 0.0
     recorded_at: '2026-07-31T06:58:02.245280+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-646
+  head_sha: 355258ef0d1b1600f09cd111511f2828946e4ec7
+  submitted_at: '2026-07-31T08:02:14.140071+00:00'
+  updated_at: '2026-07-31T08:02:14.140071+00:00'
 ---
 ## Summary
 
@@ -133,5 +141,10 @@ author: oompah
 created: 2026-07-31 08:02
 ---
 Implementation pushed at 355258ef0 (includes d06656a56). Durable SQLite review reservations serialize capacity across sweeps/processes, reconcile forge state, release on close/merge/failure, and preserve retryability. Coordination review: OOMPAH-642 and OOMPAH-643 are already in this branch ancestry; OOMPAH-621 is integrated into its parent branch and has no unresolved overlap here. Verification: focused capacity/webhook/standalone/epic/close-gate coverage 229 passed; ACP handoff recovery 8 passed with OOMPAH_AGENT_LOG_DIR redirected writable; terminal mutation scan passed. The initial full run had 14,196 passed and 12 environment/mock-compatibility failures; all 12 were rerun and passed after the review-state normalization fix.
+---
+author: oompah
+created: 2026-07-31 08:02
+---
+Pushed durable review-capacity serialization and compatibility normalization in 355258ef0. Focused regressions, ACP handoff recovery, and terminal mutation scan pass; task submitted for validation.
 ---
 <!-- COMMENTS:END -->
