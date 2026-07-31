@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:32:18.734139Z'
-updated_at: '2026-07-31T09:55:24.650713Z'
+updated_at: '2026-07-31T09:57:32.030434Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-623
 target_branch: null
 review_url: null
@@ -331,5 +331,10 @@ author: oompah
 created: 2026-07-31 09:55
 ---
 Temporary gate safety constraint: this worktree does not yet contain OOMPAH-652's isolated test lifecycle. Run focused tests and git diff --check, but do not run make test locally before OOMPAH-652 is integrated/deployed and the branch is rebased onto that safe base. Oompah's exact post-submit full gate will provide the complete gate once the finish-order dependency is satisfied.
+---
+author: oompah
+created: 2026-07-31 09:57
+---
+In-progress review of the new staged cutover finds two remaining atomicity violations. activate_candidate removes/replaces the live UV tool directory before replacing the launcher, so the old canonical launcher temporarily points at a deleted/new tool tree; use immutable versioned candidate tool roots and one atomic launcher symlink/rename as the activation point, retaining the old root for rollback. More critically, graceful_cutover sets committed=true immediately after the restart POST, then a new-health/build-id failure rolls the CLI back to old while the new server may already be running (or partially started), recreating the exact live mismatch. Post-cutover rollback must either restart the old server revision before restoring the old CLI, or retain the candidate CLI whenever server cutover may have occurred and enter an explicit recoverable state; never restore only one side. Add deterministic tests for accepted-restart-then-health-timeout, connection drop during exec, new server wrong build ID, activation interruption between tool and launcher operations, and concurrent CLI invocation during activation. Also still isolate/rebase the branch's unrelated prerequisite commits before submission.
 ---
 <!-- COMMENTS:END -->
