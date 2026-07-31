@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-600
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Integrate OOMPAH-581 and prune current safe terminal workspaces
 parent: OOMPAH-588
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:58.634342Z'
-updated_at: '2026-07-31T03:30:46.469163Z'
+updated_at: '2026-07-31T03:39:07.597312Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-600
 target_branch: null
 review_url: null
@@ -62,12 +62,15 @@ oompah.agent_run_id: 3501ff77-2066-4e14-8c0e-bc496f035bc4
 oompah.work_branch: epic-OOMPAH-588--task-OOMPAH-600
 oompah.integration:
   version: 1
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-588--task-OOMPAH-600
+  base_branch: epic-OOMPAH-588
+  base_sha: b4959703ee1354fbbdec1d9df256c5f1c78cf575
   head_sha: 67c67ffa6f932ca2a41ff1cd214ed33c9655becc
+  integrated_sha: 67c67ffa6f932ca2a41ff1cd214ed33c9655becc
   submitted_at: '2026-07-31T03:30:30.310337+00:00'
-  updated_at: '2026-07-31T03:30:30.310337+00:00'
+  updated_at: '2026-07-31T03:39:03.417116+00:00'
 oompah.task_costs:
   total_input_tokens: 8278292
   total_output_tokens: 24509
@@ -110,6 +113,28 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-588--task-OOMPAH-600
     source_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
     completed_at: '2026-07-30T15:52:40.479596+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-2d6e05e1f142
+    project_id: proj-14849f1b
+    task_id: OOMPAH-600
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ed78a45b164af0b731a0cb31d4e87af5ebe6c937b080c132e3807f272b08ffa3
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-31T03:39:04.782110+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -420,5 +445,10 @@ Run #1 [attempt=1, profile=standard, role=standard -> Codex/gpt-5.6-terra]
 - Cost: $0.0000
 - Exit: terminated, Duration: 16m 36s
 - Log: OOMPAH-600__20260731T031421Z.jsonl
+---
+author: oompah
+created: 2026-07-31 03:39
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
