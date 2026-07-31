@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-648
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Keep live long-running tool calls from triggering agent stall termination
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:15:42.851609Z'
-updated_at: '2026-07-31T08:16:54.779888Z'
+updated_at: '2026-07-31T08:24:14.101987Z'
 work_branch: OOMPAH-648
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/614
@@ -115,6 +115,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/614
 oompah.review_number: '614'
 oompah.work_branch: OOMPAH-648
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-b23dd91dd27c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-648
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f94d808fab5ea8a54de74df6958de5dd299e0535df6df6303d3b4670f9700d25
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-31T08:24:09.754329+00:00'
+  - version: 1
+    audit_id: audit-db48e6cb6d3e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-648
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f94d808fab5ea8a54de74df6958de5dd299e0535df6df6303d3b4670f9700d25
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-31T08:24:09.754329+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -274,5 +313,15 @@ author: oompah
 created: 2026-07-31 08:16
 ---
 Branch quality gate passed for `ca51c22b90785daec5d4dd7f0e29dc22045957cc` using `make test` in 264.5s. Review creation may proceed.
+---
+author: oompah
+created: 2026-07-31 08:24
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-07-31 08:24
+---
+YOLO: merged PR #614.
 ---
 <!-- COMMENTS:END -->
