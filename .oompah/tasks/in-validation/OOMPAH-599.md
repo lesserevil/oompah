@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-599
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Verify zero stranded delivery states and close recovery epics
 parent: OOMPAH-587
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:31.072278Z'
-updated_at: '2026-07-31T04:23:46.031233Z'
+updated_at: '2026-07-31T04:23:56.907612Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-599
 target_branch: null
 review_url: null
@@ -82,6 +82,55 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-587--task-OOMPAH-599
     source_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
     completed_at: '2026-07-30T15:50:18.598020+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-e33a8e693d38
+    project_id: proj-14849f1b
+    task_id: OOMPAH-599
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 09e7fee55aa783b0511809766ec5529858ff088674ff2ac0ea032a85bb52b638
+    attempts:
+    - version: 1
+      attempt_id: attempt-a3ab71aa9f01
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 09e7fee55aa783b0511809766ec5529858ff088674ff2ac0ea032a85bb52b638
+      created_at: '2026-07-31T04:23:50.852562+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-31T04:23:50.852562+00:00'
+      branch_key: epic-OOMPAH-587--task-OOMPAH-599
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-31T04:23:47.707138+00:00'
+    updated_at: '2026-07-31T04:23:50.852562+00:00'
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-a3ab71aa9f01
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 09e7fee55aa783b0511809766ec5529858ff088674ff2ac0ea032a85bb52b638
+    created_at: '2026-07-31T04:23:50.852562+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-31T04:23:50.852562+00:00'
+    branch_key: epic-OOMPAH-587--task-OOMPAH-599
 ---
 ## Summary
 
@@ -234,5 +283,20 @@ author: oompah
 created: 2026-07-31 04:19
 ---
 Fenced stale integration ownership and verified the delivery plane with a full green gate.
+---
+author: oompah
+created: 2026-07-31 04:23
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-07-31 04:23
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-07-31 04:23
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
