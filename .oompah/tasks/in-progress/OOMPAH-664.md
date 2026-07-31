@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-664
 type: task
-status: Needs CI Fix
+status: In Progress
 priority: 0
 title: Make issue-list snapshots advance with canonical state-branch task changes
 parent: null
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:06.140108Z'
-updated_at: '2026-07-31T22:00:00.622430Z'
+updated_at: '2026-07-31T22:00:32.860804Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,7 +44,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 1037e413-d6b6-438f-8857-a9bfa9cca0ac
+oompah.agent_run_id: 8225d13d-6e26-4e2d-bfd6-cdb5cd3c88e5
 oompah.task_costs:
   total_input_tokens: 3977338
   total_output_tokens: 32202
@@ -512,5 +512,15 @@ FAILED tests/test_quality_gate.py::test_gate_subprocess_isolates_operator_and_to
 
 make: *** [Makefile:344: test] Error 1
 ```
+---
+author: oompah
+created: 2026-07-31 22:00
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-31 22:00
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
