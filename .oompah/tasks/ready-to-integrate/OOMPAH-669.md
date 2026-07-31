@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T21:52:16.588312Z'
-updated_at: '2026-07-31T23:15:41.973650Z'
+updated_at: '2026-07-31T23:15:58.690971Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -156,5 +156,20 @@ author: oompah
 created: 2026-07-31 23:15
 ---
 Fixed _persist_worker_submission to reconcile canonical lifecycle atomically on every accepted submit. Same-head resubmit from In Progress / Needs Human / Needs CI Fix now writes tracker.status=Ready to Integrate + fresh summary comment, restoring the durable Ready-to-Integrate invariant for the accepted generation. Duplicate submits already at Ready to Integrate stay fully idempotent (no writes, no queue reset). Removed 'integrated' from _submission_record's reuse-existing set so integrated → resubmit builds a fresh 'ready' record and keeps OOMPAH-628 queue rearm firing. New tests cover the three non-ready starting statuses, the fully-idempotent duplicate case, and cross-project isolation. Focused suites (worker_submission, integration_queue, integration_record, integration_conflict_repair, integration_executor, task_handoff, task_cli, submit_queue_concurrency) all pass — 315/315.
+---
+author: oompah
+created: 2026-07-31 23:15
+---
+Agent completed successfully in 822s (41412 tokens)
+---
+author: oompah
+created: 2026-07-31 23:15
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Claude/opus]
+- Turns: 118, Tool calls: 89
+- Tokens: 95 in / 41.3K out [41.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 13m 42s
+- Log: OOMPAH-669__20260731T230221Z.jsonl
 ---
 <!-- COMMENTS:END -->
