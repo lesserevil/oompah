@@ -681,7 +681,10 @@ def _exec_oompah_task_command(
         if args.subcommand == "submit":
             from datetime import datetime, timezone
 
-            from oompah.integration import IntegrationRecord
+            from oompah.integration import (
+                IntegrationRecord,
+                validate_submission_branch,
+            )
             from oompah.statuses import READY_TO_INTEGRATE
             from oompah.task_cli import _git_submission_evidence
 
@@ -691,7 +694,16 @@ def _exec_oompah_task_command(
                     "workspace"
                 )
             evidence = _git_submission_evidence(cwd=workspace_path)
-            branch = str(evidence.get("task_branch") or "").strip()
+            issue = task_tracker.fetch_issue_detail(args.identifier)
+            if issue is None:
+                return f"Error: Issue {args.identifier!r} not found"
+            try:
+                branch = validate_submission_branch(
+                    issue,
+                    evidence.get("task_branch"),
+                )
+            except ValueError as exc:
+                return f"Error: {exc}"
             head_sha = str(evidence.get("head_sha") or "").strip().lower()
             remote_head_sha = str(
                 evidence.get("remote_head_sha") or ""

@@ -2496,7 +2496,7 @@ class ProjectStore:
         branch_name: str,
         project: Project,
     ) -> None:
-        """Ensure an existing worktree is on the correct branch with a clean state."""
+        """Clean an existing worktree only after confirming its branch identity."""
 
         def _run(cmd: list[str], **kw) -> subprocess.CompletedProcess:
             return subprocess.run(
@@ -2508,39 +2508,34 @@ class ProjectStore:
                 **kw,
             )
 
-        # Fetch latest from remote
-        try:
-            _run(["git", "fetch", "origin"])
-        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
-            pass
-
-        # Discard any uncommitted changes from previous runs
-        try:
-            _run(["git", "reset", "--hard"])
-            _run(["git", "clean", "-fd"])
-        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
-            pass
-
-        # If HEAD is detached or on the wrong branch, check out the issue branch
+        # A queue item can be stale or malformed.  Do not reset, clean, or
+        # check out another branch until we know this registered task path is
+        # still attached to the branch it was created for.
         try:
             r = _run(["git", "symbolic-ref", "--short", "HEAD"])
             current_branch = r.stdout.strip() if r.returncode == 0 else ""
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
             current_branch = ""
-
         if current_branch != branch_name:
-            try:
-                _run(["git", "checkout", branch_name], check=True)
-                logger.info(
-                    "Checked out branch %s in worktree %s", branch_name, wt_path
-                )
-            except subprocess.CalledProcessError as exc:
-                logger.warning(
-                    "Failed to checkout branch %s in worktree %s: %s",
-                    branch_name,
-                    wt_path,
-                    exc.stderr.strip()[:200] if exc.stderr else "",
-                )
+            raise ProjectError(
+                f"Task worktree {wt_path} is on "
+                f"{current_branch or 'a detached HEAD'}, not expected branch "
+                f"{branch_name}; refusing to reset it"
+            )
+
+        # Fetch latest from remote.
+        try:
+            _run(["git", "fetch", "origin"])
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+            pass
+
+        # Discard any uncommitted changes from a previous run only after the
+        # branch check above has confirmed this is the intended task checkout.
+        try:
+            _run(["git", "reset", "--hard"])
+            _run(["git", "clean", "-fd"])
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+            pass
 
         self._disable_worktree_hooks(wt_path)
 
