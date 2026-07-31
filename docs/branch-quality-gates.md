@@ -34,6 +34,19 @@ passes.
 Duplicate concurrent quality gates for the same row and head are prevented by
 oompah's per-instance single-flight locking mechanism.
 
+## Exact-head isolation
+
+Before a non-cached command starts, oompah resolves and verifies the recorded
+commit, then checks it out in a gate-owned detached worktree. The command runs
+there, never in the reusable task or epic worktree. The detached worktree is
+removed only after its process group exits, and its result remains attributable
+to the recorded commit SHA.
+
+Different head generations may run concurrently. A task rejection or reopen
+cancels only the process group owned by the superseded generation; its result
+cannot create a review, integration, or CI-fix state. Review creation also
+rechecks the authoritative branch tip after the gate completes.
+
 ## Configuration and timeouts
 
 Set the timeout in `.env`:

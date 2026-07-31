@@ -61,7 +61,17 @@ def _repo(tmp_path):
 
 def test_executor_rebases_tests_and_fast_forwards_epic(tmp_path):
     remote, epic, task, task_head = _repo(tmp_path)
-    gate = BranchQualityGate(str(tmp_path / "quality.json"))
+    gate_calls = {}
+
+    class RecordingGate:
+        def run(self, **kwargs):
+            gate_calls.update(kwargs)
+            return QualityGateResult(
+                status="passed",
+                head_sha=kwargs["expected_head_sha"],
+                command=kwargs["command"],
+            )
+
     result = execute_integration(
         project_lock=nullcontext(),
         epic_worktree=str(epic),
@@ -69,13 +79,16 @@ def test_executor_rebases_tests_and_fast_forwards_epic(tmp_path):
         epic_branch="epic-E-1",
         task_branch="epic-E-1--task-T-1",
         submitted_head_sha=task_head,
-        quality_gate=gate,
+        quality_gate=RecordingGate(),
         quality_command="test -f task.txt",
         repo_identity=str(remote),
+        gate_generation="integration-generation-1",
     )
     assert result.integrated
     assert _git(epic, "rev-parse", "HEAD") == result.integrated_sha
     assert _git(epic, "rev-parse", "origin/epic-E-1") == result.integrated_sha
+    assert gate_calls["expected_head_sha"] == result.rebased_task_sha
+    assert gate_calls["generation"] == "integration-generation-1"
 
 
 def test_executor_preserves_rebased_task_when_quality_fails(tmp_path):

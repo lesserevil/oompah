@@ -11,7 +11,7 @@ from unittest.mock import MagicMock
 
 from oompah.models import Issue, Project
 from oompah.orchestrator import Orchestrator
-from oompah.quality_gate import BranchQualityGate
+from oompah.quality_gate import BranchQualityGate, QualityGateResult
 
 
 def _git_repo(tmp_path):
@@ -167,6 +167,157 @@ def test_concurrent_readiness_checks_execute_once(tmp_path):
     assert counter.read_text(encoding="utf-8") == "x"
 
 
+def test_gate_reads_only_its_detached_snapshot_after_task_worktree_changes(tmp_path):
+    repo = _git_repo(tmp_path)
+    observed = tmp_path / "observed.txt"
+    gate = BranchQualityGate(str(tmp_path / "quality.json"))
+    head = _run(gate, repo, "true").head_sha
+    command = (
+        f"sleep 0.3; cat source.txt > {shlex.quote(str(observed))}"
+    )
+
+    try:
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(
+                _run,
+                gate,
+                repo,
+                command,
+                expected_head_sha=head,
+                generation="task-generation-1",
+            )
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                with BranchQualityGate._processes_lock:
+                    if BranchQualityGate._active_snapshots:
+                        break
+                time.sleep(0.01)
+            else:
+                raise AssertionError("quality gate snapshot was not active")
+
+            # Simulate an operator reopening the task and the replacement
+            # agent mutating the reusable task worktree.
+            (repo / "source.txt").write_text("replacement\n", encoding="utf-8")
+            result = future.result(timeout=5)
+
+        assert result.passed
+        assert result.head_sha == head
+        assert observed.read_text(encoding="utf-8") == "one\n"
+        with BranchQualityGate._processes_lock:
+            assert BranchQualityGate._active_snapshots == {}
+    finally:
+        BranchQualityGate.cleanup_active_processes()
+
+
+def test_gate_rejects_a_worktree_that_is_not_the_recorded_head(tmp_path):
+    repo = _git_repo(tmp_path)
+    gate = BranchQualityGate(str(tmp_path / "quality.json"))
+    first_head = _run(gate, repo, "true").head_sha
+    (repo / "source.txt").write_text("two\n", encoding="utf-8")
+    subprocess.run(["git", "add", "source.txt"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "second"], cwd=repo, check=True)
+    marker = tmp_path / "must-not-run"
+
+    result = _run(
+        gate,
+        repo,
+        f"touch {shlex.quote(str(marker))}",
+        expected_head_sha=first_head,
+    )
+
+    assert result.status == "stale_head"
+    assert not marker.exists()
+
+
+def test_generation_cancellation_does_not_stop_a_replacement_head_gate(tmp_path):
+    repo = _git_repo(tmp_path)
+    gate = BranchQualityGate(str(tmp_path / "quality.json"))
+    old_head = _run(gate, repo, "true").head_sha
+    old_marker = tmp_path / "old-marker"
+    new_marker = tmp_path / "new-marker"
+
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            old_future = pool.submit(
+                _run,
+                gate,
+                repo,
+                f"sleep 2; touch {shlex.quote(str(old_marker))}",
+                expected_head_sha=old_head,
+                generation="old-generation",
+            )
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                with BranchQualityGate._processes_lock:
+                    if any(
+                        generation == "old-generation"
+                        for generation in BranchQualityGate._active_generations.values()
+                    ):
+                        break
+                time.sleep(0.01)
+            else:
+                raise AssertionError("old quality gate was not active")
+
+            (repo / "source.txt").write_text("new\n", encoding="utf-8")
+            subprocess.run(["git", "add", "source.txt"], cwd=repo, check=True)
+            subprocess.run(["git", "commit", "-q", "-m", "new"], cwd=repo, check=True)
+            new_head = _run(gate, repo, "true").head_sha
+            new_future = pool.submit(
+                _run,
+                gate,
+                repo,
+                f"sleep 0.1; touch {shlex.quote(str(new_marker))}",
+                expected_head_sha=new_head,
+                generation="new-generation",
+            )
+            assert BranchQualityGate.cancel_generation("old-generation") == 1
+            old_result = old_future.result(timeout=5)
+            new_result = new_future.result(timeout=5)
+
+        assert old_result.status == "interrupted"
+        assert new_result.passed
+        assert not old_marker.exists()
+        assert new_marker.exists()
+    finally:
+        BranchQualityGate.cleanup_active_processes()
+
+
+def test_gate_liveness_callback_cancels_only_its_owned_process(tmp_path):
+    repo = _git_repo(tmp_path)
+    gate = BranchQualityGate(str(tmp_path / "quality.json"))
+    head = BranchQualityGate._head_sha(str(repo))
+    current = threading.Event()
+    current.set()
+
+    try:
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(
+                _run,
+                gate,
+                repo,
+                "sleep 60",
+                expected_head_sha=head,
+                generation="liveness-generation",
+                is_current=current.is_set,
+            )
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                with BranchQualityGate._processes_lock:
+                    if BranchQualityGate._active_generations:
+                        break
+                time.sleep(0.01)
+            else:
+                raise AssertionError("liveness quality gate was not active")
+
+            current.clear()
+            result = future.result(timeout=5)
+
+        assert result.status == "interrupted"
+        assert not (tmp_path / "quality.json").exists()
+    finally:
+        BranchQualityGate.cleanup_active_processes()
+
+
 def test_no_command_is_an_explicit_non_blocking_result(tmp_path):
     repo = _git_repo(tmp_path)
     result = _run(
@@ -269,6 +420,53 @@ def test_orchestrator_rejects_checkout_that_is_not_branch_tip(tmp_path):
     orch._issue_has_children = MagicMock(return_value=False)
 
     assert orch._quality_gate_worktree(project, issue, "work") == ""
+
+
+def test_orchestrator_discards_a_pass_when_the_branch_advances_during_gate(tmp_path):
+    repo = _git_repo(tmp_path)
+    project = Project(
+        id="project-1",
+        name="project",
+        repo_url="https://example.test/org/repo",
+        repo_path=str(repo),
+        test_command="true",
+    )
+    issue = Issue(
+        id="task-1",
+        identifier="task-1",
+        title="Task",
+        project_id=project.id,
+        work_branch="work",
+    )
+    tracker = MagicMock()
+    project_store = MagicMock()
+    project_store.worktree_path_for.return_value = str(repo)
+    orch = Orchestrator.__new__(Orchestrator)
+    orch.project_store = project_store
+    orch._issue_has_children = MagicMock(return_value=False)
+    orch._tracker_for_project = MagicMock(return_value=tracker)
+    orch._standalone_delivery_authorities = {}
+    orch._standalone_delivery_authority_lock = threading.RLock()
+
+    class AdvancingGate:
+        def run(self, **kwargs):
+            (repo / "source.txt").write_text("replacement\n", encoding="utf-8")
+            subprocess.run(["git", "add", "source.txt"], cwd=repo, check=True)
+            subprocess.run(
+                ["git", "commit", "-q", "-m", "replacement"],
+                cwd=repo,
+                check=True,
+            )
+            return QualityGateResult(
+                status="passed",
+                head_sha=kwargs["expected_head_sha"],
+                command=kwargs["command"],
+            )
+
+    orch._branch_quality_gate = AdvancingGate()
+
+    assert not orch._review_quality_gate_passes(project, issue, "work", "main")
+    tracker.add_comment.assert_not_called()
 
 
 def test_quality_gate_cleans_up_active_process_groups(tmp_path):

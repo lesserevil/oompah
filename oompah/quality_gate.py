@@ -7,12 +7,14 @@ import json
 import logging
 import os
 import signal
+import shutil
 import subprocess
 import tempfile
 import threading
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import Callable
 
 from oompah.client_auth import agent_environment
 
@@ -50,6 +52,11 @@ class BranchQualityGate:
     # Class-level tracking of active process groups for graceful shutdown.
     # Maps pid -> process object for cleanup on orchestrator stop.
     _active_processes: dict[int, subprocess.Popen[str]] = {}
+    # Keep generation and snapshot ownership beside the process itself.  A
+    # task may be reopened while an old gate is still running; generation
+    # scoping ensures cancellation cannot terminate a replacement gate.
+    _active_generations: dict[int, str | None] = {}
+    _active_snapshots: dict[int, Path] = {}
     _processes_lock = threading.Lock()
 
     def __init__(
@@ -63,22 +70,32 @@ class BranchQualityGate:
         self.timeout_seconds = max(int(timeout_seconds), 1)
         self.output_tail_bytes = max(int(output_tail_bytes), 1024)
         self._lock = threading.Lock()
+        self._key_locks: dict[str, threading.Lock] = {}
 
     @classmethod
-    def cleanup_active_processes(cls) -> int:
-        """Terminate all active quality gate process groups.
+    def _terminate_active_processes(
+        cls,
+        *,
+        generation: str | None = None,
+    ) -> int:
+        """Terminate active process groups owned by *generation*.
 
-        Called during orchestrator shutdown to ensure process groups are
-        cleaned up before leases become reclaimable. Returns count terminated.
+        Keeping this operation centralized makes shutdown and task-specific
+        cancellation use the same process-group and snapshot cleanup rules.
         """
-        terminated_count = 0
         with cls._processes_lock:
-            processes = list(cls._active_processes.items())
+            processes = [
+                (pid, process)
+                for pid, process in cls._active_processes.items()
+                if generation is None
+                or cls._active_generations.get(pid) == generation
+            ]
             for _pid, process in processes:
                 # The run thread uses this marker to return a non-cached
                 # interruption instead of recording a false CI failure.
                 setattr(process, "_oompah_interrupted", True)
 
+        terminated_count = 0
         for pid, process in processes:
             try:
                 os.killpg(pid, signal.SIGTERM)
@@ -113,6 +130,8 @@ class BranchQualityGate:
                     )
             with cls._processes_lock:
                 cls._active_processes.pop(pid, None)
+                cls._active_generations.pop(pid, None)
+                cls._active_snapshots.pop(pid, None)
 
         if terminated_count:
             logger.info(
@@ -120,6 +139,20 @@ class BranchQualityGate:
                 terminated_count,
             )
         return terminated_count
+
+    @classmethod
+    def cleanup_active_processes(cls) -> int:
+        """Terminate all active quality gate process groups.
+
+        Called during orchestrator shutdown to ensure process groups are
+        cleaned up before leases become reclaimable. Returns count terminated.
+        """
+        return cls._terminate_active_processes()
+
+    @classmethod
+    def cancel_generation(cls, generation: str) -> int:
+        """Cancel only gates belonging to one exact task generation."""
+        return cls._terminate_active_processes(generation=str(generation))
 
     @staticmethod
     def _head_sha(repo_path: str) -> str:
@@ -132,6 +165,99 @@ class BranchQualityGate:
             timeout=15,
         )
         return result.stdout.strip()
+
+    @staticmethod
+    def _resolve_commit(repo_path: str, commit: str) -> str:
+        result = subprocess.run(
+            ["git", "rev-parse", "--verify", f"{commit}^{{commit}}"],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=15,
+        )
+        return result.stdout.strip()
+
+    @staticmethod
+    def _create_snapshot(repo_path: str, head_sha: str) -> Path:
+        """Materialize *head_sha* in a private detached worktree.
+
+        The task worktree is only used to resolve and validate the commit.
+        Git then materializes that immutable object in a gate-owned checkout,
+        so later task-agent edits cannot change the command's inputs.
+        """
+        snapshot = Path(
+            tempfile.mkdtemp(prefix=".oompah-quality-gate-")
+        )
+        try:
+            subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    repo_path,
+                    "worktree",
+                    "add",
+                    "--detach",
+                    str(snapshot),
+                    head_sha,
+                ],
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=60,
+            )
+            if BranchQualityGate._head_sha(str(snapshot)) != head_sha:
+                raise RuntimeError(
+                    "quality gate snapshot checked out a different commit"
+                )
+            return snapshot
+        except BaseException:
+            shutil.rmtree(snapshot, ignore_errors=True)
+            raise
+
+    @staticmethod
+    def _remove_snapshot(repo_path: str, snapshot: Path) -> None:
+        """Remove exactly the detached worktree owned by one gate."""
+        # Prefer the task checkout used for creation, but fall back to the
+        # snapshot itself if an operator reassigned or removed that checkout
+        # while the gate was running.  This avoids leaving a stale worktree
+        # registration behind while still limiting removal to this path.
+        commands = (
+            [
+                "git",
+                "-C",
+                repo_path,
+                "worktree",
+                "remove",
+                "--force",
+                str(snapshot),
+            ],
+            [
+                "git",
+                "-C",
+                str(snapshot),
+                "worktree",
+                "remove",
+                "--force",
+                str(snapshot),
+            ],
+        )
+        for command in commands:
+            try:
+                removed = subprocess.run(
+                    command,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=60,
+                )
+            except (OSError, subprocess.TimeoutExpired):
+                continue
+            if removed.returncode == 0 or not snapshot.exists():
+                break
+        # Git may already have removed the registration while the process was
+        # being cancelled.  The path is still gate-owned and safe to remove.
+        shutil.rmtree(snapshot, ignore_errors=True)
 
     @staticmethod
     def _evidence_key(
@@ -198,26 +324,37 @@ class BranchQualityGate:
         target_branch: str,
         work_branch: str,
     ) -> None:
-        entries[key] = {
-            **asdict(result),
-            "recorded_at": time.time(),
-            "repo_identity": repo_identity,
-            "target_branch": target_branch,
-            "work_branch": work_branch,
-        }
-        # Old outcomes are only an optimization and can be discarded safely.
-        if len(entries) > 500:
-            newest = sorted(
-                entries.items(),
-                key=lambda item: float(item[1].get("recorded_at", 0) or 0),
-                reverse=True,
-            )[:500]
-            entries.clear()
-            entries.update(newest)
-        try:
-            self._save(entries)
-        except OSError as exc:
-            logger.warning("Failed to persist branch quality evidence: %s", exc)
+        with self._lock:
+            # Reload while holding the state lock: gates for different heads
+            # are intentionally allowed to overlap, so retaining a caller's
+            # pre-execution dictionary could otherwise drop another result.
+            entries = self._load()
+            entries[key] = {
+                **asdict(result),
+                "recorded_at": time.time(),
+                "repo_identity": repo_identity,
+                "target_branch": target_branch,
+                "work_branch": work_branch,
+            }
+            # Old outcomes are only an optimization and can be discarded
+            # safely, but active subprocesses never rely on this evidence file.
+            if len(entries) > 500:
+                newest = sorted(
+                    entries.items(),
+                    key=lambda item: float(item[1].get("recorded_at", 0) or 0),
+                    reverse=True,
+                )[:500]
+                entries.clear()
+                entries.update(newest)
+            try:
+                self._save(entries)
+            except OSError as exc:
+                logger.warning("Failed to persist branch quality evidence: %s", exc)
+
+    def _key_lock(self, key: str) -> threading.Lock:
+        """Return the single-flight lock for one exact evidence key."""
+        with self._lock:
+            return self._key_locks.setdefault(key, threading.Lock())
 
     def run(
         self,
@@ -228,6 +365,9 @@ class BranchQualityGate:
         work_branch: str,
         command: str,
         retry_forced: bool = False,
+        expected_head_sha: str | None = None,
+        generation: str | None = None,
+        is_current: Callable[[], bool] | None = None,
     ) -> QualityGateResult:
         """Return passing evidence or execute the configured full check.
         
@@ -242,27 +382,47 @@ class BranchQualityGate:
                 command="",
             )
 
-        # Keep the check itself under the lock. Full gates are deliberately
-        # serialized: they are expensive, and this guarantees that concurrent
-        # readiness sweeps cannot launch duplicate checks for the same head.
-        with self._lock:
-            try:
-                head_sha = self._head_sha(repo_path)
-            except (OSError, subprocess.SubprocessError) as exc:
-                return QualityGateResult(
-                    status="error",
-                    head_sha="",
-                    command=command,
-                    output_tail=f"Could not resolve branch HEAD: {exc}",
-                )
-            key = self._evidence_key(
-                repo_identity=repo_identity,
-                target_branch=target_branch,
-                work_branch=work_branch,
-                head_sha=head_sha,
-                command=command,
+        # Serialize only identical evidence keys. Different exact heads must
+        # be able to run concurrently so a replacement generation never waits
+        # behind (or shares state with) an obsolete gate.
+        try:
+            observed_head = self._head_sha(repo_path)
+            head_sha = (
+                self._resolve_commit(repo_path, expected_head_sha)
+                if expected_head_sha
+                else observed_head
             )
-            entries = self._load()
+            if expected_head_sha and observed_head != head_sha:
+                return QualityGateResult(
+                    status="stale_head",
+                    head_sha=observed_head,
+                    command=command,
+                    output_tail=(
+                        f"Expected task head {head_sha}, but worktree is "
+                        f"at {observed_head}."
+                    ),
+                )
+        except (OSError, subprocess.SubprocessError) as exc:
+            return QualityGateResult(
+                status="error",
+                head_sha="",
+                command=command,
+                output_tail=f"Could not resolve branch HEAD: {exc}",
+            )
+
+        key = self._evidence_key(
+            repo_identity=repo_identity,
+            target_branch=target_branch,
+            work_branch=work_branch,
+            head_sha=head_sha,
+            command=command,
+        )
+        with self._key_lock(key):
+            try:
+                with self._lock:
+                    entries = self._load()
+            except OSError:
+                entries = {}
             cached = entries.get(key)
             if isinstance(cached, dict) and cached.get("status"):
                 cached_status = str(cached["status"])
@@ -283,10 +443,21 @@ class BranchQualityGate:
 
             started = time.monotonic()
             process: subprocess.Popen[str] | None = None
+            snapshot: Path | None = None
+            monitor_stop = threading.Event()
+            monitor: threading.Thread | None = None
             try:
+                snapshot = self._create_snapshot(repo_path, head_sha)
+                if self._head_sha(str(snapshot)) != head_sha:
+                    return QualityGateResult(
+                        status="stale_head",
+                        head_sha=head_sha,
+                        command=command,
+                        output_tail="Quality gate snapshot changed before spawn.",
+                    )
                 process = subprocess.Popen(  # noqa: S602 - operator-owned command
                     command,
-                    cwd=repo_path,
+                    cwd=snapshot,
                     env=agent_environment(),
                     shell=True,
                     stdout=subprocess.PIPE,
@@ -296,7 +467,36 @@ class BranchQualityGate:
                 )
                 # Track process group for graceful shutdown cleanup
                 with self._processes_lock:
+                    owned_generation = (
+                        str(generation)
+                        if generation is not None
+                        else f"pid:{process.pid}"
+                    )
                     self._active_processes[process.pid] = process
+                    self._active_generations[process.pid] = owned_generation
+                    self._active_snapshots[process.pid] = snapshot
+
+                if is_current is not None:
+                    def _monitor_gate_authority() -> None:
+                        while not monitor_stop.wait(0.1):
+                            try:
+                                current = bool(is_current())
+                            except Exception as exc:  # noqa: BLE001
+                                logger.warning(
+                                    "Quality gate authority check failed: %s",
+                                    exc,
+                                )
+                                current = False
+                            if not current:
+                                self.cancel_generation(owned_generation)
+                                return
+
+                    monitor = threading.Thread(
+                        target=_monitor_gate_authority,
+                        name=f"quality-gate-watch-{process.pid}",
+                        daemon=True,
+                    )
+                    monitor.start()
                 stdout, stderr = process.communicate(timeout=self.timeout_seconds)
                 duration = time.monotonic() - started
                 combined = "\n".join(
@@ -398,9 +598,16 @@ class BranchQualityGate:
                 )
                 return result
             finally:
+                monitor_stop.set()
+                if monitor is not None and monitor is not threading.current_thread():
+                    monitor.join(timeout=1)
                 if process is not None:
                     with self._processes_lock:
                         self._active_processes.pop(process.pid, None)
+                        self._active_generations.pop(process.pid, None)
+                        self._active_snapshots.pop(process.pid, None)
+                if snapshot is not None:
+                    self._remove_snapshot(repo_path, snapshot)
 
             result = QualityGateResult(
                 status="passed",

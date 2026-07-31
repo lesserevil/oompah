@@ -687,6 +687,9 @@ class StandaloneDeliveryAuthority:
     branch: str
     target_branch: str
     evidence_revision: tuple[str, ...]
+    # A fresh identity for each claim lets an operator reopen/reassign a task
+    # without cancelling or accepting a replacement gate by accident.
+    generation: str
     head_sha: str | None = None
     head_resolver: Any | None = None
     revoked: bool = False
@@ -6494,6 +6497,7 @@ class Orchestrator:
                 branch=branch,
                 target_branch=target_branch,
                 evidence_revision=revision,
+                generation=uuid.uuid4().hex,
             )
             self._standalone_delivery_authorities[key] = authority
             return authority
@@ -6657,6 +6661,12 @@ class Orchestrator:
             authority = self._standalone_delivery_authorities.pop(key, None)
             if authority is not None:
                 authority.revoked = True
+                # Rejection/reopen is a generation change.  Stop only the
+                # gate owned by this claim; a replacement claim may already
+                # be running for the new head.
+                self._branch_quality_gate.cancel_generation(
+                    authority.generation
+                )
             source = f"standalone_ready_delivery:{key[0]}:{key[1]}"
             self._alerts = [
                 alert for alert in self._alerts if alert.get("source") != source
@@ -6927,6 +6937,10 @@ class Orchestrator:
             quality_command=self._quality_gate_command(project),
             repo_identity=project.repo_url or project.repo_path or project.id,
             retry_forced=item.retry_forced,
+            gate_generation=(
+                f"integration:{item.project_id}:{item.task_id}:"
+                f"{item.head_sha}:{item.lease_owner or ''}"
+            ),
             commit_allowed=lambda: self._integration_task_still_ready(item),
         )
 
@@ -9841,6 +9855,30 @@ class Orchestrator:
             return ""
         return result.stdout.strip() if result.returncode == 0 else ""
 
+    @staticmethod
+    def _quality_gate_branch_head(project: Project, branch: str) -> str:
+        """Resolve the authoritative exact head used by a quality gate."""
+        if not project.repo_path or not branch:
+            return ""
+        for ref in (
+            f"refs/remotes/origin/{branch}",
+            f"refs/heads/{branch}",
+        ):
+            try:
+                resolved = subprocess.run(
+                    ["git", "rev-parse", "--verify", "--quiet", ref],
+                    cwd=project.repo_path,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=15,
+                )
+            except (OSError, subprocess.TimeoutExpired):
+                continue
+            if resolved.returncode == 0:
+                return resolved.stdout.strip()
+        return ""
+
     def _quality_gate_worktree(
         self,
         project: Project,
@@ -9874,26 +9912,7 @@ class Orchestrator:
         if project.repo_path:
             candidates.append(project.repo_path)
 
-        branch_head = ""
-        if project.repo_path:
-            for ref in (
-                f"refs/heads/{branch}",
-                f"refs/remotes/origin/{branch}",
-            ):
-                try:
-                    resolved = subprocess.run(
-                        ["git", "rev-parse", "--verify", "--quiet", ref],
-                        cwd=project.repo_path,
-                        capture_output=True,
-                        text=True,
-                        check=False,
-                        timeout=15,
-                    )
-                except (OSError, subprocess.TimeoutExpired):
-                    continue
-                if resolved.returncode == 0:
-                    branch_head = resolved.stdout.strip()
-                    break
+        branch_head = self._quality_gate_branch_head(project, branch)
         if not branch_head:
             return ""
 
@@ -10016,6 +10035,7 @@ class Orchestrator:
             branch,
             preferred_path=preferred_path,
         )
+        expected_head = self._quality_gate_branch_head(project, branch)
         if not worktree:
             result = QualityGateResult(
                 status="error",
@@ -10026,6 +10046,13 @@ class Orchestrator:
                     "Recreate the task worktree before retrying."
                 ),
             )
+        elif not expected_head:
+            result = QualityGateResult(
+                status="error",
+                head_sha="",
+                command=command,
+                output_tail="Could not resolve the review branch tip.",
+            )
         else:
             result = self._branch_quality_gate.run(
                 repo_path=worktree,
@@ -10033,8 +10060,53 @@ class Orchestrator:
                 target_branch=target_branch,
                 work_branch=branch,
                 command=command,
+                expected_head_sha=expected_head,
+                generation=authority.generation if authority is not None else None,
             )
+        if result.passed:
+            # The snapshot protects the command inputs.  This final ref check
+            # protects the caller from accepting evidence for a branch that
+            # advanced while the gate was running.
+            current_head = self._quality_gate_branch_head(project, branch)
+            if current_head != result.head_sha:
+                result = QualityGateResult(
+                    status="stale_head",
+                    head_sha=result.head_sha,
+                    command=result.command,
+                    output_tail=(
+                        f"Review branch advanced from {result.head_sha} "
+                        f"to {current_head or 'unknown'} during the gate."
+                    ),
+                )
+            elif authority is not None:
+                try:
+                    tracker = self._tracker_for_project(project_id)
+                    if not self._standalone_delivery_authorized(
+                        authority,
+                        tracker,
+                    ):
+                        self._record_superseded_standalone_delivery(
+                            authority,
+                            "delivery authority changed while quality gate ran",
+                        )
+                        return False
+                except Exception as exc:  # noqa: BLE001 - fail closed
+                    logger.warning(
+                        "Could not revalidate quality gate authority for %s: %s",
+                        issue.identifier,
+                        exc,
+                    )
+                    return False
         if not result.passed:
+            # Obsolete/cancelled evidence must not create a new CI-fix state;
+            # the replacement generation owns the next attempt.
+            if result.status in {"interrupted", "stale_head"}:
+                logger.info(
+                    "Discarding superseded quality gate for %s at %s",
+                    issue.identifier,
+                    result.head_sha or "unknown",
+                )
+                return False
             log = logger.debug if result.cached else logger.warning
             log(
                 "Branch quality gate %s for %s at %s%s",
