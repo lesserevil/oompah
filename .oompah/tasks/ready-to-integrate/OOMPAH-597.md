@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-597
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Recover and drain the OOMPAH-460 ordered integration chain
 parent: OOMPAH-587
@@ -13,7 +13,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:28.342383Z'
-updated_at: '2026-07-31T03:19:23.231228Z'
+updated_at: '2026-07-31T03:21:20.376784Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-597
 target_branch: null
 review_url: null
@@ -42,12 +42,12 @@ oompah.agent_run_id: 42c05c1c-e484-4e0d-915a-4c9c7769c0cf
 oompah.work_branch: epic-OOMPAH-587--task-OOMPAH-597
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-587--task-OOMPAH-597
-  base_branch: epic-OOMPAH-587
-  base_sha: 33b773bd2f8fd82605e44165c362e0f6071d9d66
-  updated_at: '2026-07-31T03:14:46.252025+00:00'
+  head_sha: 54ebca942a9f40c156b0b4e5218e132a09ba841c
+  submitted_at: '2026-07-31T03:21:17.901268+00:00'
+  updated_at: '2026-07-31T03:21:17.901268+00:00'
 oompah.task_costs:
   total_input_tokens: 1271455
   total_output_tokens: 12292
@@ -543,5 +543,15 @@ author: oompah
 created: 2026-07-31 03:19
 ---
 Discovery: root cause identified. The orchestrator_with_store fixture in test_orchestrator_reload_profiles.py creates Orchestrator without state_path, so it uses the real .oompah/service_state.json and SQLite files. Under parallel xdist (4 workers), concurrent access to .oompah/coordination.sqlite3 / integration_queue.sqlite3 causes intermittent ERRORs. Other test files (test_orchestrator_profile_reload.py, test_auditor_termination_cleanup.py) correctly pass state_path=str(tmp_path / 'service_state.json'). Fix: add state_path=str(tmp_path / 'service_state.json') to Orchestrator(...) in orchestrator_with_store fixture.
+---
+author: oompah
+created: 2026-07-31 03:21
+---
+Implementation: Fixed test fixture isolation bug. The orchestrator_with_store fixture in tests/test_orchestrator_reload_profiles.py was creating Orchestrator without state_path, causing it to use the real .oompah/service_state.json and shared SQLite files (coordination.sqlite3, integration_queue.sqlite3). In parallel xdist runs (4 workers), concurrent SQLite access caused intermittent test ERRORs. Added state_path=str(tmp_path / 'service_state.json') to match the pattern in test_orchestrator_profile_reload.py and test_auditor_termination_cleanup.py. Commit: 54ebca942. Focused tests: 3/3 (file) + 171/171 (orchestrator suites) pass.
+---
+author: oompah
+created: 2026-07-31 03:21
+---
+Fixed intermittent quality gate ERROR: added state_path isolation to orchestrator_with_store test fixture so parallel xdist workers don't contend on shared .oompah/ SQLite files. Commit 54ebca942 on top of the previously recovered OOMPAH-460 integration chain at 5d88239c9.
 ---
 <!-- COMMENTS:END -->
