@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-664
 type: task
-status: Ready to Integrate
+status: In Review
 priority: 0
 title: Make issue-list snapshots advance with canonical state-branch task changes
 parent: null
@@ -14,11 +14,11 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:06.140108Z'
-updated_at: '2026-07-31T23:09:05.395165Z'
+updated_at: '2026-07-31T23:22:50.257762Z'
 work_branch: null
 target_branch: null
-review_url: null
-review_number: null
+review_url: https://github.com/lesserevil/oompah/pull/628
+review_number: '628'
 merged_at: null
 oompah.duplicate_screening:
   schema_version: 1
@@ -157,6 +157,8 @@ oompah.integration:
   submitted_at: '2026-07-31T23:07:25.332403+00:00'
   updated_at: '2026-07-31T23:07:25.332403+00:00'
 oompah.start_blocked_by: *id001
+oompah.review_url: https://github.com/lesserevil/oompah/pull/628
+oompah.review_number: '628'
 ---
 ## Summary
 
@@ -862,5 +864,10 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Claude
 - Cost: $0.0000
 - Exit: terminated, Duration: 12m 52s
 - Log: OOMPAH-664__20260731T225617Z.jsonl
+---
+author: oompah
+created: 2026-07-31 23:22
+---
+Branch quality gate passed for `34c5751b727880fc621df76cb50e17ae5f9321c4` using `make test` in 430.0s. Review creation may proceed.
 ---
 <!-- COMMENTS:END -->
