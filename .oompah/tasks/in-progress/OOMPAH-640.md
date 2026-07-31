@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T05:59:47.260716Z'
-updated_at: '2026-07-31T06:16:38.708228Z'
+updated_at: '2026-07-31T06:17:25.927721Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -168,5 +168,32 @@ Mutation testing and idempotency covered by:
 - test_partial_orphan_reset_failure_still_wakes_for_successful_resets (partial failures)
 
 Terminal audit compliance: no production changes, all test-only additions.
+---
+author: oompah
+created: 2026-07-31 06:17
+---
+VERIFICATION: All focused tests pass
+
+Test Results:
+- 15 new combined stall-to-dispatch regression tests: PASS
+- 23 stale loop detection tests (OOMPAH-415): PASS
+- 4 orphan reset wake tests (OOMPAH-416): PASS
+- 19 combined dispatch-related tests: PASS
+Total: 61 tests PASS ✓
+
+Focused test coverage verified:
+✓ Stale dispatch loop recovery before legacy 15-minute threshold (120s+30s grace)
+✓ One REFRESH_REQUESTED wake posted after multiple orphan resets
+✓ Two recovered eligible tasks dispatched without full sync wait
+✓ Duplicate wake/tick idempotency (no redundant events)
+✓ Deterministic and repeatable recovery flow
+✓ Edge cases: partial failures, legacy orphans, full worker pool
+
+Key metrics:
+- Recovery time: 150 seconds (well below 900s legacy threshold)
+- Wake deduplication: verified for multiple reset batches
+- Orphan reset idempotency: no production code changes needed (reuses OOMPAH-415/416)
+
+Branch pushed to origin/OOMPAH-640. Ready for integration.
 ---
 <!-- COMMENTS:END -->
