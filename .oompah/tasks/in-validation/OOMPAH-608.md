@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-608
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Let auditors submit redacted verdicts for credential-safety tasks
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:28:42.855708Z'
-updated_at: '2026-07-31T06:11:39.385474Z'
+updated_at: '2026-07-31T06:18:45.821975Z'
 work_branch: OOMPAH-608
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/606
@@ -87,6 +87,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/606
 oompah.review_number: '606'
 oompah.work_branch: OOMPAH-608
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-4f44b9989dc6
+    project_id: proj-14849f1b
+    task_id: OOMPAH-608
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d7b308c0eb364d96643cf15a59493d94b902e5584ee274118de44946703f4702
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-31T06:18:40.660301+00:00'
+  - version: 1
+    audit_id: audit-bbea56031852
+    project_id: proj-14849f1b
+    task_id: OOMPAH-608
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d7b308c0eb364d96643cf15a59493d94b902e5584ee274118de44946703f4702
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-31T06:18:40.660301+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -277,5 +316,15 @@ author: oompah
 created: 2026-07-31 06:11
 ---
 Branch quality gate passed for `6d0cda5660632aaed34c722198fff17a913a66af` using `make test` in 260.8s. Review creation may proceed.
+---
+author: oompah
+created: 2026-07-31 06:18
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-07-31 06:18
+---
+YOLO: merged PR #606.
 ---
 <!-- COMMENTS:END -->
