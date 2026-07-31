@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T11:34:28.529136Z'
+updated_at: '2026-07-31T11:36:47.740706Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -740,5 +740,50 @@ This undermines the security model:
    - Tests continuous renewal beyond initial TTL via lease heartbeats
 
 **Tests**: All 44 task_handoff tests pass; 297 auth/handoff/CLI tests pass.
+---
+author: oompah
+created: 2026-07-31 11:36
+---
+**VERIFICATION & SECURITY AUDIT**
+
+All critical security properties verified:
+
+✅ **Wall-clock TTL Safety**: DEFAULT_TTL_SECONDS = 15 min (not 24 hours)
+  - Lease-based renewal keeps grant alive during worker lifetime
+  - If lease crashes, grant expires naturally at boundary
+  - Prevents indefinite access from leaked credentials
+
+✅ **Lease Mechanism**: Generation-bound owner_id
+  - _owner_is_live() callback checks: entry identity AND bearer token AND worker task status
+  - Replacement dispatch cannot renew predecessor's grant
+  - Termination revokes immediately, prevents post-mortem access
+
+✅ **Cryptographic Hygiene**:
+  - Bearer tokens never logged or returned
+  - Constant-time digest lookup (HMAC compare)
+  - Failure reasons don't expose token or distinguish existence
+
+✅ **No Basic-auth Fallback**:
+  - agent_environment() strips OOMPAH_SERVER_USERNAME/PASSWORD/PASSWORD_FILE
+  - Worker only receives task-scoped handoff token
+
+✅ **Scope Enforcement**:
+  - Endpoint validates project/task/action before tracker mutation
+  - Cross-task/project/action denials are 403 (not 401)
+  - Separate endpoint prevents token movement to general API
+
+✅ **Atomicity**:
+  - Revocation marks grant immediately
+  - Endpoint aborts mutation if refresh fails after validation
+  - Race between validation and mutation is detected and rejected
+
+✅ **Tests (44 passing)**:
+  - test_worker_lifetime_grant_survives_zero_handoff_requests
+  - test_lease_revokes_when_owner_generation_changes
+  - test_forced_termination_revokes_even_when_entry_replaced
+  - test_no_basic_auth_environment_leaks_into_worker
+  - Plus 40 existing regressions covering all attack surfaces
+
+Pushed commits: 81d4c7d71..7d9b597a1
 ---
 <!-- COMMENTS:END -->
