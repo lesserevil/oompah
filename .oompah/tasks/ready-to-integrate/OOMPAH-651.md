@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T11:00:34.074058Z'
+updated_at: '2026-07-31T11:01:06.986063Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,13 +38,17 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: b11da48a-fbfd-48d4-8a09-0a4fbe01c7ea
 oompah.task_costs:
-  total_input_tokens: 3889184
-  total_output_tokens: 17428
+  total_input_tokens: 3889288
+  total_output_tokens: 61233
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 3889184
       output_tokens: 17428
+      cost_usd: 0.0
+    opus:
+      input_tokens: 104
+      output_tokens: 43805
       cost_usd: 0.0
   runs:
   - profile: default
@@ -71,6 +75,12 @@ oompah.task_costs:
     output_tokens: 431
     cost_usd: 0.0
     recorded_at: '2026-07-31T10:06:18.561654+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 104
+    output_tokens: 43805
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T11:01:05.352264+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-651__20260731T090132Z
@@ -609,5 +619,15 @@ author: oompah
 created: 2026-07-31 11:00
 ---
 Redaction hardened: fail-closed unknown-object handling in secrets.py; api_agent JSONL, api_agent AgentActivity, console_legacy JSONL/WS broadcast, ConsoleEvent attachments, orchestrator usage type-safety, and 'oompah' service logger filter all covered by the central redact_sensitive_data boundary. Added 31 sentinel e2e tests across Claude/Codex/OpenCode/API-agent/legacy backends and every persisted/streamed/logged sink. Added operator runbook docs/secret-redaction-and-rotation.md for audit/rotation without copying plaintext into task comments. make check-secrets and terminal mutation scan pass; 745 focused tests pass.
+---
+author: oompah
+created: 2026-07-31 11:01
+---
+Run #1 [attempt=1, profile=deep, role=deep -> Claude/opus]
+- Turns: 0, Tool calls: 98
+- Tokens: 104 in / 43.8K out [43.9K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 25m 21s
+- Log: OOMPAH-651__20260731T103549Z.jsonl
 ---
 <!-- COMMENTS:END -->

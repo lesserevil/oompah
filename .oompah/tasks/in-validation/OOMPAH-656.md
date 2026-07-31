@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:41:57.043640Z'
-updated_at: '2026-07-31T11:00:53.620665Z'
+updated_at: '2026-07-31T11:01:01.042599Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -338,5 +338,10 @@ author: oompah
 created: 2026-07-31 11:00
 ---
 Queued for terminal transition to Done. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-07-31 11:01
+---
+Rebased epic-OOMPAH-619 onto current main and published verified head 3fcdf30ca with all six accepted epic commits preserved.
 ---
 <!-- COMMENTS:END -->
