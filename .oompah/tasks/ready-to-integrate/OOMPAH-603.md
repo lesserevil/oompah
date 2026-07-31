@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-603
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 2
 title: Define and enforce repository hygiene health thresholds
 parent: OOMPAH-588
@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:03.538398Z'
-updated_at: '2026-07-31T04:51:50.430457Z'
+updated_at: '2026-07-31T04:52:03.434136Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-603
 target_branch: null
 review_url: null
@@ -42,12 +42,12 @@ oompah.agent_run_id: 8302221e-3ef9-4bbe-afdd-75b49ef381e4
 oompah.work_branch: epic-OOMPAH-588--task-OOMPAH-603
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-588--task-OOMPAH-603
-  base_branch: epic-OOMPAH-588
-  base_sha: 3a1c79ed8150d7d754fcd5d26b0139c8affbc01f
-  updated_at: '2026-07-31T04:48:04.053221+00:00'
+  head_sha: 869005b387d5bcf2ad76eac66a608ece7f235fd9
+  submitted_at: '2026-07-31T04:52:01.123499+00:00'
+  updated_at: '2026-07-31T04:52:01.123499+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-603__20260730T160448Z
@@ -512,5 +512,10 @@ author: oompah
 created: 2026-07-31 04:51
 ---
 Verification: 32 focused tests pass. 415 neighboring tests (test_orchestrator_handlers, test_terminal_audit_health, test_dashboard_terminal_audit_health, test_config) also pass with no regressions. All acceptance criteria met: operators distinguish protected work from hygiene debt; green status requires zero overdue safe artifacts or cleanup errors (not zero-branch count); alerts clear after cleanup.
+---
+author: oompah
+created: 2026-07-31 04:52
+---
+Defined and enforced repository hygiene health thresholds. Implemented oompah/repo_hygiene.py with 6-category classification (active, dirty, unmerged, terminal_protected, shared_owner, safely_prunable) for worktrees and branches. Added configurable age/count thresholds via OOMPAH_REPO_HYGIENE_* env vars. Orchestrator evaluates live inventory from git worktree listings and branch refs per project, computes overdue artifacts with project/task IDs, persists health state across restarts, and fires/clears alerts. Dashboard panel renders inventory, overdue artifacts, and cleanup errors accessibly. 32 focused tests cover all scenarios including healthy protected inventory, overdue detection, dirty/unmerged preservation, threshold configuration, alert lifecycle, restart persistence, and snapshot schema.
 ---
 <!-- COMMENTS:END -->
