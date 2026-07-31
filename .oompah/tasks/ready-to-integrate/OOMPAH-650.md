@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-650
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Keep scoped task handoff credentials valid for the full worker lifetime
 parent: OOMPAH-619
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T09:50:02.871963Z'
+updated_at: '2026-07-31T09:50:19.973718Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -40,12 +40,12 @@ oompah.agent_run_id: 6ca08af8-8122-4100-8543-42b54d320634
 oompah.work_branch: epic-OOMPAH-619--task-OOMPAH-650
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-619--task-OOMPAH-650
-  base_branch: epic-OOMPAH-619
-  base_sha: 0dc7d0f7caeea06a6eceb55ea2e58cf16554f0a4
-  updated_at: '2026-07-31T09:39:54.731594+00:00'
+  head_sha: 2700a4903ed627d83adefe8a0aa23355eec4e64a
+  submitted_at: '2026-07-31T09:50:17.437536+00:00'
+  updated_at: '2026-07-31T09:50:17.437536+00:00'
 oompah.task_costs:
   total_input_tokens: 1607075
   total_output_tokens: 8327
@@ -304,5 +304,30 @@ Moved token refresh to the server-side task-handoff endpoint:
 ✓ Clear diagnostic messages (distinguish expiry/revoked/missing)
 
 Commit: 2700a4903
+---
+author: oompah
+created: 2026-07-31 09:50
+---
+**VERIFICATION COMPLETE**
+
+Focused test results for affected code:
+- test_task_handoff.py: 24 tests pass (token refresh, scope, revocation, diagnostics)
+- test_task_cli.py: 134 tests pass (handoff routing, error handling, environment)
+
+All acceptance criteria verified:
+✓ Server-side refresh extends TTL on each request
+✓ Long-running workers (100+ requests, 10000+ seconds simulated) stay authorized
+✓ Revoked tokens cannot be refreshed
+✓ Explicit error messages for expired/revoked/missing tokens
+✓ No Basic-auth fallback in worker environment
+✓ Scope isolation enforced (project/task/action)
+✓ Terminal mutation scan clean (no privilege escalation)
+
+Ready to integrate.
+---
+author: oompah
+created: 2026-07-31 09:50
+---
+Fixed server-side token refresh for long-running workers. Previous subprocess-based refresh operated on empty process-local store. Solution: server endpoint automatically refreshes grants on each validated request, keeping workers authorized for full session lifetime without Basic-auth fallback. 24+134 tests pass.
 ---
 <!-- COMMENTS:END -->
