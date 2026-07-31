@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-662
 type: task
-status: Needs Human
+status: Done
 priority: 0
 title: Rebase epic-OOMPAH-619 onto main
 parent: OOMPAH-619
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T13:49:37.853904Z'
-updated_at: '2026-07-31T14:09:10.293055Z'
+updated_at: '2026-07-31T14:09:21.830091Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-662
 target_branch: null
 review_url: null
@@ -90,6 +90,23 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-07-31T14:04:11.055026+00:00'
     applied_at: '2026-07-31T14:04:13.986250+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-4bb7f09ddc26
+    project_id: proj-14849f1b
+    task_id: OOMPAH-662
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c64e79f4807e9af5dfdb9d7db78dac2a509792baa3d326243d34b00569983a56
+    authorized_by:
+      version: 1
+      identity: lesserevil
+      source: api
+    reason: '[REDACTED]'
+    created_at: '2026-07-31T14:09:18.327842+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -321,5 +338,12 @@ author: oompah
 created: 2026-07-31 14:09
 ---
 Operator reconciled the clean shared epic worktree to published head 61546199b2334fd861f2d0cd844ec631e8b8d0e4. Safety evidence: no process or open-file owner held the shared worktree; origin/main is an ancestor of the published epic; git range-diff proves all seven pre/post-rebase epic commits are patch-identical; the shared branch now tracks origin/epic-OOMPAH-619 at 0 ahead and 0 behind. The auditor launch failures were caused solely by the previously stale shared worktree.
+---
+author: oompah
+created: 2026-07-31 14:09
+---
+Override by lesserevil: terminal transition to Done applied by project owner.
+
+Reason: [REDACTED]
 ---
 <!-- COMMENTS:END -->
