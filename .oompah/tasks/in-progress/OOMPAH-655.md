@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T13:55:58.622043Z'
+updated_at: '2026-07-31T13:56:55.751945Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -628,5 +628,10 @@ author: oompah
 created: 2026-07-31 13:55
 ---
 FINAL STATUS: OOMPAH-655 branch contains complete bwrap OS sandboxing implementation with all security regression tests passing. Integration with OOMPAH-657's generation management blocked by architectural mismatch: OOMPAH-657 uses git worktrees + environment filtering; OOMPAH-655 uses git archive + bwrap empty-root namespace. Both approaches valid but different. RECOMMENDATION FOR NEXT AGENT: (1) If isolated binary/bwrap available: manually integrate OOMPAH-655's _quality_gate_environment() + _sandbox_command() into current quality_gate.py run() method while preserving generation/is_current params. (2) Alternative simpler: add OOMPAH-655 lifecycle vars (OOMPAH_PYTEST_GATE, private ports/PID files) to agent_environment() as compromise until full bwrap available. Current OOMPAH-655 branch preservation: ec0ec7d89 base + 6 commits, tests passing, ready for targeted rebase/pick.
+---
+author: oompah
+created: 2026-07-31 13:56
+---
+COMPLETED INVESTIGATION PHASE. Branch OOMPAH-655 verified stable (31 quality_gate tests passing, including critical security test test_default_boundary_blocks_literal_host_pid_and_localhost_attack). Main/OOMPAH-657 verified stable (32 tests passing, includes generation lifecycle tests). Both implementations incomplete independently: (1) OOMPAH-655: Full security isolation but needs OOMPAH-657's generation contract. (2) OOMPAH-657: Generation management but lacks OS-level sandboxing. Proper solution requires integration. Handoff readiness: OOMPAH-655 branch preserved at commit 9e4f9573c with all bwrap + regression fixtures ready for rebasing. Estimated remaining effort: 2-3 hours for clean merge with careful conflict resolution in quality_gate.py + test files.
 ---
 <!-- COMMENTS:END -->
