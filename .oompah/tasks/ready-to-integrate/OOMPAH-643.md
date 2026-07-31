@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-643
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Reconcile stale terminal-audit enforcement records and live queue metrics
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:17:38.708513Z'
-updated_at: '2026-07-31T06:30:40.339169Z'
+updated_at: '2026-07-31T06:45:39.857469Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -75,6 +75,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-643
     source_sha: bb0fd760c3b2938d15ec2026ef5bfc2fd34b0682
     completed_at: '2026-07-31T06:19:18.499560+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-643
+  head_sha: 84521c288cae398c19b228002d553cb210768844
+  submitted_at: '2026-07-31T06:45:28.235699+00:00'
+  updated_at: '2026-07-31T06:45:28.235699+00:00'
 ---
 ## Summary
 
@@ -151,5 +159,10 @@ author: oompah
 created: 2026-07-31 06:30
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-31 06:45
+---
+Reconciled terminal-audit recovery state, queue metrics, health, and owner overrides.
 ---
 <!-- COMMENTS:END -->
