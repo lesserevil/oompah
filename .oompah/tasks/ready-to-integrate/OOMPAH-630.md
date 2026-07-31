@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T23:37:58.090708Z'
-updated_at: '2026-07-31T00:15:06.426292Z'
+updated_at: '2026-07-31T00:15:28.098507Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-630
 target_branch: null
 review_url: null
@@ -42,13 +42,17 @@ oompah.integration:
   submitted_at: '2026-07-31T00:15:04.097008+00:00'
   updated_at: '2026-07-31T00:15:04.097008+00:00'
 oompah.task_costs:
-  total_input_tokens: 110
-  total_output_tokens: 39
+  total_input_tokens: 137
+  total_output_tokens: 10429
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 110
       output_tokens: 39
+      cost_usd: 0.0
+    sonnet:
+      input_tokens: 27
+      output_tokens: 10390
       cost_usd: 0.0
   runs:
   - profile: default
@@ -57,6 +61,12 @@ oompah.task_costs:
     output_tokens: 39
     cost_usd: 0.0
     recorded_at: '2026-07-30T23:49:22.257737+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 27
+    output_tokens: 10390
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T00:15:26.415217+00:00'
 ---
 ## Summary
 
@@ -205,5 +215,15 @@ author: oompah
 created: 2026-07-31 00:15
 ---
 Fixed post-merge race: refreshes exact rollup target ref before evaluating child landing evidence. Fails closed on fetch errors without demoting Done children based on stale cached refs. Preserved redacted diagnostics and runtime budget. Also fixed: active child validation ownership preserved during merged-epic maintenance; terminal transitions serialized under project RLock across event loops. Gate failure (test_orphan_resets_for_different_projects_are_independent) confirmed as transient timing flake — passes locally; branch at 797d2c0de.
+---
+author: oompah
+created: 2026-07-31 00:15
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 0, Tool calls: 36
+- Tokens: 27 in / 10.4K out [10.4K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 6m 10s
+- Log: OOMPAH-630__20260731T000922Z.jsonl
 ---
 <!-- COMMENTS:END -->
