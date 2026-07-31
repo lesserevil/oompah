@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-651
 type: bug
-status: Needs Human
+status: In Progress
 priority: 1
 title: Redact secrets from agent tool inputs, outputs, and JSONL event logs
 parent: null
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T10:32:43.437199Z'
+updated_at: '2026-07-31T10:35:49.213167Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,7 +36,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 36018bb7-e1c7-4741-8d6a-876d937c0cf9
+oompah.agent_run_id: b11da48a-fbfd-48d4-8a09-0a4fbe01c7ea
 oompah.task_costs:
   total_input_tokens: 3889184
   total_output_tokens: 17428
@@ -520,5 +520,20 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 1m 57s
 - Log: OOMPAH-651__20260731T103058Z.jsonl
+---
+author: oompah
+created: 2026-07-31 10:35
+---
+Base refresh required before implementation resumes: branch OOMPAH-651 is clean and pushed but does not contain merged OOMPAH-652/ec0ec7d89, so its full gate is not isolated from the live service. Rebase onto current origin/main through the normal Needs Rebase workflow, preserve head 627592f96, then return the task to Open.
+---
+author: oompah
+created: 2026-07-31 10:35
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-31 10:35
+---
+Focus: Security Auditor
 ---
 <!-- COMMENTS:END -->

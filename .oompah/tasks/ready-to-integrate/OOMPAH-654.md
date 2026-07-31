@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-654
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Keep service lifecycle identity metadata out of git worktree status
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:29:49.323393Z'
-updated_at: '2026-07-31T10:35:03.993512Z'
+updated_at: '2026-07-31T10:35:48.326018Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -61,6 +61,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-654
     source_sha: ec0ec7d89fb8804571fcf7e780558e6d979b73ea
     completed_at: '2026-07-31T10:32:21.590256+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-654
+  head_sha: b64cbc85adca310a10f767692302e004343f14cd
+  submitted_at: '2026-07-31T10:35:45.745409+00:00'
+  updated_at: '2026-07-31T10:35:45.745409+00:00'
 ---
 ## Summary
 
@@ -118,5 +126,15 @@ author: oompah
 created: 2026-07-31 10:35
 ---
 **Implementation**: Added patterns to .gitignore: *.pid.meta and *.pid.meta.tmp.* to ignore lifecycle metadata files created during make start/restart. Added comprehensive test (test_pid_meta_gitignore.py) with 6 test cases covering: PID files, metadata files, temporary files, all artifacts together, and unrelated .meta files visibility. All existing tests pass.
+---
+author: oompah
+created: 2026-07-31 10:35
+---
+**Verification**: All tests pass. Ran focused test suite: 6 new gitignore tests + 11 existing gitignore tests + 41 makefile tests = 58 tests passed. Changes: .gitignore now ignores *.pid.meta and *.pid.meta.tmp.* patterns. Added test_pid_meta_gitignore.py with comprehensive regression coverage. Commit b64cbc85a pushed to OOMPAH-654 branch. Ready to integrate.
+---
+author: oompah
+created: 2026-07-31 10:35
+---
+Fixed regression where .oompah.pid.meta and temporary atomic files (.oompah.pid.meta.tmp.*) created during make restart would dirty git status. Updated .gitignore with *.pid.meta and *.pid.meta.tmp.* patterns (specific to lifecycle metadata, not broad .meta ignoring). Added comprehensive regression test (test_pid_meta_gitignore.py) verifying lifecycle artifacts don't dirty git status while unrelated .meta files remain visible. All 58 focused tests pass.
 ---
 <!-- COMMENTS:END -->

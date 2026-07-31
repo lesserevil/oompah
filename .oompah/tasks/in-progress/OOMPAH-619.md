@@ -15,9 +15,10 @@ blocked_by: []
 start_blocked_by: []
 labels:
 - epic:stale
+- rebase-requested
 assignee: null
 created_at: '2026-07-30T21:24:41.452666Z'
-updated_at: '2026-07-31T09:40:04.529660Z'
+updated_at: '2026-07-31T10:35:31.225354Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,5 +41,10 @@ author: oompah
 created: 2026-07-30 21:32
 ---
 Operator clarification: ~/.local/bin/oompah is the canonical system CLI, not the project virtualenv executable. This epic is incomplete until the canonical binary is installed from the same merged main revision as the deployed server and lifecycle automation prevents future drift.
+---
+author: oompah
+created: 2026-07-31 10:35
+---
+Explicit operator rebase request: OOMPAH-652 is a merged safety prerequisite, but epic-OOMPAH-619 and preserved child branches OOMPAH-623/650 still predate commit ec0ec7d89 and retain the unsafe canonical PID-file test lifecycle. Rebase the shared epic onto current main through the normal bounded rebase workflow before either child resumes or runs a full gate.
 ---
 <!-- COMMENTS:END -->

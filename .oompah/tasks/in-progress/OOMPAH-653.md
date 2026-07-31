@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-653
 type: bug
-status: Needs Human
+status: In Progress
 priority: 1
 title: Make terminal-audit success and owner override retire every duplicate record
   and alert
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T10:32:52.206642Z'
+updated_at: '2026-07-31T10:35:54.412343Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,7 +44,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: b6998281-8b9b-474f-9090-83517dd20a11
+oompah.agent_run_id: 18c90838-cd0d-4309-bd62-4f8debb65bb1
 oompah.task_costs:
   total_input_tokens: 675552
   total_output_tokens: 9881
@@ -389,5 +389,20 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 1m 54s
 - Log: OOMPAH-653__20260731T103102Z.jsonl
+---
+author: oompah
+created: 2026-07-31 10:35
+---
+Base refresh required before implementation resumes: recovered head d89dca83c is clean and pushed but does not contain merged OOMPAH-652/ec0ec7d89, so its full gate is not isolated from the live service. Rebase onto current origin/main through the normal Needs Rebase workflow, preserve the recovery commit, then return the task to Open.
+---
+author: oompah
+created: 2026-07-31 10:35
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-31 10:35
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
