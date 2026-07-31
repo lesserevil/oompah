@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-597
 type: task
-status: In Progress
+status: Needs Human
 priority: 1
 title: Recover and drain the OOMPAH-460 ordered integration chain
 parent: OOMPAH-587
@@ -13,7 +13,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:28.342383Z'
-updated_at: '2026-07-31T01:49:39.749464Z'
+updated_at: '2026-07-31T02:09:03.023863Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-597
 target_branch: null
 review_url: null
@@ -330,5 +330,25 @@ author: oompah
 created: 2026-07-31 01:49
 ---
 Important executor invariant discovered from OOMPAH-598: a merge-based repair is not sufficient because integration rebases unique task commits and drops the merge-resolution commit. Before push/submit, linearize this repaired content onto origin/epic-OOMPAH-587 (or squash the exact net task delta atop it), preserve the newly corrected recovered audit lifecycle tests, and prove merge-base --is-ancestor plus a no-conflict dry rebase. Do not submit f08b/1a650 as a merge-only head; it will repeat the conflict.
+---
+author: oompah
+created: 2026-07-31 02:08
+---
+Moved to Needs Human from the dashboard/API. Human action required: inspect OOMPAH-597 (Recover and drain the OOMPAH-460 ordered integration chain), add the specific decision, missing information, or manual fix needed, then move the task back to Open when it is ready for agents again.
+---
+author: oompah
+created: 2026-07-31 02:09
+---
+Run #2 [attempt=2, profile=standard, role=standard -> Codex/gpt-5.6-terra]
+- Turns: 0, Tool calls: 91
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 24m 25s
+- Log: OOMPAH-597__20260731T014444Z.jsonl
+---
+author: oompah
+created: 2026-07-31 02:09
+---
+Temporary operator ownership fence after the final green run (14,070 passed, 7 skipped, 1 xfailed). The worker then ran git pull --rebase against the stale task remote and began replaying 42 already-integrated commits. Preserving tested tree 278f6ea10; after OOMPAH-598 correction advances the parent, the operator will squash only the net 8a875b1c3..278f6ea10 recovery delta onto the authoritative origin/epic-OOMPAH-587 head, focused-test the combined tree, force-push with lease, and submit.
 ---
 <!-- COMMENTS:END -->
