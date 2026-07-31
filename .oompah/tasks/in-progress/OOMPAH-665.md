@@ -12,7 +12,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-07-31T16:04:07.401588Z'
-updated_at: '2026-07-31T18:57:35.203465Z'
+updated_at: '2026-07-31T19:01:20.885806Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -351,5 +351,10 @@ author: oompah
 created: 2026-07-31 18:57
 ---
 Focus: Event Api Redaction Specialist
+---
+author: oompah
+created: 2026-07-31 19:01
+---
+Understanding (run #5): Branch is correctly rebased on main. All 134 focused tests pass. The gate keeps returning needs_rebase because the bubblewrap probe in quality_gate.py is missing --symlink usr/lib64 /lib64. The probe tries to exec /bin/sh (dash) which needs /lib64/ld-linux-x86-64.so.2 as its ELF interpreter, but /lib64 is not mounted in the probe namespace (only /usr is). The main sandbox command already includes --symlink usr/lib64 /lib64 but the probe does not. Fix: add --symlink usr/lib64 /lib64 to the probe command.
 ---
 <!-- COMMENTS:END -->
