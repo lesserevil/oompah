@@ -20,7 +20,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-30T21:24:41.452666Z'
-updated_at: '2026-07-31T15:00:15.927597Z'
+updated_at: '2026-07-31T15:00:18.930033Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -50,8 +50,9 @@ oompah.terminal_audit:
     status: Done
     audit_ids:
     - audit-3b0770c606df
-    applied: false
+    applied: true
     created_at: '2026-07-31T15:00:12.993978+00:00'
+    applied_at: '2026-07-31T15:00:18.123318+00:00'
   version: 1
   pending_chain:
   - version: 1
