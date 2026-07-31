@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T22:56:06.058439Z'
-updated_at: '2026-07-31T23:03:10.880516Z'
+updated_at: '2026-07-31T23:06:06.764430Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -110,5 +110,20 @@ author: oompah
 created: 2026-07-31 23:03
 ---
 Understanding: With HTTP Basic authentication enabled, the dashboard incorrectly sends client-supplied actor_login in mutations (status updates, intake actions). The server correctly rejects mismatched actors as actor_mismatch. Solution: Update dashboard.html to detect http_auth.enabled from state and conditionally omit actor/actor_login fields in authenticated requests, while preserving the legacy actor path for unauthenticated deployments. Must maintain auth-state through refreshes and WebSocket updates. Planned approach: (1) Explore dashboard.html and related code, (2) Identify mutation request paths, (3) Detect http_auth.enabled in state, (4) Conditionally build payloads, (5) Add tests for both auth modes, (6) Verify no server-side spoofing weakening.
+---
+author: oompah
+created: 2026-07-31 23:06
+---
+Discovery: Found the mutation points in dashboard.html. Key functions to update:
+
+1. updateIssue() [line 3622]: Sets outgoing.actor_login for status changes requiring project actor
+2. performIntakeAction() [line 6196]: Collects actor and sends it in payload for intake actions
+3. openDetailPanel() [line 6247]: Passes actor in query params for detail view
+
+Current flow: Dashboard always sends client-supplied actor_login even when auth is enabled. Server correctly rejects mismatched actors as actor_mismatch.
+
+Solution: Add global httpAuthEnabled flag, update handleStateUpdate() to consume state.http_auth.enabled, and conditionally omit actor fields in authenticated mode. Server will use authenticated principal instead.
+
+Server already has the logic in place (_resolve_authorization_actor in server.py).
 ---
 <!-- COMMENTS:END -->
