@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-670
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Dashboard authenticated mutations must omit client-supplied actor identities
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T22:56:06.058439Z'
-updated_at: '2026-07-31T23:02:03.180043Z'
+updated_at: '2026-07-31T23:02:49.289451Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -21,17 +21,48 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: dee78a5f3d6e0185edec8c7096d78609e02af0974c9fa79e1bff6a11b9b7be26
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-07-31T23:02:39.111033+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 234f8b5e-382c-468b-898a-3d446079aace
-  claim_owner: 83d630e6-ba64-48af-a521-3ffb6e2a4e3f
-  claimed_at: '2026-07-31T23:01:56.617004+00:00'
-  claim_expires_at: '2026-07-31T23:31:56.617004+00:00'
+  evidence: "Focus handoff: duplicate_detector\n\nDuplicate preflight verdict: no_duplicate\n\
+    \nMatches: none\n\nEvidence: Reviewed active OOMPAH-281 (self-hosted CI runner)\
+    \ and OOMPAH-282 (state-branch migration), both unrelated. Closest match is OOMPAH-13,\
+    \ but it is Archived and implemented the inverse legacy behavior\u2014supplying\
+    \ project actors to dashboard intake paths. OOMPAH-670 is a new authenticated-mode\
+    \ correction: omit client actors while preserving unauthenticated compatibility."
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
 oompah.agent_run_id: 62a1a832-53cd-494b-8216-babc953ed38e
+oompah.task_costs:
+  total_input_tokens: 217130
+  total_output_tokens: 1406
+  total_cost_usd: 0.0
+  by_model:
+    sonnet:
+      input_tokens: 217130
+      output_tokens: 1406
+      cost_usd: 0.0
+  runs:
+  - profile: standard
+    model: sonnet
+    input_tokens: 217130
+    output_tokens: 1406
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T23:02:39.109732+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-670__20260731T230203Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-terra
+    focus: duplicate_detector
+    source_branch: OOMPAH-670
+    source_sha: d96740a6ecdca353e40ef87e94a4ee91b8828df0
+    completed_at: '2026-07-31T23:02:39.124795+00:00'
 ---
 ## Summary
 
@@ -54,5 +85,15 @@ author: oompah
 created: 2026-07-31 23:02
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-31 23:02
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Codex/gpt-5.6-terra]
+- Turns: 1, Tool calls: 5
+- Tokens: 217.1K in / 1.4K out [218.5K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 40s
+- Log: OOMPAH-670__20260731T230203Z.jsonl
 ---
 <!-- COMMENTS:END -->
