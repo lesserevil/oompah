@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-575
 type: task
-status: Needs Rebase
+status: In Progress
 priority: 0
 title: Propagate scoped task CLI auth to Codex agent sessions
 parent: null
@@ -12,7 +12,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-07-30T02:15:25.255613Z'
-updated_at: '2026-07-31T05:55:36.966643Z'
+updated_at: '2026-07-31T05:55:55.011954Z'
 work_branch: OOMPAH-575
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/604
@@ -35,7 +35,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: c8332be3-4b98-43d0-af21-0b69eeff6438
+oompah.agent_run_id: 8416968a-7968-48e3-b796-4a2a5d6aa6cc
 oompah.task_costs:
   total_input_tokens: 642959
   total_output_tokens: 8854
@@ -267,5 +267,15 @@ author: oompah
 created: 2026-07-31 05:55
 ---
 YOLO: Merge conflict detected on MR #604. Rebase onto main and resolve conflicts.
+---
+author: oompah
+created: 2026-07-31 05:55
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-31 05:55
+---
+Focus: Merge Conflict Resolver
 ---
 <!-- COMMENTS:END -->
