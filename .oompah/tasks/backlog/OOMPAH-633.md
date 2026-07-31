@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:54:49.391955Z'
-updated_at: '2026-07-31T00:54:49.391955Z'
+updated_at: '2026-07-31T00:54:57.048471Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -28,3 +28,11 @@ Implementation scope: extend integration-queue stale-ancestry repair to nested e
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-31 00:54
+---
+Project-owner-approved live deadlock repair. Let the oompah server perform duplicate screening and implementation. The operator will separately reconcile the currently stale OOMPAH-587/588 branches so this code task does not circularly depend on its own deployment.
+---
+<!-- COMMENTS:END -->
