@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-607
 type: bug
-status: Needs Human
+status: Merged
 priority: 0
 title: Canonicalize project aliases before terminal owner authorization
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-30T18:17:13.371379Z'
-updated_at: '2026-07-31T06:47:35.439023Z'
+updated_at: '2026-07-31T06:49:09.088426Z'
 work_branch: OOMPAH-607
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/605
@@ -164,6 +164,24 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     no-auditor-audit-269a81d7e2e1-2: '2026-07-31T06:47:32.662269+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-d20e80a69e24
+    project_id: proj-14849f1b
+    task_id: OOMPAH-607
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6160b3dfb070244f9a80659b313af3703d96f06581279d3226b8167fa7dff5cd
+    authorized_by:
+      version: 1
+      identity: lesserevil
+      source: api
+    reason: 'Verified PR #605 merged, branch head is contained in main, branch gate
+      and all GitHub CI matrix jobs passed; independent auditor candidates were exhausted
+      by transport termination.'
+    created_at: '2026-07-31T06:49:06.406486+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -561,5 +579,17 @@ created: 2026-07-31 06:47
 Needs Human — Done audit requires operator input.
 
 No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then move the task back to Open to retry.
+---
+author: oompah
+created: 2026-07-31 06:49
+---
+Operator recovery: PR #605 is merged at 6a8d6e9f; exact branch head 4798d4bac is an ancestor of main; the branch gate passed; GitHub CI passed on Python 3.11, 3.12, and 3.13. Both independent auditor transports were attempted and exhausted without a verdict, so applying the documented owner override rather than leaving verified merged work in Needs Human.
+---
+author: oompah
+created: 2026-07-31 06:49
+---
+Override by lesserevil: terminal transition to Merged applied by project owner.
+
+Reason: Verified PR #605 merged, branch head is contained in main, branch gate and all GitHub CI matrix jobs passed; independent auditor candidates were exhausted by transport termination.
 ---
 <!-- COMMENTS:END -->
