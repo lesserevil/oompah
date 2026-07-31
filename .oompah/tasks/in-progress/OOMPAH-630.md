@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-630
 type: task
-status: Needs CI Fix
+status: In Progress
 priority: null
 title: Fetch rollup targets before judging child landing evidence
 parent: OOMPAH-584
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T23:37:58.090708Z'
-updated_at: '2026-07-31T00:09:04.833580Z'
+updated_at: '2026-07-31T00:09:21.548934Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-630
 target_branch: null
 review_url: null
@@ -31,55 +31,16 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: '2026-07-30T23:49:22.767702+00:00'
-oompah.agent_run_id: 9b79b103-3d7a-4969-8c61-03f2a0555795
+oompah.agent_run_id: ae4b8567-559a-461a-bbce-4e9de1ef34b7
 oompah.work_branch: epic-OOMPAH-584--task-OOMPAH-630
 oompah.integration:
   version: 1
-  state: blocked
-  attempts: 2
+  state: working
+  attempts: 0
   task_branch: epic-OOMPAH-584--task-OOMPAH-630
   base_branch: epic-OOMPAH-584
   base_sha: f9f1e78ae25afb462d71a360bf93cc2d4f0804a2
-  head_sha: 797d2c0de1322ec2610e714c59ccd4e69e055833
-  submitted_at: '2026-07-31T00:02:49.378950+00:00'
-  updated_at: '2026-07-31T00:09:02.382838+00:00'
-  last_error: "Combined-tree quality gate failed:  of Passlib 1.7, and will be removed\
-    \ in Passlib 2.0, use CryptContext.hash() instead.\n    return ctx.encrypt(\"\
-    password\")\n\ntests/test_http_auth.py: 13 warnings\n  /home/shedwards/.oompah/worktrees/oompah/OOMPAH-630/tests/test_http_auth.py:36:\
-    \ DeprecationWarning: the method passlib.context.CryptContext.encrypt() is deprecated\
-    \ as of Passlib 1.7, and will be removed in Passlib 2.0, use CryptContext.hash()\
-    \ instead.\n    return ctx.encrypt(\"password\")\n\ntests/test_mcp_gateway.py::test_mcp_client_can_initialize_list_allowed_tools_and_call_state\n\
-    tests/test_mcp_gateway.py::test_authenticated_mcp_client_can_initialize_list_and_call_protected_api\n\
-    \  /home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/contextlib.py:105:\
-    \ DeprecationWarning: Use `streamable_http_client` instead.\n    self.gen = func(*args,\
-    \ **kwds)\n\ntests/test_sdk_install_guards.py::TestClaudeSessionMcpServerGuard::test_no_tool_catalog_skips_mcp_server_path\n\
-    \  /home/shedwards/.oompah/worktrees/oompah/OOMPAH-630/oompah/acp_backends/claude.py:493:\
-    \ RuntimeWarning: coroutine 'AsyncMockMixin._execute_mock_call' was never awaited\n\
-    \    async for msg in client.receive_response():\n  Enable tracemalloc to get\
-    \ traceback where the object was allocated.\n  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
-    \ for more info.\n\ntests/test_server_release_picks.py::TestPatchReleasePicksEndpoint::test_returns_400_on_invalid_json\n\
-    tests/test_server_release_picks.py::TestPostApplyReleasePicksToAllChildren::test_returns_400_on_invalid_json\n\
-    \  /home/shedwards/.oompah/worktrees/oompah/OOMPAH-630/.venv/lib/python3.12/site-packages/httpx/_models.py:408:\
-    \ DeprecationWarning: Use 'content=<...>' to upload raw bytes/text content.\n\
-    \    headers, stream = encode_request(\n\ntests/test_webhooks.py::TestWebhookForwarderEventsFlag::test_default_events_passed_to_subprocess\n\
-    \  /home/shedwards/.oompah/worktrees/oompah/OOMPAH-630/.venv/lib/python3.12/site-packages/_pytest/unraisableexception.py:67:\
-    \ PytestUnraisableExceptionWarning: Exception ignored in: <function BaseSubprocessTransport.__del__\
-    \ at 0x73ec7d793600>\n  \n  Traceback (most recent call last):\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
-    , line 126, in __del__\n      self.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
-    , line 104, in close\n      proto.pipe.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 568, in close\n      self._close(None)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 592, in _close\n      self._loop.call_soon(self._call_connection_lost,\
-    \ exc)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 799, in call_soon\n      self._check_closed()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 545, in _check_closed\n      raise RuntimeError('Event loop is closed')\n\
-    \  RuntimeError: Event loop is closed\n  \n  Enable tracemalloc to get traceback\
-    \ where the object was allocated.\n  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
-    \ for more info.\n    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))\n\
-    \n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n===========================\
-    \ short test summary info ============================\nFAILED tests/test_project_locks.py::TestResetOrphanedInProgressUsesProjectLock::test_orphan_resets_for_different_projects_are_independent\n\
-    ===== 1 failed, 13821 passed, 7 skipped, 40 warnings in 272.95s (0:04:32) ======\n\
-    make[1]: Leaving directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-630'\n\
-    \nmake[1]: *** [Makefile:225: test] Error 1\n"
+  updated_at: '2026-07-31T00:09:19.344842+00:00'
 oompah.task_costs:
   total_input_tokens: 110
   total_output_tokens: 39
@@ -215,5 +176,15 @@ make[1]: Leaving directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-630'
 make[1]: *** [Makefile:225: test] Error 1
 
 ```
+---
+author: oompah
+created: 2026-07-31 00:09
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-31 00:09
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
