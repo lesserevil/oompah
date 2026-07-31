@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:58.634342Z'
-updated_at: '2026-07-31T03:24:01.649939Z'
+updated_at: '2026-07-31T03:24:14.033457Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-600
 target_branch: null
 review_url: null
@@ -380,5 +380,10 @@ author: oompah
 created: 2026-07-31 03:24
 ---
 Discovery: The task branch is restored to the non-duplicate parent, and OOMPAH-581 is already an ancestor of origin/main. The recorded gate failure is a SIGTERM; this environment additionally reproduced a uv transient-scope startup failure. The prepared .venv runs pytest correctly. I also found the scoped comment/add-label CLI payloads omitted the required identifier, which caused the earlier tracker-comment 400 responses.
+---
+author: oompah
+created: 2026-07-31 03:24
+---
+Implementation: Updated scripts/run-tests.sh to invoke pytest through the Makefile-prepared virtualenv rather than a second uv process, with runner-contract coverage. Fixed scoped task comment and add-label payloads to include identifier required by the handoff endpoint, with regressions covering both mutations. Commits: 6b8310896 and 67c67ffa6.
 ---
 <!-- COMMENTS:END -->
