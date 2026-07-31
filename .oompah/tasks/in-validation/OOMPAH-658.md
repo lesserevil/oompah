@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-07-31T14:01:14.756691Z'
+updated_at: '2026-07-31T14:01:29.160738Z'
 work_branch: OOMPAH-658
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/621
@@ -42,8 +42,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 8faade4e-a799-4a63-866b-4617d74ec8c7
 oompah.task_costs:
-  total_input_tokens: 928456
-  total_output_tokens: 21696
+  total_input_tokens: 928474
+  total_output_tokens: 26082
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -53,6 +53,10 @@ oompah.task_costs:
     opus:
       input_tokens: 248
       output_tokens: 16240
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 18
+      output_tokens: 4386
       cost_usd: 0.0
   runs:
   - profile: default
@@ -97,6 +101,12 @@ oompah.task_costs:
     output_tokens: 4398
     cost_usd: 0.0
     recorded_at: '2026-07-31T13:42:15.784288+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 18
+    output_tokens: 4386
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T14:01:27.041045+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-658__20260731T111938Z
@@ -930,5 +940,15 @@ Safe evidence:
 - test_candidate_preflight: 54 passed
 - test_models: 30 passed
 - changed_files: oompah/duplicate_screening.py, oompah/models.py, docs/duplicate-screening.md, tests/test_duplicate_preflight.py, tests/test_duplicate_screening.py
+---
+author: oompah
+created: 2026-07-31 14:01
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 33, Tool calls: 21
+- Tokens: 18 in / 4.4K out [4.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 3m 53s
+- Log: OOMPAH-658__20260731T135744Z.jsonl
 ---
 <!-- COMMENTS:END -->
