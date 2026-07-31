@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T05:59:47.260716Z'
-updated_at: '2026-07-31T06:17:34.601259Z'
+updated_at: '2026-07-31T06:18:05.734655Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,13 +44,13 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: f0351889-efd0-46e9-a725-d79eaa2d8fbe
 oompah.task_costs:
-  total_input_tokens: 1230045
-  total_output_tokens: 4894
+  total_input_tokens: 1230739
+  total_output_tokens: 5071
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 1230045
-      output_tokens: 4894
+      input_tokens: 1230739
+      output_tokens: 5071
       cost_usd: 0.0
   runs:
   - profile: default
@@ -59,6 +59,12 @@ oompah.task_costs:
     output_tokens: 4894
     cost_usd: 0.0
     recorded_at: '2026-07-31T06:06:48.875575+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 694
+    output_tokens: 177
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T06:18:04.151655+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-640__20260731T060457Z
@@ -208,5 +214,15 @@ author: oompah
 created: 2026-07-31 06:17
 ---
 Completed combined stall-to-dispatch recovery regression test. Added tests/test_stall_to_dispatch_recovery.py with 15 comprehensive tests covering the complete recovery flow: stale loop detection + orphan reset + REFRESH_REQUESTED wake + event-driven dispatch. All 61 focused tests pass (15 new + 46 existing). No production code changes required - reuses shipped OOMPAH-415/416 features. Recovery time 150s well below legacy 15-minute threshold. Idempotency verified. Branch pushed to origin/OOMPAH-640.
+---
+author: oompah
+created: 2026-07-31 06:18
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 37
+- Tokens: 694 in / 177 out [871 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 10m 56s
+- Log: OOMPAH-640__20260731T060710Z.jsonl
 ---
 <!-- COMMENTS:END -->
