@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T11:10:30.011795Z'
+updated_at: '2026-07-31T11:10:42.763160Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -551,5 +551,10 @@ author: oompah
 created: 2026-07-31 11:10
 ---
 Implementation: Added six deterministic barrier tests covering the remaining operator-required scenarios. In tests/test_terminal_transition_coordinator.py, new class TestApplyBarriersAgainstSecondaryLanes: (1) test_no_candidate_route_rejected_after_pass_persisted — a NO_AUDITOR route after PASS is rejected STATE_MISMATCH with no extra tracker writes. (2) test_no_candidate_route_rejected_after_override_retirement — a NO_AUDITOR route after owner override is rejected; tracker stays at overridden target. (3) test_one_pass_retires_every_equivalent_queued_identity — OOMPAH-654 explicit: three PENDING same-fingerprint records get retired atomically by one PASS; AuditorDispatchLane.pending_record returns None; retirement ledger lists all three ids. (4) test_repeated_pass_callbacks_are_idempotent_and_reclear_sibling_alerts — idempotent replay reclears sibling alerts from durable retirement metadata without duplicating lifecycle counters. In tests/test_terminal_audit_observability.py: (5) test_pass_clears_sibling_alert_in_production_registry_across_restart — production alert registry cleanup persists across restart via cancelled metadata. (6) test_project_isolation_pass_alert_cleanup_does_not_cross_projects — clearing one project's alert leaves the other's intact; historical counters remain aggregated. All 153 focused terminal-audit tests pass (147 prior + 6 new); 523 terminal-related tests pass across the wider suite; git diff --check reports no whitespace defects.
+---
+author: oompah
+created: 2026-07-31 11:10
+---
+Comment 53 does not address the two code defects in comment 52: all six listed tests are sequential/cleanup assertions, and none covers an unapplied override while the task remains In Validation or a task evidence change before result-intent recovery. These are blocking correctness bugs, not optional test categories. Modify the recovery code and add those exact regressions before commit/submit; 523 passing tests that omit the failing states are not acceptance evidence.
 ---
 <!-- COMMENTS:END -->
