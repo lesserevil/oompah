@@ -259,7 +259,7 @@ def test_executor_rechecks_authority_after_gate_before_epic_push(tmp_path):
     def commit_allowed() -> bool:
         return not gate_completed[0]
 
-    inner_gate = BranchQualityGate(str(tmp_path / "quality.json"))
+    inner_gate = _gate(tmp_path / "quality.json", task)
 
     class _GateWrapper:
         """Flip the flag after the gate returns so post-gate check fails."""

@@ -1328,7 +1328,7 @@ def test_cancelled_generation_stays_tombstoned_for_waiting_same_generation(tmp_p
 def test_single_flight_locks_are_released_after_unique_evidence(tmp_path):
     """Completed evidence keys do not leave an unbounded lock registry."""
     repo = _git_repo(tmp_path)
-    gate = BranchQualityGate(str(tmp_path / "quality.json"))
+    gate = _gate(tmp_path / "quality.json", repo)
 
     for index in range(20):
         result = _run(gate, repo, f"true # evidence-{index}")
