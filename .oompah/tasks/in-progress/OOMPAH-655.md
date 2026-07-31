@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T11:44:05.911153Z'
+updated_at: '2026-07-31T11:48:10.161886Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -468,5 +468,10 @@ author: oompah
 created: 2026-07-31 11:44
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-07-31 11:48
+---
+Exact review of clean c0b3eebec still blocks submission. (1) _quality_gate_environment exports host run_root paths, but bwrap hides /home and mounts run_root only at /oompah-gate; HOME/TMPDIR/PID/cache paths are inaccessible. Export sandbox paths under /oompah-gate. (2) --unshare-net leaves loopback down; bring namespace-local lo up and prove a local test HTTP server works while the host 127.0.0.1 service is unreachable. (3) OOMPAH-657 detached snapshots contain no ignored .venv; the current worktree venv is editable back to a mutable source path. Provide a trusted read-only dependency environment whose interpreter works inside the namespace while imports resolve from the exact snapshot, and add a real make test smoke. (4) the current hostile test checks /home/shedwards/.oompah/.oompah.pid, not the canonical checkout's actual lifecycle file, allows generic sandbox failure as success, and writes its sentinel under a hidden host path. Use a live host sentinel/PID and host localhost server plus a sandbox-local control marker; require the candidate command itself to succeed while host PID/sentinel/service remain unreachable. (5) the prior 85567351f critical-file equality freeze remains and circularly blocks legitimate OOMPAH-623 Makefile changes; remove that freeze once the OS boundary is the enforcement mechanism. (6) decide read-only Git metadata or explicit no-Git contract: a worktree .git indirection points into hidden /home. Preserve exact descendant cleanup and fail-closed bwrap-unavailable tests.
 ---
 <!-- COMMENTS:END -->
