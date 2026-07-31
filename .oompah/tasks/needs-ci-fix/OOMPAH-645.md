@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T06:47:58.732088Z'
-updated_at: '2026-07-31T08:09:21.402897Z'
+updated_at: '2026-07-31T08:12:17.467245Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -485,5 +485,17 @@ author: oompah
 created: 2026-07-31 08:07
 ---
 Agent completed without closing this issue (191s (792104 tokens)). Escalating from 'standard' to 'deep'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-31 08:12
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #2)
+
+**State audited:** `Needs CI Fix`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** Recent comment indicates CI is now passing or PR has been merged; safe to reopen for dispatch.
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
 ---
 <!-- COMMENTS:END -->
