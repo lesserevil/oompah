@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-643
 type: task
-status: Needs Human
+status: Ready to Integrate
 priority: null
 title: Reconcile stale terminal-audit enforcement records and live queue metrics
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:17:38.708513Z'
-updated_at: '2026-07-31T06:49:44.347059Z'
+updated_at: '2026-07-31T06:50:32.247989Z'
 work_branch: null
 target_branch: null
 review_url: null
