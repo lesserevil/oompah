@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-433
 type: bug
-status: Merged
+status: In Validation
 priority: 2
 title: "[backend:orchestrator] Dispatch loop stale but 3 agent(s) are active \u2014\
   \ skipping auto-restart to avoid killing in-flight work. Restart manually when agents\
@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T22:58:16.587989Z'
-updated_at: '2026-07-24T01:41:54.811383Z'
+updated_at: '2026-07-31T02:09:21.392294Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -61,6 +61,28 @@ oompah.task_costs:
     output_tokens: 4750
     cost_usd: 0.0
     recorded_at: '2026-07-24T01:12:39.705954+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-13c6fc1ea682
+    project_id: proj-14849f1b
+    task_id: OOMPAH-433
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 840a5418e3286f6e71ba535856478a3e290548a8cef5e7df49c73b8431eca406
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-07-31T02:09:19.187402+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -216,5 +238,10 @@ author: oompah
 created: 2026-07-24 01:22
 ---
 Resolved by concurrently merged OOMPAH-432: stale dispatch-loop restart deferrals with active agents now log at WARNING instead of ERROR, preserving dashboard/operator visibility without triggering error_watcher. Regression suites pass and OOMPAH-433 branch is synchronized and pushed.
+---
+author: oompah
+created: 2026-07-31 02:09
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
