@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:47:58.732088Z'
-updated_at: '2026-07-31T07:26:58.285448Z'
+updated_at: '2026-07-31T07:27:45.600838Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -210,5 +210,27 @@ created: 2026-07-31 07:26
 Discovery: Root cause confirmed in oompah/terminal_audit_health.py:build_terminal_audit_health(). The failure-counting loop iterated all PENDING attempts with ended_at on ANY record, regardless of the record's request_state. When attempt 2 was IN_PROGRESS (recovering), attempt 1's transport failure was still counted, surfacing as transport_failure_count=1. On the next scan after OOMPAH-607 left In Validation, OOMPAH-641 was processed with clean observations but the alert appeared to reference OOMPAH-641 because the text said 'pending audits' generically.
 
 Fix: Guarded the exhaustion and transport/launch failure counts with if record.request_state == RequestState.PENDING: — only PENDING records (no active replacement) generate actionable failure alerts. IN_PROGRESS records have an active auditor recovering the audit; no operator action is needed.
+---
+author: oompah
+created: 2026-07-31 07:27
+---
+Implementation: Modified oompah/terminal_audit_health.py:build_terminal_audit_health() to guard transport/launch failure and retry exhaustion counting with `if record.request_state == RequestState.PENDING:`.
+
+Key change (single guard condition):
+- Before: counted all PENDING attempts with ended_at in ANY record (including IN_PROGRESS)
+- After: only counts failures for PENDING records (no active replacement running)
+
+The semantics:
+- IN_PROGRESS record = active replacement running = recovering = no operator action needed
+- PENDING record = all attempts ended = unresolved = operator may need to act
+
+Also guarded retry_exhausted_count: if the last attempt is IN_PROGRESS, the budget is not yet consumed (it might succeed).
+
+Tests added in tests/test_terminal_audit_health.py (43 total, all pass):
+- TestTransportFailureRecovery (7 new tests)
+- TestMultiProjectIsolation (2 new tests)
+- TestAlertTextRefersOnlyToUnresolvedAudits (2 new tests)
+
+All 211 focused tests pass (terminal_audit_health, dashboard_terminal_audit_health, terminal_audit_health_api, terminal_audit_observability, terminal_audit_enforcement, terminal_audit_scanner, terminal_transition_coordinator).
 ---
 <!-- COMMENTS:END -->
