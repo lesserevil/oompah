@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-623
 type: bug
-status: Needs Human
+status: In Progress
 priority: 1
 title: Keep the canonical user CLI synchronized with the running server
 parent: OOMPAH-619
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:32:18.734139Z'
-updated_at: '2026-07-31T10:32:15.365925Z'
+updated_at: '2026-07-31T11:01:31.163933Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-623
 target_branch: null
 review_url: null
@@ -46,7 +46,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: ce487f60-0815-4a32-ba31-503d857c3347
+oompah.agent_run_id: acf58524-8725-4456-8ed6-b063a7c429f1
 oompah.work_branch: epic-OOMPAH-619--task-OOMPAH-623
 oompah.integration:
   version: 2
@@ -407,5 +407,29 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 1m 45s
 - Log: OOMPAH-623__20260731T103039Z.jsonl
+---
+author: oompah
+created: 2026-07-31 11:01
+---
+Shared base repair is published: origin/epic-OOMPAH-619 is now 3fcdf30ca on current main with OOMPAH-652/654. Rebase clean pushed task head eaa58a2b7 onto that exact epic head via Needs Rebase, preserving only OOMPAH-623 cutover work; then return to Open for the atomicity fixes.
+---
+author: oompah
+created: 2026-07-31 11:01
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-31 11:01
+---
+Agent failed: Epic branch epic-OOMPAH-619 diverged from origin/epic-OOMPAH-619; reconcile both heads before dispatching more children. Retrying in 10s (attempt #1)
+---
+author: oompah
+created: 2026-07-31 11:01
+---
+Run #1 [attempt=1, profile=deep, role=— -> Claude/opus]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 4s
 ---
 <!-- COMMENTS:END -->

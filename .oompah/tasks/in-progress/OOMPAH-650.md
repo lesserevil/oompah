@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-650
 type: bug
-status: Needs Human
+status: In Progress
 priority: 1
 title: Keep scoped task handoff credentials valid for the full worker lifetime
 parent: OOMPAH-619
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T10:32:25.800609Z'
+updated_at: '2026-07-31T11:01:35.506871Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -36,7 +36,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: a333734a-73b6-486f-930a-df59ed29d85e
+oompah.agent_run_id: 5bc331e6-55eb-4ca1-9368-9672bd021715
 oompah.work_branch: epic-OOMPAH-619--task-OOMPAH-650
 oompah.integration:
   version: 2
@@ -467,5 +467,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 1m 39s
 - Log: OOMPAH-650__20260731T103058Z.jsonl
+---
+author: oompah
+created: 2026-07-31 11:01
+---
+Shared base repair is published: origin/epic-OOMPAH-619 is now 3fcdf30ca on current main with OOMPAH-652/654. Rebase clean pushed recovered task head e08d94456 onto that exact epic head via Needs Rebase, preserving the scoped credential work; then return to Open for generation/TTL/authorization fixes.
+---
+author: oompah
+created: 2026-07-31 11:01
+---
+Agent dispatched (profile: deep)
 ---
 <!-- COMMENTS:END -->
