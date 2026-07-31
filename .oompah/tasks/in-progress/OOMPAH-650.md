@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-650
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Keep scoped task handoff credentials valid for the full worker lifetime
 parent: OOMPAH-619
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T11:43:38.500900Z'
+updated_at: '2026-07-31T11:44:13.368289Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -45,16 +45,16 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 0b790007-df10-4605-b2b1-3d0e679e64a4
+oompah.agent_run_id: 446cee71-6f45-4807-a82d-f2b46f38e668
 oompah.work_branch: epic-OOMPAH-619--task-OOMPAH-650
 oompah.integration:
   version: 2
-  state: ready
+  state: working
   attempts: 0
   task_branch: epic-OOMPAH-619--task-OOMPAH-650
-  head_sha: 7d9b597a1a504309bc48a2d4c55ecfc70f97d505
-  submitted_at: '2026-07-31T11:37:06.033601+00:00'
-  updated_at: '2026-07-31T11:37:06.033601+00:00'
+  base_branch: epic-OOMPAH-619
+  base_sha: 3fcdf30caa62fb7709d0cd9e1553320dd11b3877
+  updated_at: '2026-07-31T11:44:12.329324+00:00'
 oompah.task_costs:
   total_input_tokens: 3449433
   total_output_tokens: 20500
@@ -827,5 +827,10 @@ author: oompah
 created: 2026-07-31 11:43
 ---
 Exact-head review rejects 7d9b597a1. Blocking defects remain: (1) api_task_handoff calls validate, then request-driven refresh, then performs async tracker I/O after both grant-store locks are released, so revoke can occur after refresh and before mutation; test_endpoint_aborts_mutation_when_refresh_races_with_termination only mocks refresh=False and does not exercise the real post-refresh revocation window. Add a linearizable per-grant operation authorization/permit shared with revoke, with deterministic barriers proving termination after authentication but before mutation cannot permit stale mutation. (2) Remove bearer-request-driven refresh as the credential lifetime mechanism; the server-owned live-worker lease must be sufficient. (3) test_worker_lifetime_grant_survives_zero_handoff_requests manually invokes store.refresh and never starts TaskHandoffLease, so it does not test its name or acceptance criterion; exercise the actual heartbeat with a deterministic clock/barrier. (4) the store is process-local and the branch has no graceful restart preservation/atomic replacement test despite the task requirement. Cover launch failure, replacement/owner disappearance, lease cleanup, restart behavior, and exact revocation. Focused tests only until OOMPAH-657 deploys exact-head gates.
+---
+author: oompah
+created: 2026-07-31 11:44
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->

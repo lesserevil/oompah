@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T11:43:48.620731Z'
+updated_at: '2026-07-31T11:44:05.911153Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -56,7 +56,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 1
   retry_after: null
-oompah.agent_run_id: 80326dea-0859-4970-9029-2f8b9eb7452a
+oompah.agent_run_id: f4212463-5290-4792-8516-69ba3c70b7c7
 oompah.task_costs:
   total_input_tokens: 5729550
   total_output_tokens: 33129
@@ -458,5 +458,15 @@ author: oompah
 created: 2026-07-31 11:43
 ---
 Agent completed without closing this issue (1693s (3040890 tokens)). Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-31 11:44
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-31 11:44
+---
+Focus: Maintenance Engineer
 ---
 <!-- COMMENTS:END -->
