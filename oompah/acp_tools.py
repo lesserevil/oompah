@@ -980,6 +980,7 @@ def build_tool_catalog(
     workspace_path: str,
     *,
     run_command_timeout_s: int | None = None,
+    tool_liveness: Any = None,
     project_store: Any = None,
     project_id: str | None = None,
     task_tracker: Any = None,
@@ -1144,6 +1145,7 @@ def build_tool_catalog(
                 workspace,
                 args,
                 timeout=run_command_timeout_s,
+                tool_liveness=tool_liveness,
             )
         )
 
@@ -1305,6 +1307,7 @@ def build_codex_tool_catalog(
     workspace_path: str,
     *,
     run_command_timeout_s: int | None = None,
+    tool_liveness: Any = None,
     project_store: Any = None,
     project_id: str | None = None,
     task_tracker: Any = None,
@@ -1462,6 +1465,7 @@ def build_codex_tool_catalog(
             workspace,
             {"command": command},
             timeout=run_command_timeout_s,
+            tool_liveness=tool_liveness,
         )
 
     @function_tool
@@ -1598,6 +1602,7 @@ def build_opencode_tool_catalog(
     workspace_path: str,
     *,
     run_command_timeout_s: int | None = None,
+    tool_liveness: Any = None,
     project_store: Any = None,
     project_id: str | None = None,
     task_tracker: Any = None,
@@ -1765,6 +1770,7 @@ def build_opencode_tool_catalog(
                 workspace,
                 args,
                 timeout=run_command_timeout_s,
+                tool_liveness=tool_liveness,
             )
         )
 

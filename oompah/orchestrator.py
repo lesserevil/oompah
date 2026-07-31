@@ -30,6 +30,7 @@ from oompah.agent import (
 )
 from oompah.agent_profile_store import AgentProfileStore
 from oompah.api_agent import AgentActivity, ApiAgentSession
+from oompah.tool_liveness import ToolLivenessMonitor
 from oompah.authority_boundary import (
     AgentActionPolicy,
     ProtectedAction,
@@ -23906,6 +23907,7 @@ class Orchestrator:
                         "reason": outcome.reason,
                     }
 
+            api_tool_liveness = ToolLivenessMonitor()
             session = ApiAgentSession(
                 base_url=provider.base_url,
                 api_key=provider.api_key,
@@ -23951,6 +23953,7 @@ class Orchestrator:
                 project_id=issue.project_id or None,
                 task_identifier=issue.identifier,
                 action_policy=action_policy,
+                tool_liveness=api_tool_liveness,
             )
             logger.info(
                 "Agent log for %s -> %s",
@@ -23986,6 +23989,7 @@ class Orchestrator:
                     last_event="api_started",
                     last_timestamp=datetime.now(timezone.utc),
                     last_message=f"Using {provider.name}/{model}",
+                    tool_liveness=api_tool_liveness,
                 )
 
             def _on_activity(activity_entry: AgentActivity) -> None:
@@ -24371,6 +24375,10 @@ class Orchestrator:
                     last_timestamp=datetime.now(timezone.utc),
                     last_message=f"ACP session: {model}",
                 )
+                # ACP tool results can be silent while a bounded child command
+                # runs. Keep that process-level heartbeat beside the session
+                # so reconciliation can exempt only this worker's live call.
+                running_entry_acp.session.tool_liveness = ToolLivenessMonitor()
 
             task_tracker = self._tracker_for_issue(issue)
             action_policy = self._agent_action_policy(issue)
@@ -24417,6 +24425,12 @@ class Orchestrator:
 
             tool_catalog = build_tool_catalog(
                 workspace_path,
+                tool_liveness=(
+                    self.state.running[issue.id].session.tool_liveness
+                    if issue.id in self.state.running
+                    and self.state.running[issue.id].session
+                    else None
+                ),
                 project_store=self.project_store,
                 project_id=issue.project_id or None,
                 task_tracker=task_tracker,
@@ -24656,6 +24670,12 @@ class Orchestrator:
                 ),
                 task_handoff_token=handoff_token,
                 comment_queue=_comment_queue,
+                tool_liveness=(
+                    self.state.running[issue.id].session.tool_liveness
+                    if issue.id in self.state.running
+                    and self.state.running[issue.id].session
+                    else None
+                ),
                 focus=focus,
                 auditor=focus.name.lower() == AUDITOR_FOCUS_NAME,
                 audit_target=audit_target,
@@ -27709,44 +27729,108 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     refreshed_map[issue.id] = issue
         return refreshed_map
 
+    @staticmethod
+    def _tool_stall_status(entry: RunningEntry) -> tuple[bool, str | None]:
+        """Return whether a live bounded tool protects *entry* from a stall.
+
+        ACP emits a tool-use event before the child command starts producing
+        output.  Reconciliation therefore consults the per-session process
+        monitor as a second, narrowly scoped liveness source.  A dead child
+        falls back to generic recovery; an elapsed command deadline returns a
+        precise retry diagnostic instead of silently extending the worker.
+        """
+
+        session = entry.session
+        monitor = getattr(session, "tool_liveness", None) if session else None
+        if monitor is None:
+            return False, None
+        try:
+            snapshot_many = getattr(monitor, "snapshots", None)
+            snapshots = (
+                snapshot_many()
+                if snapshot_many is not None
+                else [monitor.snapshot()]
+            )
+            snapshots = [snapshot for snapshot in snapshots if snapshot is not None]
+        except Exception as exc:  # pragma: no cover - defensive observer path
+            logger.debug(
+                "Tool liveness snapshot failed for %s: %s",
+                entry.identifier,
+                exc,
+            )
+            return False, None
+        if not snapshots:
+            return False, None
+        timed_out = next(
+            (snapshot for snapshot in snapshots if snapshot.deadline_exceeded),
+            None,
+        )
+        if timed_out is not None:
+            return False, timed_out.timeout_diagnostic
+        if any(snapshot.protects_from_stall for snapshot in snapshots):
+            return True, None
+        # The child exited (or could not be observed), so it must not keep a
+        # silent worker alive until the full agent deadline.
+        return False, None
+
     async def _reconcile(self) -> None:
         """Reconcile running issues: stall detection + tracker state refresh."""
         # Part A: Stall detection
-        if self.config.stall_timeout_ms > 0:
-            now_mono = time.monotonic()
-            for issue_id, entry in list(self.state.running.items()):
-                last_ts = None
-                if entry.session and entry.session.last_timestamp:
-                    last_ts = entry.session.last_timestamp.timestamp()
-                else:
-                    last_ts = entry.started_at.timestamp()
+        for issue_id, entry in list(self.state.running.items()):
+            protected_by_tool, tool_timeout_reason = self._tool_stall_status(entry)
+            if protected_by_tool:
+                logger.debug(
+                    "Deferring generic stall detection for live bounded tool "
+                    "issue_id=%s issue_identifier=%s",
+                    issue_id,
+                    entry.identifier,
+                )
+                continue
+            last_ts = None
+            if entry.session and entry.session.last_timestamp:
+                last_ts = entry.session.last_timestamp.timestamp()
+            else:
+                last_ts = entry.started_at.timestamp()
 
-                elapsed_ms = (time.time() - last_ts) * 1000
-                if elapsed_ms > self.config.stall_timeout_ms:
+            elapsed_ms = (time.time() - last_ts) * 1000
+            if tool_timeout_reason or (
+                self.config.stall_timeout_ms > 0
+                and elapsed_ms > self.config.stall_timeout_ms
+            ):
+                if tool_timeout_reason:
+                    logger.warning(
+                        "Bounded tool timeout detected issue_id=%s "
+                        "issue_identifier=%s elapsed_ms=%.0f reason=%s",
+                        issue_id,
+                        entry.identifier,
+                        elapsed_ms,
+                        tool_timeout_reason,
+                    )
+                else:
                     logger.warning(
                         "Stall detected issue_id=%s issue_identifier=%s elapsed_ms=%.0f",
                         issue_id,
                         entry.identifier,
                         elapsed_ms,
                     )
-                    terminated = await self._terminate_running(
-                        issue_id, cleanup_workspace=False
-                    )
-                    if getattr(entry, "duplicate_preflight", False) or not terminated:
-                        # Preflight claims are released by termination and become
-                        # eligible for the screening lane again. They must never
-                        # enter the ordinary implementation retry queue.
-                        continue
-                    next_attempt = (entry.retry_attempt or 0) + 1
-                    self._schedule_retry(
-                        issue_id,
-                        next_attempt,
-                        entry.identifier,
-                        self._backoff_delay(next_attempt),
-                        "stall timeout",
-                        project_id=entry.issue.project_id if entry.issue else None,
-                        context_entry=entry,
-                    )
+                terminated = await self._terminate_running(
+                    issue_id, cleanup_workspace=False
+                )
+                if getattr(entry, "duplicate_preflight", False) or not terminated:
+                    # Preflight claims are released by termination and become
+                    # eligible for the screening lane again. They must never
+                    # enter the ordinary implementation retry queue.
+                    continue
+                next_attempt = (entry.retry_attempt or 0) + 1
+                self._schedule_retry(
+                    issue_id,
+                    next_attempt,
+                    entry.identifier,
+                    self._backoff_delay(next_attempt),
+                    tool_timeout_reason or "stall timeout",
+                    project_id=entry.issue.project_id if entry.issue else None,
+                    context_entry=entry,
+                )
 
         # Part B: Tracker state refresh
         running_ids = list(self.state.running.keys())

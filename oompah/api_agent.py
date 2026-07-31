@@ -543,6 +543,7 @@ def _exec_run_command(
     args: dict[str, Any],
     timeout: int | None = None,
     env_overrides: dict[str, str] | None = None,
+    tool_liveness: Any = None,
 ) -> str:
     timeout = _resolve_run_command_timeout() if timeout is None else timeout
     command = args["command"]
@@ -576,6 +577,18 @@ def _exec_run_command(
                 process.kill()
             return process.communicate()
 
+    invocation_id: str | None = None
+    if tool_liveness is not None:
+        try:
+            invocation_id = tool_liveness.start(
+                tool_name="run_command",
+                timeout_s=timeout,
+            )
+        except Exception:
+            # Liveness is supervisory telemetry. It must never prevent the
+            # command itself from running when an observer is unavailable.
+            invocation_id = None
+
     try:
         process = subprocess.Popen(
             ["bash", "-lc", command],
@@ -586,6 +599,11 @@ def _exec_run_command(
             env=env,
             start_new_session=(os.name == "posix"),
         )
+        if invocation_id is not None:
+            try:
+                tool_liveness.attach_process(invocation_id, process)
+            except Exception:
+                pass
         try:
             stdout, stderr = process.communicate(timeout=timeout)
         except subprocess.TimeoutExpired:
@@ -601,6 +619,12 @@ def _exec_run_command(
         return "\n".join(parts)
     except Exception as exc:
         return f"Error running command: {exc}"
+    finally:
+        if invocation_id is not None:
+            try:
+                tool_liveness.complete(invocation_id)
+            except Exception:
+                pass
 
 
 def _exec_attach_image(workspace: Path, args: dict[str, Any]) -> str:
@@ -743,6 +767,7 @@ def _execute_tool(
     action_policy: AgentActionPolicy | None = None,
     audit_target: Any = None,
     audit_result_handler: Any = None,
+    tool_liveness: Any = None,
 ) -> str:
     """Execute a tool call and return its string result.
 
@@ -815,12 +840,13 @@ def _execute_tool(
             )
             if direct is not None:
                 return direct
-            return handler(
-                workspace,
-                args,
-                timeout=cmd_timeout,
-                env_overrides=env_overrides,
-            )
+            command_kwargs = {
+                "timeout": cmd_timeout,
+                "env_overrides": env_overrides,
+            }
+            if tool_liveness is not None:
+                command_kwargs["tool_liveness"] = tool_liveness
+            return handler(workspace, args, **command_kwargs)
         return handler(workspace, args)
     except ValueError as exc:
         # path traversal
@@ -1129,6 +1155,7 @@ class ApiAgentSession:
         action_policy: AgentActionPolicy | None = None,
         audit_target: Any = None,
         audit_result_handler: Any = None,
+        tool_liveness: Any = None,
     ):
         # Validate before joining.  In particular, an absent base must never
         # turn into the relative path ``/chat/completions``.  This constructor
@@ -1182,6 +1209,7 @@ class ApiAgentSession:
         self.action_policy = action_policy
         self.audit_target = audit_target
         self.audit_result_handler = audit_result_handler
+        self.tool_liveness = tool_liveness
         self._ssl_ctx = _build_ssl_context()
 
     def _log_event(self, kind: str, **fields: Any) -> None:
@@ -1521,6 +1549,7 @@ class ApiAgentSession:
                             self.action_policy,
                             self.audit_target,
                             self.audit_result_handler,
+                            self.tool_liveness,
                         )
 
                     tool_failed = result_str.startswith("Error")

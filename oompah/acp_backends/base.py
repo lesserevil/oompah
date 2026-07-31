@@ -147,6 +147,10 @@ class AcpBackendOptions:
     # put_nowait()-safe from the async event loop thread.
     # None = injection disabled for this session.
     comment_queue: "asyncio.Queue[str] | None" = None
+    # Per-session supervisor for bounded subprocess-backed tool calls. It is
+    # intentionally opaque so every ACP backend can share the same liveness
+    # contract without importing orchestrator state.
+    tool_liveness: Any = None
 
 
 @runtime_checkable
