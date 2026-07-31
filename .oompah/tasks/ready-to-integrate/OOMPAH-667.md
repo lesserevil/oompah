@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-667
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Keep Makefile virtualenv PATH from defeating canonical CLI cutover
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T21:32:57.017227Z'
-updated_at: '2026-07-31T23:06:34.912873Z'
+updated_at: '2026-07-31T23:06:48.066054Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -84,6 +84,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-667
     source_sha: d96740a6ecdca353e40ef87e94a4ee91b8828df0
     completed_at: '2026-07-31T22:58:51.212689+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-667
+  head_sha: 6ee3e02133d9f8668597285110e480069d92c6af
+  submitted_at: '2026-07-31T23:06:43.628498+00:00'
+  updated_at: '2026-07-31T23:06:43.628498+00:00'
 ---
 ## Summary
 
@@ -153,5 +161,10 @@ author: oompah
 created: 2026-07-31 23:06
 ---
 Completion: pushed commit 6ee3e0213 to origin/OOMPAH-667. Make lifecycle commands now preserve the caller's canonical CLI PATH while retaining internal venv tooling, strict shadowing refusal remains intact, focused suites are green, and the worktree is clean/up to date.
+---
+author: oompah
+created: 2026-07-31 23:06
+---
+Preserved operator CLI PATH through Make lifecycle and added regression coverage
 ---
 <!-- COMMENTS:END -->
