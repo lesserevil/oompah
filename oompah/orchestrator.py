@@ -482,14 +482,24 @@ def _record_has_no_auditor(record: Any) -> bool:
 
 def _retirement_metadata_proves_identity(
     document: Any,
+    record: Any,
     project_id: str,
     task_id: str,
-    audit_id: str,
 ) -> bool:
-    """Return whether a validated durable retirement row names *audit_id*."""
+    """Return whether a retirement row proves the exact record was retired."""
 
     raw_rows = getattr(document, "unknown_fields", {}).get(_TERMINAL_RETIREMENTS_KEY)
     if not isinstance(raw_rows, list):
+        return False
+    audit_id = getattr(record, "audit_id", None)
+    record_target = getattr(record, "target_state", None)
+    record_fingerprint = getattr(record, "evidence_fingerprint", None)
+    if (
+        not isinstance(audit_id, str)
+        or not audit_id
+        or not isinstance(record_target, TargetState)
+        or not isinstance(record_fingerprint, EvidenceFingerprint)
+    ):
         return False
     for raw_row in raw_rows:
         if not isinstance(raw_row, Mapping) or raw_row.get("applied", True) is False:
@@ -504,16 +514,20 @@ def _retirement_metadata_proves_identity(
         ):
             continue
         try:
-            TargetState.from_raw(raw_row.get("target_state"))
+            row_target = TargetState.from_raw(raw_row.get("target_state"))
             raw_fingerprint = raw_row.get("evidence_fingerprint")
             if isinstance(raw_fingerprint, Mapping):
                 raw_fingerprint = raw_fingerprint.get(
                     "digest", raw_fingerprint.get("sha256", raw_fingerprint.get("value"))
                 )
-            EvidenceFingerprint(str(raw_fingerprint))
+            row_fingerprint = EvidenceFingerprint(str(raw_fingerprint))
         except (TypeError, ValueError):
             # Unknown or malformed forward-compatible data is not lifecycle
             # evidence. Keep the alert until a trusted source confirms it.
+            continue
+        if row_target != record_target or row_fingerprint != record_fingerprint:
+            # An audit ID alone is not a durable lifecycle identity. A
+            # mismatched row can be historical or malformed, so fail closed.
             continue
         return True
     return False
@@ -1899,7 +1913,7 @@ class Orchestrator:
                 # tracker state so a reopened task can retain a genuinely new
                 # no-auditor decision while the old identity is retired.
                 if _retirement_metadata_proves_identity(
-                    document, project_id, task_id, audit_id
+                    document, record, project_id, task_id
                 ):
                     self._forget_terminal_audit_alert_identity(
                         project_id, task_id, audit_id

@@ -482,6 +482,58 @@ def test_retirement_rows_clear_only_old_id_when_task_reopened(
         orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
 
 
+def test_mismatched_retirement_identity_keeps_no_candidate_alert(
+    tmp_path: Path,
+) -> None:
+    """An audit ID match without target/fingerprint proof must fail closed."""
+    tracker = _MetadataTracker()
+    fingerprint = EvidenceFingerprint("b" * 64)
+    record = _no_auditor_record("audit-current", fingerprint)
+    tracker.metadata["TASK-1"] = {
+        METADATA_KEY: TerminalAuditMetadata(
+            pending_chain=[record],
+            unknown_fields={
+                "oompah.terminal_audit_retirements": [
+                    {
+                        "project_id": "project-a",
+                        "task_id": "TASK-1",
+                        "target_state": "Done",
+                        "evidence_fingerprint": EvidenceFingerprint("c" * 64).digest,
+                        "audit_ids": ["audit-current"],
+                        "kind": "result",
+                        "applied": True,
+                    }
+                ]
+            },
+        ).to_dict()
+    }
+    tracker.issues["TASK-1"] = Issue(
+        id="TASK-1",
+        identifier="TASK-1",
+        title="Needs human review",
+        description="current audit must stay visible",
+        state="Needs Human",
+        project_id="project-a",
+    )
+    orchestrator = Orchestrator(
+        ServiceConfig(workspace_root=str(tmp_path / "workspace")),
+        str(tmp_path / "WORKFLOW.md"),
+        state_path=str(tmp_path / "service_state.json"),
+    )
+    try:
+        orchestrator._tracker_for_project = lambda _project_id: tracker
+        orchestrator.record_terminal_audit_no_candidate(
+            "project-a", "TASK-1", "audit-current", reason="current callback"
+        )
+        assert any(
+            "audit-current" in str(alert.get("source", ""))
+            for alert in orchestrator.get_snapshot()["alerts"]
+        )
+    finally:
+        orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
+        orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+
 def test_migrated_override_and_pass_metadata_retire_older_identities(
     tmp_path: Path,
 ) -> None:
