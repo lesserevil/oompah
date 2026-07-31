@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:47:58.732088Z'
-updated_at: '2026-07-31T07:28:02.232869Z'
+updated_at: '2026-07-31T07:28:13.897206Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -101,13 +101,17 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 8d982144-3fab-4d82-abc0-26d163554ed1
 oompah.task_costs:
-  total_input_tokens: 154
-  total_output_tokens: 6782
+  total_input_tokens: 198
+  total_output_tokens: 44655
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 154
       output_tokens: 6782
+      cost_usd: 0.0
+    sonnet:
+      input_tokens: 44
+      output_tokens: 37873
       cost_usd: 0.0
   runs:
   - profile: default
@@ -116,6 +120,12 @@ oompah.task_costs:
     output_tokens: 6782
     cost_usd: 0.0
     recorded_at: '2026-07-31T06:51:24.949997+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 44
+    output_tokens: 37873
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T07:28:09.649489+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-645__20260731T064937Z
@@ -126,14 +136,24 @@ oompah.work_contributors:
     source_branch: OOMPAH-645
     source_sha: 1dc3f53e52b5d8ef704e16355d4cb0bb87379689
     completed_at: '2026-07-31T06:51:24.959976+00:00'
+  - run_id: OOMPAH-645__20260731T071422Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: sonnet
+    focus: frontend
+    source_branch: OOMPAH-645
+    source_sha: 7d1019194f919691333bf00b78cff1a7f73fdb33
+    completed_at: '2026-07-31T07:28:09.652672+00:00'
 oompah.integration:
   version: 2
   state: ready
   attempts: 0
   task_branch: OOMPAH-645
+  base_branch: main
+  base_sha: d48b971c58b8622e9c63de4923db08b755b5434b
   head_sha: 7d1019194f919691333bf00b78cff1a7f73fdb33
   submitted_at: '2026-07-31T07:27:58.460528+00:00'
-  updated_at: '2026-07-31T07:27:58.460528+00:00'
+  updated_at: '2026-07-31T07:28:11.451282+00:00'
 ---
 ## Summary
 
@@ -262,5 +282,20 @@ author: oompah
 created: 2026-07-31 07:28
 ---
 Fixed transport failure alert contamination in terminal_audit_health.py. When an audit record is IN_PROGRESS (active replacement running), past transport/launch failures are no longer counted as actionable alerts. Only PENDING records (no active retry) generate failure alerts. Added 11 new tests covering recovery lifecycle, multi-project isolation, and alert text correctness. All 211 focused tests pass.
+---
+author: oompah
+created: 2026-07-31 07:28
+---
+Agent completed successfully in 831s (37917 tokens)
+---
+author: oompah
+created: 2026-07-31 07:28
+---
+Run #2 [attempt=2, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 95, Tool calls: 58
+- Tokens: 44 in / 37.9K out [37.9K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 13m 51s
+- Log: OOMPAH-645__20260731T071422Z.jsonl
 ---
 <!-- COMMENTS:END -->
