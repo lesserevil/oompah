@@ -244,6 +244,10 @@ class Issue:
     # Stored in GitHub issue metadata so review reconciliation can resolve
     # the task from the PR without guessing by task ID.
     work_branch: str | None = None
+    # Optional tracker-provided assignment/head revisions used by retry
+    # authority checks when a backend exposes them directly.
+    assignment_id: str | None = None
+    head_sha: str | None = None
     # Timestamp when this issue was recorded as merged in the canonical tracker.
     # Populated by the native Markdown tracker from the oompah.merged_at /
     # merged_at frontmatter field.  An issue must NOT be rendered as Merged in
@@ -331,6 +335,20 @@ class RetryEntry:
     provider_name: str | None = None
     model_name: str | None = None
     candidate_key: str | None = None
+    # Authority evidence captured when the implementation attempt failed.
+    # These fields intentionally remain optional for state created by older
+    # service versions and for callers that construct RetryEntry directly.
+    failed_status: str | None = None
+    failed_updated_at: str | None = None
+    failed_attempt: int | None = None
+    assignment_id: str | None = None
+    work_branch: str | None = None
+    head_sha: str | None = None
+    authority_generation: str | None = None
+    # Wall-clock due time is persisted separately from due_at_ms, which is a
+    # process-local monotonic timestamp and cannot survive a restart.
+    due_at_epoch_ms: float | None = None
+    cancelled: bool = False
 
 
 @dataclass
@@ -1410,6 +1428,10 @@ class RunningEntry:
     audit_id: str | None = None
     audit_attempt_id: str | None = None
     branch_key: str | None = None
+    # Unique assignment identity for this worker run.  Retry authority is
+    # bound to this value so a replacement assignment cannot inherit it.
+    assignment_id: str | None = None
+    authority_generation: str | None = None
 
 
 @dataclass

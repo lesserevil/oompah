@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import faulthandler
+import hashlib
 import logging
 import os
 import re
@@ -918,6 +919,13 @@ class Orchestrator:
             poll_interval_ms=config.poll_interval_ms,
             max_concurrent_agents=config.max_concurrent_agents,
         )
+        # Retry entries can be withdrawn by an API thread while a due timer
+        # is refreshing tracker state on the scheduler loop.  Keep the
+        # retry map and its in-flight dispatch claims behind one process-wide
+        # lock so those two authorities cannot both launch work.
+        self._retry_authority_lock = threading.RLock()
+        self._retry_dispatching: dict[str, RetryEntry] = {}
+        self._persisted_retry_entries: list[RetryEntry] = []
         # Legacy single tracker (used when no projects are configured).  In
         # managed-project mode the native factory makes this tracker
         # fail-closed for task mutations, so an unscoped caller cannot write
@@ -1001,6 +1009,9 @@ class Orchestrator:
         self._last_auto_archive_monotonic: float | None = None
         self._started_monotonic: float = time.monotonic()
         state_data = self._load_state()
+        self._persisted_retry_entries = self._parse_persisted_retry_entries(
+            state_data.get("retry_attempts")
+        )
         cursors = state_data.get("maintenance_cursors", {})
         self._maintenance_cursors: dict[str, str | None] = (
             dict(cursors) if isinstance(cursors, dict) else {}
@@ -2505,10 +2516,18 @@ class Orchestrator:
         # Cancel pending retries — they bypass _should_dispatch and would
         # otherwise re-dispatch while paused.
         for retry_iid, retry in list(self.state.retry_attempts.items()):
-            if retry.timer_handle and not retry.timer_handle.cancelled():
-                retry.timer_handle.cancel()
-            self.state.retry_attempts.pop(retry_iid, None)
-            self.state.claimed.discard(retry_iid)
+            self._cancel_retry_for_issue(
+                issue_id=retry_iid,
+                reason="orchestrator paused",
+                notify=False,
+            )
+        for retry_iid, retry in list(self._retry_dispatching.items()):
+            self._cancel_retry_for_issue(
+                issue_id=retry_iid,
+                reason="orchestrator paused",
+                notify=False,
+            )
+        self._persist_retry_entries()
         # Terminate all running agents (keep workspaces for resume).
         # Use get_running_loop() so we don't accidentally create a new
         # event loop when called from a synchronous context (e.g. tests).
@@ -4502,6 +4521,7 @@ class Orchestrator:
         )
         await self.startup_cleanup()
         await self._recover_restart_issues()
+        await self._restore_persisted_retries()
         full_sync_interval_s = self.config.full_sync_interval_ms / 1000.0
         logger.info(
             "Orchestrator starting event-driven loop "
@@ -8640,6 +8660,8 @@ class Orchestrator:
         """Fetch the issue for a scheduled retry, including In Progress tasks."""
         for issue in self._fetch_all_candidates():
             if self._retry_issue_matches(issue, retry):
+                if retry.project_id and not issue.project_id:
+                    issue.project_id = retry.project_id
                 return issue
 
         if retry.project_id:
@@ -23174,10 +23196,31 @@ class Orchestrator:
         *,
         duplicate_preflight_claim: DuplicateScreeningRecord | None = None,
         auditor_plan: AuditDispatchPlan | None = None,
+        retry_entry: RetryEntry | None = None,
     ) -> None:
         """Dispatch a worker for an issue."""
         duplicate_preflight = duplicate_preflight_claim is not None
         implementation_dispatch = auditor_plan is None and not duplicate_preflight
+
+        # A timer callback carries the exact retry entry it observed.  A
+        # submission/status/head mutation may have withdrawn that entry while
+        # the callback was awaiting tracker I/O, so reject the callback before
+        # it can claim or write anything.
+        if implementation_dispatch and retry_entry is not None:
+            with self._retry_authority_lock:
+                if (
+                    retry_entry.cancelled
+                    or self._retry_dispatching.get(issue.id) is not retry_entry
+                    or not self._retry_entry_matches_issue(issue, retry_entry)
+                ):
+                    logger.info(
+                        "Skipping stale retry dispatch issue_id=%s issue_identifier=%s",
+                        issue.id,
+                        issue.identifier,
+                    )
+                    self.state.claimed.discard(issue.id)
+                    self.state.claimed_issues.pop(issue.id, None)
+                    return
 
         async def _release_preflight(reason: str) -> None:
             if duplicate_preflight_claim is None or not duplicate_preflight_claim.claim_id:
@@ -23381,9 +23424,13 @@ class Orchestrator:
                 )
                 # Drop any pending retry too — implementation no longer owns
                 # this task.
-                rt = self.state.retry_attempts.pop(issue.id, None)
-                if rt and rt.timer_handle and not rt.timer_handle.cancelled():
-                    rt.timer_handle.cancel()
+                self._cancel_retry_for_issue(
+                    issue_id=issue.id,
+                    identifier=issue.identifier,
+                    project_id=issue.project_id,
+                    reason="dispatch state recheck withdrew implementation lane",
+                    notify=False,
+                )
                 return
 
             refreshed_issue = refreshed[0]
@@ -23589,13 +23636,13 @@ class Orchestrator:
                 self.state.claimed.discard(issue.id)
                 self.state.claimed_issues.pop(issue.id, None)
                 self.state.completed.add(issue.id)
-                retry = self.state.retry_attempts.pop(issue.id, None)
-                if (
-                    retry
-                    and retry.timer_handle
-                    and not retry.timer_handle.cancelled()
-                ):
-                    retry.timer_handle.cancel()
+                self._cancel_retry_for_issue(
+                    issue_id=issue.id,
+                    identifier=issue.identifier,
+                    project_id=issue.project_id,
+                    reason="post-dispatch state recheck withdrew implementation lane",
+                    notify=False,
+                )
                 return
             if (
                 auditor_plan is None
@@ -23623,12 +23670,72 @@ class Orchestrator:
             self.state.claimed_issues.pop(issue.id, None)
             return
 
-        # Remove from retry if present
-        retry = self.state.retry_attempts.pop(issue.id, None)
-        if retry and retry.timer_handle and not retry.timer_handle.cancelled():
-            retry.timer_handle.cancel()
+        # Final compare-and-swap for a timer-driven implementation retry.  The
+        # tracker read above is the fresh authority snapshot; the lock makes
+        # this check and retry removal indivisible with API cancellation.
+        if implementation_dispatch and retry_entry is not None:
+            with self._retry_authority_lock:
+                # ``post_update`` reflects the orchestrator's own
+                # In Progress write and therefore may have a newer tracker
+                # updated_at.  Generation validation must use the fresh
+                # pre-write snapshot while still checking that the post-write
+                # status/branch/head did not change underneath us.
+                authority_issue = issue
+                post_authority_changed = bool(
+                    post_update
+                    and (
+                        _state_key(post_update[0].state) != _state_key(issue.state)
+                        or str(
+                            getattr(post_update[0], "work_branch", None)
+                            or getattr(post_update[0], "branch_name", None)
+                            or ""
+                        ).strip()
+                        != str(
+                            getattr(issue, "work_branch", None)
+                            or getattr(issue, "branch_name", None)
+                            or ""
+                        ).strip()
+                        or self._retry_issue_head(post_update[0])
+                        != self._retry_issue_head(issue)
+                    )
+                )
+                if (
+                    retry_entry.cancelled
+                    or self._retry_dispatching.get(issue.id) is not retry_entry
+                    or post_authority_changed
+                    or not self._retry_entry_matches_issue(
+                        authority_issue, retry_entry
+                    )
+                ):
+                    logger.info(
+                        "Aborting retry before worker start issue_id=%s issue_identifier=%s",
+                        issue.id,
+                        issue.identifier,
+                    )
+                    self.state.claimed.discard(issue.id)
+                    self.state.claimed_issues.pop(issue.id, None)
+                    return
+                self.state.retry_attempts.pop(issue.id, None)
+                self._retry_dispatching.pop(issue.id, None)
+                retry_entry.cancelled = True
+        else:
+            # Ordinary dispatches should never inherit an older retry.  This
+            # also handles an operator/manual assignment racing a timer.
+            retry = self._cancel_retry_for_issue(
+                issue_id=issue.id,
+                identifier=issue.identifier,
+                project_id=issue.project_id,
+                reason="replacement assignment",
+                notify=False,
+            )
 
         now = datetime.now(timezone.utc)
+        assignment_id = str(uuid.uuid4())
+        authority_generation = self._retry_authority_generation(
+            running_issue,
+            attempt=attempt,
+            assignment_id=assignment_id,
+        )
         worker_kwargs = (
             {"auditor_plan": auditor_plan} if auditor_plan is not None else {}
         )
@@ -23661,6 +23768,8 @@ class Orchestrator:
             audit_id=auditor_plan.audit_id if auditor_plan else None,
             audit_attempt_id=auditor_plan.attempt_id if auditor_plan else None,
             branch_key=auditor_plan.branch_key if auditor_plan else audit_branch_key(issue),
+            assignment_id=assignment_id,
+            authority_generation=authority_generation,
         )
 
         # Post dispatch comment in thread to avoid blocking event loop
@@ -26278,6 +26387,12 @@ class Orchestrator:
                 blocked.to_dict(),
             )
             tracker.update_issue(current.identifier, status=OPEN)
+            retry_authority_issue = replace(
+                current,
+                state=OPEN,
+                updated_at=None,
+                integration=blocked,
+            )
             self._post_comment(
                 current.identifier,
                 verifier_result.render_rejection_comment(),
@@ -26292,6 +26407,7 @@ class Orchestrator:
                 error="completion_verifier_rejected",
                 project_id=project_id,
                 context_entry=entry,
+                authority_issue=retry_authority_issue,
             )
             self.state.completed.discard(entry.issue.id)
             return False
@@ -27103,13 +27219,12 @@ class Orchestrator:
                     # can race the independent auditor for ownership.
                     self.state.completed.add(issue_id)
                     self._clear_reopen_count(issue_id)
-                    retry = self.state.retry_attempts.pop(issue_id, None)
-                    if (
-                        retry
-                        and retry.timer_handle
-                        and not retry.timer_handle.cancelled()
-                    ):
-                        retry.timer_handle.cancel()
+                    self._cancel_retry_for_issue(
+                        issue_id=issue_id,
+                        identifier=entry.identifier,
+                        project_id=project_id,
+                        reason="terminal audit transition owns task",
+                    )
                     logger.info(
                         "Worker handed %s to terminal audit; suppressing "
                         "implementation retry",
@@ -27346,6 +27461,7 @@ class Orchestrator:
                                     escalated_profile=escalated_name,
                                     project_id=project_id,
                                     context_entry=entry,
+                                    authority_issue=current,
                                 )
                                 logger.info(
                                     "Escalating %s from %s to %s after completing without closing (%d/%d)",
@@ -27376,6 +27492,7 @@ class Orchestrator:
                                     escalated_profile=None,
                                     project_id=project_id,
                                     context_entry=entry,
+                                    authority_issue=current,
                                 )
                                 logger.info(
                                     "Retrying %s with same profile %s after landing gate blocked escalation (%d/%d)",
@@ -27869,6 +27986,8 @@ class Orchestrator:
         """
         alerts: list[dict[str, Any]] = []
         for retry in self.state.retry_attempts.values():
+            if retry.cancelled:
+                continue
             if not _is_credential_error(retry.error):
                 continue
             source = f"cred_error:{retry.identifier}"
@@ -28170,6 +28289,316 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         except Exception:
             pass
 
+    @staticmethod
+    def _retry_issue_revision(issue: Issue) -> str | None:
+        """Return the tracker revision used by retry authority checks."""
+        value = getattr(issue, "updated_at", None)
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value.isoformat()
+        text = str(value).strip()
+        return text or None
+
+    @staticmethod
+    def _retry_issue_head(issue: Issue, workspace_path: str | None = None) -> str | None:
+        """Return the strongest safe head evidence available for *issue*.
+
+        Submission metadata is authoritative when present.  A worker's
+        workspace HEAD is useful for failed pre-submission runs, including
+        shared-epic worktrees.  No remote/network operation is performed here.
+        """
+        integration = getattr(issue, "integration", None)
+        for value in (
+            getattr(integration, "head_sha", None),
+            getattr(issue, "head_sha", None),
+        ):
+            text = str(value or "").strip()
+            if text:
+                return text
+        if workspace_path:
+            head = Orchestrator._worktree_head(workspace_path)
+            if head:
+                return head
+        return None
+
+    def _retry_authority_generation(
+        self,
+        issue: Issue,
+        *,
+        attempt: int | None,
+        assignment_id: str | None,
+        failed_status: str | None = None,
+        failed_updated_at: str | None = None,
+        work_branch: str | None = None,
+        head_sha: str | None = None,
+    ) -> str:
+        """Build a non-secret identity for one implementation authority.
+
+        The inputs deliberately include every authority boundary named by the
+        retry contract.  Hashing keeps API/state payloads compact while the
+        individual evidence fields remain available on RetryEntry for
+        diagnostics and backward-compatible migrations.
+        """
+        values = (
+            str(issue.project_id or ""),
+            str(issue.id or ""),
+            str(failed_status or _state_key(issue.state)),
+            str(attempt if attempt is not None else ""),
+            str(assignment_id or ""),
+            str(work_branch or getattr(issue, "work_branch", None) or getattr(issue, "branch_name", None) or ""),
+            str(head_sha or self._retry_issue_head(issue) or ""),
+            str(failed_updated_at or self._retry_issue_revision(issue) or ""),
+        )
+        return hashlib.sha256("\x1f".join(values).encode("utf-8")).hexdigest()
+
+    def _retry_entry_matches_issue(self, issue: Issue, retry: RetryEntry) -> bool:
+        """Whether a fresh tracker snapshot still owns a scheduled retry."""
+        if retry.cancelled or not self._retry_issue_matches(issue, retry):
+            return False
+
+        # Entries written before generation evidence existed remain valid under
+        # the legacy retry rules.  New entries fail closed on every captured
+        # authority dimension.
+        if retry.authority_generation and retry.project_id != issue.project_id:
+            return False
+        if retry.failed_status is not None and _state_key(issue.state) != _state_key(
+            retry.failed_status
+        ):
+            return False
+        current_assignment = getattr(issue, "assignment_id", None) or getattr(
+            issue, "assigned_to", None
+        )
+        if (
+            retry.assignment_id is not None
+            and current_assignment is not None
+            and str(current_assignment) != retry.assignment_id
+        ):
+            return False
+        current_attempt = getattr(issue, "attempt", None) or getattr(
+            issue, "retry_attempt", None
+        )
+        if (
+            retry.failed_attempt is not None
+            and current_attempt is not None
+            and int(current_attempt) != int(retry.failed_attempt)
+        ):
+            return False
+        current_revision = self._retry_issue_revision(issue)
+        if retry.failed_updated_at is not None and current_revision != retry.failed_updated_at:
+            return False
+        current_branch = str(
+            getattr(issue, "work_branch", None)
+            or getattr(issue, "branch_name", None)
+            or ""
+        ).strip()
+        if retry.work_branch is not None and current_branch != retry.work_branch:
+            return False
+        current_head = self._retry_issue_head(issue)
+        if retry.head_sha is not None and current_head != retry.head_sha:
+            return False
+        return True
+
+    @staticmethod
+    def _retry_timer_cancelled(timer: Any) -> bool:
+        if timer is None:
+            return True
+        cancelled = getattr(timer, "cancelled", None)
+        try:
+            return bool(cancelled()) if callable(cancelled) else False
+        except Exception:
+            return False
+
+    def _persist_retry_entries(self) -> None:
+        """Persist retry authority without serializing event-loop handles."""
+        with self._retry_authority_lock:
+            entries = list(self.state.retry_attempts.values())
+            entries.extend(
+                entry
+                for issue_id, entry in self._retry_dispatching.items()
+                if issue_id not in self.state.retry_attempts
+            )
+            payload = {
+                entry.issue_id: {
+                    "issue_id": entry.issue_id,
+                    "identifier": entry.identifier,
+                    "attempt": entry.attempt,
+                    "due_at_epoch_ms": entry.due_at_epoch_ms,
+                    "error": entry.error,
+                    "escalated_profile": entry.escalated_profile,
+                    "project_id": entry.project_id,
+                    "agent_profile_name": entry.agent_profile_name,
+                    "model_role": entry.model_role,
+                    "provider_id": entry.provider_id,
+                    "provider_name": entry.provider_name,
+                    "model_name": entry.model_name,
+                    "candidate_key": entry.candidate_key,
+                    "failed_status": entry.failed_status,
+                    "failed_updated_at": entry.failed_updated_at,
+                    "failed_attempt": entry.failed_attempt,
+                    "assignment_id": entry.assignment_id,
+                    "work_branch": entry.work_branch,
+                    "head_sha": entry.head_sha,
+                    "authority_generation": entry.authority_generation,
+                    "cancelled": bool(entry.cancelled),
+                }
+                for entry in entries
+                if not entry.cancelled
+            }
+        self._save_state(retry_attempts=payload)
+
+    @staticmethod
+    def _parse_persisted_retry_entries(raw: Any) -> list[RetryEntry]:
+        if isinstance(raw, dict):
+            values = list(raw.values())
+        elif isinstance(raw, list):
+            values = raw
+        else:
+            return []
+        entries: list[RetryEntry] = []
+        for value in values:
+            if not isinstance(value, dict):
+                continue
+            issue_id = str(value.get("issue_id") or "").strip()
+            identifier = str(value.get("identifier") or issue_id).strip()
+            if not issue_id or not identifier:
+                continue
+            try:
+                attempt = int(value.get("attempt", 0))
+            except (TypeError, ValueError):
+                continue
+            entries.append(
+                RetryEntry(
+                    issue_id=issue_id,
+                    identifier=identifier,
+                    attempt=attempt,
+                    due_at_ms=0.0,
+                    error=value.get("error"),
+                    escalated_profile=value.get("escalated_profile"),
+                    project_id=value.get("project_id"),
+                    agent_profile_name=value.get("agent_profile_name"),
+                    model_role=value.get("model_role"),
+                    provider_id=value.get("provider_id"),
+                    provider_name=value.get("provider_name"),
+                    model_name=value.get("model_name"),
+                    candidate_key=value.get("candidate_key"),
+                    failed_status=value.get("failed_status"),
+                    failed_updated_at=value.get("failed_updated_at"),
+                    failed_attempt=value.get("failed_attempt"),
+                    assignment_id=value.get("assignment_id"),
+                    work_branch=value.get("work_branch"),
+                    head_sha=value.get("head_sha"),
+                    authority_generation=value.get("authority_generation"),
+                    due_at_epoch_ms=value.get("due_at_epoch_ms"),
+                    cancelled=bool(value.get("cancelled", False)),
+                )
+            )
+        return entries
+
+    async def _restore_persisted_retries(self) -> None:
+        """Revalidate persisted retries before exposing or arming timers."""
+        entries = self._persisted_retry_entries
+        self._persisted_retry_entries = []
+        if not entries:
+            return
+        # Consume the durable queue first.  Invalid entries are intentionally
+        # forgotten; their historical failure comments remain in the tracker.
+        self._save_state(retry_attempts={})
+        now_ms = time.time() * 1000
+        for retry in entries:
+            try:
+                issue = await asyncio.to_thread(self._fetch_retry_issue, retry)
+            except Exception as exc:
+                logger.warning(
+                    "Discarding persisted retry for %s after refresh failure: %s",
+                    retry.identifier,
+                    exc,
+                )
+                continue
+            if issue is None or not self._retry_entry_matches_issue(issue, retry):
+                logger.info(
+                    "Discarding stale persisted implementation retry for %s",
+                    retry.identifier,
+                )
+                continue
+            due_epoch = float(retry.due_at_epoch_ms or now_ms)
+            delay_ms = max(0, int(due_epoch - now_ms))
+            self._arm_retry_entry(retry, delay_ms)
+
+    def _cancel_retry_for_issue(
+        self,
+        *,
+        issue_id: str | None = None,
+        identifier: str | None = None,
+        project_id: str | None = None,
+        reason: str = "authority changed",
+        notify: bool = True,
+    ) -> int:
+        """Idempotently withdraw pending and in-flight retry authority."""
+        issue_id = str(issue_id or "").strip() or None
+        identifier = str(identifier or "").strip() or None
+        project_id = str(project_id or "").strip() or None
+        cancelled = 0
+        with self._retry_authority_lock:
+            candidates: list[tuple[str, RetryEntry]] = []
+            for key, entry in list(self.state.retry_attempts.items()):
+                if issue_id and key != issue_id and entry.issue_id != issue_id:
+                    continue
+                if identifier and entry.identifier != identifier and key != identifier:
+                    continue
+                if project_id and entry.project_id and entry.project_id != project_id:
+                    continue
+                candidates.append((key, entry))
+            for key, entry in list(self._retry_dispatching.items()):
+                if issue_id and key != issue_id and entry.issue_id != issue_id:
+                    continue
+                if identifier and entry.identifier != identifier and key != identifier:
+                    continue
+                if project_id and entry.project_id and entry.project_id != project_id:
+                    continue
+                if (key, entry) not in candidates:
+                    candidates.append((key, entry))
+            for key, entry in candidates:
+                entry.cancelled = True
+                timer = entry.timer_handle
+                if timer is not None and not self._retry_timer_cancelled(timer):
+                    try:
+                        timer.cancel()
+                    except Exception:
+                        pass
+                self.state.retry_attempts.pop(key, None)
+                if self._retry_dispatching.get(key) is entry:
+                    self._retry_dispatching.pop(key, None)
+                self.state.claimed.discard(entry.issue_id)
+                cancelled += 1
+        if cancelled:
+            logger.info(
+                "Cancelled %d implementation retry(s) reason=%s issue_id=%s identifier=%s project_id=%s",
+                cancelled,
+                reason,
+                issue_id,
+                identifier,
+                project_id,
+            )
+            self._persist_retry_entries()
+            if notify:
+                self._notify_observers()
+        return cancelled
+
+    def _arm_retry_entry(self, retry: RetryEntry, delay_ms: int) -> None:
+        """Install an already-validated retry entry and its timer."""
+        with self._retry_authority_lock:
+            due_at_ms = time.monotonic() * 1000 + max(delay_ms, 0)
+            retry.due_at_ms = due_at_ms
+            retry.due_at_epoch_ms = time.time() * 1000 + max(delay_ms, 0)
+            retry.cancelled = False
+            loop = asyncio.get_event_loop()
+            retry.timer_handle = loop.call_later(
+                max(delay_ms, 0) / 1000.0,
+                lambda: asyncio.create_task(self._on_retry_timer(retry.issue_id)),
+            )
+            self.state.retry_attempts[retry.issue_id] = retry
+
     def _backoff_delay(self, attempt: int) -> int:
         """Compute exponential backoff delay."""
         delay = min(10000 * (2 ** (attempt - 1)), self.config.max_retry_backoff_ms)
@@ -28186,13 +28615,26 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         project_id: str | None = None,
         context_entry: RunningEntry | None = None,
         context_retry: RetryEntry | None = None,
+        authority_issue: Issue | None = None,
     ) -> None:
         """Schedule a retry timer for an issue."""
-        # Cancel existing retry
-        existing = self.state.retry_attempts.pop(issue_id, None)
-        if existing and existing.timer_handle and not existing.timer_handle.cancelled():
-            existing.timer_handle.cancel()
-        context_retry = context_retry or existing
+        # Replace the old generation atomically.  A second failure may arrive
+        # after the first timer became due, so also withdraw an in-flight
+        # dispatch claim for this task before creating the replacement.
+        with self._retry_authority_lock:
+            existing = self.state.retry_attempts.pop(issue_id, None)
+            if existing is not None:
+                existing.cancelled = True
+                if existing.timer_handle and not self._retry_timer_cancelled(
+                    existing.timer_handle
+                ):
+                    existing.timer_handle.cancel()
+            dispatching = self._retry_dispatching.pop(issue_id, None)
+            if dispatching is not None:
+                if existing is None:
+                    existing = dispatching
+                dispatching.cancelled = True
+            context_retry = context_retry or existing
 
         agent_profile_name = (
             getattr(context_entry, "agent_profile_name", None)
@@ -28224,30 +28666,99 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             or getattr(context_retry, "candidate_key", None)
         )
 
-        due_at_ms = time.monotonic() * 1000 + delay_ms
-
-        loop = asyncio.get_event_loop()
-        timer = loop.call_later(
-            delay_ms / 1000.0,
-            lambda: asyncio.create_task(self._on_retry_timer(issue_id)),
+        failed_issue = authority_issue or getattr(context_entry, "issue", None)
+        if failed_issue is None and context_retry is not None:
+            failed_issue = Issue(
+                id=issue_id,
+                identifier=identifier,
+                title="",
+                state=context_retry.failed_status or IN_PROGRESS,
+                project_id=project_id or context_retry.project_id,
+                work_branch=context_retry.work_branch,
+                integration=(
+                    IntegrationRecord(state="ready", head_sha=context_retry.head_sha)
+                    if context_retry.head_sha
+                    else None
+                ),
+            )
+        if failed_issue is None:
+            failed_issue = Issue(
+                id=issue_id,
+                identifier=identifier,
+                title="",
+                state=IN_PROGRESS,
+                project_id=project_id,
+            )
+        failed_status = (
+            getattr(context_retry, "failed_status", None)
+            or _state_key(failed_issue.state)
+        )
+        failed_updated_at = (
+            getattr(context_retry, "failed_updated_at", None)
+            or self._retry_issue_revision(failed_issue)
+        )
+        failed_attempt = (
+            getattr(context_entry, "retry_attempt", None)
+            if context_entry is not None
+            else getattr(context_retry, "failed_attempt", None)
+        )
+        assignment_id = (
+            getattr(context_entry, "assignment_id", None)
+            or getattr(context_retry, "assignment_id", None)
+        )
+        work_branch = (
+            getattr(failed_issue, "work_branch", None)
+            or getattr(failed_issue, "branch_name", None)
+            or getattr(context_retry, "work_branch", None)
+        )
+        head_sha = self._retry_issue_head(
+            failed_issue,
+            getattr(context_entry, "workspace_path", None),
+        ) or getattr(context_retry, "head_sha", None)
+        authority_generation = (
+            getattr(context_retry, "authority_generation", None)
+            if context_entry is None
+            else None
+        ) or self._retry_authority_generation(
+            failed_issue,
+            attempt=failed_attempt,
+            assignment_id=assignment_id,
+            failed_status=failed_status,
+            failed_updated_at=failed_updated_at,
+            work_branch=work_branch,
+            head_sha=head_sha,
+        )
+        retry_project_id = (
+            project_id
+            or getattr(failed_issue, "project_id", None)
+            or getattr(context_retry, "project_id", None)
         )
 
-        self.state.retry_attempts[issue_id] = RetryEntry(
+        retry = RetryEntry(
             issue_id=issue_id,
             identifier=identifier,
             attempt=attempt,
-            due_at_ms=due_at_ms,
-            timer_handle=timer,
+            due_at_ms=0.0,
+            timer_handle=None,
             error=error,
             escalated_profile=escalated_profile,
-            project_id=project_id,
+            project_id=retry_project_id,
             agent_profile_name=agent_profile_name,
             model_role=model_role,
             provider_id=provider_id,
             provider_name=provider_name,
             model_name=model_name,
             candidate_key=candidate_key,
+            failed_status=failed_status,
+            failed_updated_at=failed_updated_at,
+            failed_attempt=failed_attempt,
+            assignment_id=assignment_id,
+            work_branch=work_branch,
+            head_sha=head_sha,
+            authority_generation=authority_generation,
         )
+        self._arm_retry_entry(retry, delay_ms)
+        self._persist_retry_entries()
         # Emit retry scheduled event on EventBus
         self.event_bus.emit(
             EventType.ISSUE_RETRY_SCHEDULED,
@@ -28257,7 +28768,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 "attempt": attempt,
                 "delay_ms": delay_ms,
                 "error": error,
-                "project_id": project_id,
+                "project_id": retry_project_id,
             },
         )
 
@@ -28269,9 +28780,14 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         The event also ensures the main loop runs a _tick() to catch any other
         work that may have appeared while the timer was pending.
         """
-        retry = self.state.retry_attempts.pop(issue_id, None)
-        if not retry:
-            return
+        with self._retry_authority_lock:
+            retry = self.state.retry_attempts.get(issue_id)
+            if retry is None or retry.cancelled:
+                return
+            # Keep the entry visible while the fresh authority read is in
+            # flight.  API cancellation can therefore revoke this exact
+            # generation instead of racing a popped dictionary entry.
+            self._retry_dispatching[issue_id] = retry
 
         # Wake the dispatch loop — even if we handle dispatch directly below,
         # the loop should run a tick to pick up any other work that appeared.
@@ -28283,79 +28799,106 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         )
 
         try:
-            issue = await asyncio.to_thread(self._fetch_retry_issue, retry)
-        except (TrackerError, ProjectError):
-            # Requeue
-            self._schedule_retry(
-                issue_id,
-                retry.attempt + 1,
-                retry.identifier,
-                self._backoff_delay(retry.attempt + 1),
-                "retry poll failed",
-                escalated_profile=retry.escalated_profile,
-                project_id=retry.project_id,
-                context_retry=retry,
-            )
-            return
+            try:
+                issue = await asyncio.to_thread(self._fetch_retry_issue, retry)
+            except (TrackerError, ProjectError):
+                # Requeue the same authority generation.  The poll failure is
+                # not evidence that the task changed.
+                self._schedule_retry(
+                    issue_id,
+                    retry.attempt + 1,
+                    retry.identifier,
+                    self._backoff_delay(retry.attempt + 1),
+                    "retry poll failed",
+                    escalated_profile=retry.escalated_profile,
+                    project_id=retry.project_id,
+                    context_retry=retry,
+                )
+                return
 
-        if issue is None:
-            # Issue no longer exists, release claim
-            self.state.claimed.discard(issue_id)
-            logger.info(
-                "Retry released claim issue_id=%s (issue not found)", issue_id
-            )
-            return
+            if issue is None:
+                self._cancel_retry_for_issue(
+                    issue_id=issue_id, reason="task no longer exists"
+                )
+                logger.info(
+                    "Retry released claim issue_id=%s (issue not found)", issue_id
+                )
+                return
 
-        state_norm = _state_key(issue.state)
-        if state_norm not in self._retryable_state_keys():
-            self.state.claimed.discard(issue_id)
-            if _is_terminal_state(issue.state, self.config.tracker_terminal_states):
-                self.state.completed.add(issue_id)
-            logger.info(
-                "Retry released claim issue_id=%s state=%s (not retryable)",
-                issue_id,
-                issue.state,
-            )
-            # TASK-409: if the task is still In Progress in the tracker and no
-            # agent is running for it, reset it to Open immediately.  The normal
-            # orphan-reset sweep (_reset_orphaned_in_progress) would catch this
-            # on the next tick, but acting here closes the window and avoids a
-            # full tick delay.  In Progress tasks are never candidates (they are
-            # not in active_states), which is exactly why we reached this branch.
-            if issue_id not in self.state.running:
-                try:
-                    orphan = self._fetch_issue_across_trackers(retry.identifier)
-                    if orphan is not None and _state_key(orphan.state) == "in_progress":
-                        orphan_tracker = self._tracker_for_issue(orphan)
-                        orphan_tracker.update_issue(retry.identifier, status=OPEN)
-                        logger.info(
-                            "Retry claim released: reset stale In Progress issue %s to Open",
+            # Generation-aware entries fail closed.  Legacy entries retain the
+            # previous status-only path for compatibility with old persisted
+            # state and test doubles.
+            if retry.authority_generation and not self._retry_entry_matches_issue(
+                issue, retry
+            ):
+                self._cancel_retry_for_issue(
+                    issue_id=issue_id,
+                    reason="task authority changed before due retry",
+                )
+                logger.info(
+                    "Retry released claim issue_id=%s: authority generation changed",
+                    issue_id,
+                )
+                return
+
+            state_norm = _state_key(issue.state)
+            if state_norm not in self._retryable_state_keys():
+                self._cancel_retry_for_issue(
+                    issue_id=issue_id,
+                    reason=f"task state is {issue.state}",
+                )
+                if _is_terminal_state(issue.state, self.config.tracker_terminal_states):
+                    self.state.completed.add(issue_id)
+                logger.info(
+                    "Retry released claim issue_id=%s state=%s (not retryable)",
+                    issue_id,
+                    issue.state,
+                )
+                # Preserve the legacy orphan reset only for entries that do
+                # not carry generation evidence.  Reopening a changed task is
+                # precisely the stale-authority bug this generation fence fixes.
+                if not retry.authority_generation and issue_id not in self.state.running:
+                    try:
+                        orphan = self._fetch_issue_across_trackers(retry.identifier)
+                        if orphan is not None and _state_key(orphan.state) == "in_progress":
+                            orphan_tracker = self._tracker_for_issue(orphan)
+                            orphan_tracker.update_issue(retry.identifier, status=OPEN)
+                            logger.info(
+                                "Retry claim released: reset stale In Progress issue %s to Open",
+                                retry.identifier,
+                            )
+                    except Exception as exc:
+                        logger.debug(
+                            "Retry claim released: failed to reset In Progress issue %s: %s",
                             retry.identifier,
+                            exc,
                         )
-                except Exception as exc:
-                    logger.debug(
-                        "Retry claim released: failed to reset In Progress issue %s: %s",
-                        retry.identifier,
-                        exc,
-                    )
-            return
+                return
 
-        if self._available_slots() <= 0:
-            self._schedule_retry(
-                issue_id,
-                retry.attempt + 1,
-                issue.identifier,
-                self._backoff_delay(retry.attempt + 1),
-                "no available orchestrator slots",
-                escalated_profile=retry.escalated_profile,
-                project_id=issue.project_id or retry.project_id,
-                context_retry=retry,
+            if self._available_slots() <= 0:
+                self._schedule_retry(
+                    issue_id,
+                    retry.attempt + 1,
+                    issue.identifier,
+                    self._backoff_delay(retry.attempt + 1),
+                    "no available orchestrator slots",
+                    escalated_profile=retry.escalated_profile,
+                    project_id=issue.project_id or retry.project_id,
+                    context_retry=retry,
+                )
+                return
+
+            await self._dispatch(
+                issue,
+                attempt=retry.attempt,
+                override_profile=retry.escalated_profile,
+                retry_entry=retry,
             )
-            return
-
-        await self._dispatch(
-            issue, attempt=retry.attempt, override_profile=retry.escalated_profile
-        )
+        finally:
+            with self._retry_authority_lock:
+                if self._retry_dispatching.get(issue_id) is retry:
+                    self._retry_dispatching.pop(issue_id, None)
+            self._persist_retry_entries()
 
     def _fetch_running_states(self, by_project: dict) -> dict[str, Issue]:
         """Fetch current states for running issues (blocking, runs in thread).
@@ -28428,8 +28971,38 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         # silent worker alive until the full agent deadline.
         return False, None
 
+    async def _reconcile_retry_authority(self) -> None:
+        """Withdraw retries whose tracker authority changed before due time."""
+        with self._retry_authority_lock:
+            entries = [
+                entry
+                for issue_id, entry in self.state.retry_attempts.items()
+                if issue_id not in self._retry_dispatching and not entry.cancelled
+            ]
+        for retry in entries:
+            try:
+                issue = await asyncio.to_thread(self._fetch_retry_issue, retry)
+            except Exception as exc:
+                # A transient refresh failure must not silently change
+                # authority.  The due-time callback will perform the same
+                # validation before launch.
+                logger.debug(
+                    "Retry authority refresh failed for %s: %s",
+                    retry.identifier,
+                    exc,
+                )
+                continue
+            if issue is None or not self._retry_entry_matches_issue(issue, retry):
+                self._cancel_retry_for_issue(
+                    issue_id=retry.issue_id,
+                    identifier=retry.identifier,
+                    project_id=retry.project_id,
+                    reason="tracker reconciliation withdrew retry generation",
+                )
+
     async def _reconcile(self) -> None:
         """Reconcile running issues: stall detection + tracker state refresh."""
+        await self._reconcile_retry_authority()
         # Part A: Stall detection
         for issue_id, entry in list(self.state.running.items()):
             protected_by_tool, tool_timeout_reason = self._tool_stall_status(entry)
@@ -28647,6 +29220,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                             if running_entry.issue
                             else None,
                             context_entry=running_entry,
+                            authority_issue=issue,
                         )
 
     _ARCHIVE_DAYS = 7
@@ -29224,7 +29798,10 @@ Return ONLY a JSON object (no markdown fences, no commentary):
 
         retry_rows = []
         for issue_id, retry in self.state.retry_attempts.items():
-            due_dt = datetime.fromtimestamp(retry.due_at_ms / 1000.0, tz=timezone.utc)
+            if retry.cancelled:
+                continue
+            due_source_ms = retry.due_at_epoch_ms or retry.due_at_ms
+            due_dt = datetime.fromtimestamp(due_source_ms / 1000.0, tz=timezone.utc)
             retry_rows.append(
                 {
                     "issue_id": issue_id,
@@ -29239,6 +29816,13 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     "provider": retry.provider_name,
                     "model": retry.model_name,
                     "candidate_key": retry.candidate_key,
+                    "failed_status": retry.failed_status,
+                    "failed_updated_at": retry.failed_updated_at,
+                    "failed_attempt": retry.failed_attempt,
+                    "assignment_id": retry.assignment_id,
+                    "work_branch": retry.work_branch,
+                    "head_sha": retry.head_sha,
+                    "authority_generation": retry.authority_generation,
                 }
             )
 
@@ -29575,9 +30159,12 @@ Return ONLY a JSON object (no markdown fences, no commentary):
 
         # Search retry queue
         for issue_id, retry in self.state.retry_attempts.items():
+            if retry.cancelled:
+                continue
             if retry.identifier == issue_identifier:
+                due_source_ms = retry.due_at_epoch_ms or retry.due_at_ms
                 due_dt = datetime.fromtimestamp(
-                    retry.due_at_ms / 1000.0, tz=timezone.utc
+                    due_source_ms / 1000.0, tz=timezone.utc
                 )
                 return {
                     "issue_identifier": retry.identifier,

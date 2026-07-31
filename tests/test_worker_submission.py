@@ -107,6 +107,12 @@ def test_submit_endpoint_accepts_the_assigned_task_worktree_and_enqueues_it(
     metadata = tracker.set_metadata_field.call_args.args[2]
     assert metadata["state"] == "ready"
     assert metadata["head_sha"] == "a" * 40
+    orch._cancel_retry_for_issue.assert_called_once_with(
+        issue_id="TASK-2",
+        identifier="TASK-2",
+        project_id="proj-1",
+        reason="task submitted for integration",
+    )
     tracker.update_issue.assert_called_once_with(
         "TASK-2", status="Ready to Integrate"
     )
