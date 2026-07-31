@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:35:07.041991Z'
-updated_at: '2026-07-31T02:43:23.298077Z'
+updated_at: '2026-07-31T02:45:26.550812Z'
 work_branch: OOMPAH-581
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/600
@@ -58,8 +58,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 6a4de8a6-701b-4c8a-b916-6798acc68b91
 oompah.task_costs:
-  total_input_tokens: 46127
-  total_output_tokens: 7383
+  total_input_tokens: 46160
+  total_output_tokens: 12817
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -69,6 +69,10 @@ oompah.task_costs:
     sonnet:
       input_tokens: 90
       output_tokens: 2341
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 33
+      output_tokens: 5434
       cost_usd: 0.0
   runs:
   - profile: default
@@ -89,6 +93,12 @@ oompah.task_costs:
     output_tokens: 2341
     cost_usd: 0.0
     recorded_at: '2026-07-30T04:47:55.550438+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 33
+    output_tokens: 5434
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T02:45:16.650619+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-581__20260730T043610Z
@@ -121,6 +131,8 @@ oompah.work_branch: OOMPAH-581
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-200d14f6c680: '2026-07-31T02:45:07.986873+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -128,7 +140,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-581
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -137,7 +149,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-200d14f6c680
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -147,30 +159,47 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T02:43:16.760021+00:00'
       branch_key: OOMPAH-581
+      verdict: pass
+      completed_at: '2026-07-31T02:45:07.986720+00:00'
+      ended_at: '2026-07-31T02:45:07.986720+00:00'
     requested_by:
       version: 1
       identity: NVShawn
       source: forge
     previous_state: In Review
     created_at: '2026-07-31T02:43:05.702270+00:00'
-    updated_at: '2026-07-31T02:43:16.760021+00:00'
+    updated_at: '2026-07-31T02:45:07.986720+00:00'
   - version: 1
     audit_id: audit-263be5fb2c13
     project_id: proj-14849f1b
     task_id: OOMPAH-581
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: ba8ba423e19dc1713b9d55bf94570852dcbd2d508a09499fbfde0fa8f0df9d3a
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-60d86ee9562c
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: ba8ba423e19dc1713b9d55bf94570852dcbd2d508a09499fbfde0fa8f0df9d3a
+      created_at: '2026-07-31T02:45:23.476675+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-31T02:45:23.476675+00:00'
+      branch_key: OOMPAH-581
     requested_by:
       version: 1
       identity: NVShawn
       source: forge
     previous_state: In Review
     created_at: '2026-07-31T02:43:05.702270+00:00'
+    updated_at: '2026-07-31T02:45:23.476675+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-200d14f6c680
@@ -184,6 +213,19 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: opus
     started_at: '2026-07-31T02:43:16.760021+00:00'
+    branch_key: OOMPAH-581
+  - version: 1
+    attempt_id: attempt-60d86ee9562c
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ba8ba423e19dc1713b9d55bf94570852dcbd2d508a09499fbfde0fa8f0df9d3a
+    created_at: '2026-07-31T02:45:23.476675+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-31T02:45:23.476675+00:00'
     branch_key: OOMPAH-581
 ---
 ## Summary
@@ -320,6 +362,43 @@ Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
 ---
 author: oompah
 created: 2026-07-31 02:43
+---
+Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 02:45
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: 741a7d88b2ad409575a0b3577564b98f57733f87
+- merge_commit: 24bd5d6c166af7f8c839e9d5c9e4f3f17d17508e
+- pr_number: 600
+- focused_tests_passed: 7/7 (TestEpicRepairWorkspaceCleanup)
+- suite_projects_passed: 94/94 (tests/test_projects.py)
+- new_method: ProjectStore._cleanup_epic_repair_workspace_locked (oompah/projects.py:2624)
+- invocation_site: ProjectStore.cleanup_terminal_issue is_epic=True branch (oompah/projects.py:2854)
+- guards: registered path; exact same-identifier branch; clean worktree; ancestor of origin/<default_branch>
+---
+author: oompah
+created: 2026-07-31 02:45
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 37, Tool calls: 27
+- Tokens: 33 in / 5.4K out [5.5K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 58s
+- Log: OOMPAH-581__20260731T024325Z.jsonl
+---
+author: oompah
+created: 2026-07-31 02:45
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-07-31 02:45
 ---
 Focus: Completion Auditor
 ---

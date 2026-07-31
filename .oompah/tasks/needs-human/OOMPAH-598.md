@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-598
 type: bug
-status: In Progress
+status: Needs Human
 priority: 1
 title: Detect and deliver standalone Ready to Integrate tasks without PRs
 parent: OOMPAH-587
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:29.695490Z'
-updated_at: '2026-07-31T02:36:42.616112Z'
+updated_at: '2026-07-31T02:45:22.871948Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-598
 target_branch: null
 review_url: null
@@ -50,8 +50,8 @@ oompah.integration:
   base_sha: 9b51b35a065906909c98a205fbeab27c3f691692
   updated_at: '2026-07-31T02:01:08.866168+00:00'
 oompah.task_costs:
-  total_input_tokens: 1166145
-  total_output_tokens: 11172
+  total_input_tokens: 19934415
+  total_output_tokens: 59897
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -59,8 +59,8 @@ oompah.task_costs:
       output_tokens: 6765
       cost_usd: 0.0
     opus:
-      input_tokens: 27
-      output_tokens: 631
+      input_tokens: 18768297
+      output_tokens: 49356
       cost_usd: 0.0
     unknown:
       input_tokens: 109
@@ -97,6 +97,12 @@ oompah.task_costs:
     output_tokens: 3776
     cost_usd: 0.0
     recorded_at: '2026-07-31T02:00:44.686135+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 18768270
+    output_tokens: 48725
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T02:45:20.987127+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-598__20260730T153653Z
@@ -581,5 +587,25 @@ author: oompah
 created: 2026-07-31 02:36
 ---
 Blocking correction to the prior capacity note: production also has a same-sweep capacity race. _project_review_capacity() -> _count_open_reviews() reads _reviews_cache, but _reconcile_standalone_ready_to_integrate_tasks does not update a local reservation/count after create_review. With multiple pending Ready rows and initial n_open=0, each iteration sees stale 0/1 and can create multiple PRs in one sweep (matching live #599/#600). Fix with atomic/local per-project reservation accounting under the existing maintenance serialization (or equivalent authoritative refresh), and add a regression with two Ready tasks, max_in_flight_prs=1, asserting exactly one review creation and the second remains retryable without an erroneous undeliverable alert. Races are bugs; do not submit the current head without this fix.
+---
+author: oompah
+created: 2026-07-31 02:45
+---
+Operator claim: the fresh retry also received 401 for its own task view/submit, so the current live runtime cannot complete this task or consume the blocking same-sweep capacity-race comment. The pushed worktree is clean at cec534810. Temporarily fencing as Needs Human while the operator adds the missing per-sweep capacity reservation regression/fix and submits with authenticated CLI. This is not a human decision blocker.
+---
+author: oompah
+created: 2026-07-31 02:45
+---
+Moved to Needs Human from the dashboard/API. Human action required: inspect OOMPAH-598 (Detect and deliver standalone Ready to Integrate tasks without PRs), add the specific decision, missing information, or manual fix needed, then move the task back to Open when it is ready for agents again.
+---
+author: oompah
+created: 2026-07-31 02:45
+---
+Run #2 [attempt=2, profile=deep, role=deep -> Codex/gpt-5.6-sol]
+- Turns: 0, Tool calls: 144
+- Tokens: 18.8M in / 48.7K out [18.8M total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 44m 15s
+- Log: OOMPAH-598__20260731T020113Z.jsonl
 ---
 <!-- COMMENTS:END -->
