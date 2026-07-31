@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-587
 type: epic
-status: Done
+status: In Review
 priority: 1
 title: Drain integration queues and prevent stranded delivery states
 parent: OOMPAH-584
@@ -18,7 +18,7 @@ labels:
 - epic:rebased
 assignee: null
 created_at: '2026-07-30T14:13:38.093049Z'
-updated_at: '2026-07-31T05:03:25.264033Z'
+updated_at: '2026-07-31T05:07:52.316071Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -177,5 +177,10 @@ author: oompah
 created: 2026-07-31 05:03
 ---
 Refreshed the two stale child refs identified by the old PR eligibility check (OOMPAH-596 -> c45aa5574, OOMPAH-617 -> b30aa99dd). Both are patch-equivalent rebase results and now have zero commits outside the epic branch; supported tracker history and exact remote leases record the repair.
+---
+author: oompah
+created: 2026-07-31 05:07
+---
+Branch quality gate passed for `88adebe114c187b8fdc33f935e2fe4d61f1df3d1` using `make test` in 262.3s. Review creation may proceed.
 ---
 <!-- COMMENTS:END -->
