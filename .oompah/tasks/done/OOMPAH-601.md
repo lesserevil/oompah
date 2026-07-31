@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-601
 type: bug
-status: In Validation
+status: Done
 priority: 1
 title: Aggregate branch-ownership cleanup skips without warning floods
 parent: OOMPAH-588
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:00.331568Z'
-updated_at: '2026-07-31T03:48:51.290053Z'
+updated_at: '2026-07-31T03:59:21.214484Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-601
 target_branch: null
 review_url: null
@@ -152,6 +152,8 @@ oompah.work_contributors:
     completed_at: '2026-07-30T16:03:02.122251+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-131c3414d8df: '2026-07-31T03:59:18.805953+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -159,7 +161,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-601
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -168,7 +170,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-131c3414d8df
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -178,13 +180,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T03:47:35.905204+00:00'
       branch_key: epic-OOMPAH-588--task-OOMPAH-601
+      verdict: pass
+      completed_at: '2026-07-31T03:59:18.805794+00:00'
+      ended_at: '2026-07-31T03:59:18.805794+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-31T03:47:30.757593+00:00'
-    updated_at: '2026-07-31T03:47:35.905204+00:00'
+    updated_at: '2026-07-31T03:59:18.805794+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-131c3414d8df
@@ -485,5 +490,18 @@ author: oompah
 created: 2026-07-31 03:48
 ---
 Correction/precision for auditor: integration rebased submitted head 787385c6aa onto current epic parent, producing integrated_sha 5176c9e479ada61e8ed9e505735c858808227774. The configured exact combined-tree gate on 5176c9e47 passed in 257.89s. Use 5176c9e47 as authoritative evidence.
+---
+author: oompah
+created: 2026-07-31 03:59
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: 5176c9e479ada61e8ed9e505735c858808227774
+- branch_name: epic-OOMPAH-588--task-OOMPAH-601
+- commits: 8553b181c, 5176c9e47
+- focused_tests: tests/test_projects.py 87 passed; tests/test_orchestrator_handlers.py 277 passed; test_orchestrator_handlers.py::TestTerminalWorktreeCleanup 20 passed; test_projects.py::TestRemoveWorktreeCleanup 17 passed
 ---
 <!-- COMMENTS:END -->
