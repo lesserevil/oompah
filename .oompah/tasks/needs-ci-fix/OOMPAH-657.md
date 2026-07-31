@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-657
 type: task
-status: Ready to Integrate
+status: Needs CI Fix
 priority: null
 title: Run branch quality gates from immutable exact-head snapshots
 parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- ci-fix
 assignee: null
 created_at: '2026-07-31T11:06:15.542774Z'
-updated_at: '2026-07-31T12:00:20.545651Z'
+updated_at: '2026-07-31T12:01:32.341651Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -58,13 +59,17 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: e0ab9ba2-8c66-4f4c-a32e-2b5041dd8640
 oompah.task_costs:
-  total_input_tokens: 718067
-  total_output_tokens: 13082
+  total_input_tokens: 718070
+  total_output_tokens: 13622
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 718067
       output_tokens: 13082
+      cost_usd: 0.0
+    sonnet:
+      input_tokens: 3
+      output_tokens: 540
       cost_usd: 0.0
   runs:
   - profile: default
@@ -79,6 +84,12 @@ oompah.task_costs:
     output_tokens: 7906
     cost_usd: 0.0
     recorded_at: '2026-07-31T11:34:08.105837+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 3
+    output_tokens: 540
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T12:01:24.090757+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-657__20260731T110710Z
@@ -97,14 +108,24 @@ oompah.work_contributors:
     source_branch: OOMPAH-657
     source_sha: 08bc7ebfe44162adef3edb516f21ce01d6bdfdb8
     completed_at: '2026-07-31T11:34:08.109526+00:00'
+  - run_id: OOMPAH-657__20260731T113434Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: sonnet
+    focus: refactor
+    source_branch: OOMPAH-657
+    source_sha: 0593430f81bb3f3b9c19a7064dded7e878685e27
+    completed_at: '2026-07-31T12:01:24.096110+00:00'
 oompah.integration:
   version: 2
   state: ready
   attempts: 0
   task_branch: OOMPAH-657
+  base_branch: main
+  base_sha: 54dd2509c6cbc73aaadbda2a3fdc7cfbb14530eb
   head_sha: 0593430f81bb3f3b9c19a7064dded7e878685e27
   submitted_at: '2026-07-31T12:00:18.068623+00:00'
-  updated_at: '2026-07-31T12:00:18.068623+00:00'
+  updated_at: '2026-07-31T12:01:30.814481+00:00'
 ---
 ## Summary
 
@@ -285,5 +306,146 @@ author: oompah
 created: 2026-07-31 12:00
 ---
 Closed three live pre-spawn race windows in quality gate execution and fixed _retire_inactive_integration_rows to retire Open-status tasks. Added 7 deterministic barrier tests covering tombstone-before-run, is_current-at-barriers-1-and-2, tombstone-during-snapshot, Popen-to-registration window, Open-task retirement, and READY_TO_INTEGRATE retention. All 42 focused tests pass at 0593430f8.
+---
+author: oompah
+created: 2026-07-31 12:01
+---
+Agent completed successfully in 1615s (543 tokens)
+---
+author: oompah
+created: 2026-07-31 12:01
+---
+Run #2 [attempt=2, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 129, Tool calls: 79
+- Tokens: 3 in / 540 out [543 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 26m 55s
+- Log: OOMPAH-657__20260731T113434Z.jsonl
+---
+author: oompah
+created: 2026-07-31 12:01
+---
+Branch quality gate blocked review creation.
+
+Branch: `OOMPAH-657`
+Target: `main`
+Head: `0593430f81bb3f3b9c19a7064dded7e878685e27`
+Command: `make test`
+Result: `failed`
+
+Required: run the command in the task worktree, fix the failure, commit and push the repair, then leave the task in Done. Oompah will rerun the gate for the new head before creating the PR/MR.
+
+Output tail:
+```text
+t_line_exact 
+tests/test_commit_hook.py::TestCanonicalConstants::test_coauthor_exact 
+[gw3] [ 13%] PASSED tests/test_commit_hook.py::TestCanonicalConstants::test_coauthor_exact 
+tests/test_commit_hook.py::TestEmptyMessage::test_empty_string_gets_trailer 
+[gw3] [ 13%] PASSED tests/test_commit_hook.py::TestEmptyMessage::test_empty_string_gets_trailer 
+tests/test_commit_hook.py::TestEmptyMessage::test_whitespace_only_message_gets_trailer 
+[gw3] [ 13%] PASSED tests/test_commit_hook.py::TestEmptyMessage::test_whitespace_only_message_gets_trailer 
+tests/test_commit_hook.py::TestEmptyMessage::test_message_with_only_git_template_gets_trailer 
+[gw3] [ 13%] PASSED tests/test_commit_hook.py::TestEmptyMessage::test_message_with_only_git_template_gets_trailer 
+tests/test_commit_hook.py::TestClaudeTrailerReplaced::test_classic_claude_trailer_replaced 
+[gw3] [ 13%] PASSED tests/test_commit_hook.py::TestClaudeTrailerReplaced::test_classic_claude_trailer_replaced 
+tests/test_commit_hook.py::TestClaudeTrailerReplaced::test_claude_with_model_suffix_replaced 
+[gw3] [ 13%] PASSED tests/test_commit_hook.py::TestClaudeTrailerReplaced::test_claude_with_model_suffix_replaced 
+tests/test_commit_hook.py::TestClaudeTrailerReplaced::test_gpt_trailer_stripped 
+[gw3] [ 13%] PASSED tests/test_commit_hook.py::TestClaudeTrailerReplaced::test_gpt_trailer_stripped 
+tests/test_commit_hook.py::TestClaudeTrailerReplaced::test_arbitrary_model_coauthor_stripped 
+Using CPython 3.12.12
+Creating virtual environment at: .venv
+Activate with: source .venv/bin/activate
+Resolved 53 packages in 234ms
+   Building oompah @ file:///home/shedwards/.oompah/worktrees/oompah/OOMPAH-657
+      Built oompah @ file:///home/shedwards/.oompah/worktrees/oompah/OOMPAH-657
+Prepared 2 packages in 284ms
+Installed 53 packages in 55ms
+ + annotated-doc==0.0.5
+ + annotated-types==0.8.0
+ + anyio==4.14.2
+ + attrs==26.1.0
+ + babel==2.18.0
+ + bcrypt==4.3.0
+ + certifi==2026.7.22
+ + cffi==2.1.0
+ + click==8.4.2
+ + cryptography==49.0.0
+ + fastapi==0.141.1
+ + h11==0.16.0
+ + httpcore==1.0.9
+ + httptools==0.8.0
+ + httpx==0.28.1
+ + httpx-sse==0.4.3
+ + idna==3.18
+ + jinja2==3.1.6
+ + jsonschema==4.26.0
+ + jsonschema-specifications==2025.9.1
+ + markupsafe==3.0.3
+ + mcp==1.29.0
+ + oompah==0.1.0 (from file:///home/shedwards/.oompah/worktrees/oompah/OOMPAH-657)
+ + passlib==1.7.4
+ + pycparser==3.0
+ + pydantic==2.13.4
+ + pydantic-core==2.46.4
+ + pydantic-settings==2.14.2
+ + pyjwt==2.13.0
+ + python-dateutil==2.9.0.post0
+ + python-dotenv==1.2.2
+ + python-liquid==2.3.0
+ + python-multipart==0.0.32
+ + pytz==2026.3.post1
+ + pyyaml==6.0.3
+ + referencing==0.37.0
+ + rpds-py==2026.6.3
+ + six==1.17.0
+ + sse-starlette==3.4.6
+ + starlette==1.3.1
+ + tree-sitter==0.26.0
+ + tree-sitter-javascript==0.25.0
+ + tree-sitter-markdown==0.5.1
+ + tree-sitter-python==0.25.0
+ + tree-sitter-rust==0.24.2
+ + tree-sitter-typescript==0.23.2
+ + tree-sitter-yaml==0.7.2
+ + typing-extensions==4.16.0
+ + typing-inspection==0.4.2
+ + uvicorn==0.52.0
+ + uvloop==0.22.1
+ + watchfiles==1.2.0
+ + websockets==17.0.1
+Resolved 74 packages in 127ms
+   Building oompah @ file:///home/shedwards/.oompah/worktrees/oompah/OOMPAH-657
+      Built oompah @ file:///home/shedwards/.oompah/worktrees/oompah/OOMPAH-657
+Prepared 1 package in 235ms
+Uninstalled 2 packages in 2ms
+Installed 23 packages in 48ms
+ + charset-normalizer==3.4.9
+ + claude-agent-sdk==0.2.128
+ + distro==1.9.0
+ + execnet==2.1.2
+ + granian==2.7.9
+ + griffelib==2.1.0
+ + iniconfig==2.3.0
+ + jiter==0.16.0
+ ~ oompah==0.1.0 (from file:///home/shedwards/.oompah/worktrees/oompah/OOMPAH-657)
+ + openai==2.51.0
+ + openai-agents==0.17.8
+ + packaging==26.2
+ + pluggy==1.6.0
+ + pygments==2.20.0
+ + pytest==9.1.1
+ + pytest-asyncio==1.4.0
+ + pytest-timeout==2.4.0
+ + pytest-xdist==3.8.0
+ + requests==2.34.2
+ + sniffio==1.3.1
+ + tqdm==4.70.0
+ + urllib3==2.7.0
+ - websockets==17.0.1
+ + websockets==16.1.1
+make[1]: *** [Makefile:295: test] Terminated
+rm: cannot remove '/home/shedwards/.oompah/tmp/pytest/run.LOAd4q': Directory not empty
+```
 ---
 <!-- COMMENTS:END -->
