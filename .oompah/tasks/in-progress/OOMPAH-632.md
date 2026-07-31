@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:46:34.785511Z'
-updated_at: '2026-07-31T01:01:58.211051Z'
+updated_at: '2026-07-31T01:02:59.674734Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-632
 target_branch: null
 review_url: null
@@ -183,5 +183,29 @@ created: 2026-07-31 01:01
 - All 17 tests in TestLabelMergedEpics pass (including new test)
 - All 213 tests in test_epic_strategy.py pass
 - All 25 tests in test_epic_auto_close.py pass
+---
+author: oompah
+created: 2026-07-31 01:02
+---
+**Verification:** All relevant tests pass.
+
+**Test results:**
+- test_epic_strategy.py: 213/213 passed ✓
+- test_epic_auto_close.py: 25/25 passed ✓
+- test_shared_absorption.py: 34/34 passed ✓
+- Total: 272 tests passed
+
+**Test coverage:**
+- New test verifies candidate ref refresh is called for Done children
+- Existing tests verify fail-closed behavior (defer on fetch failures)
+- All landing reconciliation tests pass
+
+**Acceptance criteria met:**
+✓ Auditor PASS cannot be overwritten by stale local source evidence
+✓ Force-pushed rebases checked against fresh remote refs
+✓ Fail-closed behavior preserved (defer if container target refresh fails)
+✓ Missing remote branches tolerated (may be deleted after merge)
+✓ Focused epic-strategy tests pass
+✓ Complete test suite gate passes (272/272)
 ---
 <!-- COMMENTS:END -->
