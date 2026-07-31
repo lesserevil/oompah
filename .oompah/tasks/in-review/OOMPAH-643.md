@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-643
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Reconcile stale terminal-audit enforcement records and live queue metrics
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:17:38.708513Z'
-updated_at: '2026-07-31T06:50:32.247989Z'
+updated_at: '2026-07-31T07:00:54.123991Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -202,5 +202,10 @@ author: oompah
 created: 2026-07-31 06:49
 ---
 Post-handoff recovery verified pushed canonical head 84521c288. Focused terminal audit enforcement/observability/coordinator suite passes 139/139 with the project Python environment; terminal mutation scan passes 6/6. Resubmitting the clean exact branch for the configured full gate and review flow.
+---
+author: oompah
+created: 2026-07-31 07:00
+---
+Branch quality gate passed for `84521c288cae398c19b228002d553cb210768844` using `make test` in 276.6s. Review creation may proceed.
 ---
 <!-- COMMENTS:END -->
