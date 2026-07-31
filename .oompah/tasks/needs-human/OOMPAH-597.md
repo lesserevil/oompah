@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-597
 type: task
-status: In Validation
+status: Needs Human
 priority: 1
 title: Recover and drain the OOMPAH-460 ordered integration chain
 parent: OOMPAH-587
@@ -13,7 +13,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:28.342383Z'
-updated_at: '2026-07-31T03:41:52.488056Z'
+updated_at: '2026-07-31T03:47:46.205254Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-597
 target_branch: null
 review_url: null
@@ -131,6 +131,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     no-auditor-audit-2b477b2e0afe-1: '2026-07-31T03:39:23.618045+00:00'
+    attempt-77ab0745d9d4: '2026-07-31T03:47:44.012900+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -183,7 +184,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-597
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -192,7 +193,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-77ab0745d9d4
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -202,13 +203,17 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T03:39:53.008111+00:00'
       branch_key: epic-OOMPAH-587--task-OOMPAH-597
+      verdict: needs_human
+      failure_classification: ambiguous_requirements
+      completed_at: '2026-07-31T03:47:44.012760+00:00'
+      ended_at: '2026-07-31T03:47:44.012760+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Needs Human
     created_at: '2026-07-31T03:39:39.068911+00:00'
-    updated_at: '2026-07-31T03:39:53.008111+00:00'
+    updated_at: '2026-07-31T03:47:44.012760+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-5af1aa0b5fd2
@@ -774,5 +779,22 @@ author: oompah
 created: 2026-07-31 03:41
 ---
 Auditor evidence: the configured integration gate ran on exact candidate head 44e5c5579 and passed after the test-isolation fix. This is the authoritative combined-tree gate; review its recorded result and focused regression evidence rather than starting a duplicate serial full-suite run.
+---
+author: oompah
+created: 2026-07-31 03:47
+---
+Needs Human — Done audit requires operator input.
+
+[REDACTED]
+
+Questions:
+- Is OOMPAH-597 Done gated on OOMPAH-484/485/487/488/489 individually reaching Done, or does the net-delta squash approach satisfy the acceptance criteria's intent because the chain content is now integrated on epic-OOMPAH-587?
+- Should OOMPAH-580 reconciliation be visible in this task's tracker state before Done, or is it handled by a separate terminal-audit flow after epic-OOMPAH-587 merges?
+- If the squash-on-different-parent approach is accepted, what is the reconciliation path for the still-ready child task rows so they do not remain visible as ready/blocked forever?
+
+Instructions:
+- Confirm whether the operator-approved net-delta squash on epic-OOMPAH-587 fulfills the OOMPAH-460 drain acceptance criteria despite the child task rows remaining in ready-to-integrate.
+- If yes, apply Done via owner override (or explicit terminal_status API with audit_override) and file a narrow follow-up to reconcile the OOMPAH-484/485/487/488/489/580 child task rows through their normal terminal-audit paths so no queue row lingers indefinitely.
+- If no, keep OOMPAH-597 In Validation and dispatch the ordered per-child drain via the normal repair-and-integration mechanism against the current authoritative parent.
 ---
 <!-- COMMENTS:END -->
