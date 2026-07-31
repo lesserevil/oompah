@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-584
 type: epic
-status: Open
+status: In Progress
 priority: 1
 title: Return the oompah delivery control plane to green
 parent: null
@@ -16,10 +16,11 @@ children:
 - OOMPAH-633
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- epic:stale
 assignee: null
 created_at: '2026-07-30T14:13:01.872040Z'
-updated_at: '2026-07-31T05:02:56.762374Z'
+updated_at: '2026-07-31T05:08:08.745351Z'
 work_branch: null
 target_branch: null
 review_url: null
