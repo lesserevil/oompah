@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-598
 type: bug
-status: In Validation
+status: Done
 priority: 1
 title: Detect and deliver standalone Ready to Integrate tasks without PRs
 parent: OOMPAH-587
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:29.695490Z'
-updated_at: '2026-07-31T05:12:31.434161Z'
+updated_at: '2026-07-31T05:20:10.717636Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-598
 target_branch: null
 review_url: null
@@ -127,6 +127,7 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-0335e837a33d: '2026-07-31T02:00:26.360030+00:00'
     attempt-8afc0c625bc7: '2026-07-31T03:05:02.453265+00:00'
+    attempt-0835e0e72499: '2026-07-31T05:20:07.398996+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -220,7 +221,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-598
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -229,7 +230,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-0835e0e72499
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -239,13 +240,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T05:12:19.356250+00:00'
       branch_key: epic-OOMPAH-587--task-OOMPAH-598
+      verdict: pass
+      completed_at: '2026-07-31T05:20:07.398760+00:00'
+      ended_at: '2026-07-31T05:20:07.398760+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Needs Human
     created_at: '2026-07-31T05:12:15.838505+00:00'
-    updated_at: '2026-07-31T05:12:19.356250+00:00'
+    updated_at: '2026-07-31T05:20:07.398760+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-0335e837a33d
@@ -795,5 +799,27 @@ author: oompah
 created: 2026-07-31 05:12
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 05:20
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- origin_task_head_sha: 5660afdce8929698ca10633611054e2a364818c1
+- local_worktree_head_sha: 33b773bd2f8fd82605e44165c362e0f6071d9d66
+- merged_parent_epic_head_sha: c1b23d67ef00f07af9fd31b968070c4533341173
+- grandparent_epic_merge_sha: 145b6b67e
+- task_head_ancestor_of_epic: true (5660afdce..c1b23d67e contains only OOMPAH-597/OOMPAH-599 commits)
+- commits_outside_parent_epic: 0
+- reconciler_definition: oompah/orchestrator.py:4939 _reconcile_standalone_ready_to_integrate_tasks
+- production_call_site: oompah/orchestrator.py:6055 within async _process_integration_queues via loop.run_in_executor(self._tick_pool)
+- capacity_race_fix: 5660afdce introduces review_count/counted_review_ids same-sweep reservation before create_review
+- actionable_alert_helpers: _arm_standalone_delivery_alert and _clear_standalone_delivery_alert
+- focused_test_result: tests/test_standalone_ready_to_integrate.py 13 passed in 3.92s
+- neighboring_suites_result: tests/test_integration_queue.py + test_integration_executor.py + test_integration_conflict_repair.py + test_landing_gate.py + test_parallel_epic_children.py + test_quality_gate.py + test_terminal_transition_coordinator.py + test_terminal_audit.py: 219 passed in 16.75s
+- fingerprint_match: matches prior 2026-07-31T03:05 PASS audit (attempt-8afc0c625bc7)
 ---
 <!-- COMMENTS:END -->
