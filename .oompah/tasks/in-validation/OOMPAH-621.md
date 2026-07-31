@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-621
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Document and integration-test CLI credential precedence
 parent: OOMPAH-619
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:25:29.809048Z'
-updated_at: '2026-07-31T06:16:35.942891Z'
+updated_at: '2026-07-31T06:21:54.844205Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-621
 target_branch: null
 review_url: null
@@ -44,12 +44,15 @@ oompah.agent_run_id: e07734e7-aab8-493f-9606-2e2652950492
 oompah.work_branch: epic-OOMPAH-619--task-OOMPAH-621
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-619--task-OOMPAH-621
+  base_branch: epic-OOMPAH-619
+  base_sha: 9d11014204d3a8a07b339c9e3627ae500064638d
   head_sha: b2191c92f124fdb33e5f0383e3eb458c22ff030d
+  integrated_sha: b2191c92f124fdb33e5f0383e3eb458c22ff030d
   submitted_at: '2026-07-31T06:16:33.460264+00:00'
-  updated_at: '2026-07-31T06:16:33.460264+00:00'
+  updated_at: '2026-07-31T06:21:47.652242+00:00'
 oompah.task_costs:
   total_input_tokens: 2243823
   total_output_tokens: 37175
@@ -129,7 +132,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-621
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -159,6 +162,23 @@ oompah.terminal_audit:
     previous_state: Ready to Integrate
     created_at: '2026-07-30T22:35:56.651693+00:00'
     updated_at: '2026-07-30T22:43:19.717931+00:00'
+  - version: 1
+    audit_id: audit-6c317899bd61
+    project_id: proj-14849f1b
+    task_id: OOMPAH-621
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0bffd2023f81f2cd06df8484cf05a6a1e3dec19527926fee6ea0d2b6921c6ab2
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-31T06:21:52.455730+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-8a79c55ddcf1
