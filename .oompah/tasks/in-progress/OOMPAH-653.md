@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T10:40:48.146011Z'
+updated_at: '2026-07-31T10:54:26.843862Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -487,5 +487,10 @@ author: oompah
 created: 2026-07-31 10:40
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-31 10:54
+---
+Second live pass-then-redispatch reproduction, now OOMPAH-654: audit-9bcc882d9599 completed PASS/Done at 10:53 (task comments 16-17), but task remained In Validation and Oompah immediately launched audit-6a58167a8f64 at 10:53 (comments 18-19). Before the first result finished, health also exposed pending=1 and running=1 for the single terminal transition. Use both OOMPAH-652 and 654 orderings to verify the CAS launch fence and result-intent recovery; one successful exact-head audit must advance status and consume every equivalent queued identity without a second provider launch.
 ---
 <!-- COMMENTS:END -->
