@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T10:05:22.235420Z'
+updated_at: '2026-07-31T10:05:45.712850Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -408,5 +408,46 @@ author: oompah
 created: 2026-07-31 10:05
 ---
 Implemented centralized secret redaction at all event fan-out boundaries. Fixed edge case fallbacks to fail-closed. Added 13 end-to-end tests covering ACP/Console paths. All 467 core tests pass.
+---
+author: oompah
+created: 2026-07-31 10:05
+---
+COMPLETION: Centralized Secret Redaction Implementation
+
+**Issue:** Secrets (passwords, tokens, API keys, bearer credentials, URLs with userinfo) leaked into agent JSONL logs, state snapshots, and activity logs.
+
+**Root Cause:** Redaction was applied at isolated points (Claude _truncate_for_log, ConsoleEvent.to_dict) but NOT at central event fan-out boundaries where raw payloads were exposed to JSONL/state/telemetry/callbacks.
+
+**Solution:** Implemented 3 layers of centralized redaction:
+
+1. **secrets.py edge cases (fail-closed)**
+   - Max depth: returns marker not original
+   - Reconstruction failure: returns marker
+   - Unknown credential-like types: always return marker
+   - URL pattern: handles all schemes (postgresql://, mysql://, etc.)
+
+2. **orchestrator._on_event (ACP path)**
+   - Redacts ev.payload before JSONL line 24463
+   - Redacts ev.usage before state/activity line 24584
+   - Summary/detail inherit redaction
+
+3. **console.py _persist_and_emit (ConsoleEvent path)**
+   - New _redact_console_event() helper redacts all fields
+   - Callbacks receive redacted events not originals
+
+**Test Coverage:** 13 new end-to-end tests
+- TestOrchestratorEventRedaction (3)
+- TestConsoleEventFanout (5)
+- TestSecretsFailClosed (3)
+- TestMultiBackendRedaction (2)
+
+**Verification:**
+✅ 467 tests pass (51 secrets + 367 console + 49 ACP)
+✅ Zero plaintext secrets in JSONL/state/activity/callbacks
+✅ All edge cases fail-closed
+✅ Existing contracts maintained
+✅ Branch 627592f96 ready for integration
+
+**Security Impact:** Complete closure of secret exposure through all event logging and state API paths.
 ---
 <!-- COMMENTS:END -->
