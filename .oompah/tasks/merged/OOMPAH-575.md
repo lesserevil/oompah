@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-575
 type: task
-status: In Validation
+status: Merged
 priority: 0
 title: Propagate scoped task CLI auth to Codex agent sessions
 parent: null
@@ -12,7 +12,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-07-30T02:15:25.255613Z'
-updated_at: '2026-07-31T06:06:29.191691Z'
+updated_at: '2026-07-31T06:06:41.902912Z'
 work_branch: OOMPAH-575
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/604
@@ -116,6 +116,23 @@ oompah.work_branch: OOMPAH-575
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-5ce9479c2db7
+    project_id: proj-14849f1b
+    task_id: OOMPAH-575
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 2317e9c9e9acc6a60103dbb44d5a82f52f7e9dc38fdfd1e215e51aa9e5c0d2cd
+    authorized_by:
+      version: 1
+      identity: lesserevil
+      source: api
+    reason: 'Verified feature branch now equals merged main after patch-equivalent
+      epic delivery; PR #604 has zero diff.'
+    created_at: '2026-07-31T06:06:38.280449+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -453,5 +470,12 @@ author: oompah
 created: 2026-07-31 06:06
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 06:06
+---
+Override by lesserevil: terminal transition to Merged applied by project owner.
+
+Reason: Verified feature branch now equals merged main after patch-equivalent epic delivery; PR #604 has zero diff.
 ---
 <!-- COMMENTS:END -->
