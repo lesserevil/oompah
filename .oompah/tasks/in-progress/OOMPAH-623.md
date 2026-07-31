@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:32:18.734139Z'
-updated_at: '2026-07-31T10:01:50.416345Z'
+updated_at: '2026-07-31T10:03:11.227552Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-623
 target_branch: null
 review_url: null
@@ -341,5 +341,10 @@ author: oompah
 created: 2026-07-31 10:01
 ---
 Reviewer correction to comment #32/#35: this is a shared-epic child. The correct review base is origin/epic-OOMPAH-619 at 0dc7d0f7c, which already contains the accepted OOMPAH-620/621/624 prerequisites; the OOMPAH-623 branch is correctly stacked directly on it, and diff-check is clean relative to that epic base. Do not drop or rebase away those parent commits, and disregard my earlier main-relative unrelated-change/trailing-whitespace concern. The lifecycle atomicity findings remain: avoid a live-tool/launcher replacement gap and never roll back only the CLI after server cutover may have occurred.
+---
+author: oompah
+created: 2026-07-31 10:03
+---
+Implementation: separated CLI staging from activation in scripts/sync_canonical_cli.py with isolated UV roots and a rollback journal. Added scripts/canonical_cli_cutover.py to pause/drain the live service, stage and verify the candidate, activate at the restart cutover, verify health/state build-id equality, and restore/resume on failure. Make restart and force-restart now use the transaction; docs and lifecycle tests cover the safety contract.
 ---
 <!-- COMMENTS:END -->
