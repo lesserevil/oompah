@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-485
 type: feature
-status: Done
+status: Needs Rebase
 priority: 1
 title: Add In Validation and terminal-audit details to the dashboard
 parent: OOMPAH-460
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:24.220262Z'
-updated_at: '2026-07-31T03:57:28.271132Z'
+updated_at: '2026-07-31T03:57:34.248057Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-485
 target_branch: null
 review_url: null
@@ -347,5 +347,10 @@ author: oompah
 created: 2026-07-31 03:56
 ---
 Delivered through the verified OOMPAH-597 linearized recovery head 44e5c5579; stale original delivery row reconciled.
+---
+author: oompah
+created: 2026-07-31 03:57
+---
+Integration found a rebase conflict on `epic-OOMPAH-460--task-OOMPAH-485`. Resolve it against `epic-OOMPAH-460`, run the required tests, push the same private branch, and `oompah task submit` it again.
 ---
 <!-- COMMENTS:END -->
