@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:17:38.708513Z'
-updated_at: '2026-07-31T07:09:58.066825Z'
+updated_at: '2026-07-31T07:10:15.674078Z'
 work_branch: OOMPAH-643
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/610
@@ -236,5 +236,10 @@ author: oompah
 created: 2026-07-31 07:09
 ---
 Discovery: Conflict was in oompah/terminal_transition_coordinator.py at the apply_terminal_owner_override method. Two upstream commits (OOMPAH-641/642) added a _revoke_delivery_for_terminal_transition() call to prevent race conditions with the standalone gate. OOMPAH-643 added capture of overridden_audit_ids to cancel pending audits after the override. Both changes were needed and non-overlapping in intent — resolved by including both: revoke delivery authority first (before any mutation), then capture audit IDs.
+---
+author: oompah
+created: 2026-07-31 07:10
+---
+Verification: Focused test suite passed after rebase. test_terminal_audit_enforcement.py + test_terminal_audit_observability.py + test_terminal_transition_coordinator.py: 139/139 passed. Neighboring suites (test_quality_gate.py, test_standalone_ready_to_integrate.py, test_stall_to_dispatch_recovery.py): 49/49 passed. Force-pushed rebased branch 2b3a967c8 onto origin/main (50625abed).
 ---
 <!-- COMMENTS:END -->
