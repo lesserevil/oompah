@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T09:39:59.208838Z'
+updated_at: '2026-07-31T09:41:22.235656Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -220,5 +220,42 @@ author: oompah
 created: 2026-07-31 09:39
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-07-31 09:41
+---
+**SECURITY AUDITOR: Understanding & Plan**
+
+After reviewing the previous implementation and operator feedback, I've identified the core issue:
+
+**Root Cause of Failed Previous Attempt:**
+- Previous implementation called refresh_task_handoff_token() inside the subprocess
+- But _default_store in task_handoff.py is process-local to the SERVER, not the subprocess
+- The subprocess's refresh() call operates on an empty process-local store in its own process
+- Result: Server grant still expires after 24 hours despite the 'refresh' call
+
+**Required Fix:**
+Server-side renewal mechanism that can be called from subprocess:
+1. Add token refresh endpoint or integrate refresh into task-handoff endpoint
+2. When subprocess makes any handoff request, include refresh as part of the action
+3. Server validates token ownership and extends the grant in ITS store
+4. Works across long tool calls, restart recovery, and final submit
+
+**Attack Vectors to Address:**
+1. Token expiry mid-operation (OWASP-04 broken auth) → solved by server-side refresh
+2. Cross-task/project token reuse → maintain scope validation on refresh
+3. Stale worker reuse after revocation → keep explicit revocation tracking
+4. No fallback to Basic auth → ensure subprocess never inherits operator creds
+5. Restart recovery → token must survive/renew across service restarts
+
+**Implementation Plan:**
+- Modify task_handoff.py: Add server-state refresh mechanism callable from subprocess
+- Extend server.py: Make task-handoff endpoint refresh token after validation
+- Update task_cli.py: Remove broken in-process refresh, let server handle it
+- Add tests: subprocess + live server with short TTL, restart recovery, final submit
+- Verify: No Basic auth fallback, explicit expiry diagnostics, scope isolation
+
+**Files Modified:** oompah/task_handoff.py, oompah/server.py, oompah/task_cli.py, tests/test_task_handoff.py
+**Security Focus:** Server-owned store, no subprocess state, explicit revocation tracking
 ---
 <!-- COMMENTS:END -->

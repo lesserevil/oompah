@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-652
 type: bug
-status: In Progress
+status: Needs Human
 priority: 1
 title: Isolate the full Makefile test gate from a running Oompah service
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:15.160957Z'
-updated_at: '2026-07-31T09:40:26.225422Z'
+updated_at: '2026-07-31T09:41:17.794899Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -157,5 +157,10 @@ author: oompah
 created: 2026-07-31 09:40
 ---
 Focus: Refactoring Specialist
+---
+author: oompah
+created: 2026-07-31 09:41
+---
+Moved to Needs Human from the dashboard/API. Human action required: inspect OOMPAH-652 (Isolate the full Makefile test gate from a running Oompah service), add the specific decision, missing information, or manual fix needed, then move the task back to Open when it is ready for agents again.
 ---
 <!-- COMMENTS:END -->
