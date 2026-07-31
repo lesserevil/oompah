@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:06.140108Z'
-updated_at: '2026-07-31T22:36:43.839070Z'
+updated_at: '2026-07-31T22:37:21.091588Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -686,5 +686,10 @@ author: oompah
 created: 2026-07-31 22:36
 ---
 Discovery: GitHub has no PR or Actions run for OOMPAH-664; the reported failures are from Oompah's internal bwrap gate. The eight CLI-smoke failures share one cause: mapping the trusted virtualenv at its absolute shebang path is insufficient because its editable-install import metadata still points at the hidden operator checkout. The candidate snapshot must be projected at that source-checkout path. Local execution confirms the affected tests pass outside bwrap; reproducing a nested bwrap here is unavailable because this environment disallows unprivileged user namespaces.
+---
+author: oompah
+created: 2026-07-31 22:37
+---
+Implementation: Updated BranchQualityGate._sandbox_command() to bind the immutable candidate snapshot at the trusted editable environment's original checkout path. Existing absolute virtualenv mapping remains read-only, so console-script shebangs and editable imports now both resolve within the candidate, never the operator worktree. Extended the sandbox-command regression test to require this candidate-source projection.
 ---
 <!-- COMMENTS:END -->
