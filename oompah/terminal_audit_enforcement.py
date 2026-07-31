@@ -363,6 +363,12 @@ class TerminalAuditEnforcement:
         self.errors: list[str] = []
         self.last_result: dict[str, Any] = {}
         self._state_corrupt = False
+        # ``pending_audits`` is a dispatchable projection, not a durable work
+        # queue in its own right.  Keep the outcome of the most recent
+        # tracker/metadata scan so the orchestrator can avoid claiming a
+        # complete health recovery after a partial read.
+        self._recovery_scan_complete = True
+        self._recovery_scan_error_count = 0
 
     def _load_root_state(self) -> dict[str, Any]:
         if self._load_state_callback is not None:
@@ -526,6 +532,50 @@ class TerminalAuditEnforcement:
             contributors=contributors,
         )
 
+    @staticmethod
+    def _explicit_evidence_fingerprint(
+        issue: Issue, tracker: TrackerProtocol
+    ) -> EvidenceFingerprint | None:
+        """Return a tracker-provided canonical current fingerprint, if any.
+
+        The audit chain itself is deliberately excluded here: it describes the
+        revision that was queued, not necessarily the revision that is current
+        now.  Non-canonical test/adaptor hints are also ignored so older
+        trackers that expose descriptive evidence strings retain their
+        metadata-driven recovery behaviour.
+        """
+
+        values: list[Any] = [
+            getattr(issue, "evidence_fingerprint", None),
+            getattr(issue, "current_evidence_fingerprint", None),
+        ]
+        try:
+            metadata = tracker.get_metadata(issue.identifier) or {}
+        except Exception:
+            return None
+        if isinstance(metadata, Mapping):
+            values.extend(
+                metadata.get(key)
+                for key in ("oompah.evidence_fingerprint", "evidence_fingerprint")
+            )
+        for value in values:
+            if isinstance(value, EvidenceFingerprint):
+                return value
+            if isinstance(value, Mapping):
+                digest = value.get("digest", value.get("sha256"))
+                if isinstance(digest, str) and len(digest) == 64:
+                    try:
+                        return _as_fingerprint(value)
+                    except (TypeError, ValueError):
+                        continue
+            if (
+                isinstance(value, str)
+                and len(value) == 64
+                and all(character in "0123456789abcdef" for character in value)
+            ):
+                return EvidenceFingerprint(value)
+        return None
+
     def _current_tasks(
         self, scopes: Iterable[tuple[str, TrackerProtocol]]
     ) -> tuple[list[tuple[str, TrackerProtocol, Issue, EvidenceFingerprint]], bool]:
@@ -633,11 +683,16 @@ class TerminalAuditEnforcement:
     def _reconcile_current(
         self,
         current: Iterable[tuple[str, TrackerProtocol, Issue, EvidenceFingerprint]],
+        *,
+        scope_project_ids: Iterable[str],
     ) -> None:
         baseline = {entry.key: entry for entry in self.state.grandfathered}
         invalidated = {entry.key: entry for entry in self.state.invalidated}
+        scoped_projects = {str(project_id) for project_id in scope_project_ids}
+        observed_keys: set[tuple[str, str]] = set()
         for project_id, _tracker, issue, fingerprint in current:
             key = _task_key(project_id, str(issue.identifier))
+            observed_keys.add(key)
             state = str(getattr(issue, "state", "") or "")
             if not self._is_terminal(state):
                 # Removing the baseline is what makes a later terminal return
@@ -653,11 +708,19 @@ class TerminalAuditEnforcement:
             prior_invalidated = invalidated.get(key)
             if prior_invalidated is None or not prior_invalidated.matches(state, fingerprint):
                 invalidated[key] = observed
-                self._queue_for_tuple(observed)
-            elif not any(item.key == prior_invalidated.key for item in self.pending_audits):
-                self._queue_for_tuple(prior_invalidated)
-        self.state.grandfathered = list(baseline.values())
-        self.state.invalidated = list(invalidated.values())
+        # Successful full scans authoritatively prove that an absent task is
+        # no longer dispatchable.  Keep rows for scopes we did not inspect so
+        # a temporary project/tracker outage cannot silently erase history.
+        self.state.grandfathered = [
+            entry
+            for key, entry in baseline.items()
+            if key[0] not in scoped_projects or key in observed_keys
+        ]
+        self.state.invalidated = [
+            entry
+            for key, entry in invalidated.items()
+            if key[0] not in scoped_projects or key in observed_keys
+        ]
 
     def recover_pending_audits(
         self, scopes: Iterable[tuple[str, TrackerProtocol]], *, persist: bool = True
@@ -670,7 +733,11 @@ class TerminalAuditEnforcement:
         """
 
         raw_scopes = scopes.items() if isinstance(scopes, Mapping) else scopes
-        for project_id, tracker in raw_scopes:
+        scope_list = [(str(project_id), tracker) for project_id, tracker in raw_scopes]
+        recovered: list[PendingAudit] = []
+        self._recovery_scan_complete = True
+        self._recovery_scan_error_count = 0
+        for project_id, tracker in scope_list:
             try:
                 issues = [
                     issue
@@ -679,29 +746,52 @@ class TerminalAuditEnforcement:
                 ]
             except Exception as exc:
                 self._error(f"validation_scan_failed:{project_id}", exc)
+                self._recovery_scan_complete = False
+                self._recovery_scan_error_count += 1
                 continue
             store = TerminalAuditMetadataStore(
                 tracker, self.project_store, str(project_id)
             )
             for issue in issues:
+                current_fingerprint = self._explicit_evidence_fingerprint(issue, tracker)
                 try:
                     document = store.read(str(issue.identifier))
                 except TerminalAuditMetadataQuarantinedError:
                     self._error(f"metadata_quarantined:{project_id}:{issue.identifier}")
+                    self._recovery_scan_complete = False
+                    self._recovery_scan_error_count += 1
                     continue
                 except Exception as exc:
                     self._error(f"metadata_read_failed:{project_id}:{issue.identifier}", exc)
+                    self._recovery_scan_complete = False
+                    self._recovery_scan_error_count += 1
                     continue
                 if document.is_quarantined:
                     self._error(f"metadata_quarantined:{project_id}:{issue.identifier}")
+                    self._recovery_scan_complete = False
+                    self._recovery_scan_error_count += 1
                     continue
                 for record in document.pending_chain:
                     if record.project_id != str(project_id) or record.task_id != str(issue.identifier):
                         self._error(f"metadata_identity_mismatch:{project_id}:{issue.identifier}")
+                        self._recovery_scan_complete = False
+                        self._recovery_scan_error_count += 1
+                        continue
+                    if (
+                        current_fingerprint is not None
+                        and record.evidence_fingerprint != current_fingerprint
+                    ):
+                        # A tracker-supplied current revision supersedes this
+                        # request even if a crashed writer did not yet mark
+                        # the old chain record SUPERSEDED.
                         continue
                     if record.request_state in PENDING_REQUEST_STATES:
-                        self._queue_record(record)
-        self.pending_audits = self._dedupe_pending(self.pending_audits)
+                        recovered.append(PendingAudit.from_record(record))
+        # Persisted ``pending_audits`` rows are a recovery cache only.  Never
+        # merge them back into the live set: a task may have left In
+        # Validation, been overridden, been archived, or received a newer
+        # evidence revision since the service last wrote that cache.
+        self.pending_audits = self._dedupe_pending(recovered)
         self.state.pending_audits = list(self.pending_audits)
         if persist:
             self._persist(self._load_root_state())
@@ -720,7 +810,6 @@ class TerminalAuditEnforcement:
         self.errors = list(dict.fromkeys([*self.errors, *(loaded.errors if loaded else [])]))
         if loaded is not None:
             self.state = loaded
-            self.pending_audits = self._dedupe_pending(loaded.pending_audits)
         current, scan_complete = self._current_tasks(scope_list)
         if first_startup and scan_complete and not self._state_corrupt:
             self.state = TerminalAuditEnforcementState(
@@ -729,10 +818,9 @@ class TerminalAuditEnforcement:
                     for project_id, _tracker, issue, fingerprint in current
                     if self._is_terminal(str(getattr(issue, "state", "") or ""))
                 ],
-                pending_audits=list(self.pending_audits),
+                pending_audits=[],
                 errors=list(self.errors),
             )
-            self.pending_audits = list(self.state.pending_audits)
         elif first_startup or self.state.quarantined or not scan_complete:
             # An incomplete or corrupt snapshot must not be treated as an
             # empty baseline: doing so would silently grandfather work we did
@@ -743,21 +831,26 @@ class TerminalAuditEnforcement:
                 if self._is_terminal(str(getattr(issue, "state", "") or "")):
                     observed = self._tuple_for(project_id, issue, fingerprint)
                     self.state.invalidated.append(observed)
-                    self._queue_for_tuple(observed)
         else:
-            self._reconcile_current(current)
+            self._reconcile_current(
+                current,
+                scope_project_ids=(project_id for project_id, _tracker in scope_list),
+            )
         self.state.errors = list(dict.fromkeys([*self.state.errors, *self.errors]))
-        self.pending_audits = self._dedupe_pending(self.pending_audits)
-        self.state.pending_audits = list(self.pending_audits)
         self.recover_pending_audits(scope_list, persist=False)
         self.state.errors = list(dict.fromkeys([*self.state.errors, *self.errors]))
         self._persist(root)
+        completed_scan = scan_complete and self._recovery_scan_complete
         self.last_result = {
             "first_startup": first_startup,
             "baseline_initialized": self.state.baseline_initialized,
             "quarantined": self.state.quarantined or self._state_corrupt,
             "grandfathered": len(self.state.grandfathered),
             "pending_audits": len(self.pending_audits),
+            "scan_complete": completed_scan,
+            "scan_error_count": (
+                (0 if scan_complete else 1) + self._recovery_scan_error_count
+            ),
             "errors": list(self.state.errors),
         }
         return dict(self.last_result)

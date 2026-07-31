@@ -222,6 +222,9 @@ class OverrideResult:
     posted_comment: bool = False
     """``True`` when the override explanation comment was posted."""
 
+    overridden_audit_ids: list[str] = field(default_factory=list)
+    """Live audit records cancelled after this owner override."""
+
     reason: str | None = None
     """Human-readable explanation when ``success`` is ``False``."""
 
@@ -853,13 +856,15 @@ class TerminalTransitionCoordinator:
                 reason,
                 project,
             )
-            if outcome.success and outcome.override_id:
-                self._record_metric(
-                    "record_overridden",
-                    project_id,
-                    current_issue.identifier,
-                    outcome.override_id,
-                )
+            if outcome.success:
+                for audit_id in outcome.overridden_audit_ids or [outcome.override_id]:
+                    if audit_id:
+                        self._record_metric(
+                            "record_overridden",
+                            project_id,
+                            current_issue.identifier,
+                            audit_id,
+                        )
             return outcome
 
         return await asyncio.to_thread(
@@ -1494,6 +1499,13 @@ class TerminalTransitionCoordinator:
         # not disturb a valid delivery claim.
         self._revoke_delivery_for_terminal_transition(project_id, identifier)
 
+        overridden_audit_ids = [
+            record.audit_id
+            for record in document.pending_chain
+            if record.request_state
+            in (RequestState.PENDING, RequestState.IN_PROGRESS)
+        ]
+
         # Step 3: Create and persist the override record
         now = _now_iso8601()
         override_record = OverrideRecord(
@@ -1578,11 +1590,35 @@ class TerminalTransitionCoordinator:
                 error_code=OverrideRejection.STATUS_UPDATE_FAILED,
             )
 
+        if overridden_audit_ids:
+            try:
+                def _cancel_overridden(doc: TerminalAuditMetadata) -> TerminalAuditMetadata:
+                    return replace(
+                        doc,
+                        pending_chain=[
+                            replace(record, request_state=RequestState.CANCELLED)
+                            if record.audit_id in overridden_audit_ids
+                            and record.request_state
+                            in (RequestState.PENDING, RequestState.IN_PROGRESS)
+                            else record
+                            for record in doc.pending_chain
+                        ],
+                    )
+
+                store.update(identifier, _cancel_overridden)
+            except Exception:
+                # The tracker status is already terminal and the persisted
+                # override record is authoritative.  Recovery will still
+                # remove the non-dispatchable row, so do not report a failed
+                # owner override after its terminal write succeeded.
+                logger.exception("Failed to cancel overridden audits for %s", identifier)
+
         return OverrideResult(
             success=True,
             override_id=override_record.override_id,
             applied_status=target_status,
             posted_comment=posted,
+            overridden_audit_ids=overridden_audit_ids,
             error_code=None,
         )
 
