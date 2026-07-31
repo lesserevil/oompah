@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-642
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Fence standalone delivery gate outcomes after terminal authority changes
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:09:07.190386Z'
-updated_at: '2026-07-31T07:09:47.218427Z'
+updated_at: '2026-07-31T07:12:33.220286Z'
 work_branch: OOMPAH-642
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/609
@@ -128,6 +128,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-3755ea18f7aa: '2026-07-31T07:09:05.865527+00:00'
+    attempt-5ab8adfc54cb: '2026-07-31T07:12:24.763684+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -169,7 +170,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-642
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -178,7 +179,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-5ab8adfc54cb
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -188,13 +189,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T07:09:40.588895+00:00'
       branch_key: OOMPAH-642
+      verdict: pass
+      completed_at: '2026-07-31T07:12:24.763564+00:00'
+      ended_at: '2026-07-31T07:12:24.763564+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-07-31T07:02:07.397951+00:00'
-    updated_at: '2026-07-31T07:09:40.588895+00:00'
+    updated_at: '2026-07-31T07:12:24.763564+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-3755ea18f7aa
@@ -419,5 +423,22 @@ author: oompah
 created: 2026-07-31 07:09
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 07:12
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: af6e423391f3756f99900cf4263cbb6f4d3d07de
+- merge_commit: 50625abed5be36e106dbd281871a2e464c671303
+- pr_number: 609
+- merged_into: origin/main
+- orchestrator_authority_sites: 944,6405,6426,6481,6527,6585,9624,9691
+- coordinator_revoke_wiring: terminal_transition_coordinator.py:465,482,516; bootstrap.py:373; orchestrator.py:900
+- focused_tests_pass: test_quality_gate:17, test_standalone_ready_to_integrate:17, test_terminal_transition_coordinator+authority_boundary+terminal_override:271, test_delivery_plane_recovery:4
+- full_branch_gate: make test passed in 309.7s on af6e42339
 ---
 <!-- COMMENTS:END -->
