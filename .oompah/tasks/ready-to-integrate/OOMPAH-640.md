@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T05:59:47.260716Z'
-updated_at: '2026-07-31T06:35:29.008186Z'
+updated_at: '2026-07-31T06:35:48.955678Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -45,13 +45,17 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: d9e5fc7a-e989-4884-b0eb-1bee9070427d
 oompah.task_costs:
-  total_input_tokens: 1230739
-  total_output_tokens: 5071
+  total_input_tokens: 1230775
+  total_output_tokens: 15994
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 1230739
       output_tokens: 5071
+      cost_usd: 0.0
+    sonnet:
+      input_tokens: 36
+      output_tokens: 10923
       cost_usd: 0.0
   runs:
   - profile: default
@@ -66,6 +70,12 @@ oompah.task_costs:
     output_tokens: 177
     cost_usd: 0.0
     recorded_at: '2026-07-31T06:18:04.151655+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 36
+    output_tokens: 10923
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T06:35:41.452717+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-640__20260731T060457Z
@@ -76,14 +86,24 @@ oompah.work_contributors:
     source_branch: OOMPAH-640
     source_sha: bb0fd760c3b2938d15ec2026ef5bfc2fd34b0682
     completed_at: '2026-07-31T06:06:48.905150+00:00'
+  - run_id: OOMPAH-640__20260731T063026Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: sonnet
+    focus: ci_fix
+    source_branch: OOMPAH-640
+    source_sha: 5a5f4867f2d5c640069b16fe6eaf45e09a54c963
+    completed_at: '2026-07-31T06:35:41.463548+00:00'
 oompah.integration:
   version: 2
   state: ready
   attempts: 0
   task_branch: OOMPAH-640
+  base_branch: main
+  base_sha: 6a8d6e9fbb53e12dc4739e89a0eabf56c6ad25f5
   head_sha: 5a5f4867f2d5c640069b16fe6eaf45e09a54c963
   submitted_at: '2026-07-31T06:35:24.756470+00:00'
-  updated_at: '2026-07-31T06:35:24.756470+00:00'
+  updated_at: '2026-07-31T06:35:44.848089+00:00'
 ---
 ## Summary
 
@@ -369,5 +389,20 @@ Fixed 2 CI test failures on branch OOMPAH-640:
 2. test_intake_promotion.py::test_approval_comment_auto_promotes_when_project_allows_it — Replaced flaky 50x20ms busy-poll with threading.Event + 3-second timeout (same stabilization pattern already applied to the adjacent test in commit d61679dbe).
 
 Neither failure was caused by this branch's feature work (test_stall_to_dispatch_recovery.py). Both were pre-existing defects exposed by the agent worktree environment.
+---
+author: oompah
+created: 2026-07-31 06:35
+---
+Agent completed successfully in 323s (10959 tokens)
+---
+author: oompah
+created: 2026-07-31 06:35
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 70, Tool calls: 46
+- Tokens: 36 in / 10.9K out [11.0K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 5m 23s
+- Log: OOMPAH-640__20260731T063026Z.jsonl
 ---
 <!-- COMMENTS:END -->
