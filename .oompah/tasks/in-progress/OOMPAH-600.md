@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:58.634342Z'
-updated_at: '2026-07-31T03:08:19.943856Z'
+updated_at: '2026-07-31T03:09:42.294642Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-600
 target_branch: null
 review_url: null
@@ -177,5 +177,10 @@ author: oompah
 created: 2026-07-31 03:08
 ---
 Discovery: OOMPAH-581 implementation found at commit 741a7d88b in OOMPAH-587 branch. Integrated into current branch via cherry-pick. Implementation adds _cleanup_epic_repair_workspace_locked() to ProjectStore with 4 guards: (1) exact managed worktree path, (2) same-identifier branch checked out, (3) clean worktree, (4) branch ancestor of origin/default_branch. Test results: All 7 TestEpicRepairWorkspaceCleanup tests PASS. All 94 test_projects.py tests PASS. No regressions detected.
+---
+author: oompah
+created: 2026-07-31 03:09
+---
+Implementation: Successfully integrated OOMPAH-581 into epic-OOMPAH-588--task-OOMPAH-600 via cherry-pick of commit 741a7d88b. Changes: (1) Added _cleanup_epic_repair_workspace_locked() to ProjectStore, (2) Integrated into cleanup_terminal_issue() for is_epic=True, (3) All 7 OOMPAH-581 tests PASS, (4) All 94 test_projects.py tests PASS, (5) Branch pushed to origin/epic-OOMPAH-588--task-OOMPAH-600. Measured current state: 156 local branches, 108 remote branches, 38 git worktrees. Preserved TASK-472, TASK-473 as required.
 ---
 <!-- COMMENTS:END -->
