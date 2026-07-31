@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:00.331568Z'
-updated_at: '2026-07-31T03:48:29.619977Z'
+updated_at: '2026-07-31T03:48:51.290053Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-601
 target_branch: null
 review_url: null
@@ -480,5 +480,10 @@ author: oompah
 created: 2026-07-31 03:48
 ---
 Auditor evidence: the configured exact-head integration gate passed on 787385c6aa. Please use the durable gate result and focused cleanup tests; no duplicate full-suite run is required.
+---
+author: oompah
+created: 2026-07-31 03:48
+---
+Correction/precision for auditor: integration rebased submitted head 787385c6aa onto current epic parent, producing integrated_sha 5176c9e479ada61e8ed9e505735c858808227774. The configured exact combined-tree gate on 5176c9e47 passed in 257.89s. Use 5176c9e47 as authoritative evidence.
 ---
 <!-- COMMENTS:END -->
