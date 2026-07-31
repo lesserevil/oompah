@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-623
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Keep the canonical user CLI synchronized with the running server
 parent: OOMPAH-619
@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:32:18.734139Z'
-updated_at: '2026-07-31T14:28:05.233769Z'
+updated_at: '2026-07-31T14:28:19.010695Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-623
 target_branch: null
 review_url: null
@@ -53,12 +53,12 @@ oompah.agent_run_id: 4edfadaa-b983-42d6-9858-90416b588464
 oompah.work_branch: epic-OOMPAH-619--task-OOMPAH-623
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-619--task-OOMPAH-623
-  base_branch: epic-OOMPAH-619
-  base_sha: 61546199b2334fd861f2d0cd844ec631e8b8d0e4
-  updated_at: '2026-07-31T14:21:57.524220+00:00'
+  head_sha: 5d683ec20d2055b86f39038e2266e4596fb47aeb
+  submitted_at: '2026-07-31T14:28:15.965673+00:00'
+  updated_at: '2026-07-31T14:28:15.965673+00:00'
 oompah.task_costs:
   total_input_tokens: 31994324
   total_output_tokens: 119244
@@ -634,5 +634,10 @@ author: oompah
 created: 2026-07-31 14:28
 ---
 VERIFICATION: focused suites all pass on rebased head 5d683ec20 (on top of current origin/epic-OOMPAH-619 = 61546199b): tests/test_build_identity.py (2), tests/test_canonical_cli_sync.py (16), tests/test_ci_sync_race.py (6), tests/test_lifecycle_cli_sync_integration.py (25), tests/test_cli_install_revision_compatibility.py (19), tests/test_task_handoff.py (32), tests/test_task_cli_actor.py (11) — 111 tests total. git diff --check clean across the full delta from epic base. scripts/check-secrets.sh clean. Branch pushed to origin/epic-OOMPAH-619--task-OOMPAH-623 at 5d683ec20.
+---
+author: oompah
+created: 2026-07-31 14:28
+---
+Canonical CLI kept in sync with the running server. Adds shared build identity module used by --version and both /healthz and /api/v1/state. Adds scripts/sync_canonical_cli.py (immutable versioned CLI roots, atomic launcher swap, rollback journal, bounded pruning) and scripts/canonical_cli_cutover.py (host-scoped flock serialization, pause/drain-based safe point, staged install + activation, verified two-sided rollback or PID-scoped quarantine on post-cutover uncertainty, prior pause-state preservation). Makefile start/restart/graceful/force-restart target the safe point and never leave a live mismatched pair. Health/state require the same non-null instance and exact revision before candidate/old equality is proven. docs/cli-install.md documents canonical path and recovery. Focused tests cover initial install, upgrade, no-op, dirty checkout refusal, wrong PATH, install-failure rollback, atomic activation, drain failure, accepted-restart timeout/drop, wrong build, activation crash/interruption, concurrent activation, exact PID quarantine, prior pause preservation, active/backup-root pruning, scoped view+comment CLI compatibility against server-issued task-handoff capability, and authenticated task/admin equality after synchronization.
 ---
 <!-- COMMENTS:END -->
