@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T21:19:38.816688Z'
-updated_at: '2026-07-31T23:12:10.319438Z'
+updated_at: '2026-07-31T23:13:30.891135Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -164,5 +164,10 @@ author: oompah
 created: 2026-07-31 23:12
 ---
 Fixed dashboard vertical scrolling with dynamic alert panels; added regression coverage and verified focused/full test harnesses.
+---
+author: oompah
+created: 2026-07-31 23:13
+---
+Reviewed coordination overlap with OOMPAH-670 commit 67026d068. The shared dashboard.html edits are interface-compatible: OOMPAH-666 changes only flex/overflow CSS and pre-board panel sizing, while OOMPAH-670 changes the later auth global/state-update/mutation JavaScript; merge-tree reports no content conflict. The regression suites are separate files. Integration can retain both changes in either order; no additional interface adjustment is required.
 ---
 <!-- COMMENTS:END -->
