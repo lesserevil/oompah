@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-07-31T13:39:43.848230Z'
+updated_at: '2026-07-31T13:41:56.230899Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -744,5 +744,16 @@ author: oompah
 created: 2026-07-31 13:39
 ---
 Understanding: OOMPAH-657 was merged to main (commits 08bc7ebfe..0212dada6). The temporary hard-start dependency guidance (comments 59/60/61) said to rebase onto safe base once 657 lands and submit once. Rebasing OOMPAH-658 onto origin/main was clean (3 commits replayed with no conflicts): new head 6e27fb150. Head 1b49ab0f4 was the verified fix; the rebased 6e27fb150 preserves the same changes on top of the immutable exact-head lifecycle. Prior 'Branch quality gate failed' notices (11:53 PGID 2487891, 12:07 PGID 2991395) were operator-terminated (SIGTERM) premature full make test runs — 'make[1]: *** [Makefile:295: test] Terminated' is SIGTERM, not an assertion. Per operator guidance (comments 23/28/38), running focused suites only; the server owns the single review-ready full gate now that OOMPAH-657 has landed exact-head enforcement.
+---
+author: oompah
+created: 2026-07-31 13:41
+---
+Verification at rebased head 6e27fb150 (rebased onto origin/main which now includes OOMPAH-657):
+- tests/test_duplicate_screening.py + tests/test_duplicate_preflight.py: 32 passed (1.10s)
+- tests/test_candidate_preflight.py + test_orchestrator_duplicate_detection.py + test_server_duplicate_screening_sync.py + test_dashboard_duplicate_screening.py: 87 passed (28.96s)
+- tests/test_models.py + test_intake_schema.py + test_intake_approval.py + test_oompah_md_tracker.py: 286 passed (5.48s)
+- tests/test_intake_promotion.py + test_epic_proposal.py + test_duplicate_names.py: 45 passed (3.02s)
+
+Total 450 focused tests passing. Rebased branch force-pushed (1b49ab0f4 -> 6e27fb150). No source changes required from prior verified fix — same adapter-backed duplicate-preflight deduplication, now on top of the immutable exact-head lifecycle from OOMPAH-657. Ready for the server-owned single review-ready full gate.
 ---
 <!-- COMMENTS:END -->
