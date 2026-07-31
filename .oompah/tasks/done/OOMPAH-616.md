@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-616
 type: bug
-status: In Validation
+status: Done
 priority: 1
 title: Integrate terminal-audit retry ownership fencing
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T20:47:41.612111Z'
-updated_at: '2026-07-31T00:04:11.226085Z'
+updated_at: '2026-07-31T00:13:26.209062Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-616
 target_branch: null
 review_url: null
@@ -89,6 +89,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-9c05f83f34c2: '2026-07-30T21:30:59.511374+00:00'
+    attempt-a71d5f1fdb34: '2026-07-31T00:13:23.862712+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -164,7 +165,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-616
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -188,7 +189,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-a71d5f1fdb34
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -199,13 +200,16 @@ oompah.terminal_audit:
       started_at: '2026-07-31T00:04:05.342096+00:00'
       branch_key: epic-OOMPAH-585--task-OOMPAH-616
       candidate_rotation_count: 1
+      verdict: pass
+      completed_at: '2026-07-31T00:13:23.862531+00:00'
+      ended_at: '2026-07-31T00:13:23.862531+00:00'
     requested_by:
       version: 1
       identity: api-client
       source: api
     previous_state: Needs Human
     created_at: '2026-07-30T23:50:27.734222+00:00'
-    updated_at: '2026-07-31T00:04:05.342096+00:00'
+    updated_at: '2026-07-31T00:13:23.862531+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-e22d7c6e350a
@@ -478,5 +482,24 @@ author: oompah
 created: 2026-07-31 00:04
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 00:13
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- task_branch_remote_head: 45838987c
+- local_head: 58915e5f0
+- branch: epic-OOMPAH-585--task-OOMPAH-616
+- merged_target_head: f9f1e78ae (origin/epic-OOMPAH-584)
+- ancestor_check: 45838987c confirmed ancestor of merged target c45e47bb3/f9f1e78ae
+- focused_tests: 305 passed in 123.21s
+- files_confirmed: oompah/orchestrator.py oompah/server.py tests/test_dispatch_close_race.py tests/test_orchestrator_handlers.py tests/test_terminal_status_interfaces.py
+- prior_full_gate: 13792 passed, 7 skipped
+- working_tree: clean
+- git_diff_check: clean
 ---
 <!-- COMMENTS:END -->
