@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-603
 type: feature
-status: In Validation
+status: Done
 priority: 2
 title: Define and enforce repository hygiene health thresholds
 parent: OOMPAH-588
@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:03.538398Z'
-updated_at: '2026-07-31T05:56:45.789515Z'
+updated_at: '2026-07-31T05:57:16.099182Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-603
 target_branch: null
 review_url: null
@@ -157,6 +157,22 @@ oompah.terminal_audit:
       epic rebase SHA rewrite; the refreshed exact task ref points to a patch-equivalent
       rebased commit contained in merged PR #602.'
     created_at: '2026-07-31T05:26:34.278312+00:00'
+  - version: 1
+    override_id: override-67fa7c98ab85
+    project_id: proj-14849f1b
+    task_id: OOMPAH-603
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 082fc2e5d17770751f947e3ebef85a7e260c749cd3610b90ed3c98da7fa71a48
+    authorized_by:
+      version: 1
+      identity: lesserevil
+      source: api
+    reason: Restore previously audited Done after false post-merge landing regression;
+      refreshed exact task ref is contained in main.
+    created_at: '2026-07-31T05:57:10.252425+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -951,5 +967,12 @@ author: oompah
 created: 2026-07-31 05:52
 ---
 Post-restart landing re-evaluation: this task's refreshed exact remote work ref is an ancestor of merged origin/main bb0fd760c3. The Needs Human state was a false regression from the old runtime comparing a pre-rebase SHA. Restoring the task's previously audited Done state.
+---
+author: oompah
+created: 2026-07-31 05:57
+---
+Override by lesserevil: terminal transition to Done applied by project owner.
+
+Reason: Restore previously audited Done after false post-merge landing regression; refreshed exact task ref is contained in main.
 ---
 <!-- COMMENTS:END -->
