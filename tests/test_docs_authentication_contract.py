@@ -82,11 +82,11 @@ def test_cli_credential_precedence_is_documented():
         # Must mention precedence or priority
         assert any(word in doc_text for word in ["precedence", "priority", "highest", "override"]), \
             "Authentication guide must document credential precedence"
-        
+
         # Must document CLI flag overrides
         assert "--username" in doc_text
         assert "--password-file" in doc_text
-        
+
         # Must document environment variable behavior
         assert "OOMPAH_SERVER_USERNAME" in doc_text
         assert "OOMPAH_SERVER_PASSWORD_FILE" in doc_text
@@ -95,7 +95,7 @@ def test_cli_credential_precedence_is_documented():
         # must be in the precedence section, rather than unrelated curl text.
         assert "~/.netrc" in precedence
         assert "Tier 3" in precedence
-    
+
     # Examples must cover all precedence tiers
     for doc_text in (text, cli_install):
         doc_lower = doc_text.lower()
@@ -129,11 +129,11 @@ def test_examples_show_password_file_not_inline_password():
         # Count recommendations
         password_file_count = doc_text.count("OOMPAH_SERVER_PASSWORD_FILE") + doc_text.count("--password-file")
         inline_password_count = doc_text.count("OOMPAH_SERVER_PASSWORD=")
-        
+
         # Password files should be recommended more than inline
         assert password_file_count > inline_password_count, \
             "Documentation should prefer password files over inline passwords"
-        
+
         # Should explicitly say "preferred" for password file
         assert "preferred" in doc_text or "Prefer" in doc_text
 

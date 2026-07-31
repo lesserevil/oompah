@@ -391,7 +391,7 @@ netrc file exists, it must still be valid and safely permissioned.
   be a regular, non-symlink file with mode `600` or `400`
 - Return value: `ClientCredentials(username, password)` if configured, or `None` for backward-compatible unauthenticated mode
 
-**Security emphasis:** 
+**Security emphasis:**
 - Never pass plaintext passwords via the `--password` flag (no such flag exists)
 - Prefer `~/.netrc` or password files (`OOMPAH_SERVER_PASSWORD_FILE` or
   `--password-file`) for unattended use; set password-file permissions to
