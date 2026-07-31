@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-597
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Recover and drain the OOMPAH-460 ordered integration chain
 parent: OOMPAH-587
@@ -13,7 +13,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:28.342383Z'
-updated_at: '2026-07-31T03:26:10.999365Z'
+updated_at: '2026-07-31T03:29:47.605505Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-597
 target_branch: null
 review_url: null
@@ -42,12 +42,17 @@ oompah.agent_run_id: 42c05c1c-e484-4e0d-915a-4c9c7769c0cf
 oompah.work_branch: epic-OOMPAH-587--task-OOMPAH-597
 oompah.integration:
   version: 1
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-587--task-OOMPAH-597
-  head_sha: 44e5c5579d2d56ecc0ddc801d77e28d74dd734ce
-  submitted_at: '2026-07-31T03:26:08.556541+00:00'
-  updated_at: '2026-07-31T03:26:08.556541+00:00'
+  base_branch: epic-OOMPAH-587
+  base_sha: 33b773bd2f8fd82605e44165c362e0f6071d9d66
+  head_sha: 54ebca942a9f40c156b0b4e5218e132a09ba841c
+  integrated_sha: 54ebca942a9f40c156b0b4e5218e132a09ba841c
+  submitted_at: '2026-07-31T03:21:17.901268+00:00'
+  updated_at: '2026-07-31T03:29:43.830487+00:00'
+  dependency_heads:
+    OOMPAH-596: da86acf64b292122653b68f7bfaa71775111f237
 oompah.task_costs:
   total_input_tokens: 1271487
   total_output_tokens: 24947
@@ -112,6 +117,28 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-587--task-OOMPAH-597
     source_sha: 54ebca942a9f40c156b0b4e5218e132a09ba841c
     completed_at: '2026-07-31T03:21:27.562899+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-2b477b2e0afe
+    project_id: proj-14849f1b
+    task_id: OOMPAH-597
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 839935963be0ced1dce90447909e3b199150a9595cacc19e991112ae77e531bf
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-31T03:29:45.058158+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -601,5 +628,10 @@ author: oompah
 created: 2026-07-31 03:26
 ---
 Fresh submission identity on identical tested recovery tree to bypass the pre-fix same-head failed-result cache.
+---
+author: oompah
+created: 2026-07-31 03:29
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
