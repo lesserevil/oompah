@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-432
 type: bug
-status: Merged
+status: In Validation
 priority: 2
 title: "[backend:orchestrator] Dispatch loop stale but 4 agent(s) are active \u2014\
   \ skipping auto-restart to avoid killing in-flight work. Restart manually when agents\
@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T22:58:15.387967Z'
-updated_at: '2026-07-24T01:21:55.975905Z'
+updated_at: '2026-07-31T02:09:16.479576Z'
 work_branch: OOMPAH-432
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/551
@@ -71,6 +71,28 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/551
 oompah.review_number: '551'
 oompah.work_branch: OOMPAH-432
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-f73fc2488a3c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-432
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 086526d38b33aa5bfc878a13d4275a199d9bf62c836b9afa42fa2cb5a6fd1efc
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-07-31T02:09:14.198755+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -238,5 +260,10 @@ author: oompah
 created: 2026-07-24 01:16
 ---
 YOLO: merged PR #551.
+---
+author: oompah
+created: 2026-07-31 02:09
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
