@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:06.140108Z'
-updated_at: '2026-07-31T23:28:23.797755Z'
+updated_at: '2026-07-31T23:28:46.258439Z'
 work_branch: OOMPAH-664
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/628
@@ -45,7 +45,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 4fc5175b-cb02-48d8-9dd6-6da87e4510a2
+oompah.agent_run_id: fdbef3c7-98d6-4f77-8802-14613381f4ab
 oompah.task_costs:
   total_input_tokens: 8185398
   total_output_tokens: 61298
@@ -920,5 +920,15 @@ author: oompah
 created: 2026-07-31 23:28
 ---
 Agent completed without closing this issue (264s (1306031 tokens)). Escalating from 'standard' to 'deep'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-31 23:28
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-31 23:28
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
