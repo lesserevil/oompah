@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T02:59:30.537456Z'
-updated_at: '2026-07-31T03:02:00.231009Z'
+updated_at: '2026-07-31T03:02:18.247030Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-638
 target_branch: null
 review_url: null
@@ -81,6 +81,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-07-31T03:00:17.731678+00:00'
     branch_key: epic-OOMPAH-460--task-OOMPAH-638
+oompah.task_costs:
+  total_input_tokens: 29
+  total_output_tokens: 776
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 29
+      output_tokens: 776
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 29
+    output_tokens: 776
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T03:02:16.686248+00:00'
 ---
 ## Summary
 
@@ -141,5 +157,15 @@ Safe evidence:
 - task_specific_work_on_branch: none
 - duplicate_investigator_verdict: documented in comment #3 with named alternate owners OOMPAH-634 (completed synchronization) and OOMPAH-599 (final synchronization)
 - task_state: In Validation queued for Archived
+---
+author: oompah
+created: 2026-07-31 03:02
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 15
+- Tokens: 29 in / 776 out [805 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 1m 58s
+- Log: OOMPAH-638__20260731T030027Z.jsonl
 ---
 <!-- COMMENTS:END -->
