@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-654
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Keep service lifecycle identity metadata out of git worktree status
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:29:49.323393Z'
-updated_at: '2026-07-31T10:42:32.081531Z'
+updated_at: '2026-07-31T10:50:41.252602Z'
 work_branch: OOMPAH-654
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/617
@@ -79,6 +79,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/617
 oompah.review_number: '617'
 oompah.work_branch: OOMPAH-654
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-9bcc882d9599
+    project_id: proj-14849f1b
+    task_id: OOMPAH-654
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0da7823df11c09f2bcfb91a9a00db526e8216cb1294411c19e9ea9897b156fa1
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-31T10:50:36.583869+00:00'
+  - version: 1
+    audit_id: audit-6a58167a8f64
+    project_id: proj-14849f1b
+    task_id: OOMPAH-654
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0da7823df11c09f2bcfb91a9a00db526e8216cb1294411c19e9ea9897b156fa1
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-31T10:50:36.583869+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -156,5 +195,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 3m 29s
 - Log: OOMPAH-654__20260731T103240Z.jsonl
+---
+author: oompah
+created: 2026-07-31 10:50
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-07-31 10:50
+---
+YOLO: merged PR #617.
 ---
 <!-- COMMENTS:END -->
