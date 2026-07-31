@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-658
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 2
 title: Deduplicate duplicate-preflight runs across deferred dispatch ticks
 parent: null
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-07-31T12:12:16.556395Z'
+updated_at: '2026-07-31T12:12:27.920118Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -102,8 +102,8 @@ oompah.integration:
   attempts: 0
   task_branch: OOMPAH-658
   head_sha: 1b49ab0f4732ca40bfb7355f726a8da6bacc234f
-  submitted_at: '2026-07-31T12:09:39.261217+00:00'
-  updated_at: '2026-07-31T12:09:39.261217+00:00'
+  submitted_at: '2026-07-31T12:12:25.013044+00:00'
+  updated_at: '2026-07-31T12:12:25.013044+00:00'
 ---
 ## Summary
 
@@ -629,5 +629,10 @@ Verification: All focused suites green at head 1b49ab0f4 (re-run in this dispatc
 - tests/test_intake_promotion.py + test_epic_proposal.py + test_duplicate_names.py: 45 passed (3.0s)
 
 Total 450 focused tests passing across the duplicate-screening/intake surface. No source changes required. Per operator guidance (comments 23/28/38), skipping the repository-wide 'make test' — the server owns the single review-ready full gate for the exact head once OOMPAH-657 lands exact-head enforcement.
+---
+author: oompah
+created: 2026-07-31 12:12
+---
+Adapter-backed duplicate-preflight deduplication at head 1b49ab0f4. Fingerprint composes (title, description with Triggered-by header, project, type, parent, intake.proposal_fingerprint); scheduling metadata (deps, labels, updated_at, last_validated_at) excluded. 450 focused tests green. Previous 'Branch quality gate failed' notices were operator-terminated (SIGTERM) premature full make test runs, not real failures. Server owns the single review-ready full gate once OOMPAH-657 lands exact-head enforcement.
 ---
 <!-- COMMENTS:END -->
