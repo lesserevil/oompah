@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T21:32:57.017227Z'
-updated_at: '2026-07-31T23:06:48.066054Z'
+updated_at: '2026-07-31T23:07:00.332166Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -59,13 +59,13 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: a5c1ccde-9a95-4ff1-ab7f-1ad7b0150519
 oompah.task_costs:
-  total_input_tokens: 186
-  total_output_tokens: 4766
+  total_input_tokens: 3515907
+  total_output_tokens: 25472
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 186
-      output_tokens: 4766
+      input_tokens: 3515907
+      output_tokens: 25472
       cost_usd: 0.0
   runs:
   - profile: default
@@ -74,6 +74,12 @@ oompah.task_costs:
     output_tokens: 4766
     cost_usd: 0.0
     recorded_at: '2026-07-31T22:58:51.200004+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 3515721
+    output_tokens: 20706
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T23:06:53.976253+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-667__20260731T225718Z
@@ -84,14 +90,24 @@ oompah.work_contributors:
     source_branch: OOMPAH-667
     source_sha: d96740a6ecdca353e40ef87e94a4ee91b8828df0
     completed_at: '2026-07-31T22:58:51.212689+00:00'
+  - run_id: OOMPAH-667__20260731T225912Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: event_api
+    source_branch: OOMPAH-667
+    source_sha: 6ee3e02133d9f8668597285110e480069d92c6af
+    completed_at: '2026-07-31T23:06:53.984426+00:00'
 oompah.integration:
   version: 2
   state: ready
   attempts: 0
   task_branch: OOMPAH-667
+  base_branch: main
+  base_sha: d96740a6ecdca353e40ef87e94a4ee91b8828df0
   head_sha: 6ee3e02133d9f8668597285110e480069d92c6af
   submitted_at: '2026-07-31T23:06:43.628498+00:00'
-  updated_at: '2026-07-31T23:06:43.628498+00:00'
+  updated_at: '2026-07-31T23:06:59.425379+00:00'
 ---
 ## Summary
 
@@ -166,5 +182,20 @@ author: oompah
 created: 2026-07-31 23:06
 ---
 Preserved operator CLI PATH through Make lifecycle and added regression coverage
+---
+author: oompah
+created: 2026-07-31 23:06
+---
+Agent completed successfully in 466s (3536427 tokens)
+---
+author: oompah
+created: 2026-07-31 23:06
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 63
+- Tokens: 3.5M in / 20.7K out [3.5M total]
+- Cost: $0.0000
+- Exit: normal, Duration: 7m 46s
+- Log: OOMPAH-667__20260731T225912Z.jsonl
 ---
 <!-- COMMENTS:END -->
