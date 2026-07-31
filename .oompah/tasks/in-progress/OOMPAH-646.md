@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-646
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Serialize review capacity across reconciliation sweeps and webhook lag
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:55:23.505409Z'
-updated_at: '2026-07-31T06:58:07.259761Z'
+updated_at: '2026-07-31T06:58:18.453176Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -54,7 +54,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 82a8e8db-83ea-4947-9d39-662adb370655
+oompah.agent_run_id: 6edd4783-09ce-4404-a4f4-cdb87979de7b
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-646__20260731T065633Z
@@ -113,5 +113,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 41s
 - Log: OOMPAH-646__20260731T065633Z.jsonl
+---
+author: oompah
+created: 2026-07-31 06:58
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-31 06:58
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
