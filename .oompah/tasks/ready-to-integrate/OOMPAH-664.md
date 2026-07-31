@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:06.140108Z'
-updated_at: '2026-07-31T23:07:27.284651Z'
+updated_at: '2026-07-31T23:07:30.184205Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -841,5 +841,10 @@ author: oompah
 created: 2026-07-31 23:07
 ---
 Verification: 5/5 runs of test_tick_applies_pending_at_quiescent_point pass in ~0.9s (vs. 5s timeout). All 11 tests in test_orchestrator_profile_reload.py pass. All 70 focused tests (test_orchestrator_profile_reload, test_oompah_md_tracker_state_branch, test_server_issue_snapshot) pass. 77 quality_gate+collapsed_epics+installed_cli_smoke tests pass with 5 skipped. Pushed 34c5751b7 to OOMPAH-664.
+---
+author: oompah
+created: 2026-07-31 23:07
+---
+Fixed the single remaining CI gate failure: test_tick_applies_pending_at_quiescent_point was flaky under 4-way parallel CI load because _recover_release_addendum_leases (the only awaited real-I/O step in _tick() not previously stubbed) reads all 281 .oompah/tasks/*.md files on every call, which could exceed the 5s per-test timeout. Added stubs for _recover_release_addendum_leases, _run_step5b_maintenance, and _run_step5c_epic_maintenance, consistent with the existing stub pattern for the other heavy tick handlers. All 70 focused tests pass; branch is pushed at 34c5751b7.
 ---
 <!-- COMMENTS:END -->
