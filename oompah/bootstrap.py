@@ -371,6 +371,7 @@ async def setup_services(
         tracker=orchestrator._tracker_for_project,
         project_store=project_store,
         revoke_delivery_authority=orchestrator._revoke_standalone_delivery_authority,
+        clear_audit_alert=orchestrator.clear_terminal_audit_alert,
     )
     terminal_transition_coordinator.set_metrics(
         orchestrator._terminal_audit_metrics

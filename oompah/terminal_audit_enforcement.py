@@ -23,18 +23,27 @@ import os
 import tempfile
 import threading
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
 from oompah.models import Issue
-from oompah.statuses import IN_VALIDATION, canonicalize_status, status_key
+from oompah.statuses import (
+    ARCHIVED,
+    DONE,
+    IN_VALIDATION,
+    MERGED,
+    canonicalize_status,
+    status_key,
+)
 from oompah.terminal_audit import (
     EvidenceFingerprint,
+    OverrideRecord,
     RequestState,
     TerminalAuditRecord,
     TargetState,
-    compute_evidence_fingerprint,
+    compute_issue_evidence_fingerprint,
 )
 from oompah.terminal_audit_metadata import (
     TerminalAuditMetadataStore,
@@ -48,6 +57,15 @@ logger = logging.getLogger(__name__)
 SERVICE_STATE_KEY = "terminal_audit_enforcement"
 SERVICE_STATE_VERSION = 1
 PENDING_REQUEST_STATES = frozenset({RequestState.PENDING, RequestState.IN_PROGRESS})
+TERMINAL_OVERRIDE_RECORDS_KEY = "oompah.terminal_override_records"
+TERMINAL_RETIREMENTS_KEY = "oompah.terminal_audit_retirements"
+TERMINAL_RESULT_INTENTS_KEY = "oompah.terminal_audit_result_intents"
+
+_TERMINAL_STATUS_RANK = {
+    status_key(DONE): 1,
+    status_key(MERGED): 2,
+    status_key(ARCHIVED): 3,
+}
 
 _STATE_LOCK_GUARD = threading.Lock()
 _STATE_LOCKS: dict[str, threading.RLock] = {}
@@ -111,6 +129,45 @@ def _target_state_value(state: str) -> str:
         # be represented as a TargetState record, but the queue can retain the
         # tracker spelling and fail closed until an auditor handles it.
         return str(state).strip()
+
+
+def _target_state_status(raw: Any) -> str | None:
+    """Decode a persisted target state into its tracker status spelling."""
+
+    try:
+        return TargetState.from_raw(raw).value
+    except (TypeError, ValueError):
+        return None
+
+
+_MIN_AUTHORITY_TIMESTAMP = datetime.min.replace(tzinfo=timezone.utc)
+
+
+def _authority_key(
+    created_at: object,
+    persisted_id: tuple[str, ...],
+) -> tuple[datetime, tuple[str, ...]]:
+    """Return a deterministic recovery ordering for a persisted intent.
+
+    Only timezone-aware ISO-8601 timestamps participate in chronological
+    authority.  Missing, malformed, or timezone-naive values sort at the
+    minimum; the validated persisted identity then provides a stable tie
+    breaker independent of ledger list order.
+    """
+
+    if not persisted_id or any(not value for value in persisted_id):
+        raise ValueError("persisted authority identity must be non-empty")
+    parsed = _MIN_AUTHORITY_TIMESTAMP
+    if isinstance(created_at, str):
+        try:
+            candidate = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+        except ValueError:
+            candidate = None
+        if candidate is not None and candidate.tzinfo is not None:
+            offset = candidate.utcoffset()
+            if offset is not None:
+                parsed = candidate.astimezone(timezone.utc)
+    return (parsed, persisted_id)
 
 
 @dataclass(frozen=True)
@@ -484,97 +541,19 @@ class TerminalAuditEnforcement:
                     return _as_fingerprint(issue_metadata[key])
 
         # Tracker metadata is consulted only for an explicit fingerprint.  In
-        # particular, reading a terminal task must never create an audit record.
+        # particular, reading a terminal task must never reuse an old audit
+        # chain fingerprint as proof of the current task revision.
         try:
             metadata = tracker.get_metadata(issue.identifier) or {}
             for key in ("oompah.evidence_fingerprint", "evidence_fingerprint"):
                 if metadata.get(key) is not None:
                     return _as_fingerprint(metadata[key])
-            raw_audit = metadata.get("oompah.terminal_audit")
-            if isinstance(raw_audit, Mapping):
-                raw_chain = raw_audit.get("pending_chain", [])
-                if isinstance(raw_chain, list):
-                    for raw_record in raw_chain:
-                        if isinstance(raw_record, Mapping):
-                            try:
-                                return _fingerprint_from_raw(raw_record)
-                            except ValueError:
-                                continue
         except Exception as exc:  # fail closed below, with an observable marker
             self._error("evidence_read_failed", exc)
-
-        contributors = getattr(issue, "contributors", ()) or ()
-        if isinstance(contributors, str):
-            contributors = (contributors,)
-        child_digests = getattr(issue, "child_audit_digests", ()) or ()
-        if isinstance(child_digests, str):
-            child_digests = (child_digests,)
-        return compute_evidence_fingerprint(
-            requirements_text=str(getattr(issue, "description", None) or ""),
-            project_id=str(project_id or getattr(issue, "project_id", None) or ""),
-            task_id=str(getattr(issue, "identifier", "")),
-            source_branch=str(
-                getattr(issue, "source_branch", None)
-                or getattr(issue, "work_branch", None)
-                or getattr(issue, "branch_name", None)
-                or ""
-            ),
-            source_sha=str(getattr(issue, "source_sha", None) or ""),
-            target_branch=str(getattr(issue, "target_branch", None) or ""),
-            target_sha=str(getattr(issue, "target_sha", None) or ""),
-            review_id=str(
-                getattr(issue, "review_id", None)
-                or getattr(issue, "review_number", None)
-                or ""
-            ),
-            review_state=str(getattr(issue, "review_state", None) or ""),
-            child_audit_digests=child_digests,
-            contributors=contributors,
+        return compute_issue_evidence_fingerprint(
+            issue,
+            str(project_id or getattr(issue, "project_id", None) or ""),
         )
-
-    @staticmethod
-    def _explicit_evidence_fingerprint(
-        issue: Issue, tracker: TrackerProtocol
-    ) -> EvidenceFingerprint | None:
-        """Return a tracker-provided canonical current fingerprint, if any.
-
-        The audit chain itself is deliberately excluded here: it describes the
-        revision that was queued, not necessarily the revision that is current
-        now.  Non-canonical test/adaptor hints are also ignored so older
-        trackers that expose descriptive evidence strings retain their
-        metadata-driven recovery behaviour.
-        """
-
-        values: list[Any] = [
-            getattr(issue, "evidence_fingerprint", None),
-            getattr(issue, "current_evidence_fingerprint", None),
-        ]
-        try:
-            metadata = tracker.get_metadata(issue.identifier) or {}
-        except Exception:
-            return None
-        if isinstance(metadata, Mapping):
-            values.extend(
-                metadata.get(key)
-                for key in ("oompah.evidence_fingerprint", "evidence_fingerprint")
-            )
-        for value in values:
-            if isinstance(value, EvidenceFingerprint):
-                return value
-            if isinstance(value, Mapping):
-                digest = value.get("digest", value.get("sha256"))
-                if isinstance(digest, str) and len(digest) == 64:
-                    try:
-                        return _as_fingerprint(value)
-                    except (TypeError, ValueError):
-                        continue
-            if (
-                isinstance(value, str)
-                and len(value) == 64
-                and all(character in "0123456789abcdef" for character in value)
-            ):
-                return EvidenceFingerprint(value)
-        return None
 
     def _current_tasks(
         self, scopes: Iterable[tuple[str, TrackerProtocol]]
@@ -609,6 +588,77 @@ class TerminalAuditEnforcement:
                     continue
                 current.append((str(project_id), tracker, issue, fingerprint))
         return current, complete
+
+    @staticmethod
+    def _authoritative_recovery_fingerprint(
+        issue: Issue,
+        tracker: TrackerProtocol,
+        *,
+        project_id: str,
+    ) -> EvidenceFingerprint | None:
+        """Return current revision evidence only when the tracker persists it.
+
+        Some adapters can reconstruct the complete terminal evidence from the
+        freshly read issue, while older adapters expose only descriptive task
+        fields.  Recomputing a digest from that incomplete projection would
+        make every richer persisted audit look stale after restart.  Prefer an
+        explicit adapter fingerprint; otherwise derive one only when an
+        immutable source revision is present (including native Markdown's
+        persisted integration head).
+        """
+
+        values: list[Any] = [
+            getattr(issue, "evidence_fingerprint", None),
+            getattr(issue, "current_evidence_fingerprint", None),
+        ]
+        try:
+            metadata = tracker.get_metadata(issue.identifier) or {}
+        except Exception:
+            metadata = {}
+        if isinstance(metadata, Mapping):
+            values.extend(
+                metadata.get(key)
+                for key in ("oompah.evidence_fingerprint", "evidence_fingerprint")
+            )
+        for value in values:
+            if isinstance(value, EvidenceFingerprint):
+                return value
+            if isinstance(value, Mapping):
+                digest = value.get("digest", value.get("sha256"))
+                if isinstance(digest, str) and len(digest) == 64:
+                    try:
+                        return _as_fingerprint(value)
+                    except (TypeError, ValueError):
+                        continue
+            if (
+                isinstance(value, str)
+                and len(value) == 64
+                and all(character in "0123456789abcdef" for character in value)
+            ):
+                return EvidenceFingerprint(value)
+
+        integration = getattr(issue, "integration", None)
+        source_revision = (
+            getattr(issue, "source_sha", None)
+            or getattr(integration, "head_sha", None)
+        )
+        if isinstance(source_revision, str) and source_revision.strip():
+            return compute_issue_evidence_fingerprint(issue, project_id)
+
+        source_branch = (
+            getattr(issue, "source_branch", None)
+            or getattr(issue, "work_branch", None)
+            or getattr(integration, "task_branch", None)
+            or getattr(issue, "branch_name", None)
+        )
+        if isinstance(source_branch, str) and source_branch.strip():
+            # A branch without its immutable revision proves that this issue
+            # projection cannot reproduce the persisted terminal evidence.
+            # Retain the durable request rather than manufacturing a mismatch.
+            return None
+        # Branchless trackers can still provide a complete task-content-only
+        # fingerprint, so description revisions remain authoritative there.
+        return compute_issue_evidence_fingerprint(issue, project_id)
 
     def _is_terminal(self, state: str) -> bool:
         wanted = {status_key(value) for value in self.terminal_states}
@@ -739,9 +789,10 @@ class TerminalAuditEnforcement:
         self._recovery_scan_error_count = 0
         for project_id, tracker in scope_list:
             try:
+                all_issues = self._all_issues(tracker)
                 issues = [
                     issue
-                    for issue in self._all_issues(tracker)
+                    for issue in all_issues
                     if status_key(getattr(issue, "state", "")) == status_key(IN_VALIDATION)
                 ]
             except Exception as exc:
@@ -752,8 +803,22 @@ class TerminalAuditEnforcement:
             store = TerminalAuditMetadataStore(
                 tracker, self.project_store, str(project_id)
             )
+            # Recover the durable terminal mutations before rebuilding the
+            # queue projection.  An override intent is authoritative even
+            # while the task is still In Validation: the process may have
+            # died between persisting the intent and writing its status.
+            with self.project_store.project_write_lock(str(project_id)):
+                for issue in all_issues:
+                    self._recover_terminal_override(
+                        store, tracker, issue, str(project_id)
+                    )
+                    self._recover_terminal_result(store, tracker, issue, str(project_id))
             for issue in issues:
-                current_fingerprint = self._explicit_evidence_fingerprint(issue, tracker)
+                current_fingerprint = self._authoritative_recovery_fingerprint(
+                    issue,
+                    tracker,
+                    project_id=str(project_id),
+                )
                 try:
                     document = store.read(str(issue.identifier))
                 except TerminalAuditMetadataQuarantinedError:
@@ -771,6 +836,23 @@ class TerminalAuditEnforcement:
                     self._recovery_scan_complete = False
                     self._recovery_scan_error_count += 1
                     continue
+                # An unapplied owner intent fences the audit chain until its
+                # authorized terminal mutation is either completed or
+                # explicitly repaired.  Do not dispatch a sibling while a
+                # failed/restarted override is still waiting for its status
+                # write.
+                raw_overrides = document.unknown_fields.get(
+                    TERMINAL_OVERRIDE_RECORDS_KEY, []
+                )
+                if any(
+                    isinstance(raw, Mapping)
+                    and raw.get("applied", True) is False
+                    and raw.get("project_id") == str(project_id)
+                    and raw.get("task_id") == str(issue.identifier)
+                    for raw in raw_overrides
+                    if isinstance(raw, Mapping)
+                ):
+                    continue
                 for record in document.pending_chain:
                     if record.project_id != str(project_id) or record.task_id != str(issue.identifier):
                         self._error(f"metadata_identity_mismatch:{project_id}:{issue.identifier}")
@@ -781,9 +863,8 @@ class TerminalAuditEnforcement:
                         current_fingerprint is not None
                         and record.evidence_fingerprint != current_fingerprint
                     ):
-                        # A tracker-supplied current revision supersedes this
-                        # request even if a crashed writer did not yet mark
-                        # the old chain record SUPERSEDED.
+                        # The current native revision supersedes this request
+                        # even if a crashed writer did not mark it SUPERSEDED.
                         continue
                     if record.request_state in PENDING_REQUEST_STATES:
                         recovered.append(PendingAudit.from_record(record))
@@ -796,6 +877,524 @@ class TerminalAuditEnforcement:
         if persist:
             self._persist(self._load_root_state())
         return list(self.pending_audits)
+
+    def _recover_terminal_override(
+        self,
+        store: TerminalAuditMetadataStore,
+        tracker: TrackerProtocol,
+        issue: Issue,
+        project_id: str,
+    ) -> None:
+        """Apply and complete an owner retirement interrupted at any boundary.
+
+        The override record is written before the tracker mutation.  Recovery
+        therefore owns both sides of that hand-off: it retries the terminal
+        status while the issue is still In Validation, then retires the live
+        audit chain and any older result intents from the current metadata
+        document.  If the tracker write succeeded but metadata finalization
+        failed, the status is already at (or beyond) the requested target and
+        only the durable retirement step is needed.
+
+        An override's evidence fingerprint must match the current canonical
+        task evidence to be applicable.  If multiple unapplied overrides
+        exist, validated timestamp plus persisted override ID selects one
+        deterministically and every other candidate is retired.
+        """
+
+        identifier = str(issue.identifier)
+        current_fingerprint = compute_issue_evidence_fingerprint(
+            issue,
+            project_id,
+        )
+        try:
+            document = store.read(identifier)
+        except Exception:
+            return
+        if document.is_quarantined:
+            return
+        raw_overrides = document.unknown_fields.get(TERMINAL_OVERRIDE_RECORDS_KEY, [])
+        if not isinstance(raw_overrides, list):
+            return
+
+        valid_candidates: list[tuple[Mapping[str, Any], OverrideRecord]] = []
+        retire_reasons: dict[str, str] = {}
+        for raw in raw_overrides:
+            if not isinstance(raw, Mapping) or raw.get("applied", True):
+                continue
+            if raw.get("project_id") != project_id or raw.get("task_id") != identifier:
+                continue
+            override_id = raw.get("override_id")
+            if not isinstance(override_id, str) or not override_id:
+                continue
+            try:
+                override = OverrideRecord.from_dict(raw)
+            except (TypeError, ValueError):
+                retire_reasons[override_id] = "invalid_override_record"
+                continue
+            if override.evidence_fingerprint != current_fingerprint:
+                retire_reasons[override.override_id] = "evidence_mismatch"
+                continue
+            valid_candidates.append((raw, override))
+
+        selected: tuple[Mapping[str, Any], OverrideRecord] | None = None
+        if valid_candidates:
+            selected = max(
+                valid_candidates,
+                key=lambda candidate: _authority_key(
+                    candidate[0].get("created_at"),
+                    (candidate[1].override_id,),
+                ),
+            )
+            selected_id = selected[1].override_id
+            for _raw, override in valid_candidates:
+                if override.override_id != selected_id:
+                    retire_reasons[override.override_id] = (
+                        "superseded_by_newer_override"
+                    )
+
+        # Invalid, stale, and superseded rows never receive status authority.
+        if not valid_candidates:
+            if retire_reasons:
+                self._retire_terminal_overrides(
+                    store,
+                    identifier,
+                    project_id,
+                    retire_reasons,
+                )
+            return
+        assert selected is not None
+        _target_raw, target_override = selected
+        target_authority = _authority_key(
+            _target_raw.get("created_at"),
+            (target_override.override_id,),
+        )
+        target_state = target_override.target_state.value
+        target_status = _target_state_status(target_state)
+        assert target_status is not None
+
+        current_status = str(getattr(issue, "state", "") or "")
+        current_rank = _TERMINAL_STATUS_RANK.get(status_key(current_status), 0)
+        target_rank = _TERMINAL_STATUS_RANK.get(status_key(target_status), 0)
+        if (
+            status_key(current_status) != status_key(target_status)
+            and not (current_rank and target_rank and current_rank >= target_rank)
+        ):
+            try:
+                # TERMINAL-AUDIT-ALLOW OOMPAH-483: this status is authorized
+                # by the already persisted owner override evidence.
+                tracker.update_issue(identifier, status=target_status)
+            except Exception:
+                logger.warning(
+                    "terminal-audit override recovery status write failed for %s/%s",
+                    project_id,
+                    issue.identifier,
+                    exc_info=True,
+                )
+                if retire_reasons:
+                    self._retire_terminal_overrides(
+                        store,
+                        identifier,
+                        project_id,
+                        retire_reasons,
+                    )
+                return
+        now = datetime.now(timezone.utc).isoformat()
+
+        def _finalize(document):
+            unknown = dict(document.unknown_fields)
+            current_overrides = unknown.get(TERMINAL_OVERRIDE_RECORDS_KEY, [])
+            overrides: list[dict[str, Any]] = []
+            for raw in current_overrides if isinstance(current_overrides, list) else []:
+                if not isinstance(raw, Mapping):
+                    continue
+                item = dict(raw)
+                if item.get("applied", True) is not False:
+                    overrides.append(item)
+                    continue
+                if (
+                    item.get("project_id") != project_id
+                    or item.get("task_id") != identifier
+                ):
+                    overrides.append(item)
+                    continue
+                try:
+                    current_override = OverrideRecord.from_dict(item)
+                except (TypeError, ValueError):
+                    item["applied"] = True
+                    item["retired_at"] = now
+                    item["retired_reason"] = "invalid_override_record"
+                    overrides.append(item)
+                    continue
+
+                if current_override.evidence_fingerprint != current_fingerprint:
+                    item["applied"] = True
+                    item["retired_at"] = now
+                    item["retired_reason"] = "evidence_mismatch"
+                elif current_override == target_override:
+                    item["applied"] = True
+                    item["applied_at"] = now
+                elif (
+                    _authority_key(
+                        item.get("created_at"),
+                        (current_override.override_id,),
+                    )
+                    <= target_authority
+                ):
+                    # Re-read classification is intentional.  An override can
+                    # be appended after selection and the tracker status write
+                    # but before this metadata update acquires its lock.  Only
+                    # a strictly newer valid authority may remain actionable.
+                    item["applied"] = True
+                    item["retired_at"] = now
+                    item["retired_reason"] = "superseded_by_newer_override"
+                overrides.append(item)
+            unknown[TERMINAL_OVERRIDE_RECORDS_KEY] = overrides
+
+            live_ids = [
+                record.audit_id
+                for record in document.pending_chain
+                if record.request_state in PENDING_REQUEST_STATES
+            ]
+            chain = [
+                replace(record, request_state=RequestState.CANCELLED, updated_at=now)
+                if record.audit_id in live_ids
+                else record
+                for record in document.pending_chain
+            ]
+            retirements = [
+                dict(row)
+                for row in (unknown.get(TERMINAL_RETIREMENTS_KEY) or [])
+                if isinstance(row, Mapping)
+            ]
+            identity = {
+                "project_id": project_id,
+                "task_id": identifier,
+                "target_state": target_state,
+                "evidence_fingerprint": str(current_fingerprint.digest),
+            }
+            matching = next(
+                (
+                    row
+                    for row in retirements
+                    if all(row.get(key) == value for key, value in identity.items())
+                ),
+                None,
+            )
+            if matching is None:
+                retirements.append(
+                    {
+                        **identity,
+                        "audit_ids": live_ids,
+                        "kind": "override",
+                        "applied": True,
+                        "retired_at": now,
+                    }
+                )
+            else:
+                matching["applied"] = True
+                matching["kind"] = "override"
+                matching["audit_ids"] = list(
+                    dict.fromkeys(
+                        [
+                            *(
+                                matching.get("audit_ids", [])
+                                if isinstance(matching.get("audit_ids"), list)
+                                else []
+                            ),
+                            *live_ids,
+                        ]
+                    )
+                )
+            # An owner override supersedes any result whose tracker status
+            # acknowledgement was interrupted.  Otherwise restart recovery
+            # could replay an older PASS after the override wins.
+            intents = unknown.get(TERMINAL_RESULT_INTENTS_KEY, [])
+            if isinstance(intents, list):
+                unknown[TERMINAL_RESULT_INTENTS_KEY] = [
+                    {
+                        **dict(raw),
+                        "applied": True,
+                        "retired_by_override": True,
+                    }
+                    for raw in intents
+                    if isinstance(raw, Mapping)
+                ]
+            unknown[TERMINAL_RETIREMENTS_KEY] = retirements
+            return replace(document, pending_chain=chain, unknown_fields=unknown)
+
+        try:
+            store.update(identifier, _finalize)
+        except Exception:
+            logger.warning(
+                "terminal-audit override recovery failed for %s/%s",
+                project_id,
+                issue.identifier,
+                exc_info=True,
+            )
+
+    @staticmethod
+    def _retire_terminal_overrides(
+        store: TerminalAuditMetadataStore,
+        identifier: str,
+        project_id: str,
+        retire_reasons: Mapping[str, str],
+    ) -> None:
+        """Retire override rows that cannot receive status authority."""
+        now = datetime.now(timezone.utc).isoformat()
+
+        def _finalize(document):
+            unknown = dict(document.unknown_fields)
+            current_overrides = unknown.get(TERMINAL_OVERRIDE_RECORDS_KEY, [])
+            overrides = []
+            for raw in current_overrides if isinstance(current_overrides, list) else []:
+                if not isinstance(raw, Mapping):
+                    continue
+                item = dict(raw)
+                override_id = item.get("override_id")
+                if override_id in retire_reasons:
+                    item["applied"] = True
+                    item["retired_at"] = now
+                    item["retired_reason"] = retire_reasons[override_id]
+                overrides.append(item)
+            unknown[TERMINAL_OVERRIDE_RECORDS_KEY] = overrides
+            return replace(document, unknown_fields=unknown)
+
+        try:
+            store.update(identifier, _finalize)
+        except Exception:
+            logger.warning(
+                "terminal-audit override retirement failed for %s/%s",
+                project_id,
+                identifier,
+                exc_info=True,
+            )
+
+    def _recover_terminal_result(
+        self,
+        store: TerminalAuditMetadataStore,
+        tracker: TrackerProtocol,
+        issue: Issue,
+        project_id: str,
+    ) -> None:
+        """Finish a result whose metadata commit preceded its status write.
+
+        Tracker status and audit metadata are separate stores.  Result
+        application records an unapplied intent before calling
+        ``update_issue``; this recovery path owns the other half of that
+        protocol and is deliberately serialized with coordinator mutations by
+        the project lock.
+        """
+
+        identifier = str(issue.identifier)
+        with self.project_store.project_write_lock(project_id):
+            try:
+                document = store.read(identifier)
+            except Exception:
+                return
+            if document.is_quarantined:
+                return
+            raw_overrides = document.unknown_fields.get(TERMINAL_OVERRIDE_RECORDS_KEY, [])
+            if any(
+                isinstance(raw, Mapping)
+                and raw.get("applied", True) is False
+                and raw.get("project_id") == project_id
+                and raw.get("task_id") == identifier
+                for raw in raw_overrides
+                if isinstance(raw, Mapping)
+            ):
+                # An owner override intent is the stronger authority.  Its
+                # recovery pass will either finalize it or leave it visible
+                # for a later scan; do not replay an older audit underneath it.
+                return
+            raw_intents = document.unknown_fields.get(TERMINAL_RESULT_INTENTS_KEY, [])
+            if not isinstance(raw_intents, list):
+                return
+
+            current_status = str(getattr(issue, "state", "") or "")
+            current_fingerprint = compute_issue_evidence_fingerprint(
+                issue,
+                project_id,
+            )
+            retire_keys: dict[tuple[str, str], str] = {}
+            candidates: list[tuple[Mapping[str, Any], TerminalAuditRecord, str]] = []
+
+            for raw_intent in raw_intents:
+                if not isinstance(raw_intent, Mapping) or raw_intent.get("applied", True):
+                    continue
+                if (
+                    raw_intent.get("project_id") != project_id
+                    or raw_intent.get("task_id") != identifier
+                ):
+                    continue
+                audit_id = raw_intent.get("audit_id")
+                attempt_id = raw_intent.get("attempt_id")
+                desired_status = raw_intent.get("status")
+                identity = (audit_id, attempt_id)
+                if not all(
+                    isinstance(value, str) and value.strip()
+                    for value in (audit_id, attempt_id, desired_status)
+                ):
+                    continue
+
+                record = next(
+                    (item for item in document.pending_chain if item.audit_id == audit_id),
+                    None,
+                )
+                stale_reason: str | None = None
+                target_state = _target_state_status(raw_intent.get("target_state"))
+                intent_fingerprint: EvidenceFingerprint | None = None
+                try:
+                    intent_fingerprint = _as_fingerprint(
+                        raw_intent.get("evidence_fingerprint")
+                    )
+                except (TypeError, ValueError):
+                    stale_reason = "invalid_evidence_fingerprint"
+
+                if record is None:
+                    stale_reason = stale_reason or "missing_audit_record"
+                elif record.project_id != project_id or record.task_id != identifier:
+                    stale_reason = stale_reason or "audit_identity_mismatch"
+                elif target_state is None or status_key(target_state) != status_key(
+                    record.target_state.value
+                ):
+                    stale_reason = stale_reason or "target_mismatch"
+                elif (
+                    intent_fingerprint is None
+                    or intent_fingerprint != record.evidence_fingerprint
+                ):
+                    stale_reason = stale_reason or "audit_evidence_mismatch"
+                elif current_fingerprint != record.evidence_fingerprint:
+                    # The task was revised after the result was persisted.
+                    # Never replay a terminal status for an obsolete revision.
+                    stale_reason = "current_evidence_mismatch"
+                elif record.request_state in (
+                    RequestState.SUPERSEDED,
+                    RequestState.CANCELLED,
+                ):
+                    stale_reason = "audit_record_retired"
+                elif record.request_state != RequestState.COMPLETED:
+                    # The result intent may be ahead of the record write.  It
+                    # is not stale, but it is not replayable until completion
+                    # is visible in the same durable document.
+                    continue
+
+                if stale_reason is not None:
+                    retire_keys[identity] = stale_reason
+                    continue
+                assert record is not None
+                candidates.append((raw_intent, record, desired_status))
+
+            # The newest valid intent is the only result allowed to acquire
+            # tracker-status authority.  Equal/malformed timestamps use the
+            # stable audit/attempt identity, never ledger list position.
+            selected: tuple[Mapping[str, Any], TerminalAuditRecord, str] | None = None
+            if candidates:
+                selected = max(
+                    candidates,
+                    key=lambda candidate: _authority_key(
+                        candidate[0].get("created_at"),
+                        (
+                            str(candidate[0]["audit_id"]),
+                            str(candidate[0]["attempt_id"]),
+                        ),
+                    ),
+                )
+
+            if selected is not None:
+                selected_intent, _selected_record, desired_status = selected
+                selected_key = (
+                    str(selected_intent["audit_id"]),
+                    str(selected_intent["attempt_id"]),
+                )
+                for raw_intent, _record, _status in candidates:
+                    if (
+                        str(raw_intent["audit_id"]),
+                        str(raw_intent["attempt_id"]),
+                    ) != selected_key:
+                        retire_keys[(str(raw_intent["audit_id"]), str(raw_intent["attempt_id"]))] = (
+                            "superseded_by_newer_intent"
+                        )
+                if status_key(current_status) != status_key(desired_status):
+                    current_rank = _TERMINAL_STATUS_RANK.get(status_key(current_status), 0)
+                    desired_rank = _TERMINAL_STATUS_RANK.get(status_key(desired_status), 0)
+                    if not (
+                        current_rank
+                        and desired_rank
+                        and current_rank >= desired_rank
+                    ):
+                        try:
+                            # TERMINAL-AUDIT-ALLOW OOMPAH-483: replay only a
+                            # current, completed terminal-audit decision.
+                            tracker.update_issue(identifier, status=desired_status)
+                        except Exception:
+                            logger.warning(
+                                "terminal-audit result recovery status write failed for %s/%s",
+                                project_id,
+                                identifier,
+                                exc_info=True,
+                            )
+                            # Retire independently proven stale/superseded
+                            # intents even when the selected status write is
+                            # temporarily unavailable.
+                            if retire_keys:
+                                self._retire_result_intents(
+                                    store, identifier, project_id, retire_keys
+                                )
+                            return
+                    else:
+                        retire_keys[selected_key] = "status_already_advanced"
+                retire_keys[selected_key] = retire_keys.get(
+                    selected_key, "recovered_current_intent"
+                )
+
+            if not retire_keys:
+                return
+            self._retire_result_intents(store, identifier, project_id, retire_keys)
+
+    @staticmethod
+    def _retire_result_intents(
+        store: TerminalAuditMetadataStore,
+        identifier: str,
+        project_id: str,
+        retire_keys: Mapping[tuple[str, str], str],
+    ) -> None:
+        """Mark stale or replayed result intents retired from current metadata."""
+
+        now = datetime.now(timezone.utc).isoformat()
+
+        def _finalize(current):
+            unknown = dict(current.unknown_fields)
+            current_intents = unknown.get(TERMINAL_RESULT_INTENTS_KEY, [])
+            if isinstance(current_intents, list):
+                updated_intents = []
+                for raw in current_intents:
+                    if not isinstance(raw, Mapping):
+                        continue
+                    item = dict(raw)
+                    key = (item.get("audit_id"), item.get("attempt_id"))
+                    if (
+                        item.get("project_id") == project_id
+                        and item.get("task_id") == identifier
+                        and key in retire_keys
+                    ):
+                        item["applied"] = True
+                        item["retired_at"] = now
+                        item["retired_reason"] = retire_keys[key]
+                        if retire_keys[key] != "recovered_current_intent":
+                            item["retired_by_recovery"] = True
+                    updated_intents.append(item)
+                unknown[TERMINAL_RESULT_INTENTS_KEY] = updated_intents
+            return replace(current, unknown_fields=unknown)
+
+        try:
+            store.update(identifier, _finalize)
+        except Exception:
+            logger.warning(
+                "terminal-audit result recovery finalization failed for %s/%s",
+                project_id,
+                identifier,
+                exc_info=True,
+            )
 
     def initialize(
         self, scopes: Iterable[tuple[str, TrackerProtocol]]
@@ -873,11 +1472,7 @@ class TerminalAuditEnforcement:
             if fingerprint is not None
             else _as_fingerprint(getattr(issue, "evidence_fingerprint"))
             if getattr(issue, "evidence_fingerprint", None) is not None
-            else compute_evidence_fingerprint(
-                requirements_text=str(getattr(issue, "description", None) or ""),
-                project_id=str(project_id),
-                task_id=str(issue.identifier),
-            )
+            else compute_issue_evidence_fingerprint(issue, str(project_id))
         )
         key = _task_key(project_id, str(issue.identifier))
         return any(

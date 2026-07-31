@@ -169,6 +169,9 @@ class _MetricsRecorder:
     def record_overridden(self, *args: Any, **_kwargs: Any) -> None:
         self.calls.append(("overridden", args))
 
+    def clear_actionable_alert(self, *args: Any, **_kwargs: Any) -> None:
+        self.calls.append(("clear_actionable_alert", args))
+
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -784,6 +787,63 @@ class TestOwnerOverrides:
         stored = TerminalAuditMetadataStore(tracker, _LockStore(), PROJECT_ID).read(TASK_ID)
         assert stored.pending_chain[0].request_state == RequestState.CANCELLED
         assert ("overridden", (PROJECT_ID, TASK_ID, record.audit_id)) in metrics.calls
+
+    def test_override_retires_all_duplicate_rows_and_replays_idempotently(self) -> None:
+        tracker = _MemoryTracker()
+        metrics = _MetricsRecorder()
+        fingerprint = _fingerprint()
+        first = _pending_record(audit_id="audit-override-1", fingerprint=fingerprint)
+        second = _pending_record(audit_id="audit-override-2", fingerprint=fingerprint)
+        _seed_metadata(tracker, [first, second])
+        coordinator = _coordinator(tracker, post_comments=False, metrics=metrics)
+        owner = ContributorIdentity("project-owner", "github")
+        project = SimpleNamespace(
+            tracker_owner="project-owner",
+            status_actor_login=None,
+            status_label_authorized_logins=["project-owner"],
+        )
+
+        result = _run(
+            coordinator.override_transition(
+                _issue(IN_VALIDATION),
+                TargetState.DONE,
+                owner,
+                PROJECT_ID,
+                fingerprint,
+                "Owner approved this transition.",
+                project,
+            )
+        )
+
+        assert result.success is True
+        assert result.overridden_audit_ids == [first.audit_id, second.audit_id]
+        assert set(result.retired_alert_audit_ids) == {first.audit_id, second.audit_id}
+        stored = TerminalAuditMetadataStore(tracker, _LockStore(), PROJECT_ID).read(TASK_ID)
+        assert [record.request_state for record in stored.pending_chain] == [
+            RequestState.CANCELLED,
+            RequestState.CANCELLED,
+        ]
+        raw_override = stored.unknown_fields["oompah.terminal_override_records"][0]
+        assert raw_override["applied"] is True
+        retirement = stored.unknown_fields["oompah.terminal_audit_retirements"][0]
+        assert retirement["evidence_fingerprint"] == fingerprint.digest
+        assert set(retirement["audit_ids"]) == {first.audit_id, second.audit_id}
+
+        replay = _run(
+            coordinator.override_transition(
+                _issue(DONE),
+                TargetState.DONE,
+                owner,
+                PROJECT_ID,
+                fingerprint,
+                "Owner approved this transition.",
+                project,
+            )
+        )
+        assert replay.success is True
+        assert replay.idempotent is True
+        assert replay.override_id == result.override_id
+        assert len(tracker.update_calls) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -1667,6 +1727,68 @@ class TestApplyPassChainedTargets:
         assert doc.pending_chain[0].request_state == RequestState.COMPLETED
         assert doc.pending_chain[1].request_state == RequestState.PENDING
 
+    def test_pass_cancels_sibling_audits_with_same_fingerprint(self) -> None:
+        """When a PASS is recorded, sibling audits with the same fingerprint/target are superseded.
+
+        This prevents duplicate audits for the same evidence fingerprint
+        (OOMPAH-653: duplicate audit race condition).
+        """
+        tracker = _MemoryTracker()
+        fp = _fingerprint()
+
+        # Create two PENDING records with the same target and fingerprint
+        # (simulating a race condition where two audits for the same fingerprint exist)
+        sibling1 = _pending_record(audit_id="audit-sibling-1", fingerprint=fp)
+        sibling2 = _pending_record(audit_id="audit-sibling-2", fingerprint=fp)
+
+        issue = _seed_and_validation(tracker, [sibling1, sibling2])
+        coord = _coordinator(tracker)
+
+        # Apply a PASS to the first sibling
+        outcome = _apply(coord, issue, _pass_result(sibling1))
+
+        assert outcome.success is True
+        assert outcome.cancelled_audit_ids == ["audit-sibling-2"]
+
+        # Verify both records are in the chain
+        store = TerminalAuditMetadataStore(tracker, _LockStore(), PROJECT_ID)
+        doc = store.read(TASK_ID)
+        assert len(doc.pending_chain) == 2
+
+        # First sibling should be COMPLETED
+        assert doc.pending_chain[0].audit_id == "audit-sibling-1"
+        assert doc.pending_chain[0].request_state == RequestState.COMPLETED
+
+        # Second sibling should be SUPERSEDED (cancelled)
+        assert doc.pending_chain[1].audit_id == "audit-sibling-2"
+        assert doc.pending_chain[1].request_state == RequestState.SUPERSEDED
+
+    def test_stale_request_rejected_after_pass_completion(self) -> None:
+        """After PASS is recorded, new requests with the same fingerprint are rejected.
+
+        This prevents reconciliation from creating a second audit for the same
+        evidence fingerprint after the first one has passed (OOMPAH-648).
+        """
+        tracker = _MemoryTracker()
+        fp = _fingerprint()
+        record = _pending_record(audit_id="audit-1", fingerprint=fp)
+
+        issue = _seed_and_validation(tracker, [record])
+        coord = _coordinator(tracker)
+
+        # First request passes
+        outcome1 = _apply(coord, issue, _pass_result(record))
+        assert outcome1.success is True
+        assert outcome1.applied_status == DONE
+
+        # Second request with the same fingerprint should be rejected as stale
+        second_result = _run(coord.request_transition(
+            _issue(DONE), TargetState.DONE, _trigger(), PROJECT_ID, fp
+        ))
+
+        assert second_result.success is False
+        assert second_result.reason == "already completed"
+
 
 # ---------------------------------------------------------------------------
 # TestApplyFailRouting
@@ -2139,6 +2261,10 @@ class TestApplyCommentAndStatusFailures:
         store = TerminalAuditMetadataStore(tracker, _LockStore(), PROJECT_ID)
         doc = store.read(TASK_ID)
         assert doc.pending_chain[0].request_state == RequestState.COMPLETED
+        intents = doc.unknown_fields["oompah.terminal_audit_result_intents"]
+        assert intents[0]["audit_id"] == record.audit_id
+        assert intents[0]["status"] == DONE
+        assert intents[0]["applied"] is False
 
 
 # ---------------------------------------------------------------------------
@@ -2215,3 +2341,215 @@ class TestApplyNoFailOpenPaths:
         assert outcome.success is False
         assert outcome.reason == ResultRejection.NEEDS_HUMAN_NOT_ACTIONABLE
         assert tracker.current_status(TASK_ID) is None
+
+
+# ---------------------------------------------------------------------------
+# TestApplyBarriersAgainstSecondaryLanes — OOMPAH-653/654 deterministic tests
+# ---------------------------------------------------------------------------
+
+
+def _no_auditor_result(record: TerminalAuditRecord, **overrides) -> AuditResult:
+    """The exact FAIL/NO_AUDITOR payload produced by ``_route_no_auditor``."""
+    defaults: dict[str, Any] = {
+        "audit_id": record.audit_id,
+        "target_state": record.target_state,
+        "evidence_fingerprint": record.evidence_fingerprint,
+        "verdict": Verdict.FAIL,
+        "failure_classification": FailureClassification.NO_AUDITOR,
+        "message": (
+            "No independent auditor candidate is available for this audit "
+            "(exhausted). Configure the `auditor` role with at least one "
+            "healthy provider/model that is independent of the task contributors, "
+            "then move the task back to Open to retry."
+        ),
+        "attempt_id": f"no-auditor-{record.audit_id}",
+    }
+    defaults.update(overrides)
+    return AuditResult(**defaults)
+
+
+class TestApplyBarriersAgainstSecondaryLanes:
+    """Deterministic barriers protecting a completed PASS/override from
+    concurrent no-candidate routing and from duplicate-identity relaunches.
+
+    These tests reproduce the OOMPAH-648, OOMPAH-644, and OOMPAH-654
+    live regressions and prove that the durable applied-fingerprint fence
+    consumes every equivalent queued identity while retiring associated
+    actionable alerts.
+    """
+
+    def test_no_candidate_route_rejected_after_pass_persisted(self) -> None:
+        """A no-candidate route arriving after PASS must be rejected as stale.
+
+        The dispatch lane's exhaustion path (``_route_no_auditor``) submits a
+        ``FAIL/NO_AUDITOR`` result through the coordinator. When PASS has
+        already completed the record, the coordinator must reject the late
+        no-candidate call — otherwise OOMPAH-648 moves the completed task
+        to Needs Human.
+        """
+        tracker = _MemoryTracker()
+        record = _pending_record(target=TargetState.DONE)
+        issue = _seed_and_validation(tracker, [record])
+        coord = _coordinator(tracker)
+
+        pass_outcome = _apply(coord, issue, _pass_result(record))
+        assert pass_outcome.success is True
+        assert pass_outcome.applied_status == DONE
+        status_writes_after_pass = len(tracker.update_calls)
+        comments_after_pass = len(tracker.comment_calls)
+
+        # The dispatch lane exhausts and calls into the coordinator with the
+        # exact NO_AUDITOR payload after the PASS is already durable.  This
+        # is what OOMPAH-648 exhibited.
+        late_route = _apply(coord, issue, _no_auditor_result(record))
+        assert late_route.success is False
+        assert late_route.reason == ResultRejection.STATE_MISMATCH
+        # The completed record must remain completed, no re-routing happens.
+        store = TerminalAuditMetadataStore(tracker, _LockStore(), PROJECT_ID)
+        doc = store.read(TASK_ID)
+        assert doc.pending_chain[0].request_state == RequestState.COMPLETED
+        # No additional tracker mutations from the late route.
+        assert len(tracker.update_calls) == status_writes_after_pass
+        assert len(tracker.comment_calls) == comments_after_pass
+
+    def test_no_candidate_route_rejected_after_override_retirement(self) -> None:
+        """A no-candidate route arriving after an override must be rejected.
+
+        Reproduces OOMPAH-644: an owner override succeeds while a stale
+        no-candidate routing is queued behind it. The retired audit id
+        must not be able to reach a FAIL/Needs Human status.
+        """
+        tracker = _MemoryTracker()
+        metrics = _MetricsRecorder()
+        record = _pending_record(target=TargetState.DONE)
+        _seed_metadata(tracker, [record])
+        coord = _coordinator(tracker, post_comments=False, metrics=metrics)
+        owner = ContributorIdentity("project-owner", "github")
+        project = SimpleNamespace(
+            tracker_owner="project-owner",
+            status_actor_login=None,
+            status_label_authorized_logins=["project-owner"],
+        )
+
+        override_result = _run(
+            coord.override_transition(
+                _issue(IN_VALIDATION),
+                TargetState.DONE,
+                owner,
+                PROJECT_ID,
+                record.evidence_fingerprint,
+                "Owner-authorized override.",
+                project,
+            )
+        )
+        assert override_result.success is True
+        assert override_result.overridden_audit_ids == [record.audit_id]
+        updates_after_override = len(tracker.update_calls)
+        comments_after_override = len(tracker.comment_calls)
+
+        # The dispatch lane's exhaustion path arrives after the override.
+        issue_after_override = _issue(DONE)
+        late_route = _apply(coord, issue_after_override, _no_auditor_result(record))
+        assert late_route.success is False
+        # Rejected because the issue is no longer in Validation and the record
+        # is CANCELLED (not PENDING/IN_PROGRESS).
+        assert late_route.reason in (
+            ResultRejection.ISSUE_NOT_IN_VALIDATION,
+            ResultRejection.STATE_MISMATCH,
+        )
+        # Tracker status stayed at the overridden target; no extra writes.
+        assert tracker.current_status(TASK_ID) == DONE
+        assert len(tracker.update_calls) == updates_after_override
+        assert len(tracker.comment_calls) == comments_after_override
+
+    def test_one_pass_retires_every_equivalent_queued_identity(self) -> None:
+        """OOMPAH-654: one PASS must consume every equivalent queued identity.
+
+        Three PENDING records for the same target/fingerprint but distinct
+        audit ids. PASS on the first must retire the other two atomically
+        and leave nothing for the dispatch lane to launch — the fix that
+        prevents the ``running=1/pending=1`` health snapshot after a PASS.
+        """
+        from oompah.auditor_dispatch import AuditorDispatchLane
+
+        tracker = _MemoryTracker()
+        fp = _fingerprint()
+        rec_a = _pending_record(audit_id="audit-A", fingerprint=fp)
+        rec_b = _pending_record(audit_id="audit-B", fingerprint=fp)
+        rec_c = _pending_record(audit_id="audit-C", fingerprint=fp)
+
+        issue = _seed_and_validation(tracker, [rec_a, rec_b, rec_c])
+        coord = _coordinator(tracker)
+
+        outcome = _apply(coord, issue, _pass_result(rec_a))
+        assert outcome.success is True
+        assert outcome.applied_status == DONE
+        assert set(outcome.cancelled_audit_ids) == {"audit-B", "audit-C"}
+
+        store = TerminalAuditMetadataStore(tracker, _LockStore(), PROJECT_ID)
+        doc = store.read(TASK_ID)
+        states = {r.audit_id: r.request_state for r in doc.pending_chain}
+        assert states == {
+            "audit-A": RequestState.COMPLETED,
+            "audit-B": RequestState.SUPERSEDED,
+            "audit-C": RequestState.SUPERSEDED,
+        }
+
+        # Nothing remains for the dispatch lane to launch.
+        assert AuditorDispatchLane.pending_record(doc.pending_chain) is None
+
+        # The durable retirement row lists every equivalent identity so that
+        # a restart-time reconciliation can rebuild alert state exactly.
+        retirements = doc.unknown_fields["oompah.terminal_audit_retirements"]
+        assert retirements, "PASS must persist a retirement ledger row"
+        retirement = retirements[-1]
+        assert set(retirement["audit_ids"]) == {"audit-A", "audit-B", "audit-C"}
+        assert retirement.get("applied") is True
+
+    def test_repeated_pass_callbacks_are_idempotent_and_reclear_sibling_alerts(self) -> None:
+        """Repeated PASS callbacks must be idempotent and repeatedly clear
+        cancelled siblings' actionable alerts, so a callback replay after
+        restart re-runs alert cleanup from the durable retirement ledger.
+        """
+        tracker = _MemoryTracker()
+        metrics = _MetricsRecorder()
+        fp = _fingerprint()
+        sibling_a = _pending_record(audit_id="audit-A", fingerprint=fp)
+        sibling_b = _pending_record(audit_id="audit-B", fingerprint=fp)
+        issue = _seed_and_validation(tracker, [sibling_a, sibling_b])
+        coord = _coordinator(tracker, metrics=metrics)
+
+        first = _apply(coord, issue, _pass_result(sibling_a))
+        assert first.success is True
+        assert first.idempotent is False
+        assert first.cancelled_audit_ids == ["audit-B"]
+        # First-time cleanup recorded an actionable-alert clear for audit-B.
+        first_clear_calls = [
+            call for call in metrics.calls
+            if call[0] == "clear_actionable_alert" and call[1][2] == "audit-B"
+        ]
+        assert len(first_clear_calls) == 1
+
+        second = _apply(coord, issue, _pass_result(sibling_a))
+        assert second.success is True
+        assert second.idempotent is True
+        # A replay callback must still surface every retired identity from
+        # the durable retirement ledger so the alert-cleanup path (which is
+        # not stateful) can re-run after any crash between the first
+        # callback's persistence and its alert clear.  Deliberately includes
+        # the passed audit id: any stale alert for the passing audit gets
+        # cleared too on replay.
+        assert set(second.cancelled_audit_ids) == {"audit-A", "audit-B"}
+        second_clear_calls = [
+            call for call in metrics.calls
+            if call[0] == "clear_actionable_alert" and call[1][2] == "audit-B"
+        ]
+        assert len(second_clear_calls) == 2
+
+        # But the second callback must not repeat lifecycle counters (no
+        # duplicate stale_discarded on the same replay attempt).
+        stale_calls = [
+            call for call in metrics.calls
+            if call[0] == "stale_discarded" and call[1][2] == "audit-B"
+        ]
+        assert len(stale_calls) == 1

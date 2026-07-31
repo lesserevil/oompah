@@ -65,7 +65,7 @@ from oompah.statuses import canonicalize_status
 from oompah.terminal_audit import (
     ContributorIdentity,
     TargetState,
-    compute_evidence_fingerprint,
+    compute_issue_evidence_fingerprint,
 )
 
 logger = logging.getLogger(__name__)
@@ -395,26 +395,7 @@ def _target_for_task_status(status: str | None) -> TargetState | None:
 
 
 def _task_evidence_fingerprint(issue: Any, project_id: str) -> Any:
-    contributors = getattr(issue, "contributors", ()) or ()
-    if isinstance(contributors, str):
-        contributors = (contributors,)
-    return compute_evidence_fingerprint(
-        requirements_text=str(getattr(issue, "description", "") or ""),
-        project_id=project_id,
-        task_id=str(getattr(issue, "identifier", "") or getattr(issue, "id", "")),
-        source_branch=str(
-            getattr(issue, "source_branch", None)
-            or getattr(issue, "work_branch", None)
-            or getattr(issue, "branch_name", None)
-            or ""
-        ),
-        source_sha=str(getattr(issue, "source_sha", "") or ""),
-        target_branch=str(getattr(issue, "target_branch", "") or ""),
-        target_sha=str(getattr(issue, "target_sha", "") or ""),
-        review_id=str(getattr(issue, "review_number", "") or ""),
-        review_state=str(getattr(issue, "review_state", "") or ""),
-        contributors=contributors,
-    )
+    return compute_issue_evidence_fingerprint(issue, project_id)
 
 
 async def _stage_acp_terminal_status(

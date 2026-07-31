@@ -118,6 +118,15 @@ _QUEUED_COMMENT_KEY = "queued_comment_posted"
 _APPLIED_RESULTS_KEY = "applied_result_attempts"
 """Metadata key that records attempt IDs whose result has already been applied."""
 
+_TERMINAL_RETIREMENTS_KEY = "oompah.terminal_audit_retirements"
+"""Durable fingerprints for terminal decisions already applied to a task."""
+
+_TERMINAL_RESULT_INTENTS_KEY = "oompah.terminal_audit_result_intents"
+"""Durable status-write intents awaiting confirmation."""
+
+_OVERRIDE_RECORDS_KEY = "oompah.terminal_override_records"
+"""Metadata key containing the historical owner-override ledger."""
+
 _MAX_APPLIED_RESULTS_MEMORY = 200
 """Retained size of the applied-result attempt log inside metadata."""
 
@@ -222,8 +231,14 @@ class OverrideResult:
     posted_comment: bool = False
     """``True`` when the override explanation comment was posted."""
 
+    idempotent: bool = False
+    """``True`` when an already-applied identical override was replayed."""
+
     overridden_audit_ids: list[str] = field(default_factory=list)
     """Live audit records cancelled after this owner override."""
+
+    retired_alert_audit_ids: list[str] = field(default_factory=list)
+    """Historical identities whose actionable alerts were retired as well."""
 
     reason: str | None = None
     """Human-readable explanation when ``success`` is ``False``."""
@@ -271,6 +286,9 @@ class TransitionResult:
 
     superseded_audit_id: str | None = None
     """``audit_id`` of the prior record superseded by changed evidence, if any."""
+
+    cancelled_audit_ids: list[str] = field(default_factory=list)
+    """Live duplicate records retired while coalescing this request."""
 
     reason: str | None = None
     """Human-readable explanation when ``success`` is ``False``."""
@@ -376,6 +394,8 @@ class ResultOutcome:
     ``attempt_id`` had already been applied and the coordinator short-
     circuited without re-applying tracker state.  ``advanced_target`` is
     populated when a passing audit leaves further work pending in the chain.
+    ``cancelled_audit_ids`` contains any sibling audits cancelled due to
+    duplicate fingerprint detection.
     """
 
     success: bool
@@ -384,6 +404,7 @@ class ResultOutcome:
     posted_comment: bool = False
     idempotent: bool = False
     advanced_target: TargetState | None = None
+    cancelled_audit_ids: list[str] = field(default_factory=list)
     reason: str | None = None
 
 
@@ -400,6 +421,7 @@ class _Decision:
         "new_entries",
         "superseded_id",
         "already_posted",
+        "cancelled_audit_ids",
     )
 
     def __init__(self) -> None:
@@ -407,6 +429,7 @@ class _Decision:
         self.new_entries: list[TerminalAuditRecord] = []
         self.superseded_id: str | None = None
         self.already_posted: bool = False
+        self.cancelled_audit_ids: list[str] = []
 
 
 class _ResultDecision:
@@ -420,6 +443,7 @@ class _ResultDecision:
         "advanced_target",
         "applied_attempt",
         "keep_in_validation",
+        "cancelled_audit_ids",
     )
 
     def __init__(self) -> None:
@@ -430,6 +454,7 @@ class _ResultDecision:
         self.advanced_target: TargetState | None = None
         self.applied_attempt: bool = False
         self.keep_in_validation: bool = False
+        self.cancelled_audit_ids: list[str] = []
 
 
 # ---------------------------------------------------------------------------
@@ -466,6 +491,7 @@ class TerminalTransitionCoordinator:
         post_comments: bool = True,
         metrics: Any | None = None,
         revoke_delivery_authority: Callable[[str, str], None] | None = None,
+        clear_audit_alert: Callable[[str, str, str], None] | None = None,
     ) -> None:
         # The standalone API accepts one tracker, while the server passes a
         # project-aware factory because managed projects each have their own
@@ -483,6 +509,11 @@ class TerminalTransitionCoordinator:
         # this coordinator acquires terminal authority so no stale result can
         # later overwrite an owner-approved terminal decision.
         self._revoke_delivery_authority = revoke_delivery_authority
+        # This callback is intentionally optional for tracker-neutral users.
+        # The service wires it to its alert registry so retirement clears the
+        # in-memory dashboard identity while the durable metadata remains the
+        # source of truth across a restart.
+        self._clear_audit_alert = clear_audit_alert
 
     def _run_project_serialized(
         self,
@@ -499,6 +530,13 @@ class TerminalTransitionCoordinator:
 
         self._metrics = metrics
 
+    def set_alert_clearer(
+        self, callback: Callable[[str, str, str], None] | None
+    ) -> None:
+        """Attach the service alert-registry retirement callback."""
+
+        self._clear_audit_alert = callback
+
     def _record_metric(self, method: str, *args: Any, **kwargs: Any) -> None:
         sink = self._metrics
         callback = getattr(sink, method, None) if sink is not None else None
@@ -508,6 +546,28 @@ class TerminalTransitionCoordinator:
             callback(*args, **kwargs)
         except Exception:  # metrics must never change transition semantics
             logger.warning("terminal-audit metric %s failed", method, exc_info=True)
+
+    def _clear_retired_alert(
+        self, project_id: str, task_id: str, audit_id: str
+    ) -> None:
+        """Clear one retired audit from metrics and the live alert registry."""
+
+        self._record_metric(
+            "clear_actionable_alert", project_id, task_id, audit_id
+        )
+        callback = self._clear_audit_alert
+        if callback is None:
+            return
+        try:
+            callback(project_id, task_id, audit_id)
+        except Exception:
+            logger.warning(
+                "terminal-audit alert cleanup failed for %s/%s/%s",
+                project_id,
+                task_id,
+                audit_id,
+                exc_info=True,
+            )
 
     def _revoke_delivery_for_terminal_transition(
         self,
@@ -613,6 +673,16 @@ class TerminalTransitionCoordinator:
                         current_issue.identifier,
                         audit_id,
                     )
+            for cancelled_audit_id in outcome.cancelled_audit_ids:
+                self._record_metric(
+                    "record_stale_discarded",
+                    project_id,
+                    current_issue.identifier,
+                    cancelled_audit_id,
+                )
+                self._clear_retired_alert(
+                    project_id, current_issue.identifier, cancelled_audit_id
+                )
             return outcome
 
         return await asyncio.to_thread(
@@ -763,6 +833,27 @@ class TerminalTransitionCoordinator:
                         current_issue.identifier,
                         result.audit_id,
                     )
+                # Retire duplicate siblings while the project lock is still held.
+                # The outer API/ACP handlers also report these IDs for backwards
+                # compatibility, but correctness does not depend on them running.
+                for cancelled_audit_id in outcome.cancelled_audit_ids:
+                    self._record_metric(
+                        "record_stale_discarded",
+                        project_id,
+                        current_issue.identifier,
+                        cancelled_audit_id,
+                    )
+                    self._clear_retired_alert(
+                        project_id, current_issue.identifier, cancelled_audit_id
+                    )
+            elif outcome.success and outcome.idempotent:
+                # A replay may be the first callback after a restart. Recover
+                # sibling IDs from durable retirement metadata and clear their
+                # alerts even though no lifecycle counter should increment.
+                for cancelled_audit_id in outcome.cancelled_audit_ids:
+                    self._clear_retired_alert(
+                        project_id, current_issue.identifier, cancelled_audit_id
+                    )
             return outcome
 
         return await asyncio.to_thread(
@@ -856,7 +947,7 @@ class TerminalTransitionCoordinator:
                 reason,
                 project,
             )
-            if outcome.success:
+            if outcome.success and not outcome.idempotent:
                 for audit_id in outcome.overridden_audit_ids or [outcome.override_id]:
                     if audit_id:
                         self._record_metric(
@@ -865,6 +956,11 @@ class TerminalTransitionCoordinator:
                             current_issue.identifier,
                             audit_id,
                         )
+            if outcome.success:
+                for audit_id in outcome.retired_alert_audit_ids:
+                    self._clear_retired_alert(
+                        project_id, current_issue.identifier, audit_id
+                    )
             return outcome
 
         return await asyncio.to_thread(
@@ -905,13 +1001,48 @@ class TerminalTransitionCoordinator:
                     and record.request_state == RequestState.COMPLETED
                     and record.evidence_fingerprint == evidence_fingerprint
                 ):
+                    duplicate_ids = [
+                        existing.audit_id
+                        for existing in chain
+                        if (
+                            existing.audit_id != record.audit_id
+                            and existing.target_state == requested_target
+                            and existing.evidence_fingerprint == evidence_fingerprint
+                            and existing.request_state
+                            in (RequestState.PENDING, RequestState.IN_PROGRESS)
+                        )
+                    ]
+                    if duplicate_ids:
+                        now = _now_iso8601()
+                        chain = [
+                            replace(existing, request_state=RequestState.SUPERSEDED, updated_at=now)
+                            if existing.audit_id in duplicate_ids
+                            else existing
+                            for existing in chain
+                        ]
+                        decision.cancelled_audit_ids = duplicate_ids
                     decision.early_result = TransitionResult(
                         success=False,
                         audit_id=record.audit_id,
                         audit_ids=[],
+                        cancelled_audit_ids=duplicate_ids,
                         reason="already completed",
                     )
-                    return doc
+                    return replace(doc, pending_chain=chain) if duplicate_ids else doc
+
+            # Owner overrides have no completed audit row, so their durable
+            # retirement ledger is also a stale-request fence.  This is what
+            # prevents a native reconciliation pass after restart from
+            # recreating an audit for an already-applied fingerprint.
+            if _has_terminal_retirement(
+                doc, project_id, identifier, requested_target, evidence_fingerprint
+            ):
+                decision.early_result = TransitionResult(
+                    success=False,
+                    cancelled_audit_ids=[],
+                    reason="already completed",
+                )
+                return doc
 
             # --- Coalesce identical pending request ---
             for record in chain:
@@ -950,6 +1081,29 @@ class TerminalTransitionCoordinator:
                                 superseded_id = existing.audit_id
                             else:
                                 updated_chain.append(existing)
+                    # A malformed/recovered document can contain duplicate
+                    # live rows for one canonical fingerprint. Keep the first
+                    # row as the identity and retire every sibling atomically.
+                    duplicate_ids = [
+                        existing.audit_id
+                        for existing in updated_chain
+                        if (
+                            existing.audit_id != record.audit_id
+                            and existing.target_state == requested_target
+                            and existing.evidence_fingerprint == record.evidence_fingerprint
+                            and existing.request_state
+                            in (RequestState.PENDING, RequestState.IN_PROGRESS)
+                        )
+                    ]
+                    if duplicate_ids:
+                        now = _now_iso8601()
+                        updated_chain = [
+                            replace(existing, request_state=RequestState.SUPERSEDED, updated_at=now)
+                            if existing.audit_id in duplicate_ids
+                            else existing
+                            for existing in updated_chain
+                        ]
+                        decision.cancelled_audit_ids = duplicate_ids
                     decision.early_result = TransitionResult(
                         success=True,
                         audit_id=record.audit_id,
@@ -957,8 +1111,9 @@ class TerminalTransitionCoordinator:
                         queued_targets=[requested_target],
                         coalesced=True,
                         superseded_audit_id=superseded_id,
+                        cancelled_audit_ids=duplicate_ids,
                     )
-                    if superseded_id is None:
+                    if superseded_id is None and not duplicate_ids:
                         return doc
                     return replace(doc, pending_chain=updated_chain)
 
@@ -1157,6 +1312,9 @@ class TerminalTransitionCoordinator:
                             current_doc, result.audit_id
                         ),
                         idempotent=True,
+                        cancelled_audit_ids=_retired_audit_ids_for_result(
+                            current_doc, project_id, identifier, result
+                        ),
                     )
             return ResultOutcome(
                 success=False,
@@ -1189,6 +1347,9 @@ class TerminalTransitionCoordinator:
                     audit_id=result.audit_id,
                     applied_status=_last_applied_status(doc, result.audit_id),
                     idempotent=True,
+                    cancelled_audit_ids=_retired_audit_ids_for_result(
+                        doc, project_id, identifier, result
+                    ),
                 )
                 return doc
 
@@ -1325,6 +1486,30 @@ class TerminalTransitionCoordinator:
             )
             chain[target_index] = completed
 
+            # --- Cancel/supersede all sibling audits for the same target/fingerprint ---
+            # When an audit PASS is recorded, any other pending/in-progress audits for the
+            # same target state and evidence fingerprint must be cancelled to prevent
+            # duplicate dispatches. This closes the race where multiple audits for the
+            # same fingerprint exist in the chain and the second one gets dispatched
+            # after the first one passes.
+            target_record = record
+            siblings_to_cancel = [
+                idx for idx, r in enumerate(chain)
+                if (
+                    idx != target_index
+                    and r.target_state == target_record.target_state
+                    and r.evidence_fingerprint == target_record.evidence_fingerprint
+                    and r.request_state in (RequestState.PENDING, RequestState.IN_PROGRESS)
+                )
+            ]
+            for sibling_idx in siblings_to_cancel:
+                chain[sibling_idx] = replace(
+                    chain[sibling_idx],
+                    request_state=RequestState.SUPERSEDED,
+                    updated_at=now,
+                )
+            decision.cancelled_audit_ids = [chain[idx].audit_id for idx in siblings_to_cancel]
+
             # Detect the next pending target so we can report it to the
             # caller and — for a passing Done in a Done→Merged chain — keep
             # the task in In Validation while the auditor drives Merged.
@@ -1341,6 +1526,39 @@ class TerminalTransitionCoordinator:
             )
 
             new_unknown = _record_applied_attempt(doc, idempotency_key)
+            new_unknown = _record_terminal_retirement(
+                new_unknown,
+                project_id=project_id,
+                task_id=identifier,
+                target_state=result.target_state,
+                evidence_fingerprint=result.evidence_fingerprint,
+                audit_ids=[
+                    result.audit_id,
+                    *decision.cancelled_audit_ids,
+                ],
+                kind="result",
+            )
+            # Metadata and tracker status live in different persistence
+            # systems.  Record the status mutation as an intent before leaving
+            # the project lock so a crash (or a failed tracker write) cannot
+            # make the completed audit look as though its terminal status was
+            # applied.  Recovery consumes this intent and marks it applied
+            # only after the tracker accepts the status.
+            applied_status = (
+                IN_VALIDATION if action.kind == "pass" and next_pending is not None
+                else action.status
+            )
+            new_unknown = _record_terminal_result_intent(
+                new_unknown,
+                project_id=project_id,
+                task_id=identifier,
+                audit_id=result.audit_id,
+                target_state=result.target_state,
+                evidence_fingerprint=result.evidence_fingerprint,
+                attempt_id=idempotency_key,
+                status=applied_status,
+                audit_ids=[result.audit_id, *decision.cancelled_audit_ids],
+            )
             decision.target_status = action.status
             decision.comment_text = action.comment
             decision.audit_id = result.audit_id
@@ -1389,12 +1607,34 @@ class TerminalTransitionCoordinator:
             # TERMINAL-AUDIT-ALLOW OOMPAH-483: apply a validated, persisted
             # terminal-audit verdict (or its deterministic repair status).
             tracker.update_issue(identifier, status=applied_status)
+            status_applied = True
         except Exception:
+            status_applied = False
             logger.exception(
                 "Failed to apply audit-result status %r for %s",
                 applied_status,
                 identifier,
             )
+
+        if status_applied:
+            try:
+                def _finalize_result_intent(doc: TerminalAuditMetadata) -> TerminalAuditMetadata:
+                    new_unknown = _mark_terminal_result_intent_applied(
+                        doc.unknown_fields,
+                        audit_id=result.audit_id,
+                        attempt_id=_result_idempotency_key(result),
+                    )
+                    return replace(doc, unknown_fields=new_unknown)
+
+                store.update(identifier, _finalize_result_intent)
+            except Exception:
+                # The status write already succeeded.  Leave the intent
+                # durable and unapplied so restart recovery can finish the
+                # metadata acknowledgement without repeating the result.
+                logger.exception(
+                    "Failed to finalize terminal-audit result intent for %s",
+                    identifier,
+                )
 
         # --- Epic-audit-repair signalling ---
         # When a failed audit reopens an epic as Open, mark it with the
@@ -1415,6 +1655,7 @@ class TerminalTransitionCoordinator:
             applied_status=applied_status,
             posted_comment=posted,
             advanced_target=decision.advanced_target,
+            cancelled_audit_ids=decision.cancelled_audit_ids,
         )
 
     def _override_transition_locked(
@@ -1465,6 +1706,33 @@ class TerminalTransitionCoordinator:
                 error_code=OverrideRejection.METADATA_READ_FAILED,
             )
 
+        # A repeated callback for the same applied fingerprint is an
+        # acknowledgement, not a second terminal decision.  This check is
+        # durable and therefore works after a service restart as well as for
+        # two API/ACP callers racing the same owner action.
+        raw_overrides = document.unknown_fields.get(_OVERRIDE_RECORDS_KEY, [])
+        if isinstance(raw_overrides, list):
+            for raw_override in raw_overrides:
+                if not isinstance(raw_override, Mapping):
+                    continue
+                if raw_override.get("applied", True) is False:
+                    continue
+                if (
+                    raw_override.get("project_id") == project_id
+                    and raw_override.get("task_id") == identifier
+                    and raw_override.get("target_state") == requested_target.value
+                    and _raw_fingerprint_digest(raw_override) == evidence_fingerprint.digest
+                ):
+                    return OverrideResult(
+                        success=True,
+                        override_id=str(raw_override.get("override_id")),
+                        applied_status=_target_state_to_status(requested_target),
+                        idempotent=True,
+                        retired_alert_audit_ids=[
+                            item.audit_id for item in document.pending_chain
+                        ],
+                    )
+
         # Check if the fingerprint matches the current active record for the
         # requested target. The "active" record is the one that is not
         # SUPERSEDED. Historical superseded records with different fingerprints
@@ -1505,6 +1773,12 @@ class TerminalTransitionCoordinator:
             if record.request_state
             in (RequestState.PENDING, RequestState.IN_PROGRESS)
         ]
+        # An owner override acquires terminal authority for the task, so every
+        # historical sibling alert (including one from an older fingerprint or
+        # chained target) is no longer actionable.
+        retired_alert_audit_ids = [
+            record.audit_id for record in document.pending_chain
+        ]
 
         # Step 3: Create and persist the override record
         now = _now_iso8601()
@@ -1524,13 +1798,17 @@ class TerminalTransitionCoordinator:
             """Atomically add the override record to metadata."""
             new_unknown = dict(doc.unknown_fields)
 
-            # Store override records in a list
-            overrides = new_unknown.get("oompah.terminal_override_records", [])
+            # Store override records in a list. ``applied`` is a small
+            # recovery marker: a crash after the tracker status write but
+            # before the final metadata update can be recognized on restart.
+            overrides = new_unknown.get(_OVERRIDE_RECORDS_KEY, [])
             if not isinstance(overrides, list):
                 overrides = []
 
-            overrides.append(override_record.to_dict())
-            new_unknown["oompah.terminal_override_records"] = overrides
+            raw_override = override_record.to_dict()
+            raw_override["applied"] = False
+            overrides.append(raw_override)
+            new_unknown[_OVERRIDE_RECORDS_KEY] = overrides
 
             return replace(doc, unknown_fields=new_unknown)
 
@@ -1590,28 +1868,46 @@ class TerminalTransitionCoordinator:
                 error_code=OverrideRejection.STATUS_UPDATE_FAILED,
             )
 
-        if overridden_audit_ids:
-            try:
-                def _cancel_overridden(doc: TerminalAuditMetadata) -> TerminalAuditMetadata:
-                    return replace(
-                        doc,
-                        pending_chain=[
-                            replace(record, request_state=RequestState.CANCELLED)
-                            if record.audit_id in overridden_audit_ids
-                            and record.request_state
-                            in (RequestState.PENDING, RequestState.IN_PROGRESS)
-                            else record
-                            for record in doc.pending_chain
-                        ],
-                    )
+        try:
+            def _finalize_override(doc: TerminalAuditMetadata) -> TerminalAuditMetadata:
+                """Commit cancellation, alert retirement, and applied marker together."""
+                new_unknown = dict(doc.unknown_fields)
+                overrides = new_unknown.get(_OVERRIDE_RECORDS_KEY, [])
+                if isinstance(overrides, list):
+                    finalized: list[Any] = []
+                    for raw in overrides:
+                        if not isinstance(raw, Mapping):
+                            continue
+                        item = dict(raw)
+                        if item.get("override_id") == override_record.override_id:
+                            item["applied"] = True
+                        finalized.append(item)
+                    new_unknown[_OVERRIDE_RECORDS_KEY] = finalized
+                new_chain = [
+                    replace(record, request_state=RequestState.CANCELLED, updated_at=_now_iso8601())
+                    if record.audit_id in overridden_audit_ids
+                    and record.request_state in (RequestState.PENDING, RequestState.IN_PROGRESS)
+                    else record
+                    for record in doc.pending_chain
+                ]
+                new_unknown = _record_terminal_retirement(
+                    new_unknown,
+                    project_id=project_id,
+                    task_id=identifier,
+                    target_state=requested_target,
+                    evidence_fingerprint=evidence_fingerprint,
+                    audit_ids=retired_alert_audit_ids,
+                    kind="override",
+                )
+                new_unknown = _mark_all_terminal_result_intents_applied(new_unknown)
+                return replace(doc, pending_chain=new_chain, unknown_fields=new_unknown)
 
-                store.update(identifier, _cancel_overridden)
-            except Exception:
-                # The tracker status is already terminal and the persisted
-                # override record is authoritative.  Recovery will still
-                # remove the non-dispatchable row, so do not report a failed
-                # owner override after its terminal write succeeded.
-                logger.exception("Failed to cancel overridden audits for %s", identifier)
+            store.update(identifier, _finalize_override)
+        except Exception:
+            # The tracker status is already terminal and the persisted override
+            # intent remains available to restart reconciliation. Do not report
+            # a failed owner override after its terminal write succeeded.
+            logger.exception("Failed to finalize overridden audits for %s", identifier)
 
         return OverrideResult(
             success=True,
@@ -1619,6 +1915,7 @@ class TerminalTransitionCoordinator:
             applied_status=target_status,
             posted_comment=posted,
             overridden_audit_ids=overridden_audit_ids,
+            retired_alert_audit_ids=retired_alert_audit_ids,
             error_code=None,
         )
 
@@ -1943,6 +2240,251 @@ def _record_applied_attempt(
         items = list(log.items())[-(_MAX_APPLIED_RESULTS_MEMORY // 2):]
         log = dict(items)
     new_unknown[_APPLIED_RESULTS_KEY] = log
+    return new_unknown
+
+
+def _retirement_rows(doc: TerminalAuditMetadata) -> list[Mapping[str, Any]]:
+    """Return well-shaped durable retirement rows without trusting their prose."""
+
+    raw = doc.unknown_fields.get(_TERMINAL_RETIREMENTS_KEY)
+    if not isinstance(raw, list):
+        return []
+    return [row for row in raw if isinstance(row, Mapping)]
+
+
+def _raw_fingerprint_digest(raw: Mapping[str, Any]) -> str | None:
+    """Read a historical override fingerprint without trusting arbitrary data."""
+
+    value = raw.get("evidence_fingerprint")
+    if isinstance(value, str):
+        return value
+    if isinstance(value, Mapping):
+        digest = value.get("digest", value.get("sha256", value.get("value")))
+        return digest if isinstance(digest, str) else None
+    return None
+
+
+def _has_terminal_retirement(
+    doc: TerminalAuditMetadata,
+    project_id: str,
+    task_id: str,
+    target_state: TargetState,
+    evidence_fingerprint: EvidenceFingerprint,
+) -> bool:
+    """Check the durable applied-fingerprint fence used by reconciliation."""
+
+    for row in _retirement_rows(doc):
+        if row.get("applied", True) is False:
+            continue
+        if (
+            row.get("project_id") == project_id
+            and row.get("task_id") == task_id
+            and row.get("target_state") == target_state.value
+            and row.get("evidence_fingerprint") == evidence_fingerprint.digest
+        ):
+            return True
+    return False
+
+
+def _retired_audit_ids_for_result(
+    doc: TerminalAuditMetadata,
+    project_id: str,
+    task_id: str,
+    result: AuditResult,
+) -> list[str]:
+    """Recover sibling IDs from the durable retirement row on callback replay."""
+
+    audit_ids: list[str] = []
+    for row in _retirement_rows(doc):
+        if (
+            row.get("applied", True) is not False
+            and row.get("project_id") == project_id
+            and row.get("task_id") == task_id
+            and row.get("target_state") == result.target_state.value
+            and row.get("evidence_fingerprint") == result.evidence_fingerprint.digest
+        ):
+            raw_ids = row.get("audit_ids", [])
+            if isinstance(raw_ids, list):
+                audit_ids.extend(
+                    value for value in raw_ids if isinstance(value, str)
+                )
+    return list(dict.fromkeys(audit_ids))
+
+
+def _record_terminal_retirement(
+    unknown_fields: Mapping[str, Any],
+    *,
+    project_id: str,
+    task_id: str,
+    target_state: TargetState,
+    evidence_fingerprint: EvidenceFingerprint,
+    audit_ids: list[str],
+    kind: str,
+    applied: bool = True,
+) -> dict[str, Any]:
+    """Append/update one redacted durable terminal retirement identity."""
+
+    new_unknown = dict(unknown_fields)
+    rows = [
+        dict(row)
+        for row in (new_unknown.get(_TERMINAL_RETIREMENTS_KEY) or [])
+        if isinstance(row, Mapping)
+    ]
+    identity = {
+        "project_id": project_id,
+        "task_id": task_id,
+        "target_state": target_state.value,
+        "evidence_fingerprint": evidence_fingerprint.digest,
+    }
+    matching = next(
+        (
+            row
+            for row in rows
+            if all(row.get(key) == value for key, value in identity.items())
+        ),
+        None,
+    )
+    if matching is None:
+        matching = {
+            **identity,
+            "audit_ids": [],
+            "kind": kind,
+            "applied": applied,
+            "retired_at": _now_iso8601(),
+        }
+        rows.append(matching)
+    else:
+        matching["applied"] = bool(matching.get("applied", False) or applied)
+        matching["kind"] = kind
+    existing_ids = matching.get("audit_ids", [])
+    if not isinstance(existing_ids, list):
+        existing_ids = []
+    matching["audit_ids"] = list(
+        dict.fromkeys(
+            [str(value) for value in existing_ids if isinstance(value, str)]
+            + [str(value) for value in audit_ids if value]
+        )
+    )
+    new_unknown[_TERMINAL_RETIREMENTS_KEY] = rows
+    return new_unknown
+
+
+def _record_terminal_result_intent(
+    unknown_fields: Mapping[str, Any],
+    *,
+    project_id: str,
+    task_id: str,
+    audit_id: str,
+    target_state: TargetState,
+    evidence_fingerprint: EvidenceFingerprint,
+    attempt_id: str,
+    status: str | None,
+    audit_ids: list[str],
+) -> dict[str, Any]:
+    """Persist one status-write intent before mutating the tracker.
+
+    Tracker status and audit metadata cannot share a transaction.  The intent
+    is therefore the durable hand-off between those two stores.  It remains
+    queryable after completion, while ``applied`` tells restart recovery
+    whether the tracker write was acknowledged.
+    """
+
+    if not status:
+        return dict(unknown_fields)
+    new_unknown = dict(unknown_fields)
+    raw_intents = new_unknown.get(_TERMINAL_RESULT_INTENTS_KEY, [])
+    intents = [dict(item) for item in raw_intents if isinstance(item, Mapping)]
+    identity = {
+        "project_id": project_id,
+        "task_id": task_id,
+        "audit_id": audit_id,
+        "attempt_id": attempt_id,
+    }
+    matching = next(
+        (
+            item
+            for item in intents
+            if all(item.get(key) == value for key, value in identity.items())
+        ),
+        None,
+    )
+    if matching is None:
+        matching = {
+            **identity,
+            "target_state": target_state.value,
+            "evidence_fingerprint": evidence_fingerprint.digest,
+            "status": status,
+            "audit_ids": list(dict.fromkeys(audit_ids)),
+            "applied": False,
+            "created_at": _now_iso8601(),
+        }
+        intents.append(matching)
+    else:
+        matching.update(
+            {
+                "target_state": target_state.value,
+                "evidence_fingerprint": evidence_fingerprint.digest,
+                "status": status,
+                "audit_ids": list(
+                    dict.fromkeys(
+                        [
+                            *(
+                                matching.get("audit_ids", [])
+                                if isinstance(matching.get("audit_ids"), list)
+                                else []
+                            ),
+                            *audit_ids,
+                        ]
+                    )
+                ),
+            }
+        )
+    new_unknown[_TERMINAL_RESULT_INTENTS_KEY] = intents
+    return new_unknown
+
+
+def _mark_terminal_result_intent_applied(
+    unknown_fields: Mapping[str, Any], *, audit_id: str, attempt_id: str
+) -> dict[str, Any]:
+    """Mark one result status intent acknowledged using current metadata."""
+
+    new_unknown = dict(unknown_fields)
+    raw_intents = new_unknown.get(_TERMINAL_RESULT_INTENTS_KEY, [])
+    if not isinstance(raw_intents, list):
+        return new_unknown
+    intents: list[dict[str, Any]] = []
+    for raw in raw_intents:
+        if not isinstance(raw, Mapping):
+            continue
+        item = dict(raw)
+        if item.get("audit_id") == audit_id and item.get("attempt_id") == attempt_id:
+            item["applied"] = True
+            item["applied_at"] = _now_iso8601()
+        intents.append(item)
+    new_unknown[_TERMINAL_RESULT_INTENTS_KEY] = intents
+    return new_unknown
+
+
+def _mark_all_terminal_result_intents_applied(
+    unknown_fields: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Retire result intents when a later owner override takes authority."""
+
+    new_unknown = dict(unknown_fields)
+    raw_intents = new_unknown.get(_TERMINAL_RESULT_INTENTS_KEY, [])
+    if not isinstance(raw_intents, list):
+        return new_unknown
+    now = _now_iso8601()
+    new_unknown[_TERMINAL_RESULT_INTENTS_KEY] = [
+        {
+            **dict(raw),
+            "applied": True,
+            "retired_by_override": True,
+            "applied_at": dict(raw).get("applied_at", now),
+        }
+        for raw in raw_intents
+        if isinstance(raw, Mapping)
+    ]
     return new_unknown
 
 

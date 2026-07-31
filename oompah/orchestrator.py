@@ -149,6 +149,7 @@ from oompah.terminal_audit import (
     TargetState,
     Verdict,
     compute_evidence_fingerprint,
+    compute_issue_evidence_fingerprint,
 )
 from oompah.terminal_audit_metadata import TerminalAuditMetadataStore
 from oompah.terminal_audit_enforcement import TerminalAuditEnforcement
@@ -913,6 +914,7 @@ class Orchestrator:
             tracker=self._tracker_for_project,
             project_store=self.project_store,
             revoke_delivery_authority=self._revoke_standalone_delivery_authority,
+            clear_audit_alert=self.clear_terminal_audit_alert,
         )
         # Serializes the final implementation status claim with terminal-audit
         # staging for one task.  The terminal path installs its in-memory fence
@@ -1572,6 +1574,12 @@ class Orchestrator:
         """
 
         metrics = self._terminal_audit_metrics
+        # Metrics are a restart cache; tracker metadata is authoritative. A
+        # PASS or owner override can commit durable retirement immediately
+        # before a process crash, so reconcile every cached identity before
+        # building conditions. This also closes the barrier where a stale
+        # no-candidate callback races an owner override or a queue scan.
+        self._reconcile_terminal_audit_observability_from_metadata()
         conditions = threshold_conditions(
             metrics,
             max_attempts=max(1, int(getattr(self.config, "audit_max_attempts", 3))),
@@ -1623,6 +1631,81 @@ class Orchestrator:
         self._alerts.extend(
             alert for alert in alerts if str(alert.get("source", "")) not in existing_sources
         )
+
+    def _reconcile_terminal_audit_observability_from_metadata(self) -> None:
+        """Drop stale metric/alert identities using durable audit records.
+
+        A no-candidate failure is intentionally retained while its completed
+        audit remains the actionable ``Needs Human`` decision. It is cleared
+        when the durable row is superseded/cancelled/completed by another
+        verdict, or when the tracker no longer contains the identity. Queue
+        and running gauges follow the same pending/in-progress predicate.
+        """
+
+        metrics = self._terminal_audit_metrics
+        key_provider = getattr(metrics, "lifecycle_keys", None)
+        keys = key_provider() if callable(key_provider) else tuple(
+            set(getattr(metrics, "_queued", {}))
+            | set(getattr(metrics, "_running", {}))
+            | set(getattr(metrics, "_no_candidate", {}))
+        )
+        for project_id, task_id, audit_id in keys:
+            try:
+                tracker = self._tracker_for_project(project_id)
+                store = TerminalAuditMetadataStore(
+                    tracker, self.project_store, project_id
+                )
+                document = store.read(task_id)
+            except Exception:
+                # A failed tracker read is not evidence of recovery. Leave the
+                # cached condition in place until a complete scan can decide.
+                continue
+
+            if document.is_quarantined:
+                # Quarantine is not evidence that an identity was retired.
+                continue
+
+            record = next(
+                (item for item in document.pending_chain if item.audit_id == audit_id),
+                None,
+            )
+            if record is None:
+                self._forget_terminal_audit_alert_identity(
+                    project_id, task_id, audit_id
+                )
+                continue
+
+            live = record.request_state in (
+                RequestState.PENDING,
+                RequestState.IN_PROGRESS,
+            )
+            no_candidate_terminal = (
+                record.request_state == RequestState.COMPLETED
+                and any(
+                    attempt.failure_classification == FailureClassification.NO_AUDITOR
+                    for attempt in record.attempts
+                )
+            )
+            if live or no_candidate_terminal:
+                continue
+            self._forget_terminal_audit_alert_identity(
+                project_id, task_id, audit_id
+            )
+
+    def _forget_terminal_audit_alert_identity(
+        self, project_id: str, task_id: str, audit_id: str
+    ) -> None:
+        """Remove one identity without recursively refreshing the registry."""
+
+        self._terminal_audit_metrics.clear_actionable_alert(
+            project_id, task_id, audit_id
+        )
+        self._terminal_audit_manual_alerts = {
+            key: condition
+            for key, condition in self._terminal_audit_manual_alerts.items()
+            if key[1:] != (project_id, task_id, audit_id)
+        }
+        self._terminal_audit_alerts.clear(project_id, task_id, audit_id)
 
     def record_terminal_audit_no_candidate(
         self, project_id: str, task_id: str, audit_id: str, *, reason: str = "no eligible candidate"
@@ -2765,23 +2848,9 @@ class Orchestrator:
             )
 
         if evidence_fingerprint is None:
-            contributors = getattr(current_issue, "contributors", ()) or ()
-            if isinstance(contributors, str):
-                contributors = (contributors,)
-            evidence_fingerprint = compute_evidence_fingerprint(
-                requirements_text=str(current_issue.description or ""),
-                project_id=str(effective_project_id),
-                task_id=str(current_issue.identifier),
-                source_branch=str(
-                    getattr(current_issue, "source_branch", None)
-                    or current_issue.work_branch
-                    or current_issue.branch_name
-                    or ""
-                ),
-                target_branch=str(current_issue.target_branch or ""),
-                review_id=str(current_issue.review_number or ""),
-                review_state=str(getattr(current_issue, "review_state", "") or ""),
-                contributors=contributors,
+            evidence_fingerprint = compute_issue_evidence_fingerprint(
+                current_issue,
+                str(effective_project_id),
             )
 
         return await self.terminal_transition_coordinator.request_transition(
@@ -2838,24 +2907,9 @@ class Orchestrator:
         try:
             issue.project_id = project_id
             if evidence_fingerprint is None:
-                # Auto-compute fingerprint from issue fields
-                contributors = getattr(issue, "contributors", ()) or ()
-                if isinstance(contributors, str):
-                    contributors = (contributors,)
-                evidence_fingerprint = compute_evidence_fingerprint(
-                    requirements_text=str(issue.description or ""),
-                    project_id=str(project_id),
-                    task_id=str(issue.identifier),
-                    source_branch=str(
-                        getattr(issue, "source_branch", None)
-                        or issue.work_branch
-                        or issue.branch_name
-                        or ""
-                    ),
-                    target_branch=str(issue.target_branch or ""),
-                    review_id=str(issue.review_number or ""),
-                    review_state=str(getattr(issue, "review_state", "") or ""),
-                    contributors=contributors,
+                evidence_fingerprint = compute_issue_evidence_fingerprint(
+                    issue,
+                    str(project_id),
                 )
             return asyncio.run(
                 self.request_terminal_transition(
@@ -5071,16 +5125,46 @@ class Orchestrator:
         record,
         *,
         append_attempt: AuditAttempt | None = None,
-    ) -> None:
-        """Atomically replace a chain record and mirror new attempts in history."""
+    ) -> bool:
+        """CAS-update one still-live audit record.
+
+        The dispatch lane can hold a stale ``PENDING`` snapshot while an
+        auditor callback completes the same audit.  Replacing that snapshot
+        unconditionally resurrects the completed row and launches the exact
+        duplicate seen in OOMPAH-648.  Return ``False`` when the durable row
+        has already been completed, superseded, cancelled, or retired.
+        """
+
+        updated = False
 
         def _updater(document):
+            nonlocal updated
+            existing = next(
+                (
+                    candidate
+                    for candidate in document.pending_chain
+                    if candidate.audit_id == record.audit_id
+                ),
+                None,
+            )
+            if existing is None:
+                return document
+            if existing.request_state not in (
+                RequestState.PENDING,
+                RequestState.IN_PROGRESS,
+            ):
+                return document
+            if (
+                existing.project_id != record.project_id
+                or existing.task_id != record.task_id
+                or existing.target_state != record.target_state
+                or existing.evidence_fingerprint != record.evidence_fingerprint
+            ):
+                return document
             chain = [
                 record if existing.audit_id == record.audit_id else existing
                 for existing in document.pending_chain
             ]
-            if not any(existing.audit_id == record.audit_id for existing in chain):
-                chain.append(record)
             history = list(document.attempt_history)
             if append_attempt is not None:
                 history = [
@@ -5089,9 +5173,11 @@ class Orchestrator:
                     if existing.attempt_id != append_attempt.attempt_id
                 ]
                 history.append(append_attempt)
+            updated = True
             return replace(document, pending_chain=chain, attempt_history=history)
 
         store.update(issue.identifier, _updater)
+        return updated
 
     def _audit_branch_busy(
         self,
@@ -5309,12 +5395,17 @@ class Orchestrator:
                         if recovery.record.attempts
                         else None
                     )
-                    await asyncio.get_running_loop().run_in_executor(
+                    recovered_persisted = await asyncio.get_running_loop().run_in_executor(
                         self._tick_pool,
                         lambda r=recovery.record, a=recovered_attempt: self._audit_update_record(
                             store, issue, r, append_attempt=a
                         ),
                     )
+                    if not recovered_persisted:
+                        # A result/override won after the scan snapshot was
+                        # read.  Re-read on the next scan; never launch from
+                        # the stale recovery object.
+                        continue
                     record = recovery.record
                 if not recovery.ready:
                     if recovery.reason and "already running" in recovery.reason:
@@ -5342,12 +5433,16 @@ class Orchestrator:
                 attempt = persisted.attempts[-1]
                 # This write is deliberately awaited before _dispatch can
                 # create a worker. It is the crash/restart idempotency fence.
-                await asyncio.get_running_loop().run_in_executor(
+                plan_persisted = await asyncio.get_running_loop().run_in_executor(
                     self._tick_pool,
                     lambda r=persisted, a=attempt: self._audit_update_record(
                         store, issue, r, append_attempt=a
                     ),
                 )
+                if not plan_persisted:
+                    # PASS/override may have retired this identity between
+                    # the candidate read and the launch fence.
+                    continue
                 self._audit_branch_claims[branch_key] = plan.attempt_id
                 try:
                     await self._dispatch(
@@ -9359,24 +9454,9 @@ class Orchestrator:
                 )
                 return
 
-            # Build evidence fingerprint from epic state
-            contributors = getattr(epic, "contributors", ()) or ()
-            if isinstance(contributors, str):
-                contributors = (contributors,)
-            fingerprint = compute_evidence_fingerprint(
-                requirements_text=str(epic.description or ""),
-                project_id=str(epic.project_id or ""),
-                task_id=str(epic.identifier),
-                source_branch=str(
-                    getattr(epic, "source_branch", None)
-                    or epic.work_branch
-                    or epic.branch_name
-                    or ""
-                ),
-                target_branch=str(epic.target_branch or ""),
-                review_id=str(epic.review_number or ""),
-                review_state=str(getattr(epic, "review_state", "") or ""),
-                contributors=contributors,
+            fingerprint = compute_issue_evidence_fingerprint(
+                epic,
+                str(epic.project_id or ""),
             )
 
             # Request the transition through the coordinator
@@ -24142,6 +24222,12 @@ class Orchestrator:
                     )
                     outcome = future.result(timeout=60)
                     self._record_audit_outcome_ownership(_issue.id, outcome)
+                    # Clear alerts for any sibling audits that were cancelled due to duplicate
+                    # fingerprint detection (duplicate audit race condition prevention)
+                    for cancelled_audit_id in getattr(outcome, "cancelled_audit_ids", []):
+                        self.clear_terminal_audit_alert(
+                            _pid, _issue.identifier, cancelled_audit_id
+                        )
                     return {
                         "accepted": outcome.success,
                         "audit_id": outcome.audit_id,
@@ -24658,6 +24744,12 @@ class Orchestrator:
                     )
                     outcome = future.result(timeout=60)
                     self._record_audit_outcome_ownership(_issue.id, outcome)
+                    # Clear alerts for any sibling audits that were cancelled due to duplicate
+                    # fingerprint detection (duplicate audit race condition prevention)
+                    for cancelled_audit_id in getattr(outcome, "cancelled_audit_ids", []):
+                        self.clear_terminal_audit_alert(
+                            _pid, _issue.identifier, cancelled_audit_id
+                        )
                     return {
                         "accepted": outcome.success,
                         "audit_id": outcome.audit_id,
@@ -27074,12 +27166,9 @@ class Orchestrator:
                                 )
                             else:
                                 try:
-                                    evidence_fp = compute_evidence_fingerprint(
-                                        requirements_text=current.description or "",
-                                        project_id=project_id,
-                                        task_id=current.id,
-                                        source_branch=entry.issue.branch_name or "",
-                                        target_branch="main",
+                                    evidence_fp = compute_issue_evidence_fingerprint(
+                                        current,
+                                        project_id,
                                     )
                                     orchestrator_trigger = ContributorIdentity(
                                         identity="orchestrator",
