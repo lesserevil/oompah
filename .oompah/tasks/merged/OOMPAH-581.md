@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-581
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Prune merged epic repair workspaces with task-style branch paths
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:35:07.041991Z'
-updated_at: '2026-07-31T02:45:26.550812Z'
+updated_at: '2026-07-31T02:47:33.864287Z'
 work_branch: OOMPAH-581
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/600
@@ -133,6 +133,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-200d14f6c680: '2026-07-31T02:45:07.986873+00:00'
+    attempt-60d86ee9562c: '2026-07-31T02:47:25.569475+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -174,7 +175,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-581
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -183,7 +184,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-60d86ee9562c
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -193,13 +194,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T02:45:23.476675+00:00'
       branch_key: OOMPAH-581
+      verdict: pass
+      completed_at: '2026-07-31T02:47:25.569260+00:00'
+      ended_at: '2026-07-31T02:47:25.569260+00:00'
     requested_by:
       version: 1
       identity: NVShawn
       source: forge
     previous_state: In Review
     created_at: '2026-07-31T02:43:05.702270+00:00'
-    updated_at: '2026-07-31T02:45:23.476675+00:00'
+    updated_at: '2026-07-31T02:47:25.569260+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-200d14f6c680
@@ -401,5 +405,26 @@ author: oompah
 created: 2026-07-31 02:45
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 02:47
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: 741a7d88b2ad409575a0b3577564b98f57733f87
+- merge_commit: 24bd5d6c166af7f8c839e9d5c9e4f3f17d17508e
+- pr_number: 600
+- contains_check: origin/main contains 741a7d88b (git branch -r --contains)
+- new_method_location: oompah/projects.py:2624 ProjectStore._cleanup_epic_repair_workspace_locked
+- invocation_site: oompah/projects.py:2854 in cleanup_terminal_issue is_epic=True branch
+- guards: 1) registered path via worktree_path_for+_registered_worktree_paths; 2) exact same-identifier branch via git symbolic-ref --short HEAD; 3) clean via git status --porcelain (ignoring .oompah-no-hooks sentinel); 4) ancestor via git merge-base --is-ancestor <branch> origin/<default_branch>
+- focused_tests_passed: 7/7 tests/test_projects.py::TestEpicRepairWorkspaceCleanup
+- focused_tests_list: happy-path removes auxiliary; preserves dirty; preserves unmerged; preserves shared branch; skips non-matching identifier; skips unregistered directory; non-epic does not trigger
+- suite_projects_passed: 94/94 tests/test_projects.py
+- suite_neighbors_passed: 23/23 tests/test_storage_cleanup.py + tests/test_workspace.py
+- diff_scope: oompah/projects.py +166 lines; tests/test_projects.py +400 lines (test coverage)
 ---
 <!-- COMMENTS:END -->
