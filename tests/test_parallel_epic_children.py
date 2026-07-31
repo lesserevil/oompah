@@ -918,6 +918,57 @@ def test_interrupted_quality_gate_requeues_the_rebased_remote_head(tmp_path):
     assert metadata["state"] == "ready"
 
 
+def test_needs_rebase_quality_gate_routes_task_to_rebase_repair(tmp_path):
+    project = _make_project_record(epic_strategy="shared")
+    orchestrator = _make_orch(tmp_path, projects=[project])
+    orchestrator.integration_queue.enqueue(
+        project_id=project.id,
+        epic_id="EPIC-1",
+        task_id="TASK-1",
+        task_branch="epic-EPIC-1--task-TASK-1",
+        head_sha="a" * 40,
+        priority=1,
+    )
+    claimed = orchestrator.integration_queue.claim_next(
+        project_id=project.id,
+        epic_id="EPIC-1",
+        lease_owner="lease-1",
+        dependency_map={"TASK-1": ()},
+        satisfied=set(),
+    )
+    assert claimed is not None
+    tracker = MagicMock()
+    tracker.fetch_issue_detail.return_value = Issue(
+        id="TASK-1",
+        identifier="TASK-1",
+        title="Task",
+        state="Ready to Integrate",
+        integration=IntegrationRecord(
+            state="ready",
+            task_branch=claimed.task_branch,
+            head_sha=claimed.head_sha,
+        ),
+    )
+    orchestrator._tracker_for_project = MagicMock(return_value=tracker)
+
+    orchestrator._route_integration_failure(
+        claimed,
+        IntegrationExecutionResult(
+            status="needs_rebase",
+            message="lifecycle safety prerequisite is missing",
+            expected_epic_sha="b" * 40,
+            rebased_task_sha="c" * 40,
+        ),
+    )
+
+    tracker.update_issue.assert_called_once_with(
+        "TASK-1", status="Needs Rebase"
+    )
+    assert "rebase" in tracker.add_comment.call_args.args[1].lower()
+    metadata = tracker.set_metadata_field.call_args.args[2]
+    assert metadata["state"] == "blocked"
+
+
 def test_project_store_deletes_only_derived_private_child_branch(tmp_path):
     remote = tmp_path / "remote.git"
     repo = tmp_path / "repo"

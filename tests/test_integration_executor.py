@@ -23,6 +23,26 @@ def _git(path, *args):
     ).stdout.strip()
 
 
+def _passthrough_sandbox(command, _repo, _root):
+    return ["/bin/sh", "-c", command]
+
+
+def _gate(state_path, repo_path):
+    safety_head = _git(
+        repo_path,
+        "log",
+        "--format=%H",
+        "--grep=^OOMPAH-652: lifecycle isolation$",
+        "-n",
+        "1",
+    )
+    return BranchQualityGate(
+        str(state_path),
+        safety_head=safety_head,
+        sandbox_launcher=_passthrough_sandbox,
+    )
+
+
 def _repo(tmp_path):
     remote = tmp_path / "remote.git"
     seed = tmp_path / "seed"
@@ -30,6 +50,11 @@ def _repo(tmp_path):
     subprocess.run(["git", "clone", str(remote), str(seed)], check=True)
     _git(seed, "config", "user.name", "Test")
     _git(seed, "config", "user.email", "test@example.com")
+    
+    # Create synthetic OOMPAH-652 safety head commit for testing
+    (seed / "safety.txt").write_text("OOMPAH-652 safety head\n")
+    _git(seed, "add", "safety.txt")
+    _git(seed, "commit", "-m", "OOMPAH-652: lifecycle isolation")
     (seed / "base.txt").write_text("base\n")
     _git(seed, "add", "base.txt")
     _git(seed, "commit", "-m", "base")
@@ -144,7 +169,7 @@ def test_executor_rebases_tests_and_fast_forwards_epic(tmp_path):
 
 def test_executor_preserves_rebased_task_when_quality_fails(tmp_path):
     remote, epic, task, task_head = _repo(tmp_path)
-    gate = BranchQualityGate(str(tmp_path / "quality.json"))
+    gate = _gate(tmp_path / "quality.json", task)
     result = execute_integration(
         project_lock=nullcontext(),
         epic_worktree=str(epic),
@@ -189,6 +214,36 @@ def test_executor_preserves_retryable_quality_gate_interruption(tmp_path):
     assert _git(epic, "rev-parse", "HEAD") != result.rebased_task_sha
 
 
+def test_executor_preserves_quality_gate_needs_rebase_status(tmp_path):
+    remote, epic, task, task_head = _repo(tmp_path)
+
+    class NeedsRebaseGate:
+        def run(self, **_kwargs):
+            return QualityGateResult(
+                status="needs_rebase",
+                head_sha=task_head,
+                command="make test",
+                output_tail="lifecycle safety prerequisite is missing",
+            )
+
+    result = execute_integration(
+        project_lock=nullcontext(),
+        epic_worktree=str(epic),
+        task_worktree=str(task),
+        epic_branch="epic-E-1",
+        task_branch="epic-E-1--task-T-1",
+        submitted_head_sha=task_head,
+        quality_gate=NeedsRebaseGate(),
+        quality_command="make test",
+        repo_identity=str(remote),
+    )
+
+    assert result.status == "needs_rebase"
+    assert result.quality is not None
+    assert "safety prerequisite" in result.message
+    assert _git(epic, "rev-parse", "origin/epic-E-1") != result.rebased_task_sha
+
+
 def test_executor_rechecks_authority_after_gate_before_epic_push(tmp_path):
     remote, epic, task, task_head = _repo(tmp_path)
     original_epic_head = _git(epic, "rev-parse", "origin/epic-E-1")
@@ -204,7 +259,7 @@ def test_executor_rechecks_authority_after_gate_before_epic_push(tmp_path):
     def commit_allowed() -> bool:
         return not gate_completed[0]
 
-    inner_gate = BranchQualityGate(str(tmp_path / "quality.json"))
+    inner_gate = _gate(tmp_path / "quality.json", task)
 
     class _GateWrapper:
         """Flip the flag after the gate returns so post-gate check fails."""
@@ -362,7 +417,7 @@ def test_executor_rejects_changed_remote_task_head(tmp_path):
         epic_branch="epic-E-1",
         task_branch="epic-E-1--task-T-1",
         submitted_head_sha=task_head,
-        quality_gate=BranchQualityGate(str(tmp_path / "quality.json")),
+        quality_gate=_gate(tmp_path / "quality.json", task),
         quality_command="true",
         repo_identity=str(remote),
     )
@@ -386,7 +441,7 @@ def test_executor_rejects_foreign_branch_without_moving_task_worktree(tmp_path):
         epic_branch="epic-E-1",
         task_branch=foreign_branch,
         submitted_head_sha=task_head,
-        quality_gate=BranchQualityGate(str(tmp_path / "quality.json")),
+        quality_gate=_gate(tmp_path / "quality.json", task),
         quality_command="true",
         repo_identity=str(remote),
     )
@@ -411,7 +466,7 @@ def test_executor_refuses_stale_queue_branch_without_resetting_task_worktree(tmp
         epic_branch="epic-E-1",
         task_branch="main",
         submitted_head_sha=main_head,
-        quality_gate=BranchQualityGate(str(tmp_path / "quality.json")),
+        quality_gate=_gate(tmp_path / "quality.json", task),
         quality_command="true",
         repo_identity=str(remote),
     )
@@ -434,7 +489,7 @@ def test_executor_refuses_dirty_task_worktree_before_reset(tmp_path):
         epic_branch="epic-E-1",
         task_branch="epic-E-1--task-T-1",
         submitted_head_sha=task_head,
-        quality_gate=BranchQualityGate(str(tmp_path / "quality.json")),
+        quality_gate=_gate(tmp_path / "quality.json", task),
         quality_command="true",
         repo_identity=str(remote),
     )
@@ -456,7 +511,7 @@ def test_executor_refuses_dirty_epic_worktree_before_reset(tmp_path):
         epic_branch="epic-E-1",
         task_branch="epic-E-1--task-T-1",
         submitted_head_sha=task_head,
-        quality_gate=BranchQualityGate(str(tmp_path / "quality.json")),
+        quality_gate=_gate(tmp_path / "quality.json", task),
         quality_command="true",
         repo_identity=str(remote),
     )

@@ -490,3 +490,4 @@ def format_auth_error(server_url: str) -> str:
         "or OOMPAH_SERVER_PASSWORD to authenticate against the oompah server.\n"
         "Verify that the credentials match the server's htpasswd configuration."
     )
+
