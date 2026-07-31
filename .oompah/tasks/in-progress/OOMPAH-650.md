@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T09:51:49.799526Z'
+updated_at: '2026-07-31T09:51:59.314899Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -36,16 +36,16 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 6ca08af8-8122-4100-8543-42b54d320634
+oompah.agent_run_id: d07ef914-be35-4af8-ba9e-4f9466f164c0
 oompah.work_branch: epic-OOMPAH-619--task-OOMPAH-650
 oompah.integration:
   version: 2
-  state: ready
+  state: working
   attempts: 0
   task_branch: epic-OOMPAH-619--task-OOMPAH-650
-  head_sha: 2700a4903ed627d83adefe8a0aa23355eec4e64a
-  submitted_at: '2026-07-31T09:50:17.437536+00:00'
-  updated_at: '2026-07-31T09:50:17.437536+00:00'
+  base_branch: epic-OOMPAH-619
+  base_sha: 0dc7d0f7caeea06a6eceb55ea2e58cf16554f0a4
+  updated_at: '2026-07-31T09:51:57.070143+00:00'
 oompah.task_costs:
   total_input_tokens: 1607085
   total_output_tokens: 9124
@@ -350,5 +350,15 @@ author: oompah
 created: 2026-07-31 09:51
 ---
 Second operator review rejects head 2700a4903. Comment #20 implements exactly the request-triggered refresh that comment #19 explained is insufficient: validation occurs before refresh, so a live worker with no handoff traffic longer than the TTL reaches its final view/comment/submit with an expired token and gets 401. The claimed tests repeatedly refresh before expiry and do not reproduce the required silent-tool interval. Do not resubmit another sliding request TTL. Bind authorization to durable live worker/session ownership (or an independent server heartbeat), allow a live owner past the original grant expiry without weakening scope, and revoke atomically when ownership ends. Required regression: live server plus spawned worker, very short grant TTL, zero handoff requests until after that TTL, then successful view/comment/submit; additionally cover service restart/recovery and termination/retry revocation.
+---
+author: oompah
+created: 2026-07-31 09:51
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-31 09:51
+---
+Focus: Security Auditor
 ---
 <!-- COMMENTS:END -->
