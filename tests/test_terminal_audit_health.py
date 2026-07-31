@@ -542,6 +542,366 @@ class TestQuarantine:
 
 
 # ---------------------------------------------------------------------------
+# Per-audit-attempt recovery: cleared failures must not contaminate later audits
+# ---------------------------------------------------------------------------
+
+
+class TestTransportFailureRecovery:
+    """Transport/launch failures must clear when an active replacement is running.
+
+    These tests reproduce the OOMPAH-607/641 contamination scenario:
+    - OOMPAH-607 attempt 1 fails (transport)
+    - OOMPAH-607 attempt 2 is launched → record goes to IN_PROGRESS
+    - The failure alert must clear (active recovery, no operator action needed)
+    - After attempt 2 succeeds, OOMPAH-607 leaves In Validation (not in observations)
+    - A later OOMPAH-641 in validation must see a clean health state
+    """
+
+    def test_pending_record_with_transport_failure_fires_alert(self):
+        """A PENDING record with a transport failure must surface the alert."""
+        transport_attempt = _attempt(
+            "attempt-1",
+            failure_reason="provider transport timeout",
+            ended_at=NOW.isoformat(),
+        )
+        rec = _record(request_state=RequestState.PENDING, attempts=[transport_attempt])
+        health = build_terminal_audit_health([_obs(rec)], now=NOW)
+        assert health.transport_failure_count == 1
+        assert health.degraded
+        alerts = terminal_audit_health_alerts(health)
+        assert any("launch_failures" in a["source"] for a in alerts), (
+            "Expected launch_failures alert for PENDING record with transport failure"
+        )
+
+    def test_in_progress_record_with_past_transport_failure_does_not_fire_alert(self):
+        """An IN_PROGRESS record with a past transport failure must NOT fire an alert.
+
+        An active replacement is running; the prior failure is being recovered
+        automatically. Operator intervention (transport restoration) is not needed.
+        This is the core OOMPAH-645 fix.
+        """
+        failed_attempt = _attempt(
+            "attempt-1",
+            failure_reason="provider transport timeout",
+            ended_at=NOW.isoformat(),
+            request_state=RequestState.PENDING,
+        )
+        active_attempt = _attempt(
+            "attempt-2",
+            request_state=RequestState.IN_PROGRESS,
+            # No ended_at: the replacement is currently running
+        )
+        # Record is IN_PROGRESS because attempt-2 is active
+        rec = _record(
+            request_state=RequestState.IN_PROGRESS,
+            attempts=[failed_attempt, active_attempt],
+        )
+        health = build_terminal_audit_health([_obs(rec)], now=NOW)
+        assert health.transport_failure_count == 0, (
+            "Active replacement must suppress stale transport failure count"
+        )
+        assert health.launch_failure_count == 0
+        assert not health.degraded, (
+            "IN_PROGRESS record with prior failure must not degrade health"
+        )
+        alerts = terminal_audit_health_alerts(health)
+        failure_alerts = [a for a in alerts if "launch_failures" in a["source"]]
+        assert not failure_alerts, (
+            f"Must not fire failure alert when replacement is active: {failure_alerts}"
+        )
+
+    def test_transition_from_pending_to_in_progress_clears_failure_alert(self):
+        """Going from PENDING (failed) to IN_PROGRESS (retry running) clears the alert."""
+        failed_attempt = _attempt(
+            "attempt-1",
+            failure_reason="provider transport timeout",
+            ended_at=NOW.isoformat(),
+            request_state=RequestState.PENDING,
+        )
+        # Phase 1: attempt 1 failed, no replacement yet — PENDING
+        pending_rec = _record(
+            request_state=RequestState.PENDING,
+            attempts=[failed_attempt],
+        )
+        health_pending = build_terminal_audit_health([_obs(pending_rec)], now=NOW)
+        assert health_pending.transport_failure_count == 1
+        assert health_pending.degraded
+
+        # Phase 2: attempt 2 is launched — IN_PROGRESS
+        active_attempt = _attempt("attempt-2", request_state=RequestState.IN_PROGRESS)
+        in_progress_rec = _record(
+            request_state=RequestState.IN_PROGRESS,
+            attempts=[failed_attempt, active_attempt],
+        )
+        health_recovering = build_terminal_audit_health(
+            [_obs(in_progress_rec)], now=NOW
+        )
+        assert health_recovering.transport_failure_count == 0, (
+            "Launching a replacement must clear the transport failure count"
+        )
+        assert not health_recovering.degraded, (
+            "Launching a replacement must resolve the degraded state"
+        )
+
+    def test_retry_failed_again_re_fires_alert(self):
+        """When attempt 2 also fails, the alert re-fires on the next scan."""
+        failed_1 = _attempt(
+            "attempt-1",
+            failure_reason="provider transport timeout",
+            ended_at=NOW.isoformat(),
+            request_state=RequestState.PENDING,
+        )
+        failed_2 = _attempt(
+            "attempt-2",
+            failure_reason="network connection refused",
+            ended_at=(NOW + timedelta(seconds=60)).isoformat(),
+            request_state=RequestState.PENDING,
+        )
+        # Both attempts failed; record is back to PENDING
+        rec = _record(
+            request_state=RequestState.PENDING,
+            attempts=[failed_1, failed_2],
+        )
+        health = build_terminal_audit_health([_obs(rec)], now=NOW)
+        assert health.transport_failure_count == 2, (
+            "Both failed attempts must be counted after all retries fail"
+        )
+        assert health.degraded
+        alerts = terminal_audit_health_alerts(health)
+        assert any("launch_failures" in a["source"] for a in alerts)
+
+    def test_recovered_audit_plus_unrelated_pending_audit_stays_clean(self):
+        """A task whose audit recovered (gone from In Validation) must not contaminate
+        a later unrelated task in validation.
+
+        Scenario: OOMPAH-607 completed (out of observations) and OOMPAH-641 is
+        freshly pending. The health for OOMPAH-641's scan must be clean.
+        """
+        # OOMPAH-607 is gone from In Validation (not in observations)
+        # OOMPAH-641 is fresh with no failed attempts
+        fresh_rec = _record(
+            audit_id="audit-641",
+            task_id="OOMPAH-641",
+            request_state=RequestState.PENDING,
+            attempts=[],  # No attempts yet, just queued
+        )
+        health = build_terminal_audit_health(
+            [_obs(fresh_rec, issue_identifier="OOMPAH-641")],
+            now=NOW,
+        )
+        assert health.transport_failure_count == 0, (
+            "Recovered earlier audit must not contaminate unrelated later audit"
+        )
+        assert health.launch_failure_count == 0
+        assert not health.degraded, (
+            "Later unrelated pending audit must start with clean health state"
+        )
+        alerts = terminal_audit_health_alerts(health)
+        assert not any("launch_failures" in a["source"] for a in alerts), (
+            "No failure alert must appear for a clean later audit"
+        )
+
+    def test_retry_exhaustion_not_fired_when_last_attempt_is_still_in_progress(self):
+        """If the last attempt is IN_PROGRESS, retry budget is not yet consumed."""
+        failed_1 = _attempt(
+            "attempt-1",
+            failure_reason="transport failure",
+            ended_at=NOW.isoformat(),
+            request_state=RequestState.PENDING,
+        )
+        failed_2 = _attempt(
+            "attempt-2",
+            failure_reason="transport failure",
+            ended_at=NOW.isoformat(),
+            request_state=RequestState.PENDING,
+        )
+        # Third attempt is IN_PROGRESS (still running)
+        active_3 = _attempt("attempt-3", request_state=RequestState.IN_PROGRESS)
+        rec = _record(
+            request_state=RequestState.IN_PROGRESS,
+            attempts=[failed_1, failed_2, active_3],
+        )
+        health = build_terminal_audit_health([_obs(rec)], now=NOW, max_attempts=3)
+        assert health.retry_exhausted_count == 0, (
+            "Retry budget is not exhausted while the last attempt is still running"
+        )
+        assert health.transport_failure_count == 0, (
+            "Transport failures must not be counted while IN_PROGRESS"
+        )
+
+    def test_retry_exhaustion_fires_after_all_attempts_fail(self):
+        """After all attempts fail, exhaustion AND transport failures are both actionable."""
+        attempts = [
+            _attempt(
+                f"attempt-{i}",
+                failure_reason="provider transport timeout",
+                ended_at=NOW.isoformat(),
+                request_state=RequestState.PENDING,
+            )
+            for i in range(3)
+        ]
+        rec = _record(request_state=RequestState.PENDING, attempts=attempts)
+        health = build_terminal_audit_health([_obs(rec)], now=NOW, max_attempts=3)
+        assert health.retry_exhausted_count == 1
+        assert health.transport_failure_count == 3
+        assert health.degraded
+
+
+class TestMultiProjectIsolation:
+    """Health failures from one project must not bleed into another project's data."""
+
+    def test_transport_failure_in_project_a_does_not_appear_in_project_b_counts(self):
+        """Per-project counters must be isolated."""
+        # Project A: PENDING with transport failure
+        failed_a = _attempt(
+            "attempt-a",
+            failure_reason="provider transport timeout",
+            ended_at=NOW.isoformat(),
+        )
+        rec_a = _record(
+            audit_id="audit-a",
+            project_id="project-a",
+            task_id="TASK-A",
+            request_state=RequestState.PENDING,
+            attempts=[failed_a],
+        )
+        obs_a = _obs(rec_a, project_id="project-a", issue_identifier="TASK-A")
+
+        # Project B: IN_PROGRESS (recovering, no alert)
+        failed_b1 = _attempt(
+            "attempt-b1",
+            failure_reason="network connection refused",
+            ended_at=NOW.isoformat(),
+            request_state=RequestState.PENDING,
+        )
+        active_b2 = _attempt("attempt-b2", request_state=RequestState.IN_PROGRESS)
+        rec_b = _record(
+            audit_id="audit-b",
+            project_id="project-b",
+            task_id="TASK-B",
+            request_state=RequestState.IN_PROGRESS,
+            attempts=[failed_b1, active_b2],
+        )
+        obs_b = _obs(rec_b, project_id="project-b", issue_identifier="TASK-B")
+
+        health = build_terminal_audit_health([obs_a, obs_b], now=NOW)
+
+        # Overall: 1 transport failure from project A only
+        assert health.transport_failure_count == 1, (
+            "Only PENDING record's transport failure should count"
+        )
+        # Project-level: project-a has the failure, project-b does not
+        project_a_counts = health.projects.get("project-a", {})
+        project_b_counts = health.projects.get("project-b", {})
+        assert project_a_counts.get("transport_failure_count", 0) == 1, (
+            "project-a must have transport_failure_count=1"
+        )
+        assert project_b_counts.get("transport_failure_count", 0) == 0, (
+            "project-b must have transport_failure_count=0 (IN_PROGRESS = recovering)"
+        )
+
+    def test_failure_in_recovering_project_does_not_trigger_alert(self):
+        """A project with a recovered IN_PROGRESS audit must not see failure alerts."""
+        failed = _attempt(
+            "attempt-1",
+            failure_reason="provider transport timeout",
+            ended_at=NOW.isoformat(),
+            request_state=RequestState.PENDING,
+        )
+        active = _attempt("attempt-2", request_state=RequestState.IN_PROGRESS)
+        rec = _record(
+            project_id="project-recovering",
+            request_state=RequestState.IN_PROGRESS,
+            attempts=[failed, active],
+        )
+        obs = _obs(rec, project_id="project-recovering")
+        health = build_terminal_audit_health([obs], now=NOW)
+        assert not health.degraded
+        alerts = terminal_audit_health_alerts(health)
+        assert not alerts, (
+            f"No alerts for a project with IN_PROGRESS recovery: {alerts}"
+        )
+
+
+class TestAlertTextRefersOnlyToUnresolvedAudits:
+    """Alert detail text must only reference counts from unresolved (PENDING) audits."""
+
+    def test_alert_count_matches_only_unresolved_failures(self):
+        """The transport failure count in alert text reflects only PENDING records."""
+        # One PENDING record (unresolved transport failure)
+        failed = _attempt(
+            "attempt-pending",
+            failure_reason="provider transport timeout",
+            ended_at=NOW.isoformat(),
+        )
+        pending_rec = _record(
+            audit_id="audit-pending",
+            project_id="project-1",
+            task_id="TASK-PENDING",
+            request_state=RequestState.PENDING,
+            attempts=[failed],
+        )
+        # One IN_PROGRESS record (recovering, should NOT count)
+        failed_hist = _attempt(
+            "attempt-hist",
+            failure_reason="network connection refused",
+            ended_at=NOW.isoformat(),
+            request_state=RequestState.PENDING,
+        )
+        active = _attempt(
+            "attempt-active",
+            request_state=RequestState.IN_PROGRESS,
+        )
+        recovering_rec = _record(
+            audit_id="audit-recovering",
+            project_id="project-1",
+            task_id="TASK-RECOVERING",
+            request_state=RequestState.IN_PROGRESS,
+            attempts=[failed_hist, active],
+        )
+        obs_pending = _obs(pending_rec, issue_identifier="TASK-PENDING")
+        obs_recovering = _obs(recovering_rec, issue_identifier="TASK-RECOVERING")
+
+        health = build_terminal_audit_health([obs_pending, obs_recovering], now=NOW)
+
+        # Only the PENDING record's failure is counted
+        assert health.transport_failure_count == 1, (
+            f"Expected 1 (only PENDING record), got {health.transport_failure_count}"
+        )
+        alerts = terminal_audit_health_alerts(health)
+        failure_alerts = [a for a in alerts if "launch_failures" in a["source"]]
+        assert len(failure_alerts) == 1
+
+        # The detail text must say "1" (only the unresolved failure)
+        detail = failure_alerts[0].get("detail", "")
+        assert "1 transport failure" in detail or "1 launch" in detail, (
+            f"Alert detail must mention count 1 for the single unresolved audit: {detail!r}"
+        )
+
+    def test_alert_action_recommends_operator_restore_only_when_truly_unresolved(self):
+        """The recovery action should recommend transport restoration only when
+        no active replacement is already running."""
+        # Record is PENDING with transport failure: operator must act
+        failed = _attempt(
+            "attempt-1",
+            failure_reason="provider transport timeout",
+            ended_at=NOW.isoformat(),
+        )
+        rec = _record(request_state=RequestState.PENDING, attempts=[failed])
+        health = build_terminal_audit_health([_obs(rec)], now=NOW)
+        alerts = terminal_audit_health_alerts(health)
+        failure_alert = next(
+            (a for a in alerts if "launch_failures" in a["source"]), None
+        )
+        assert failure_alert is not None
+        action = failure_alert.get("action", "")
+        # The action must mention transport restoration (operator needs to act)
+        assert "transport" in action.lower() or "auditor" in action.lower(), (
+            f"Action must reference transport/auditor: {action!r}"
+        )
+
+
+# ---------------------------------------------------------------------------
 # HEALTH_ALERT_PREFIX constant
 # ---------------------------------------------------------------------------
 
