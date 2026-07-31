@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-597
 type: task
-status: Needs Human
+status: Ready to Integrate
 priority: 1
 title: Recover and drain the OOMPAH-460 ordered integration chain
 parent: OOMPAH-587
@@ -13,7 +13,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:28.342383Z'
-updated_at: '2026-07-31T02:09:03.023863Z'
+updated_at: '2026-07-31T03:06:44.585582Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-597
 target_branch: null
 review_url: null
@@ -42,12 +42,12 @@ oompah.agent_run_id: 40bf17bb-873d-4006-a212-0e7c71e8f916
 oompah.work_branch: epic-OOMPAH-587--task-OOMPAH-597
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-587--task-OOMPAH-597
-  base_branch: epic-OOMPAH-587
-  base_sha: 8a875b1c321d5d1a0ae5623158a3eb98ad940313
-  updated_at: '2026-07-31T01:44:41.569400+00:00'
+  head_sha: 5d88239c93ea679f8e0b9b19a4927ba51b004422
+  submitted_at: '2026-07-31T03:06:40.741361+00:00'
+  updated_at: '2026-07-31T03:06:40.741361+00:00'
 oompah.task_costs:
   total_input_tokens: 1271455
   total_output_tokens: 12292
@@ -350,5 +350,15 @@ author: oompah
 created: 2026-07-31 02:09
 ---
 Temporary operator ownership fence after the final green run (14,070 passed, 7 skipped, 1 xfailed). The worker then ran git pull --rebase against the stale task remote and began replaying 42 already-integrated commits. Preserving tested tree 278f6ea10; after OOMPAH-598 correction advances the parent, the operator will squash only the net 8a875b1c3..278f6ea10 recovery delta onto the authoritative origin/epic-OOMPAH-587 head, focused-test the combined tree, force-push with lease, and submit.
+---
+author: oompah
+created: 2026-07-31 03:06
+---
+Operator recovery landed at 5d88239c9. Replaced merge-shaped history with one net-delta commit directly atop authoritative parent 33b773bd2, preserving OOMPAH-598 and current-main ancestry. Squash applied without conflicts. Focused terminal-audit/dashboard/config/coordinator plus standalone-delivery coverage: 373 passed, 1 expected xfail. Remote task ref force-updated with exact lease from saved 278f6ea10 to 5d88239c9. The prior saved tree remains recoverable by commit ID and old agent log; no source intent was discarded.
+---
+author: oompah
+created: 2026-07-31 03:06
+---
+Recovered and linearized the OOMPAH-460 ordered audit integration chain at 5d88239c9 on the authoritative OOMPAH-587 parent. Preserved all recovered terminal-audit observability, lifecycle, dashboard, config, coordinator, tests, and current standalone-delivery fixes. Verification: prior exact recovered tree full gate 14,070 passed, 7 skipped, 1 xfailed; new authoritative-parent focused suite 373 passed, 1 xfailed; configured exact-head integration gate will run now.
 ---
 <!-- COMMENTS:END -->
