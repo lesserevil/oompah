@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-657
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Run branch quality gates from immutable exact-head snapshots
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:06:15.542774Z'
-updated_at: '2026-07-31T12:59:34.650371Z'
+updated_at: '2026-07-31T13:00:18.386073Z'
 work_branch: OOMPAH-657
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/618
@@ -148,6 +148,25 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-d3c89591d481: '2026-07-31T12:59:21.526262+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-58de5613106a
+    project_id: proj-14849f1b
+    task_id: OOMPAH-657
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 53b6732a2cd3c6eb9f4bb5ae2944bc07c904490d22bafac41212ff62b29bc8ab
+    authorized_by:
+      version: 1
+      identity: lesserevil
+      source: api
+    reason: 'Independent audit audit-6e9bfb54bf88 returned PASS after PR #618 merged,
+      but a duplicate sibling audit left the accepted transition stuck In Validation.
+      Owner override applies the already-verified terminal result and breaks the known
+      OOMPAH-653 coordinator race.'
+    created_at: '2026-07-31T13:00:14.999114+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -666,5 +685,12 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/o
 - Cost: $0.0000
 - Exit: normal, Duration: 4m 49s
 - Log: OOMPAH-657__20260731T125451Z.jsonl
+---
+author: oompah
+created: 2026-07-31 13:00
+---
+Override by lesserevil: terminal transition to Merged applied by project owner.
+
+Reason: Independent audit audit-6e9bfb54bf88 returned PASS after PR #618 merged, but a duplicate sibling audit left the accepted transition stuck In Validation. Owner override applies the already-verified terminal result and breaks the known OOMPAH-653 coordinator race.
 ---
 <!-- COMMENTS:END -->
