@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-653
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Make terminal-audit success and owner override retire every duplicate record
   and alert
@@ -16,7 +16,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T13:29:08.063516Z'
+updated_at: '2026-07-31T13:31:03.650638Z'
 work_branch: OOMPAH-653
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/619
@@ -212,6 +212,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-cc7eaef92086: '2026-07-31T13:27:50.574641+00:00'
+    attempt-533351d0918c: '2026-07-31T13:30:59.986818+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -253,7 +254,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-653
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -262,7 +263,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-533351d0918c
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -272,13 +273,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T13:29:03.824320+00:00'
       branch_key: OOMPAH-653
+      verdict: pass
+      completed_at: '2026-07-31T13:30:59.986622+00:00'
+      ended_at: '2026-07-31T13:30:59.986622+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-07-31T13:23:52.407384+00:00'
-    updated_at: '2026-07-31T13:29:03.824320+00:00'
+    updated_at: '2026-07-31T13:30:59.986622+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-cc7eaef92086
@@ -1137,5 +1141,31 @@ author: oompah
 created: 2026-07-31 13:29
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 13:31
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: ff9771dbefc638350b7cc9d7025e3f677fef14a6
+- merge_commit: 6954bdf47b7d708b4b3fd64461fe456817313a45
+- merge_on_origin_main: true
+- pr_number: 619
+- files_changed: 11
+- insertions: 2740
+- deletions: 242
+- focused_tests_enforcement: 43 passed
+- focused_tests_coordinator: 116 passed
+- focused_tests_observability: 13 passed
+- focused_tests_audit: 28 passed
+- focused_tests_audit_health: 32 passed
+- total_focused_tests_this_run: 232 passed
+- prior_full_gate: make test passed in 376.4s at head ff9771dbe (operator branch-gate)
+- prior_auditor_verdict: PASS at 13:27 for same head/target/fingerprint
+- diff_check: clean
+- working_tree: clean
 ---
 <!-- COMMENTS:END -->
