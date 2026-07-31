@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-653
 type: bug
-status: In Progress
+status: Backlog
 priority: 1
 title: Make terminal-audit success and owner override retire every duplicate record
   and alert
@@ -10,12 +10,13 @@ children: []
 blocked_by:
 - OOMPAH-652
 - OOMPAH-657
-start_blocked_by: []
+start_blocked_by: &id001
+- OOMPAH-657
 labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T12:27:32.317100Z'
+updated_at: '2026-07-31T12:28:18.667644Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -172,6 +173,7 @@ oompah.integration:
   head_sha: 93c47346cd7317113482326ee975c7eba7b2a636
   submitted_at: '2026-07-31T11:53:39.868841+00:00'
   updated_at: '2026-07-31T11:53:39.868841+00:00'
+oompah.start_blocked_by: *id001
 ---
 ## Summary
 
@@ -866,5 +868,10 @@ author: oompah
 created: 2026-07-31 12:27
 ---
 **Understanding**: Task branch head 69fff643e. The prior 'CI failure' report at head 93c47346c shows the test process was SIGTERM'd at 48% completion (operator noted PGID 2578505 was manually killed - not a real test failure). Prior operator comment (12:23) confirms 200 terminal-audit domain/enforcement/observability/coordinator tests pass and make terminal-audit-scan passes at 69fff643e. Focused-test scope: terminal_audit_enforcement, terminal_audit_observability, terminal_transition_coordinator, plus adjacent audit callers touched (orchestrator, terminal_audit, bootstrap). I will (1) verify the focused test suites still pass, (2) run make terminal-audit-scan, (3) check for lint/format issues on the diff. If all green, push nothing new and submit. If focused tests fail, minimal fix and push.
+---
+author: oompah
+created: 2026-07-31 12:28
+---
+Operator code review accepted clean pushed head 69fff643e at the task level: canonical Issue/integration fingerprints are shared across creation/recovery, real native Markdown restart and source-head mutation cases are covered, authority selection is list-order independent, and current-document finalization fences concurrent older/equal overrides while preserving only a strictly newer one. Focused report: 200 terminal-audit tests and terminal-audit-scan passed. Parking in Backlog with a hard-start rebase/gate dependency on OOMPAH-657; this intentionally terminates the redundant CI-fixer redispatch. After OOMPAH-657 is integrated/deployed, return this task to Open, rebase onto current main, resolve the small orchestrator overlap, and submit once through the server-owned immutable gate.
 ---
 <!-- COMMENTS:END -->
