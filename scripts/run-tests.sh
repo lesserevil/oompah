@@ -34,6 +34,23 @@ test_parent="${configured_root}/pytest"
 mkdir -p "${test_parent}"
 chmod 700 "${test_parent}"
 test_run_root="$(mktemp -d "${test_parent}/run.XXXXXX")"
+test_lifecycle_root="${test_run_root}/lifecycle"
+mkdir -p "${test_lifecycle_root}"
+
+# A gate may run in a task worktree while the operator's service is alive in
+# another checkout.  Do not inherit the service URL, credentials, or scoped
+# task capability into tests.  Give any lifecycle test a private port and PID
+# state rooted below this one disposable run directory.
+test_server_port="$(python -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()')"
+export OOMPAH_PYTEST_GATE=1
+export OOMPAH_PYTEST_RUN_ROOT="${test_run_root}"
+export OOMPAH_TEST_SERVER_PORT="${test_server_port}"
+export OOMPAH_SERVER_PORT="${test_server_port}"
+export OOMPAH_TEST_PID_FILE="${test_lifecycle_root}/.oompah.pid"
+export OOMPAH_TEST_PID_META_FILE="${test_lifecycle_root}/.oompah.pid.meta"
+unset OOMPAH_SERVER_URL OOMPAH_SERVER_USERNAME OOMPAH_SERVER_PASSWORD \
+    OOMPAH_SERVER_PASSWORD_FILE OOMPAH_TASK_HANDOFF_TOKEN \
+    OOMPAH_TASK_HANDOFF_PROJECT_ID
 
 cleanup_test_run() {
     case "${test_run_root}" in
@@ -47,7 +64,6 @@ cleanup_test_run() {
 }
 trap cleanup_test_run EXIT
 
-export OOMPAH_PYTEST_RUN_ROOT="${test_run_root}"
 export PYTHONPYCACHEPREFIX="${test_run_root}/pycache"
 
 if (( $# > 0 )); then

@@ -1194,10 +1194,20 @@ class TestRunStep5cEpicMaintenance:
         orch._maybe_run_watchdog = MagicMock()
         orch._maybe_heal_repos = MagicMock()
         orch._maybe_cleanup_worktrees = MagicMock()
+        orch._run_step5b_maintenance = MagicMock()
         orch._run_step5c_epic_maintenance = MagicMock()
 
-        with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
-            asyncio.run(orch._tick())
+        async def _run_tick():
+            with patch(
+                "oompah.orchestrator.validate_dispatch_config", return_value=[]
+            ):
+                await orch._tick()
+            assert orch._maintenance_future is not None
+            assert orch._epic_maintenance_future is not None
+            await orch._maintenance_future
+            await orch._epic_maintenance_future
+
+        asyncio.run(_run_tick())
 
         assert orch._epic_maintenance_future is not None
 
@@ -1221,6 +1231,7 @@ class TestRunStep5cEpicMaintenance:
         orch._maybe_run_watchdog = MagicMock()
         orch._maybe_heal_repos = MagicMock()
         orch._maybe_cleanup_worktrees = MagicMock()
+        orch._run_step5b_maintenance = MagicMock()
 
         # Gate: the maintenance function blocks until the event is set.
         # tick_done is set AFTER asyncio.run() returns so we can confirm that
@@ -1235,8 +1246,17 @@ class TestRunStep5cEpicMaintenance:
 
         orch._run_step5c_epic_maintenance = _gated_epic_maintenance
 
-        with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
-            asyncio.run(orch._tick())
+        async def _run_tick():
+            with patch(
+                "oompah.orchestrator.validate_dispatch_config", return_value=[]
+            ):
+                await orch._tick()
+            assert orch._maintenance_future is not None
+            assert orch._epic_maintenance_future is not None
+            await orch._maintenance_future
+            await orch._epic_maintenance_future
+
+        asyncio.run(_run_tick())
         # Signal that tick() has returned.
         gate.set()
 
@@ -1248,13 +1268,6 @@ class TestRunStep5cEpicMaintenance:
         # The real assertion is the timing one: tick must complete quickly.
         # We already know it did because asyncio.run() returned above.
         assert orch._epic_maintenance_future is not None
-
-        # Ensure background thread finishes before GC (avoids test pollution).
-        if orch._epic_maintenance_future is not None:
-            try:
-                orch._epic_maintenance_future.result(timeout=2.0)
-            except Exception:
-                pass
 
     def test_tick_skips_new_epic_maintenance_when_previous_still_running(self, tmp_path):
         """When the previous epic_maintenance_future is not done, tick skips a new one."""
@@ -1273,12 +1286,15 @@ class TestRunStep5cEpicMaintenance:
         async def _run_with_fake_future():
             loop = asyncio.get_event_loop()
             fake_future: asyncio.Future = loop.create_future()
+            fake_maintenance_future: asyncio.Future = loop.create_future()
             orch._epic_maintenance_future = fake_future  # not done
+            orch._maintenance_future = fake_maintenance_future  # sibling lane in-flight
 
             with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
                 await orch._tick()
 
             fake_future.cancel()
+            fake_maintenance_future.cancel()
 
         asyncio.run(_run_with_fake_future())
 

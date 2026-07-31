@@ -22,8 +22,67 @@ DEFAULT_STOP_TIMEOUT_S = 5.0
 STOP_POLL_INTERVAL_S = 0.02
 
 
-def _linux_process_snapshot() -> dict[int, tuple[int, int, str | None, tuple[str, ...]]]:
-    """Return ``pid -> (ppid, starttime, cwd, argv)`` from procfs.
+@dataclass(frozen=True)
+class ProcessIdentity:
+    """Kernel identity captured before a process can be cleaned up."""
+
+    pid: int
+    starttime: int
+    process_group: int
+    session: int
+    cwd: str | None
+
+
+@dataclass(frozen=True)
+class _ProcessRecord:
+    """The identity plus ancestry and argv used during process discovery."""
+
+    ppid: int
+    identity: ProcessIdentity
+    argv: tuple[str, ...]
+
+
+def _linux_process_record(pid: int) -> _ProcessRecord | None:
+    """Return one procfs record without scanning unrelated processes."""
+
+    try:
+        stat = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
+        fields = stat[stat.rfind(")") + 2 :].split()
+        if fields[0] == "Z":
+            return None
+        ppid = int(fields[1])
+        starttime = int(fields[19])
+        process_group = int(fields[2])
+        session = int(fields[3])
+    except (OSError, ValueError, IndexError):
+        return None
+    try:
+        cwd = os.path.realpath(os.readlink(f"/proc/{pid}/cwd"))
+    except OSError:
+        cwd = None
+    try:
+        argv = tuple(
+            value.decode("utf-8", errors="replace")
+            for value in Path(f"/proc/{pid}/cmdline").read_bytes().split(b"\0")
+            if value
+        )
+    except OSError:
+        argv = ()
+    return _ProcessRecord(
+        ppid=ppid,
+        identity=ProcessIdentity(
+            pid=pid,
+            starttime=starttime,
+            process_group=process_group,
+            session=session,
+            cwd=cwd,
+        ),
+        argv=argv,
+    )
+
+
+def _linux_process_snapshot() -> dict[int, _ProcessRecord]:
+    """Return process records containing ancestry and kernel identity.
 
     ``starttime`` protects the termination path from PID reuse.  Procfs reads
     are intentionally best-effort because processes may exit between any two
@@ -32,35 +91,14 @@ def _linux_process_snapshot() -> dict[int, tuple[int, int, str | None, tuple[str
 
     if os.name != "posix" or not os.path.isdir("/proc"):
         return {}
-    snapshot: dict[int, tuple[int, int, str | None, tuple[str, ...]]] = {}
+    snapshot: dict[int, _ProcessRecord] = {}
     for raw_pid in os.listdir("/proc"):
         if not raw_pid.isdigit():
             continue
         pid = int(raw_pid)
-        try:
-            stat = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
-            fields = stat[stat.rfind(")") + 2 :].split()
-            if fields[0] == "Z":
-                # A zombie has exited and cannot perform work; its owner only
-                # needs to reap it. Treat it as gone for termination safety.
-                continue
-            ppid = int(fields[1])
-            starttime = int(fields[19])
-        except (OSError, ValueError, IndexError):
-            continue
-        try:
-            cwd = os.path.realpath(os.readlink(f"/proc/{pid}/cwd"))
-        except OSError:
-            cwd = None
-        try:
-            argv = tuple(
-                value.decode("utf-8", errors="replace")
-                for value in Path(f"/proc/{pid}/cmdline").read_bytes().split(b"\0")
-                if value
-            )
-        except OSError:
-            argv = ()
-        snapshot[pid] = (ppid, starttime, cwd, argv)
+        record = _linux_process_record(pid)
+        if record is not None:
+            snapshot[pid] = record
     return snapshot
 
 
@@ -68,7 +106,7 @@ def capture_workspace_processes(
     workspace_path: str,
     *,
     ancestor_pid: int | None = None,
-) -> dict[int, int]:
+) -> dict[int, ProcessIdentity]:
     """Capture service-owned processes associated with *workspace_path*.
 
     Some third-party SDKs terminate only their immediate subprocess, allowing
@@ -77,8 +115,8 @@ def capture_workspace_processes(
     descendants of the service whose cwd or argv identifies the exact managed
     workspace, then includes every descendant of those matching processes.
 
-    The returned mapping contains PID start times and is safe to pass to
-    :func:`terminate_captured_processes`.
+    The returned mapping contains PID start time, process-group, session, and
+    cwd identities and is safe to pass to :func:`terminate_captured_processes`.
     """
 
     snapshot = _linux_process_snapshot()
@@ -94,8 +132,8 @@ def capture_workspace_processes(
         parents = frontier
         frontier = {
             pid
-            for pid, (ppid, _start, _cwd, _argv) in snapshot.items()
-            if ppid in parents and pid not in descendants
+            for pid, record in snapshot.items()
+            if record.ppid in parents and pid not in descendants
         }
         descendants.update(frontier)
 
@@ -103,9 +141,15 @@ def capture_workspace_processes(
         pid
         for pid in descendants
         if (
-            (snapshot[pid][2] == workspace)
-            or bool(snapshot[pid][2] and snapshot[pid][2].startswith(workspace_prefix))
-            or workspace in snapshot[pid][3]
+            (snapshot[pid].identity.cwd == workspace)
+            or bool(
+                snapshot[pid].identity.cwd
+                and snapshot[pid].identity.cwd.startswith(workspace_prefix)
+            )
+            or any(
+                argument == workspace or argument.startswith(workspace_prefix)
+                for argument in snapshot[pid].argv
+            )
         )
     }
     selected = set(seeds)
@@ -114,15 +158,15 @@ def capture_workspace_processes(
         parents = frontier
         frontier = {
             pid
-            for pid, (ppid, _start, _cwd, _argv) in snapshot.items()
-            if ppid in parents and pid not in selected
+            for pid, record in snapshot.items()
+            if record.ppid in parents and pid not in selected
         }
         selected.update(frontier)
-    return {pid: snapshot[pid][1] for pid in selected}
+    return {pid: snapshot[pid].identity for pid in selected}
 
 
 def terminate_captured_processes(
-    captured: dict[int, int],
+    captured: dict[int, int | ProcessIdentity],
     *,
     timeout_s: float = DEFAULT_STOP_TIMEOUT_S,
 ) -> set[int]:
@@ -135,28 +179,44 @@ def terminate_captured_processes(
     # capture and this termination worker beginning. They are accepted only
     # when their ancestry reaches a PID whose start time was already captured.
     current = _linux_process_snapshot()
+
+    # Older callers may still provide only a start time.  Normalize those
+    # entries while retaining full identity for every process discovered by
+    # the ownership-aware path.
+    def _matches(
+        snapshot: dict[int, _ProcessRecord],
+        pid: int,
+        expected: int | ProcessIdentity,
+    ) -> bool:
+        record = snapshot.get(pid)
+        if record is None:
+            return False
+        if isinstance(expected, ProcessIdentity):
+            return record.identity == expected
+        return record.identity.starttime == int(expected)
+
     frontier = {
         pid
-        for pid, starttime in captured.items()
-        if pid in current and current[pid][1] == starttime
+        for pid, expected in captured.items()
+        if _matches(current, pid, expected)
     }
     while frontier:
         parents = frontier
         frontier = {
             pid
-            for pid, (ppid, starttime, _cwd, _argv) in current.items()
-            if ppid in parents and pid not in captured
+            for pid, record in current.items()
+            if record.ppid in parents and pid not in captured
         }
         for pid in frontier:
-            captured[pid] = current[pid][1]
+            captured[pid] = current[pid].identity
 
     def _alive() -> set[int]:
-        current = _linux_process_snapshot()
-        return {
-            pid
-            for pid, starttime in captured.items()
-            if pid in current and current[pid][1] == starttime
-        }
+        alive: set[int] = set()
+        for pid, expected in captured.items():
+            record = _linux_process_record(pid)
+            if record is not None and _matches({pid: record}, pid, expected):
+                alive.add(pid)
+        return alive
 
     def _signal(pids: set[int], sig: signal.Signals) -> None:
         # Signal only the captured PID/start-time identities; never a broad
@@ -221,6 +281,8 @@ class AgentSession:
         self.turn_timeout_ms = turn_timeout_ms
         self.env = dict(env or {})
         self._process: asyncio.subprocess.Process | None = None
+        self._process_identity: ProcessIdentity | None = None
+        self._stderr_task: asyncio.Task[None] | None = None
         self._thread_id: str | None = None
         self._turn_id: str | None = None
         self._request_id = 0
@@ -274,8 +336,18 @@ class AgentSession:
                 error_class="agent_not_found",
             )
 
+        # Capture the kernel identity immediately after creation.  A delayed
+        # stop must never trust the PID after the child has exited and the OS
+        # has reused it for another service.
+        if self._process.pid is not None:
+            record = _linux_process_snapshot().get(self._process.pid)
+            if record is not None and record.identity.cwd == os.path.realpath(
+                self.workspace_path
+            ):
+                self._process_identity = record.identity
+
         # Start draining stderr in the background
-        asyncio.create_task(self._drain_stderr())
+        self._stderr_task = asyncio.create_task(self._drain_stderr())
 
     async def _drain_stderr(self) -> None:
         """Read and log stderr without treating it as protocol."""
@@ -551,8 +623,45 @@ class AgentSession:
             os.name == "posix" and pid is not None and hasattr(os, "killpg")
         )
 
+        def _ownership_state() -> str:
+            """Return ``owned``, ``gone``, or ``mismatch`` for the child PID."""
+            if pid is None:
+                return "mismatch"
+            identity = self._process_identity
+            if identity is None:
+                # Mocked/non-Linux process handles do not expose procfs.  Keep
+                # the old fallback for test doubles.  Real subprocess handles
+                # without an identity are never safe to signal broadly.
+                return (
+                    "owned"
+                    if not isinstance(process, asyncio.subprocess.Process)
+                    else "mismatch"
+                )
+            record = _linux_process_record(pid)
+            if record is None:
+                # The original child exited.  Its asyncio Process handle still
+                # needs to observe that exit and close its pipe transports.
+                return "gone"
+            return (
+                "owned"
+                if record.identity == identity
+                and record.identity.cwd == os.path.realpath(self.workspace_path)
+                else "mismatch"
+            )
+
+        def _owned_process() -> bool:
+            """Check PID, start time, session, group, and workspace."""
+            return _ownership_state() == "owned"
+
         def _tree_is_running() -> bool:
+            ownership = _ownership_state()
+            if ownership == "mismatch":
+                return False
             parent_running = process.returncode is None
+            if ownership == "gone":
+                # Do not signal a vanished identity, but keep the stop
+                # coroutine alive until asyncio reaps the exact child handle.
+                return parent_running
             if not use_process_group:
                 return parent_running
             try:
@@ -564,10 +673,30 @@ class AgentSession:
             return True
 
         def _signal_tree(sig: signal.Signals, *, force: bool = False) -> None:
+            # If the PID was reused, ownership is lost and no signal is safe.
+            if not _owned_process():
+                logger.warning(
+                    "Refusing to signal unowned agent PID=%s workspace=%s",
+                    pid,
+                    self.workspace_path,
+                )
+                return
             if use_process_group:
                 try:
-                    os.killpg(pid, sig)
-                    return
+                    identity = self._process_identity
+                    if identity is not None and (
+                        identity.process_group != pid or identity.session != pid
+                    ):
+                        logger.warning(
+                            "Refusing to signal agent group with unexpected "
+                            "identity pid=%s pgid=%s session=%s",
+                            pid,
+                            identity.process_group,
+                            identity.session,
+                        )
+                    else:
+                        os.killpg(pid, sig)
+                        return
                 except ProcessLookupError:
                     return
                 except OSError as exc:
@@ -594,8 +723,24 @@ class AgentSession:
                 await asyncio.sleep(min(STOP_POLL_INTERVAL_S, remaining))
             return True
 
+        async def _join_process_transport() -> None:
+            """Finish asyncio's exact child handle and stderr pipe task."""
+
+            if not isinstance(process, asyncio.subprocess.Process):
+                return
+            if process.returncode is None:
+                return
+            await process.wait()
+            stderr_task = self._stderr_task
+            if stderr_task is not None and stderr_task is not asyncio.current_task():
+                await asyncio.gather(stderr_task, return_exceptions=True)
+            # Pipe ``connection_lost`` callbacks may be queued by the final
+            # read; let them close before a short-lived test loop is torn down.
+            await asyncio.sleep(0)
+
         timeout_s = max(float(timeout_s), 0.0)
         if not _tree_is_running():
+            await _join_process_transport()
             logger.info("Agent process stopped pid=%s", pid)
             return
 
@@ -628,4 +773,5 @@ class AgentSession:
             )
             raise
 
+        await _join_process_transport()
         logger.info("Agent process stopped pid=%s", pid)

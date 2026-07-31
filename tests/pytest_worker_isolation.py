@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import re
 import shutil
+import socket
 import tempfile
 from pathlib import Path
 from typing import Mapping
@@ -22,6 +23,13 @@ _ISOLATED_ENV_KEYS = (
     "XDG_DATA_HOME",
 )
 _RUNNER_ENV_KEYS = ("OOMPAH_PYTEST_RUN_ROOT",)
+_GATE_ENV_KEYS = (
+    "OOMPAH_PYTEST_GATE",
+    "OOMPAH_TEST_SERVER_PORT",
+    "OOMPAH_SERVER_PORT",
+    "OOMPAH_TEST_PID_FILE",
+    "OOMPAH_TEST_PID_META_FILE",
+)
 _PROCESS_GLOBAL_MODULES = frozenset(
     {
         "test_agent.py",
@@ -58,6 +66,18 @@ def build_worker_environment(
             "XDG_DATA_HOME": str(data),
         }
     )
+    if result.get("OOMPAH_PYTEST_GATE") in {"1", "true", "yes"}:
+        lifecycle = worker_root / "lifecycle"
+        lifecycle.mkdir(parents=True, exist_ok=True)
+        with socket.socket() as sock:
+            sock.bind(("127.0.0.1", 0))
+            worker_port = str(sock.getsockname()[1])
+        result["OOMPAH_TEST_SERVER_PORT"] = worker_port
+        result["OOMPAH_SERVER_PORT"] = worker_port
+        result["OOMPAH_TEST_PID_FILE"] = str(lifecycle / ".oompah.pid")
+        result["OOMPAH_TEST_PID_META_FILE"] = str(
+            lifecycle / ".oompah.pid.meta"
+        )
     return result
 
 
@@ -94,10 +114,16 @@ def pytest_configure(config: pytest.Config) -> None:
         tempfile.mkdtemp(prefix=f"{worker_id}.", dir=str(run_root))
     )
 
-    saved_environment = {key: os.environ.get(key) for key in _ISOLATED_ENV_KEYS}
+    saved_environment = {
+        key: os.environ.get(key)
+        for key in (*_ISOLATED_ENV_KEYS, *_GATE_ENV_KEYS)
+    }
     isolated = build_worker_environment(worker_root, os.environ)
     for key in _ISOLATED_ENV_KEYS:
         os.environ[key] = isolated[key]
+    for key in _GATE_ENV_KEYS:
+        if key in isolated:
+            os.environ[key] = isolated[key]
 
     # Tests create local repositories; keep their commits deterministic without
     # depending on the operator's global Git configuration.
@@ -111,7 +137,9 @@ def pytest_configure(config: pytest.Config) -> None:
     config._oompah_worker_root = worker_root  # type: ignore[attr-defined]
     config._oompah_saved_environment = saved_environment  # type: ignore[attr-defined]
     config._oompah_isolated_environment = {  # type: ignore[attr-defined]
-        key: isolated[key] for key in _ISOLATED_ENV_KEYS
+        key: isolated[key]
+        for key in (*_ISOLATED_ENV_KEYS, *_GATE_ENV_KEYS)
+        if key in isolated
     }
     config._oompah_runner_environment = {  # type: ignore[attr-defined]
         key: os.environ[key]

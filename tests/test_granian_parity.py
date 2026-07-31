@@ -11,11 +11,12 @@ Skips cleanly if granian is not installed.
 
 from __future__ import annotations
 
-import signal
 import socket
-import subprocess
 import sys
+import os
+import tempfile
 import time
+from pathlib import Path
 from typing import Generator
 
 import httpx
@@ -23,6 +24,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from oompah.server import app, _NO_CACHE_HEADERS
+from tests.process_lifecycle import start_owned_process, stop_owned_process
 
 granian = pytest.importorskip("granian", reason="granian not installed")
 
@@ -73,48 +75,50 @@ def granian_base_url() -> Generator[str, None, None]:
     """
     port = _free_port()
     script = _GRANIAN_SCRIPT.format(port=port)
-    proc = subprocess.Popen(
-        [sys.executable, "-c", script],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-
     base = f"http://127.0.0.1:{port}"
+    with tempfile.TemporaryDirectory(prefix="oompah-granian-parity-") as raw:
+        workspace = Path(raw)
+        env = os.environ.copy()
+        repo_root = str(Path(__file__).resolve().parents[1])
+        env["PYTHONPATH"] = repo_root + os.pathsep + env.get("PYTHONPATH", "")
+        proc = start_owned_process(
+            [sys.executable, "-c", script],
+            workspace=workspace,
+            env=env,
+        )
 
-    # Wait up to 10 s for the server to become ready.
-    deadline = time.monotonic() + 10.0
-    ready = False
-    while time.monotonic() < deadline:
-        if proc.poll() is not None:
-            stdout, stderr = proc.communicate()
-            pytest.fail(
-                f"Granian exited early (rc={proc.returncode}).\n"
-                f"stdout: {stdout.decode()[:400]}\n"
-                f"stderr: {stderr.decode()[:400]}"
-            )
+        # Wait up to 10 s for the server to become ready.
+        deadline = time.monotonic() + 10.0
+        ready = False
+        while time.monotonic() < deadline:
+            if proc.process.poll() is not None:
+                stdout, stderr = proc.process.communicate()
+                pytest.fail(
+                    f"Granian exited early (rc={proc.process.returncode}).\n"
+                    f"stdout: {stdout.decode()[:400]}\n"
+                    f"stderr: {stderr.decode()[:400]}"
+                )
+            try:
+                r = httpx.get(base + "/", timeout=1.0)
+                if r.status_code == 200:
+                    ready = True
+                    break
+            except Exception:
+                pass
+            time.sleep(0.1)
+
+        if not ready:
+            stop_owned_process(proc, timeout_s=5)
+            pytest.fail(f"Granian server did not become ready within 10 s on port {port}")
+
         try:
-            r = httpx.get(base + "/", timeout=1.0)
-            if r.status_code == 200:
-                ready = True
-                break
-        except Exception:
-            pass
-        time.sleep(0.1)
-
-    if not ready:
-        proc.terminate()
-        proc.wait(timeout=5)
-        pytest.fail(f"Granian server did not become ready within 10 s on port {port}")
-
-    try:
-        yield base
-    finally:
-        proc.send_signal(signal.SIGINT)
-        try:
-            proc.wait(timeout=8)
-        except subprocess.TimeoutExpired:
-            proc.terminate()
-            proc.wait(timeout=3)
+            yield base
+        finally:
+            stop_owned_process(proc, timeout_s=8)
+            try:
+                proc.process.communicate(timeout=2)
+            except Exception:
+                pass
 
 
 @pytest.fixture(scope="module")

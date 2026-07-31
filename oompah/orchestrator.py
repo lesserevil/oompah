@@ -26297,9 +26297,51 @@ class Orchestrator:
                 issue_id,
             )
             return
-        entry = self.state.running.pop(issue_id, None)
+        entry = self.state.running.get(issue_id)
         if not entry:
             return
+
+        # A provider may report completion while one of its tool subprocesses
+        # is still running.  Capture and reap the exact workspace descendants
+        # before dropping the runtime entry: once the provider root exits,
+        # those descendants can be reparented and their ownership proof is
+        # otherwise lost.  This path deliberately signals captured PIDs only;
+        # it never broadcasts to a process group that could contain the
+        # service or another worker.
+        workspace_path = getattr(entry, "workspace_path", None)
+        if isinstance(workspace_path, str) and workspace_path:
+            captured_processes = capture_workspace_processes(workspace_path)
+            if captured_processes:
+                cleanup_timeout_s = max(
+                    self.config.worker_termination_timeout_ms,
+                    0,
+                ) / 1000
+                survivors = await asyncio.get_running_loop().run_in_executor(
+                    self._tick_pool,
+                    lambda: terminate_captured_processes(
+                        captured_processes,
+                        timeout_s=cleanup_timeout_s if cleanup_timeout_s > 0 else 1.0,
+                    ),
+                )
+                if survivors:
+                    logger.error(
+                        "Worker exited with managed subprocesses still alive "
+                        "issue_identifier=%s pids=%s workspace=%s",
+                        entry.identifier,
+                        sorted(survivors),
+                        workspace_path,
+                    )
+                    reason = "abnormal"
+                    cleanup_error = (
+                        "managed tool subprocesses survived bounded cleanup: "
+                        + ", ".join(str(pid) for pid in sorted(survivors))
+                    )
+                    error = f"{error}; {cleanup_error}" if error else cleanup_error
+
+        # Do not remove a replacement runtime installed while cleanup yielded.
+        if self.state.running.get(issue_id) is not entry:
+            return
+        self.state.running.pop(issue_id, None)
         handoff_failure = consume_task_handoff_failure(
             getattr(entry, "task_handoff_token", None)
         )

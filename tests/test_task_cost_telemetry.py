@@ -15,6 +15,7 @@ import contextlib
 import os
 import shlex
 import signal
+import subprocess
 import threading
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, call, patch
@@ -639,6 +640,68 @@ class TestOnWorkerExitWritesCostRecord:
 
         assert len(fire_calls) == 1
         assert fire_calls[0] is entry
+
+    def test_normal_exit_reaps_captured_workspace_processes_before_forgetting_entry(
+        self, tmp_path
+    ):
+        """Provider completion cannot leave a task-owned tool process behind."""
+        orch, entry = self._make_orchestrator_with_entry(tmp_path)
+        entry.workspace_path = str(tmp_path)
+        captured = {12345: 67890}
+
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_issue_detail.return_value = _make_issue(
+            "test-001", state="closed"
+        )
+        orch.tracker = mock_tracker
+
+        with (
+            patch(
+                "oompah.orchestrator.capture_workspace_processes",
+                return_value=captured,
+            ) as capture,
+            patch(
+                "oompah.orchestrator.terminate_captured_processes",
+                return_value=set(),
+            ) as terminate,
+        ):
+            asyncio.run(orch._on_worker_exit("test-001", "normal", None))
+
+        capture.assert_called_once_with(str(tmp_path))
+        terminate.assert_called_once()
+        assert terminate.call_args.args[0] is captured
+        assert "test-001" not in orch.state.running
+
+    @pytest.mark.skipif(
+        os.name != "posix" or not os.path.isdir("/proc"),
+        reason="requires Linux procfs process identities",
+    )
+    def test_normal_exit_reaps_live_tool_process_in_workspace(self, tmp_path):
+        """The production exit hook kills a provider-returned orphan process."""
+        orch, entry = self._make_orchestrator_with_entry(tmp_path)
+        entry.workspace_path = str(tmp_path)
+        process = subprocess.Popen(
+            ["sleep", "60"],
+            cwd=tmp_path,
+            start_new_session=True,
+        )
+
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_issue_detail.return_value = _make_issue(
+            "test-001", state="closed"
+        )
+        orch.tracker = mock_tracker
+
+        try:
+            asyncio.run(orch._on_worker_exit("test-001", "normal", None))
+            process.wait(timeout=2)
+        finally:
+            if process.poll() is None:
+                process.kill()
+                process.wait(timeout=2)
+
+        assert process.returncode is not None
+        assert "test-001" not in orch.state.running
 
     def test_stalled_exit_fires_cost_record(self, tmp_path):
         """Agent stalled → cost record written before retry scheduled."""
