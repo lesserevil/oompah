@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-575
 type: task
-status: Needs CI Fix
+status: Merged
 priority: 0
 title: Propagate scoped task CLI auth to Codex agent sessions
 parent: null
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-30T02:15:25.255613Z'
-updated_at: '2026-07-31T06:07:04.481495Z'
+updated_at: '2026-07-31T06:08:41.226111Z'
 work_branch: OOMPAH-575
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/604
@@ -144,6 +144,23 @@ oompah.terminal_audit:
     reason: 'Verified feature branch now equals merged main after patch-equivalent
       epic delivery; PR #604 has zero diff.'
     created_at: '2026-07-31T06:06:38.280449+00:00'
+  - version: 1
+    override_id: override-1da640eabe95
+    project_id: proj-14849f1b
+    task_id: OOMPAH-575
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 2317e9c9e9acc6a60103dbb44d5a82f52f7e9dc38fdfd1e215e51aa9e5c0d2cd
+    authorized_by:
+      version: 1
+      identity: lesserevil
+      source: api
+    reason: Reapply verified Merged after a stale standalone quality-gate completion
+      raced and incorrectly regressed the terminal owner override; no gate is now
+      active and branch equals main.
+    created_at: '2026-07-31T06:08:37.323574+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -553,5 +570,12 @@ tests/test_server_json_validation.py::TestIssueCreateMalformedJson::test_empty_b
 [gw2] [ 84%] PASSED tests/test_server_json_validation.py::TestProjectUpdateMalformedJson::test_invalid_json 
 make[1]: *** [Makefile:225: test] Terminated
 ```
+---
+author: oompah
+created: 2026-07-31 06:08
+---
+Override by lesserevil: terminal transition to Merged applied by project owner.
+
+Reason: Reapply verified Merged after a stale standalone quality-gate completion raced and incorrectly regressed the terminal owner override; no gate is now active and branch equals main.
 ---
 <!-- COMMENTS:END -->
