@@ -13,7 +13,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:28.342383Z'
-updated_at: '2026-07-31T03:15:27.201384Z'
+updated_at: '2026-07-31T03:19:23.231228Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-597
 target_branch: null
 review_url: null
@@ -538,5 +538,10 @@ author: oompah
 created: 2026-07-31 03:15
 ---
 Understanding: The gate is failing with ERROR (not FAIL) on test_reload_config_with_empty_store_falls_back_to_workflow. Previous agents found this transient (20/20 isolated passes). I will: (1) run the test in isolation to confirm, (2) investigate whether there is a test ordering interaction causing it to error in full-suite runs, (3) fix any real issue found, (4) resubmit.
+---
+author: oompah
+created: 2026-07-31 03:19
+---
+Discovery: root cause identified. The orchestrator_with_store fixture in test_orchestrator_reload_profiles.py creates Orchestrator without state_path, so it uses the real .oompah/service_state.json and SQLite files. Under parallel xdist (4 workers), concurrent access to .oompah/coordination.sqlite3 / integration_queue.sqlite3 causes intermittent ERRORs. Other test files (test_orchestrator_profile_reload.py, test_auditor_termination_cleanup.py) correctly pass state_path=str(tmp_path / 'service_state.json'). Fix: add state_path=str(tmp_path / 'service_state.json') to Orchestrator(...) in orchestrator_with_store fixture.
 ---
 <!-- COMMENTS:END -->
