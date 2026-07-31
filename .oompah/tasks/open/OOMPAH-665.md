@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-665
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Retire legacy no-auditor alerts after terminal task completion
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T16:04:07.401588Z'
-updated_at: '2026-07-31T16:04:07.401588Z'
+updated_at: '2026-07-31T18:13:28.710434Z'
 work_branch: null
 target_branch: null
 review_url: null
