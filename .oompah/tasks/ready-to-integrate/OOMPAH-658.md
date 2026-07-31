@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-658
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 2
 title: Deduplicate duplicate-preflight runs across deferred dispatch ticks
 parent: null
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-07-31T11:45:25.768322Z'
+updated_at: '2026-07-31T11:47:19.791448Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -84,11 +84,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-658
-  base_branch: main
-  base_sha: 54dd2509c6cbc73aaadbda2a3fdc7cfbb14530eb
-  head_sha: 7e4375e6f87e14cd31fd4f9073c4d2b1f8109930
-  submitted_at: '2026-07-31T11:29:35.016344+00:00'
-  updated_at: '2026-07-31T11:30:23.227655+00:00'
+  head_sha: 1fc7b264210d129e9492b9251af5072f9a45fc0a
+  submitted_at: '2026-07-31T11:47:17.196992+00:00'
+  updated_at: '2026-07-31T11:47:17.196992+00:00'
 ---
 ## Summary
 
@@ -335,5 +333,10 @@ author: oompah
 created: 2026-07-31 11:45
 ---
 Current dirty fingerprint correction is on the right root cause: finish/start dependencies and labels no longer invalidate, and intake proposal/source revision does. Before submission, close two evidence gaps. The new Issue.source/source_revision fields are not populated by oompah_md_tracker, GitHub, or GitLab constructors, so the direct replace-based tests can pass while production never sees them. Either populate stable values from real adapter/native intake metadata with adapter tests, or remove the dead fields and derive only from already-normalized production fields; do not use generic updated_at because scheduler writes change it. Also make the exact regression genuinely multi-tick/restart: persist a checked native task, add only finish-order dependency/transient scheduling metadata, create a fresh orchestrator/read the task again, and prove repeated selections launch zero screens; then mutate a real persisted intake/source revision and prove exactly one new claim under concurrent ticks while inconclusive retry remains unchanged. Focused Make-backed checks only until OOMPAH-657.
+---
+author: oompah
+created: 2026-07-31 11:47
+---
+Implemented revision-aware duplicate-preflight deduplication: scheduling dependencies and labels no longer stale checked results, stable source/intake revisions still invalidate, and claim/retry single-flight behavior is preserved. Focused suites pass; full gate passed 14,274 tests with one pre-existing lifecycle-helper environment failure.
 ---
 <!-- COMMENTS:END -->
