@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-595
 type: feature
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Expose separate operator and worker task-auth health signals
 parent: OOMPAH-586
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:56.897824Z'
-updated_at: '2026-07-30T15:50:40.827737Z'
+updated_at: '2026-07-31T00:14:02.338420Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-595
 target_branch: null
 review_url: null
@@ -52,12 +52,18 @@ oompah.agent_run_id: bba6dc8b-569b-4934-85c6-4ee1dcf641e9
 oompah.work_branch: epic-OOMPAH-586--task-OOMPAH-595
 oompah.integration:
   version: 1
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-586--task-OOMPAH-595
-  head_sha: a3505cc11ef2a696dca47912083a9e54b9d7bafd
+  base_branch: epic-OOMPAH-586
+  base_sha: e0cff8ffd3319cf6d22dab914befea3222a1498d
+  head_sha: ca49d0c25b30d149cb59f0af0bac57276c1f8120
+  integrated_sha: ca49d0c25b30d149cb59f0af0bac57276c1f8120
   submitted_at: '2026-07-30T15:50:15.824542+00:00'
-  updated_at: '2026-07-30T15:50:15.824542+00:00'
+  updated_at: '2026-07-31T00:13:49.368284+00:00'
+  dependency_heads:
+    OOMPAH-594: 31a10b064158948503a7eaa646a1bfa7d1b35e55
+    OOMPAH-593: 0a260f0279690a12fb056da0c8becb6f492f8c26
 oompah.task_costs:
   total_input_tokens: 47075
   total_output_tokens: 33449
@@ -108,6 +114,55 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-586--task-OOMPAH-595
     source_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
     completed_at: '2026-07-30T15:31:04.228512+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-28e63397591c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-595
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 38ac014f417de8e864404d3d18ff24f573f275257d88db9eab2164e0a203f255
+    attempts:
+    - version: 1
+      attempt_id: attempt-e7bb1375c3e2
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 38ac014f417de8e864404d3d18ff24f573f275257d88db9eab2164e0a203f255
+      created_at: '2026-07-31T00:14:01.504765+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-31T00:14:01.504765+00:00'
+      branch_key: epic-OOMPAH-586--task-OOMPAH-595
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-31T00:13:50.602334+00:00'
+    updated_at: '2026-07-31T00:14:01.504765+00:00'
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-e7bb1375c3e2
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 38ac014f417de8e864404d3d18ff24f573f275257d88db9eab2164e0a203f255
+    created_at: '2026-07-31T00:14:01.504765+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-31T00:14:01.504765+00:00'
+    branch_key: epic-OOMPAH-586--task-OOMPAH-595
 ---
 ## Summary
 
@@ -260,5 +315,10 @@ Run #2 [attempt=2, profile=standard, role=standard -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: terminated, Duration: 19m 13s
 - Log: OOMPAH-595__20260730T153130Z.jsonl
+---
+author: oompah
+created: 2026-07-31 00:13
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
