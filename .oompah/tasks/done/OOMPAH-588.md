@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-588
 type: epic
-status: In Validation
+status: Done
 priority: 1
 title: Finish safe repository hygiene and maintenance correctness
 parent: OOMPAH-584
@@ -15,7 +15,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:13:46.482910Z'
-updated_at: '2026-07-31T05:03:19.643666Z'
+updated_at: '2026-07-31T05:09:20.304411Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -23,6 +23,8 @@ review_number: null
 merged_at: null
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-d986f94b1463: '2026-07-31T05:09:14.294912+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -30,7 +32,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-588
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -39,7 +41,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-d986f94b1463
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -49,12 +51,15 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T05:03:04.101670+00:00'
       branch_key: OOMPAH-588
+      verdict: pass
+      completed_at: '2026-07-31T05:09:14.294662+00:00'
+      ended_at: '2026-07-31T05:09:14.294662+00:00'
     requested_by:
       version: 1
       identity: orchestrator
     previous_state: Open
     created_at: '2026-07-31T05:02:58.950383+00:00'
-    updated_at: '2026-07-31T05:03:04.101670+00:00'
+    updated_at: '2026-07-31T05:09:14.294662+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-d986f94b1463
@@ -121,5 +126,30 @@ author: oompah
 created: 2026-07-31 05:03
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 05:09
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- epic_head: 869005b387d5bcf2ad76eac66a608ece7f235fd9
+- parent_head: b1425f6be8a8914c336d4dcb748ad4e10dc7a372
+- child_OOMPAH-600_commits: 67c67ffa6, 6b8310896
+- child_OOMPAH-601_commits: 5176c9e47, 8553b181c
+- child_OOMPAH-602_commits: b4959703e, 9f6f47375, 05abc1144
+- child_OOMPAH-603_commits: 869005b38, 3a1c79ed8
+- diff_stat: 19 files, +2644/-875 versus parent
+- key_added_modules: oompah/repo_hygiene.py, docs/repository-health-operations.md
+- config_env_vars: OOMPAH_REPO_HYGIENE_SAFELY_PRUNABLE_AGE_SECONDS, _COUNT_WARNING, _COUNT_CRITICAL, _CLEANUP_ERROR_THRESHOLD
+- regression_tests_added: test_repo_hygiene.py, test_orchestrator_repo_hygiene.py, test_merged_labels_scope.py (+405 lines), test_dashboard_repo_hygiene_health.py, test_orchestrator_handlers.py (aggregation), test_task_handoff.py, test_pytest_parallel.py
+- ac1_terminal_pruning: OOMPAH-603 thresholds + OOMPAH-600 scoped mutations
+- ac2_preservation: WorktreeCategory/BranchCategory dirty/unmerged/shared_owner categories retained in healthy_retained()
+- ac3_aggregation: _delete_owned_issue_branch_locked returns (changed, skip_reason); shared_epic_branch skipped silently; per-run summary aggregated in _maintenance_status[worktree_cleanup][skipped_branches]
+- ac4_visibility: OOMPAH-603 dashboard.html hygiene panel + repo_hygiene.RepoHygieneHealth.to_dict
+- ac5_scope_resolution: _resolve_issue_project_id fail-closed on ambiguity; explicit project-mismatch rejected; legacy tracker never called under managed projects (test_managed_scope_never_calls_legacy_tracker)
+- ac6_gates: OOMPAH-600 submission: 13914 passed / 7 skipped; OOMPAH-603 submission: full Makefile gate green; operator recovery: 33 focused + terminal mutation scan passed
 ---
 <!-- COMMENTS:END -->

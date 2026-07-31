@@ -18,7 +18,7 @@ labels:
 - epic:rebased
 assignee: null
 created_at: '2026-07-30T14:13:38.093049Z'
-updated_at: '2026-07-31T05:09:01.306994Z'
+updated_at: '2026-07-31T05:09:15.056877Z'
 work_branch: epic-OOMPAH-587
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/601
@@ -68,18 +68,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-587
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: fc2e53cffb6ecbd9356ba5ed70aaa7fc939e3ae228b38896757d75a04041c94c
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-a5cb7b6465d7
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: fc2e53cffb6ecbd9356ba5ed70aaa7fc939e3ae228b38896757d75a04041c94c
+      created_at: '2026-07-31T05:09:08.245279+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-31T05:09:08.245279+00:00'
+      branch_key: epic-OOMPAH-587
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-07-31T05:08:58.797722+00:00'
+    updated_at: '2026-07-31T05:09:08.245279+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-17be272b6055
@@ -94,6 +108,19 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-07-31T04:46:16.153208+00:00'
     branch_key: OOMPAH-587
+  - version: 1
+    attempt_id: attempt-a5cb7b6465d7
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: fc2e53cffb6ecbd9356ba5ed70aaa7fc939e3ae228b38896757d75a04041c94c
+    created_at: '2026-07-31T05:09:08.245279+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-31T05:09:08.245279+00:00'
+    branch_key: epic-OOMPAH-587
 oompah.task_costs:
   total_input_tokens: 105
   total_output_tokens: 25693
@@ -208,5 +235,15 @@ author: oompah
 created: 2026-07-31 05:09
 ---
 YOLO: merged PR #601.
+---
+author: oompah
+created: 2026-07-31 05:09
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-07-31 05:09
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
