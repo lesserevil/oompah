@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-584
 type: epic
-status: Open
+status: In Validation
 priority: 1
 title: Return the oompah delivery control plane to green
 parent: null
@@ -20,12 +20,33 @@ labels:
 - epic:stale
 assignee: null
 created_at: '2026-07-30T14:13:01.872040Z'
-updated_at: '2026-07-31T05:11:44.729121Z'
+updated_at: '2026-07-31T05:12:34.393027Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-6a47727db55b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-584
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c4a0fd600972ec3a5d8ffdd99f0986dabfc9e170eb09eccbf6944bf2066d1d9f
+    attempts: []
+    requested_by:
+      version: 1
+      identity: orchestrator
+    previous_state: Open
+    created_at: '2026-07-31T05:12:30.587245+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -63,5 +84,10 @@ author: oompah
 created: 2026-07-30 14:27
 ---
 Recovery graph created and accepted: child epics OOMPAH-585 through OOMPAH-588; implementation children OOMPAH-589 through OOMPAH-603. Finish-order and true hard-start edges are recorded. The live scheduler claimed OOMPAH-589 and OOMPAH-590 first; direct operator implementation is deferred while service workers are making progress. If the current broken terminal-audit runtime prevents the audit-fix epic from delivering, bootstrap those exact reviewed heads to main through the normal PR/full-gate path, then resume scheduler ownership.
+---
+author: oompah
+created: 2026-07-31 05:12
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->

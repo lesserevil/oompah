@@ -13,7 +13,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:28.342383Z'
-updated_at: '2026-07-31T05:12:08.181140Z'
+updated_at: '2026-07-31T05:12:11.533493Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-597
 target_branch: null
 review_url: null
@@ -333,18 +333,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-597
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 42484346a18e554720f9714d6fadb3a7bfa959e4601f59f2f47e70e87a87c595
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-391d33086979
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 42484346a18e554720f9714d6fadb3a7bfa959e4601f59f2f47e70e87a87c595
+      created_at: '2026-07-31T05:12:10.578792+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-31T05:12:10.578792+00:00'
+      branch_key: epic-OOMPAH-587--task-OOMPAH-597
     requested_by:
       version: 1
       identity: api-client
       source: api
     previous_state: Needs Human
     created_at: '2026-07-31T05:11:57.669594+00:00'
+    updated_at: '2026-07-31T05:12:10.578792+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-5af1aa0b5fd2
@@ -405,6 +419,19 @@ oompah.terminal_audit:
     failure_reason: Epic branch epic-OOMPAH-587 diverged from origin/epic-OOMPAH-587;
       reconcile both heads before dispatching more children
     next_retry_at: '2026-07-31T05:10:05.585727+00:00'
+  - version: 1
+    attempt_id: attempt-391d33086979
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 42484346a18e554720f9714d6fadb3a7bfa959e4601f59f2f47e70e87a87c595
+    created_at: '2026-07-31T05:12:10.578792+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-31T05:12:10.578792+00:00'
+    branch_key: epic-OOMPAH-587--task-OOMPAH-597
 ---
 ## Summary
 

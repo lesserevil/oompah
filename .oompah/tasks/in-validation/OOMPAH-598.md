@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-598
 type: bug
-status: Needs Human
+status: In Validation
 priority: 1
 title: Detect and deliver standalone Ready to Integrate tasks without PRs
 parent: OOMPAH-587
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:29.695490Z'
-updated_at: '2026-07-31T05:11:46.694840Z'
+updated_at: '2026-07-31T05:12:31.434161Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-598
 target_branch: null
 review_url: null
@@ -169,7 +169,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-598
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -198,6 +198,54 @@ oompah.terminal_audit:
     previous_state: Ready to Integrate
     created_at: '2026-07-31T02:59:12.036752+00:00'
     updated_at: '2026-07-31T03:05:02.453095+00:00'
+  - version: 1
+    audit_id: audit-e41f7fa3fb92
+    project_id: proj-14849f1b
+    task_id: OOMPAH-598
+    target_state: Done
+    request_state: superseded
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: e74bf0616d22bdfb7af2bd2805f455f2065374326cfe3639469c4acec9d4b26b
+    attempts: []
+    requested_by:
+      version: 1
+      identity: api-client
+      source: api
+    previous_state: Needs Human
+    created_at: '2026-07-31T05:12:12.877948+00:00'
+  - version: 1
+    audit_id: audit-a6d8ba448aac
+    project_id: proj-14849f1b
+    task_id: OOMPAH-598
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 550ebe8ed557edc2e73de128b333b2c752cf7a6ee692b499840d006f2f6ccef1
+    attempts:
+    - version: 1
+      attempt_id: attempt-0835e0e72499
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 550ebe8ed557edc2e73de128b333b2c752cf7a6ee692b499840d006f2f6ccef1
+      created_at: '2026-07-31T05:12:19.356250+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-31T05:12:19.356250+00:00'
+      branch_key: epic-OOMPAH-587--task-OOMPAH-598
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Needs Human
+    created_at: '2026-07-31T05:12:15.838505+00:00'
+    updated_at: '2026-07-31T05:12:19.356250+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-0335e837a33d
@@ -224,6 +272,19 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: opus
     started_at: '2026-07-31T02:59:20.877101+00:00'
+    branch_key: epic-OOMPAH-587--task-OOMPAH-598
+  - version: 1
+    attempt_id: attempt-0835e0e72499
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 550ebe8ed557edc2e73de128b333b2c752cf7a6ee692b499840d006f2f6ccef1
+    created_at: '2026-07-31T05:12:19.356250+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-31T05:12:19.356250+00:00'
     branch_key: epic-OOMPAH-587--task-OOMPAH-598
 ---
 ## Summary
@@ -719,5 +780,20 @@ author: oompah
 created: 2026-07-31 05:11
 ---
 Post-merge landing repair: the old runtime compared the pre-rebase task ref to the rebased parent and falsely regressed this audited Done task to Needs Human. Refreshed its remote task ref with an exact lease to patch-equivalent rebased head 5660afdce8929698ca10633611054e2a364818c1; it is now an ancestor of merged epic head c1b23d67e with zero commits outside the epic. Restoring the previously audited Done state by project-owner override.
+---
+author: oompah
+created: 2026-07-31 05:12
+---
+Refresh terminal candidate after patch-equivalent rebase landing repair.
+---
+author: oompah
+created: 2026-07-31 05:12
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-07-31 05:12
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
