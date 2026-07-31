@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:32:18.734139Z'
-updated_at: '2026-07-31T11:39:31.776942Z'
+updated_at: '2026-07-31T11:49:43.075360Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-623
 target_branch: null
 review_url: null
@@ -481,5 +481,10 @@ author: oompah
 created: 2026-07-31 11:39
 ---
 Implementation checkpoint pushed at 3c65ddb648b49ecd396bbf600bf6467ca21ed430. Post-restart resolution now has three safe outcomes: prove and keep the candidate pair; prove the exact old instance has no restart pending and atomically restore/resume the old pair; or verify lifecycle PID metadata and stop only that owned service before retaining the candidate CLI. Prior pause state is preserved. Immutable CLI roots are bounded and pruned only when no canonical/rollback launcher or active process references them. Deterministic regressions cover accepted POST/connection drop, old instance still live, wrong build, health timeout, activation failure/interruption, concurrent invocation, exact PID quarantine/refusal, prior pause state, and active/backup-root pruning. Verification: 309 broader focused tests passed; final direct suite 30 passed; Ruff check, git diff --check, and make check-secrets passed. make test-setup was attempted first per project convention but host uv failed before setup with transient-scope DBus error; the configured existing Python test environment was used. Branch is clean and pushed. Do not submit yet: OOMPAH-657 remains In Progress and comment #58 requires final immutable exact-head gate evidence only after it is merged/deployed.
+---
+author: oompah
+created: 2026-07-31 11:49
+---
+Exact review of clean 3c65ddb64: the candidate/old/unknown resolution and exact-PID quarantine are materially improved, but one blocking lifecycle race remains. There is no stable serialization lock in canonical_cli_cutover.py or sync_canonical_cli.py. Two make restart/install-cli invocations can capture the same old pair, stage different journals, interleave os.replace/rollback/commit, and prune roots while the other activation is live. Add one host-scoped fcntl/flock lock at a stable path outside revision/backup roots, held across selection, staging, activation, restart resolution, rollback/quarantine, and pruning; synchronize() and graceful_cutover() must share it without self-deadlock. Add deterministic concurrent activation/cutover tests where the second caller blocks or fails clearly and can never overwrite the first rollback journal or delete either active root. Harden pruning tests for concurrent launcher replacement, symlink/incomplete publication, and an invocation crossing activation. Also require health and authenticated state to report the same non-null service instance and exact revision before candidate/old equality is proven; accepting state_instance=None weakens the stated two-surface identity contract. Keep the exact lifecycle-owned quarantine and paused-state behavior.
 ---
 <!-- COMMENTS:END -->
