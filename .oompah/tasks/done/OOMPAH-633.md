@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:54:49.391955Z'
-updated_at: '2026-07-31T05:56:08.711937Z'
+updated_at: '2026-07-31T05:56:24.409167Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-633
 target_branch: null
 review_url: null
@@ -64,8 +64,8 @@ oompah.work_contributors:
     source_sha: d62dd4cff702ae2b818418407d7d15b7a643213e
     completed_at: '2026-07-31T01:03:25.102978+00:00'
 oompah.task_costs:
-  total_input_tokens: 552368
-  total_output_tokens: 11538
+  total_input_tokens: 552386
+  total_output_tokens: 11857
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -73,8 +73,8 @@ oompah.task_costs:
       output_tokens: 3716
       cost_usd: 0.0
     unknown:
-      input_tokens: 94
-      output_tokens: 7822
+      input_tokens: 112
+      output_tokens: 8141
       cost_usd: 0.0
   runs:
   - profile: default
@@ -113,6 +113,12 @@ oompah.task_costs:
     output_tokens: 61
     cost_usd: 0.0
     recorded_at: '2026-07-31T05:54:42.858246+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 18
+    output_tokens: 319
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T05:56:21.498369+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
@@ -651,5 +657,15 @@ created: 2026-07-31 05:56
 Override by lesserevil: terminal transition to Done applied by project owner.
 
 Reason: Restore previously audited Done after false post-merge landing regression; refreshed exact task ref is contained in main.
+---
+author: oompah
+created: 2026-07-31 05:56
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 6
+- Tokens: 18 in / 319 out [337 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 1m 16s
+- Log: OOMPAH-633__20260731T055519Z.jsonl
 ---
 <!-- COMMENTS:END -->
