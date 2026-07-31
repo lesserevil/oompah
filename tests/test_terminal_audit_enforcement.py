@@ -50,6 +50,7 @@ class _Tracker:
         self.metadata: dict[str, dict[str, object]] = {}
         self.set_calls = 0
         self.fail_status_updates = False
+        self.status_updates: list[tuple[str, str]] = []
 
     def fetch_all_issues_enriched(self):
         return list(self.issues)
@@ -66,6 +67,7 @@ class _Tracker:
             raise RuntimeError("status write failed")
         for issue in self.issues:
             if issue.identifier == identifier and "status" in kwargs:
+                self.status_updates.append((identifier, kwargs["status"]))
                 issue.state = kwargs["status"]
 
 
@@ -426,6 +428,48 @@ def test_restart_finishes_override_retirement_after_status_write(tmp_path):
     assert stored.unknown_fields["oompah.terminal_audit_retirements"][0]["applied"] is True
 
 
+def test_recovery_applies_unapplied_override_while_still_in_validation(tmp_path):
+    """An override intent must not deadlock when its status write was interrupted."""
+    tracker = _Tracker([_issue("TASK-1", "In Validation", "evidence-a", "project-a")])
+    record = _pending_record("project-a", "TASK-1", "audit-pending")
+    override = {
+        "version": 1,
+        "override_id": "override-crashed-before-status",
+        "project_id": "project-a",
+        "task_id": "TASK-1",
+        "target_state": "Done",
+        "evidence_fingerprint": record.evidence_fingerprint.to_dict(),
+        "authorized_by": {"version": 1, "identity": "owner"},
+        "reason": "restart recovery",
+        "applied": False,
+    }
+    tracker.metadata["TASK-1"] = {
+        METADATA_KEY: TerminalAuditMetadata(
+            pending_chain=[record],
+            unknown_fields={TERMINAL_OVERRIDE_RECORDS_KEY: [override]},
+        ).to_dict()
+    }
+
+    tracker.fail_status_updates = True
+    enforcer = _enforcer(tmp_path)
+    assert enforcer.recover_pending_audits([("project-a", tracker)]) == []
+    assert tracker.issues[0].state == "In Validation"
+    failed = TerminalAuditMetadata.from_dict(tracker.metadata["TASK-1"][METADATA_KEY])
+    assert failed.unknown_fields[TERMINAL_OVERRIDE_RECORDS_KEY][0]["applied"] is False
+
+    tracker.fail_status_updates = False
+    assert enforcer.recover_pending_audits([("project-a", tracker)]) == []
+    assert tracker.issues[0].state == "Done"
+    assert tracker.status_updates == [("TASK-1", "Done")]
+    recovered = TerminalAuditMetadata.from_dict(tracker.metadata["TASK-1"][METADATA_KEY])
+    assert recovered.pending_chain[0].request_state == RequestState.CANCELLED
+    assert recovered.unknown_fields[TERMINAL_OVERRIDE_RECORDS_KEY][0]["applied"] is True
+
+    # Restart recovery is idempotent after both halves of the intent are durable.
+    assert enforcer.recover_pending_audits([("project-a", tracker)]) == []
+    assert tracker.status_updates == [("TASK-1", "Done")]
+
+
 def test_override_recovery_preserves_concurrent_ledger_append(tmp_path):
     """Recovery must update the updater's current override list, not a stale snapshot."""
     record = _pending_record("project-a", "TASK-1", "audit-pending")
@@ -510,6 +554,86 @@ def test_restart_replays_unacknowledged_result_status_and_is_idempotent(tmp_path
     updates_before_replay = tracker.set_calls
     assert enforcer.recover_pending_audits([("project-a", tracker)]) == []
     assert tracker.set_calls == updates_before_replay
+
+
+def test_recovery_retires_result_intent_after_task_evidence_changes(tmp_path):
+    """A completed result for an obsolete task revision must never be replayed."""
+    tracker = _Tracker([_issue("TASK-1", "In Validation", "evidence-a")])
+    record = _pending_record(
+        "project-a", "TASK-1", "audit-pass", request_state=RequestState.COMPLETED
+    )
+    tracker.issues[0].evidence_fingerprint = EvidenceFingerprint("c" * 64)  # type: ignore[attr-defined]
+    tracker.metadata["TASK-1"] = {
+        METADATA_KEY: TerminalAuditMetadata(
+            pending_chain=[record],
+            unknown_fields={
+                TERMINAL_RESULT_INTENTS_KEY: [
+                    {
+                        "project_id": "project-a",
+                        "task_id": "TASK-1",
+                        "audit_id": record.audit_id,
+                        "attempt_id": "attempt-pass",
+                        "target_state": "Done",
+                        "evidence_fingerprint": record.evidence_fingerprint.digest,
+                        "status": "Done",
+                        "audit_ids": [record.audit_id],
+                        "applied": False,
+                    }
+                ]
+            },
+        ).to_dict()
+    }
+
+    assert _enforcer(tmp_path).recover_pending_audits([("project-a", tracker)]) == []
+    assert tracker.issues[0].state == "In Validation"
+    assert tracker.status_updates == []
+    stored = TerminalAuditMetadata.from_dict(tracker.metadata["TASK-1"][METADATA_KEY])
+    intent = stored.unknown_fields[TERMINAL_RESULT_INTENTS_KEY][0]
+    assert intent["applied"] is True
+    assert intent["retired_reason"] == "current_evidence_mismatch"
+    assert stored.pending_chain[0].request_state == RequestState.COMPLETED
+
+
+def test_recovery_selects_one_newest_current_result_intent(tmp_path):
+    """Competing completed intents cannot replay multiple terminal statuses."""
+    tracker = _Tracker([_issue("TASK-1", "In Validation", "evidence-a")])
+    first = _pending_record(
+        "project-a", "TASK-1", "audit-first", request_state=RequestState.COMPLETED
+    )
+    second = replace(first, audit_id="audit-second")
+    def _intent(record: TerminalAuditRecord, attempt_id: str) -> dict[str, object]:
+        return {
+            "project_id": "project-a",
+            "task_id": "TASK-1",
+            "audit_id": record.audit_id,
+            "attempt_id": attempt_id,
+            "target_state": record.target_state.value,
+            "evidence_fingerprint": record.evidence_fingerprint.digest,
+            "status": "Done",
+            "audit_ids": [record.audit_id],
+            "applied": False,
+        }
+
+    tracker.metadata["TASK-1"] = {
+        METADATA_KEY: TerminalAuditMetadata(
+            pending_chain=[first, second],
+            unknown_fields={
+                TERMINAL_RESULT_INTENTS_KEY: [
+                    _intent(first, "attempt-first"),
+                    _intent(second, "attempt-second"),
+                ]
+            },
+        ).to_dict()
+    }
+
+    assert _enforcer(tmp_path).recover_pending_audits([("project-a", tracker)]) == []
+    assert tracker.issues[0].state == "Done"
+    assert tracker.status_updates == [("TASK-1", "Done")]
+    stored = TerminalAuditMetadata.from_dict(tracker.metadata["TASK-1"][METADATA_KEY])
+    intents = stored.unknown_fields[TERMINAL_RESULT_INTENTS_KEY]
+    assert [intent["applied"] for intent in intents] == [True, True]
+    assert intents[0]["retired_reason"] == "superseded_by_newer_intent"
+    assert intents[1]["retired_reason"] == "recovered_current_intent"
 
 
 def test_dispatch_cas_does_not_resurrect_completed_audit(tmp_path):
