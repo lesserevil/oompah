@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T10:47:08.498076Z'
+updated_at: '2026-07-31T10:47:24.480496Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,13 +36,13 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 5f8d0cf1-7f01-48be-916e-0905e57ca0cb
 oompah.task_costs:
-  total_input_tokens: 2697692
-  total_output_tokens: 7615
+  total_input_tokens: 2698610
+  total_output_tokens: 7882
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 2697692
-      output_tokens: 7615
+      input_tokens: 2698610
+      output_tokens: 7882
       cost_usd: 0.0
   runs:
   - profile: default
@@ -51,6 +51,12 @@ oompah.task_costs:
     output_tokens: 7615
     cost_usd: 0.0
     recorded_at: '2026-07-31T10:39:27.535729+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 918
+    output_tokens: 267
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T10:47:22.502095+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-655__20260731T103632Z
@@ -146,5 +152,15 @@ author: oompah
 created: 2026-07-31 10:47
 ---
 Enforce full-gate service isolation at subprocess launch boundary. Quality gate subprocess now runs with complete lifecycle isolation (private temp root, ephemeral port, isolated PID files, removed credentials) enforced at the server-controlled launch boundary, independent of candidate branch code cooperation. Added quality_gate_environment() function and regression tests. All tests pass (90+ tests verified).
+---
+author: oompah
+created: 2026-07-31 10:47
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 52
+- Tokens: 918 in / 267 out [1.2K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 7m 44s
+- Log: OOMPAH-655__20260731T103941Z.jsonl
 ---
 <!-- COMMENTS:END -->
