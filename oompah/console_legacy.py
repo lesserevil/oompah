@@ -75,6 +75,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Iterator
 
+from oompah.secrets import redact_sensitive_data
+
 logger = logging.getLogger(__name__)
 
 # Default location for the per-project transcript directory. Mirrors the
@@ -176,18 +178,38 @@ class ConsoleStore:
         The returned dict is the canonical event shape used by the
         broadcast layer (WebSocket fan-out) and by callers that want
         to keep a parallel in-memory view.
+
+        SECURITY: Both ``payload`` and ``usage`` are recursively scanned
+        by :func:`oompah.secrets.redact_sensitive_data` before being
+        written to disk or returned. This is the central redaction
+        boundary for the legacy console path — the same event dict is
+        broadcast to WebSocket clients by ``_record_and_broadcast``, so
+        redacting here covers both sinks without duplicating the pass.
         """
+        # Redact both dict-shaped inputs before persistence. redact_sensitive_data
+        # accepts None/empty and returns dict-shaped values for dict input.
+        safe_payload = redact_sensitive_data(payload or {}) if payload else {}
+        if not isinstance(safe_payload, dict):
+            safe_payload = {"_redacted": True}
+        safe_usage = None
+        if usage:
+            _u = redact_sensitive_data(usage)
+            safe_usage = _u if isinstance(_u, dict) else {"_redacted": True}
+
         event: dict[str, Any] = {
             "ts": ts or _now_iso(),
             "kind": kind,
-            "payload": payload or {},
+            "payload": safe_payload,
         }
-        if usage:
-            event["usage"] = usage
+        if safe_usage:
+            event["usage"] = safe_usage
         serialized = json.dumps(event, default=str)
         if len(serialized) > _MAX_EVENT_BYTES:
             # Drop payload to keep the line small; preserve the kind +
-            # a marker so consumers can see something happened.
+            # a marker so consumers can see something happened. Reuse
+            # the already-redacted safe_usage rather than the raw usage
+            # so the trimmed record can never leak the values we scrubbed
+            # from the untrimmed record above.
             trimmed = {
                 "ts": event["ts"],
                 "kind": kind,
@@ -199,8 +221,8 @@ class ConsoleStore:
                     ),
                 },
             }
-            if usage:
-                trimmed["usage"] = usage
+            if safe_usage:
+                trimmed["usage"] = safe_usage
             event = trimmed
             serialized = json.dumps(event, default=str)
         with self._lock:

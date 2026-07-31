@@ -25657,13 +25657,25 @@ class Orchestrator:
                     sess = entry.session
                     turn_count = sess.turn_count if sess else 0
 
+                    # SECURITY: type-safe usage redaction. If redaction
+                    # returns a non-dict marker (e.g. because ev.usage was
+                    # a credential-like object), fall back to a marker
+                    # dict rather than crashing on dict(<str>).
+                    if ev.usage:
+                        _redacted_usage = redact_sensitive_data(ev.usage)
+                        if isinstance(_redacted_usage, dict):
+                            _usage_for_activity = dict(_redacted_usage)
+                        else:
+                            _usage_for_activity = {"_redacted": True}
+                    else:
+                        _usage_for_activity = None
                     activity = AgentActivity(
                         turn=turn_count,
                         kind=activity_kind,
                         summary=summary,
                         detail=detail,
                         timestamp=ev.timestamp,
-                        usage=dict(redact_sensitive_data(ev.usage)) if ev.usage else None,
+                        usage=_usage_for_activity,
                     )
                     entry.activity_log.append(activity)
 

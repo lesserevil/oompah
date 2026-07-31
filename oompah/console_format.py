@@ -165,7 +165,15 @@ class ConsoleEvent:
         if self.raw_event_kind is not None:
             out["raw_event_kind"] = self.raw_event_kind
         if self.attachments is not None:
-            out["attachments"] = list(self.attachments)
+            # SECURITY: attachments are free-form operator-supplied
+            # strings — scan each through redact_sensitive_data so a
+            # URL-with-userinfo pasted as an attachment cannot land
+            # in a serialized transcript.
+            _atts: list[str] = []
+            for att in self.attachments:
+                _r = redact_sensitive_data(att)
+                _atts.append(_r if isinstance(_r, str) else str(_r))
+            out["attachments"] = _atts
         return out
 
     @classmethod

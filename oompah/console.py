@@ -194,8 +194,15 @@ def _redact_console_event(event: ConsoleEvent) -> ConsoleEvent:
     """Create a copy of the ConsoleEvent with all sensitive fields redacted.
 
     This is the central redaction boundary for ConsoleEvent fan-out.
-    All fields that might contain secrets (text, args, result, usage) are
-    redacted before the event is persisted or fanned out to callbacks.
+    All fields that might contain secrets (text, args, result, usage,
+    attachments) are redacted before the event is persisted or fanned
+    out to callbacks.
+
+    SECURITY: Attachments are strings and may contain any operator-
+    supplied text (e.g. a URL with embedded userinfo pasted as an
+    attachment); we scan them the same way as other free-form strings.
+    Values whose type is unexpected fall through the generic
+    redact_sensitive_data() fail-closed path.
 
     Args:
         event: The original ConsoleEvent (may contain secrets)
@@ -203,19 +210,53 @@ def _redact_console_event(event: ConsoleEvent) -> ConsoleEvent:
     Returns:
         A new ConsoleEvent with sensitive fields redacted
     """
+    def _redact_or_none(v: Any) -> Any:
+        # Preserve None/empty; run all other values through redaction so
+        # anything that made it into the field gets scanned regardless
+        # of type. Type-safe: usage must remain dict-shaped (callers
+        # expect .get(...)).
+        if v is None:
+            return None
+        return redact_sensitive_data(v)
+
+    # Usage must remain dict-shaped: if redaction returns a non-dict
+    # marker (e.g. because the input was a credential-like object),
+    # substitute a safe marker dict rather than propagating a string
+    # where a dict is expected downstream.
+    if event.usage is None:
+        redacted_usage: Any = None
+    else:
+        _u = redact_sensitive_data(event.usage)
+        redacted_usage = _u if isinstance(_u, dict) else {"_redacted": True}
+
+    # Attachments are typed as list[str] | None. Scan each string
+    # through _redact_string via redact_sensitive_data; unexpected
+    # element types are coerced through the fail-closed str path so
+    # nothing raw slips into the transcript.
+    if event.attachments is None:
+        redacted_attachments: list[str] | None = None
+    else:
+        _out: list[str] = []
+        for att in event.attachments:
+            _r = redact_sensitive_data(att)
+            # redact_sensitive_data always returns a str for str input,
+            # and a string form for unknown-type input.
+            _out.append(_r if isinstance(_r, str) else str(_r))
+        redacted_attachments = _out
+
     return ConsoleEvent(
         ts=event.ts,
         kind=event.kind,
         backend=event.backend,
         model=event.model,
-        text=redact_sensitive_data(event.text) if event.text else None,
+        text=_redact_or_none(event.text),
         tool=event.tool,  # tool names are not secrets
-        args=redact_sensitive_data(event.args) if event.args else None,
-        result=redact_sensitive_data(event.result) if event.result else None,
+        args=_redact_or_none(event.args),
+        result=_redact_or_none(event.result),
         is_error=event.is_error,
-        usage=redact_sensitive_data(event.usage) if event.usage else None,
+        usage=redacted_usage,
         raw_event_kind=event.raw_event_kind,
-        attachments=event.attachments,  # file paths are not typically secrets
+        attachments=redacted_attachments,
     )
 
 

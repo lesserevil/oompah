@@ -267,6 +267,15 @@ def main() -> None:
         datefmt="%Y-%m-%dT%H:%M:%S",
         stream=sys.stderr,
     )
+    # SECURITY: install a secret-redaction filter on the oompah namespace
+    # so accidental logger.warning("...: %s", credential_url) style calls
+    # cannot leak plaintext secrets to service logs.
+    try:
+        from oompah.secrets import install_secret_redaction_filter
+        install_secret_redaction_filter("oompah")
+    except Exception:
+        # Never let a broken filter installation break server startup.
+        pass
 
     # Resolve effective server backend and worker count (CLI > env > default).
     # The .env file was loaded above, so OOMPAH_SERVER_BACKEND / OOMPAH_SERVER_WORKERS

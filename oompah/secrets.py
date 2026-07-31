@@ -29,9 +29,19 @@ Usage::
 Design:
 
 * **Recursive:** Walks dicts, lists, strings, dataclasses, and repr() forms.
-* **Safe defaults:** Returns original value if type is unknown.
+* **Fail-closed:** Unknown-type objects are rendered via repr()/str() and
+  scanned for secret patterns *before* being returned. The raw object is
+  never returned — a downstream ``json.dumps(..., default=str)`` can only
+  ever serialize text that has already passed the redaction pass. This
+  closes a leak in earlier designs where an innocuously named object whose
+  ``__str__``/``__repr__`` embedded a bearer token could bypass redaction
+  entirely.
 * **Pattern-based:** Uses regex + key-name heuristics to find secrets.
 * **Configurable:** See ``SECRET_PATTERNS`` and ``SECRET_KEYS`` for customization.
+* **Logging integration:** :class:`SecretRedactionFilter` +
+  :func:`install_secret_redaction_filter` wire the same pattern set into
+  Python ``logging`` so ``logger.warning("...: %s", url_with_userinfo)``
+  cannot leak plaintext into service logs.
 """
 
 from __future__ import annotations
@@ -321,54 +331,143 @@ def redact_sensitive_data(
             # Fail-closed: return a marker indicating redaction occurred
             return f"{type(value).__name__}([REDACTED])"
 
-    # For unknown types, attempt to handle repr() forms (for credential objects)
-    # Only do this if the type name or module suggests it might contain credentials
-    type_name = type(value).__name__.lower()
+    # For unknown types (arbitrary objects with __str__ / __repr__):
+    # fail-closed. Any downstream serializer (e.g. json.dumps(...,
+    # default=str)) will stringify these objects, so we can't just pass
+    # them through — a plain-named "Session" or "Message" object whose
+    # __str__ dumps an Authorization header would leak plaintext.
+    #
+    # Policy:
+    #   1. Credential-like class or module name → always return a
+    #      typed marker, never expose repr().
+    #   2. Every other unknown object → attempt to render via repr()
+    #      then str(). If either rendering surfaces a known secret
+    #      pattern, return the redacted rendering. Otherwise fall
+    #      back to returning the redacted rendering itself (never the
+    #      raw object) so a downstream default=str serializer can only
+    #      ever see already-scanned text.
+    #
+    # This means: a caller that hands us an object whose repr contains
+    # `Authorization: Bearer <tok>` will get back the string
+    # `... Authorization: [REDACTED] ...`, not the raw object. And a
+    # caller that hands us a plain domain object whose repr is
+    # `Point(x=1, y=2)` will get back that repr string, unchanged, but
+    # never the object itself.
+    type_name = type(value).__name__
+    type_name_lower = type_name.lower()
     module_name = type(value).__module__.lower() if hasattr(type(value), "__module__") else ""
 
-    credential_indicators = ("credential", "auth", "client", "secret", "token", "key")
+    credential_indicators = ("credential", "secret", "token", "bearer", "apikey", "api_key", "passwd", "password")
     is_credential_like = any(
-        indicator in type_name or indicator in module_name
+        indicator in type_name_lower or indicator in module_name
         for indicator in credential_indicators
     )
 
     if is_credential_like:
-        try:
-            repr_str = repr(value)
-            # Only if repr looks like it contains secrets should we redact
-            redacted_repr = _redact_string(repr_str)
-            if redacted_repr != repr_str:
-                # Repr was modified; return a note indicating redaction
-                logger.debug(
-                    "redact_sensitive_data: redacted repr of %s",
-                    type(value).__name__,
-                )
-                # Return a safe string representation
-                return f"{type(value).__name__}([REDACTED])"
-            else:
-                # Repr didn't contain obvious secrets patterns
-                # but credential-like types should still be treated conservatively
-                logger.debug(
-                    "redact_sensitive_data: credential-like object %s "
-                    "with no obvious patterns; returning marker for safety",
-                    type(value).__name__,
-                )
-                return f"{type(value).__name__}([REDACTED])"
-        except Exception as exc:
-            # If repr() fails on a credential-like object, definitely redact
-            logger.debug(
-                "redact_sensitive_data: repr of credential-like %s "
-                "raised exception (%s); returning marker",
-                type(value).__name__, exc,
-            )
-            return f"{type(value).__name__}([REDACTED])"
+        # Never let a credential-like class expose any part of its state.
+        logger.debug(
+            "redact_sensitive_data: credential-like object %s "
+            "returned as typed marker for safety",
+            type_name,
+        )
+        return f"{type_name}([REDACTED])"
 
-    # For non-credential-like unknown types, return unchanged
-    return value
+    # Non-credential-like unknown object: render safely and scan for
+    # secret patterns. We render via repr() first because repr() is the
+    # canonical debug form; if repr() explodes, fall back to str().
+    try:
+        rendered = repr(value)
+    except Exception:
+        try:
+            rendered = str(value)
+        except Exception as exc:
+            logger.debug(
+                "redact_sensitive_data: str/repr of %s raised %s; "
+                "returning safe marker",
+                type_name, exc,
+            )
+            return f"{type_name}([REDACTED])"
+
+    redacted_rendered = _redact_string(rendered)
+    # Always return the scanned/rendered form rather than the raw
+    # object so that downstream default=str serializers can never
+    # bypass the redaction pass.
+    return redacted_rendered
+
+
+class SecretRedactionFilter(logging.Filter):
+    """logging.Filter that scans every log record for secret patterns.
+
+    Attach to the ``oompah`` logger namespace to catch anything a developer
+    accidentally logs — for example ``logger.warning("connect failed to %s",
+    url_with_userinfo)`` — without requiring the callsite to remember to
+    redact.
+
+    Design:
+
+    * Rewrites ``record.msg`` (the format string) if it is a string.
+    * Rewrites ``record.args`` (positional args) so that ``%s`` formatting
+      cannot re-expose a secret after the msg is scrubbed.
+    * Runs against args of every type via ``redact_sensitive_data`` so that
+      an object whose ``__str__`` embeds credentials is redacted before
+      Python's logging machinery formats it. Container args (dicts, lists,
+      tuples) are scanned recursively.
+    * Never raises. If any part of the redaction blows up, the record is
+      passed through unchanged rather than dropped — a broken filter must
+      not hide a real log line.
+
+    We intentionally do NOT try to rewrite ``record.exc_info`` (traceback
+    formatting) because that requires re-serializing the frame chain and
+    would materially change stack traces. Callers who catch and log
+    exceptions with secret-bearing arguments should stringify + redact
+    themselves; the filter still protects the exception ``msg`` and
+    ``args`` above.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:  # noqa: D401
+        try:
+            if isinstance(record.msg, str):
+                record.msg = _redact_string(record.msg)
+            args = record.args
+            if args is None:
+                pass
+            elif isinstance(args, tuple):
+                record.args = tuple(
+                    redact_sensitive_data(a) for a in args
+                )
+            elif isinstance(args, dict):
+                record.args = {
+                    k: redact_sensitive_data(v) for k, v in args.items()
+                }
+            else:
+                # Some callers pass a single non-tuple arg for %s formatting.
+                record.args = redact_sensitive_data(args)
+        except Exception:
+            # A broken filter must not hide log lines. Fall through.
+            pass
+        return True
+
+
+def install_secret_redaction_filter(logger_name: str = "oompah") -> SecretRedactionFilter:
+    """Attach a :class:`SecretRedactionFilter` to a logger namespace.
+
+    Idempotent: if the target logger already has an instance of this filter,
+    the existing one is returned. Safe to call multiple times (e.g. from
+    both server startup and test fixtures).
+    """
+    target = logging.getLogger(logger_name)
+    for f in target.filters:
+        if isinstance(f, SecretRedactionFilter):
+            return f
+    flt = SecretRedactionFilter()
+    target.addFilter(flt)
+    return flt
 
 
 __all__ = [
     "redact_sensitive_data",
     "SECRET_KEYS",
     "SECRET_PATTERNS",
+    "SecretRedactionFilter",
+    "install_secret_redaction_filter",
 ]
