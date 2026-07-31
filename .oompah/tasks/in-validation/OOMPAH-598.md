@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:29.695490Z'
-updated_at: '2026-07-31T02:59:13.638309Z'
+updated_at: '2026-07-31T02:59:26.744796Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-598
 target_branch: null
 review_url: null
@@ -162,18 +162,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-598
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 550ebe8ed557edc2e73de128b333b2c752cf7a6ee692b499840d006f2f6ccef1
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-8afc0c625bc7
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 550ebe8ed557edc2e73de128b333b2c752cf7a6ee692b499840d006f2f6ccef1
+      created_at: '2026-07-31T02:59:20.877101+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-31T02:59:20.877101+00:00'
+      branch_key: epic-OOMPAH-587--task-OOMPAH-598
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-31T02:59:12.036752+00:00'
+    updated_at: '2026-07-31T02:59:20.877101+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-0335e837a33d
@@ -187,6 +201,19 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: opus
     started_at: '2026-07-31T01:54:24.351074+00:00'
+    branch_key: epic-OOMPAH-587--task-OOMPAH-598
+  - version: 1
+    attempt_id: attempt-8afc0c625bc7
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 550ebe8ed557edc2e73de128b333b2c752cf7a6ee692b499840d006f2f6ccef1
+    created_at: '2026-07-31T02:59:20.877101+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-31T02:59:20.877101+00:00'
     branch_key: epic-OOMPAH-587--task-OOMPAH-598
 ---
 ## Summary
@@ -632,5 +659,15 @@ author: oompah
 created: 2026-07-31 02:47
 ---
 Repaired standalone Ready delivery at d547fb3a0: real SCM/project APIs, durable queue/review/audit reconciliation, actionable failures, gated live recovery of OOMPAH-574/576/581, and same-sweep review-slot reservation so multiple Ready rows cannot exceed max_in_flight_prs. Normal capacity waits clear stale failure alerts instead of reporting false undeliverable state. Verification: corrected branch full Makefile gate 13,931 passed and 7 skipped before the reservation patch; exact reservation regression plus affected suites 54 passed; oompah will run the configured exact-head branch gate for d547fb3a0.
+---
+author: oompah
+created: 2026-07-31 02:59
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-07-31 02:59
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
