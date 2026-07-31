@@ -511,6 +511,48 @@ def test_selection_skips_checked_running_and_backoff_records():
     assert metrics["skipped_backoff"] == 1
 
 
+def test_selection_loads_metadata_when_not_on_candidate_issue():
+    """Test that metadata is explicitly loaded from tracker during selection.
+
+    This reproduces the bug where candidates fetched via fetch_candidate_issues()
+    might not have metadata loaded (description might be truncated in list
+    responses). The selection should explicitly load metadata to recognize
+    CHECKED records and avoid redundant duplicate-preflight dispatches across
+    scheduler ticks.
+    """
+    checked_issue = _issue("TASK-1", title="Already screened")
+    unchecked_issue = _issue("TASK-2")
+    now = datetime.now(timezone.utc)
+
+    # Store CHECKED record in tracker metadata (simulating a previous screening)
+    checked_claim = new_claim_record(checked_issue, owner="scheduler", now=now)
+    checked_record = complete_claim_record(
+        checked_claim,
+        verdict=ScreeningVerdict.NO_DUPLICATE,
+        now=now,
+    )
+    tracker = _Tracker([checked_issue, unchecked_issue])
+    tracker.set_metadata_field(checked_issue.identifier, METADATA_KEY, checked_record.to_dict())
+
+    # Simulate candidates fetched from a list endpoint (metadata not loaded)
+    candidate_checked = copy.deepcopy(checked_issue)
+    candidate_checked.duplicate_screening = None  # Metadata not loaded in list response
+    candidate_unchecked = copy.deepcopy(unchecked_issue)
+    candidate_unchecked.duplicate_screening = None
+
+    orch = _orch(tracker, slots=4, preflight_limit=4)
+    orch._should_dispatch = lambda issue, duplicate_preflight=False: True
+
+    # The fix should load metadata from tracker and skip the CHECKED task
+    selected = orch._select_duplicate_preflight_candidates(
+        [candidate_checked, candidate_unchecked]
+    )
+
+    assert [item.identifier for item in selected] == ["TASK-2"]
+    metrics = orch._last_duplicate_preflight_metrics
+    assert metrics["skipped_checked"] == 1
+
+
 @pytest.mark.asyncio
 async def test_dispatch_preflight_does_not_move_task_in_progress():
     issue = _issue()

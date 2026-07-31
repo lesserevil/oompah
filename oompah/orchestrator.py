@@ -8485,6 +8485,20 @@ class Orchestrator:
         )
 
     def _duplicate_screening_assessment(self, issue: Issue):
+        # Ensure duplicate_screening metadata is loaded from the tracker.
+        # Candidates fetched via fetch_candidate_issues() may have truncated
+        # or missing metadata, which would cause assess_screening to incorrectly
+        # return UNCHECKED even if a CHECKED record exists. Load it explicitly
+        # to avoid redundant duplicate-preflight dispatches across ticks.
+        if not hasattr(issue, 'duplicate_screening') or issue.duplicate_screening is None:
+            try:
+                tracker = self._tracker_for_issue(issue)
+                load_duplicate_screening_record(tracker, issue)
+            except Exception:
+                # If we can't load metadata, proceed with what we have.
+                # The assessment will return UNCHECKED if metadata is missing,
+                # which is conservative but safe.
+                pass
         return assess_screening(
             issue,
             detector_version=DUPLICATE_DETECTOR_VERSION,
