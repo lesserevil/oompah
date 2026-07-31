@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T13:12:19.387161Z'
-updated_at: '2026-07-31T14:51:44.982076Z'
+updated_at: '2026-07-31T15:02:42.959064Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -190,5 +190,32 @@ author: oompah
 created: 2026-07-31 14:51
 ---
 Focus: Event Api Redaction Specialist
+---
+author: oompah
+created: 2026-07-31 15:02
+---
+Continuation review: verified the prior commit 76619929b implemented every acceptance requirement.
+
+Key implementation surface:
+- oompah/models.py: RetryEntry gained failed_status, failed_updated_at, failed_attempt, assignment_id, work_branch, head_sha, workspace_path, authority_generation, due_at_epoch_ms, and cancelled fields. Issue gained assignment_id/head_sha fields to expose tracker-visible authority evidence.
+- oompah/orchestrator.py: added _retry_authority_lock, _retry_dispatching, _retry_authority_generation, _retry_entry_matches_issue, _persist_retry_entries, _parse_persisted_retry_entries, _restore_persisted_retries, _cancel_retry_for_issue, _arm_retry_entry, and _reconcile_retry_authority. Retry dispatch is now bracketed by a compare-and-swap inside the RLock, a stale entry aborts before claim, and every replacement/status/head/branch change withdraws prior generations. Restart discards legacy or replaced retries; valid generations rearm and persist with authority_generation.
+- oompah/server.py: added _cancel_retry_for_authority_change and invoked it (plus _cancel_retry_for_issue on submission) from api_submit_issue, api_task_handoff (submit/set-status/set-status-from-label), and api_update_issue. Retry rows in the state snapshot exclude cancelled entries, so /api/v1/state counts and alerts only expose actionable retries. Historical error text remains on the RetryEntry for tracker comments.
+- oompah/github_tracker.py and oompah/oompah_md_tracker.py: expose agent_run_id metadata as Issue.assignment_id so tracker-provided assignment identity feeds generation fencing.
+
+Tests (all deterministic, live under tests/test_retry_authority_generation.py plus the neighboring worker/tracker suites):
+- submission clears retry immediately + history preserved
+- unrelated project/task is not affected
+- Backlog/Open/Needs Human/Done status transitions withdraw retry authority
+- replacement head, replacement assignment_id, replacement attempt cannot inherit generation
+- due-time race with submit: only one authority winner runs, timer aborts
+- restart discards persisted retry with replaced head, missing task, or legacy record without generation
+- restart re-arms valid generation and re-persists it
+- workspace HEAD revalidation for trackers with no head field
+- API helper ignores no-op status writes and cancels on real change
+- legacy RetryEntry (no generation) stays dispatchable
+
+Verification run today: 17/17 pass in test_retry_authority_generation.py; 499/499 pass in test_worker_submission + test_github_tracker + test_oompah_md_tracker; 408/408 pass across test_stalled_task_watchdog + test_orchestrator_pause + test_dispatch_close_race + test_orchestrator_handlers + test_stall_to_dispatch_recovery; 39/39 in test_status_dispatch + test_orphan_reset_dispatch_wake + test_dispatch_lane_contract; 40/40 in test_auditor_dispatch + test_p0_dispatch_bypass + test_release_delivery_project_retry_api; 232/232 in orchestrator merged/conflict/hygiene/telemetry/duplicate; 34/34 in test_credential_error_alert. The only failing test seen (test_orchestrator_full_sync::TestFullSyncIntervalConfig) also fails on main and is unrelated to this task.
+
+Proceeding to submit.
 ---
 <!-- COMMENTS:END -->
