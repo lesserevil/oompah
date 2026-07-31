@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-650
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Keep scoped task handoff credentials valid for the full worker lifetime
 parent: OOMPAH-619
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T09:20:48.961636Z'
+updated_at: '2026-07-31T09:39:59.208838Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -36,16 +36,16 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: dfc9ee09-54ca-4a3d-b701-a3370a9326c4
+oompah.agent_run_id: 6ca08af8-8122-4100-8543-42b54d320634
 oompah.work_branch: epic-OOMPAH-619--task-OOMPAH-650
 oompah.integration:
   version: 2
-  state: ready
+  state: working
   attempts: 0
   task_branch: epic-OOMPAH-619--task-OOMPAH-650
-  head_sha: 3748c216e374011ed05860a5a2b971a212c42427
-  submitted_at: '2026-07-31T09:19:20.027943+00:00'
-  updated_at: '2026-07-31T09:19:20.027943+00:00'
+  base_branch: epic-OOMPAH-619
+  base_sha: 0dc7d0f7caeea06a6eceb55ea2e58cf16554f0a4
+  updated_at: '2026-07-31T09:39:54.731594+00:00'
 oompah.task_costs:
   total_input_tokens: 1607075
   total_output_tokens: 8327
@@ -210,5 +210,15 @@ author: oompah
 created: 2026-07-31 09:20
 ---
 Operator review rejects Ready head 3748c216e: task_cli.py calls refresh_task_handoff_token() inside the spawned CLI process, but task_handoff._default_store is process-local memory owned by that new CLI, not the running server store that minted the token. The refresh therefore cannot extend the server grant; in production it returns false against an empty store and is ignored. The only effective change is an arbitrary fixed 24-hour TTL, so a silent tool lasting past it still fails at final submit and the acceptance criterion remains unmet. Implement renewal on the server-owned store tied to observed live session/tool heartbeats or a scoped refresh endpoint that validates current ownership/scope; add a true subprocess+live-server test with a short TTL proving the server grant expiry advances, plus post-restart/final-submit coverage.
+---
+author: oompah
+created: 2026-07-31 09:39
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-31 09:39
+---
+Focus: Security Auditor
 ---
 <!-- COMMENTS:END -->

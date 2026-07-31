@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-652
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Isolate the full Makefile test gate from a running Oompah service
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:15.160957Z'
-updated_at: '2026-07-31T09:39:36.267744Z'
+updated_at: '2026-07-31T09:40:12.026054Z'
 work_branch: null
 target_branch: null
 review_url: null
