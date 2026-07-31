@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T11:44:13.368289Z'
+updated_at: '2026-07-31T11:44:16.292188Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -832,5 +832,10 @@ author: oompah
 created: 2026-07-31 11:44
 ---
 Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-31 11:44
+---
+Focus: Security Auditor
 ---
 <!-- COMMENTS:END -->
