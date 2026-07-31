@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T22:56:06.058439Z'
-updated_at: '2026-07-31T23:53:40.261476Z'
+updated_at: '2026-07-31T23:53:57.678968Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,13 +39,13 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: ebbe1120-2e13-42f9-b6ed-01a8f28321df
 oompah.task_costs:
-  total_input_tokens: 218616
-  total_output_tokens: 1771
+  total_input_tokens: 218668
+  total_output_tokens: 22133
   total_cost_usd: 0.0
   by_model:
     sonnet:
-      input_tokens: 217130
-      output_tokens: 1406
+      input_tokens: 217182
+      output_tokens: 21768
       cost_usd: 0.0
     haiku:
       input_tokens: 1486
@@ -64,6 +64,12 @@ oompah.task_costs:
     output_tokens: 365
     cost_usd: 0.0
     recorded_at: '2026-07-31T23:09:51.173325+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 52
+    output_tokens: 20362
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T23:53:51.574606+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-670__20260731T230203Z
@@ -74,14 +80,24 @@ oompah.work_contributors:
     source_branch: OOMPAH-670
     source_sha: d96740a6ecdca353e40ef87e94a4ee91b8828df0
     completed_at: '2026-07-31T23:02:39.124795+00:00'
+  - run_id: OOMPAH-670__20260731T234308Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: sonnet
+    focus: ci_fix
+    source_branch: OOMPAH-670
+    source_sha: ace5b944ec513acce4dab1c289c3b891fc4cfc4e
+    completed_at: '2026-07-31T23:53:51.589359+00:00'
 oompah.integration:
   version: 2
   state: ready
   attempts: 0
   task_branch: OOMPAH-670
+  base_branch: main
+  base_sha: 9fc14256e7912023844663ddfee2a9940c71e05f
   head_sha: ace5b944ec513acce4dab1c289c3b891fc4cfc4e
   submitted_at: '2026-07-31T23:53:37.341178+00:00'
-  updated_at: '2026-07-31T23:53:37.341178+00:00'
+  updated_at: '2026-07-31T23:53:56.906073+00:00'
 ---
 ## Summary
 
@@ -325,5 +341,20 @@ author: oompah
 created: 2026-07-31 23:53
 ---
 Fixed CI failure: test_tick_starts_maintenance_future was timing out under 4-worker xdist parallel load because _recover_release_addendum_leases (awaited inside _tick()) reads all .oompah/tasks/*.md files without being mocked. Added stubs for _recover_release_addendum_leases, _run_step5b_maintenance, and _run_step5c_epic_maintenance in the failing test, following the pattern from OOMPAH-664. The dashboard auth changes from the frontend agent remain intact. Branch head: ace5b944e.
+---
+author: oompah
+created: 2026-07-31 23:53
+---
+Agent completed successfully in 647s (20414 tokens)
+---
+author: oompah
+created: 2026-07-31 23:53
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 94, Tool calls: 61
+- Tokens: 52 in / 20.4K out [20.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 10m 47s
+- Log: OOMPAH-670__20260731T234308Z.jsonl
 ---
 <!-- COMMENTS:END -->
