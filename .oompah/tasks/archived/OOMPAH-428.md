@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-428
 type: task
-status: In Validation
+status: Archived
 priority: null
 title: Harden PR creation gate and work_branch reconciliation for shared-epic child
   tasks
@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T21:34:08.303204Z'
-updated_at: '2026-07-31T06:00:43.345873Z'
+updated_at: '2026-07-31T06:01:37.763803Z'
 work_branch: epic-OOMPAH-426
 target_branch: null
 review_url: null
@@ -51,6 +51,23 @@ oompah.task_costs:
     recorded_at: '2026-07-30T22:37:21.232531+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-6f40f3724f60
+    project_id: proj-14849f1b
+    task_id: OOMPAH-428
+    target_state: Archived
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 89cbcc5cb0097a365dee51f5ccddc8046f4c794b9ec1eaf04b672d18a970fb23
+    authorized_by:
+      version: 1
+      identity: lesserevil
+      source: api
+    reason: Archive stale child of merged epic as superseded; undelivered hardening
+      is preserved in actionable top-level OOMPAH-641.
+    created_at: '2026-07-31T06:01:32.390009+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -369,5 +386,12 @@ author: oompah
 created: 2026-07-31 06:00
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 06:01
+---
+Override by lesserevil: terminal transition to Archived applied by project owner.
+
+Reason: Archive stale child of merged epic as superseded; undelivered hardening is preserved in actionable top-level OOMPAH-641.
 ---
 <!-- COMMENTS:END -->
