@@ -58,7 +58,7 @@ from oompah.duplicate_screening import (
     new_claim_record,
     save_record as save_duplicate_screening_record,
 )
-from oompah.integration import IntegrationRecord
+from oompah.integration import IntegrationRecord, classify_conflict_repair_failure
 from oompah.integration_executor import (
     IntegrationExecutionResult,
     execute_integration,
@@ -141,6 +141,12 @@ from oompah.terminal_audit import (
 )
 from oompah.terminal_audit_metadata import TerminalAuditMetadataStore
 from oompah.terminal_audit_enforcement import TerminalAuditEnforcement
+from oompah.terminal_audit_observability import (
+    AuditAlertCondition,
+    TerminalAuditAlertRegistry,
+    TerminalAuditMetrics,
+    threshold_conditions,
+)
 from oompah.terminal_audit_health import (
     AuditHealthObservation,
     HEALTH_ALERT_PREFIX,
@@ -899,6 +905,21 @@ class Orchestrator:
         self._alerts: list[
             dict[str, str]
         ] = []  # {"level": "warning", "message": "..."}
+        # Terminal-audit metrics are durable service state, not tracker
+        # metadata.  The metrics sink is attached to the coordinator below
+        # after construction and also to the bootstrap replacement.
+        self._terminal_audit_metrics = TerminalAuditMetrics(
+            load_state=self._load_state_for_terminal_audit,
+            save_state=self._save_state_for_terminal_audit,
+        )
+        self._terminal_audit_alerts = TerminalAuditAlertRegistry()
+        self._terminal_audit_manual_alerts: dict[
+            tuple[str, str, str, str], AuditAlertCondition
+        ] = {}
+        # A failed enforcement scan is actionable until a later scan confirms
+        # recovery.  Keep that condition separate from the per-audit metric
+        # conditions so a read-only snapshot cannot accidentally clear it.
+        self._terminal_audit_recovery_alert: AuditAlertCondition | None = None
         self._rate_limit_until: float = 0.0  # epoch time until which dispatch is paused
         # Throttle for _auto_archive: it does a full-corpus read per project
         # but only ever acts on issues closed >= _ARCHIVE_DAYS ago, so it
@@ -911,6 +932,7 @@ class Orchestrator:
             dict(cursors) if isinstance(cursors, dict) else {}
         )
         self._maintenance_status: dict[str, Any] = {}
+        self.terminal_transition_coordinator.set_metrics(self._terminal_audit_metrics)
         self._last_tick_metrics: dict[str, Any] = {}
         self._last_dispatch_metrics: dict[str, Any] = {}
         self._dispatch_pending_event_keys: set[str] = set()
@@ -1410,38 +1432,143 @@ class Orchestrator:
             result = self._terminal_audit_enforcement.initialize(
                 self._terminal_audit_scopes()
             )
-            self._maintenance_status["terminal_audit_enforcement"] = result
-            if result.get("errors") and not any(
-                alert.get("source") == "terminal_audit_enforcement"
-                for alert in self._alerts
-            ):
-                self._alerts.append(
-                    {
-                        "level": "error",
-                        "source": "terminal_audit_enforcement",
-                        "message": "Terminal-audit enforcement requires operator attention",
-                    }
+            metrics = self._terminal_audit_metrics
+            metrics.sync_pending(self._terminal_audit_enforcement.pending_audits)
+            for entry in self._terminal_audit_enforcement.state.grandfathered:
+                metrics.record_grandfathered(
+                    entry.project_id,
+                    entry.task_id,
+                    self._terminal_audit_enforcement._audit_id(entry),
                 )
+            metrics_snapshot = metrics.snapshot()
+            self._terminal_audit_enforcement.last_result = {
+                **result,
+                "metrics": metrics_snapshot,
+            }
+            self._maintenance_status["terminal_audit_enforcement"] = {
+                **result,
+                "metrics": metrics_snapshot,
+            }
+            self._maintenance_status["terminal_audit"] = metrics_snapshot
+            self._sync_terminal_audit_observability_alerts(
+                result.get("errors") or None,
+                recovery_complete=not bool(result.get("errors")),
+            )
         except Exception as exc:  # noqa: BLE001 - startup must remain observable
             logger.exception("terminal-audit enforcement startup failed")
             self._maintenance_status["terminal_audit_enforcement"] = {
                 "quarantined": True,
                 "errors": [type(exc).__name__],
             }
-            if not any(
-                alert.get("source") == "terminal_audit_enforcement"
-                for alert in self._alerts
-            ):
-                self._alerts.append(
-                    {
-                        "level": "error",
-                        "source": "terminal_audit_enforcement",
-                        "message": "Terminal-audit enforcement startup failed closed",
-                    }
-                )
+            self._terminal_audit_enforcement.last_result = dict(
+                self._maintenance_status["terminal_audit_enforcement"]
+            )
+            self._sync_terminal_audit_observability_alerts([type(exc).__name__])
         finally:
             self._terminal_audit_started = True
             self._terminal_audit_last_scan = time.monotonic()
+
+    def _sync_terminal_audit_observability_alerts(
+        self,
+        recovery_errors: list[str] | None = None,
+        *,
+        recovery_complete: bool = False,
+    ) -> None:
+        """Refresh only actionable terminal-audit alerts.
+
+        Queued, running, and successful audits intentionally contribute no
+        alert condition.  Conditions are keyed by project/task/audit, so a
+        repeated maintenance scan replaces one alert instead of appending a
+        duplicate, and an empty subsequent scan clears recovered conditions.
+        """
+
+        metrics = self._terminal_audit_metrics
+        conditions = threshold_conditions(
+            metrics,
+            max_attempts=max(1, int(getattr(self.config, "audit_max_attempts", 3))),
+            max_age_seconds=max(
+                1.0,
+                float(getattr(self.config, "audit_attempt_ttl_seconds", 3600)),
+            ),
+        )
+        if recovery_errors:
+            detail = ", ".join(str(error) for error in recovery_errors)
+            corrupt = any(
+                token in detail.lower()
+                for token in ("corrupt", "quarantin", "metadata")
+            )
+            kind = "persistence_corrupt" if corrupt else "queue_recovery"
+            self._terminal_audit_recovery_alert = AuditAlertCondition(
+                kind,
+                "service",
+                "terminal-audit",
+                "recovery",
+                f"Terminal-audit queue recovery failed: {detail}.",
+                "Inspect the terminal-audit persistence and restart the service after repair.",
+            )
+        elif recovery_complete:
+            self._terminal_audit_recovery_alert = None
+        if self._terminal_audit_recovery_alert is not None:
+            conditions.append(self._terminal_audit_recovery_alert)
+        # A newly queued retry is the recovery signal for a prior
+        # no-candidate condition.  Drop the one-shot manual mirror so the
+        # same project/task/audit does not keep warning after recovery.
+        self._terminal_audit_manual_alerts = {
+            key: condition
+            for key, condition in self._terminal_audit_manual_alerts.items()
+            if condition.kind != "no_independent_candidate"
+            or key[1:] in metrics._no_candidate
+        }
+        conditions.extend(self._terminal_audit_manual_alerts.values())
+        alerts = self._terminal_audit_alerts.sync(conditions)
+        terminal_sources = {
+            condition.source for condition in self._terminal_audit_alerts.conditions
+        }
+        self._alerts = [
+            alert
+            for alert in self._alerts
+            if not str(alert.get("source", "")).startswith("terminal_audit:")
+            or str(alert.get("source", "")) in terminal_sources
+        ]
+        existing_sources = {str(alert.get("source", "")) for alert in self._alerts}
+        self._alerts.extend(
+            alert for alert in alerts if str(alert.get("source", "")) not in existing_sources
+        )
+
+    def record_terminal_audit_no_candidate(
+        self, project_id: str, task_id: str, audit_id: str, *, reason: str = "no eligible candidate"
+    ) -> None:
+        """Record and surface an actionable no-independent-candidate outcome."""
+
+        self._terminal_audit_metrics.record_no_independent_candidate(
+            project_id, task_id, audit_id
+        )
+        condition = AuditAlertCondition(
+            "no_independent_candidate",
+            project_id,
+            task_id,
+            audit_id,
+            f"No independent auditor candidate is available ({reason}).",
+            "Configure a healthy auditor provider/model independent of the task contributors, then retry the audit.",
+        )
+        self._terminal_audit_manual_alerts[condition.key] = condition
+        self._sync_terminal_audit_observability_alerts()
+
+    def clear_terminal_audit_alert(
+        self, project_id: str, task_id: str, audit_id: str
+    ) -> None:
+        """Clear an audit's actionable condition after recovery."""
+
+        self._terminal_audit_metrics.clear_actionable_alert(
+            project_id, task_id, audit_id
+        )
+        self._terminal_audit_manual_alerts = {
+            key: condition
+            for key, condition in self._terminal_audit_manual_alerts.items()
+            if key[1:] != (project_id, task_id, audit_id)
+        }
+        self._terminal_audit_alerts.clear(project_id, task_id, audit_id)
+        self._sync_terminal_audit_observability_alerts()
 
     def _refresh_terminal_audit_health(
         self,
@@ -4885,6 +5012,7 @@ class Orchestrator:
                     project.name,
                     exc,
                 )
+                self._audit_blocked_integration_rows(project.id, tracker)
                 continue
             for issue in ready:
                 issue.project_id = project.id
@@ -4897,6 +5025,9 @@ class Orchestrator:
                     or not record.head_sha
                 ):
                     continue
+                automatic_retry = (
+                    str(record.state or "").strip().lower() == "ready"
+                )
                 self.integration_queue.enqueue(
                     project_id=project.id,
                     epic_id=epic_id,
@@ -4906,8 +5037,608 @@ class Orchestrator:
                     base_sha=record.base_sha,
                     priority=issue.priority,
                     submitted_at=record.submitted_at,
-                    explicit_retry=False,  # Background sync is idempotent
+                    explicit_retry=automatic_retry,
                 )
+            self._audit_blocked_integration_rows(project.id, tracker)
+
+    def _arm_integration_delivery_alert(
+        self,
+        project_id: str,
+        task_id: str,
+        reason: str,
+    ) -> None:
+        """Surface one idempotent alert for an unexplained blocked row."""
+
+        source = f"integration_delivery:{project_id}:{task_id}"
+        self._alerts = [
+            alert for alert in self._alerts if alert.get("source") != source
+        ]
+        self._alerts.append(
+            {
+                "level": "warning",
+                "source": source,
+                "message": (
+                    f"Blocked integration task {task_id} has no active retry "
+                    f"or actionable human reason: {reason}."
+                ),
+            }
+        )
+
+    def _clear_integration_delivery_alert(
+        self,
+        project_id: str,
+        task_id: str,
+    ) -> None:
+        """Clear the blocked-row alert once recovery is explained."""
+
+        source = f"integration_delivery:{project_id}:{task_id}"
+        self._alerts = [
+            alert for alert in self._alerts if alert.get("source") != source
+        ]
+
+    def _audit_blocked_integration_rows(self, project_id: str, tracker) -> None:
+        """Alert when a blocked queue row has no retry or human handoff."""
+
+        delivery_prefix = f"integration_delivery:{project_id}:"
+        scan_source = f"integration_delivery_scan:{project_id}"
+        blocked = [
+            item
+            for item in self.integration_queue.items(project_id=project_id)
+            if item.state == "blocked"
+        ]
+        blocked_sources = {
+            f"{delivery_prefix}{item.task_id}" for item in blocked
+        }
+        self._alerts = [
+            alert
+            for alert in self._alerts
+            if not (
+                str(alert.get("source", "")).startswith(delivery_prefix)
+                and alert.get("source") not in blocked_sources
+            )
+        ]
+        if not blocked:
+            self._alerts = [
+                alert
+                for alert in self._alerts
+                if alert.get("source") != scan_source
+            ]
+            return
+        try:
+            issues = tracker.fetch_all_issues()
+        except Exception as exc:  # noqa: BLE001 - preserve an actionable alert
+            self._alerts = [
+                alert
+                for alert in self._alerts
+                if alert.get("source") != scan_source
+            ]
+            self._alerts.append(
+                {
+                    "level": "warning",
+                    "source": scan_source,
+                    "message": (
+                        f"Could not audit blocked integration rows for "
+                        f"project {project_id}: {exc}"
+                    ),
+                }
+            )
+            return
+        self._alerts = [
+            alert
+            for alert in self._alerts
+            if alert.get("source") != scan_source
+        ]
+
+        by_alias: dict[str, Issue] = {}
+        for issue in issues or []:
+            for alias in (getattr(issue, "id", None), issue.identifier):
+                if str(alias or "").strip():
+                    by_alias[str(alias).strip()] = issue
+
+        human_states = {NEEDS_HUMAN, NEEDS_CI_FIX, NEEDS_REBASE}
+        for item in blocked:
+            issue = by_alias.get(item.task_id)
+            record = getattr(issue, "integration", None) if issue else None
+            task_state = canonicalize_status(getattr(issue, "state", ""))
+            reason = str(
+                getattr(record, "last_error", None)
+                or getattr(record, "repair_failure_reason", None)
+                or item.last_error
+                or ""
+            ).strip()
+            if task_state in human_states and reason:
+                self._clear_integration_delivery_alert(
+                    project_id,
+                    item.task_id,
+                )
+                continue
+
+            if issue is None:
+                missing_reason = "the queue task is missing from the tracker"
+            elif task_state not in human_states:
+                missing_reason = (
+                    f"tracker state is {getattr(issue, 'state', '') or '<empty>'}"
+                )
+            else:
+                missing_reason = "the human handoff has no recorded reason"
+            self._arm_integration_delivery_alert(
+                project_id,
+                item.task_id,
+                missing_reason,
+            )
+
+    def _is_integration_item_in_backoff(
+        self,
+        item: IntegrationQueueItem,
+        issue: Issue | None,
+    ) -> bool:
+        """Return True if the item is currently in a conflict repair backoff period.
+        
+        When a conflict repair worker encounters a recoverable infrastructure failure
+        (auth, provider, timeout), the item is marked for backoff with a backoff_until
+        timestamp. During the backoff period, the item should remain in 'ready' state
+        but not be claimed for integration.
+        """
+        if issue is None:
+            return False
+        integration = getattr(issue, "integration", None)
+        if integration is None:
+            return False
+        if not integration.backoff_until:
+            return False
+        try:
+            backoff_time = datetime.fromisoformat(integration.backoff_until)
+            now = datetime.now(timezone.utc)
+            return now < backoff_time
+        except (ValueError, TypeError):
+            # Invalid timestamp format, treat as no backoff
+            return False
+
+    def _reconcile_standalone_ready_to_integrate_tasks(self) -> None:
+        """Deliver stranded standalone submissions through their review path.
+
+        Epic children are recovered by :meth:`_sync_ready_integration_submissions`.
+        A top-level task instead owns a PR/MR against the project's default
+        branch.  This sweep is the restart-safe fallback for a task whose
+        submission reached the tracker but whose worker exited before review
+        creation completed.
+        """
+        for project in self.project_store.list_all():
+            project_id = str(project.id)
+            tracker = self._tracker_for_project(project_id)
+            try:
+                ready = tracker.fetch_issues_by_states([READY_TO_INTEGRATE])
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "Could not scan Ready to Integrate submissions for %s: %s",
+                    project.name,
+                    exc,
+                )
+                continue
+
+            standalone = [
+                issue
+                for issue in ready
+                if not str(issue.parent_id or "").strip()
+                and not _is_epic_issue(issue)
+            ]
+            if not standalone:
+                continue
+
+            # A queue row is already a durable delivery path.  It may be an
+            # active integration, a completed integration awaiting audit, or a
+            # blocked row with its own actionable error.  Never create a
+            # competing standalone review for the same task.
+            try:
+                queued_by_task = {
+                    item.task_id: item
+                    for item in self.integration_queue.items(project_id=project_id)
+                }
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "Could not inspect integration delivery rows for %s: %s",
+                    project.name,
+                    exc,
+                )
+                continue
+
+            pending_review: list[Issue] = []
+            for issue in standalone:
+                task_id = issue.identifier
+                queue_item = queued_by_task.get(task_id)
+                if queue_item is None:
+                    pending_review.append(issue)
+                    continue
+                self._clear_standalone_delivery_alert(project_id, task_id)
+                logger.debug(
+                    "Standalone Ready task %s already has integration "
+                    "delivery state %s",
+                    task_id,
+                    queue_item.state,
+                )
+            if not pending_review:
+                continue
+
+            provider = None
+            repo_slug = ""
+            provider_error = ""
+            try:
+                provider = detect_provider(
+                    project.repo_url,
+                    access_token=project.access_token,
+                )
+                if provider is not None:
+                    repo_slug = extract_repo_slug(project.repo_url)
+                else:
+                    provider_error = (
+                        f"no supported forge provider was detected for "
+                        f"{project.repo_url or '<missing repo URL>'}; configure "
+                        "a GitHub or GitLab project repo_url"
+                    )
+            except Exception as exc:  # noqa: BLE001
+                provider_error = f"SCM provider setup failed: {exc}"
+
+            target_branch = str(project.default_branch or "").strip()
+            review_count, review_limit, _ = self._project_review_capacity(
+                project_id
+            )
+            counted_review_ids = {
+                str(getattr(review, "id", "") or "").strip()
+                for review in getattr(self, "_reviews_cache", {}).get(
+                    project_id,
+                    [],
+                )
+                if not getattr(review, "draft", False)
+                and str(getattr(review, "id", "") or "").strip()
+            }
+            for issue in pending_review:
+                issue.project_id = project_id
+                task_id = issue.identifier
+
+                if provider is None or not repo_slug:
+                    reason = provider_error or (
+                        "repository slug could not be resolved; configure a "
+                        "supported project repo_url"
+                    )
+                    self._arm_standalone_delivery_alert(project_id, task_id, reason)
+                    logger.warning(
+                        "Standalone Ready task %s is undeliverable: %s",
+                        task_id,
+                        reason,
+                    )
+                    continue
+                if not target_branch:
+                    reason = "project default_branch is not configured"
+                    self._arm_standalone_delivery_alert(project_id, task_id, reason)
+                    logger.warning(
+                        "Standalone Ready task %s is undeliverable: %s",
+                        task_id,
+                        reason,
+                    )
+                    continue
+
+                task_branch = self._branch_for_issue(issue, project)
+                if not task_branch:
+                    reason = "task work branch is not recorded"
+                    self._arm_standalone_delivery_alert(project_id, task_id, reason)
+                    logger.warning(
+                        "Standalone Ready task %s is undeliverable: %s",
+                        task_id,
+                        reason,
+                    )
+                    continue
+
+                try:
+                    branch_head = provider.get_branch_head_sha(
+                        repo_slug,
+                        task_branch,
+                    )
+                    if not branch_head:
+                        reason = (
+                            f"branch {task_branch} is not present on the remote; "
+                            "push it or correct oompah.work_branch metadata"
+                        )
+                        self._arm_standalone_delivery_alert(
+                            project_id,
+                            task_id,
+                            reason,
+                        )
+                        logger.warning(
+                            "Standalone Ready task %s branch %s not found on remote",
+                            task_id,
+                            task_branch,
+                        )
+                        continue
+                except Exception as exc:
+                    reason = f"remote branch check failed: {exc}"
+                    self._arm_standalone_delivery_alert(
+                        project_id,
+                        task_id,
+                        reason,
+                    )
+                    logger.warning(
+                        "Could not check if branch exists for %s: %s",
+                        task_id,
+                        exc,
+                    )
+                    continue
+
+                try:
+                    existing_pr = provider.find_pr_for_branch(
+                        repo_slug,
+                        task_branch,
+                    )
+                except Exception as exc:
+                    reason = f"review lookup failed: {exc}"
+                    self._arm_standalone_delivery_alert(
+                        project_id,
+                        task_id,
+                        reason,
+                    )
+                    logger.warning(
+                        "Could not check for existing PR for %s: %s",
+                        task_id,
+                        exc,
+                    )
+                    continue
+
+                review_state = str(
+                    getattr(existing_pr, "state", "") or ""
+                ).strip().lower()
+                if existing_pr is not None and review_state == "open":
+                    existing_review_id = str(
+                        getattr(existing_pr, "id", "") or ""
+                    ).strip()
+                    if (
+                        not existing_review_id
+                        or existing_review_id not in counted_review_ids
+                    ):
+                        review_count += 1
+                        if existing_review_id:
+                            counted_review_ids.add(existing_review_id)
+                    try:
+                        tracker.update_issue(task_id, status=IN_REVIEW)
+                        self._write_review_metadata(
+                            tracker,
+                            task_id,
+                            review_id=getattr(existing_pr, "id", None),
+                            review_url=getattr(existing_pr, "url", None),
+                            source_branch=task_branch,
+                            target_branch=target_branch,
+                        )
+                        self._clear_standalone_delivery_alert(
+                            project_id,
+                            task_id,
+                        )
+                    except Exception as exc:  # noqa: BLE001
+                        self._arm_standalone_delivery_alert(
+                            project_id,
+                            task_id,
+                            f"existing review metadata update failed: {exc}",
+                        )
+                        logger.warning(
+                            "Could not update %s to In Review: %s",
+                            task_id,
+                            exc,
+                        )
+                    continue
+
+                if existing_pr is not None and review_state == "merged":
+                    issue.work_branch = task_branch
+                    issue.branch_name = task_branch
+                    issue.target_branch = target_branch
+                    issue.review_number = str(
+                        getattr(existing_pr, "id", "") or ""
+                    ) or None
+                    issue.review_url = getattr(existing_pr, "url", None)
+                    self._write_review_metadata(
+                        tracker,
+                        task_id,
+                        review_id=issue.review_number,
+                        review_url=issue.review_url,
+                        source_branch=task_branch,
+                        target_branch=target_branch,
+                    )
+                    transition = self._request_merged_via_coordinator(
+                        issue,
+                        project_id,
+                        trigger_identity="standalone-ready-reconciliation",
+                        trigger_source="oompah",
+                    )
+                    if transition is not None and transition.success:
+                        self._clear_standalone_delivery_alert(
+                            project_id,
+                            task_id,
+                        )
+                        logger.info(
+                            "Staged merged standalone task %s for terminal audit "
+                            "from review #%s",
+                            task_id,
+                            getattr(existing_pr, "id", "?"),
+                        )
+                    else:
+                        reason = (
+                            transition.reason
+                            if transition is not None
+                            else "terminal audit transition failed"
+                        )
+                        self._arm_standalone_delivery_alert(
+                            project_id,
+                            task_id,
+                            f"merged review could not enter terminal audit: {reason}",
+                        )
+                    continue
+
+                if existing_pr is not None and review_state != "closed":
+                    reason = (
+                        f"review #{getattr(existing_pr, 'id', '?')} has "
+                        f"unrecognized state {review_state or '<empty>'}"
+                    )
+                    self._arm_standalone_delivery_alert(
+                        project_id,
+                        task_id,
+                        reason,
+                    )
+                    logger.warning(
+                        "Standalone Ready task %s is undeliverable: %s",
+                        task_id,
+                        reason,
+                    )
+                    continue
+
+                if review_count >= review_limit:
+                    reason = (
+                        "waiting for review capacity "
+                        f"({review_count}/{review_limit} open)"
+                    )
+                    # Capacity is a healthy, retryable wait rather than an
+                    # undeliverable submission.  Clear any stale failure alert
+                    # and let the next serialized sweep retry after a review
+                    # closes.
+                    self._clear_standalone_delivery_alert(project_id, task_id)
+                    logger.info(
+                        "Deferred standalone review for %s: %s",
+                        task_id,
+                        reason,
+                    )
+                    continue
+
+                if not self._review_quality_gate_passes(
+                    project,
+                    issue,
+                    task_branch,
+                    target_branch,
+                ):
+                    self._arm_standalone_delivery_alert(
+                        project_id,
+                        task_id,
+                        "configured branch quality gate did not pass",
+                    )
+                    continue
+
+                title = f"{task_id}: {issue.title}" if issue.title else task_id
+                description = issue.description or ""
+                hub_link = self._build_pr_body(
+                    issue,
+                    target_branch,
+                    repo_slug,
+                    project.default_branch,
+                )
+                if hub_link:
+                    description = (
+                        f"{hub_link}\n\n{description}".strip()
+                        if description
+                        else hub_link
+                    )
+
+                try:
+                    result = provider.create_review(
+                        repo_slug,
+                        title,
+                        task_branch,
+                        target_branch=target_branch,
+                        description=description,
+                    )
+                except Exception as exc:
+                    self._arm_standalone_delivery_alert(
+                        project_id,
+                        task_id,
+                        f"review creation failed: {exc}",
+                    )
+                    logger.warning(
+                        "Failed to create PR for standalone Ready task %s: %s",
+                        task_id,
+                        exc,
+                    )
+                    continue
+
+                if result is None:
+                    self._arm_standalone_delivery_alert(
+                        project_id,
+                        task_id,
+                        "forge provider returned no review",
+                    )
+                    logger.warning(
+                        "Failed to create PR for standalone Ready task %s "
+                        "(provider returned None)",
+                        task_id,
+                    )
+                    continue
+
+                created_review_id = str(
+                    getattr(result, "id", "") or ""
+                ).strip()
+                if (
+                    not created_review_id
+                    or created_review_id not in counted_review_ids
+                ):
+                    # Reserve the slot before tracker metadata writes.  The
+                    # review exists even if those writes fail, and later tasks
+                    # in this same sweep must observe the consumed capacity.
+                    review_count += 1
+                    if created_review_id:
+                        counted_review_ids.add(created_review_id)
+
+                try:
+                    tracker.update_issue(task_id, status=IN_REVIEW)
+                    self._write_review_metadata(
+                        tracker,
+                        task_id,
+                        review_id=getattr(result, "id", None),
+                        review_url=getattr(result, "url", None),
+                        source_branch=task_branch,
+                        target_branch=target_branch,
+                    )
+                    self._clear_standalone_delivery_alert(project_id, task_id)
+                    logger.info(
+                        "Created PR for standalone Ready task %s (PR #%s)",
+                        task_id,
+                        getattr(result, "id", "?"),
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to update %s to In Review after PR creation: %s",
+                        task_id,
+                        exc,
+                    )
+                    self._arm_standalone_delivery_alert(
+                        project_id,
+                        task_id,
+                        f"created review but tracker update failed: {exc}",
+                    )
+
+    def _arm_standalone_delivery_alert(
+        self,
+        project_id: str,
+        task_id: str,
+        reason: str,
+    ) -> None:
+        """Surface one idempotent actionable alert for a stranded submission."""
+        source = f"standalone_ready_delivery:{project_id}:{task_id}"
+        self._alerts = [
+            alert for alert in self._alerts if alert.get("source") != source
+        ]
+        self._alerts.append(
+            {
+                "level": "warning",
+                "source": source,
+                "message": (
+                    f"Standalone Ready task {task_id} has no active delivery: "
+                    f"{reason}."
+                ),
+            }
+        )
+
+    def _clear_standalone_delivery_alert(
+        self,
+        project_id: str,
+        task_id: str,
+    ) -> None:
+        """Clear the stranded-submission alert once a delivery path exists."""
+        source = f"standalone_ready_delivery:{project_id}:{task_id}"
+        self._alerts = [
+            alert for alert in self._alerts if alert.get("source") != source
+        ]
 
     def _integration_satisfied_dependencies(
         self,
@@ -5066,6 +5797,61 @@ class Orchestrator:
             )
         return result
 
+    def _integration_task_still_ready(
+        self,
+        item: IntegrationQueueItem,
+    ) -> bool:
+        """Return whether the tracker still authorizes this exact submission."""
+
+        tracker = self._tracker_for_project(item.project_id)
+        issue = tracker.fetch_issue_detail(item.task_id)
+        if issue is None:
+            return False
+        record = getattr(issue, "integration", None)
+        return bool(
+            canonicalize_status(issue.state) == READY_TO_INTEGRATE
+            and record is not None
+            and str(record.task_branch or "").strip() == item.task_branch
+            and str(record.head_sha or "").strip() == item.head_sha
+        )
+
+    def _retire_inactive_integration_rows(
+        self,
+        project_id: str,
+        issues: list[Issue],
+        queue_items: list[IntegrationQueueItem],
+    ) -> int:
+        """Cancel stale delivery rows whose tracker task left the queue lane."""
+
+        by_alias: dict[str, Issue] = {}
+        for issue in issues:
+            for alias in (issue.id, issue.identifier):
+                if str(alias or "").strip():
+                    by_alias[str(alias).strip()] = issue
+        inactive_states = set(TERMINAL_STATUSES) | {
+            IN_VALIDATION,
+            NEEDS_HUMAN,
+        }
+        retired = 0
+        for item in queue_items:
+            if item.state not in {"ready", "integrating", "blocked"}:
+                continue
+            issue = by_alias.get(item.task_id)
+            status = canonicalize_status(getattr(issue, "state", ""))
+            if issue is None or status not in inactive_states:
+                continue
+            if self.integration_queue.cancel(
+                project_id,
+                item.task_id,
+                reason=f"tracker state is {status}",
+            ):
+                retired += 1
+                self._clear_integration_delivery_alert(
+                    project_id,
+                    item.task_id,
+                )
+        return retired
+
     def _execute_integration_item(
         self,
         item: IntegrationQueueItem,
@@ -5104,6 +5890,8 @@ class Orchestrator:
             quality_gate=self._branch_quality_gate,
             quality_command=self._quality_gate_command(project),
             repo_identity=project.repo_url or project.repo_path or project.id,
+            retry_forced=item.retry_forced,
+            commit_allowed=lambda: self._integration_task_still_ready(item),
         )
 
     def _route_integration_failure(
@@ -5111,7 +5899,13 @@ class Orchestrator:
         item: IntegrationQueueItem,
         result: IntegrationExecutionResult,
     ) -> None:
-        """Persist a recoverable repair state without deleting any branch."""
+        """Persist a recoverable repair state without deleting any branch.
+        
+        Handles three categories of failures:
+        1. Executor retryable (epic_head_race, interrupted): auto-retry immediately
+        2. Conflict with infrastructure failure: backoff and retry after cooldown
+        3. Real conflicts or hard failures: dispatch to human (NEEDS_REBASE status)
+        """
 
         # An epic-head race is safe to retry from the rebased private head
         # that this executor already pushed. A task-branch push race means a
@@ -5130,6 +5924,40 @@ class Orchestrator:
         existing = getattr(issue, "integration", None) if issue else None
         head_sha = result.rebased_task_sha or item.head_sha
         state = "ready" if retryable else "blocked"
+        
+        # Track repair failure classification for conflicts
+        repair_failure_reason: str | None = None
+        backoff_until: str | None = None
+        
+        if result.status == "conflict":
+            # Classify the failure to detect infrastructure vs real conflicts
+            repair_failure_reason = classify_conflict_repair_failure(result.message)
+            
+            # Infrastructure failures (auth, provider, timeout, etc.) should retry with backoff
+            if repair_failure_reason and repair_failure_reason != "conflict":
+                # Calculate exponential backoff: 5m, 15m, 45m, then needs_human
+                backoff_delays = [300, 900, 2700]  # seconds
+                repair_attempts = 0
+                if existing is not None:
+                    # Count how many times this repair has been attempted
+                    repair_attempts = item.attempts
+                    if repair_attempts >= 1:  # Attempts start at 1 on first try
+                        repair_attempts -= 1
+                
+                max_repair_attempts = 4  # 3 backoff retries + needs_human
+                if repair_attempts < max_repair_attempts:
+                    # Still have retries left
+                    if repair_attempts < len(backoff_delays):
+                        backoff_seconds = backoff_delays[repair_attempts]
+                    else:
+                        backoff_seconds = backoff_delays[-1]
+                    backoff_time = datetime.now(timezone.utc) + timedelta(seconds=backoff_seconds)
+                    backoff_until = backoff_time.isoformat()
+                    state = "ready"
+                else:
+                    # Exhausted repair attempts, transition to needs_human
+                    state = "needs_human"
+        
         tracker.set_metadata_field(
             item.task_id,
             "oompah.integration",
@@ -5145,6 +5973,8 @@ class Orchestrator:
                 ),
                 updated_at=datetime.now(timezone.utc).isoformat(),
                 last_error=result.message,
+                backoff_until=backoff_until,
+                repair_failure_reason=repair_failure_reason,
             ).to_dict(),
         )
         if retryable:
@@ -5166,6 +5996,57 @@ class Orchestrator:
                 result.message,
             )
             return
+        
+        # Handle conflict with retryable infrastructure failure
+        if result.status == "conflict" and backoff_until and state == "ready":
+            instruction = (
+                f"Integration found a rebase conflict on `{item.task_branch}`, "
+                f"but the conflict-repair worker encountered a recoverable infrastructure failure "
+                f"({repair_failure_reason}). Oompah will retry conflict resolution automatically.\n\n"
+                f"Error details:\n```\n{result.message[-2000:]}\n```"
+            )
+            tracker.add_comment(item.task_id, instruction, author="oompah")
+            self.state.completed.discard(item.task_id)
+            self.request_refresh()
+            logger.info(
+                "Retryable conflict repair failure for %s with backoff until %s: %s",
+                item.task_id,
+                backoff_until,
+                repair_failure_reason,
+            )
+            return
+        
+        # Handle exhausted repairs (needs_human transition)
+        if state == "needs_human":
+            repair_status = NEEDS_REBASE
+            tracker.update_issue(item.task_id, status=repair_status)
+            instruction = (
+                f"**Conflict repair exhausted**: Integration found a rebase conflict on "
+                f"`{item.task_branch}`, and after several retries due to recoverable infrastructure "
+                f"failures ({repair_failure_reason}), the repair worker has given up.\n\n"
+                f"**Action required**: Please resolve the conflict manually:\n\n"
+                f"1. Fetch the latest `{self.project_store.epic_branch_name(item.epic_id)}` "
+                f"(the epic branch)\n"
+                f"2. Fetch your private branch `{item.task_branch}`\n"
+                f"3. Rebase `{item.task_branch}` onto `{self.project_store.epic_branch_name(item.epic_id)}`\n"
+                f"4. Resolve all conflicts\n"
+                f"5. Run the required tests\n"
+                f"6. Force-push the resolved branch: `git push --force-with-lease origin {item.task_branch}`\n"
+                f"7. Run `oompah task submit` to resubmit\n\n"
+                f"Last error:\n```\n{result.message[-2000:]}\n```"
+            )
+            tracker.add_comment(item.task_id, instruction, author="oompah")
+            self.state.completed.discard(item.task_id)
+            self.request_refresh()
+            logger.warning(
+                "Conflict repair exhausted for %s (failure reason: %s): %s",
+                item.task_id,
+                repair_failure_reason,
+                result.message[:500],
+            )
+            return
+        
+        # Handle real conflicts and other non-retryable failures
         repair_status = {
             "conflict": NEEDS_REBASE,
             "ci_failure": NEEDS_CI_FIX,
@@ -5492,7 +6373,36 @@ class Orchestrator:
             self._tick_pool,
             self._sync_ready_integration_submissions,
         )
+        # Reconcile standalone Ready to Integrate tasks (no epic parent)
+        await loop.run_in_executor(
+            self._tick_pool,
+            self._reconcile_standalone_ready_to_integrate_tasks,
+        )
         self.integration_queue.recover_expired()
+
+        # Tracker state is authoritative. Retire stale queue rows before
+        # grouping or claiming so completed/reviewing tasks cannot be
+        # resurrected by an old durable submission.
+        for project in self.project_store.list_all():
+            tracker = self._tracker_for_project(project.id)
+            try:
+                project_issues = await loop.run_in_executor(
+                    self._tick_pool,
+                    tracker.fetch_all_issues,
+                )
+            except Exception as exc:  # noqa: BLE001 - executor also fails closed
+                logger.warning(
+                    "Could not reconcile integration queue authority for %s: %s",
+                    project.name,
+                    exc,
+                )
+                continue
+            self._retire_inactive_integration_rows(
+                project.id,
+                project_issues,
+                self.integration_queue.items(project_id=project.id),
+            )
+
         all_items = self.integration_queue.items()
 
         # Crash recovery: a git integration can finish just before audit
@@ -5559,11 +6469,59 @@ class Orchestrator:
                     ),
                 )
                 continue
+            
+            # Check if this item is in a conflict repair backoff period
+            # (recoverable infrastructure failure). If so, release the lease
+            # and skip it for now.
+            claimed_issue = next(
+                (iss for iss in issues if iss.identifier == item.task_id),
+                None,
+            )
+            if self._is_integration_item_in_backoff(item, claimed_issue):
+                # Release the lease by marking as ready again
+                self.integration_queue.fail(
+                    item.project_id,
+                    item.task_id,
+                    lease_owner=item.lease_owner or "",
+                    error=item.last_error or "",
+                    retryable=True,
+                )
+                logger.debug(
+                    "Skipping integration item %s: still in conflict repair backoff",
+                    item.task_id,
+                )
+                continue
+            
             result = await loop.run_in_executor(
                 self._tick_pool,
                 self._execute_integration_item,
                 item,
             )
+            if result.status == "cancelled":
+                self.integration_queue.cancel(
+                    item.project_id,
+                    item.task_id,
+                    reason=result.message,
+                )
+                self._clear_integration_delivery_alert(
+                    item.project_id,
+                    item.task_id,
+                )
+                continue
+            if result.status == "authority_unavailable":
+                self.integration_queue.fail(
+                    item.project_id,
+                    item.task_id,
+                    lease_owner=item.lease_owner or "",
+                    error=result.message,
+                    retryable=True,
+                )
+                logger.warning(
+                    "Deferred integration for %s: %s",
+                    item.task_id,
+                    result.message,
+                )
+                continue
             if not result.integrated:
                 await loop.run_in_executor(
                     self._tick_pool,
@@ -25718,6 +26676,35 @@ Return ONLY a JSON object (no markdown fences, no commentary):
     def get_snapshot(self) -> dict[str, Any]:
         """Return a snapshot of the current orchestrator state for the API."""
         now = datetime.now(timezone.utc)
+        live_audit_keys: set[tuple[str, str, str]] = set()
+        auditor_tracking_available = False
+        for entry in self.state.running.values():
+            if not hasattr(entry, "is_auditor"):
+                continue
+            auditor_tracking_available = True
+            if not getattr(entry, "is_auditor", False) or not getattr(entry, "audit_id", None):
+                continue
+            issue = getattr(entry, "issue", None)
+            project_id = str(getattr(issue, "project_id", "") or "legacy")
+            task_id = str(getattr(issue, "identifier", "") or "")
+            audit_id = str(getattr(entry, "audit_id", "") or "")
+            if task_id and audit_id:
+                key = (project_id, task_id, audit_id)
+                live_audit_keys.add(key)
+                self._terminal_audit_metrics.record_running(
+                    *key,
+                    attempts=int(getattr(entry, "attempt", 0) or 0),
+                )
+        if auditor_tracking_available:
+            self._terminal_audit_metrics.discard_missing_running(live_audit_keys)
+
+        # Coordinator callbacks can arrive between maintenance scans (for
+        # example a no-candidate result submitted by an auditor).  Refresh the
+        # small dashboard alert registry at read time so recovery and action
+        # signals are visible immediately without alerting on normal states.
+        # Do this after promoting live auditor entries from queued to running;
+        # otherwise a long-running audit can briefly emit a queue-age alert.
+        self._sync_terminal_audit_observability_alerts()
 
         running_rows = []
         live_seconds = 0.0
@@ -25796,6 +26783,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             )
 
         totals = self.state.agent_totals
+        terminal_audit_metrics = self._terminal_audit_metrics.snapshot(now=now)
         return {
             "generated_at": now.isoformat(),
             "paused": self._paused,
@@ -25895,6 +26883,9 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 getattr(self._terminal_audit_enforcement, "last_result", {}) or {}
             ),
             "audits": dict(getattr(self, "_audit_metrics", {}) or {}),
+            # Stable top-level shape for API consumers that do not need the
+            # rest of orchestrator telemetry.
+            "terminal_audit": terminal_audit_metrics,
             "terminal_audit_health": getattr(self, "_audit_health", TerminalAuditHealth()).to_dict(),
             "health": {
                 "status": "degraded" if getattr(self, "_audit_health", TerminalAuditHealth()).degraded else "healthy",
@@ -25912,6 +26903,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 "maintenance": dict(
                     getattr(self, "_maintenance_status", {}) or {}
                 ),
+                "terminal_audit": terminal_audit_metrics,
                 # Per-project, per-operation refresh timing and timeout counts.
                 # Operators can use this to identify which project or operation
                 # is causing slow ticks. Each entry has:
@@ -25974,6 +26966,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     }
                     for name, state in self._maintenance_jobs.items()
                 },
+                "terminal_audit": terminal_audit_metrics,
             },
             # Fine-grained tick telemetry (TASK-465.1).  Empty dict until the
             # first tick completes.  Top-level keys are phase timings in ms;

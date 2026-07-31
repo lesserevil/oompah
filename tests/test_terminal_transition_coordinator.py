@@ -153,6 +153,19 @@ class _TrackerFactory:
         return self.trackers[project_id]
 
 
+class _MetricsRecorder:
+    """Small metrics sink used to verify coordinator lifecycle callbacks."""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, tuple[Any, ...]]] = []
+
+    def record_queued(self, *args: Any, **_kwargs: Any) -> None:
+        self.calls.append(("queued", args))
+
+    def record_stale_discarded(self, *args: Any, **_kwargs: Any) -> None:
+        self.calls.append(("stale_discarded", args))
+
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -179,11 +192,16 @@ def _issue(state: str = "In Progress") -> Issue:
     return Issue(id=TASK_ID, identifier=TASK_ID, title="Test task", state=state)
 
 
-def _coordinator(tracker: _MemoryTracker | None = None, post_comments: bool = True) -> TerminalTransitionCoordinator:
+def _coordinator(
+    tracker: _MemoryTracker | None = None,
+    post_comments: bool = True,
+    metrics: Any | None = None,
+) -> TerminalTransitionCoordinator:
     return TerminalTransitionCoordinator(
         tracker=tracker or _MemoryTracker(),
         project_store=_LockStore(),
         post_comments=post_comments,
+        metrics=metrics,
     )
 
 
@@ -568,6 +586,21 @@ class TestSuperseding:
         new = next(r for r in doc.pending_chain if r.audit_id == result2.audit_id)
         assert new.request_state == RequestState.PENDING
         assert new.evidence_fingerprint == _fingerprint("b")
+
+    def test_superseded_audit_is_counted_as_stale_discarded(self) -> None:
+        tracker = _MemoryTracker()
+        metrics = _MetricsRecorder()
+        coord = _coordinator(tracker, post_comments=False, metrics=metrics)
+
+        first = _run(coord.request_transition(
+            _issue(), TargetState.DONE, _trigger(), PROJECT_ID, _fingerprint("a")
+        ))
+        second = _run(coord.request_transition(
+            _issue(), TargetState.DONE, _trigger(), PROJECT_ID, _fingerprint("b")
+        ))
+
+        assert ("stale_discarded", (PROJECT_ID, TASK_ID, first.audit_id)) in metrics.calls
+        assert ("queued", (PROJECT_ID, TASK_ID, second.audit_id)) in metrics.calls
 
     def test_changed_fingerprint_supersedes_in_progress_audit(self) -> None:
         """A new revision invalidates an auditor already checking old evidence."""

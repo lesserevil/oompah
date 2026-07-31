@@ -15,6 +15,7 @@ from oompah.config import (
     load_dotenv,
     load_workflow,
     validate_dispatch_config,
+    warn_deprecated_verify_completion_vars,
 )
 from oompah.models import WorkflowDefinition
 
@@ -570,6 +571,154 @@ class TestHelpers:
         assert _resolve_env("$_OOMPAH_TEST_VAR") == "hello"
         assert _resolve_env("literal") == "literal"
         del os.environ["_OOMPAH_TEST_VAR"]
+
+
+class TestAuditDispatchConfiguration:
+    """Tests for independent auditor dispatch config (OOMPAH-487)."""
+
+    def setup_method(self):
+        """Clear OOMPAH_AUDIT_* env vars so tests run in a clean environment."""
+        for key in list(os.environ):
+            if key.startswith("OOMPAH_AUDIT_") or key.startswith("OOMPAH_VERIFY_COMPLETION"):
+                os.environ.pop(key, None)
+
+    def teardown_method(self):
+        """Restore clean environment after each test."""
+        for key in list(os.environ):
+            if key.startswith("OOMPAH_AUDIT_") or key.startswith("OOMPAH_VERIFY_COMPLETION"):
+                os.environ.pop(key, None)
+
+    def test_audit_max_attempts_default(self):
+        wf = WorkflowDefinition(config={}, prompt_template="test")
+        cfg = ServiceConfig.from_workflow(wf)
+        assert cfg.audit_max_attempts == 3
+
+    def test_audit_max_attempts_from_env(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_AUDIT_MAX_ATTEMPTS", "5")
+        wf = WorkflowDefinition(config={}, prompt_template="test")
+        cfg = ServiceConfig.from_workflow(wf)
+        assert cfg.audit_max_attempts == 5
+
+    def test_audit_max_attempts_invalid_falls_back_to_default(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_AUDIT_MAX_ATTEMPTS", "notanumber")
+        wf = WorkflowDefinition(config={}, prompt_template="test")
+        cfg = ServiceConfig.from_workflow(wf)
+        assert cfg.audit_max_attempts == 3
+
+    def test_audit_max_attempts_zero_clamped_to_one(self, monkeypatch):
+        # _parse_positive_env_int falls back to default for non-positive, then __post_init__ clamps
+        monkeypatch.setenv("OOMPAH_AUDIT_MAX_ATTEMPTS", "0")
+        wf = WorkflowDefinition(config={}, prompt_template="test")
+        cfg = ServiceConfig.from_workflow(wf)
+        assert cfg.audit_max_attempts >= 1
+
+    def test_audit_attempt_ttl_default(self):
+        wf = WorkflowDefinition(config={}, prompt_template="test")
+        cfg = ServiceConfig.from_workflow(wf)
+        assert cfg.audit_attempt_ttl == 3600
+
+    def test_audit_attempt_ttl_from_env(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_AUDIT_ATTEMPT_TTL", "7200")
+        wf = WorkflowDefinition(config={}, prompt_template="test")
+        cfg = ServiceConfig.from_workflow(wf)
+        assert cfg.audit_attempt_ttl == 7200
+
+    def test_audit_priority_default(self):
+        wf = WorkflowDefinition(config={}, prompt_template="test")
+        cfg = ServiceConfig.from_workflow(wf)
+        assert cfg.audit_priority == 100
+
+    def test_audit_priority_from_env(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_AUDIT_PRIORITY", "150")
+        wf = WorkflowDefinition(config={}, prompt_template="test")
+        cfg = ServiceConfig.from_workflow(wf)
+        assert cfg.audit_priority == 150
+
+    def test_audit_lane_scan_limit_default(self):
+        wf = WorkflowDefinition(config={}, prompt_template="test")
+        cfg = ServiceConfig.from_workflow(wf)
+        assert cfg.audit_lane_scan_limit == 32
+
+    def test_audit_lane_scan_limit_from_env(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_AUDIT_LANE_SCAN_LIMIT", "64")
+        wf = WorkflowDefinition(config={}, prompt_template="test")
+        cfg = ServiceConfig.from_workflow(wf)
+        assert cfg.audit_lane_scan_limit == 64
+
+    def test_audit_lane_scan_limit_zero_allowed(self, monkeypatch):
+        # 0 means no cap — should be allowed
+        monkeypatch.setenv("OOMPAH_AUDIT_LANE_SCAN_LIMIT", "0")
+        wf = WorkflowDefinition(config={}, prompt_template="test")
+        cfg = ServiceConfig.from_workflow(wf)
+        assert cfg.audit_lane_scan_limit == 0
+
+    def test_audit_settings_documented_in_env_example(self):
+        env_example = Path(__file__).parents[1] / ".env.example"
+        content = env_example.read_text(encoding="utf-8")
+        assert "OOMPAH_AUDIT_MAX_ATTEMPTS" in content
+        assert "OOMPAH_AUDIT_ATTEMPT_TTL" in content
+        assert "OOMPAH_AUDIT_PRIORITY" in content
+        assert "OOMPAH_AUDIT_LANE_SCAN_LIMIT" in content
+
+    def test_auditor_dispatch_doc_exists(self):
+        doc_path = Path(__file__).parents[1] / "docs" / "auditor-dispatch-operations.md"
+        assert doc_path.exists(), "docs/auditor-dispatch-operations.md must exist"
+        content = doc_path.read_text(encoding="utf-8")
+        assert "OOMPAH_AUDIT_MAX_ATTEMPTS" in content
+        assert "Needs Human" in content
+        assert "override" in content.lower()
+
+    def test_verify_completion_deprecation_warning_when_set(self, monkeypatch, caplog):
+        import logging
+        from oompah.config import warn_deprecated_verify_completion_vars
+        monkeypatch.setenv("OOMPAH_VERIFY_COMPLETION", "true")
+        monkeypatch.delenv("OOMPAH_VERIFY_COMPLETION_LLM", raising=False)
+        with caplog.at_level(logging.WARNING, logger="oompah.config"):
+            warn_deprecated_verify_completion_vars()
+        assert "OOMPAH_VERIFY_COMPLETION" in caplog.text
+        assert "deprecated" in caplog.text.lower()
+
+    def test_verify_completion_llm_deprecation_warning_when_set(self, monkeypatch, caplog):
+        import logging
+        from oompah.config import warn_deprecated_verify_completion_vars
+        monkeypatch.delenv("OOMPAH_VERIFY_COMPLETION", raising=False)
+        monkeypatch.setenv("OOMPAH_VERIFY_COMPLETION_LLM", "false")
+        with caplog.at_level(logging.WARNING, logger="oompah.config"):
+            warn_deprecated_verify_completion_vars()
+        assert "OOMPAH_VERIFY_COMPLETION_LLM" in caplog.text
+        assert "deprecated" in caplog.text.lower()
+
+    def test_no_deprecation_warning_when_vars_not_set(self, monkeypatch, caplog):
+        import logging
+        from oompah.config import warn_deprecated_verify_completion_vars
+        monkeypatch.delenv("OOMPAH_VERIFY_COMPLETION", raising=False)
+        monkeypatch.delenv("OOMPAH_VERIFY_COMPLETION_LLM", raising=False)
+        with caplog.at_level(logging.WARNING, logger="oompah.config"):
+            warn_deprecated_verify_completion_vars()
+        assert "VERIFY_COMPLETION" not in caplog.text
+
+    def test_from_workflow_emits_deprecation_warning_when_var_set(self, monkeypatch, caplog):
+        import logging
+        monkeypatch.setenv("OOMPAH_VERIFY_COMPLETION", "false")
+        wf = WorkflowDefinition(config={}, prompt_template="test")
+        with caplog.at_level(logging.WARNING, logger="oompah.config"):
+            ServiceConfig.from_workflow(wf)
+        assert "deprecated" in caplog.text.lower()
+
+    def test_verify_completion_vars_documented_in_env_example_as_deprecated(self):
+        env_example = Path(__file__).parents[1] / ".env.example"
+        content = env_example.read_text(encoding="utf-8")
+        # Both variables should be present and marked as deprecated
+        assert "OOMPAH_VERIFY_COMPLETION" in content
+        assert "OOMPAH_VERIFY_COMPLETION_LLM" in content
+        assert "DEPRECATED" in content
+
+    def test_task_epic_workflow_doc_includes_in_validation(self):
+        doc_path = Path(__file__).parents[1] / "docs" / "task-epic-workflow.md"
+        content = doc_path.read_text(encoding="utf-8")
+        assert "In Validation" in content
+        # Status table should include In Validation row
+        assert "auditor" in content.lower()
 
 
 class TestHTTPAuthConfiguration:

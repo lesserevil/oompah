@@ -371,6 +371,9 @@ async def setup_services(
         tracker=orchestrator._tracker_for_project,
         project_store=project_store,
     )
+    terminal_transition_coordinator.set_metrics(
+        orchestrator._terminal_audit_metrics
+    )
     orchestrator.terminal_transition_coordinator = terminal_transition_coordinator
     orchestrator.set_prompt_template(workflow.prompt_template)
     attach_webhook_forwarder_alerts(orchestrator, webhook_forwarder)
