@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-645
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 0
 title: Clear recovered terminal-audit transport failures without contaminating later
   audits
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T06:47:58.732088Z'
-updated_at: '2026-07-31T08:55:04.005768Z'
+updated_at: '2026-07-31T08:57:56.527798Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -164,11 +164,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-645
-  base_branch: main
-  base_sha: d48b971c58b8622e9c63de4923db08b755b5434b
-  head_sha: 7d1019194f919691333bf00b78cff1a7f73fdb33
-  submitted_at: '2026-07-31T07:27:58.460528+00:00'
-  updated_at: '2026-07-31T07:28:11.451282+00:00'
+  head_sha: 6686290d51cfff9d63270ee27da19d2aafd0fd87
+  submitted_at: '2026-07-31T08:57:53.486261+00:00'
+  updated_at: '2026-07-31T08:57:53.486261+00:00'
 ---
 ## Summary
 
@@ -522,5 +520,10 @@ author: oompah
 created: 2026-07-31 08:55
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-31 08:57
+---
+CI repair verified: client auth fixtures clear inherited disabled-auth marker; focused parallel tests pass.
 ---
 <!-- COMMENTS:END -->
