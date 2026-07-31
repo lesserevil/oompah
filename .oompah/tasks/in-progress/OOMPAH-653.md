@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-653
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Make terminal-audit success and owner override retire every duplicate record
   and alert
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T09:12:37.600035Z'
+updated_at: '2026-07-31T09:13:16.522081Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,7 +44,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 6160c2d4-52a0-466b-a51c-3f935f07d260
+oompah.agent_run_id: 73df26fb-6cfb-4ef6-95d8-2c9e6b85a3f8
 oompah.task_costs:
   total_input_tokens: 673204
   total_output_tokens: 9250
@@ -142,5 +142,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 40s
 - Log: OOMPAH-653__20260731T091050Z.jsonl
+---
+author: oompah
+created: 2026-07-31 09:13
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-31 09:13
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
