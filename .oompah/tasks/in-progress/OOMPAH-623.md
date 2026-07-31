@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:32:18.734139Z'
-updated_at: '2026-07-31T10:03:11.227552Z'
+updated_at: '2026-07-31T10:03:18.946349Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-623
 target_branch: null
 review_url: null
@@ -346,5 +346,10 @@ author: oompah
 created: 2026-07-31 10:03
 ---
 Implementation: separated CLI staging from activation in scripts/sync_canonical_cli.py with isolated UV roots and a rollback journal. Added scripts/canonical_cli_cutover.py to pause/drain the live service, stage and verify the candidate, activate at the restart cutover, verify health/state build-id equality, and restore/resume on failure. Make restart and force-restart now use the transaction; docs and lifecycle tests cover the safety contract.
+---
+author: oompah
+created: 2026-07-31 10:03
+---
+Discovery: the existing restart endpoint schedules os.execv as soon as its async drain finishes, so installing after the new instance is healthy leaves a live mismatched pair on install failure. The existing pause/resume APIs provide the required non-exec barrier: pause, poll authenticated state until counts.running is zero, then stage/activate and request restart.
 ---
 <!-- COMMENTS:END -->
