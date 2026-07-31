@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-584
 type: epic
-status: Needs Human
+status: In Progress
 priority: 1
 title: Return the oompah delivery control plane to green
 parent: null
@@ -20,7 +20,7 @@ labels:
 - epic:stale
 assignee: null
 created_at: '2026-07-30T14:13:01.872040Z'
-updated_at: '2026-07-31T05:16:28.486032Z'
+updated_at: '2026-07-31T05:26:09.109520Z'
 work_branch: null
 target_branch: null
 review_url: null

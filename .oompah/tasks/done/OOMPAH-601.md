@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-601
 type: bug
-status: Needs Human
+status: Done
 priority: 1
 title: Aggregate branch-ownership cleanup skips without warning floods
 parent: OOMPAH-588
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:00.331568Z'
-updated_at: '2026-07-31T05:25:46.224409Z'
+updated_at: '2026-07-31T05:26:20.904450Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-601
 target_branch: null
 review_url: null
@@ -164,6 +164,24 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-131c3414d8df: '2026-07-31T03:59:18.805953+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-31a75652563b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-601
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 1d78609aaf42a5c224fac0f9fde6fd7c2931d203a366a355527925af8bc5d546
+    authorized_by:
+      version: 1
+      identity: lesserevil
+      source: api
+    reason: 'Restore audited Done after false missing-landing regression caused by
+      epic rebase SHA rewrite; the refreshed exact task ref points to a patch-equivalent
+      rebased commit contained in merged PR #602.'
+    created_at: '2026-07-31T05:26:17.225658+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -171,7 +189,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-601
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -200,6 +218,23 @@ oompah.terminal_audit:
     previous_state: Ready to Integrate
     created_at: '2026-07-31T03:47:30.757593+00:00'
     updated_at: '2026-07-31T03:59:18.805794+00:00'
+  - version: 1
+    audit_id: audit-079f7f8841a8
+    project_id: proj-14849f1b
+    task_id: OOMPAH-601
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 1d78609aaf42a5c224fac0f9fde6fd7c2931d203a366a355527925af8bc5d546
+    attempts: []
+    requested_by:
+      version: 1
+      identity: api-client
+      source: api
+    previous_state: Needs Human
+    created_at: '2026-07-31T05:26:13.335722+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-131c3414d8df
@@ -533,5 +568,12 @@ author: oompah
 created: 2026-07-31 05:25
 ---
 The parent epic OOMPAH-588 merged from epic-OOMPAH-588, but this task was Done with work branch epic-OOMPAH-588--task-OOMPAH-601. Its work is not proven to be in the merged epic. Git evidence: OOMPAH-601 branch epic-OOMPAH-588--task-OOMPAH-601 has 1 unlanded commit(s), including 8553b181cf67. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
+---
+author: oompah
+created: 2026-07-31 05:26
+---
+Override by lesserevil: terminal transition to Done applied by project owner.
+
+Reason: Restore audited Done after false missing-landing regression caused by epic rebase SHA rewrite; the refreshed exact task ref points to a patch-equivalent rebased commit contained in merged PR #602.
 ---
 <!-- COMMENTS:END -->
