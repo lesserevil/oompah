@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-650
 type: bug
-status: In Progress
+status: Needs Human
 priority: 1
 title: Keep scoped task handoff credentials valid for the full worker lifetime
 parent: OOMPAH-619
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T09:58:17.007328Z'
+updated_at: '2026-07-31T10:08:19.990006Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -370,5 +370,15 @@ author: oompah
 created: 2026-07-31 09:58
 ---
 In-progress review of the heartbeat implementation finds three concrete lifetime bugs. (1) TaskHandoffLease renews solely because its own daemon thread is alive; it has no worker/session liveness predicate. Any missed cleanup/orphaned RunningEntry renews authorization forever. Tie each heartbeat to the exact RunningEntry/worker generation and revoke when that identity is absent/done, or own renewal in the worker task's try/finally. (2) _terminate_running currently returns early when state.running has a replacement entry before revoking the old entry's token; that exact retry/replacement race leaves the old lease renewing indefinitely. Revoke the captured old entry after its process tree is gone regardless of whether the map now points to a replacement; only guard the map pop. (3) lease heartbeat calls refresh with DEFAULT_TTL_SECONDS, so a grant issued with a short/custom TTL is extended to 24h on its first heartbeat; preserve the grant's configured lease duration. Add deterministic tests for replacement-during-termination, launch failure before worker start, owner disappearance without normal callback, service restart/old token invalidation/new token issuance, and the required zero-handoff interval past the original TTL followed by final submit.
+---
+author: oompah
+created: 2026-07-31 10:08
+---
+Operator safety fence: stopped the exact old-branch full-suite process group after validating its cwd and process identity. Dirty credential-lifetime fixes are preserved in the task worktree. Resume after OOMPAH-652 is merged and deployed so verification runs in an isolated worker environment. The implementation still needs fixes for generation-bound lease renewal/revocation, preservation of custom grant TTL, and authorization continuity through the tracker mutation.
+---
+author: oompah
+created: 2026-07-31 10:08
+---
+Moved to Needs Human from the dashboard/API. Human action required: inspect OOMPAH-650 (Keep scoped task handoff credentials valid for the full worker lifetime), add the specific decision, missing information, or manual fix needed, then move the task back to Open when it is ready for agents again.
 ---
 <!-- COMMENTS:END -->
