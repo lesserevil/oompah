@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:32:18.734139Z'
-updated_at: '2026-07-31T09:15:07.501542Z'
+updated_at: '2026-07-31T09:15:25.862685Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-623
 target_branch: null
 review_url: null
@@ -210,5 +210,10 @@ author: oompah
 created: 2026-07-31 09:15
 ---
 Implementation: added shared build identity from checkout Git metadata or installed direct_url.json; added human-readable --version; exposed matching build_id objects from /healthz and /api/v1/state; added guarded scripts/sync_canonical_cli.py with clean/pushed upstream checks, PATH/revision verification, and rollback; wired sync-cli/install-cli into lifecycle targets; documented canonical path and recovery; fixed task-handoff comments to include identifier scope.
+---
+author: oompah
+created: 2026-07-31 09:15
+---
+Verification: focused identity, canonical synchronization, CLI/task-handoff, server/IPC, and Makefile lifecycle suites pass (193 tests). Dry-runs show sync-cli before start/restart/graceful and before force-restart stops the service; git diff --check is clean. Proceeding to final packaging review.
 ---
 <!-- COMMENTS:END -->
