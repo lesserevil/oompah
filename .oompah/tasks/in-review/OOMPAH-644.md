@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-644
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Make native task reads atomic across status-file moves
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:46:11.947079Z'
-updated_at: '2026-07-31T07:22:38.161739Z'
+updated_at: '2026-07-31T07:30:45.969712Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -172,5 +172,10 @@ Run #2 [attempt=2, profile=standard, role=standard -> Codex/gpt-5.6-terra]
 - Cost: $0.0000
 - Exit: terminated, Duration: 10m 14s
 - Log: OOMPAH-644__20260731T071232Z.jsonl
+---
+author: oompah
+created: 2026-07-31 07:30
+---
+Branch quality gate passed for `ab4cab20c0697076098bd429d529fd3d8d3434e9` using `make test` in 272.8s. Review creation may proceed.
 ---
 <!-- COMMENTS:END -->
