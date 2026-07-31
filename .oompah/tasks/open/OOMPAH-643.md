@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-643
 type: task
-status: In Progress
+status: Open
 priority: null
 title: Reconcile stale terminal-audit enforcement records and live queue metrics
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:17:38.708513Z'
-updated_at: '2026-07-31T06:21:35.696082Z'
+updated_at: '2026-07-31T06:30:28.009584Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,13 +44,13 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: ceb8d701-da58-45ea-bc6f-05bffed5768e
 oompah.task_costs:
-  total_input_tokens: 250094
-  total_output_tokens: 1841
+  total_input_tokens: 250668
+  total_output_tokens: 1978
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 250094
-      output_tokens: 1841
+      input_tokens: 250668
+      output_tokens: 1978
       cost_usd: 0.0
   runs:
   - profile: default
@@ -59,6 +59,12 @@ oompah.task_costs:
     output_tokens: 1841
     cost_usd: 0.0
     recorded_at: '2026-07-31T06:19:18.494485+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 574
+    output_tokens: 137
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T06:30:10.305654+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-643__20260731T061819Z
@@ -125,5 +131,15 @@ author: oompah
 created: 2026-07-31 06:21
 ---
 Discovery: The issue involves reconciliation between three components: 1) TerminalAuditEnforcement (persists pending_audits), 2) TerminalAuditMetrics (tracks queued/running gauges), 3) TerminalTransitionCoordinator (manages live audit set). Root cause: sync_pending() rehydrates stale entries from enforcement.pending_audits after health scan discards them, causing stale_discarded counter to grow. Solution approach: (1) Reconcile enforcement.pending_audits with live coordinator set during recovery, (2) Filter stale entries in sync_pending, (3) Ensure health scan accuracy, (4) Add comprehensive reconciliation tests.
+---
+author: oompah
+created: 2026-07-31 06:30
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 33
+- Tokens: 574 in / 137 out [711 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 10m 39s
+- Log: OOMPAH-643__20260731T061937Z.jsonl
 ---
 <!-- COMMENTS:END -->

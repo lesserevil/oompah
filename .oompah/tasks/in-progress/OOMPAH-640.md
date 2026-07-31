@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-640
 type: task
-status: Needs CI Fix
+status: In Progress
 priority: null
 title: Complete combined stall-to-dispatch recovery regression coverage
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T05:59:47.260716Z'
-updated_at: '2026-07-31T06:28:58.801099Z'
+updated_at: '2026-07-31T06:30:22.860595Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -43,7 +43,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: f0351889-efd0-46e9-a725-d79eaa2d8fbe
+oompah.agent_run_id: d9e5fc7a-e989-4884-b0eb-1bee9070427d
 oompah.task_costs:
   total_input_tokens: 1230739
   total_output_tokens: 5071
@@ -295,5 +295,15 @@ See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warn
   warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))
 make[1]: *** [Makefile:225: test] Error 1
 ```
+---
+author: oompah
+created: 2026-07-31 06:30
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-31 06:30
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
