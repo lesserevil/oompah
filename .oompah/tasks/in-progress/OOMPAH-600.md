@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:58.634342Z'
-updated_at: '2026-07-31T03:23:01.216606Z'
+updated_at: '2026-07-31T03:24:01.649939Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-600
 target_branch: null
 review_url: null
@@ -375,5 +375,10 @@ author: oompah
 created: 2026-07-31 03:23
 ---
 Operator scope confirmation: retain the narrowly tested task-handoff payload fix because the live 400 prevents server-owned workers from commenting/submitting and directly blocks this accepted recovery graph. After the focused regression, commit/push/submit; do not add unrelated changes. The integration executor will run the exact full gate on the final head.
+---
+author: oompah
+created: 2026-07-31 03:24
+---
+Discovery: The task branch is restored to the non-duplicate parent, and OOMPAH-581 is already an ancestor of origin/main. The recorded gate failure is a SIGTERM; this environment additionally reproduced a uv transient-scope startup failure. The prepared .venv runs pytest correctly. I also found the scoped comment/add-label CLI payloads omitted the required identifier, which caused the earlier tracker-comment 400 responses.
 ---
 <!-- COMMENTS:END -->
