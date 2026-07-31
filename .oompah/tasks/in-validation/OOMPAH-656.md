@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-656
 type: task
-status: Needs Human
+status: In Validation
 priority: null
 title: Rebase epic-OOMPAH-619 onto main
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:41:57.043640Z'
-updated_at: '2026-07-31T10:59:30.516749Z'
+updated_at: '2026-07-31T11:00:53.620665Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -105,6 +105,28 @@ oompah.integration:
   head_sha: 54dd2509c6cbc73aaadbda2a3fdc7cfbb14530eb
   submitted_at: '2026-07-31T10:57:57.200897+00:00'
   updated_at: '2026-07-31T10:57:57.200897+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-34f2ea958905
+    project_id: proj-14849f1b
+    task_id: OOMPAH-656
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 453a5cb2a792da4a772cf5a33e5eecebb0aba43cc617966fbfd3ea52ebff2dff
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: api
+    previous_state: Needs Human
+    created_at: '2026-07-31T11:00:51.088757+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -306,5 +328,15 @@ author: oompah
 created: 2026-07-31 10:59
 ---
 Operator observed an unnecessary make test after the direct epic rebase was already published; it exited on its own before any signal was sent, so no process was altered. Complete this topology-only task from the published ancestry/diff evidence and avoid rerunning the full gate.
+---
+author: oompah
+created: 2026-07-31 11:00
+---
+Operator reconciliation after scoped handoff failure: verified origin/epic-OOMPAH-619 moved from expected old 0dc7d0f7caeea06a6eceb55ea2e58cf16554f0a4 to 3fcdf30caa62fb7709d0cd9e1553320dd11b3877; current origin/main 54dd2509c6cbc73aaadbda2a3fdc7cfbb14530eb is an ancestor; exactly six accepted epic commits remain above main (OOMPAH-620, OOMPAH-624, and four OOMPAH-621 commits); OOMPAH-652/654 are therefore present. The direct epic worktree has no file modifications. The unnecessary helper full gate terminated and is not completion evidence; topology checks are the required evidence.
+---
+author: oompah
+created: 2026-07-31 11:00
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
