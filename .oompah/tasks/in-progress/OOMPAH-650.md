@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T10:30:53.652433Z'
+updated_at: '2026-07-31T10:31:59.352652Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -410,5 +410,41 @@ author: oompah
 created: 2026-07-31 10:30
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-07-31 10:31
+---
+**SECURITY AUDITOR - UNDERSTANDING & PLAN**
+
+**Issue Summary:**
+Long-running workers inherited OOMPAH_TASK_HANDOFF_TOKEN with a wall-clock TTL. When the token expired while the worker was still active, every permitted task operation returned 401, forcing reliance on reusable Basic auth fallback (security vulnerability).
+
+**Root Cause Analysis:**
+1. Grant lifetime was bound to wall-clock TTL, not worker/session liveness
+2. Grants could expire during legitimate long tool calls or restart recovery
+3. No distinction between explicit revocation and TTL expiry in diagnostics
+4. Lease renewal mechanism needs generation-bound owner tracking and custom TTL preservation
+
+**Prior Review Findings:**
+Previous attempts had 3 concrete bugs identified by operator review:
+- TaskHandoffLease renewed solely on daemon thread liveness (no worker generation binding)
+- _terminate_running early-return raced with replacement entries (old lease kept renewing)
+- Heartbeat refresh extended custom short TTLs to 24h (not preserving configured duration)
+
+**Current Implementation Review Focus:**
+I will verify the security implications of the heartbeat/lease mechanism:
+1. Generation-bound lease renewal (prevents orphaned workers from renewing)
+2. Proper token revocation on termination (exact generation tracking)
+3. Custom TTL preservation (no unwanted extension)
+4. Owner identity validation (prevents cross-worker grant theft)
+5. Explicit diagnostics (expired vs revoked vs missing)
+6. No Basic-auth fallback in worker environments
+7. Scope enforcement (project/task/action isolation)
+
+**Next Steps:**
+1. Review orchestrator lease lifecycle integration
+2. Verify revocation race conditions are fixed
+3. Validate diagnostics distinguish all failure modes
+4. Run focused security and functional tests
 ---
 <!-- COMMENTS:END -->

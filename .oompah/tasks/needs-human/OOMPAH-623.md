@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-623
 type: bug
-status: In Progress
+status: Needs Human
 priority: 1
 title: Keep the canonical user CLI synchronized with the running server
 parent: OOMPAH-619
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:32:18.734139Z'
-updated_at: '2026-07-31T10:30:37.863436Z'
+updated_at: '2026-07-31T10:32:03.581667Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-623
 target_branch: null
 review_url: null
@@ -392,5 +392,10 @@ author: oompah
 created: 2026-07-31 10:30
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-07-31 10:32
+---
+Moved to Needs Human from the dashboard/API. Human action required: inspect OOMPAH-623 (Keep the canonical user CLI synchronized with the running server), add the specific decision, missing information, or manual fix needed, then move the task back to Open when it is ready for agents again.
 ---
 <!-- COMMENTS:END -->
