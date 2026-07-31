@@ -11,13 +11,13 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T13:49:37.853904Z'
-updated_at: '2026-07-31T13:52:23.426168Z'
+updated_at: '2026-07-31T13:52:47.143603Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-662
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 1619d600-a6d3-4dac-b4b6-a08c5f58108a
+oompah.agent_run_id: 4d4f8915-fc01-45a0-b350-74760816ba0c
 oompah.work_branch: epic-OOMPAH-619--task-OOMPAH-662
 oompah.integration:
   version: 2
@@ -26,7 +26,7 @@ oompah.integration:
   task_branch: epic-OOMPAH-619--task-OOMPAH-662
   base_branch: epic-OOMPAH-619
   base_sha: 793bcc7969d39634dab560ed0a10b9dcad7a9716
-  updated_at: '2026-07-31T13:49:51.191649+00:00'
+  updated_at: '2026-07-31T13:52:44.945379+00:00'
 oompah.task_costs:
   total_input_tokens: 14
   total_output_tokens: 4588
@@ -97,5 +97,15 @@ author: oompah
 created: 2026-07-31 13:52
 ---
 Agent completed without closing this issue (150s (4602 tokens)). Escalating from 'standard' to 'deep'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-31 13:52
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-31 13:52
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
