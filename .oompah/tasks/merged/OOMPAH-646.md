@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-646
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Serialize review capacity across reconciliation sweeps and webhook lag
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:55:23.505409Z'
-updated_at: '2026-07-31T08:57:04.796969Z'
+updated_at: '2026-07-31T08:59:10.501199Z'
 work_branch: OOMPAH-646
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/613
@@ -113,6 +113,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-a175b1f99c65: '2026-07-31T08:56:34.841668+00:00'
+    attempt-9d895f3534cb: '2026-07-31T08:59:07.503148+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -170,7 +171,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-646
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -179,7 +180,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-9d895f3534cb
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -189,13 +190,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T08:57:00.239988+00:00'
       branch_key: OOMPAH-646
+      verdict: pass
+      completed_at: '2026-07-31T08:59:07.502938+00:00'
+      ended_at: '2026-07-31T08:59:07.502938+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-07-31T08:19:02.154963+00:00'
-    updated_at: '2026-07-31T08:57:00.239988+00:00'
+    updated_at: '2026-07-31T08:59:07.502938+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-e672336e007e
@@ -377,5 +381,26 @@ author: oompah
 created: 2026-07-31 08:57
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 08:59
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit: 4544101aaf4c2661acc91627b87823320452afcc
+- merge_subject: Merge pull request #613 from lesserevil/OOMPAH-646
+- merge_second_parent: 355258ef0d1b1600f09cd111511f2828946e4ec7
+- branch_head: 355258ef0d1b1600f09cd111511f2828946e4ec7
+- on_origin_main: yes
+- diff_stat: 7 files changed, 1163 insertions(+), 48 deletions(-)
+- new_file_review_capacity_py_lines: 433 insertions
+- test_review_capacity: 6 passed
+- test_standalone_ready_to_integrate: 20 passed
+- test_server_webhooks: 130 passed
+- full_gate: make test passed at 355258ef0 in 410.1s (per prior comment)
+- orchestrator_wiring: ReviewCapacityStore imported at orchestrator.py:70 and instantiated at line 872
 ---
 <!-- COMMENTS:END -->
