@@ -348,6 +348,44 @@ def test_mark_audit_passed_reestablishes_grandfather_baseline(tmp_path):
     assert result["grandfathered"] == 1
 
 
+def test_restart_finishes_override_retirement_after_status_write(tmp_path):
+    """A crash between status and final metadata writes cannot requeue siblings."""
+    tracker = _Tracker([_issue("TASK-1", "Done", "evidence-a", "project-a")])
+    record = _pending_record("project-a", "TASK-1", "audit-pending")
+    tracker.metadata["TASK-1"] = {
+        METADATA_KEY: TerminalAuditMetadata(
+            pending_chain=[record],
+            unknown_fields={
+                "oompah.terminal_override_records": [
+                    {
+                        "version": 1,
+                        "override_id": "override-crashed",
+                        "project_id": "project-a",
+                        "task_id": "TASK-1",
+                        "target_state": "Done",
+                        "evidence_fingerprint": record.evidence_fingerprint.to_dict(),
+                        "authorized_by": {
+                            "version": 1,
+                            "identity": "owner",
+                        },
+                        "reason": "restart recovery",
+                        "applied": False,
+                    }
+                ]
+            },
+        ).to_dict()
+    }
+
+    enforcer = _enforcer(tmp_path)
+    recovered = enforcer.recover_pending_audits([("project-a", tracker)])
+
+    assert recovered == []
+    stored = TerminalAuditMetadata.from_dict(tracker.metadata["TASK-1"][METADATA_KEY])
+    assert stored.pending_chain[0].request_state == RequestState.CANCELLED
+    assert stored.unknown_fields["oompah.terminal_override_records"][0]["applied"] is True
+    assert stored.unknown_fields["oompah.terminal_audit_retirements"][0]["applied"] is True
+
+
 def test_orchestrator_runs_enforcement_before_dispatch_startup(tmp_path):
     tracker = _Tracker([_issue("TASK-1", "Done", "evidence-a")])
     orchestrator = Orchestrator(

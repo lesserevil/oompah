@@ -913,6 +913,7 @@ class Orchestrator:
             tracker=self._tracker_for_project,
             project_store=self.project_store,
             revoke_delivery_authority=self._revoke_standalone_delivery_authority,
+            clear_audit_alert=self.clear_terminal_audit_alert,
         )
         # Serializes the final implementation status claim with terminal-audit
         # staging for one task.  The terminal path installs its in-memory fence
@@ -1572,6 +1573,12 @@ class Orchestrator:
         """
 
         metrics = self._terminal_audit_metrics
+        # Metrics are a restart cache; tracker metadata is authoritative. A
+        # PASS or owner override can commit durable retirement immediately
+        # before a process crash, so reconcile every cached identity before
+        # building conditions. This also closes the barrier where a stale
+        # no-candidate callback races an owner override or a queue scan.
+        self._reconcile_terminal_audit_observability_from_metadata()
         conditions = threshold_conditions(
             metrics,
             max_attempts=max(1, int(getattr(self.config, "audit_max_attempts", 3))),
@@ -1623,6 +1630,81 @@ class Orchestrator:
         self._alerts.extend(
             alert for alert in alerts if str(alert.get("source", "")) not in existing_sources
         )
+
+    def _reconcile_terminal_audit_observability_from_metadata(self) -> None:
+        """Drop stale metric/alert identities using durable audit records.
+
+        A no-candidate failure is intentionally retained while its completed
+        audit remains the actionable ``Needs Human`` decision. It is cleared
+        when the durable row is superseded/cancelled/completed by another
+        verdict, or when the tracker no longer contains the identity. Queue
+        and running gauges follow the same pending/in-progress predicate.
+        """
+
+        metrics = self._terminal_audit_metrics
+        key_provider = getattr(metrics, "lifecycle_keys", None)
+        keys = key_provider() if callable(key_provider) else tuple(
+            set(getattr(metrics, "_queued", {}))
+            | set(getattr(metrics, "_running", {}))
+            | set(getattr(metrics, "_no_candidate", {}))
+        )
+        for project_id, task_id, audit_id in keys:
+            try:
+                tracker = self._tracker_for_project(project_id)
+                store = TerminalAuditMetadataStore(
+                    tracker, self.project_store, project_id
+                )
+                document = store.read(task_id)
+            except Exception:
+                # A failed tracker read is not evidence of recovery. Leave the
+                # cached condition in place until a complete scan can decide.
+                continue
+
+            if document.is_quarantined:
+                # Quarantine is not evidence that an identity was retired.
+                continue
+
+            record = next(
+                (item for item in document.pending_chain if item.audit_id == audit_id),
+                None,
+            )
+            if record is None:
+                self._forget_terminal_audit_alert_identity(
+                    project_id, task_id, audit_id
+                )
+                continue
+
+            live = record.request_state in (
+                RequestState.PENDING,
+                RequestState.IN_PROGRESS,
+            )
+            no_candidate_terminal = (
+                record.request_state == RequestState.COMPLETED
+                and any(
+                    attempt.failure_classification == FailureClassification.NO_AUDITOR
+                    for attempt in record.attempts
+                )
+            )
+            if live or no_candidate_terminal:
+                continue
+            self._forget_terminal_audit_alert_identity(
+                project_id, task_id, audit_id
+            )
+
+    def _forget_terminal_audit_alert_identity(
+        self, project_id: str, task_id: str, audit_id: str
+    ) -> None:
+        """Remove one identity without recursively refreshing the registry."""
+
+        self._terminal_audit_metrics.clear_actionable_alert(
+            project_id, task_id, audit_id
+        )
+        self._terminal_audit_manual_alerts = {
+            key: condition
+            for key, condition in self._terminal_audit_manual_alerts.items()
+            if key[1:] != (project_id, task_id, audit_id)
+        }
+        self._terminal_audit_alerts.clear(project_id, task_id, audit_id)
 
     def record_terminal_audit_no_candidate(
         self, project_id: str, task_id: str, audit_id: str, *, reason: str = "no eligible candidate"

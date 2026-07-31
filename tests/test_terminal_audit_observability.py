@@ -18,6 +18,7 @@ from oompah.terminal_audit import (
     TargetState,
     TerminalAuditRecord,
 )
+from oompah.terminal_audit_metadata import METADATA_KEY, TerminalAuditMetadata
 from oompah.config import ServiceConfig
 from oompah.models import Issue, RunningEntry
 from oompah.orchestrator import Orchestrator
@@ -29,6 +30,17 @@ class _Clock:
 
     def __call__(self) -> datetime:
         return self.value
+
+
+class _MetadataTracker:
+    def __init__(self) -> None:
+        self.metadata: dict[str, dict] = {}
+
+    def get_metadata(self, identifier: str) -> dict:
+        return self.metadata.get(identifier, {})
+
+    def set_metadata_field(self, identifier: str, field: str, value) -> None:
+        self.metadata.setdefault(identifier, {})[field] = value
 
 
 def test_lifecycle_metrics_and_oldest_age_are_deterministic() -> None:
@@ -235,6 +247,59 @@ def test_orchestrator_snapshot_and_alert_recovery_shapes(tmp_path: Path) -> None
     finally:
         orchestrator._tick_pool.shutdown(wait=True, cancel_futures=True)
         orchestrator._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+
+def test_restart_reconciles_stale_no_candidate_alert_from_cancelled_metadata(
+    tmp_path: Path,
+) -> None:
+    """Durable cancellation wins over a stale metrics cache after restart."""
+    state_path = tmp_path / "service_state.json"
+    tracker = _MetadataTracker()
+    fingerprint = EvidenceFingerprint("a" * 64)
+    cancelled = TerminalAuditRecord(
+        audit_id="audit-cancelled",
+        project_id="project-a",
+        task_id="TASK-1",
+        target_state=TargetState.DONE,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.CANCELLED,
+    )
+    tracker.metadata["TASK-1"] = {
+        METADATA_KEY: TerminalAuditMetadata(pending_chain=[cancelled]).to_dict()
+    }
+
+    first = Orchestrator(
+        ServiceConfig(workspace_root=str(tmp_path / "workspace")),
+        str(tmp_path / "WORKFLOW.md"),
+        state_path=str(state_path),
+    )
+    try:
+        # Simulate a crash window: the service-state metrics write landed, but
+        # the alert registry had not yet been reconciled with tracker metadata.
+        first.record_terminal_audit_no_candidate(
+            "project-a", "TASK-1", "audit-cancelled", reason="stale callback"
+        )
+    finally:
+        first._tick_pool.shutdown(wait=True, cancel_futures=True)
+        first._refresh_pool.shutdown(wait=True, cancel_futures=True)
+
+    restarted = Orchestrator(
+        ServiceConfig(workspace_root=str(tmp_path / "workspace-2")),
+        str(tmp_path / "WORKFLOW-2.md"),
+        state_path=str(state_path),
+    )
+    try:
+        restarted._tracker_for_project = lambda _project_id: tracker
+        restarted._sync_terminal_audit_observability_alerts()
+        assert not [
+            alert
+            for alert in restarted.get_snapshot()["alerts"]
+            if "audit-cancelled" in str(alert.get("source", ""))
+        ]
+        assert restarted._terminal_audit_metrics.snapshot()["no_independent_candidate"] == 1
+    finally:
+        restarted._tick_pool.shutdown(wait=True, cancel_futures=True)
+        restarted._refresh_pool.shutdown(wait=True, cancel_futures=True)
 
 
 def test_queue_recovery_alert_survives_snapshots_until_recovery(tmp_path: Path) -> None:

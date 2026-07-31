@@ -169,6 +169,9 @@ class _MetricsRecorder:
     def record_overridden(self, *args: Any, **_kwargs: Any) -> None:
         self.calls.append(("overridden", args))
 
+    def clear_actionable_alert(self, *args: Any, **_kwargs: Any) -> None:
+        self.calls.append(("clear_actionable_alert", args))
+
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -784,6 +787,63 @@ class TestOwnerOverrides:
         stored = TerminalAuditMetadataStore(tracker, _LockStore(), PROJECT_ID).read(TASK_ID)
         assert stored.pending_chain[0].request_state == RequestState.CANCELLED
         assert ("overridden", (PROJECT_ID, TASK_ID, record.audit_id)) in metrics.calls
+
+    def test_override_retires_all_duplicate_rows_and_replays_idempotently(self) -> None:
+        tracker = _MemoryTracker()
+        metrics = _MetricsRecorder()
+        fingerprint = _fingerprint()
+        first = _pending_record(audit_id="audit-override-1", fingerprint=fingerprint)
+        second = _pending_record(audit_id="audit-override-2", fingerprint=fingerprint)
+        _seed_metadata(tracker, [first, second])
+        coordinator = _coordinator(tracker, post_comments=False, metrics=metrics)
+        owner = ContributorIdentity("project-owner", "github")
+        project = SimpleNamespace(
+            tracker_owner="project-owner",
+            status_actor_login=None,
+            status_label_authorized_logins=["project-owner"],
+        )
+
+        result = _run(
+            coordinator.override_transition(
+                _issue(IN_VALIDATION),
+                TargetState.DONE,
+                owner,
+                PROJECT_ID,
+                fingerprint,
+                "Owner approved this transition.",
+                project,
+            )
+        )
+
+        assert result.success is True
+        assert result.overridden_audit_ids == [first.audit_id, second.audit_id]
+        assert set(result.retired_alert_audit_ids) == {first.audit_id, second.audit_id}
+        stored = TerminalAuditMetadataStore(tracker, _LockStore(), PROJECT_ID).read(TASK_ID)
+        assert [record.request_state for record in stored.pending_chain] == [
+            RequestState.CANCELLED,
+            RequestState.CANCELLED,
+        ]
+        raw_override = stored.unknown_fields["oompah.terminal_override_records"][0]
+        assert raw_override["applied"] is True
+        retirement = stored.unknown_fields["oompah.terminal_audit_retirements"][0]
+        assert retirement["evidence_fingerprint"] == fingerprint.digest
+        assert set(retirement["audit_ids"]) == {first.audit_id, second.audit_id}
+
+        replay = _run(
+            coordinator.override_transition(
+                _issue(DONE),
+                TargetState.DONE,
+                owner,
+                PROJECT_ID,
+                fingerprint,
+                "Owner approved this transition.",
+                project,
+            )
+        )
+        assert replay.success is True
+        assert replay.idempotent is True
+        assert replay.override_id == result.override_id
+        assert len(tracker.update_calls) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -1705,14 +1765,14 @@ class TestApplyPassChainedTargets:
 
     def test_stale_request_rejected_after_pass_completion(self) -> None:
         """After PASS is recorded, new requests with the same fingerprint are rejected.
-        
+
         This prevents reconciliation from creating a second audit for the same
         evidence fingerprint after the first one has passed (OOMPAH-648).
         """
         tracker = _MemoryTracker()
         fp = _fingerprint()
         record = _pending_record(audit_id="audit-1", fingerprint=fp)
-        
+
         issue = _seed_and_validation(tracker, [record])
         coord = _coordinator(tracker)
 
@@ -1725,7 +1785,7 @@ class TestApplyPassChainedTargets:
         second_result = _run(coord.request_transition(
             _issue(DONE), TargetState.DONE, _trigger(), PROJECT_ID, fp
         ))
-        
+
         assert second_result.success is False
         assert second_result.reason == "already completed"
 

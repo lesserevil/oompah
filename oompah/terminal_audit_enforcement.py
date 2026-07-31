@@ -23,7 +23,8 @@ import os
 import tempfile
 import threading
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
@@ -739,9 +740,10 @@ class TerminalAuditEnforcement:
         self._recovery_scan_error_count = 0
         for project_id, tracker in scope_list:
             try:
+                all_issues = self._all_issues(tracker)
                 issues = [
                     issue
-                    for issue in self._all_issues(tracker)
+                    for issue in all_issues
                     if status_key(getattr(issue, "state", "")) == status_key(IN_VALIDATION)
                 ]
             except Exception as exc:
@@ -752,6 +754,13 @@ class TerminalAuditEnforcement:
             store = TerminalAuditMetadataStore(
                 tracker, self.project_store, str(project_id)
             )
+            # If a process died after applying the tracker status but before
+            # the coordinator's final metadata write, finish that durable
+            # override retirement before rebuilding any queue projection.
+            for issue in all_issues:
+                if status_key(getattr(issue, "state", "")) == status_key(IN_VALIDATION):
+                    continue
+                self._recover_terminal_override(store, issue, str(project_id))
             for issue in issues:
                 current_fingerprint = self._explicit_evidence_fingerprint(issue, tracker)
                 try:
@@ -796,6 +805,124 @@ class TerminalAuditEnforcement:
         if persist:
             self._persist(self._load_root_state())
         return list(self.pending_audits)
+
+    def _recover_terminal_override(
+        self,
+        store: TerminalAuditMetadataStore,
+        issue: Issue,
+        project_id: str,
+    ) -> None:
+        """Complete an owner retirement interrupted after tracker status write."""
+
+        try:
+            document = store.read(str(issue.identifier))
+        except Exception:
+            return
+        if document.is_quarantined:
+            return
+        raw_overrides = document.unknown_fields.get("oompah.terminal_override_records", [])
+        if not isinstance(raw_overrides, list):
+            return
+        target_override = next(
+            (
+                raw
+                for raw in raw_overrides
+                if isinstance(raw, Mapping)
+                and raw.get("applied", True) is False
+                and isinstance(raw.get("target_state"), str)
+                and status_key(raw["target_state"])
+                == status_key(getattr(issue, "state", ""))
+            ),
+            None,
+        )
+        if target_override is None:
+            return
+        target_state = str(target_override["target_state"])
+        fingerprint = target_override.get("evidence_fingerprint")
+        if isinstance(fingerprint, Mapping):
+            fingerprint = fingerprint.get("digest", fingerprint.get("sha256"))
+        if not isinstance(fingerprint, str) or not fingerprint:
+            return
+        now = datetime.now(timezone.utc).isoformat()
+
+        def _finalize(document):
+            unknown = dict(document.unknown_fields)
+            overrides = []
+            for raw in raw_overrides:
+                if not isinstance(raw, Mapping):
+                    continue
+                item = dict(raw)
+                if item.get("override_id") == target_override.get("override_id"):
+                    item["applied"] = True
+                overrides.append(item)
+            unknown["oompah.terminal_override_records"] = overrides
+            live_ids = [
+                record.audit_id
+                for record in document.pending_chain
+                if record.request_state in PENDING_REQUEST_STATES
+            ]
+            chain = [
+                replace(record, request_state=RequestState.CANCELLED, updated_at=now)
+                if record.audit_id in live_ids
+                else record
+                for record in document.pending_chain
+            ]
+            retirements = [
+                dict(row)
+                for row in (unknown.get("oompah.terminal_audit_retirements") or [])
+                if isinstance(row, Mapping)
+            ]
+            identity = {
+                "project_id": project_id,
+                "task_id": str(issue.identifier),
+                "target_state": target_state,
+                "evidence_fingerprint": fingerprint,
+            }
+            matching = next(
+                (
+                    row
+                    for row in retirements
+                    if all(row.get(key) == value for key, value in identity.items())
+                ),
+                None,
+            )
+            if matching is None:
+                retirements.append(
+                    {
+                        **identity,
+                        "audit_ids": live_ids,
+                        "kind": "override",
+                        "applied": True,
+                        "retired_at": now,
+                    }
+                )
+            else:
+                matching["applied"] = True
+                matching["kind"] = "override"
+                matching["audit_ids"] = list(
+                    dict.fromkeys(
+                        [
+                            *(
+                                matching.get("audit_ids", [])
+                                if isinstance(matching.get("audit_ids"), list)
+                                else []
+                            ),
+                            *live_ids,
+                        ]
+                    )
+                )
+            unknown["oompah.terminal_audit_retirements"] = retirements
+            return replace(document, pending_chain=chain, unknown_fields=unknown)
+
+        try:
+            store.update(str(issue.identifier), _finalize)
+        except Exception:
+            logger.warning(
+                "terminal-audit override recovery failed for %s/%s",
+                project_id,
+                issue.identifier,
+                exc_info=True,
+            )
 
     def initialize(
         self, scopes: Iterable[tuple[str, TrackerProtocol]]

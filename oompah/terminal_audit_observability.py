@@ -544,6 +544,14 @@ class TerminalAuditMetrics:
     def pending_entries(self) -> tuple[dict[str, Any], ...]:
         return tuple(dict(_identity_dict(key), **value) for key, value in self._queued.items())
 
+    @_synchronized
+    def lifecycle_keys(self) -> tuple[tuple[str, str, str], ...]:
+        """Return all identities that may need durable-state reconciliation."""
+
+        return tuple(
+            sorted(set(self._queued) | set(self._running) | set(self._no_candidate))
+        )
+
 
 # Readable compatibility names for callers that refer to this boundary as an
 # audit metrics/observability store rather than by its concrete class name.
