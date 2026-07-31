@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T15:11:18.064799Z'
+updated_at: '2026-07-31T15:11:32.130523Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -21,43 +21,20 @@ review_number: null
 merged_at: null
 oompah.duplicate_screening:
   schema_version: 1
-  task_fingerprint: 26772ded7f81282c42fbd310bdfbd5374cd132bf1f729199fd272fdff19165ff
+  task_fingerprint: 08a3a9d90dcca2a446d07bb8512a5a5244a0c082bb9f90ed07ebc9e3bba16603
   detector_version: duplicate-detector-v1
-  verdict: no_duplicate
-  checked_at: '2026-07-31T11:15:11.467069+00:00'
+  verdict: inconclusive
+  checked_at: null
   matched_identifiers: []
-  evidence: "Based on my comprehensive investigation, I have:\n\n1. **Searched .oompah/tasks/**\
-    \ across all states (open, merged, archived, backlog):\n   - Found only OOMPAH-281\
-    \ (open) \u2014 a GitHub Actions runner setup task, unrelated\n   - Found OOMPAH-282\
-    \ (backlog) \u2014 unrelated to service isolation\n   - Highest numbered archived\
-    \ task is OOMPAH-280\n   - No OOMPAH-6xx tasks exist in local task tracking\n\n\
-    2. **Searched across documentation and code** for related scope:\n   - No matches\
-    \ for \"service isolation\", \"gate enforcement\", \"quality_gate\", \"integration\
-    \ executor\", \"candidate branch isolation\", or related patterns\n   - No references\
-    \ to the previous implementation attempts (git ancestry verification, _verify_isolation_contract\
-    \ methods)\n\n3. **Reviewed coordination context** from task comments:\n   - OOMPAH-657\
-    \ is listed as a blocking dependency (but for a different concern: immutable exact-head\
-    \ gate execution, not service isolation)\n   - OOMPAH-651 has changed-path overlap\
-    \ but is a peer, not a duplicate\n   - Previous duplicate screening runs at 11:09\
-    \ and 11:13 UTC found no duplicates\n\n4. **Verified this is a genuine new issue**:\n\
-    \   - Scope is enforcing server-controlled isolation boundary before candidate\
-    \ command execution\n   - Previous attempts (10:59, 11:05-11:06 UTC) were rejected\
-    \ for insufficient security rigor, NOT for being duplicates\n   - No existing\
-    \ active task covers this specific requirement\n\n---\n\n**Focus handoff: duplicate_detector**\n\
-    \n**Duplicate preflight verdict: no_duplicate**\n\n**Matches: none**\n\n**Evidence:**\
-    \ OOMPAH-655 describes a unique security requirement to enforce server-side isolation\
-    \ of candidate branch execution (preventing old/malicious Makefiles from attacking\
-    \ the operator service). No currently active or terminal task in the tracker covers\
-    \ this scope. Related tasks OOMPAH-657 (immutable gate execution) and OOMPAH-651\
-    \ (build path overlap) are coordination peers, not duplicates. Previous rejection\
-    \ of work on OOMPAH-655 was based on insufficient security rigor (spo"
+  evidence: Task worktree /home/shedwards/.oompah/worktrees/oompah/OOMPAH-655 is on
+    OOMPAH-655-final, not expected branch OOMPAH-655; refusing to reset it
   claim_id: null
   claim_owner: null
   claimed_at: null
   claim_expires_at: null
-  retry_count: 1
-  retry_after: null
-oompah.agent_run_id: 9c6fffca-1821-4d6e-805f-ca45b520e2b4
+  retry_count: 2
+  retry_after: '2026-07-31T15:13:29.784210+00:00'
+oompah.agent_run_id: 749430a2-1180-4965-b476-b9aaed662e1d
 oompah.task_costs:
   total_input_tokens: 7047374
   total_output_tokens: 49395
@@ -986,5 +963,19 @@ Run #19 [attempt=19, profile=standard, role=— -> Claude/sonnet]
 - Tokens: 0 in / 0 out [0 total]
 - Cost: $0.0000
 - Exit: terminated, Duration: 1s
+---
+author: oompah
+created: 2026-07-31 15:11
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-07-31 15:11
+---
+Run #1 [attempt=1, profile=default, role=— -> Claude/haiku]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 2s
 ---
 <!-- COMMENTS:END -->
