@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-652
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Isolate the full Makefile test gate from a running Oompah service
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T08:57:15.160957Z'
-updated_at: '2026-07-31T10:05:26.236784Z'
+updated_at: '2026-07-31T10:12:46.090174Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -352,5 +352,10 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Codex/gpt-5.6-
 - Cost: $0.0000
 - Exit: terminated, Duration: 13m 49s
 - Log: OOMPAH-652__20260731T095141Z.jsonl
+---
+author: oompah
+created: 2026-07-31 10:12
+---
+Branch quality gate passed for `ccba12b3fe59f251d16746d164a8723edd6109fa` using `make test` in 372.1s. Review creation may proceed.
 ---
 <!-- COMMENTS:END -->
