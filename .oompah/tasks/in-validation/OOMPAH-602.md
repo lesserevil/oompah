@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-602
 type: bug
-status: Needs Human
+status: In Validation
 priority: 1
 title: Repair project scope propagation in merged-label maintenance
 parent: OOMPAH-588
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:01.749200Z'
-updated_at: '2026-07-31T05:25:49.986198Z'
+updated_at: '2026-07-31T05:26:29.605490Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-602
 target_branch: null
 review_url: null
@@ -262,7 +262,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-602
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -291,6 +291,40 @@ oompah.terminal_audit:
     previous_state: Ready to Integrate
     created_at: '2026-07-30T23:11:33.883022+00:00'
     updated_at: '2026-07-30T23:19:45.719021+00:00'
+  - version: 1
+    audit_id: audit-1b0a051bfe09
+    project_id: proj-14849f1b
+    task_id: OOMPAH-602
+    target_state: Done
+    request_state: superseded
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 026ab5ea6db372d48f772de5325001378ab517a1671b7a9d17700b4738ca1d5f
+    attempts: []
+    requested_by:
+      version: 1
+      identity: api-client
+      source: api
+    previous_state: Needs Human
+    created_at: '2026-07-31T05:26:24.723063+00:00'
+  - version: 1
+    audit_id: audit-195bfc8d9059
+    project_id: proj-14849f1b
+    task_id: OOMPAH-602
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f25570c702ab2da7b8197df2a2a19be2422c8a53e13a1303a1bec2d175f64f72
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Needs Human
+    created_at: '2026-07-31T05:26:28.066517+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-a66782c834a3
