@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-651
 type: bug
-status: Needs CI Fix
+status: In Progress
 priority: 1
 title: Redact secrets from agent tool inputs, outputs, and JSONL event logs
 parent: null
@@ -18,7 +18,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T21:42:33.852467Z'
+updated_at: '2026-07-31T21:42:47.900799Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -51,7 +51,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: e6ba8394-9414-4c61-b65e-744d4a037728
+oompah.agent_run_id: e076de11-c3ec-47d8-b353-63b590d73b9b
 oompah.task_costs:
   total_input_tokens: 19682320
   total_output_tokens: 130190
@@ -1303,5 +1303,15 @@ uv pip install -e '.[server]'
 make: uv: No such file or directory
 make: *** [Makefile:118: .venv/.uv-setup] Error 127
 ```
+---
+author: oompah
+created: 2026-07-31 21:42
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-31 21:42
+---
+Focus: Event Api Redaction Specialist
 ---
 <!-- COMMENTS:END -->
