@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-634
 type: task
-status: In Validation
+status: Needs Human
 priority: 0
 title: Rebase epic-OOMPAH-460 onto main
 parent: OOMPAH-460
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T02:27:37.845123Z'
-updated_at: '2026-07-31T02:46:28.592215Z'
+updated_at: '2026-07-31T02:46:37.998357Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-634
 target_branch: null
 review_url: null
@@ -146,6 +146,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    no-auditor-audit-9f1cb6c31d68-0: '2026-07-31T02:46:35.067836+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -153,18 +155,31 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-634
     target_state: Done
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 3f4e195dcd5995dd9feea20ad9681af19d7aefa0dd06e74ad93c9f53ee102947
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: no-auditor-audit-9f1cb6c31d68-0
+      target_state: Done
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 3f4e195dcd5995dd9feea20ad9681af19d7aefa0dd06e74ad93c9f53ee102947
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-07-31T02:46:35.067684+00:00'
+      completed_at: '2026-07-31T02:46:35.067684+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Needs Human
     created_at: '2026-07-31T02:46:24.698988+00:00'
+    updated_at: '2026-07-31T02:46:35.067684+00:00'
   attempt_history: []
 ---
 ## Summary
@@ -310,5 +325,12 @@ author: oompah
 created: 2026-07-31 02:46
 ---
 Queued for terminal transition to Done. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-07-31 02:46
+---
+Needs Human — Done audit requires operator input.
+
+No independent auditor candidate is available for this audit (All candidates are used by contributors.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then move the task back to Open to retry.
 ---
 <!-- COMMENTS:END -->
