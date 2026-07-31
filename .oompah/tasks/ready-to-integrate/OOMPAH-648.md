@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-648
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Keep live long-running tool calls from triggering agent stall termination
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:15:42.851609Z'
-updated_at: '2026-07-31T08:11:42.922690Z'
+updated_at: '2026-07-31T08:11:54.133712Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -97,6 +97,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-648
     source_sha: ca51c22b90785daec5d4dd7f0e29dc22045957cc
     completed_at: '2026-07-31T07:43:25.383310+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-648
+  head_sha: ca51c22b90785daec5d4dd7f0e29dc22045957cc
+  submitted_at: '2026-07-31T08:11:51.578328+00:00'
+  updated_at: '2026-07-31T08:11:51.578328+00:00'
 ---
 ## Summary
 
@@ -236,5 +244,10 @@ Implementation successfully addresses all acceptance criteria:
 - No regressions detected
 
 The implementation allows long-running commands (pytest, make gates) to complete without false stall termination while maintaining proper recovery for genuinely stuck processes.
+---
+author: oompah
+created: 2026-07-31 08:11
+---
+Implemented tool liveness monitoring to prevent false stall termination of long-running tool calls. Added ToolLivenessMonitor to track subprocess liveness per session, modified orchestrator stall detection to defer for live bounded tools, and included 11 comprehensive tests covering silent commands, process tracking, timeouts, and recovery scenarios. All 14,217 tests pass with no regressions.
 ---
 <!-- COMMENTS:END -->
