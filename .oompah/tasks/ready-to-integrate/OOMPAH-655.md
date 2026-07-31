@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-655
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Enforce full-gate service isolation outside candidate branch code
 parent: null
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T16:33:48.016632Z'
+updated_at: '2026-07-31T16:34:01.854982Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -177,9 +177,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-655
-  head_sha: b519be788276e349d4b39978660d6a9ee92b5cfa
-  submitted_at: '2026-07-31T11:06:28.174250+00:00'
-  updated_at: '2026-07-31T11:06:28.174250+00:00'
+  head_sha: 8da703b5f921db6987355ccc3bce10d3ac0b7881
+  submitted_at: '2026-07-31T16:33:59.138350+00:00'
+  updated_at: '2026-07-31T16:33:59.138350+00:00'
 oompah.start_blocked_by: *id001
 ---
 ## Summary
@@ -1133,5 +1133,10 @@ created: 2026-07-31 16:33
 ✓ Includes deployment/troubleshooting documentation
 
 Ready for submission and integration review.
+---
+author: oompah
+created: 2026-07-31 16:34
+---
+Enforce full-gate service isolation outside candidate branch code - Implementation complete with bwrap OS sandbox, git ancestry verification, disposable snapshots, environment sanitization, and comprehensive regression tests. All 158 focused tests pass. Design documentation added for maintainability.
 ---
 <!-- COMMENTS:END -->
