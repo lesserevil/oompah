@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T12:53:39.335817Z'
-updated_at: '2026-07-31T13:32:15.076849Z'
+updated_at: '2026-07-31T13:33:07.000369Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-660
 target_branch: null
 review_url: null
@@ -541,5 +541,16 @@ Discovery: Found root cause of both test failures.
 2. test_from_workflow_string_value: The server env has OOMPAH_FULL_SYNC_INTERVAL_MS=300000 which overrides the YAML test value '900000'. The test needs monkeypatch.delenv('OOMPAH_FULL_SYNC_INTERVAL_MS', raising=False). The pattern already exists in test_event_driven_loop.py:122.
 
 run-tests.sh clears OOMPAH_SERVER_URL/USERNAME/PASSWORD but not OOMPAH_DISABLE_CLIENT_AUTH or OOMPAH_FULL_SYNC_INTERVAL_MS. Fix: add isolation to the failing tests.
+---
+author: oompah
+created: 2026-07-31 13:33
+---
+Implementation: Fixed both failing tests by isolating them from server environment variables.
+
+1. tests/test_oompah_http.py: Added monkeypatch.delenv('OOMPAH_DISABLE_CLIENT_AUTH', raising=False) so load_client_environment() actually reads the .env fixture instead of returning early (as it does when running in a managed worker env where OOMPAH_DISABLE_CLIENT_AUTH=1).
+
+2. tests/test_orchestrator_full_sync.py: Added monkeypatch fixture param and monkeypatch.delenv('OOMPAH_FULL_SYNC_INTERVAL_MS', raising=False) to test_from_workflow_custom and test_from_workflow_string_value. Also fixed test_from_workflow_custom which was failing locally due to the same env var. Pattern already used in test_event_driven_loop.py:122.
+
+All 24 tests in both files now pass.
 ---
 <!-- COMMENTS:END -->
