@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T09:14:39.121173Z'
+updated_at: '2026-07-31T09:17:19.607932Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -179,5 +179,24 @@ The issue describes two live regressions:
 - terminal_mutation_scanner.py (reconciliation to prevent re-dispatch)
 
 Starting investigation now.
+---
+author: oompah
+created: 2026-07-31 09:17
+---
+**Discovery: Root Causes Identified**
+
+1. **Duplicate audits after PASS**: When audit A passes (marked COMPLETED), if another audit B with the same fingerprint exists in the chain (either PENDING or created via a concurrent reconciliation call), it remains in the queue and gets dispatched, causing a second audit for the same evidence.
+
+2. **Stale alerts after override**: When override is applied, audits are marked CANCELLED and `record_overridden` updates metrics, BUT `clear_terminal_audit_alert` is not called, leaving the alert condition in `_terminal_audit_manual_alerts` and preventing deduplication by `threshold_conditions`.
+
+3. **No fingerprint deduplication in dispatch**: The dispatch lane selects the first PENDING record but doesn't verify that no COMPLETED record with the same fingerprint already exists, allowing re-dispatch.
+
+**Implementation Plan**:
+1. When PASS/FAIL recorded: Cancel ALL sibling audits for same target/fingerprint, not just the one that passed
+2. When override applied: Call `clear_terminal_audit_alert` for ALL overridden audits atomically  
+3. Track applied fingerprints in metadata to prevent reconciliation from creating duplicates
+4. Add tests for PASS+duplicate siblings, override+alert clearing, restart persistence
+
+Starting implementation...
 ---
 <!-- COMMENTS:END -->
