@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:32:18.734139Z'
-updated_at: '2026-07-31T08:55:15.823402Z'
+updated_at: '2026-07-31T08:56:21.276619Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-623
 target_branch: null
 review_url: null
@@ -184,5 +184,10 @@ author: oompah
 created: 2026-07-31 08:55
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-07-31 08:56
+---
+UNDERSTANDING: Task requires implementing CLI-server version sync to prevent silent drift. Key components: (1) Add --version flag to CLI showing git revision, (2) Add build_id to server /healthz and /api/v1/state endpoints, (3) Create Makefile target to install canonical CLI from exact revision, (4) Add safeguards to prevent dirty/unpushed installation, (5) Comprehensive tests for install/upgrade/rollback scenarios, (6) Documentation. Prior work (OOMPAH-621) established credential precedence. Proceeding with implementation.
 ---
 <!-- COMMENTS:END -->
