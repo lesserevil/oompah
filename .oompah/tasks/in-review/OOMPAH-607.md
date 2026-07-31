@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-607
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Canonicalize project aliases before terminal owner authorization
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:17:13.371379Z'
-updated_at: '2026-07-30T19:01:28.119443Z'
+updated_at: '2026-07-31T06:01:45.959911Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -337,5 +337,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 8m 39s
 - Log: OOMPAH-607__20260730T185248Z.jsonl
+---
+author: oompah
+created: 2026-07-31 06:01
+---
+Branch quality gate passed for `b10b328ed7779cd3c72e7097a77f8ab4e69c1c90` using `make test` in 252.9s. Review creation may proceed.
 ---
 <!-- COMMENTS:END -->
