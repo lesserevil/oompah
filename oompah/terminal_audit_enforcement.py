@@ -889,6 +889,10 @@ class TerminalAuditEnforcement:
             return
         assert selected is not None
         _target_raw, target_override = selected
+        target_authority = _authority_key(
+            _target_raw.get("created_at"),
+            (target_override.override_id,),
+        )
         target_state = target_override.target_state.value
         target_status = _target_state_status(target_state)
         assert target_status is not None
@@ -929,14 +933,45 @@ class TerminalAuditEnforcement:
                 if not isinstance(raw, Mapping):
                     continue
                 item = dict(raw)
-                override_id = item.get("override_id")
-                if override_id == target_override.override_id:
-                    item["applied"] = True
-                    item["applied_at"] = now
-                elif override_id in retire_reasons:
+                if item.get("applied", True) is not False:
+                    overrides.append(item)
+                    continue
+                if (
+                    item.get("project_id") != project_id
+                    or item.get("task_id") != identifier
+                ):
+                    overrides.append(item)
+                    continue
+                try:
+                    current_override = OverrideRecord.from_dict(item)
+                except (TypeError, ValueError):
                     item["applied"] = True
                     item["retired_at"] = now
-                    item["retired_reason"] = retire_reasons[override_id]
+                    item["retired_reason"] = "invalid_override_record"
+                    overrides.append(item)
+                    continue
+
+                if current_override.evidence_fingerprint != current_fingerprint:
+                    item["applied"] = True
+                    item["retired_at"] = now
+                    item["retired_reason"] = "evidence_mismatch"
+                elif current_override == target_override:
+                    item["applied"] = True
+                    item["applied_at"] = now
+                elif (
+                    _authority_key(
+                        item.get("created_at"),
+                        (current_override.override_id,),
+                    )
+                    <= target_authority
+                ):
+                    # Re-read classification is intentional.  An override can
+                    # be appended after selection and the tracker status write
+                    # but before this metadata update acquires its lock.  Only
+                    # a strictly newer valid authority may remain actionable.
+                    item["applied"] = True
+                    item["retired_at"] = now
+                    item["retired_reason"] = "superseded_by_newer_override"
                 overrides.append(item)
             unknown[TERMINAL_OVERRIDE_RECORDS_KEY] = overrides
 

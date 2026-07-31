@@ -500,8 +500,20 @@ def test_recovery_applies_unapplied_override_while_still_in_validation(tmp_path)
     assert tracker.status_updates == [("TASK-1", "Done")]
 
 
-def test_override_recovery_preserves_concurrent_ledger_append(tmp_path):
-    """Recovery must update the updater's current override list, not a stale snapshot."""
+@pytest.mark.parametrize(
+    ("concurrent_created_at", "concurrent_applied"),
+    [
+        ("2026-07-31T08:00:00Z", True),
+        ("2026-07-31T10:00:00Z", False),
+    ],
+    ids=("older-retires", "newer-remains-authoritative"),
+)
+def test_override_recovery_classifies_concurrent_ledger_append(
+    tmp_path,
+    concurrent_created_at,
+    concurrent_applied,
+):
+    """Finalization retires older appends and preserves only a newer authority."""
     record = _pending_record("project-a", "TASK-1", "audit-pending")
     first_override = {
         "version": 1,
@@ -512,15 +524,18 @@ def test_override_recovery_preserves_concurrent_ledger_append(tmp_path):
         "evidence_fingerprint": record.evidence_fingerprint.to_dict(),
         "authorized_by": {"version": 1, "identity": "owner"},
         "reason": "restart recovery",
+        "created_at": "2026-07-31T09:00:00Z",
         "applied": False,
     }
     second_override = {
         **first_override,
         "override_id": "override-concurrent",
+        "target_state": "Merged",
         "reason": "concurrent owner callback",
+        "created_at": concurrent_created_at,
     }
     tracker = _OverrideRaceTracker(
-        [_issue("TASK-1", "Done", "evidence-a", "project-a")],
+        [_issue("TASK-1", "In Validation", "evidence-a", "project-a")],
         second_override,
     )
     tracker.metadata["TASK-1"] = {
@@ -539,7 +554,30 @@ def test_override_recovery_preserves_concurrent_ledger_append(tmp_path):
         "override-concurrent",
     ]
     assert overrides[0]["applied"] is True
-    assert overrides[1]["applied"] is False
+    assert overrides[1]["applied"] is concurrent_applied
+    assert tracker.status_updates == [("TASK-1", "Done")]
+
+    if concurrent_applied:
+        assert overrides[1]["retired_reason"] == "superseded_by_newer_override"
+        assert _enforcer(tmp_path).recover_pending_audits(
+            [("project-a", tracker)]
+        ) == []
+        assert tracker.status_updates == [("TASK-1", "Done")]
+    else:
+        assert "retired_reason" not in overrides[1]
+        assert _enforcer(tmp_path).recover_pending_audits(
+            [("project-a", tracker)]
+        ) == []
+        assert tracker.status_updates == [
+            ("TASK-1", "Done"),
+            ("TASK-1", "Merged"),
+        ]
+        finalized = TerminalAuditMetadata.from_dict(
+            tracker.metadata["TASK-1"][METADATA_KEY]
+        )
+        assert finalized.unknown_fields[TERMINAL_OVERRIDE_RECORDS_KEY][1][
+            "applied"
+        ] is True
 
 
 def test_authority_key_uses_aware_time_then_stable_persisted_id():
