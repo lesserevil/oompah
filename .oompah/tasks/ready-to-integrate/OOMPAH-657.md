@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-657
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Run branch quality gates from immutable exact-head snapshots
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T11:06:15.542774Z'
-updated_at: '2026-07-31T12:00:09.235379Z'
+updated_at: '2026-07-31T12:00:20.545651Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -97,6 +97,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-657
     source_sha: 08bc7ebfe44162adef3edb516f21ce01d6bdfdb8
     completed_at: '2026-07-31T11:34:08.109526+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-657
+  head_sha: 0593430f81bb3f3b9c19a7064dded7e878685e27
+  submitted_at: '2026-07-31T12:00:18.068623+00:00'
+  updated_at: '2026-07-31T12:00:18.068623+00:00'
 ---
 ## Summary
 
@@ -272,5 +280,10 @@ Branch pushed at 0593430f8. Summary of what was delivered:
 - Tombstone cleanup in finally block prevents unbounded set growth
 - cancel_generation() called during row retirement to stop running/pre-spawn gates
 - Integration executor test updated to be robust against variable is_current() call counts
+---
+author: oompah
+created: 2026-07-31 12:00
+---
+Closed three live pre-spawn race windows in quality gate execution and fixed _retire_inactive_integration_rows to retire Open-status tasks. Added 7 deterministic barrier tests covering tombstone-before-run, is_current-at-barriers-1-and-2, tombstone-during-snapshot, Popen-to-registration window, Open-task retirement, and READY_TO_INTEGRATE retention. All 42 focused tests pass at 0593430f8.
 ---
 <!-- COMMENTS:END -->
