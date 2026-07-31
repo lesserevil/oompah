@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-653
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Make terminal-audit success and owner override retire every duplicate record
   and alert
@@ -15,7 +15,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T12:23:31.960153Z'
+updated_at: '2026-07-31T12:25:25.833032Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,8 +41,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 6e4fc30c-e2d6-451b-90ae-92df711cf9ec
 oompah.task_costs:
-  total_input_tokens: 17051566
-  total_output_tokens: 70441
+  total_input_tokens: 20632216
+  total_output_tokens: 89340
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -50,8 +50,8 @@ oompah.task_costs:
       output_tokens: 61859
       cost_usd: 0.0
     opus:
-      input_tokens: 720920
-      output_tokens: 8582
+      input_tokens: 4301570
+      output_tokens: 27481
       cost_usd: 0.0
   runs:
   - profile: default
@@ -108,6 +108,12 @@ oompah.task_costs:
     output_tokens: 453
     cost_usd: 0.0
     recorded_at: '2026-07-31T11:53:53.788456+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 3580650
+    output_tokens: 18899
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T12:25:15.190528+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-653__20260731T090421Z
@@ -150,6 +156,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-653
     source_sha: 44742bb1f7db1a1b1c1d62dea822a549e15499c3
     completed_at: '2026-07-31T11:41:24.609914+00:00'
+  - run_id: OOMPAH-653__20260731T115808Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-sol
+    focus: ci_fix
+    source_branch: OOMPAH-653
+    source_sha: 69fff643e1780198faaa011397487d8721997b49
+    completed_at: '2026-07-31T12:25:15.199909+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -822,5 +836,20 @@ author: oompah
 created: 2026-07-31 12:23
 ---
 Coordination review completed at pushed head 69fff643e. OOMPAH-651 submissions do not overlap this branch's actual delta. OOMPAH-657 remains In Progress and is the finish-order dependency for exact-head full-gate evidence. Fixed the remaining concurrent override finalization race: the updater now revalidates every current unapplied override, retires stale/invalid/non-newer concurrent appends atomically, and preserves only a strictly newer authority for a subsequent scan. Added deterministic older-append retirement and newer-append follow-on authority regressions. Verification: 200 terminal-audit domain/enforcement/observability/coordinator tests passed; make terminal-audit-scan passed; git diff --check clean; branch pushed and up to date. Do not run or consume the full gate until OOMPAH-657 is merged/deployed, then rebase this branch and resolve the orchestrator overlap before submit.
+---
+author: oompah
+created: 2026-07-31 12:25
+---
+Agent completed successfully in 1634s (3599549 tokens)
+---
+author: oompah
+created: 2026-07-31 12:25
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Codex/gpt-5.6-sol]
+- Turns: 2, Tool calls: 140
+- Tokens: 3.6M in / 18.9K out [3.6M total]
+- Cost: $0.0000
+- Exit: normal, Duration: 27m 14s
+- Log: OOMPAH-653__20260731T115808Z.jsonl
 ---
 <!-- COMMENTS:END -->
