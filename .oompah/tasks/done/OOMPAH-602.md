@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-602
 type: bug
-status: In Validation
+status: Done
 priority: 1
 title: Repair project scope propagation in merged-label maintenance
 parent: OOMPAH-588
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:01.749200Z'
-updated_at: '2026-07-31T05:56:37.328976Z'
+updated_at: '2026-07-31T05:57:08.296751Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-602
 target_branch: null
 review_url: null
@@ -175,6 +175,23 @@ oompah.terminal_audit:
     no-auditor-audit-34aa65be3c6d-1: '2026-07-30T19:34:20.535346+00:00'
     attempt-ff192778bf18: '2026-07-30T23:19:45.719183+00:00'
     no-auditor-audit-195bfc8d9059-2: '2026-07-31T05:27:20.590733+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-1f1b5c918ebf
+    project_id: proj-14849f1b
+    task_id: OOMPAH-602
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 026ab5ea6db372d48f772de5325001378ab517a1671b7a9d17700b4738ca1d5f
+    authorized_by:
+      version: 1
+      identity: lesserevil
+      source: api
+    reason: Restore previously audited Done after false post-merge landing regression;
+      refreshed exact task ref is contained in main.
+    created_at: '2026-07-31T05:57:05.458856+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -880,5 +897,12 @@ author: oompah
 created: 2026-07-31 05:52
 ---
 Post-restart landing re-evaluation: this task's refreshed exact remote work ref is an ancestor of merged origin/main bb0fd760c3. The Needs Human state was a false regression from the old runtime comparing a pre-rebase SHA. Restoring the task's previously audited Done state.
+---
+author: oompah
+created: 2026-07-31 05:57
+---
+Override by lesserevil: terminal transition to Done applied by project owner.
+
+Reason: Restore previously audited Done after false post-merge landing regression; refreshed exact task ref is contained in main.
 ---
 <!-- COMMENTS:END -->
