@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-653
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Make terminal-audit success and owner override retire every duplicate record
   and alert
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T11:11:32.164698Z'
+updated_at: '2026-07-31T11:11:44.503723Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -134,9 +134,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-653
-  head_sha: 21791cde02de485119f62e2b670f83842b09afd1
-  submitted_at: '2026-07-31T09:24:55.041886+00:00'
-  updated_at: '2026-07-31T09:24:55.041886+00:00'
+  head_sha: 59436e50aa0122224ad01746c6b7b8380a52241b
+  submitted_at: '2026-07-31T11:11:40.562805+00:00'
+  updated_at: '2026-07-31T11:11:40.562805+00:00'
 ---
 ## Summary
 
@@ -561,5 +561,10 @@ author: oompah
 created: 2026-07-31 11:11
 ---
 Verification: All 153 focused terminal-audit tests pass at head 59436e50a. git diff --check origin/main...HEAD is clean. Branch pushed. Summary of the full OOMPAH-653 fix on this branch (5 commits: 1970d1382, b0ebdbac3, 200e13705, 01f2770d7, fb68d377c, 59436e50a): (1) One canonical live audit identity per fingerprint enforced via sibling supersession on PASS/override, atomic within the coordinator lock. (2) Durable applied-fingerprint retirement ledger fences reconciliation from recreating audits for already-applied fingerprints. (3) Durable result-intent protocol closes the crash window between metadata commit and tracker status write; restart recovery replays unacknowledged intents idempotently. (4) CAS check in Orchestrator._audit_update_record refuses to resurrect completed/superseded/cancelled records from stale dispatch snapshots. (5) TerminalAuditEnforcement._recover_terminal_override derives ledger from the updater's current document (fixes concurrent-append race) and marks unapplied result intents retired when a later override wins authority. (6) Alerts cleared atomically for cancelled siblings against production TerminalAuditAlertRegistry; idempotent replays reclear from durable retirement metadata. Comprehensive test coverage: PASS/override barriers vs no-candidate route, one-PASS-retires-all-equivalent-identities (OOMPAH-654), interrupted PASS/status recovery, interrupted override recovery + concurrent ledger append safety, repeated callback idempotency + alert reclear, production alert registry cleanup across restart, project isolation. Ready to submit.
+---
+author: oompah
+created: 2026-07-31 11:11
+---
+Enforced canonical live audit identity per fingerprint with atomic PASS/override retirement, durable result-intent protocol with restart recovery, CAS launch fence to prevent stale dispatch resurrection, and comprehensive deterministic barrier tests. Fixes OOMPAH-648 duplicate audits after PASS, OOMPAH-644 stale alerts after override, and OOMPAH-654 pass-then-redispatch. 153 focused terminal-audit tests pass.
 ---
 <!-- COMMENTS:END -->
