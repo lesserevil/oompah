@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:06:15.542774Z'
-updated_at: '2026-07-31T12:12:59.277144Z'
+updated_at: '2026-07-31T12:17:47.958118Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -472,5 +472,10 @@ author: oompah
 created: 2026-07-31 12:12
 ---
 Current dirty quality_gate.py fixes same-generation waiter fencing, key-lock reclamation, and failed worktree registration cleanup. Still required before review: (1) pass the standalone authority is_current callback from _review_quality_gate_passes so Ready->Open cancels a running gate, not just final delivery; (2) reconcile/revoke standalone authorities and clear their alert on every non-authorized state transition, including ordinary dashboard/API Ready->Open, not only terminal coordinator callbacks; add the live Ready->Open alert case; (3) bound cancelled generations that never acquire a run count. test_retire_inactive_rows currently asserts such a no-caller tombstone remains forever, so _generation_run_counts does not solve that leak. Use a bounded/expiring retired-generation registry or a durable row generation that can be safely retired while is_current remains the future-spawn fence. Keep deterministic same-generation waiters covered. Also retain exact current integration-row authority; do not rely only on a lease-owner string reconstructed from a possibly stale queue snapshot.
+---
+author: oompah
+created: 2026-07-31 12:17
+---
+Stopped another premature full make test at 12:18 UTC (exact PGID 3392714). The branch is still dirty and is actively adding missing standalone authority/tombstone fixes from comment 32; use focused quality-gate/standalone-delivery tests only. The one full gate belongs to the accepted pushed exact head.
 ---
 <!-- COMMENTS:END -->
