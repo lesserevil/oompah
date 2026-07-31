@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:54:49.391955Z'
-updated_at: '2026-07-31T01:05:46.813542Z'
+updated_at: '2026-07-31T01:10:06.920617Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-633
 target_branch: null
 review_url: null
@@ -154,5 +154,27 @@ Solution implemented:
 1. Modified _detect_and_repair_integration_queue_staleness_block to check if epic- target is the authoritative parent branch
 2. Modified _epic_synchronization_decision to allow parent epic targets while rejecting unrelated epics
 3. This preserves the existing "rebase-requested" label and state-based authorization flow
+---
+author: oompah
+created: 2026-07-31 01:10
+---
+Implementation: Extended nested epic queue repair in oompah/orchestrator.py
+
+Changes:
+1. _detect_and_repair_integration_queue_staleness_block (lines 5318-5327):
+   - Instead of rejecting all epic- targets, check if it's the parent's branch
+   - Resolve parent epic and compare target_branch to parent's branch name
+   - Allow repair for parent epic targets, deny unrelated epic branches
+
+2. _epic_synchronization_decision (lines 10264-10283):
+   - Allow parent epic targets to proceed to authorization checks
+   - Preserve existing rebase-requested label and Needs Rebase state flow
+   - Still reject unrelated epic-to-epic synchronization
+
+Tests added:
+- test_nested_epic_queue_repair_with_parent_target: Verifies terminal sibling dependencies trigger repair
+- test_nested_epic_queue_repair_denies_unrelated_epic_target: Verifies unrelated epics denied
+
+All 24 tests in test_parallel_epic_children.py pass, plus 212 in test_epic_strategy.py
 ---
 <!-- COMMENTS:END -->
