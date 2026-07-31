@@ -284,7 +284,33 @@ def _http(
     if not resp.is_success:
         # 401: authentication required — never echo credentials or auth data.
         if resp.status_code == 401:
-            sys.exit(format_auth_error(base_url))
+            # If this is a handoff session (worker capability), provide
+            # explicit diagnostics for expired/revoked tokens vs other auth
+            # failures. The server sends specific error codes to help diagnose.
+            if task_capability:
+                err = body.get("error", {}) if isinstance(body, dict) else {}
+                error_code = err.get("code", "")
+                error_message = err.get("message", "")
+                
+                if "expired" in error_message.lower():
+                    sys.exit(
+                        f"ERROR (401): Task handoff capability expired.\n"
+                        f"The worker exceeded the session lifetime.\n"
+                        f"Details: {error_message}"
+                    )
+                elif "revoked" in error_message.lower():
+                    sys.exit(
+                        f"ERROR (401): Task handoff capability was revoked.\n"
+                        f"The worker was terminated or restarted.\n"
+                        f"Details: {error_message}"
+                    )
+                else:
+                    sys.exit(
+                        f"ERROR (401): Task handoff capability validation failed.\n"
+                        f"Details: {error_message or 'Check server logs'}"
+                    )
+            else:
+                sys.exit(format_auth_error(base_url))
 
         err = body.get("error", {}) if isinstance(body, dict) else {}
         msg = (
@@ -307,10 +333,14 @@ def _task_handoff_request(
     ``None`` means this is an ordinary operator CLI invocation and callers
     should use the legacy tracker endpoint.  A capability is never sent to a
     general endpoint, even when a command is malformed.
+    
+    Token refresh is handled server-side: the task-handoff endpoint validates
+    and automatically extends the TTL to keep it alive during long tool calls.
     """
     token = _task_handoff_token()
     if token is None:
         return None
+    
     payload = {**data}
     if not payload.get("project_id"):
         project_id = _task_handoff_project(payload)

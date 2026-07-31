@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
@@ -1341,3 +1342,527 @@ class TestOrchestratorHandoffTokenMint:
         token = orch._issue_task_handoff_token(issue)
 
         assert token is None
+
+
+class TestOOMPAH650WorkerLifetimeCredentials:
+    """OOMPAH-650: Keep scoped task handoff credentials valid for the full
+    worker lifetime.
+
+    These regressions cover the four properties spelled out in the acceptance
+    criteria:
+
+    * A worker outliving the wall-clock TTL can still view/comment/submit
+      because the server-side lease renewed the grant while the worker was
+      inside a long tool call.
+    * The endpoint refresh and lease heartbeat preserve the ORIGINAL TTL a
+      grant was minted with; a deliberately short capability is never
+      silently widened to the module default.
+    * Ownership is generation-bound: a stale worker cannot renew after a
+      replacement dispatch or forced termination has taken over the entry.
+    * The task-handoff endpoint aborts the tracker mutation and returns an
+      explicit ``handoff_expired`` / ``handoff_revoked`` diagnostic when the
+      grant is no longer usable, so the CLI can distinguish auth transport
+      failure from task failure.
+    """
+
+    def test_endpoint_refresh_preserves_original_short_ttl(self):
+        """A grant minted with a 60 s TTL must never be widened to 24 h.
+
+        Refresh (either via the endpoint after a validated request or via
+        the lease heartbeat) uses the grant's own ``original_ttl_seconds``
+        when the caller does not supply an explicit override.
+        """
+        now = [1000.0]
+        store = TaskHandoffGrantStore(now=lambda: now[0])
+        token = store.issue(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"comment"},
+            ttl_seconds=60.0,
+        )
+
+        assert store.refresh(token) is True
+        grant = store._grants[store._digest(token)]
+        # Refreshed at t=1000 with original TTL 60 → expires at 1060, not 24h out.
+        assert grant.expires_at == pytest.approx(1060.0)
+        assert grant.original_ttl_seconds == pytest.approx(60.0)
+
+    def test_refresh_never_widens_grant_beyond_original_ttl(self):
+        """Even an explicit oversize ttl_seconds is clamped to the grant's
+        minted TTL. This preserves any deliberate operator bound."""
+        now = [1000.0]
+        store = TaskHandoffGrantStore(now=lambda: now[0])
+        token = store.issue(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"comment"},
+            ttl_seconds=60.0,
+        )
+        assert store.refresh(token, ttl_seconds=24 * 60 * 60) is True
+        grant = store._grants[store._digest(token)]
+        # Clamped to original 60 s TTL, not extended to the requested 24 h.
+        assert grant.expires_at <= 1060.0
+
+    def test_lease_heartbeat_preserves_original_short_ttl(self):
+        """The heartbeat thread renews with the grant's original TTL, so the
+        capability is not silently widened while the worker is idle."""
+        now = [1000.0]
+        store = TaskHandoffGrantStore(now=lambda: now[0])
+        token = store.issue(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"comment"},
+            ttl_seconds=60.0,
+            owner_id="worker-A",
+        )
+        lease = store.start_lease(
+            token,
+            owner_id="worker-A",
+            heartbeat_interval_seconds=0.005,
+        )
+        assert lease is not None
+        try:
+            # Wait for at least one heartbeat to fire.
+            deadline = time.monotonic() + 1.0
+            baseline = store._grants[store._digest(token)].expires_at
+            while time.monotonic() < deadline:
+                grant = store._grants.get(store._digest(token))
+                if grant is not None and grant.expires_at != baseline:
+                    break
+                time.sleep(0.005)
+            grant = store._grants[store._digest(token)]
+            # Heartbeat renewed with ORIGINAL 60 s TTL, not the 24 h default.
+            assert grant.expires_at <= 1060.0
+            assert grant.expires_at > baseline - 0.001  # actually renewed
+            assert grant.original_ttl_seconds == pytest.approx(60.0)
+        finally:
+            lease.stop()
+
+    def test_worker_survives_beyond_initial_ttl_via_endpoint_refresh(self):
+        """A worker whose bearer token is older than its wall-clock TTL still
+        completes its tracker mutation, because the endpoint refreshes the
+        grant on every request and preserves the original TTL.
+
+        This is the core acceptance case: no 401 solely because the initial
+        TTL aged out during a legitimate long-running tool call.
+        """
+        from fastapi.testclient import TestClient
+
+        import oompah.server as server
+        import oompah.task_handoff as task_handoff_module
+        from oompah.server import app
+        from oompah.task_handoff import TaskHandoffGrantStore
+
+        now = [1000.0]
+        store = TaskHandoffGrantStore(now=lambda: now[0])
+        old_store = task_handoff_module._default_store
+        task_handoff_module._default_store = store
+        token = store.issue(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"comment"},
+            ttl_seconds=60.0,
+        )
+
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = Issue(
+            id="issue-1",
+            identifier="TASK-1",
+            title="Task",
+            description="body",
+            state="In Progress",
+            project_id="proj-a",
+        )
+        tracker.fetch_comments.return_value = []
+        tracker.add_comment.return_value = None
+        orch = MagicMock()
+        orch._tracker_for_project.return_value = tracker
+        orch.project_store.get.return_value = None
+
+        old_orch = server._orchestrator
+        old_creds = server._http_credentials
+        old_broadcast = server.broadcast_issues
+        server._orchestrator = orch
+        server._http_credentials = None
+        server.broadcast_issues = AsyncMock()
+        try:
+            with TestClient(app, raise_server_exceptions=False) as client:
+                # First request at t=1030 (halfway through TTL): succeeds and
+                # bumps expires_at to 1090.
+                now[0] = 1030.0
+                r1 = client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: token},
+                    json={
+                        "action": "comment",
+                        "project_id": "proj-a",
+                        "identifier": "TASK-1",
+                        "message": "midpoint update",
+                    },
+                )
+                assert r1.status_code == 200, r1.text
+                # The original TTL was 60 s; a widening bug would place
+                # expires_at at ~1030 + 24h. Preservation keeps it near 1090.
+                grant = store._grants[store._digest(token)]
+                assert grant.expires_at <= 1090.0 + 1.0
+
+                # Now advance PAST the ORIGINAL TTL (t=1080 > 1060) but stay
+                # within the refreshed window (< 1090). The endpoint must
+                # still accept and mutate — this is the OOMPAH-650 case.
+                now[0] = 1080.0
+                r2 = client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: token},
+                    json={
+                        "action": "comment",
+                        "project_id": "proj-a",
+                        "identifier": "TASK-1",
+                        "message": "past-initial-ttl update",
+                    },
+                )
+                assert r2.status_code == 200, r2.text
+                assert tracker.add_comment.call_count >= 2
+        finally:
+            task_handoff_module._default_store = old_store
+            server._orchestrator = old_orch
+            server._http_credentials = old_creds
+            server.broadcast_issues = old_broadcast
+
+    def test_endpoint_returns_handoff_expired_when_grant_ages_out(self):
+        """When a grant has expired without ever being renewed, the endpoint
+        returns 401 with error code ``handoff_expired`` so the CLI can
+        distinguish auth transport failure from task failure."""
+        from fastapi.testclient import TestClient
+
+        import oompah.server as server
+        import oompah.task_handoff as task_handoff_module
+        from oompah.server import app
+        from oompah.task_handoff import TaskHandoffGrantStore
+
+        now = [1000.0]
+        store = TaskHandoffGrantStore(now=lambda: now[0])
+        old_store = task_handoff_module._default_store
+        task_handoff_module._default_store = store
+        token = store.issue(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"comment"},
+            ttl_seconds=1.0,
+        )
+
+        old_creds = server._http_credentials
+        server._http_credentials = None
+        try:
+            now[0] = 1010.0  # well past expiry
+            with TestClient(app, raise_server_exceptions=False) as client:
+                r = client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: token},
+                    json={
+                        "action": "comment",
+                        "project_id": "proj-a",
+                        "identifier": "TASK-1",
+                        "message": "should be rejected",
+                    },
+                )
+        finally:
+            task_handoff_module._default_store = old_store
+            server._http_credentials = old_creds
+
+        assert r.status_code == 401
+        body = r.json()
+        assert body["error"]["code"] == "handoff_expired"
+        assert "expired" in body["error"]["message"].lower()
+
+    def test_endpoint_returns_handoff_revoked_after_explicit_revocation(self):
+        """After the orchestrator explicitly revokes a token (worker
+        termination), the endpoint returns 401 ``handoff_revoked`` so the
+        client understands the failure was ownership loss, not transport."""
+        from fastapi.testclient import TestClient
+
+        import oompah.server as server
+        import oompah.task_handoff as task_handoff_module
+        from oompah.server import app
+        from oompah.task_handoff import TaskHandoffGrantStore
+
+        store = TaskHandoffGrantStore()
+        old_store = task_handoff_module._default_store
+        task_handoff_module._default_store = store
+        token = store.issue(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"comment"},
+            ttl_seconds=60.0,
+        )
+        store.revoke(token)
+
+        old_creds = server._http_credentials
+        server._http_credentials = None
+        try:
+            with TestClient(app, raise_server_exceptions=False) as client:
+                r = client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: token},
+                    json={
+                        "action": "comment",
+                        "project_id": "proj-a",
+                        "identifier": "TASK-1",
+                        "message": "should be rejected after revocation",
+                    },
+                )
+        finally:
+            task_handoff_module._default_store = old_store
+            server._http_credentials = old_creds
+
+        assert r.status_code == 401
+        body = r.json()
+        assert body["error"]["code"] == "handoff_revoked"
+        assert "revoked" in body["error"]["message"].lower()
+
+    def test_endpoint_aborts_mutation_when_refresh_races_with_termination(self):
+        """Between validate and mutate the endpoint refreshes the grant; if
+        that refresh fails (owner lost the race with forced termination) the
+        endpoint MUST NOT call the tracker."""
+        from fastapi.testclient import TestClient
+
+        import oompah.server as server
+        import oompah.task_handoff as task_handoff_module
+        from oompah.server import app
+        from oompah.task_handoff import TaskHandoffGrantStore
+
+        store = TaskHandoffGrantStore()
+        old_store = task_handoff_module._default_store
+        task_handoff_module._default_store = store
+        token = store.issue(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"comment"},
+            ttl_seconds=60.0,
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = Issue(
+            id="issue-1",
+            identifier="TASK-1",
+            title="Task",
+            description="body",
+            state="In Progress",
+            project_id="proj-a",
+        )
+        tracker.fetch_comments.return_value = []
+        tracker.add_comment.return_value = None
+        orch = MagicMock()
+        orch._tracker_for_project.return_value = tracker
+        orch.project_store.get.return_value = None
+
+        old_orch = server._orchestrator
+        old_creds = server._http_credentials
+        old_broadcast = server.broadcast_issues
+        server._orchestrator = orch
+        server._http_credentials = None
+        server.broadcast_issues = AsyncMock()
+        try:
+            with (
+                patch.object(
+                    server, "refresh_task_handoff_token", return_value=False
+                ),
+                TestClient(app, raise_server_exceptions=False) as client,
+            ):
+                r = client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: token},
+                    json={
+                        "action": "comment",
+                        "project_id": "proj-a",
+                        "identifier": "TASK-1",
+                        "message": "must not be committed",
+                    },
+                )
+        finally:
+            task_handoff_module._default_store = old_store
+            server._orchestrator = old_orch
+            server._http_credentials = old_creds
+            server.broadcast_issues = old_broadcast
+
+        assert r.status_code == 401
+        body = r.json()
+        assert body["error"]["code"] in {"handoff_revoked", "handoff_expired"}
+        # The mutation must not have reached the tracker.
+        tracker.add_comment.assert_not_called()
+
+    def test_owner_mismatch_denies_lease_and_refresh(self):
+        """A grant bound to worker A cannot be renewed by worker B, either
+        via ``refresh(owner_id=...)`` or by starting a second lease."""
+        store = TaskHandoffGrantStore()
+        token = store.issue(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"comment"},
+            ttl_seconds=60,
+            owner_id="worker-A",
+        )
+        # Wrong owner in refresh path is rejected.
+        assert store.refresh(token, owner_id="worker-B") is False
+        # Wrong owner cannot start a lease either.
+        assert store.start_lease(token, owner_id="worker-B") is None
+        # The right owner still works.
+        assert store.refresh(token, owner_id="worker-A") is True
+
+    def test_lease_revokes_when_owner_generation_changes(self):
+        """When the running-entry generation changes underneath a live lease
+        (dispatch replaced the entry), the lease's ``owner_is_live`` check
+        must trip and the token must be revoked automatically."""
+        store = TaskHandoffGrantStore()
+        token = store.issue(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"comment"},
+            ttl_seconds=60,
+            owner_id="dispatch-gen-1",
+        )
+        current_generation = ["dispatch-gen-1"]
+
+        def _owner_is_live() -> bool:
+            return current_generation[0] == "dispatch-gen-1"
+
+        lease = store.start_lease(
+            token,
+            owner_id="dispatch-gen-1",
+            heartbeat_interval_seconds=0.005,
+            owner_is_live=_owner_is_live,
+        )
+        assert lease is not None
+        try:
+            current_generation[0] = "dispatch-gen-2"  # Replacement happened.
+            deadline = time.monotonic() + 1.0
+            while time.monotonic() < deadline:
+                grant = store._grants.get(store._digest(token))
+                if grant is not None and grant.revoked_at is not None:
+                    break
+                time.sleep(0.005)
+            grant = store._grants[store._digest(token)]
+            assert grant.revoked_at is not None
+        finally:
+            lease.stop()
+
+    def test_forced_termination_revokes_even_when_entry_replaced(self):
+        """Fix for the ``_terminate_running`` early-return race: if a
+        replacement RunningEntry has already been inserted for the same
+        issue_id, forced termination must still revoke the OLD entry's
+        token so a surviving subprocess cannot reuse its bearer credential
+        during the window before the daemon heartbeat notices."""
+        from oompah.config import ServiceConfig
+        from oompah.orchestrator import Orchestrator
+        from oompah.task_handoff import (
+            issue_task_handoff_token,
+            validate_task_handoff_token,
+        )
+
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            orch = Orchestrator(
+                config=ServiceConfig(),
+                workflow_path="WORKFLOW.md",
+                state_path=str(Path(tmp) / "state.json"),
+            )
+            issue = Issue(
+                id="issue-1",
+                identifier="TASK-1",
+                title="Task",
+                state="In Progress",
+                project_id="proj-a",
+            )
+
+            old_token = issue_task_handoff_token(
+                project_id="proj-a",
+                task_identifier="TASK-1",
+                allowed_actions={"comment"},
+                ttl_seconds=60,
+            )
+            new_token = issue_task_handoff_token(
+                project_id="proj-a",
+                task_identifier="TASK-1",
+                allowed_actions={"comment"},
+                ttl_seconds=60,
+            )
+            old_entry = RunningEntry(
+                worker_task=None,
+                identifier=issue.identifier,
+                issue=issue,
+                session=None,
+                retry_attempt=0,
+                started_at=datetime.now(timezone.utc),
+                task_handoff_token=old_token,
+            )
+            replacement_entry = RunningEntry(
+                worker_task=None,
+                identifier=issue.identifier,
+                issue=issue,
+                session=None,
+                retry_attempt=1,
+                started_at=datetime.now(timezone.utc),
+                task_handoff_token=new_token,
+            )
+            # Seed the terminator with the OLD entry, then swap in the
+            # replacement before the terminate loop reaches the pop.
+            orch.state.running[issue.id] = old_entry
+
+            async def _swap_and_terminate():
+                terminate_task = asyncio.create_task(
+                    orch._terminate_running(issue.id, False)
+                )
+                # Give the terminate loop a moment to capture ``entry``.
+                await asyncio.sleep(0)
+                # Simulate the replacement entering the runtime map before
+                # the terminator's early-return check.
+                orch.state.running[issue.id] = replacement_entry
+                return await terminate_task
+
+            assert asyncio.run(_swap_and_terminate()) is True
+
+            # OLD token: revoked (or already outright removed after grace).
+            valid_old, reason_old = validate_task_handoff_token(
+                old_token,
+                project_id="proj-a",
+                task_identifier="TASK-1",
+                action="comment",
+            )
+            assert valid_old is False
+            assert (
+                "revoked" in reason_old.lower()
+                or "invalid" in reason_old.lower()
+            )
+            # NEW token belonging to the replacement must remain usable.
+            valid_new, _ = validate_task_handoff_token(
+                new_token,
+                project_id="proj-a",
+                task_identifier="TASK-1",
+                action="comment",
+            )
+            assert valid_new is True
+            # And the replacement entry is still present.
+            assert orch.state.running.get(issue.id) is replacement_entry
+            # Clean up the replacement grant.
+            from oompah.task_handoff import revoke_task_handoff_token
+            revoke_task_handoff_token(new_token)
+
+    def test_no_basic_auth_environment_leaks_into_worker(self):
+        """Worker environments must never receive reusable operator Basic
+        credentials, only the task-scoped handoff token."""
+        env = agent_environment(
+            base_env={
+                "PATH": "/usr/bin",
+                "OOMPAH_SERVER_USERNAME": "operator",
+                "OOMPAH_SERVER_PASSWORD": "secret",
+                "OOMPAH_SERVER_PASSWORD_FILE": "/tmp/pw",
+                TASK_HANDOFF_TOKEN_ENV: "scoped-token",
+                TASK_HANDOFF_PROJECT_ENV: "proj-a",
+            },
+        )
+        # Only the scoped capability may reach the worker environment.
+        assert env.get(TASK_HANDOFF_TOKEN_ENV) == "scoped-token"
+        assert env.get(TASK_HANDOFF_PROJECT_ENV) == "proj-a"
+        # None of the reusable operator credentials survive.
+        assert "OOMPAH_SERVER_USERNAME" not in env
+        assert "OOMPAH_SERVER_PASSWORD" not in env
+        assert "OOMPAH_SERVER_PASSWORD_FILE" not in env

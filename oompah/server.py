@@ -120,6 +120,7 @@ from oompah.mcp_exposure_policy import MCP_DISCOVERY_PATH, MCP_ENDPOINT_PATH
 from oompah.task_handoff import (
     TASK_HANDOFF_HEADER,
     record_task_handoff_failure,
+    refresh_task_handoff_token,
     validate_task_handoff_token,
 )
 from oompah.auth_health import (
@@ -3673,18 +3674,69 @@ async def api_task_handoff(request: Request):
     if not allowed:
         # Do not expose whether a token exists for another task/project.
         record_task_handoff_failure(token, "task handoff scope validation failed")
-        status_code = 401 if "invalid" in reason or "missing" in reason else 403
+        # Expired and explicitly revoked grants are authentication failures;
+        # scope and action denials remain 403. This lets the worker distinguish
+        # transport/authentication loss from a task operation failure without
+        # weakening the scope boundary.
+        is_auth_failure = any(
+            marker in reason.lower()
+            for marker in ("invalid", "missing", "expired", "revoked")
+        )
+        status_code = 401 if is_auth_failure else 403
+        error_code = (
+            "handoff_revoked"
+            if "revoked" in reason.lower()
+            else "handoff_expired"
+            if "expired" in reason.lower()
+            else "handoff_unauthorized"
+            if is_auth_failure
+            else "handoff_forbidden"
+        )
         # Count by auth-plane failure type for health signals.
         if status_code == 401:
             record_worker_401()
         else:
             record_worker_403_scope()
         return JSONResponse(
-            {"error": {"code": "handoff_forbidden", "message": reason}},
+            {"error": {"code": error_code, "message": reason}},
             status_code=status_code,
         )
     # Token presented and scope validated — record acceptance before dispatch.
     record_worker_token_accepted()
+
+    # Refresh the token to extend its TTL. This keeps the grant alive during
+    # long tool calls and restart recovery. The refresh is performed on the
+    # server-owned store, so the worker's TTL advances with each request.
+    # If refresh fails (revoked/expired), the token is already invalid and
+    # the worker should not proceed further.
+    if not refresh_task_handoff_token(token):
+        # A worker can race with forced termination between validation and the
+        # renewal. Do not perform the tracker mutation unless the server-owned
+        # grant is still active at the commit point.
+        _still_allowed, refresh_reason = validate_task_handoff_token(
+            token,
+            project_id=project_id,
+            task_identifier=identifier,
+            action=action,
+        )
+        refresh_reason = refresh_reason or (
+            "task handoff capability was revoked when the worker terminated"
+        )
+        record_task_handoff_failure(token, "task handoff capability renewal failed")
+        record_worker_401()
+        return JSONResponse(
+            {
+                "error": {
+                    "code": (
+                        "handoff_expired"
+                        if "expired" in refresh_reason.lower()
+                        else "handoff_revoked"
+                    ),
+                    "message": refresh_reason,
+                }
+            },
+            status_code=401,
+        )
 
     if orch is None:
         orch = _get_orchestrator()
