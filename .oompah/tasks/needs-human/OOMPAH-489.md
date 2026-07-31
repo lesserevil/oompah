@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-489
 type: task
-status: Ready to Integrate
+status: Needs Human
 priority: 1
 title: Validate nested epic auditing, repair planning, races, and cross-tracker behavior
 parent: OOMPAH-460
@@ -16,7 +16,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:28.198709Z'
-updated_at: '2026-07-31T04:06:21.107062Z'
+updated_at: '2026-07-31T04:12:42.673354Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-489
 target_branch: null
 review_url: null
@@ -480,5 +480,15 @@ Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: normal, Duration: 3m 45s
 - Log: OOMPAH-489__20260731T040239Z.jsonl
+---
+author: oompah
+created: 2026-07-31 04:12
+---
+Moved to Needs Human from the dashboard/API. Human action required: inspect OOMPAH-489 (Validate nested epic auditing, repair planning, races, and cross-tracker behavior), add the specific decision, missing information, or manual fix needed, then move the task back to Open when it is ready for agents again.
+---
+author: oompah
+created: 2026-07-31 04:12
+---
+Temporary operator fence: old runtime rearmed this already-reconciled terminal task from stale integration state. Preserve the verified code in OOMPAH-597 head 44e5c5579; reassert Done after OOMPAH-599 lands and the fixed runtime retires stale rows.
 ---
 <!-- COMMENTS:END -->

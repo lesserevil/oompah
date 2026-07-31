@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-488
 type: task
-status: In Progress
+status: Needs Human
 priority: 1
 title: Validate the complete task Done-Merged-Archived audit lifecycle
 parent: OOMPAH-460
@@ -19,7 +19,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:27.238658Z'
-updated_at: '2026-07-31T04:11:52.211090Z'
+updated_at: '2026-07-31T04:12:37.044702Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-488
 target_branch: null
 review_url: null
@@ -486,5 +486,25 @@ author: oompah
 created: 2026-07-31 04:11
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-31 04:12
+---
+Moved to Needs Human from the dashboard/API. Human action required: inspect OOMPAH-488 (Validate the complete task Done-Merged-Archived audit lifecycle), add the specific decision, missing information, or manual fix needed, then move the task back to Open when it is ready for agents again.
+---
+author: oompah
+created: 2026-07-31 04:12
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Codex/gpt-5.6-terra]
+- Turns: 0, Tool calls: 4
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 53s
+- Log: OOMPAH-488__20260731T041155Z.jsonl
+---
+author: oompah
+created: 2026-07-31 04:12
+---
+Temporary operator fence: old runtime claimed this already-reconciled terminal task from a stale integration row and dispatched a CI worker. Preserve the verified code in OOMPAH-597 head 44e5c5579; reassert Done after OOMPAH-599 lands and the fixed runtime retires stale rows.
 ---
 <!-- COMMENTS:END -->
