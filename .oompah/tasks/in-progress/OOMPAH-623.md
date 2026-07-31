@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:32:18.734139Z'
-updated_at: '2026-07-31T09:57:32.030434Z'
+updated_at: '2026-07-31T10:01:50.416345Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-623
 target_branch: null
 review_url: null
@@ -336,5 +336,10 @@ author: oompah
 created: 2026-07-31 09:57
 ---
 In-progress review of the new staged cutover finds two remaining atomicity violations. activate_candidate removes/replaces the live UV tool directory before replacing the launcher, so the old canonical launcher temporarily points at a deleted/new tool tree; use immutable versioned candidate tool roots and one atomic launcher symlink/rename as the activation point, retaining the old root for rollback. More critically, graceful_cutover sets committed=true immediately after the restart POST, then a new-health/build-id failure rolls the CLI back to old while the new server may already be running (or partially started), recreating the exact live mismatch. Post-cutover rollback must either restart the old server revision before restoring the old CLI, or retain the candidate CLI whenever server cutover may have occurred and enter an explicit recoverable state; never restore only one side. Add deterministic tests for accepted-restart-then-health-timeout, connection drop during exec, new server wrong build ID, activation interruption between tool and launcher operations, and concurrent CLI invocation during activation. Also still isolate/rebase the branch's unrelated prerequisite commits before submission.
+---
+author: oompah
+created: 2026-07-31 10:01
+---
+Reviewer correction to comment #32/#35: this is a shared-epic child. The correct review base is origin/epic-OOMPAH-619 at 0dc7d0f7c, which already contains the accepted OOMPAH-620/621/624 prerequisites; the OOMPAH-623 branch is correctly stacked directly on it, and diff-check is clean relative to that epic base. Do not drop or rebase away those parent commits, and disregard my earlier main-relative unrelated-change/trailing-whitespace concern. The lifecycle atomicity findings remain: avoid a live-tool/launcher replacement gap and never roll back only the CLI after server cutover may have occurred.
 ---
 <!-- COMMENTS:END -->
