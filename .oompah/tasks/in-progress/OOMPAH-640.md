@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T05:59:47.260716Z'
-updated_at: '2026-07-31T06:34:31.964630Z'
+updated_at: '2026-07-31T06:35:11.469649Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -340,5 +340,23 @@ IMPLEMENTATION: Two minimal fixes for the 2 failing tests:
    Fix: Applied the same threading.Event stabilization that was already applied to the adjacent test (test_plain_requestor_approval_comment_auto_promotes_ready_issue in commit d61679dbe) — set add_comment.side_effect to signal a promotion_finished event, then wait on it with a 3-second timeout.
 
 Neither failure was caused by this branch's changes (which only added test_stall_to_dispatch_recovery.py).
+---
+author: oompah
+created: 2026-07-31 06:35
+---
+VERIFICATION: Both previously-failing tests now pass.
+
+Focused test results:
+- tests/test_client_auth.py (full suite): 57 PASSED ✓
+- tests/test_intake_promotion.py (full suite): 21 PASSED ✓  
+- tests/test_stall_to_dispatch_recovery.py (branch feature tests): 15 PASSED ✓
+- tests/test_dispatch_loop_heartbeat.py: 25 PASSED ✓
+- tests/test_orphan_reset_dispatch_wake.py: 4 PASSED ✓
+
+Previously failing:
+- test_current_dotenv_replaces_stale_client_inputs: PASSED ✓
+- test_approval_comment_auto_promotes_when_project_allows_it: PASSED ✓
+
+Branch pushed: 5a5f4867f. Ready for gate rerun.
 ---
 <!-- COMMENTS:END -->
