@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-653
 type: bug
-status: In Progress
+status: Needs Human
 priority: 1
 title: Make terminal-audit success and owner override retire every duplicate record
   and alert
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T09:55:13.702875Z'
+updated_at: '2026-07-31T09:59:22.746576Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -307,5 +307,15 @@ author: oompah
 created: 2026-07-31 09:55
 ---
 Operator safety intervention: I terminated only the exact full-test process group PGID 220968 (cwd OOMPAH-653) because this branch does not yet contain OOMPAH-652 gate isolation and an old full gate can still stop the live service at teardown. The implementation provider remains running. Continue with focused terminal-audit tests and diff-check only; do not run make test again on this branch. Oompah will run the exact full branch gate after OOMPAH-652 is integrated/deployed and this branch is rebased onto that safe base. This interrupted full run is not evidence of a code failure.
+---
+author: oompah
+created: 2026-07-31 09:59
+---
+Temporarily fencing in Needs Human solely because the current worker cannot receive the live instruction to avoid pre-isolation make test and has retried it twice. Preserve the dirty worktree exactly. Resume from these edits after OOMPAH-652 is Merged and the safe gate runtime is deployed; then complete focused review, rebase, and submit.
+---
+author: oompah
+created: 2026-07-31 09:59
+---
+Moved to Needs Human from the dashboard/API. Human action required: inspect OOMPAH-653 (Make terminal-audit success and owner override retire every duplicate record and alert), add the specific decision, missing information, or manual fix needed, then move the task back to Open when it is ready for agents again.
 ---
 <!-- COMMENTS:END -->
