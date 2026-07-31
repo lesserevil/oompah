@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-598
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Detect and deliver standalone Ready to Integrate tasks without PRs
 parent: OOMPAH-587
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:29.695490Z'
-updated_at: '2026-07-31T01:41:54.183251Z'
+updated_at: '2026-07-31T01:43:01.340155Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-598
 target_branch: null
 review_url: null
