@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-07-31T13:38:51.184827Z'
+updated_at: '2026-07-31T13:39:43.848230Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -739,5 +739,10 @@ author: oompah
 created: 2026-07-31 13:38
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-31 13:39
+---
+Understanding: OOMPAH-657 was merged to main (commits 08bc7ebfe..0212dada6). The temporary hard-start dependency guidance (comments 59/60/61) said to rebase onto safe base once 657 lands and submit once. Rebasing OOMPAH-658 onto origin/main was clean (3 commits replayed with no conflicts): new head 6e27fb150. Head 1b49ab0f4 was the verified fix; the rebased 6e27fb150 preserves the same changes on top of the immutable exact-head lifecycle. Prior 'Branch quality gate failed' notices (11:53 PGID 2487891, 12:07 PGID 2991395) were operator-terminated (SIGTERM) premature full make test runs — 'make[1]: *** [Makefile:295: test] Terminated' is SIGTERM, not an assertion. Per operator guidance (comments 23/28/38), running focused suites only; the server owns the single review-ready full gate now that OOMPAH-657 has landed exact-head enforcement.
 ---
 <!-- COMMENTS:END -->
