@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T13:52:05.961085Z'
-updated_at: '2026-07-31T14:40:42.601146Z'
+updated_at: '2026-07-31T14:41:08.089546Z'
 work_branch: OOMPAH-663
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/622
@@ -39,8 +39,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 8d63f73f-78c2-4e47-97e1-e15c730c90cd
 oompah.task_costs:
-  total_input_tokens: 3664229
-  total_output_tokens: 9411
+  total_input_tokens: 3664260
+  total_output_tokens: 10353
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -48,8 +48,8 @@ oompah.task_costs:
       output_tokens: 9236
       cost_usd: 0.0
     unknown:
-      input_tokens: 6
-      output_tokens: 175
+      input_tokens: 37
+      output_tokens: 1117
       cost_usd: 0.0
   runs:
   - profile: default
@@ -70,6 +70,12 @@ oompah.task_costs:
     output_tokens: 175
     cost_usd: 0.0
     recorded_at: '2026-07-31T14:38:26.498419+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 31
+    output_tokens: 942
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T14:41:06.292324+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-663__20260731T140033Z
@@ -466,5 +472,15 @@ Safe evidence:
 - working_tree: clean
 - canonical_function: compute_issue_evidence_fingerprint (oompah/terminal_audit.py)
 - auditor_provenance_separation: AuditAttempt provider/model/timestamps kept out of EvidenceFingerprint payload
+---
+author: oompah
+created: 2026-07-31 14:41
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 16
+- Tokens: 31 in / 942 out [973 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 2m 33s
+- Log: OOMPAH-663__20260731T143836Z.jsonl
 ---
 <!-- COMMENTS:END -->
