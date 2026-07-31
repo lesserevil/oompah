@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:29:49.323393Z'
-updated_at: '2026-07-31T10:32:40.252289Z'
+updated_at: '2026-07-31T10:32:54.714385Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -103,5 +103,10 @@ author: oompah
 created: 2026-07-31 10:32
 ---
 Focus: Refactoring Specialist
+---
+author: oompah
+created: 2026-07-31 10:32
+---
+**Understanding & Plan**: The regression from OOMPAH-652 causes .oompah.pid.meta to dirty git status because .gitignore only ignores *.pid files. Plan: (1) Find .gitignore and Makefile to understand PID file handling, (2) Add .oompah.pid.meta and atomic temporary files to .gitignore, (3) Add test to verify git status remains clean during lifecycle operations, (4) Verify make restart/status tests pass.
 ---
 <!-- COMMENTS:END -->

@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T10:32:46.394654Z'
+updated_at: '2026-07-31T10:32:52.206642Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,13 +46,13 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: b6998281-8b9b-474f-9090-83517dd20a11
 oompah.task_costs:
-  total_input_tokens: 675258
-  total_output_tokens: 9809
+  total_input_tokens: 675552
+  total_output_tokens: 9881
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 675258
-      output_tokens: 9809
+      input_tokens: 675552
+      output_tokens: 9881
       cost_usd: 0.0
   runs:
   - profile: default
@@ -73,6 +73,12 @@ oompah.task_costs:
     output_tokens: 559
     cost_usd: 0.0
     recorded_at: '2026-07-31T09:25:12.195749+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 294
+    output_tokens: 72
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T10:32:50.404232+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-653__20260731T090421Z
@@ -373,5 +379,15 @@ author: oompah
 created: 2026-07-31 10:32
 ---
 Moved to Needs Human from the dashboard/API. Human action required: inspect OOMPAH-653 (Make terminal-audit success and owner override retire every duplicate record and alert), add the specific decision, missing information, or manual fix needed, then move the task back to Open when it is ready for agents again.
+---
+author: oompah
+created: 2026-07-31 10:32
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 17
+- Tokens: 294 in / 72 out [366 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 1m 54s
+- Log: OOMPAH-653__20260731T103102Z.jsonl
 ---
 <!-- COMMENTS:END -->
