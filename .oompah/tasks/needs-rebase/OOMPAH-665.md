@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-665
 type: task
-status: Ready to Integrate
+status: Needs Rebase
 priority: null
 title: Retire legacy no-auditor alerts after terminal task completion
 parent: null
@@ -12,7 +12,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-07-31T16:04:07.401588Z'
-updated_at: '2026-07-31T19:10:03.419042Z'
+updated_at: '2026-07-31T19:10:16.337346Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -402,5 +402,23 @@ Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: terminated, Duration: 12m 30s
 - Log: OOMPAH-665__20260731T185735Z.jsonl
+---
+author: oompah
+created: 2026-07-31 19:10
+---
+Branch quality gate blocked review creation.
+
+Branch: `OOMPAH-665`
+Target: `main`
+Head: `ccae8b8236d994df4ca11364841cf15619664e5d`
+Command: `make test`
+Result: `needs_rebase`
+
+Required: rebase this branch onto the current deployed base so it contains the lifecycle safety prerequisite and does not replace the protected gate entrypoints. Run the full command, commit and push the repair, then leave the task in Done; Oompah will rerun the gate for the new head before creating the PR/MR.
+
+Output tail:
+```text
+OS-enforced quality-gate sandbox is unavailable; refusing to execute candidate code: bubblewrap cannot create the required OS namespaces: bwrap: execvp /bin/sh: No such file or directory
+```
 ---
 <!-- COMMENTS:END -->
