@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-576
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Reject integration submissions from the wrong checkout before mutating task
   worktrees
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T02:55:54.699694Z'
-updated_at: '2026-07-31T02:41:11.498504Z'
+updated_at: '2026-07-31T02:44:13.284759Z'
 work_branch: OOMPAH-576
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/599
@@ -151,6 +151,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-558c6911dda7: '2026-07-31T02:40:35.964619+00:00'
+    attempt-f3c46f01b5ac: '2026-07-31T02:44:10.430554+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -192,7 +193,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-576
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -201,7 +202,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-f3c46f01b5ac
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -211,13 +212,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T02:41:03.194379+00:00'
       branch_key: OOMPAH-576
+      verdict: pass
+      completed_at: '2026-07-31T02:44:10.430396+00:00'
+      ended_at: '2026-07-31T02:44:10.430396+00:00'
     requested_by:
       version: 1
       identity: NVShawn
       source: forge
     previous_state: In Review
     created_at: '2026-07-31T02:37:30.421048+00:00'
-    updated_at: '2026-07-31T02:41:03.194379+00:00'
+    updated_at: '2026-07-31T02:44:10.430396+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-558c6911dda7
@@ -434,5 +438,25 @@ author: oompah
 created: 2026-07-31 02:41
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 02:44
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: 6f5a859b215c0a9a4744984e89b27e3fe990050d
+- merged_pr: #599
+- merge_commit: 4f51721490488c449926130d4e33ffcc8da760e3
+- contains_in_origin_main: yes
+- focused_tests_total: 125 passed
+- focused_tests_projects: 88 passed
+- focused_tests_integration_executor: 5 passed
+- focused_tests_integration_record: 11 passed
+- focused_tests_task_handoff: 17 passed
+- focused_tests_worker_submission: 4 passed
+- regression_test: TestExistingWorktreeBranchValidation::test_wrong_branch_refuses_to_reset_registered_task_worktree PASSED
 ---
 <!-- COMMENTS:END -->
