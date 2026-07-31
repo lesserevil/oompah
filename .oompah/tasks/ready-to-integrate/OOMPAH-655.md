@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-655
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Enforce full-gate service isolation outside candidate branch code
 parent: null
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-657
 start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T11:06:06.943800Z'
+updated_at: '2026-07-31T11:06:30.718896Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -78,9 +79,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-655
-  head_sha: 2713e14ea933ea14555b6e5561fb122500d9d55f
-  submitted_at: '2026-07-31T10:58:53.216651+00:00'
-  updated_at: '2026-07-31T10:58:53.216651+00:00'
+  head_sha: b519be788276e349d4b39978660d6a9ee92b5cfa
+  submitted_at: '2026-07-31T11:06:28.174250+00:00'
+  updated_at: '2026-07-31T11:06:28.174250+00:00'
 ---
 ## Summary
 
@@ -258,5 +259,20 @@ author: oompah
 created: 2026-07-31 11:06
 ---
 Implementation: Replaced substring matching with git ancestry verification. The _verify_isolation_contract() method now uses 'git merge-base --is-ancestor ec0ec7d89 HEAD' to verify candidate branch contains OOMPAH-652 safety head before executing any candidate command. Test improvements: Updated _git_repo() to create synthetic safety head for test repos and set OOMPAH_TEST_SAFETY_HEAD environment variable. New test test_spoofed_markers_without_oompah652_ancestor_is_rejected() proves hostile Makefiles with fake markers are rejected without executing (verified by checking that sentinel file is not created). All 93 tests pass.
+---
+author: oompah
+created: 2026-07-31 11:06
+---
+Verification: All 93 tests pass (22 quality_gate + 62 client_auth + 9 integration_executor). Critical test test_spoofed_markers_without_oompah652_ancestor_is_rejected() verifies that hostile Makefiles with spoofed isolation markers are rejected at preflight without ever executing (checked by verifying sentinel file is NOT created). Branch OOMPAH-655 pushed to origin. Ready for review.
+---
+author: oompah
+created: 2026-07-31 11:06
+---
+Finish-order dependency on OOMPAH-657: OOMPAH-655 implementation can continue in parallel, but its final full-gate evidence must be produced only after immutable exact-head gate snapshots are merged/deployed. The just-finished prior gate overlapped replacement-agent edits and is invalid evidence.
+---
+author: oompah
+created: 2026-07-31 11:06
+---
+Enforce full-gate service isolation via git ancestry verification. Replaced substring-matching preflight with non-spoofable git ancestry check. Candidate branches must contain OOMPAH-652 safety head (ec0ec7d89) in git history or fail closed with needs_rebase. Tests prove hostile Makefiles with spoofed markers are rejected without executing (verified by sentinel side effects). All 93 tests pass.
 ---
 <!-- COMMENTS:END -->
