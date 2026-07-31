@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:32:18.734139Z'
-updated_at: '2026-07-31T08:33:40.167842Z'
+updated_at: '2026-07-31T08:36:09.478279Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-623
 target_branch: null
 review_url: null
@@ -169,5 +169,10 @@ author: oompah
 created: 2026-07-31 08:33
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-07-31 08:36
+---
+UNDERSTANDING: Task requires: (1) --version flag showing git revision, (2) build_id in server state/healthz endpoints, (3) Makefile target to install canonical CLI from exact pushed revision, (4) safeguards to prevent dirty/unpushed CLI replacement, (5) comprehensive tests, (6) documentation. Prior work (OOMPAH-621) added CLI credential precedence and revision compatibility testing infrastructure. Proceeding with implementation of version sync mechanisms and Makefile lifecycle target.
 ---
 <!-- COMMENTS:END -->
