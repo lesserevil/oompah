@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:07.401588Z'
-updated_at: '2026-07-31T23:15:17.809145Z'
+updated_at: '2026-07-31T23:17:52.860907Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -668,5 +668,10 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Claude
 - Cost: $0.0000
 - Exit: terminated, Duration: 5m 40s
 - Log: OOMPAH-665__20260731T230941Z.jsonl
+---
+author: oompah
+created: 2026-07-31 23:17
+---
+Direct operator recovery completed on current main d96740a6e. Rebased the two alert-retirement commits and dropped the obsolete broad Makefile fallback superseded by merged OOMPAH-668. Verification: 134 focused observability/coordinator tests passed; terminal mutation scan passed; complete make test passed with 14,546 passed, 8 skipped, 1 xfailed. Clean branch head: 04d681f1033fb34e61cb9a00647d87ef879b90da.
 ---
 <!-- COMMENTS:END -->
