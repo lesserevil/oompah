@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:07.401588Z'
-updated_at: '2026-07-31T21:43:11.453115Z'
+updated_at: '2026-07-31T21:43:40.509732Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -546,5 +546,10 @@ author: oompah
 created: 2026-07-31 21:43
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-31 21:43
+---
+Understanding: This is a CI-fix pass on the existing OOMPAH-665 branch. The recorded gate failure is make test failing before tests because uv is unavailable. I will verify the branch and GitHub Actions evidence, reproduce the exact bootstrap failure, then apply the smallest targeted repair only if the repository—not the host—is responsible.
 ---
 <!-- COMMENTS:END -->
