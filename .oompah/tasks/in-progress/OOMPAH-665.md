@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:07.401588Z'
-updated_at: '2026-07-31T23:12:54.021613Z'
+updated_at: '2026-07-31T23:13:39.863841Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -637,5 +637,10 @@ author: oompah
 created: 2026-07-31 23:12
 ---
 Understanding + Plan: The branch has already been rebased onto current main (post-OOMPAH-668). Local HEAD at 04d681f10 has 2 clean commits on top of main: the core terminal-audit retirement implementation in oompah/orchestrator.py and tests in tests/test_terminal_audit_observability.py. However origin/OOMPAH-665 still points to the old pre-rebase history (e395a94af) with OOMPAH-668 commits cherry-picked in as a workaround. The fix is to force-push the clean rebased local HEAD to update CI. Running focused tests now to confirm they pass before pushing.
+---
+author: oompah
+created: 2026-07-31 23:13
+---
+Verification: All focused tests pass on the rebased branch. 29 tests pass for test_terminal_audit_observability.py + test_orchestrator_profile_reload.py. 60 tests pass for test_makefile_setup.py + test_quality_gate.py. Pushing clean rebased HEAD to origin/OOMPAH-665 now.
 ---
 <!-- COMMENTS:END -->
