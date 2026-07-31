@@ -1,5 +1,6 @@
 VENV := .venv
 PYTHON := $(VENV)/bin/python
+export PATH := $(abspath $(VENV)/bin):$(PATH)
 _PYTEST_GATE := $(filter 1 true yes,$(strip $(OOMPAH_PYTEST_GATE)))
 ifeq ($(_PYTEST_GATE),)
 PID_FILE ?= .oompah.pid
@@ -33,8 +34,9 @@ _ENV_TEMP_ROOT := $(shell grep -E '^OOMPAH_TEMP_ROOT[[:space:]]*=' .env 2>/dev/n
 PYTEST_TEMP_ROOT ?= $(if $(OOMPAH_TEMP_ROOT),$(OOMPAH_TEMP_ROOT),$(if $(_ENV_TEMP_ROOT),$(_ENV_TEMP_ROOT),~/.oompah/tmp))
 # Timeout (seconds) for waiting on process exit and port release during stop/restart.
 STOP_TIMEOUT ?= 30
-
-export PATH := $(abspath $(VENV)/bin):$(PATH)
+CANONICAL_CLI ?= $(if $(OOMPAH_CANONICAL_CLI),$(OOMPAH_CANONICAL_CLI),$(HOME)/.local/bin/oompah)
+CLI_SOURCE_URL ?= $(if $(OOMPAH_CLI_SOURCE_URL),$(OOMPAH_CLI_SOURCE_URL),https://github.com/lesserevil/oompah)
+UV ?= uv
 
 # Internal helper: wait for a PID to exit, then wait for the port to be free.
 # Usage: $(call wait_for_stop,PID,PORT,TIMEOUT)
@@ -73,15 +75,22 @@ endef
 # Returns 0 (true) if port is in use, 1 (false) if free.
 # Uses ss if available, falls back to lsof.
 define port_in_use
-	command -v ss >/dev/null 2>&1 && ss -ltn "sport = :$1" 2>/dev/null | grep -q LISTEN; \
-	[ $$? -eq 0 ] || (command -v lsof >/dev/null 2>&1 && lsof -ti:"$1" -sTCP:LISTEN 2>/dev/null | grep -q .)
+	if command -v ss >/dev/null 2>&1; then \
+		ss -ltn "sport = :$1" 2>/dev/null | grep -q LISTEN; \
+	elif command -v lsof >/dev/null 2>&1; then \
+		lsof -ti:"$1" -sTCP:LISTEN 2>/dev/null | grep -q .; \
+	else \
+		false; \
+	fi
 endef
 
-.PHONY: help setup test-setup start stop restart graceful force-restart status logs test test-serial terminal-audit-scan clean install-hooks check-secrets install-gh-extensions run-granian runner-setup runner-start runner-stop runner-status
+.PHONY: help setup test-setup sync-cli install-cli start stop restart graceful force-restart status logs test test-serial terminal-audit-scan clean install-hooks check-secrets install-gh-extensions run-granian runner-setup runner-start runner-stop runner-status
 
 help:
 	@echo "oompah — make targets:"
 	@echo "  setup          Install server dependencies into $(VENV) (idempotent)"
+	@echo "  sync-cli       Install the exact clean pushed server revision at $(CANONICAL_CLI)"
+	@echo "  install-cli    Alias for sync-cli"
 	@echo "  start          Start oompah in the background (default port: $(PORT))"
 	@echo "  stop           Stop the background oompah process"
 	@echo "  restart        Drain active agents, restart in-place, and verify new process health"
@@ -110,6 +119,15 @@ $(VENV)/.uv-setup: pyproject.toml
 	@touch $@
 	@echo "Setup complete. Run 'make start' to launch oompah."
 
+sync-cli: setup
+	@$(PYTHON) scripts/sync_canonical_cli.py \
+		--repo . \
+		--canonical "$(CANONICAL_CLI)" \
+		--source-url "$(CLI_SOURCE_URL)" \
+		--uv "$(UV)"
+
+install-cli: sync-cli
+
 test-setup: $(VENV)/.uv-test-setup
 
 $(VENV)/.uv-test-setup: pyproject.toml $(VENV)/.uv-setup
@@ -128,12 +146,22 @@ start: setup
 			exit 1; \
 		fi; \
 		echo "oompah is already running (pid $$EXISTING_PID)"; \
+		$(PYTHON) scripts/canonical_cli_cutover.py \
+			--repo . \
+			--canonical "$(CANONICAL_CLI)" \
+			--url "$(LOCAL_HTTP_URL)" \
+			--verify-only || exit 1; \
 	else \
 		rm -f "$(PID_FILE)" "$(PID_META_FILE)"; \
 		if $(call port_in_use,$(PORT)); then \
 			echo "ERROR: Port $(PORT) is already in use. Cannot start oompah."; \
 			exit 1; \
 		fi; \
+		$(PYTHON) scripts/sync_canonical_cli.py \
+			--repo . \
+			--canonical "$(CANONICAL_CLI)" \
+			--source-url "$(CLI_SOURCE_URL)" \
+			--uv "$(UV)" || exit 1; \
 		if command -v setsid >/dev/null 2>&1; then \
 			setsid $(PYTHON) -m oompah server >> $(LOG_FILE) 2>&1 </dev/null & \
 		else \
@@ -165,6 +193,15 @@ start: setup
 			sleep 1; \
 			ELAPSED=$$((ELAPSED + 1)); \
 		done; \
+		if ! $(PYTHON) scripts/canonical_cli_cutover.py \
+			--repo . \
+			--canonical "$(CANONICAL_CLI)" \
+			--url "$(LOCAL_HTTP_URL)" \
+			--verify-only; then \
+			echo "ERROR: oompah started but CLI/server build identities do not match; stopping it."; \
+			$(MAKE) --no-print-directory stop; \
+			exit 1; \
+		fi; \
 		echo "oompah started (pid $$NEWPID); HTTP port defaults to $(PORT)"; \
 	fi
 
@@ -198,8 +235,6 @@ restart: setup
 	@PID=$$(cat "$(PID_FILE)" 2>/dev/null || :); \
 	if [ -n "$$PID" ] && kill -0 "$$PID" 2>/dev/null; then \
 		HEALTHZ_URL="http://127.0.0.1:$(PORT)/healthz"; \
-		STATE_PATH="/api/v1/state"; \
-		RESTART_PATH="/api/v1/orchestrator/restart"; \
 		if ! curl -sf "$$HEALTHZ_URL" >/dev/null; then \
 			echo "ERROR: oompah PID is running but /healthz is unavailable."; \
 			echo "Refusing to interrupt agents. Inspect logs, or use 'make force-restart' for an emergency."; \
@@ -221,32 +256,17 @@ restart: setup
 			fi; \
 			mv -f "$$META_TMP" "$(PID_META_FILE)"; \
 		fi; \
-		if ! BEFORE=$$(OOMPAH_SERVER_URL="$(LOCAL_HTTP_URL)" $(PYTHON) scripts/oompah_http.py GET "$$STATE_PATH" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('service_instance_id') or '')"); then \
-			echo "ERROR: Cannot reach state API (authentication may be required or server is unhealthy)."; \
-			echo "Check OOMPAH_SERVER_USERNAME / OOMPAH_SERVER_PASSWORD_FILE and 'make logs'."; \
-			echo "Refusing to restart. No force restart attempted."; \
-			exit 1; \
-		fi; \
-		echo "Requesting draining restart (agent drain timeout: $(DRAIN_TIMEOUT)s)..."; \
-		OOMPAH_SERVER_URL="$(LOCAL_HTTP_URL)" $(PYTHON) scripts/oompah_http.py POST "$$RESTART_PATH" '{"drain_timeout_s": $(DRAIN_TIMEOUT)}' | python3 -m json.tool || { \
-			echo "ERROR: graceful restart request failed; active agents were not interrupted."; \
-			echo "Check OOMPAH_SERVER_USERNAME / OOMPAH_SERVER_PASSWORD_FILE and 'make logs'."; \
-			echo "No force restart attempted."; \
-			exit 1; \
-		}; \
-		ELAPSED=0; \
-		while [ $$ELAPSED -lt $(RESTART_HEALTH_TIMEOUT) ]; do \
-			AFTER=$$(OOMPAH_SERVER_URL="$(LOCAL_HTTP_URL)" $(PYTHON) scripts/oompah_http.py GET "$$STATE_PATH" 2>/dev/null | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('service_instance_id') or '')" 2>/dev/null || true); \
-			if [ -n "$$AFTER" ] && { [ -z "$$BEFORE" ] || [ "$$AFTER" != "$$BEFORE" ]; }; then \
-				echo "oompah restarted successfully and passed its health check (instance $$AFTER)."; \
-				exit 0; \
-			fi; \
-			sleep 1; \
-			ELAPSED=$$((ELAPSED + 1)); \
-		done; \
-		echo "ERROR: draining restart did not expose a new healthy instance within $(RESTART_HEALTH_TIMEOUT)s."; \
-		echo "Active tasks may still be draining; inspect 'make status' and 'make logs'. No force restart was attempted."; \
-		exit 1; \
+		$(PYTHON) scripts/canonical_cli_cutover.py \
+			--repo . \
+			--canonical "$(CANONICAL_CLI)" \
+			--url "$(LOCAL_HTTP_URL)" \
+			--source-url "$(CLI_SOURCE_URL)" \
+			--uv "$(UV)" \
+			--pid-file "$(PID_FILE)" \
+			--pid-meta-file "$(PID_META_FILE)" \
+			--quarantine-timeout "$(STOP_TIMEOUT)" \
+			--timeout "$(DRAIN_TIMEOUT)" \
+			--health-timeout "$(RESTART_HEALTH_TIMEOUT)" || exit 1; \
 	else \
 		rm -f "$(PID_FILE)" "$(PID_META_FILE)"; \
 		echo "oompah is not running; starting it."; \
@@ -255,7 +275,24 @@ restart: setup
 
 graceful: restart
 
-force-restart: stop start
+# The emergency path still stages before touching the running service.  It
+# skips the graceful agent-drain wait, but activation and health verification
+# remain transactional so an install failure cannot strand the old pair.
+force-restart: setup
+	@if [ -f $(PID_FILE) ] && kill -0 $$(cat $(PID_FILE)) 2>/dev/null; then \
+		$(PYTHON) scripts/canonical_cli_cutover.py \
+			--repo . \
+			--canonical "$(CANONICAL_CLI)" \
+			--url "$(LOCAL_HTTP_URL)" \
+			--source-url "$(CLI_SOURCE_URL)" \
+			--uv "$(UV)" \
+			--pid-file "$(PID_FILE)" \
+			--pid-meta-file "$(PID_META_FILE)" \
+			--quarantine-timeout "$(STOP_TIMEOUT)" \
+			--force || exit 1; \
+	else \
+		$(MAKE) --no-print-directory start; \
+	fi
 
 # Run oompah in the foreground using the Granian ASGI server.
 #

@@ -83,6 +83,60 @@ def _task_handoff_project(payload: dict[str, Any]) -> str | None:
 
 
 # ---------------------------------------------------------------------------
+# Actor reconciliation (OOMPAH-624)
+# ---------------------------------------------------------------------------
+
+
+def _reconcile_actor_with_session(actor: str | None, *, flag: str = "--actor") -> str | None:
+    """Return an actor value safe to send to the server.
+
+    OOMPAH-624: when the CLI has resolved HTTP Basic credentials, the
+    server binds the authorization actor to the authenticated principal.
+    Passing an explicit ``--actor`` is:
+
+    * **Redundant** when it matches the authenticated username — we drop
+      it from the request body and print a stderr warning so the operator
+      knows the flag is no longer required.
+    * **Rejected** when it differs from the authenticated username — we
+      short-circuit before the network call to avoid mutating state or
+      surfacing an unhelpful 403 from the server.  The server would
+      reject the mismatch anyway; failing early gives a clearer message.
+
+    When no session auth is configured (backward-compatible
+    unauthenticated deployments) the caller-supplied *actor* is returned
+    unchanged.
+    """
+
+    if not actor:
+        return actor
+    session = _session_auth
+    if session is None:
+        return actor
+    session_username = str(session.username or "").strip()
+    if not session_username:
+        return actor
+    if actor.strip().lower() == session_username.lower():
+        # Silent no-op when explicitly opted out via env var; some CI
+        # scripts still pass --actor for legacy reasons.
+        if not os.environ.get("OOMPAH_ACTOR_DEPRECATION_SILENCE"):
+            print(
+                f"warning: {flag} is redundant when HTTP Basic credentials "
+                f"are configured; the server binds the actor to the "
+                f"authenticated principal ({session_username}).",
+                file=sys.stderr,
+            )
+        return None
+    print(
+        f"error: {flag}={actor!r} conflicts with the authenticated "
+        f"principal {session_username!r}.  The server would reject this "
+        "request with actor_mismatch (403).  Omit the flag to use the "
+        "authenticated identity, or authenticate as the intended actor.",
+        file=sys.stderr,
+    )
+    sys.exit(2)
+
+
+# ---------------------------------------------------------------------------
 # Server URL resolution
 # ---------------------------------------------------------------------------
 
@@ -230,7 +284,33 @@ def _http(
     if not resp.is_success:
         # 401: authentication required — never echo credentials or auth data.
         if resp.status_code == 401:
-            sys.exit(format_auth_error(base_url))
+            # If this is a handoff session (worker capability), provide
+            # explicit diagnostics for expired/revoked tokens vs other auth
+            # failures. The server sends specific error codes to help diagnose.
+            if task_capability:
+                err = body.get("error", {}) if isinstance(body, dict) else {}
+                error_code = err.get("code", "")
+                error_message = err.get("message", "")
+
+                if "expired" in error_message.lower():
+                    sys.exit(
+                        f"ERROR (401): Task handoff capability expired.\n"
+                        f"The worker exceeded the session lifetime.\n"
+                        f"Details: {error_message}"
+                    )
+                elif "revoked" in error_message.lower():
+                    sys.exit(
+                        f"ERROR (401): Task handoff capability was revoked.\n"
+                        f"The worker was terminated or restarted.\n"
+                        f"Details: {error_message}"
+                    )
+                else:
+                    sys.exit(
+                        f"ERROR (401): Task handoff capability validation failed.\n"
+                        f"Details: {error_message or 'Check server logs'}"
+                    )
+            else:
+                sys.exit(format_auth_error(base_url))
 
         err = body.get("error", {}) if isinstance(body, dict) else {}
         msg = (
@@ -253,10 +333,15 @@ def _task_handoff_request(
     ``None`` means this is an ordinary operator CLI invocation and callers
     should use the legacy tracker endpoint.  A capability is never sent to a
     general endpoint, even when a command is malformed.
+
+    Grant renewal is handled only by the server-owned worker lease. The
+    task-handoff endpoint never extends a bearer token in response to a
+    request.
     """
     token = _task_handoff_token()
     if token is None:
         return None
+
     payload = {**data}
     if not payload.get("project_id"):
         project_id = _task_handoff_project(payload)
@@ -489,6 +574,10 @@ def _cmd_set_status(base_url: str, args: argparse.Namespace) -> None:
     actor_arg = getattr(args, "actor", None)
     actor = actor_arg if isinstance(actor_arg, str) and actor_arg.strip() else None
     actor = actor or os.environ.get("OOMPAH_ACTOR_LOGIN")
+    # OOMPAH-624: When client credentials are configured, the server
+    # binds the actor to the authenticated principal.  Explicit --actor
+    # is deprecated: warn on match, hard-fail on conflict.
+    actor = _reconcile_actor_with_session(actor, flag="--actor")
     if actor:
         data["actor_login"] = str(actor).strip()
     # ``is True`` keeps older programmatic callers (and Namespace-like test
@@ -683,6 +772,8 @@ def _cmd_add_label(base_url: str, args: argparse.Namespace) -> None:
     actor_arg = getattr(args, "actor", None)
     actor = actor_arg if isinstance(actor_arg, str) and actor_arg.strip() else None
     actor = actor or os.environ.get("OOMPAH_ACTOR_LOGIN")
+    # OOMPAH-624: same actor reconciliation as set-status.
+    actor = _reconcile_actor_with_session(actor, flag="--actor")
     if actor:
         data["actor_login"] = str(actor).strip()
     _add_project_or_managed_repo(data, identifier, getattr(args, "project", None))
@@ -882,10 +973,14 @@ def build_parser() -> argparse.ArgumentParser:
             "Calls the local oompah server API and works with supported oompah "
             "trackers.  Set OOMPAH_SERVER_URL or use "
             "--server/--port to point at a non-default server.\n\n"
-            "For HTTP Basic auth, set OOMPAH_SERVER_USERNAME and exactly one "
-            "of OOMPAH_SERVER_PASSWORD_FILE (preferred) or "
-            "OOMPAH_SERVER_PASSWORD. Never put credentials in the server URL; "
-            "there is no plaintext --password option."
+            "For HTTP Basic auth, credentials are resolved from (in precedence order):\n"
+            "  1. CLI: --username and --password-file\n"
+            "  2. Environment: OOMPAH_SERVER_USERNAME and "
+            "OOMPAH_SERVER_PASSWORD_FILE (preferred) or OOMPAH_SERVER_PASSWORD\n"
+            "  3. ~/.netrc file (when server URL can be resolved)\n\n"
+            "Never put credentials in the server URL. "
+            "There is no plaintext --password option (use --password-file or "
+            "OOMPAH_SERVER_PASSWORD_FILE for unattended use)."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -1335,9 +1430,9 @@ def main(argv: list[str] | None = None) -> None:
         getattr(args, "port", None),
     )
 
-    # Resolve client credentials (env vars + optional CLI overrides).
+    # Resolve client credentials (env vars + optional CLI overrides + netrc).
     # Exits with a clear error on misconfiguration (missing username,
-    # conflicting sources, unreadable password file, etc.).
+    # conflicting sources, unreadable password file, malformed netrc, etc.).
     if _task_handoff_token():
         # The capability is the only authentication mechanism for this
         # process.  Do not even resolve inherited operator credentials.
@@ -1347,6 +1442,7 @@ def main(argv: list[str] | None = None) -> None:
             _auth = resolve_client_credentials(
                 username_override=getattr(args, "username", None),
                 password_file_override=getattr(args, "password_file", None),
+                server_url=base_url,
             )
         except CredentialError as exc:
             sys.exit(f"ERROR: {exc}")

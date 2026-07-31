@@ -4,6 +4,10 @@ Oompah supports optional HTTP Basic authentication via Apache-style htpasswd
 files. This guide covers setup, configuration, user management, rotation,
 disablement, and recovery for operators.
 
+> Authorization decisions for owner-gated mutations bind to the authenticated
+> principal — see [authentication-identity-mapping.md](authentication-identity-mapping.md)
+> for the htpasswd-user → project-actor mapping model and CLI migration guide.
+
 > **HTTPS is mandatory.** HTTP Basic authentication only encodes credentials;
 > it does not encrypt them. Put Oompah behind a TLS-terminating reverse proxy
 > before enabling it for anything beyond a private local hop. Oompah does not
@@ -353,6 +357,110 @@ Authentication is **disabled**. All routes are accessible without credentials.
 > Never put plaintext passwords or credentials in URLs, command arguments,
 > logs, documentation, or source control. Password files should be regular,
 > owner-readable files with mode `600` where the platform permits it.
+
+### CLI Credential Precedence
+
+The `oompah task` and `oompah admin` CLIs resolve credentials using a fixed
+priority order. This section documents the exact precedence so you can predict
+which source will be used when multiple are configured.
+
+At the source level, both values use the same tiers: command-line options,
+environment variables, then the default `~/.netrc` file. Tier 3, `~/.netrc`,
+is the fallback value when no higher-priority source supplies that value. The
+CLI can use this fallback only when it can resolve a server URL. If a default
+netrc file exists, it must still be valid and safely permissioned.
+
+**Username resolution (highest priority first):**
+1. CLI flag: `--username <username>`
+2. Environment variable: `OOMPAH_SERVER_USERNAME`
+3. Matching `~/.netrc` entry for the server hostname
+4. (none) — unauthenticated if no password source is set
+
+**Password resolution (highest priority first):**
+1. CLI flag: `--password-file <path-to-password-file>`
+2. Environment variables: `OOMPAH_SERVER_PASSWORD_FILE`, then
+   `OOMPAH_SERVER_PASSWORD` (inline)
+3. Matching `~/.netrc` entry for the server hostname
+4. (none) — unauthenticated if no username source is set
+
+**Configuration rules:**
+- Username is required if any password source is set
+- Password is required if username is set
+- Exactly one password source must be configured; both `OOMPAH_SERVER_PASSWORD` and `OOMPAH_SERVER_PASSWORD_FILE` cannot be set together (error)
+- `~/.netrc` entries must provide both `login` and `password`; the file must
+  be a regular, non-symlink file with mode `600` or `400`
+- Return value: `ClientCredentials(username, password)` if configured, or `None` for backward-compatible unauthenticated mode
+
+**Security emphasis:**
+- Never pass plaintext passwords via the `--password` flag (no such flag exists)
+- Prefer `~/.netrc` or password files (`OOMPAH_SERVER_PASSWORD_FILE` or
+  `--password-file`) for unattended use; set password-file permissions to
+  mode `600`
+- `OOMPAH_SERVER_PASSWORD` is limited to interactive shells and controlled secret injection (do not put in `.env` files)
+- Command-line passwords are process-visible in `ps` output. Oompah has no
+  plaintext `--password` option; do not work around that safeguard with shell
+  arguments, URLs, or command substitution.
+
+#### Netrc hostname selection
+
+For the default `~/.netrc` fallback, the CLI extracts the hostname from the
+resolved `OOMPAH_SERVER_URL` (or `--server` value), removes the port, and
+converts the hostname to lowercase before lookup. Use that normalized value in
+the `machine` line: DNS hostnames must be lowercase; IPv4 addresses are used
+as written; and an IPv6 address is written without URL brackets. For example,
+`https://OOMPah.example.com:8443` looks up `machine oompah.example.com`, while
+`https://[2001:db8::1]:8443` looks up `machine 2001:db8::1`. Netrc machine
+names are matched exactly after URL normalization, so an uppercase `machine`
+name will not match.
+
+#### Examples
+
+**Default netrc credentials (recommended when one user contacts the same server):**
+```bash
+chmod 600 ~/.netrc
+# ~/.netrc; keep this file outside the repository
+machine oompah.example.com
+login <username>
+password <password>
+
+OOMPAH_SERVER_URL=https://oompah.example.com oompah task view <task-id>
+```
+
+**Unattended operation with password file (recommended):**
+```bash
+export OOMPAH_SERVER_USERNAME=<username>
+export OOMPAH_SERVER_PASSWORD_FILE=/path/to/password-file
+oompah task view <task-id>
+```
+
+**Override environment with CLI flags:**
+```bash
+# Environment says one thing, CLI flags override it:
+export OOMPAH_SERVER_USERNAME=<default-username>
+export OOMPAH_SERVER_PASSWORD_FILE=/path/to/default-password-file
+
+# These flags take precedence:
+oompah task --username <override-username> --password-file /path/to/override-password-file view <task-id>
+```
+
+**Inline password for a single short-lived command (not for committed scripts):**
+```bash
+# Limited use: controlled secret injection only
+export OOMPAH_SERVER_USERNAME=<username>
+export OOMPAH_SERVER_PASSWORD=<password>
+oompah task view <task-id>
+unset OOMPAH_SERVER_PASSWORD  # Clear immediately
+```
+
+**Makefile lifecycle commands:**
+Commands like `make status`, `make restart`, and `make graceful` respect the
+same credential precedence:
+```bash
+export OOMPAH_SERVER_USERNAME=<username>
+export OOMPAH_SERVER_PASSWORD_FILE=/path/to/password-file
+make status
+make graceful
+```
 
 ### CLI authentication
 

@@ -178,6 +178,7 @@ from oompah.task_handoff import (
     consume_task_handoff_failure,
     issue_task_handoff_token,
     revoke_task_handoff_token,
+    start_task_handoff_lease,
 )
 from oompah.auth_health import (
     auth_health_alerts,
@@ -23891,9 +23892,22 @@ class Orchestrator:
         )
 
     def _issue_task_handoff_token(self, issue: Issue) -> str | None:
-        """Mint a subprocess-only capability scoped to this issue/project."""
+        """Mint and start a subprocess-only capability lease.
+
+        The lease is owned by this dispatch instance, not by a bearer token
+        alone. It renews the server-owned grant while the worker is running,
+        including intervals with no tracker traffic. Termination paths revoke
+        the token after process-tree cleanup completes.
+
+        When called before ``state.running`` has an entry for the issue (for
+        example, from direct-mint call sites in tests), the token is still
+        minted for scope-testing purposes but no lease is started; the grant
+        will then expire naturally at its wall-clock TTL.
+        """
         if not issue.project_id:
             return None
+        owner_id = f"{self._service_instance_id}:{issue.id}:{uuid.uuid4().hex}"
+        token: str | None = None
         try:
             token = issue_task_handoff_token(
                 project_id=issue.project_id,
@@ -23910,16 +23924,78 @@ class Orchestrator:
                     "add-label",
                     "remove-label",
                 },
+                owner_id=owner_id,
             )
             record_worker_token_minted()
-            return token
         except Exception as exc:
+            if token is not None:
+                revoke_task_handoff_token(token)
             logger.warning(
                 "Unable to mint task handoff capability for %s: %s",
                 issue.identifier,
                 exc,
             )
             return None
+
+        entry = self.state.running.get(issue.id)
+        if entry is None:
+            # Called without a live dispatch entry (typically a scope test).
+            # The bearer token still validates for its scope, but no lease is
+            # started, so the grant will not survive the initial TTL. This
+            # branch never runs on the production dispatch path — real
+            # dispatches always create the RunningEntry before minting.
+            return token
+
+        # Reissuing a capability for an existing dispatch is a replacement,
+        # not a second owner. Revoke the predecessor before publishing the
+        # new token so restart/retry recovery cannot leave an old worker with
+        # a usable bearer during the lease heartbeat window.
+        previous_token = getattr(entry, "task_handoff_token", None)
+        if previous_token:
+            revoke_task_handoff_token(previous_token)
+        entry.task_handoff_owner_id = owner_id
+        entry.task_handoff_token = token
+
+        def _owner_is_live(
+            *, _issue_id=issue.id, _entry=entry, _token=token
+        ) -> bool:
+            current = self.state.running.get(_issue_id)
+            if not (
+                current is _entry
+                and getattr(current, "task_handoff_token", None) == _token
+            ):
+                return False
+            worker_task = getattr(current, "worker_task", None)
+            return worker_task is None or not worker_task.done()
+
+        try:
+            lease = start_task_handoff_lease(
+                token,
+                owner_id=owner_id,
+                owner_is_live=_owner_is_live,
+            )
+        except Exception as exc:
+            revoke_task_handoff_token(token)
+            if self.state.running.get(issue.id) is entry:
+                entry.task_handoff_owner_id = None
+                entry.task_handoff_token = None
+            logger.warning(
+                "Unable to start task handoff lease for %s: %s",
+                issue.identifier,
+                exc,
+            )
+            return None
+        if lease is None:
+            revoke_task_handoff_token(token)
+            if self.state.running.get(issue.id) is entry:
+                entry.task_handoff_owner_id = None
+                entry.task_handoff_token = None
+            logger.warning(
+                "Unable to start task handoff lease for %s; capability revoked",
+                issue.identifier,
+            )
+            return None
+        return token
 
     @staticmethod
     def _is_task_handoff_failure(error: str | None) -> bool:
@@ -29677,6 +29753,15 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             ):
                 self._acp_agent_sessions.pop(issue_id, None)
 
+            # _on_worker_exit is intentionally suppressed while forced
+            # termination is in progress. Revoke the OLD entry's capability
+            # here — even if a replacement entry has already been inserted —
+            # so a surviving subprocess of the terminated worker cannot reuse
+            # its bearer token during the window before the daemon heartbeat
+            # notices ownership has moved. The revocation is scoped to the
+            # captured ``entry``'s token; the replacement holds a distinct
+            # token minted by ``_issue_task_handoff_token`` and is unaffected.
+            revoke_task_handoff_token(getattr(entry, "task_handoff_token", None))
             # Keep the runtime visible until worker/session termination has been
             # attempted, and do not remove a replacement entry with the same ID.
             if self.state.running.get(issue_id) is not entry:

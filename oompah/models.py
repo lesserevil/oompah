@@ -1425,6 +1425,10 @@ class RunningEntry:
     # Short-lived server-owned capability used by subprocess task handoffs.
     # Never serialized into prompts or telemetry.
     task_handoff_token: str | None = None
+    # Non-secret dispatch identity that owns the server-side capability lease.
+    # Kept separate from the bearer token and never serialized into prompts or
+    # telemetry.
+    task_handoff_owner_id: str | None = None
     # Reserved-auditor dispatch identity.  Keeping this beside ordinary
     # worker state makes the global concurrency and shared-epic gates count
     # auditors without creating a second in-flight registry.

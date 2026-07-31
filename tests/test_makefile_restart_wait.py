@@ -67,29 +67,25 @@ def port_listening(port: int) -> bool:
     hosts where neither tool is installed (e.g. the self-hosted Actions runner
     container which does not bundle iproute2 or lsof by default).
     """
-    # Try ss first
-    try:
+    # An available ss command is authoritative even when it reports no
+    # listener.  Falling through to lsof in that case scans host-wide procfs
+    # and can exceed bounded test and restart budgets on shared runners.
+    if _SS_AVAILABLE:
         r = subprocess.run(
             ["ss", "-ltn", f"sport = :{port}"],
             capture_output=True,
             text=True,
         )
-        if r.returncode == 0 and "LISTEN" in r.stdout:
-            return True
-    except FileNotFoundError:
-        pass  # ss not installed; try next method
+        return r.returncode == 0 and "LISTEN" in r.stdout
 
     # Fallback: lsof
-    try:
+    if _LSOF_AVAILABLE:
         r2 = subprocess.run(
             ["lsof", "-ti", f":{port}", "-sTCP:LISTEN"],
             capture_output=True,
             text=True,
         )
-        if r2.returncode == 0 and bool(r2.stdout.strip()):
-            return True
-    except FileNotFoundError:
-        pass  # lsof not installed; fall through to Python socket probe
+        return r2.returncode == 0 and bool(r2.stdout.strip())
 
     # Last-resort pure-Python probe: attempt a non-blocking TCP connection.
     # The kernel completes the 3-way handshake (queuing the connection in the
@@ -227,9 +223,10 @@ class TestMakefileStructure:
         end = text.index("\ngraceful:", start)
         recipe = text[start:end]
 
-        assert "/api/v1/orchestrator/restart" in recipe
-        assert "service_instance_id" in recipe
-        assert "make force-restart" in recipe
+        assert "canonical_cli_cutover.py" in recipe
+        helper = (Path(__file__).resolve().parents[1] / "scripts" / "canonical_cli_cutover.py").read_text()
+        assert "/api/v1/orchestrator/restart" in helper
+        assert "instance_id" in helper
         assert "$(call wait_for_stop" not in recipe
         assert "kill -TERM" not in recipe
         assert "graceful: restart" in text
@@ -239,7 +236,12 @@ class TestMakefileStructure:
     def test_force_restart_is_explicit_stop_then_start(self):
         text = _makefile_text()
 
-        assert "force-restart: stop start" in text
+        assert "force-restart: setup" in text
+        assert "canonical_cli_cutover.py" in text
+        assert "--force" in text
+        assert "graceful: restart" in text
+        assert "DRAIN_TIMEOUT ?=" in text
+        assert "RESTART_HEALTH_TIMEOUT ?=" in text
 
     def test_gate_uses_private_lifecycle_state_and_port(self):
         """The full gate must not inherit the operator service boundary."""
@@ -395,6 +397,16 @@ class TestMakefileStructure:
         assert "ss" in body, "port_in_use must use ss for port detection"
         assert "lsof" in body, "port_in_use must fall back to lsof"
 
+    def test_port_in_use_does_not_scan_lsof_when_ss_reports_free(self):
+        """A successful ss probe is authoritative even with no listener."""
+        text = _makefile_text()
+        start = text.index("define port_in_use")
+        end = text.index("endef", start)
+        body = text[start:end]
+        assert "if command -v ss" in body
+        assert "elif command -v lsof" in body
+        assert "[ $$? -eq 0 ] ||" not in body
+
 
 # ---------------------------------------------------------------------------
 # 2. Functional: port_in_use shell logic
@@ -460,8 +472,13 @@ class TestPortInUseDetection:
         _, port = listening_socket
         # Reproduce the exact Makefile port_in_use logic in a shell one-liner
         script = textwrap.dedent(f"""\
-            command -v ss >/dev/null 2>&1 && ss -ltn "sport = :{port}" 2>/dev/null | grep -q LISTEN;
-            [ $? -eq 0 ] || (command -v lsof >/dev/null 2>&1 && lsof -ti:"{port}" -sTCP:LISTEN 2>/dev/null | grep -q .)
+            if command -v ss >/dev/null 2>&1; then
+                ss -ltn "sport = :{port}" 2>/dev/null | grep -q LISTEN
+            elif command -v lsof >/dev/null 2>&1; then
+                lsof -ti:"{port}" -sTCP:LISTEN 2>/dev/null | grep -q .
+            else
+                false
+            fi
         """)
         r = subprocess.run(["sh", "-c", script], capture_output=True)
         assert r.returncode == 0, (
@@ -477,8 +494,13 @@ class TestPortInUseDetection:
         port = find_free_port()
         # Port is free after the socket closes
         script = textwrap.dedent(f"""\
-            command -v ss >/dev/null 2>&1 && ss -ltn "sport = :{port}" 2>/dev/null | grep -q LISTEN;
-            [ $? -eq 0 ] || (command -v lsof >/dev/null 2>&1 && lsof -ti:"{port}" -sTCP:LISTEN 2>/dev/null | grep -q .)
+            if command -v ss >/dev/null 2>&1; then
+                ss -ltn "sport = :{port}" 2>/dev/null | grep -q LISTEN
+            elif command -v lsof >/dev/null 2>&1; then
+                lsof -ti:"{port}" -sTCP:LISTEN 2>/dev/null | grep -q .
+            else
+                false
+            fi
         """)
         r = subprocess.run(["sh", "-c", script], capture_output=True)
         assert r.returncode != 0, (
@@ -506,18 +528,22 @@ class TestWaitForStopBehavior:
         # loop is exercised even on hosts without ss (iproute2) or lsof.
         port_in_use() {
             PORT="$1"
-            command -v ss >/dev/null 2>&1 && ss -ltn "sport = :${PORT}" 2>/dev/null | grep -q LISTEN
-            [ $? -eq 0 ] && return 0
-            command -v lsof >/dev/null 2>&1 && lsof -ti:"${PORT}" -sTCP:LISTEN 2>/dev/null | grep -q .
-            [ $? -eq 0 ] && return 0
-            # Pure-Python fallback: exit 0 if something accepts connections on PORT
-            python3 -c "
+            if command -v ss >/dev/null 2>&1; then
+                ss -ltn "sport = :${PORT}" 2>/dev/null | grep -q LISTEN
+                return $?
+            elif command -v lsof >/dev/null 2>&1; then
+                lsof -ti:"${PORT}" -sTCP:LISTEN 2>/dev/null | grep -q .
+                return $?
+            else
+                # Pure-Python fallback: exit 0 if something accepts connections on PORT
+                python3 -c "
 import socket, sys
 s = socket.socket()
 s.settimeout(0.2)
 sys.exit(0 if s.connect_ex(('127.0.0.1', int(sys.argv[1]))) == 0 else 1)
 " "${PORT}" 2>/dev/null
-            return $?
+                return $?
+            fi
         }
         wait_for_stop() {
             PID="$1"; PORT="$2"; TIMEOUT="${3:-30}"
@@ -686,9 +712,9 @@ class TestMakefileAuthSecurity:
         after_restart = content[restart_idx:]
         next_target = after_restart.find("\ngraceful:", 1)
         restart_block = after_restart[:next_target] if next_target != -1 else after_restart
-        assert "oompah_http.py" in restart_block, (
-            "make restart should call scripts/oompah_http.py for state API"
-        )
+        assert "canonical_cli_cutover.py" in restart_block
+        helper = Path(__file__).resolve().parents[1] / "scripts" / "canonical_cli_cutover.py"
+        assert "oompah_http.py" in helper.read_text()
 
     def test_restart_recipe_uses_python_helper_for_restart_api(self):
         """make restart must use the Python helper for /api/v1/orchestrator/restart."""
@@ -699,13 +725,12 @@ class TestMakefileAuthSecurity:
         next_target = after_restart.find("\ngraceful:", 1)
         restart_block = after_restart[:next_target] if next_target != -1 else after_restart
         # The restart request must go through the Python helper
-        assert "/api/v1/orchestrator/restart" in restart_block, (
-            "make restart recipe should reference /api/v1/orchestrator/restart path"
-        )
+        helper = Path(__file__).resolve().parents[1] / "scripts" / "canonical_cli_cutover.py"
+        assert "/api/v1/orchestrator/restart" in helper.read_text()
         # Verify there's no bare curl call to that endpoint
         import re
         bare_curl = re.search(
-            r"curl\b.*?/api/v1/orchestrator/restart", restart_block, re.DOTALL
+            r"curl\b.*?/api/v1/orchestrator/restart", helper.read_text(), re.DOTALL
         )
         assert bare_curl is None, (
             "make restart must not use bare curl for /api/v1/orchestrator/restart"
@@ -733,9 +758,8 @@ class TestMakefileAuthSecurity:
         after_restart = content[restart_idx:]
         next_target = after_restart.find("\ngraceful:", 1)
         restart_block = after_restart[:next_target] if next_target != -1 else after_restart
-        assert "/healthz" in restart_block, (
-            "make restart should use the public /healthz probe for initial health check"
-        )
+        helper = Path(__file__).resolve().parents[1] / "scripts" / "canonical_cli_cutover.py"
+        assert "/healthz" in helper.read_text()
 
     def test_auth_failure_exits_without_force_restart(self):
         """Auth failures in restart must halt with exit 1, not escalate to force-restart."""
@@ -810,13 +834,10 @@ class TestMakefileAuthSecurity:
 
     def test_restart_checks_state_failure_before_posting_restart(self):
         """A failed authenticated state probe must stop before the drain POST."""
-        content = self._read_makefile()
-        restart = content[content.index("\nrestart:"):content.index("\ngraceful:")]
-        assert "if ! BEFORE=$$(OOMPAH_SERVER_URL=" in restart
-        state_probe = next(
-            line for line in restart.splitlines() if "if ! BEFORE=" in line
-        )
-        assert "|| true" not in state_probe
+        helper = Path(__file__).resolve().parents[1] / "scripts" / "canonical_cli_cutover.py"
+        helper_text = helper.read_text()
+        assert 'request("GET", "/api/v1/state"' in helper_text
+        assert 'request("POST", "/api/v1/orchestrator/pause"' in helper_text
 
     def test_status_surfaces_state_auth_failure(self):
         content = self._read_makefile()

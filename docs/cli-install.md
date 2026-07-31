@@ -57,9 +57,85 @@ pipx install "https://github.com/lesserevil/oompah/releases/download/v1.0.0/oomp
 ## Verify the install
 
 ```bash
+command -v oompah
 oompah --help
+oompah --version
 oompah task --help
 ```
+
+For a source-managed service deployment, the canonical operator command is
+`$HOME/.local/bin/oompah` (normally `/home/shedwards/.local/bin/oompah`).
+`oompah --version` prints the human-readable package version and full source
+revision. The machine-readable `build_id` in `GET /healthz` and
+`GET /api/v1/state` contains the same `name`, `version`, and `revision` fields.
+The CLI and server revisions must match before task or admin requests are
+used.
+
+Normal source-managed lifecycle commands use a transactional synchronization
+barrier:
+
+```bash
+make start
+make restart
+make graceful
+```
+
+All install and restart transactions share one host-scoped advisory lock at
+`$HOME/.local/bin/.oompah-cli-lifecycle.lock`. The lock is held from source
+revision selection through staging, activation, restart identity resolution,
+rollback or quarantine, and immutable-root pruning. Concurrent lifecycle
+commands therefore serialize before either can capture a rollback journal or
+replace the canonical launcher.
+
+For a running service, the lifecycle helper pauses dispatch and waits for the
+old service to drain without executing a restart. It then stages the exact
+clean, pushed `HEAD` revision in isolated UV directories, verifies the staged
+launcher, and publishes its tool environment under an immutable
+revision-addressed directory. One atomic replacement of
+`$HOME/.local/bin/oompah` is the activation point; the previous tool root is
+retained so an invocation already in progress cannot lose its interpreter.
+The helper then requests the server cutover and commits the activation only
+after the new health and authenticated state surfaces report the same non-null
+service instance and exact revision. A service
+that was explicitly paused before the command remains paused after success or
+rollback; a service paused only for the cutover is resumed after a verified
+pair is established.
+
+Published environments live below UV's `.oompah-revisions` directory. The
+newest four roots form a bounded recovery window. Older roots are pruned only
+when they are not referenced by the canonical launcher, an activation rollback
+launcher, or a currently running process. This lets invocations that crossed
+the atomic launcher replacement finish against their immutable environment
+without allowing successful deployments to grow the directory indefinitely.
+
+A dirty, unpushed, diverged, failed, or wrong-PATH install before the restart
+attempt leaves the old executable and old service running; the command prints
+the reason and resumes the old service. After a restart request is attempted,
+the helper probes both the public health identity and authenticated state. A
+connection drop is harmless when those probes prove the candidate pair. If
+they instead prove that the exact old instance is healthy and has no restart
+pending, the helper atomically restores the old launcher and resumes that old
+pair. A timeout, pending restart, or wrong-build response cannot safely be
+paired with either launcher, so the helper verifies the lifecycle PID metadata
+and stops only that exact owned service process before returning an uncertain
+result. The candidate CLI remains canonical, but no mismatched server remains
+live.
+
+After a quarantined result, inspect `make status` and `make logs`, correct the
+deployment problem, and run `make start` to establish the matching candidate
+pair. Do not start an unverified service manually or roll back only the CLI.
+
+For a failed pre-cutover install, after pushing the intended server revision,
+recover with:
+
+```bash
+make install-cli
+```
+
+If that command reports a PATH error, put `$HOME/.local/bin` before project
+virtualenv directories in `PATH`, then rerun `make install-cli`. Verify the
+pair with `command -v oompah`, `oompah --version`, the public health check,
+and an authenticated state request before retrying a lifecycle operation.
 
 ## What you get
 
@@ -144,6 +220,68 @@ operation.
 password hashes. `OOMPAH_SERVER_PASSWORD` and `OOMPAH_SERVER_PASSWORD_FILE`
 are client plaintext credential sources; they are not htpasswd files or server
 configuration values. Never put credentials in `OOMPAH_SERVER_URL`.
+
+#### Credential precedence
+
+The task and admin CLIs use the same fixed source tiers: command-line options,
+environment variables, then the default `~/.netrc` file. Tier 3, the netrc
+fallback, is used only when a server URL can be resolved and no higher-priority
+source supplies that value. If a default netrc file exists, it must still be
+valid and safely permissioned.
+
+**Username:** `--username` flag → `OOMPAH_SERVER_USERNAME` env → matching
+`~/.netrc` entry → (none)
+
+**Password:** `--password-file` flag → environment (`OOMPAH_SERVER_PASSWORD_FILE`,
+then `OOMPAH_SERVER_PASSWORD`) → matching `~/.netrc` entry → (none)
+
+**Rules:**
+- Exactly one password source (set `OOMPAH_SERVER_PASSWORD_FILE` **or** `OOMPAH_SERVER_PASSWORD`, not both)
+- Username required if password is set
+- Password required if username is set
+- No plaintext `--password` flag exists (security measure)
+- A netrc entry must contain both `login` and `password`, and `~/.netrc` must
+  be a non-symlink regular file with mode `600` or `400`
+
+For netrc lookup, the CLI takes the hostname from `OOMPAH_SERVER_URL` (or
+`--server`), removes its port, and lowercases it. Use the lowercased hostname
+in the `machine` entry. IPv4 addresses are unchanged; write IPv6 addresses
+without URL brackets. Thus `https://OOMPah.example.com:8443` selects `machine
+oompah.example.com`, and `https://[2001:db8::1]:8443` selects `machine
+2001:db8::1`. The machine value is matched exactly after this URL
+normalization.
+
+**Examples:**
+
+Environment-based credentials (recommended for scripts):
+```bash
+export OOMPAH_SERVER_USERNAME=<username>
+export OOMPAH_SERVER_PASSWORD_FILE=/path/to/password-file
+oompah task view <task-id>
+```
+
+CLI flag override:
+```bash
+oompah task --username <username> --password-file /path/to/password-file view <task-id>
+```
+
+Default netrc credentials:
+```bash
+chmod 600 ~/.netrc
+# ~/.netrc (keep outside the repository)
+machine oompah.example.com
+login <username>
+password <password>
+
+OOMPAH_SERVER_URL=https://oompah.example.com oompah task view <task-id>
+```
+
+Inline password (one-shot only, not for scripts):
+```bash
+# Controlled secret injection only; never use a command-line password.
+OOMPAH_SERVER_USERNAME=<username> OOMPAH_SERVER_PASSWORD=<password> oompah task view <task-id>
+# Environment values are preferable to arguments, but netrc/password files are safer for unattended use.
+```
 
 For complete setup, user management, password rotation, troubleshooting, and
 security details, see [`docs/authentication.md`](authentication.md).

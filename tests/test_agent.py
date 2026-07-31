@@ -192,7 +192,7 @@ async def test_stop_kills_spawned_descendant(tmp_path):
     reason="requires Linux procfs",
 )
 async def test_workspace_capture_kills_reparentable_subprocess_tree(tmp_path):
-    """Captured identities remain killable after their parent exits."""
+    """Owned-tree cleanup never requires a host-wide procfs scan."""
 
     process = await asyncio.create_subprocess_exec(
         "bash",
@@ -202,19 +202,23 @@ async def test_workspace_capture_kills_reparentable_subprocess_tree(tmp_path):
     )
     try:
         captured: dict[int, int] = {}
-        for _ in range(100):
-            captured = capture_workspace_processes(str(tmp_path))
-            if process.pid in captured and len(captured) >= 2:
-                break
-            await asyncio.sleep(0.01)
-        assert process.pid in captured
-        assert len(captured) >= 2
+        with patch(
+            "oompah.agent._linux_process_snapshot",
+            side_effect=AssertionError("host-wide procfs scan is forbidden"),
+        ):
+            for _ in range(100):
+                captured = capture_workspace_processes(str(tmp_path))
+                if process.pid in captured and len(captured) >= 2:
+                    break
+                await asyncio.sleep(0.01)
+            assert process.pid in captured
+            assert len(captured) >= 2
 
-        survivors = await asyncio.to_thread(
-            terminate_captured_processes,
-            captured,
-            timeout_s=0.2,
-        )
+            survivors = await asyncio.to_thread(
+                terminate_captured_processes,
+                captured,
+                timeout_s=0.2,
+            )
         await asyncio.wait_for(process.wait(), timeout=1)
 
         assert survivors == set()

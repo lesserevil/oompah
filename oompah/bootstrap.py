@@ -79,6 +79,9 @@ class Services:
     # Keep direct construction compatible with callers that do not need the
     # optional auth bundle. Real bootstrap always supplies the resolved value.
     http_credentials: "oompah.http_auth.HtpasswdCredentials | None" = None
+    # OOMPAH-624: Resolved htpasswd-user → project-actor mapping.  ``None``
+    # means identity mapping is in effect.
+    actor_map: "oompah.actor_mapping.ActorMap | None" = None
 
 
 def attach_webhook_forwarder_alerts(
@@ -234,6 +237,24 @@ async def setup_services(
     except AuthError as exc:
         logger.error("HTTP auth config error: %s", exc)
         raise StartupError(f"HTTP auth config error: {exc}") from exc
+
+    # OOMPAH-624: Load and validate the actor-mapping configuration.
+    # Failures here abort startup — we never silently fall back to
+    # identity mapping when the operator explicitly configured a map.
+    try:
+        from oompah.actor_mapping import ActorMapError, load_actor_map
+
+        actor_map = load_actor_map(config.env_file_dir)
+        if actor_map.entries or actor_map.strict:
+            logger.info(
+                "Actor-mapping loaded (source=%s, entries=%d, strict=%s)",
+                actor_map.source,
+                len(actor_map.entries),
+                actor_map.strict,
+            )
+    except ActorMapError as exc:
+        logger.error("Actor mapping config error: %s", exc)
+        raise StartupError(f"Actor mapping config error: {exc}") from exc
 
     # ------------------------------------------------------------------
     # 3. Load managed-project config
@@ -410,6 +431,7 @@ async def setup_services(
         webhook_forwarder=webhook_forwarder,
         gitlab_hook_manager=gitlab_hook_manager,
         http_credentials=http_credentials,
+        actor_map=actor_map,
         port=port,
         workflow_path=workflow_path,
         workflow=workflow,
