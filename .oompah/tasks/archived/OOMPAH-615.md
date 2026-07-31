@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-615
 type: bug
-status: In Validation
+status: Archived
 priority: 1
 title: Fence implementation retries when terminal audits take ownership
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T20:22:18.934506Z'
-updated_at: '2026-07-31T06:06:46.533038Z'
+updated_at: '2026-07-31T06:07:22.910073Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -93,6 +93,23 @@ oompah.integration:
   updated_at: '2026-07-30T20:45:26.045620+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-53ce2264ffc6
+    project_id: proj-14849f1b
+    task_id: OOMPAH-615
+    target_state: Archived
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b7e6173482539d849db77203ce8877caf5081f827ed98979628e401dd671dfb2
+    authorized_by:
+      version: 1
+      identity: lesserevil
+      source: api
+    reason: Archive parentless provenance record superseded by canonical merged child
+      OOMPAH-616; prevents duplicate delivery of the same work.
+    created_at: '2026-07-31T06:07:18.225250+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -234,5 +251,12 @@ author: oompah
 created: 2026-07-31 06:06
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 06:07
+---
+Override by lesserevil: terminal transition to Archived applied by project owner.
+
+Reason: Archive parentless provenance record superseded by canonical merged child OOMPAH-616; prevents duplicate delivery of the same work.
 ---
 <!-- COMMENTS:END -->

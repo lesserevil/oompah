@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T03:07:59.102017Z'
-updated_at: '2026-07-31T06:07:01.529281Z'
+updated_at: '2026-07-31T06:07:19.409406Z'
 work_branch: OOMPAH-577
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/588
@@ -104,6 +104,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-07-31T06:06:20.213169+00:00'
     branch_key: OOMPAH-577
+oompah.task_costs:
+  total_input_tokens: 22
+  total_output_tokens: 549
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 22
+      output_tokens: 549
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 22
+    output_tokens: 549
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T06:07:17.755570+00:00'
 ---
 ## Summary
 
@@ -148,5 +164,15 @@ created: 2026-07-31 06:07
 Override by lesserevil: terminal transition to Merged applied by project owner.
 
 Reason: Restore proven merged state from PR #588 merge commit 70fa1de48 and recorded green CI/live evidence.
+---
+author: oompah
+created: 2026-07-31 06:07
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 12, Tool calls: 10
+- Tokens: 22 in / 549 out [571 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 56s
+- Log: OOMPAH-577__20260731T060623Z.jsonl
 ---
 <!-- COMMENTS:END -->

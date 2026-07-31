@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-30T02:15:25.255613Z'
-updated_at: '2026-07-31T06:06:58.463678Z'
+updated_at: '2026-07-31T06:07:04.481495Z'
 work_branch: OOMPAH-575
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/604
@@ -498,5 +498,60 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/o
 - Cost: $0.0000
 - Exit: terminated, Duration: 31s
 - Log: OOMPAH-575__20260731T060631Z.jsonl
+---
+author: oompah
+created: 2026-07-31 06:07
+---
+Branch quality gate blocked review creation.
+
+Branch: `OOMPAH-575`
+Target: `main`
+Head: `bb0fd760c3b2938d15ec2026ef5bfc2fd34b0682`
+Command: `make test`
+Result: `failed`
+
+Required: run the command in the task worktree, fix the failure, commit and push the repair, then leave the task in Done. Oompah will rerun the gate for the new head before creating the PR/MR.
+
+Output tail:
+```text
+r_issue_snapshot.py::test_fetch_and_serialize_issues_keeps_proposed_visible_and_counted 
+tests/test_server_issue_snapshot.py::test_fetch_all_issues_keeps_child_proposed_when_parent_is_proposed 
+[gw1] [ 84%] PASSED tests/test_server_issue_snapshot.py::test_fetch_all_issues_keeps_epic_state_when_children_only_proposed 
+[gw2] [ 84%] PASSED tests/test_server_issue_snapshot.py::test_fetch_and_serialize_issues_keeps_proposed_visible_and_counted 
+tests/test_server_issue_snapshot.py::test_fetch_and_serialize_issues_counts_child_under_proposed_parent_as_proposed 
+tests/test_server_issue_snapshot.py::test_api_issues_waits_briefly_for_fast_first_snapshot 
+[gw3] [ 84%] PASSED tests/test_server_issue_snapshot.py::test_fetch_all_issues_keeps_child_proposed_when_parent_is_proposed 
+[gw1] [ 84%] PASSED tests/test_server_issue_snapshot.py::test_fetch_and_serialize_issues_counts_child_under_proposed_parent_as_proposed 
+tests/test_server_issue_snapshot.py::test_issue_snapshot_payload_filters_project_without_refetch 
+[gw2] [ 84%] PASSED tests/test_server_issue_snapshot.py::test_api_issues_waits_briefly_for_fast_first_snapshot 
+tests/test_server_issue_snapshot.py::test_issue_snapshot_payload_uses_stale_threshold 
+tests/test_server_issue_snapshot.py::test_empty_issue_board_orders_proposed_before_backlog 
+[gw1] [ 84%] PASSED tests/test_server_issue_snapshot.py::test_issue_snapshot_payload_uses_stale_threshold 
+tests/test_server_issue_snapshot.py::test_fetch_and_serialize_issues_includes_intake_summary 
+[gw3] [ 84%] PASSED tests/test_server_issue_snapshot.py::test_issue_snapshot_payload_filters_project_without_refetch 
+[gw2] [ 84%] PASSED tests/test_server_issue_snapshot.py::test_empty_issue_board_orders_proposed_before_backlog 
+tests/test_server_issue_snapshot.py::test_ready_to_integrate_board_entry_includes_integration_evidence 
+tests/test_server_issue_snapshot.py::test_fetch_and_serialize_issues_omits_stale_intake_summary_after_intake 
+[gw1] [ 84%] PASSED tests/test_server_issue_snapshot.py::test_fetch_and_serialize_issues_includes_intake_summary 
+tests/test_server_issue_snapshot.py::test_duplicate_screening_summary_serializes_safe_operator_states 
+[gw2] [ 84%] PASSED tests/test_server_issue_snapshot.py::test_fetch_and_serialize_issues_omits_stale_intake_summary_after_intake 
+[gw3] [ 84%] PASSED tests/test_server_issue_snapshot.py::test_ready_to_integrate_board_entry_includes_integration_evidence 
+[gw1] [ 84%] PASSED tests/test_server_issue_snapshot.py::test_duplicate_screening_summary_serializes_safe_operator_states 
+tests/test_server_issue_snapshot.py::test_fetch_all_issues_state_branch_missing_logs_warning_not_error 
+tests/test_server_issue_snapshot.py::test_fetch_all_issues_generic_tracker_error_still_logs_error 
+tests/test_server_json_validation.py::TestProjectCreateMalformedJson::test_empty_body 
+[gw2] [ 84%] PASSED tests/test_server_issue_snapshot.py::test_fetch_all_issues_generic_tracker_error_still_logs_error 
+tests/test_server_json_validation.py::TestProjectCreateMalformedJson::test_invalid_json 
+[gw1] [ 84%] PASSED tests/test_server_json_validation.py::TestProjectCreateMalformedJson::test_empty_body 
+[gw3] [ 84%] PASSED tests/test_server_issue_snapshot.py::test_fetch_all_issues_state_branch_missing_logs_warning_not_error 
+tests/test_server_json_validation.py::TestProjectUpdateMalformedJson::test_empty_body 
+tests/test_server_json_validation.py::TestProjectCreateMalformedJson::test_json_array_not_object 
+[gw2] [ 84%] PASSED tests/test_server_json_validation.py::TestProjectCreateMalformedJson::test_invalid_json 
+tests/test_server_json_validation.py::TestProjectUpdateMalformedJson::test_invalid_json 
+[gw1] [ 84%] PASSED tests/test_server_json_validation.py::TestProjectUpdateMalformedJson::test_empty_body 
+tests/test_server_json_validation.py::TestIssueCreateMalformedJson::test_empty_body 
+[gw2] [ 84%] PASSED tests/test_server_json_validation.py::TestProjectUpdateMalformedJson::test_invalid_json 
+make[1]: *** [Makefile:225: test] Terminated
+```
 ---
 <!-- COMMENTS:END -->

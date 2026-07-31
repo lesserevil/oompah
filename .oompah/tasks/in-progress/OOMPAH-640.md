@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-640
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Complete combined stall-to-dispatch recovery regression coverage
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T05:59:47.260716Z'
-updated_at: '2026-07-31T06:06:53.834492Z'
+updated_at: '2026-07-31T06:07:10.317446Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,7 +42,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 2ece76fd-3703-4c4f-8be6-9887ccebb834
+oompah.agent_run_id: f0351889-efd0-46e9-a725-d79eaa2d8fbe
 oompah.task_costs:
   total_input_tokens: 1230045
   total_output_tokens: 4894
@@ -101,5 +101,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 59s
 - Log: OOMPAH-640__20260731T060457Z.jsonl
+---
+author: oompah
+created: 2026-07-31 06:07
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-31 06:07
+---
+Focus: Test Engineer
 ---
 <!-- COMMENTS:END -->
