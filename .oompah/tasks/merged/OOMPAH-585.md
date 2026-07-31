@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-585
 type: epic
-status: In Validation
+status: Merged
 priority: 1
 title: Restore terminal-audit execution and truthful health reporting
 parent: OOMPAH-584
@@ -24,7 +24,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:13:32.577860Z'
-updated_at: '2026-07-31T00:12:50.168256Z'
+updated_at: '2026-07-31T00:16:05.184025Z'
 work_branch: epic-OOMPAH-585
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/596
@@ -38,6 +38,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-b4197d025ad2: '2026-07-31T00:12:17.042224+00:00'
+    attempt-e6d2d009f03d: '2026-07-31T00:16:01.210909+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -97,7 +98,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-585
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -106,7 +107,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-e6d2d009f03d
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -116,13 +117,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T00:12:46.095751+00:00'
       branch_key: epic-OOMPAH-585
+      verdict: pass
+      completed_at: '2026-07-31T00:16:01.210764+00:00'
+      ended_at: '2026-07-31T00:16:01.210764+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-07-30T23:32:29.243227+00:00'
-    updated_at: '2026-07-31T00:12:46.095751+00:00'
+    updated_at: '2026-07-31T00:16:01.210764+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-49359e458701
@@ -300,5 +304,33 @@ author: oompah
 created: 2026-07-31 00:12
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 00:16
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit: c45e47bb3bdf8f3424357dd499010d52322bd7cc
+- gate_commit: 4510fb912aebc99dce90df1dc55e8ee952408401
+- pr: 596
+- gate_result: make test passed in 255.7s (per branch quality gate comment)
+- merged_into: origin/epic-OOMPAH-584 (parent epic branch)
+- changed_files: 31 files, 3388 insertions, 94 deletions
+- new_module: oompah/terminal_audit_health.py (460 lines)
+- focused_terminal_audit_health: 32 passed
+- focused_dashboard_terminal_audit_health: 16 passed
+- focused_terminal_audit_health_api: 2 passed
+- focused_auditor_candidate_selector: 49 passed
+- focused_auditor_dispatch: 13 passed
+- focused_terminal_audit_enforcement_and_coordinator: 124 passed
+- focused_dispatch_close_race: 22 passed
+- focused_auditor_termination_cleanup: 2 passed
+- focused_provider_health: 64 passed
+- children_done: OOMPAH-589, 591, 592, 604, 616, 618, 622, 625, 626, 627, 628, 629 (Done)
+- child_note_ooompah_590: Child OOMPAH-590 metadata shows Needs Human, but its implementation commit cc2614933 is present on origin/epic-OOMPAH-584 and the covered retry behavior is exercised by passing tests.
+- acceptance_criteria_status: All addressed: absolute-endpoint validation, safe diagnostics, retry without duplication, stale-validation reconciliation, durable failure and backlog alerts, health module with degraded flag, focused tests pass, branch gate passed.
 ---
 <!-- COMMENTS:END -->
