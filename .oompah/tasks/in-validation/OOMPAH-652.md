@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-652
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Isolate the full Makefile test gate from a running Oompah service
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T08:57:15.160957Z'
-updated_at: '2026-07-31T10:12:54.751773Z'
+updated_at: '2026-07-31T10:20:30.782605Z'
 work_branch: OOMPAH-652
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/616
@@ -83,6 +83,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/616
 oompah.review_number: '616'
 oompah.work_branch: OOMPAH-652
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-21d2ede50738
+    project_id: proj-14849f1b
+    task_id: OOMPAH-652
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 83f45974c35eb5b50a5a739d68c39c6f2aabc7dc61965436e19ad9361f75cc43
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-31T10:20:25.813992+00:00'
+  - version: 1
+    audit_id: audit-b1d3969a2c62
+    project_id: proj-14849f1b
+    task_id: OOMPAH-652
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 83f45974c35eb5b50a5a739d68c39c6f2aabc7dc61965436e19ad9361f75cc43
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-31T10:20:25.813992+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -361,5 +400,15 @@ author: oompah
 created: 2026-07-31 10:12
 ---
 Branch quality gate passed for `ccba12b3fe59f251d16746d164a8723edd6109fa` using `make test` in 372.1s. Review creation may proceed.
+---
+author: oompah
+created: 2026-07-31 10:20
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-07-31 10:20
+---
+YOLO: merged PR #616.
 ---
 <!-- COMMENTS:END -->
