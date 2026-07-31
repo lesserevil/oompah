@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-603
 type: feature
-status: Done
+status: In Validation
 priority: 2
 title: Define and enforce repository hygiene health thresholds
 parent: OOMPAH-588
@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:03.538398Z'
-updated_at: '2026-07-31T05:26:39.814501Z'
+updated_at: '2026-07-31T05:28:03.055349Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-603
 target_branch: null
 review_url: null
@@ -232,7 +232,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-603
     target_state: Done
-    request_state: in_progress
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -258,6 +258,61 @@ oompah.terminal_audit:
     previous_state: Needs Human
     created_at: '2026-07-31T05:26:32.113383+00:00'
     updated_at: '2026-07-31T05:26:38.893290+00:00'
+  - version: 1
+    audit_id: audit-8311680f859c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-603
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: df964e750e0bd59ee93123beeb881d17c15dcbc78b42b319c5a4517f0e31926e
+    attempts:
+    - version: 1
+      attempt_id: attempt-17e1c20afe6d
+      target_state: Done
+      request_state: pending
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: df964e750e0bd59ee93123beeb881d17c15dcbc78b42b319c5a4517f0e31926e
+      created_at: '2026-07-31T05:27:43.122477+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-31T05:27:43.122477+00:00'
+      branch_key: epic-OOMPAH-588--task-OOMPAH-603
+      failure_classification: infrastructure_error
+      ended_at: '2026-07-31T05:27:45.711413+00:00'
+      failure_reason: Epic branch epic-OOMPAH-588 diverged from origin/epic-OOMPAH-588;
+        reconcile both heads before dispatching more children
+      next_retry_at: '2026-07-31T05:27:55.711385+00:00'
+    - version: 1
+      attempt_id: attempt-10d444a2f140
+      target_state: Done
+      request_state: pending
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: df964e750e0bd59ee93123beeb881d17c15dcbc78b42b319c5a4517f0e31926e
+      created_at: '2026-07-31T05:27:56.511052+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-07-31T05:27:56.511052+00:00'
+      branch_key: epic-OOMPAH-588--task-OOMPAH-603
+      candidate_rotation_count: 1
+      failure_classification: infrastructure_error
+      ended_at: '2026-07-31T05:27:59.533740+00:00'
+      failure_reason: Epic branch epic-OOMPAH-588 diverged from origin/epic-OOMPAH-588;
+        reconcile both heads before dispatching more children
+      next_retry_at: '2026-07-31T05:28:19.533717+00:00'
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Needs Human
+    created_at: '2026-07-31T05:27:38.043550+00:00'
+    updated_at: '2026-07-31T05:27:59.533740+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-8da7556bb1d0
@@ -298,6 +353,43 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-07-31T05:26:38.893290+00:00'
     branch_key: epic-OOMPAH-588--task-OOMPAH-603
+  - version: 1
+    attempt_id: attempt-17e1c20afe6d
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: df964e750e0bd59ee93123beeb881d17c15dcbc78b42b319c5a4517f0e31926e
+    created_at: '2026-07-31T05:27:43.122477+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-31T05:27:43.122477+00:00'
+    branch_key: epic-OOMPAH-588--task-OOMPAH-603
+    failure_classification: infrastructure_error
+    ended_at: '2026-07-31T05:27:45.711413+00:00'
+    failure_reason: Epic branch epic-OOMPAH-588 diverged from origin/epic-OOMPAH-588;
+      reconcile both heads before dispatching more children
+    next_retry_at: '2026-07-31T05:27:55.711385+00:00'
+  - version: 1
+    attempt_id: attempt-10d444a2f140
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: df964e750e0bd59ee93123beeb881d17c15dcbc78b42b319c5a4517f0e31926e
+    created_at: '2026-07-31T05:27:56.511052+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-07-31T05:27:56.511052+00:00'
+    branch_key: epic-OOMPAH-588--task-OOMPAH-603
+    candidate_rotation_count: 1
+    failure_classification: infrastructure_error
+    ended_at: '2026-07-31T05:27:59.533740+00:00'
+    failure_reason: Epic branch epic-OOMPAH-588 diverged from origin/epic-OOMPAH-588;
+      reconcile both heads before dispatching more children
+    next_retry_at: '2026-07-31T05:28:19.533717+00:00'
 ---
 ## Summary
 
@@ -717,5 +809,43 @@ created: 2026-07-31 05:26
 Override by lesserevil: terminal transition to Done applied by project owner.
 
 Reason: Restore audited Done after false missing-landing regression caused by epic rebase SHA rewrite; the refreshed exact task ref points to a patch-equivalent rebased commit contained in merged PR #602.
+---
+author: oompah
+created: 2026-07-31 05:27
+---
+The parent epic OOMPAH-588 merged from epic-OOMPAH-588, but this task was Done with work branch epic-OOMPAH-588--task-OOMPAH-603. Its work is not proven to be in the merged epic. Git evidence: OOMPAH-603 branch epic-OOMPAH-588--task-OOMPAH-603 has 2 unlanded commit(s), including 8553b181cf67. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
+---
+author: oompah
+created: 2026-07-31 05:27
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-07-31 05:27
+---
+Run #1 [attempt=1, profile=auditor, role=— -> unknown/unknown]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 1s
+---
+author: oompah
+created: 2026-07-31 05:27
+---
+Auditor attempt ended: Epic branch epic-OOMPAH-588 diverged from origin/epic-OOMPAH-588; reconcile both heads before dispatching more children. A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-07-31 05:27
+---
+Auditor dispatched (attempt #2, candidate: prov-651d553c/sonnet)
+---
+author: oompah
+created: 2026-07-31 05:28
+---
+Run #2 [attempt=2, profile=auditor, role=— -> unknown/unknown]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 1s
 ---
 <!-- COMMENTS:END -->
