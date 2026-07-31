@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-655
 type: task
-status: In Validation
+status: Merged
 priority: 0
 title: Enforce full-gate service isolation outside candidate branch code
 parent: null
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T17:06:36.663342Z'
+updated_at: '2026-07-31T17:08:58.439317Z'
 work_branch: OOMPAH-655
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/625
@@ -219,6 +219,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-40523fd1dc9a: '2026-07-31T17:06:01.334596+00:00'
+    attempt-c39259e5244c: '2026-07-31T17:08:54.908491+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-655
@@ -229,6 +230,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-07-31T17:06:01.334606+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-655
+    target_state: Merged
+    evidence_fingerprint: b3083e23d7d8a3b89d09aa3a765b39d972dfc736cd6fc703f569fab2d2506516
+    audit_ids:
+    - audit-b4c7c782ecb4
+    kind: result
+    applied: true
+    retired_at: '2026-07-31T17:08:54.908513+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-655
@@ -242,6 +252,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-07-31T17:06:01.334620+00:00'
     applied_at: '2026-07-31T17:06:05.114082+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-655
+    audit_id: audit-b4c7c782ecb4
+    attempt_id: attempt-c39259e5244c
+    target_state: Merged
+    evidence_fingerprint: b3083e23d7d8a3b89d09aa3a765b39d972dfc736cd6fc703f569fab2d2506516
+    status: Merged
+    audit_ids:
+    - audit-b4c7c782ecb4
+    applied: false
+    created_at: '2026-07-31T17:08:54.908536+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -283,7 +304,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-655
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -292,7 +313,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-c39259e5244c
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -302,13 +323,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T17:06:32.110984+00:00'
       branch_key: OOMPAH-655
+      verdict: pass
+      completed_at: '2026-07-31T17:08:54.908216+00:00'
+      ended_at: '2026-07-31T17:08:54.908216+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: Needs Human
     created_at: '2026-07-31T16:58:51.486423+00:00'
-    updated_at: '2026-07-31T17:06:32.110984+00:00'
+    updated_at: '2026-07-31T17:08:54.908216+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-40523fd1dc9a
@@ -1401,5 +1425,29 @@ author: oompah
 created: 2026-07-31 17:06
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 17:08
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: 5dc381dda7aecb5589ff88de69dc5746239acc86
+- main_head: a1dd3287d1faeeccf777c57764b9283cb653304d
+- merge_commit: a1dd3287d Merge PR #625 from lesserevil/OOMPAH-655
+- merge_parents: 79a27ae548ad5bc75934bc732f9572245ab61075 5dc381dda7aecb5589ff88de69dc5746239acc86
+- branch_merged_into_main: true; git log OOMPAH-655..origin/main returns only the merge commit
+- test_quality_gate_result: 46 passed in 8.45s
+- test_integration_executor_result: 11 passed in 2.84s
+- test_config_result: 113 passed in 0.27s
+- test_parallel_epic_children_result: 27 passed in 7.29s
+- test_client_auth_result: 62 passed in 0.18s
+- changed_files_summary: 11 files, +1528/-171; quality_gate.py +560, plans/candidate-code-sandbox.md +265, tests/test_quality_gate.py +668
+- isolation_mechanisms: git ancestry preflight; disposable git-archive snapshot; empty-root bubblewrap with user/PID/network/mount namespaces plus namespace-local loopback; sandbox-visible /oompah-gate lifecycle env; private port; strict cleanup; process-group SIGKILL reaping
+- documentation: plans/candidate-code-sandbox.md present on origin/main
+- full_gate_evidence: Branch quality gate passed for 8da703b5f... using make test in 379.1s (comment 2026-07-31 16:40)
+- requested_target: Merged
 ---
 <!-- COMMENTS:END -->
