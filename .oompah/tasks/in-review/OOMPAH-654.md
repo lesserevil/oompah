@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-654
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Keep service lifecycle identity metadata out of git worktree status
 parent: null
@@ -11,11 +11,11 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:29:49.323393Z'
-updated_at: '2026-07-31T10:36:07.099175Z'
+updated_at: '2026-07-31T10:42:26.502921Z'
 work_branch: null
 target_branch: null
-review_url: null
-review_number: null
+review_url: https://github.com/lesserevil/oompah/pull/617
+review_number: '617'
 merged_at: null
 oompah.duplicate_screening:
   schema_version: 1
@@ -75,6 +75,8 @@ oompah.integration:
   head_sha: b64cbc85adca310a10f767692302e004343f14cd
   submitted_at: '2026-07-31T10:35:45.745409+00:00'
   updated_at: '2026-07-31T10:35:45.745409+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/617
+oompah.review_number: '617'
 ---
 ## Summary
 
