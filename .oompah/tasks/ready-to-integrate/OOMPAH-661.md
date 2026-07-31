@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T13:12:19.387161Z'
-updated_at: '2026-07-31T15:02:58.121470Z'
+updated_at: '2026-07-31T15:03:19.490976Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -55,8 +55,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 2b97250b-0de6-49c0-bf97-ad8aff1be6e8
 oompah.task_costs:
-  total_input_tokens: 484212
-  total_output_tokens: 11029
+  total_input_tokens: 484277
+  total_output_tokens: 21234
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -66,6 +66,10 @@ oompah.task_costs:
     sonnet:
       input_tokens: 484058
       output_tokens: 7072
+      cost_usd: 0.0
+    opus:
+      input_tokens: 65
+      output_tokens: 10205
       cost_usd: 0.0
   runs:
   - profile: default
@@ -80,6 +84,12 @@ oompah.task_costs:
     output_tokens: 7072
     cost_usd: 0.0
     recorded_at: '2026-07-31T14:51:17.156396+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 65
+    output_tokens: 10205
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T15:03:13.156301+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-661__20260731T135529Z
@@ -98,14 +108,24 @@ oompah.work_contributors:
     source_branch: OOMPAH-661
     source_sha: 76619929b63527d539c81f9dbdadf8c38047c461
     completed_at: '2026-07-31T14:51:17.159348+00:00'
+  - run_id: OOMPAH-661__20260731T145147Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: opus
+    focus: event_api
+    source_branch: OOMPAH-661
+    source_sha: 76619929b63527d539c81f9dbdadf8c38047c461
+    completed_at: '2026-07-31T15:03:13.160086+00:00'
 oompah.integration:
   version: 2
   state: ready
   attempts: 0
   task_branch: OOMPAH-661
+  base_branch: main
+  base_sha: 8c75a201e328949d4057bfbd53e11cd5498ed72f
   head_sha: 76619929b63527d539c81f9dbdadf8c38047c461
   submitted_at: '2026-07-31T15:02:55.174284+00:00'
-  updated_at: '2026-07-31T15:02:55.174284+00:00'
+  updated_at: '2026-07-31T15:03:18.450256+00:00'
 ---
 ## Summary
 
@@ -230,5 +250,20 @@ author: oompah
 created: 2026-07-31 15:02
 ---
 Bind delayed implementation retries to their failed generation (project/task/status/attempt/assignment/work-branch/head/updated_at) and cancel synchronously on submit, status change, replacement assignment, head/branch change, terminal transition, or reconciliation. Revalidate fresh tracker state under a compare-and-swap lock before dispatch; discard legacy or replaced entries at restart; expose only actionable retries in /api/v1/state counts/rows/alerts; preserve historical run/error comments. Covered by tests/test_retry_authority_generation.py (17 deterministic cases) plus updated test_worker_submission/test_github_tracker/test_oompah_md_tracker suites.
+---
+author: oompah
+created: 2026-07-31 15:03
+---
+Agent completed successfully in 693s (10270 tokens)
+---
+author: oompah
+created: 2026-07-31 15:03
+---
+Run #2 [attempt=2, profile=deep, role=deep -> Claude/opus]
+- Turns: 75, Tool calls: 59
+- Tokens: 65 in / 10.2K out [10.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 11m 33s
+- Log: OOMPAH-661__20260731T145147Z.jsonl
 ---
 <!-- COMMENTS:END -->
