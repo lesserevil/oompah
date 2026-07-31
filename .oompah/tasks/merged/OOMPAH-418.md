@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-418
 type: epic
-status: In Validation
+status: Merged
 priority: 0
 title: Expose oompah's OpenAPI as a streamable MCP server
 parent: null
@@ -15,7 +15,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-23T19:41:39.116461Z'
-updated_at: '2026-07-31T02:22:22.182940Z'
+updated_at: '2026-07-31T02:25:55.161313Z'
 work_branch: epic-OOMPAH-418
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/542
@@ -30,6 +30,7 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-148316224bb3: '2026-07-31T02:13:31.751337+00:00'
     attempt-1e7c852922ee: '2026-07-31T02:21:50.510089+00:00'
+    attempt-ae94de725cf8: '2026-07-31T02:25:52.672095+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -105,7 +106,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-418
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -114,7 +115,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-ae94de725cf8
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -124,13 +125,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T02:22:16.584113+00:00'
       branch_key: epic-OOMPAH-418
+      verdict: pass
+      completed_at: '2026-07-31T02:25:52.671828+00:00'
+      ended_at: '2026-07-31T02:25:52.671828+00:00'
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
       source: oompah
     previous_state: In Validation
     created_at: '2026-07-31T02:10:20.408357+00:00'
-    updated_at: '2026-07-31T02:22:16.584113+00:00'
+    updated_at: '2026-07-31T02:25:52.671828+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-148316224bb3
@@ -316,5 +320,27 @@ author: oompah
 created: 2026-07-31 02:22
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 02:25
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit: 10fac3f6e Merge pull request #542 from lesserevil/epic-OOMPAH-418
+- merged_into_main: true (main and origin/main contain 10fac3f6e)
+- branch_head: c048ba706 (epic-OOMPAH-418 == origin/main == origin/epic-OOMPAH-418)
+- gateway_commit: 3aa8dd5e1 Expose OpenAPI through embedded MCP gateway (added oompah/mcp_gateway.py, tests/test_mcp_gateway.py, pyproject.toml mcp dep, server.py wiring)
+- policy_commit: 9079accfb OOMPAH-419: Define the oompah OpenAPI-to-MCP exposure policy
+- gateway_module: oompah/mcp_gateway.py present; imports MCP_ENDPOINT_PATH/MCP_DISCOVERY_PATH/is_route_exposed from oompah.mcp_exposure_policy; exports build_mcp_gateway, mcp_transport_security_settings
+- policy_module: oompah/mcp_exposure_policy.py present; defines MCP_ENDPOINT_PATH=/api/mcp/v1 (line 119), MCP_DISCOVERY_PATH=/.well-known/mcp (line 125), is_route_exposed/classify_route
+- server_integration: oompah/server.py imports build_mcp_gateway/discovery_document; _mcp_gateway = build_mcp_gateway(...) at line 16322; app.mount(MCP_ENDPOINT_PATH, _mcp_gateway_app) at line 16329; lifespan integration around lines 439-456
+- tests_mcp_gateway: tests/test_mcp_gateway.py — 14 passed (0.72s)
+- tests_mcp_exposure_policy: tests/test_mcp_exposure_policy.py — 294 passed (0.46s)
+- docs: plans/mcp-openapi-exposure-policy.md present
+- labels: epic:stale, ci-fix
+- prior_audit_results: Prior Archived audit (2026-07-31 02:13) and Done audit (2026-07-31 02:21) both PASS on the same evidence
 ---
 <!-- COMMENTS:END -->
