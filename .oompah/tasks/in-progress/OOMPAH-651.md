@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T09:52:41.328437Z'
+updated_at: '2026-07-31T09:54:19.817312Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -293,5 +293,35 @@ The previous implementation applied redaction only at isolated points (Claude _t
 5. Run focused tests (test_secrets.py, test_orchestrator.py, etc.)
 
 **Next Step:** Explore all event emission paths to identify central redaction points.
+---
+author: oompah
+created: 2026-07-31 09:54
+---
+DISCOVERY: ROOT CAUSE CONFIRMED
+
+**Event Payload Leak Points:**
+
+1. **orchestrator._on_event() (line 24479)**
+   - Writes ev.payload directly to JSONL without redaction
+   - Used to construct activity.detail and sess.last_message (state exposure)
+   - This is the main orchestrator/ACP path
+
+2. **secrets.py Edge Cases (Fail-Open):**
+   - Line 227: max depth returns value unredacted
+   - Line 334: failed dataclass reconstruction returns value unredacted
+   - Line 343: exception in credential-like repr handling returns value unredacted
+   - These should fail-closed (return marker) not fail-open
+
+3. **ConsoleEvent Fan-out (line 690 in console.py)**
+   - _persist_and_emit calls self.on_event(event) with original event
+   - Event fields (text, args, result) are unredacted in callback
+   - Callback may access these fields before to_dict() is called
+
+**Implementation Priority:**
+1. Fix secrets.py edge cases (fail-closed)
+2. Redact ev.payload before JSONL/state use in orchestrator._on_event
+3. Redact ConsoleEvent fields before on_event callback fan-out
+4. Add end-to-end tests verifying secrets don't leak through JSONL/state/callbacks
+5. Run make test to verify no regressions
 ---
 <!-- COMMENTS:END -->
