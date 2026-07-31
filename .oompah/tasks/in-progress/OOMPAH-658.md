@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-658
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: Deduplicate duplicate-preflight runs across deferred dispatch ticks
 parent: null
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-07-31T11:31:44.127401Z'
+updated_at: '2026-07-31T11:32:32.164210Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,7 +38,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: e4544404-5ab9-418b-875b-6ffe44dc9d65
+oompah.agent_run_id: 9bdb1808-6fdf-41c2-9ddf-5c10d8719de7
 oompah.task_costs:
   total_input_tokens: 928208
   total_output_tokens: 5456
@@ -315,5 +315,15 @@ author: oompah
 created: 2026-07-31 11:31
 ---
 Exact-head review rejects 7e4375e6f: it implements the disproven missing-metadata hypothesis and does not change compute_task_fingerprint. Live evidence shows metadata was persisted: OOMPAH-655 had a checked record at 10:39 and OOMPAH-650 at 09:10; each was rescreened only after adding OOMPAH-657 as a finish-order dependency because blocked_by is part of the fingerprint. The 11:13 OOMPAH-655 run was a valid retry after the 11:11 outcome=retry, not a lost checked result. Also, swallowing metadata-load errors into UNCHECKED can amplify a tracker outage into provider dispatch rather than fail closed. Replace this patch with the exact revision-key fix from comments 12/13: scheduling-only dependencies/transient metadata do not invalidate a checked verdict, relevant intake/source revision changes do, inconclusive failures still retry, and multi-tick/restart/concurrency tests prove one run per unchanged relevant revision.
+---
+author: oompah
+created: 2026-07-31 11:32
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-31 11:32
+---
+Focus: Maintenance Engineer
 ---
 <!-- COMMENTS:END -->
