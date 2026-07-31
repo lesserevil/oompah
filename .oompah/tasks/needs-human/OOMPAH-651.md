@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-651
 type: bug
-status: In Progress
+status: Needs Human
 priority: 1
 title: Redact secrets from agent tool inputs, outputs, and JSONL event logs
 parent: null
@@ -18,7 +18,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T17:00:34.804095Z'
+updated_at: '2026-07-31T17:02:30.043515Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -53,8 +53,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 553dc708-1e85-42db-a8bf-863dd25a6e25
 oompah.task_costs:
-  total_input_tokens: 19218202
-  total_output_tokens: 124173
+  total_input_tokens: 19682222
+  total_output_tokens: 127443
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -62,8 +62,8 @@ oompah.task_costs:
       output_tokens: 54450
       cost_usd: 0.0
     opus:
-      input_tokens: 4288320
-      output_tokens: 69723
+      input_tokens: 4752340
+      output_tokens: 72993
       cost_usd: 0.0
   runs:
   - profile: default
@@ -138,6 +138,12 @@ oompah.task_costs:
     output_tokens: 9383
     cost_usd: 0.0
     recorded_at: '2026-07-31T16:57:01.990731+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 464020
+    output_tokens: 3270
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T17:02:24.506947+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-651__20260731T090132Z
@@ -204,6 +210,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-651
     source_sha: e4e36c44ecceb87ea28b5f1871d8c3e256588ec2
     completed_at: '2026-07-31T16:06:40.953503+00:00'
+  - run_id: OOMPAH-651__20260731T170035Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-sol
+    focus: event_api
+    source_branch: OOMPAH-651
+    source_sha: b90d1e353e2dd5fd321c048ca84eb71eea9e20d4
+    completed_at: '2026-07-31T17:02:24.510570+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -1202,5 +1216,20 @@ author: oompah
 created: 2026-07-31 17:00
 ---
 Focus: Event Api Redaction Specialist
+---
+author: oompah
+created: 2026-07-31 17:02
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Codex/gpt-5.6-sol]
+- Turns: 1, Tool calls: 10
+- Tokens: 464.0K in / 3.3K out [467.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 53s
+- Log: OOMPAH-651__20260731T170035Z.jsonl
+---
+author: oompah
+created: 2026-07-31 17:02
+---
+Task handoff failed after the worker ran: the server-owned, task-scoped tracker capability could not update this task. The task is held in Needs Human and will not be redispatched automatically; verify the handoff service and reconcile the worker's branch before resuming it.
 ---
 <!-- COMMENTS:END -->
