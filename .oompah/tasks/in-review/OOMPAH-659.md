@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-659
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Defer standalone full gates until finish dependencies are satisfied
 parent: null
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-31T12:15:02.565914Z'
-updated_at: '2026-07-31T13:30:28.492816Z'
+updated_at: '2026-07-31T13:30:31.707414Z'
 work_branch: null
 target_branch: null
 review_url: https://github.com/lesserevil/oompah/pull/620
