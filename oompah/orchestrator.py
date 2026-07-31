@@ -7795,35 +7795,57 @@ class Orchestrator:
 
     @staticmethod
     def _resolve_git_branch_refs(repo_path: str, branch: str) -> tuple[str, ...]:
-        """Return available local refs for ``branch`` without fetching.
+        """Return the authoritative available ref for ``branch``.
 
         Managed repositories are fetched elsewhere in the scheduling tick.
-        Inspect both remote-tracking and local refs: the former catches pushed
-        child work while the latter lets a freshly-updated epic branch pass the
-        pre-push rollup gate.
+        Prefer the remote-tracking ref whenever it exists because a local
+        branch may be left at a pre-rebase commit after a force-push.  Fall
+        back to the local branch only when no remote-tracking ref is present.
         """
         if not branch:
             return ()
-        candidates = (
-            f"refs/remotes/origin/{branch}",
-            f"refs/heads/{branch}",
-        )
-        found: list[str] = []
-        for ref in candidates:
-            try:
-                result = subprocess.run(
-                    ["git", "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"],
-                    cwd=repo_path,
-                    capture_output=True,
-                    text=True,
-                    timeout=10,
-                    check=False,
-                )
-            except (OSError, subprocess.TimeoutExpired):
-                return tuple(found)
-            if result.returncode == 0:
-                found.append(ref)
-        return tuple(found)
+        remote_ref = f"refs/remotes/origin/{branch}"
+        try:
+            result = subprocess.run(
+                [
+                    "git",
+                    "rev-parse",
+                    "--verify",
+                    "--quiet",
+                    f"{remote_ref}^{{commit}}",
+                ],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return ()
+        if result.returncode == 0:
+            return (remote_ref,)
+
+        local_ref = f"refs/heads/{branch}"
+        try:
+            result = subprocess.run(
+                [
+                    "git",
+                    "rev-parse",
+                    "--verify",
+                    "--quiet",
+                    f"{local_ref}^{{commit}}",
+                ],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return ()
+        if result.returncode == 0:
+            return (local_ref,)
+        return ()
 
     @staticmethod
     def _refresh_landing_evidence_target_refs(
@@ -7956,13 +7978,36 @@ class Orchestrator:
                 return False, f"candidate branch {branch}: fetch timed out"
             except OSError:
                 return False, f"candidate branch {branch}: fetch could not start"
-            # Note: non-zero exit code from fetch may indicate the remote branch
-            # doesn't exist (which is fine) or a network issue (which is not).
-            # We cannot reliably distinguish these cases, so we allow the fetch
-            # to proceed. The subsequent landing evidence check will use
-            # whatever refs are available locally. This preserves fail-closed
-            # behavior: if a branch truly doesn't exist anywhere, the landing
-            # evidence check will correctly report it as not found.
+            if fetched.returncode == 0:
+                continue
+
+            # A candidate branch may have been deleted after its work landed.
+            # Treat that as a proven absence, but do not confuse a transport
+            # failure with a missing branch: ``ls-remote --exit-code`` uses 2
+            # for a missing ref and a different nonzero status for transport
+            # errors.
+            try:
+                remote_probe = subprocess.run(
+                    [
+                        "git",
+                        "ls-remote",
+                        "--exit-code",
+                        "--heads",
+                        "origin",
+                        full_ref,
+                    ],
+                    cwd=repo_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=15,
+                    check=False,
+                )
+            except subprocess.TimeoutExpired:
+                return False, f"candidate branch {branch}: probe timed out"
+            except OSError:
+                return False, f"candidate branch {branch}: probe could not start"
+            if remote_probe.returncode != 2:
+                return False, f"candidate branch {branch}: fetch failed"
 
         return True, None
 
@@ -14700,9 +14745,14 @@ class Orchestrator:
         except Exception:  # noqa: BLE001
             children = []
 
+        candidate_refs_fresh = True
+        candidate_refresh_error: str | None = None
+
         # Collect candidate branches from Done children and refresh them.
-        # This ensures stale force-pushed rebases are not misjudged.
-        # Refresh is best-effort: missing remote branches are tolerated.
+        # This ensures stale force-pushed rebases are not misjudged.  A
+        # candidate fetch failure is evidence that the source cannot be
+        # authoritatively compared, so defer Done-child reconciliation for
+        # this pass instead of using stale local refs.
         if landing_refs_fresh:
             candidate_branches_set: set[str] = set()
             for child in children:
@@ -14717,11 +14767,19 @@ class Orchestrator:
                         candidate_branches_set.add(child_id)
             if candidate_branches_set:
                 candidate_branches = tuple(dict.fromkeys(candidate_branches_set))
-                # Attempt to fetch candidate branches; missing remotes are OK
-                self._refresh_landing_evidence_candidate_refs(
-                    repo_path,
-                    candidate_branches,
+                candidate_refs_fresh, candidate_refresh_error = (
+                    self._refresh_landing_evidence_candidate_refs(
+                        repo_path,
+                        candidate_branches,
+                    )
                 )
+                if not candidate_refs_fresh:
+                    logger.warning(
+                        "Deferring Done-child landing reconciliation for epic %s: "
+                        "authoritative candidate ref %s",
+                        epic.identifier,
+                        candidate_refresh_error or "refresh failed",
+                    )
 
         for child in children:
             if self._job_deadline_exceeded("merged_labels"):
@@ -14733,10 +14791,10 @@ class Orchestrator:
             child_branch = (child.work_branch or "").strip()
             landing_reason = None
             if child_status == DONE:
-                if not landing_refs_fresh:
+                if not landing_refs_fresh or not candidate_refs_fresh:
                     logger.info(
-                        "Leaving epic child %s Done until target refs for epic %s "
-                        "can be refreshed",
+                        "Leaving epic child %s Done until authoritative refs for "
+                        "epic %s can be refreshed",
                         child.identifier,
                         epic.identifier,
                     )
