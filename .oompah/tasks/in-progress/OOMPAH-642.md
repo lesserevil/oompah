@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-642
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Fence standalone delivery gate outcomes after terminal authority changes
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:09:07.190386Z'
-updated_at: '2026-07-31T06:10:37.186342Z'
+updated_at: '2026-07-31T06:10:55.151360Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -45,7 +45,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 6c2e9987-4937-4282-935b-ea927a4b6c48
+oompah.agent_run_id: 2e942157-fdca-4aa9-bea1-21752962781f
 oompah.task_costs:
   total_input_tokens: 216319
   total_output_tokens: 1705
@@ -104,5 +104,15 @@ Run #1 [attempt=1, profile=standard, role=standard -> Codex/gpt-5.6-terra]
 - Cost: $0.0000
 - Exit: normal, Duration: 46s
 - Log: OOMPAH-642__20260731T060949Z.jsonl
+---
+author: oompah
+created: 2026-07-31 06:10
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-31 06:10
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
