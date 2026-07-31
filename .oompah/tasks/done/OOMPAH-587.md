@@ -19,7 +19,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-30T14:13:38.093049Z'
-updated_at: '2026-07-31T04:54:35.215294Z'
+updated_at: '2026-07-31T04:54:51.435290Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -78,6 +78,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-07-31T04:46:16.153208+00:00'
     branch_key: OOMPAH-587
+oompah.task_costs:
+  total_input_tokens: 105
+  total_output_tokens: 25693
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 105
+      output_tokens: 25693
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 105
+    output_tokens: 25693
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T04:54:48.412573+00:00'
 ---
 ## Summary
 
@@ -142,5 +158,15 @@ Safe evidence:
 - rebase_labels: rebase-requested,epic:rebasing observed but do not block terminal Done rollup per _epic_synchronization_decision
 - task_state: In Validation (previous_state=Open per scheduler contract)
 - parent_epic_reference: OOMPAH-460 closure is a downstream consequence of the delivery machinery repaired here; its own children continue to advance on origin/epic-OOMPAH-460
+---
+author: oompah
+created: 2026-07-31 04:54
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 121, Tool calls: 99
+- Tokens: 105 in / 25.7K out [25.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 8m 31s
+- Log: OOMPAH-587__20260731T044623Z.jsonl
 ---
 <!-- COMMENTS:END -->
