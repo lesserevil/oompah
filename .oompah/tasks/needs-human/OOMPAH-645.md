@@ -7,13 +7,15 @@ title: Clear recovered terminal-audit transport failures without contaminating l
   audits
 parent: null
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-650
+- OOMPAH-652
 start_blocked_by: []
 labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T06:47:58.732088Z'
-updated_at: '2026-07-31T09:04:14.962714Z'
+updated_at: '2026-07-31T09:07:08.833602Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -613,5 +615,10 @@ author: oompah
 created: 2026-07-31 09:04
 ---
 Task handoff failed after the worker ran: the server-owned, task-scoped tracker capability could not update this task. The task is held in Needs Human and will not be redispatched automatically; verify the handoff service and reconcile the worker's branch before resuming it.
+---
+author: oompah
+created: 2026-07-31 09:07
+---
+Holding this clean pushed branch in Needs Human intentionally until OOMPAH-650 fixes the repeated scoped-handoff failure and OOMPAH-652 prevents the exact full gate from killing its parent service. These are finish-order dependencies only; no further OOMPAH-645 implementation is missing. Re-evaluate and submit 6686290d5 after both prerequisites land.
 ---
 <!-- COMMENTS:END -->

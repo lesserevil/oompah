@@ -6,13 +6,14 @@ priority: 1
 title: Keep the canonical user CLI synchronized with the running server
 parent: OOMPAH-619
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-652
 start_blocked_by: &id001
 - OOMPAH-621
 labels: []
 assignee: null
 created_at: '2026-07-30T21:32:18.734139Z'
-updated_at: '2026-07-31T09:02:06.732185Z'
+updated_at: '2026-07-31T09:06:56.704277Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-623
 target_branch: null
 review_url: null
