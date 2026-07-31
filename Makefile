@@ -151,6 +151,25 @@ test-setup:
 		echo "ERROR: trusted quality-gate test runtime is incomplete" >&2; \
 		exit 1; \
 	}
+	@launcher="$(VENV)/bin/oompah"; \
+	if [ ! -x "$$launcher" ]; then \
+		echo "ERROR: trusted quality-gate CLI launcher is unavailable" >&2; \
+		exit 1; \
+	fi; \
+	interpreter=$$(sed -n '1s/^#!//p' "$$launcher"); \
+	case "$$interpreter" in \
+		/*/.venv/bin/python*) runtime_checkout=$${interpreter%/.venv/bin/python*} ;; \
+		*) echo "ERROR: trusted quality-gate CLI launcher is malformed" >&2; exit 1 ;; \
+	esac; \
+	if [ ! -e "$$runtime_checkout" ] && [ ! -L "$$runtime_checkout" ]; then \
+		mkdir -p "$$(dirname "$$runtime_checkout")"; \
+		ln -s "$(CURDIR)" "$$runtime_checkout"; \
+	fi; \
+	if [ "$$(stat -Lc '%d:%i' "$$runtime_checkout" 2>/dev/null)" != \
+		"$$(stat -Lc '%d:%i' "$(CURDIR)")" ]; then \
+		echo "ERROR: trusted quality-gate CLI source alias is not the candidate snapshot" >&2; \
+		exit 1; \
+	fi
 endif
 
 start: setup

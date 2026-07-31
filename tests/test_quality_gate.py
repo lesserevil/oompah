@@ -3,10 +3,12 @@ from __future__ import annotations
 import hashlib
 import http.server
 import json
+import os
 from pathlib import Path
 import shlex
 import shutil
 import subprocess
+import sys
 import threading
 import time
 import urllib.request
@@ -433,7 +435,10 @@ def test_gate_subprocess_isolates_operator_and_tool_state(tmp_path, monkeypatch)
     assert values[4].isdigit() and values[4] != "8090"
     assert values[5] == "/oompah-gate/tmp"
     assert values[6] == "/oompah-gate/tmp"
-    assert not Path(values[0]).exists(), "sandbox-visible gate root leaked on host"
+    if os.environ.get("OOMPAH_PYTEST_GATE") == "1":
+        assert Path(values[0]).is_dir(), "outer gate root is not available"
+    else:
+        assert not Path(values[0]).exists(), "sandbox-visible gate root leaked on host"
 
 
 def test_preflight_allows_lifecycle_evolution_behind_os_boundary(tmp_path):
@@ -472,6 +477,53 @@ def test_snapshot_excludes_host_lifecycle_state_and_preserves_source_worktree(tm
     assert result.passed
     assert "snapshot-control" in result.output_tail
     assert canonical_pid.read_text(encoding="utf-8") == "host sentinel\n"
+
+
+def test_snapshot_contains_private_exact_head_git_metadata(tmp_path):
+    """Revision tests see the exact commit without the operator repository."""
+    repo = _git_repo(tmp_path)
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    run_root = BranchQualityGate._gate_run_root()
+    try:
+        snapshot = BranchQualityGate._snapshot_candidate_worktree(
+            str(repo), run_root, head
+        )
+        snapshot_head = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=snapshot,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        status = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=snapshot,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        remotes = subprocess.run(
+            ["git", "remote"],
+            cwd=snapshot,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        config = (snapshot / ".git" / "config").read_text(encoding="utf-8")
+
+        assert snapshot_head == head
+        assert status == ""
+        assert remotes == ""
+        assert str(repo.resolve()) not in config
+        assert not (snapshot / ".git" / "FETCH_HEAD").exists()
+    finally:
+        BranchQualityGate._cleanup_gate_run_root(run_root)
 
 
 def test_snapshot_rejects_a_candidate_symlink_to_host_state(tmp_path):
@@ -513,6 +565,23 @@ def test_sandbox_command_uses_an_empty_root_and_private_runtime_mounts(
         assert (str(run_root), "/oompah-gate") in pairs
         assert ("--cap-add", "CAP_NET_ADMIN") in pairs
         assert 'ip link set lo up 2>/dev/null || true; exec "$@"' in command
+        runtime_prefix = Path(sys.prefix).resolve()
+        if runtime_prefix != Path(sys.base_prefix).resolve():
+            bind_triples = {
+                tuple(command[index : index + 3])
+                for index in range(len(command) - 2)
+                if command[index] in {"--bind", "--ro-bind"}
+            }
+            assert (
+                "--bind",
+                str(snapshot),
+                str(runtime_prefix.parent),
+            ) in bind_triples
+            assert (
+                "--ro-bind",
+                str(runtime_prefix),
+                str(runtime_prefix),
+            ) in bind_triples
     finally:
         BranchQualityGate._cleanup_gate_run_root(run_root)
 

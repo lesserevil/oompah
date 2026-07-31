@@ -46,9 +46,16 @@ def test_quality_gate_uses_trusted_runtime_without_uv(tmp_path):
     """Gate mode validates the projected venv without trying to mutate it."""
     venv = tmp_path / "read-only-venv"
     python = venv / "bin" / "python"
+    runtime_checkout = tmp_path / "trusted-install" / "oompah"
+    launcher = venv / "bin" / "oompah"
     python.parent.mkdir(parents=True)
     python.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
     python.chmod(0o555)
+    launcher.write_text(
+        f"#!{runtime_checkout}/.venv/bin/python3\nraise SystemExit(0)\n",
+        encoding="utf-8",
+    )
+    launcher.chmod(0o555)
     venv.chmod(0o555)
     try:
         environment = os.environ.copy()
@@ -71,6 +78,41 @@ def test_quality_gate_uses_trusted_runtime_without_uv(tmp_path):
 
     assert result.returncode == 0, result.stdout + result.stderr
     assert "uv" not in result.stdout + result.stderr
+    assert runtime_checkout.is_symlink()
+    assert runtime_checkout.resolve() == ROOT
+
+
+def test_quality_gate_rejects_cli_alias_to_non_candidate_checkout(tmp_path):
+    """An existing trusted-launcher path cannot redirect imports elsewhere."""
+    venv = tmp_path / "read-only-venv"
+    python = venv / "bin" / "python"
+    runtime_checkout = tmp_path / "wrong-checkout"
+    launcher = venv / "bin" / "oompah"
+    python.parent.mkdir(parents=True)
+    python.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    python.chmod(0o755)
+    runtime_checkout.mkdir()
+    launcher.write_text(
+        f"#!{runtime_checkout}/.venv/bin/python3\nraise SystemExit(0)\n",
+        encoding="utf-8",
+    )
+    launcher.chmod(0o755)
+
+    result = subprocess.run(
+        [
+            "/usr/bin/make",
+            "--no-print-directory",
+            "OOMPAH_PYTEST_GATE=1",
+            f"VENV={venv}",
+            "test-setup",
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode != 0
+    assert "CLI source alias is not the candidate snapshot" in result.stderr
 
 
 def test_quality_gate_fails_closed_without_trusted_python(tmp_path):

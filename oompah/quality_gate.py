@@ -470,9 +470,66 @@ class BranchQualityGate:
                     except TypeError:
                         candidate_archive.extract(member, path=snapshot)
             archive_path.unlink()
+            # Preserve exact-revision tests without exposing the service's
+            # live object database, worktree metadata, remotes, or hooks.  A
+            # shallow local fetch copies only the candidate commit into this
+            # disposable repository; reset populates the index but never
+            # replaces the archive contents validated above.
+            commands = (
+                ("git", "init", "--quiet"),
+                (
+                    "git",
+                    "fetch",
+                    "--quiet",
+                    "--depth=1",
+                    "--no-tags",
+                    str(Path(repo_path).resolve()),
+                    str(head_sha),
+                ),
+            )
+            for command in commands:
+                completed = subprocess.run(
+                    command,
+                    cwd=snapshot,
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+                if completed.returncode != 0:
+                    detail = (completed.stderr or completed.stdout).strip()[-500:]
+                    raise tarfile.TarError(
+                        "cannot create private exact-head Git metadata"
+                        + (f": {detail}" if detail else "")
+                    )
+            private_head = subprocess.run(
+                ["git", "rev-parse", "FETCH_HEAD"],
+                cwd=snapshot,
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=15,
+            ).stdout.strip()
+            for command in (
+                ("git", "update-ref", "refs/heads/quality-gate", private_head),
+                ("git", "symbolic-ref", "HEAD", "refs/heads/quality-gate"),
+                ("git", "reset", "--mixed", "--quiet", private_head),
+            ):
+                subprocess.run(
+                    command,
+                    cwd=snapshot,
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                    timeout=15,
+                )
+            (snapshot / ".git" / "FETCH_HEAD").unlink(missing_ok=True)
         except (OSError, tarfile.TarError) as exc:
             raise _SandboxUnavailable(
                 f"cannot prepare an immutable candidate snapshot: {exc}"
+            ) from exc
+        except subprocess.SubprocessError as exc:
+            raise _SandboxUnavailable(
+                f"cannot prepare private exact-head Git metadata: {exc}"
             ) from exc
         return snapshot
 
@@ -693,6 +750,25 @@ class BranchQualityGate:
             if link_target.startswith("/"):
                 python_destination = Path(link_target).parent.parent
             add_destination(python_destination)
+            runtime_checkout = runtime_prefix.parent
+            if runtime_prefix != base_prefix and runtime_checkout != repo:
+                # Editable console launchers retain the trusted environment's
+                # absolute shebang and source path.  Map those paths to the
+                # candidate snapshot and the same read-only runtime, never to
+                # the operator checkout, so packaging/CLI tests exercise this
+                # exact head without mutating the trusted virtualenv.
+                add_destination(runtime_checkout)
+                add_destination(runtime_prefix)
+                runtime_binds.extend(
+                    [
+                        "--bind",
+                        str(repo),
+                        str(runtime_checkout),
+                        "--ro-bind",
+                        str(runtime_prefix),
+                        str(runtime_prefix),
+                    ]
+                )
             runtime_binds.extend(
                 [
                     "--ro-bind",
