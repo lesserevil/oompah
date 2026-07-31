@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-07-31T12:08:04.411352Z'
+updated_at: '2026-07-31T12:09:28.508617Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -559,5 +559,16 @@ author: oompah
 created: 2026-07-31 12:08
 ---
 Understanding: Reviewing state at head 1b49ab0f4. Previous two 'Branch quality gate failed' notices were operator-terminated full make test runs (PGID 2487891 at 11:53 and PGID 2991395 at 12:07), not real test failures. Operator has explicitly and repeatedly instructed: 'run focused regression tests only. Oompah will run the configured complete branch gate once for the accepted exact review-ready head.' Full gate authority remains finish-order blocked on OOMPAH-657. Plan: verify focused suites (duplicate_screening, duplicate_preflight, candidate_preflight, orchestrator_duplicate_detection, server_duplicate_screening_sync, dashboard_duplicate_screening, models, intake_schema, intake_approval, oompah_md_tracker) still pass at current head, then submit. No code changes needed — implementation already delivered per 12:05 completion note.
+---
+author: oompah
+created: 2026-07-31 12:09
+---
+Verification: Focused suites all green at head 1b49ab0f4.
+- tests/test_duplicate_screening.py + tests/test_duplicate_preflight.py: 32 passed (0.7s)
+- tests/test_candidate_preflight.py + tests/test_orchestrator_duplicate_detection.py + tests/test_server_duplicate_screening_sync.py + tests/test_dashboard_duplicate_screening.py: 87 passed (28.7s)
+- tests/test_models.py + tests/test_intake_schema.py + tests/test_intake_approval.py + tests/test_oompah_md_tracker.py: 286 passed (5.6s)
+- tests/test_intake_promotion.py + tests/test_epic_proposal.py + tests/test_duplicate_names.py: 45 passed (3.1s)
+
+Total: 450 focused tests passing across the duplicate-screening / intake surface. No code changes required; the previous 'gate blocked' notices were operator-terminated premature full make test runs, per operator's explicit guidance (11:53, 12:07) to run focused regressions only until OOMPAH-657 finalizes exact-head gate authority. Ready for the server-owned single full gate.
 ---
 <!-- COMMENTS:END -->

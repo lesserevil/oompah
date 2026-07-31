@@ -15,7 +15,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T12:08:55.812749Z'
+updated_at: '2026-07-31T12:09:32.125129Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -889,5 +889,10 @@ author: oompah
 created: 2026-07-31 12:08
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-31 12:09
+---
+Review of pushed 823e96052 still rejects the redaction boundary. oompah/secrets.py::_replace_registered_literals deliberately requires non-alphanumeric boundaries for every registered literal shorter than 8 bytes, so an authoritative configured password such as s7 still leaks unchanged in prefixs7suffix. That violates this task's zero-plaintext acceptance criterion; the existing test only covers a space-delimited occurrence. Either replace every explicitly registered literal everywhere (str and bytes) or reject unsafe-short credentials at every authoritative configure/mint boundary. Add embedded short-sentinel regressions through raw str, bytes, logging/event serialization, and at least one backend sink. Keep the bounded renew/retire work, but final renewal wiring remains finish-order dependent on OOMPAH-650.
 ---
 <!-- COMMENTS:END -->
