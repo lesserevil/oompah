@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-663
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Canonicalize integrated-task fingerprints for owner overrides
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T13:52:05.961085Z'
-updated_at: '2026-07-31T14:38:36.058431Z'
+updated_at: '2026-07-31T14:40:37.767758Z'
 work_branch: OOMPAH-663
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/622
@@ -96,6 +96,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-6e2ab2992878: '2026-07-31T14:37:53.998603+00:00'
+    attempt-799ddfb586a7: '2026-07-31T14:40:33.673395+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-663
@@ -106,6 +107,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-07-31T14:37:53.998615+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-663
+    target_state: Merged
+    evidence_fingerprint: 790ee7440f97e73faa428b23003453c657218534cdd2ca9e06be63e1de774c92
+    audit_ids:
+    - audit-72931fc74ad8
+    kind: result
+    applied: true
+    retired_at: '2026-07-31T14:40:33.673412+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-663
@@ -119,6 +129,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-07-31T14:37:53.998631+00:00'
     applied_at: '2026-07-31T14:37:56.824563+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-663
+    audit_id: audit-72931fc74ad8
+    attempt_id: attempt-799ddfb586a7
+    target_state: Merged
+    evidence_fingerprint: 790ee7440f97e73faa428b23003453c657218534cdd2ca9e06be63e1de774c92
+    status: Merged
+    audit_ids:
+    - audit-72931fc74ad8
+    applied: false
+    created_at: '2026-07-31T14:40:33.673435+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -160,7 +181,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-663
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -169,7 +190,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-799ddfb586a7
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -179,13 +200,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T14:38:31.054311+00:00'
       branch_key: OOMPAH-663
+      verdict: pass
+      completed_at: '2026-07-31T14:40:33.673175+00:00'
+      ended_at: '2026-07-31T14:40:33.673175+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-07-31T14:29:26.730864+00:00'
-    updated_at: '2026-07-31T14:38:31.054311+00:00'
+    updated_at: '2026-07-31T14:40:33.673175+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-6e2ab2992878
@@ -420,5 +444,26 @@ author: oompah
 created: 2026-07-31 14:38
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 14:40
+---
+Audit PASS — Merged
+
+Merged transition supported: PR #622 merged into main; commit 3bfc42ec9 is contained in origin/main tip 8c75a201e; branch gate PASS at head; regression tests present; prior Done audit passed.
+
+Safe evidence:
+- head_sha: 3bfc42ec9e14809441868bba108fe5dccec18ab7
+- merge_commit: 8c75a201e328949d4057bfbd53e11cd5498ed72f
+- origin_main_tip: 8c75a201e328949d4057bfbd53e11cd5498ed72f
+- pr_number: 622
+- branch_contains_head: main, OOMPAH-663
+- branch_gate: make test PASS in 399.8s at 3bfc42ec9
+- regression_test_file: tests/test_terminal_fingerprint_canonicalization.py
+- files_changed: oompah/acp_tools.py, oompah/orchestrator.py, oompah/server.py, oompah/terminal_audit.py, tests/test_terminal_fingerprint_canonicalization.py (5 files, +455/-2)
+- prior_done_audit: PASS at 14:37
+- working_tree: clean
+- canonical_function: compute_issue_evidence_fingerprint (oompah/terminal_audit.py)
+- auditor_provenance_separation: AuditAttempt provider/model/timestamps kept out of EvidenceFingerprint payload
 ---
 <!-- COMMENTS:END -->
