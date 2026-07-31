@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T11:06:15.542774Z'
-updated_at: '2026-07-31T11:12:59.352083Z'
+updated_at: '2026-07-31T11:16:27.206778Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -140,5 +140,10 @@ author: oompah
 created: 2026-07-31 11:12
 ---
 Third live reproduction: moving rejected OOMPAH-653 head 59436e50aa0122224ad01746c6b7b8380a52241b from Ready to Integrate back to Open did not cancel its just-launched make test. Operator revalidated cwd/head/PGID and terminated only stale gate PGID 1303079. The tracker transition and gate launch are racing repeatedly across tasks.
+---
+author: oompah
+created: 2026-07-31 11:16
+---
+Root-cause pointer from the live reproductions: _retire_inactive_integration_rows only treats terminal/In Validation/Needs Human as inactive, so Ready to Integrate to Open leaves ready/integrating rows alive. Cancel whenever the current task no longer exactly matches Ready to Integrate plus the queued IntegrationRecord branch/head/generation, and cancel the matching gate generation. In execute_integration, commit_allowed is checked before preparation and after the gate, so authority withdrawal during snapshot creation/Popen cannot stop the expensive gate; add a cancellation token/tombstone checked before and immediately after spawn and driven by the tracker transition. There is currently a Popen-before-_active_generations registration window where cancel_generation can miss the process, and cancellation during git worktree creation can still launch afterward. Standalone _review_quality_gate_passes likewise runs from a stale Issue object; bind expected head/state to StandaloneDeliveryAuthority and recheck before spawn and before consuming pass. Add barriers for cancellation during snapshot creation and between Popen and registration, not only after the process is in the map.
 ---
 <!-- COMMENTS:END -->
