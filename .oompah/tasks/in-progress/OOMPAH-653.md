@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-653
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Make terminal-audit success and owner override retire every duplicate record
   and alert
@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T11:28:42.034924Z'
+updated_at: '2026-07-31T11:41:37.202350Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,25 +24,29 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 6b1c286815aaf553975f6358446723482d3994ccfdaa1fc4be3ac60cf862e5f9
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-07-31T11:41:24.598602+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 45ee06cb-15f8-4e2b-a3dc-e65cf431f24b
-  claim_owner: f6d86559-4e9d-42bf-ac66-416781dbb14f
-  claimed_at: '2026-07-31T11:28:37.311859+00:00'
-  claim_expires_at: '2026-07-31T11:58:37.311859+00:00'
+  evidence: "Focus handoff: duplicate_detector\n\nDuplicate preflight verdict: no_duplicate\n\
+    \nMatches: none\n\nEvidence: Active native tasks are unrelated OOMPAH-281 and\
+    \ OOMPAH-282. Closest reviewed records\u2014archived OOMPAH-232 (duplicate task\
+    \ IDs), OOMPAH-219 (shared-worktree absorption), OOMPAH-28 (native transitions),\
+    \ and OOMPAH-265 (git push race)\u2014cover different problems."
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 6b2026e6-68ab-4b48-bdd5-44db21df166e
+oompah.agent_run_id: c208c994-70d2-4dd2-871f-a8df3ac1b3aa
 oompah.task_costs:
-  total_input_tokens: 16258103
-  total_output_tokens: 60424
+  total_input_tokens: 17049872
+  total_output_tokens: 69988
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 15537183
-      output_tokens: 51842
+      input_tokens: 16328952
+      output_tokens: 61406
       cost_usd: 0.0
     opus:
       input_tokens: 720920
@@ -91,6 +95,12 @@ oompah.task_costs:
     output_tokens: 4750
     cost_usd: 0.0
     recorded_at: '2026-07-31T11:11:57.386162+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 791769
+    output_tokens: 9564
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T11:41:24.597261+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-653__20260731T090421Z
@@ -125,6 +135,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-653
     source_sha: fb68d377ca652cd64fefea93156d6153c7357ceb
     completed_at: '2026-07-31T10:57:09.155505+00:00'
+  - run_id: OOMPAH-653__20260731T112843Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: OOMPAH-653
+    source_sha: 44742bb1f7db1a1b1c1d62dea822a549e15499c3
+    completed_at: '2026-07-31T11:41:24.609914+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -632,5 +650,25 @@ author: oompah
 created: 2026-07-31 11:28
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-31 11:41
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 4, Tool calls: 113
+- Tokens: 791.8K in / 9.6K out [801.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 12m 45s
+- Log: OOMPAH-653__20260731T112843Z.jsonl
+---
+author: oompah
+created: 2026-07-31 11:41
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-31 11:41
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
