@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T11:44:16.292188Z'
+updated_at: '2026-07-31T11:45:46.141988Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -837,5 +837,28 @@ author: oompah
 created: 2026-07-31 11:44
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-07-31 11:45
+---
+**SECURITY AUDIT: Understanding & Action Plan**
+
+Exact-head review (7d9b597a1) rejected for 4 critical defects:
+
+**(1) Mutation Race Condition**: api_task_handoff calls validate → refresh → async tracker I/O. Between refresh succeeding and mutation completing, revoke() can mark grant as revoked. Tracker mutation proceeds unchecked because no operation authorization prevents stale mutations.
+
+**(2) Bearer-Driven Refresh**: Endpoint refresh_task_handoff_token() acts as sliding-window extension. This should be removed; server-owned lease must be sole renewal mechanism.
+
+**(3) Zero-Handoff Test**: test_worker_lifetime_grant_survives_zero_handoff_requests manually invokes store.refresh() directly instead of starting actual TaskHandoffLease. Doesn't test real heartbeat mechanism.
+
+**(4) No Restart Preservation**: Store is process-local; no test for graceful restart with grant preservation or atomic replacement.
+
+**Fixes Required**:
+1. Implement linearizable per-grant operation authorization/permit shared with revoke()
+2. Remove bearer-driven refresh_task_handoff_token() call from endpoint
+3. Add deterministic lease test with test clock/barriers  
+4. Add graceful restart and termination tests
+
+Will implement fixes in this order, run focused tests, verify all security properties are maintained.
 ---
 <!-- COMMENTS:END -->
