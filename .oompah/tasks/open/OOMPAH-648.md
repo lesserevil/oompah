@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-648
 type: task
-status: In Progress
+status: Open
 priority: null
 title: Keep live long-running tool calls from triggering agent stall termination
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:15:42.851609Z'
-updated_at: '2026-07-31T07:43:30.216847Z'
+updated_at: '2026-07-31T07:46:00.080832Z'
 work_branch: null
 target_branch: null
 review_url: null
