@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:47:58.732088Z'
-updated_at: '2026-07-31T07:14:21.761168Z'
+updated_at: '2026-07-31T07:24:46.497151Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -192,5 +192,16 @@ author: oompah
 created: 2026-07-31 07:14
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-07-31 07:24
+---
+Understanding: The bug is in build_terminal_audit_health (oompah/terminal_audit_health.py). When an audit record has a transport failure in attempt 1 but attempt 2 is IN_PROGRESS (recovering), the health function still counts attempt 1's transport failure as an actionable alert. This alert persists until the next scan after OOMPAH-607 leaves In Validation, creating a window where the stale alert appears to describe a newly-entered task (OOMPAH-641).
+
+Root cause: The failure-counting loop in build_terminal_audit_health counts ALL PENDING attempts with ended_at, regardless of whether the parent record is IN_PROGRESS (indicating an active replacement is running).
+
+Fix: Only count transport/launch failures when record.request_state == RequestState.PENDING (no active attempt running). When IN_PROGRESS, past failures are being recovered - no operator action needed. Also guard retry_exhausted_count similarly since an IN_PROGRESS last attempt hasn't failed yet.
+
+Required tests: IN_PROGRESS record with past transport failure → no alert; PENDING record with transport failure → alert; transition from IN_PROGRESS back to PENDING re-fires alert; multi-project isolation; one recovered + different pending stays clean.
 ---
 <!-- COMMENTS:END -->

@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:09:27.752943Z'
-updated_at: '2026-07-31T07:15:53.995500Z'
+updated_at: '2026-07-31T07:24:50.680570Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -122,5 +122,10 @@ author: oompah
 created: 2026-07-31 07:15
 ---
 **Discovery**: Found the key locations that need changes:\n\n1. `oompah/integration_executor.py` L30-39: `_git()` function uses bare `subprocess.run(['git', ...])` with no environment override — any `EDITOR` var from the host can be inherited\n2. `oompah/focus.py` L468-491: `merge_conflict` focus `must_do` list does not mention using `GIT_EDITOR=true` before `git rebase --continue`\n3. `oompah/cherry_pick_pr_creator.py` L267,312,339: multiple subprocess git calls also inherit host env\n\nNo existing `GIT_EDITOR` or `GIT_SEQUENCE_EDITOR` references anywhere in the codebase. Creating new module `oompah/git_noninteractive.py` as the canonical fix point.
+---
+author: oompah
+created: 2026-07-31 07:24
+---
+**Implementation**: Created `oompah/git_noninteractive.py` with `NONINTERACTIVE_GIT_ENV` dict and `run_rebase_continue()` helper. Updated `integration_executor._git()` and all `cherry_pick_pr_creator` subprocess calls to pass noninteractive env. Updated `focus.py` merge_conflict focus with explicit GIT_EDITOR=true instruction and prohibition on bare 'git rebase --continue'. Added 18 tests covering all 5 acceptance criteria. Updated 2 existing test files to account for changed call signatures/wording.
 ---
 <!-- COMMENTS:END -->
