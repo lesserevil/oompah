@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-661
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Cancel stale implementation retries when task authority changes
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T13:12:19.387161Z'
-updated_at: '2026-07-31T15:34:38.212650Z'
+updated_at: '2026-07-31T15:42:28.300223Z'
 work_branch: OOMPAH-661
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/624
@@ -145,6 +145,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/624
 oompah.review_number: '624'
 oompah.work_branch: OOMPAH-661
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-0e987255d283
+    project_id: proj-14849f1b
+    task_id: OOMPAH-661
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 14b0fff947c955531a8c8d60ffe3d0bb1ff97cdf73430f4b709cecfddd63f421
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-31T15:42:22.659039+00:00'
+  - version: 1
+    audit_id: audit-a05244d88a7c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-661
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 14b0fff947c955531a8c8d60ffe3d0bb1ff97cdf73430f4b709cecfddd63f421
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-31T15:42:22.659039+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -465,5 +504,15 @@ author: oompah
 created: 2026-07-31 15:34
 ---
 Branch quality gate passed for `e1c6e394e6136ec8057fb41684049d9b97b4ca2e` using `make test` in 377.3s. Review creation may proceed.
+---
+author: oompah
+created: 2026-07-31 15:42
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-07-31 15:42
+---
+YOLO: merged PR #624.
 ---
 <!-- COMMENTS:END -->
