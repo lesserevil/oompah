@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-460
 type: epic
-status: Open
+status: In Validation
 priority: 1
 title: Expose terminal audits in the UI, observability, migration, and end-to-end
   tests
@@ -30,12 +30,60 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:03:47.776498Z'
-updated_at: '2026-07-31T04:24:13.891358Z'
+updated_at: '2026-07-31T04:25:01.866614Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-072565b727d5
+    project_id: proj-14849f1b
+    task_id: OOMPAH-460
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: fd0747b9bdba754f77a8fc86c71d70ecdff91f8b3cbad76a463dd53d3644e757
+    attempts:
+    - version: 1
+      attempt_id: attempt-053f80903b1e
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: fd0747b9bdba754f77a8fc86c71d70ecdff91f8b3cbad76a463dd53d3644e757
+      created_at: '2026-07-31T04:24:57.796303+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-31T04:24:57.796303+00:00'
+      branch_key: OOMPAH-460
+    requested_by:
+      version: 1
+      identity: orchestrator
+    previous_state: Open
+    created_at: '2026-07-31T04:24:53.487735+00:00'
+    updated_at: '2026-07-31T04:24:57.796303+00:00'
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-053f80903b1e
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: fd0747b9bdba754f77a8fc86c71d70ecdff91f8b3cbad76a463dd53d3644e757
+    created_at: '2026-07-31T04:24:57.796303+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-31T04:24:57.796303+00:00'
+    branch_key: OOMPAH-460
 ---
 ## Summary
 
@@ -77,5 +125,20 @@ author: oompah
 created: 2026-07-31 04:24
 ---
 Recovery reconciliation: origin/main is an ancestor of current origin/epic-OOMPAH-460 (0 behind, 6 ahead at 0d7c3578f); OOMPAH-634 is Done and duplicate OOMPAH-636 Archived. Cleared stale rebase-requested/epic:rebasing labels so normal epic rollup and PR maintenance can resume.
+---
+author: oompah
+created: 2026-07-31 04:24
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-07-31 04:24
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-07-31 04:25
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
