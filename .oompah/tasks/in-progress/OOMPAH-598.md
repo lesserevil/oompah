@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:29.695490Z'
-updated_at: '2026-07-31T01:25:04.380611Z'
+updated_at: '2026-07-31T01:25:45.375114Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-598
 target_branch: null
 review_url: null
@@ -311,5 +311,25 @@ author: oompah
 created: 2026-07-31 01:25
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-31 01:25
+---
+UNDERSTANDING: The issue requires detecting standalone tasks in 'Ready to Integrate' state with pushed branches but no active integration or open PR. Must:
+1. Add reconciliation logic to find such orphaned tasks
+2. Deterministically select delivery mechanism (queue vs PR)
+3. Enqueue/open idempotently without duplicates
+4. Handle gate failures gracefully
+5. Recover 4 current broken rows (OOMPAH-574/575/576/581)
+
+Approach:
+- Find the reconciliation entry point (likely in orchestrator or main polling loop)
+- Examine integration_queue.py and related delivery mechanisms
+- Add a new reconciliation phase for standalone ready tasks
+- Implement idempotency checks to prevent duplicate PRs/queue rows
+- Write comprehensive tests covering all scenarios
+- Verify the 4 broken tasks get valid delivery paths
+
+Starting with code exploration.
 ---
 <!-- COMMENTS:END -->
