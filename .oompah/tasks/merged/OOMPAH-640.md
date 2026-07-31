@@ -8,11 +8,10 @@ parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels:
-- ci-fix
+labels: []
 assignee: null
 created_at: '2026-07-31T05:59:47.260716Z'
-updated_at: '2026-07-31T07:12:47.154436Z'
+updated_at: '2026-07-31T07:12:58.708859Z'
 work_branch: OOMPAH-640
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/608
