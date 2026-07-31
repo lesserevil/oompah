@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-640
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Complete combined stall-to-dispatch recovery regression coverage
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T05:59:47.260716Z'
-updated_at: '2026-07-31T06:35:11.469649Z'
+updated_at: '2026-07-31T06:35:29.008186Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -81,9 +81,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-640
-  head_sha: f97d7eca3762178778c7ef49b3c89ae64a0bba0c
-  submitted_at: '2026-07-31T06:17:31.124480+00:00'
-  updated_at: '2026-07-31T06:17:31.124480+00:00'
+  head_sha: 5a5f4867f2d5c640069b16fe6eaf45e09a54c963
+  submitted_at: '2026-07-31T06:35:24.756470+00:00'
+  updated_at: '2026-07-31T06:35:24.756470+00:00'
 ---
 ## Summary
 
@@ -358,5 +358,16 @@ Previously failing:
 - test_approval_comment_auto_promotes_when_project_allows_it: PASSED ✓
 
 Branch pushed: 5a5f4867f. Ready for gate rerun.
+---
+author: oompah
+created: 2026-07-31 06:35
+---
+Fixed 2 CI test failures on branch OOMPAH-640:
+
+1. test_client_auth.py::test_current_dotenv_replaces_stale_client_inputs — Added monkeypatch.delenv(CLIENT_AUTH_DISABLED_ENV, raising=False) to clear the OOMPAH_DISABLE_CLIENT_AUTH=1 worker marker that agent environments set, which was causing load_client_environment() to return 0 early.
+
+2. test_intake_promotion.py::test_approval_comment_auto_promotes_when_project_allows_it — Replaced flaky 50x20ms busy-poll with threading.Event + 3-second timeout (same stabilization pattern already applied to the adjacent test in commit d61679dbe).
+
+Neither failure was caused by this branch's feature work (test_stall_to_dispatch_recovery.py). Both were pre-existing defects exposed by the agent worktree environment.
 ---
 <!-- COMMENTS:END -->
