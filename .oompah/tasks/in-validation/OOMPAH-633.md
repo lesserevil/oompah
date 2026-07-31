@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:54:49.391955Z'
-updated_at: '2026-07-31T01:16:28.875706Z'
+updated_at: '2026-07-31T01:18:16.137142Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-633
 target_branch: null
 review_url: null
@@ -286,5 +286,10 @@ author: oompah
 created: 2026-07-31 01:16
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 01:18
+---
+Pre-audit review found a coverage defect in 63f8d043c: test_nested_epic_queue_repair_denies_unrelated_epic_target sets parent_id=EPIC-OTHER and target=epic-EPIC-OTHER, so the target is actually the declared authoritative parent; it returns False only because _resolve_parent_epic is not wired in that test. Replace it with a resolved real parent whose branch differs from the mocked target. The task acceptance also explicitly requires nested already-reachable/nonterminal no-rebase cases and a successful parent synchronization that lets claim_next advance; add deterministic coverage for those paths before PASS. The production allow-only-resolved-parent check itself appears structurally sound.
 ---
 <!-- COMMENTS:END -->
