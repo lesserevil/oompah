@@ -43,6 +43,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from oompah.secrets import redact_sensitive_data
+
 
 # ---------------------------------------------------------------------------
 # Schema constants
@@ -139,6 +141,9 @@ class ConsoleEvent:
         Optional keys appear only when their value differs from the
         dataclass default. This keeps the on-disk JSONL compact and
         makes diffing transcripts easy.
+
+        Secrets (passwords, tokens, API keys, etc.) are redacted from
+        all fields before serialization.
         """
         out: dict[str, Any] = {"ts": self.ts, "kind": self.kind}
         if self.backend is not None:
@@ -146,17 +151,17 @@ class ConsoleEvent:
         if self.model is not None:
             out["model"] = self.model
         if self.text is not None:
-            out["text"] = self.text
+            out["text"] = redact_sensitive_data(self.text)
         if self.tool is not None:
             out["tool"] = self.tool
         if self.args is not None:
-            out["args"] = self.args
+            out["args"] = redact_sensitive_data(self.args)
         if self.result is not None:
-            out["result"] = self.result
+            out["result"] = redact_sensitive_data(self.result)
         if self.is_error:
             out["is_error"] = True
         if self.usage is not None:
-            out["usage"] = self.usage
+            out["usage"] = redact_sensitive_data(self.usage)
         if self.raw_event_kind is not None:
             out["raw_event_kind"] = self.raw_event_kind
         if self.attachments is not None:
