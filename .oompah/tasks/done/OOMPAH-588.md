@@ -15,7 +15,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:13:46.482910Z'
-updated_at: '2026-07-31T05:09:20.304411Z'
+updated_at: '2026-07-31T05:09:40.001100Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -74,6 +74,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-07-31T05:03:04.101670+00:00'
     branch_key: OOMPAH-588
+oompah.task_costs:
+  total_input_tokens: 90
+  total_output_tokens: 3061
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 90
+      output_tokens: 3061
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 90
+    output_tokens: 3061
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T05:09:36.128152+00:00'
 ---
 ## Summary
 
@@ -151,5 +167,15 @@ Safe evidence:
 - ac4_visibility: OOMPAH-603 dashboard.html hygiene panel + repo_hygiene.RepoHygieneHealth.to_dict
 - ac5_scope_resolution: _resolve_issue_project_id fail-closed on ambiguity; explicit project-mismatch rejected; legacy tracker never called under managed projects (test_managed_scope_never_calls_legacy_tracker)
 - ac6_gates: OOMPAH-600 submission: 13914 passed / 7 skipped; OOMPAH-603 submission: full Makefile gate green; operator recovery: 33 focused + terminal mutation scan passed
+---
+author: oompah
+created: 2026-07-31 05:09
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 60
+- Tokens: 90 in / 3.1K out [3.2K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 6m 24s
+- Log: OOMPAH-588__20260731T050322Z.jsonl
 ---
 <!-- COMMENTS:END -->
