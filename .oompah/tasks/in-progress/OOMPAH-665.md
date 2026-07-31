@@ -12,7 +12,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-07-31T16:04:07.401588Z'
-updated_at: '2026-07-31T21:33:46.245351Z'
+updated_at: '2026-07-31T21:41:54.298162Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -489,5 +489,10 @@ author: oompah
 created: 2026-07-31 21:33
 ---
 Verification: focused observability and terminal-transition suites pass: 134 passed in 5.13s. The tests cover migrated override/PASS metadata, changed fingerprints after merge, restart recovery, reopened current Needs Human decisions, quarantine/read failures, project isolation, and mismatched retirement identity.
+---
+author: oompah
+created: 2026-07-31 21:41
+---
+Verification: terminal-audit-scan passed (6 identified, 6 allowlisted). The full Makefile test target was attempted exactly but host Snap uv failed before setup with DBus transient-scope error. Using the existing dependency-complete venv, the same Makefile test runner completed 14,539 passed, 7 skipped, 1 xfailed, and 55 warnings; one unrelated CLI-install compatibility test failed because its isolated pip build could not import hatchling.build. The task-focused 134 tests remain green.
 ---
 <!-- COMMENTS:END -->
