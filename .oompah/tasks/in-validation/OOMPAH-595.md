@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-595
 type: feature
-status: Needs Human
+status: In Validation
 priority: 1
 title: Expose separate operator and worker task-auth health signals
 parent: OOMPAH-586
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:56.897824Z'
-updated_at: '2026-07-31T00:37:17.577274Z'
+updated_at: '2026-07-31T00:39:01.537063Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-595
 target_branch: null
 review_url: null
@@ -135,7 +135,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-595
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -164,6 +164,37 @@ oompah.terminal_audit:
     previous_state: Ready to Integrate
     created_at: '2026-07-31T00:13:50.602334+00:00'
     updated_at: '2026-07-31T00:18:20.982531+00:00'
+  - version: 1
+    audit_id: audit-612591e71deb
+    project_id: proj-14849f1b
+    task_id: OOMPAH-595
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 4818bf1084729de2ef0887490ea51286bb480ecbd823735d7271c4e0a3e7a8d5
+    attempts:
+    - version: 1
+      attempt_id: attempt-05f1dc64fc23
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 4818bf1084729de2ef0887490ea51286bb480ecbd823735d7271c4e0a3e7a8d5
+      created_at: '2026-07-31T00:39:00.790988+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-31T00:39:00.790988+00:00'
+      branch_key: epic-OOMPAH-586--task-OOMPAH-595
+    requested_by:
+      version: 1
+      identity: api-client
+      source: api
+    previous_state: Needs Human
+    created_at: '2026-07-31T00:38:54.738900+00:00'
+    updated_at: '2026-07-31T00:39:00.790988+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-e7bb1375c3e2
@@ -177,6 +208,19 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: opus
     started_at: '2026-07-31T00:14:01.504765+00:00'
+    branch_key: epic-OOMPAH-586--task-OOMPAH-595
+  - version: 1
+    attempt_id: attempt-05f1dc64fc23
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 4818bf1084729de2ef0887490ea51286bb480ecbd823735d7271c4e0a3e7a8d5
+    created_at: '2026-07-31T00:39:00.790988+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-31T00:39:00.790988+00:00'
     branch_key: epic-OOMPAH-586--task-OOMPAH-595
 ---
 ## Summary
@@ -388,5 +432,10 @@ author: oompah
 created: 2026-07-31 00:37
 ---
 The parent epic OOMPAH-586 merged from epic-OOMPAH-586, but this task was Needs Human with work branch epic-OOMPAH-586--task-OOMPAH-595. Its work is not proven to be in the merged epic. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
+---
+author: oompah
+created: 2026-07-31 00:38
+---
+Repaired landing provenance after the approved OOMPAH-586 rebase: canonical task branch epic-OOMPAH-586--task-OOMPAH-595 now points from pre-rebase ca49d0c25 to rewritten commit 04d072a5f, which is a direct ancestor of merged outer target epic-OOMPAH-584 at cd08185c9. No implementation was missing; the rebase conflict resolution preserved both auth-health and terminal-audit health features. Requesting fresh Done validation on the rewritten evidence.
 ---
 <!-- COMMENTS:END -->
