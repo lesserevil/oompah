@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-650
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Keep scoped task handoff credentials valid for the full worker lifetime
 parent: OOMPAH-619
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T11:21:49.652884Z'
+updated_at: '2026-07-31T11:24:33.553863Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -23,17 +23,29 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: db8e116c60e8b8cf6829245ab4dc610bf28934659f407fdc980e57e875bc78a3
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-07-31T11:24:17.583198+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 5cb75f50-3d05-4616-8ffa-d1b77ba4edb3
-  claim_owner: f6d86559-4e9d-42bf-ac66-416781dbb14f
-  claimed_at: '2026-07-31T11:21:39.698626+00:00'
-  claim_expires_at: '2026-07-31T11:51:39.698626+00:00'
+  evidence: 'Focus handoff: duplicate_detector
+
+
+    Duplicate preflight verdict: no_duplicate
+
+
+    Matches: none
+
+
+    Evidence: Active tasks OOMPAH-619, OOMPAH-623, OOMPAH-645, OOMPAH-651, OOMPAH-653,
+    OOMPAH-655, OOMPAH-657, and OOMPAH-658 were reviewed; none covers scoped credential
+    lifetime renewal. Terminal OOMPAH-575 covers initial credential propagation only
+    and is excluded.'
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 14915a2c-e126-45fc-af77-047e1bed5a8f
+oompah.agent_run_id: 0b790007-df10-4605-b2b1-3d0e679e64a4
 oompah.work_branch: epic-OOMPAH-619--task-OOMPAH-650
 oompah.integration:
   version: 2
@@ -42,15 +54,15 @@ oompah.integration:
   task_branch: epic-OOMPAH-619--task-OOMPAH-650
   base_branch: epic-OOMPAH-619
   base_sha: 3fcdf30caa62fb7709d0cd9e1553320dd11b3877
-  updated_at: '2026-07-31T11:21:47.396765+00:00'
+  updated_at: '2026-07-31T11:24:31.378256+00:00'
 oompah.task_costs:
-  total_input_tokens: 1607548
-  total_output_tokens: 13912
+  total_input_tokens: 3448363
+  total_output_tokens: 20211
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 1607393
-      output_tokens: 9207
+      input_tokens: 3448208
+      output_tokens: 15506
       cost_usd: 0.0
     opus:
       input_tokens: 155
@@ -87,6 +99,12 @@ oompah.task_costs:
     output_tokens: 4705
     cost_usd: 0.0
     recorded_at: '2026-07-31T11:17:34.552368+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 1840815
+    output_tokens: 6299
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T11:24:17.581534+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-650__20260731T090726Z
@@ -97,6 +115,14 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-619--task-OOMPAH-650
     source_sha: 0dc7d0f7caeea06a6eceb55ea2e58cf16554f0a4
     completed_at: '2026-07-31T09:10:27.032754+00:00'
+  - run_id: OOMPAH-650__20260731T112154Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: epic-OOMPAH-619--task-OOMPAH-650
+    source_sha: 3e8c4daf8ab4a7f84699d6aa979feffb67af3730
+    completed_at: '2026-07-31T11:24:17.597056+00:00'
 ---
 ## Summary
 
@@ -615,5 +641,25 @@ author: oompah
 created: 2026-07-31 11:21
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-31 11:24
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 22
+- Tokens: 1.8M in / 6.3K out [1.8M total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 34s
+- Log: OOMPAH-650__20260731T112154Z.jsonl
+---
+author: oompah
+created: 2026-07-31 11:24
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-31 11:24
+---
+Focus: Security Auditor
 ---
 <!-- COMMENTS:END -->

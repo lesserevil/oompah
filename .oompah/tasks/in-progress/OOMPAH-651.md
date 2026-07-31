@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T11:17:40.216386Z'
+updated_at: '2026-07-31T11:24:34.826415Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -660,5 +660,10 @@ author: oompah
 created: 2026-07-31 11:17
 ---
 Finish-order safety dependency added: implementation may continue, but final integration/gate evidence must wait until OOMPAH-657 immutable exact-head snapshots and stale-generation cancellation are merged/deployed.
+---
+author: oompah
+created: 2026-07-31 11:24
+---
+Current registry draft addresses bounded dynamic retention and existing root handlers, but exact review still finds blocking gaps. Known configured values shorter than 8 characters are silently ignored, so the stated zero-plaintext contract is false unless configuration validation rejects them; do not trade correctness for over-redaction. The supposedly explicit environment allow-list still falls through to a broad PASSWORD/TOKEN/SECRET/API_KEY pattern and ACP still registers arbitrary env keys ending in _KEY; use authoritative credential sources only. install_secret_redaction_filter protects only handlers present at install time, so handlers created later by Granian or reload remain unfiltered; test a descendant logger through the actual final handler configuration and a handler added after bootstrap, or enforce at a global record/sink boundary. The filter doc still falsely says exc_info is not rewritten. GitHub App private-key/installation token sources are not registered in the current changed files. Finally, dynamic handoff redaction expiry is based on the original TTL plus one hour; coordinate with OOMPAH-650 so renewal/rotation keeps every still-live token registered and revoke starts a bounded delayed-writer grace period. Add production-path sink tests rather than only calling the redactor on backend-shaped dictionaries.
 ---
 <!-- COMMENTS:END -->
