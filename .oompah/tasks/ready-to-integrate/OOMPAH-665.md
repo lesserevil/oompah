@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-665
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Retire legacy no-auditor alerts after terminal task completion
 parent: null
@@ -12,7 +12,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-07-31T16:04:07.401588Z'
-updated_at: '2026-07-31T21:41:54.298162Z'
+updated_at: '2026-07-31T21:42:39.382674Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -125,9 +125,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-665
-  head_sha: ccae8b8236d994df4ca11364841cf15619664e5d
-  submitted_at: '2026-07-31T19:09:46.631160+00:00'
-  updated_at: '2026-07-31T19:09:46.631160+00:00'
+  head_sha: f8a1149911e51ebf0e0331ce7cc2a4705bb6a051
+  submitted_at: '2026-07-31T21:42:23.757320+00:00'
+  updated_at: '2026-07-31T21:42:23.757320+00:00'
 ---
 ## Summary
 
@@ -494,5 +494,25 @@ author: oompah
 created: 2026-07-31 21:41
 ---
 Verification: terminal-audit-scan passed (6 identified, 6 allowlisted). The full Makefile test target was attempted exactly but host Snap uv failed before setup with DBus transient-scope error. Using the existing dependency-complete venv, the same Makefile test runner completed 14,539 passed, 7 skipped, 1 xfailed, and 55 warnings; one unrelated CLI-install compatibility test failed because its isolated pip build could not import hatchling.build. The task-focused 134 tests remain green.
+---
+author: oompah
+created: 2026-07-31 21:42
+---
+Completion: rebased onto deployed main, retained the legacy no-auditor retirement implementation plus fail-closed target/fingerprint identity validation, and pushed branch OOMPAH-665 at f8a114991. Focused observability/coordinator tests (134) and terminal-audit-scan pass; full runner evidence is recorded above, with only the host hatchling prerequisite failure in an unrelated CLI-install test.
+---
+author: oompah
+created: 2026-07-31 21:42
+---
+Rebased alert-retirement implementation onto current main; focused tests and audit scan pass.
+---
+author: oompah
+created: 2026-07-31 21:42
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 40
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 10m 38s
+- Log: OOMPAH-665__20260731T213203Z.jsonl
 ---
 <!-- COMMENTS:END -->

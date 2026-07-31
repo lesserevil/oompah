@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:06.140108Z'
-updated_at: '2026-07-31T21:34:28.480697Z'
+updated_at: '2026-07-31T21:42:18.835544Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -338,5 +338,10 @@ author: oompah
 created: 2026-07-31 21:34
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-31 21:42
+---
+Understanding: The CI gate failure is 'make: uv: No such file or directory'. Root cause: the quality gate sandbox (quality_gate.py:_sandbox_command) sets PATH=/usr/bin:/bin:/usr/sbin:/sbin (no ~/.local/bin) and mounts the operator venv read-only at repo/.venv. Git archive assigns all snapshot files the commit timestamp (2026-07-31T21:32:43), which is NEWER than .venv/.uv-test-setup mtime (2026-07-29T22:49:39), so Make tries to rebuild the sentinel by running 'uv pip install' — which fails because uv is not in the restricted PATH and the venv is read-only. Fix: in _sandbox_command, after mounting the venv ro-bind, create writable sentinel files in run_root with current mtime and bind-mount them over the read-only venv sentinels. Make then sees sentinels as current and skips uv invocations entirely.
 ---
 <!-- COMMENTS:END -->
