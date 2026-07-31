@@ -18,7 +18,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T17:00:28.227287Z'
+updated_at: '2026-07-31T17:00:34.804095Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -51,7 +51,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: c06d20ba-42c3-4885-be55-dd44d5d6bc7b
+oompah.agent_run_id: 553dc708-1e85-42db-a8bf-863dd25a6e25
 oompah.task_costs:
   total_input_tokens: 19218202
   total_output_tokens: 124173
@@ -1192,5 +1192,15 @@ Output tail:
 ```text
 OS-enforced quality-gate sandbox is unavailable; refusing to execute candidate code: cannot prepare an immutable candidate snapshot: unsafe link in candidate archive: '.oompah-no-hooks/prepare-commit-msg' -> '/home/shedwards/src/oompah/oompah/git_hooks/prepare-commit-msg'
 ```
+---
+author: oompah
+created: 2026-07-31 17:00
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-31 17:00
+---
+Focus: Event Api Redaction Specialist
 ---
 <!-- COMMENTS:END -->
