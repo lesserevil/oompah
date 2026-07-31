@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:09:07.190386Z'
-updated_at: '2026-07-31T06:48:16.012001Z'
+updated_at: '2026-07-31T06:48:33.540666Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -47,13 +47,17 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: c803da15-5b02-4845-97cc-81c04b4c2e1e
 oompah.task_costs:
-  total_input_tokens: 7891072
-  total_output_tokens: 46331
+  total_input_tokens: 7891149
+  total_output_tokens: 48297
   total_cost_usd: 0.0
   by_model:
     sonnet:
       input_tokens: 7891072
       output_tokens: 46331
+      cost_usd: 0.0
+    opus:
+      input_tokens: 77
+      output_tokens: 1966
       cost_usd: 0.0
   runs:
   - profile: standard
@@ -74,6 +78,12 @@ oompah.task_costs:
     output_tokens: 42289
     cost_usd: 0.0
     recorded_at: '2026-07-31T06:39:30.903651+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 77
+    output_tokens: 1966
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T06:48:31.892652+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-642__20260731T060949Z
@@ -227,5 +237,15 @@ author: oompah
 created: 2026-07-31 06:48
 ---
 Fenced standalone delivery gate outcomes behind a compare-and-swap authority token (per-project-per-task) stored on the orchestrator, revoked synchronously by the terminal transition coordinator on Done/Merged/Archived/branch-or-head change, and validated on every tracker mutation, alert emit/clear, queue update, and retry schedule. Terminal owner overrides now claim/revoke authority atomically, keeping OOMPAH-575-style Merged overrides stable while in-flight gates fall through with a superseded diagnostic instead of committing 'Needs CI Fix' or emitting stranded-delivery alerts. Follow-up commit af6e42339 initialized the new authority state in the exact-head worktree unit test so the CI Failure Fixer suite is green.
+---
+author: oompah
+created: 2026-07-31 06:48
+---
+Run #2 [attempt=2, profile=deep, role=deep -> Claude/opus]
+- Turns: 0, Tool calls: 46
+- Tokens: 77 in / 2.0K out [2.0K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 8m 44s
+- Log: OOMPAH-642__20260731T063952Z.jsonl
 ---
 <!-- COMMENTS:END -->
