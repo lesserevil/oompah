@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-584
 type: epic
-status: In Validation
+status: Merged
 priority: 0
 title: Return the oompah delivery control plane to green
 parent: null
@@ -21,7 +21,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-30T14:13:01.872040Z'
-updated_at: '2026-07-31T05:47:35.304666Z'
+updated_at: '2026-07-31T05:49:18.033870Z'
 work_branch: epic-OOMPAH-584
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/603
@@ -31,6 +31,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-a2bcda188bfb: '2026-07-31T05:43:15.018394+00:00'
+    attempt-67a46d7abb48: '2026-07-31T05:49:14.554776+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -102,7 +103,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-584
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -111,7 +112,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-67a46d7abb48
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -121,13 +122,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T05:47:30.790034+00:00'
       branch_key: epic-OOMPAH-584
+      verdict: pass
+      completed_at: '2026-07-31T05:49:14.554556+00:00'
+      ended_at: '2026-07-31T05:49:14.554556+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-07-31T05:47:11.717816+00:00'
-    updated_at: '2026-07-31T05:47:30.790034+00:00'
+    updated_at: '2026-07-31T05:49:14.554556+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-4132c39c1619
@@ -461,5 +465,28 @@ author: oompah
 created: 2026-07-31 05:47
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 05:49
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- branch_head_local: cf2fd7cfc6f556f51a9f11c6a950f00e6ba2d220
+- prior_branch_head_remote: a3a577a489650c602ec3c62bd242eb53de631af4
+- merge_commit_on_main: bb0fd760c3b2938d15ec2026ef5bfc2fd34b0682
+- merge_commit_subject: Merge pull request #603 from lesserevil/epic-OOMPAH-584
+- merge_parents: 24bd5d6c166af7f8c839e9d5c9e4f3f17d17508e a3a577a489650c602ec3c62bd242eb53de631af4
+- origin_main: bb0fd760c3b2938d15ec2026ef5bfc2fd34b0682
+- prior_origin_main: 24bd5d6c166af7f8c839e9d5c9e4f3f17d17508e
+- branch_contains_check: a3a577a48 is contained in main and origin/main; cf2fd7cfc is patch-equivalent per prior audit tree-equivalence
+- remote_branch_deleted: no refs/remotes/origin/epic-OOMPAH-584 present (deleted after merge)
+- prior_done_audit: Audit PASS — Done was recorded for the same fingerprinted tree with full gate 14,163 passed
+- children_merged: OOMPAH-585, OOMPAH-586, OOMPAH-587, OOMPAH-588
+- children_done: OOMPAH-630, OOMPAH-631, OOMPAH-632, OOMPAH-633
+- pr_number: 603
+- merge_marker: YOLO: merged PR #603 comment at 05:47 confirms merge
 ---
 <!-- COMMENTS:END -->
