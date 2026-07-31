@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-654
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Keep service lifecycle identity metadata out of git worktree status
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:29:49.323393Z'
-updated_at: '2026-07-31T10:53:38.390824Z'
+updated_at: '2026-07-31T10:55:41.953152Z'
 work_branch: OOMPAH-654
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/617
@@ -93,6 +93,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-333fc6401a16: '2026-07-31T10:53:20.639142+00:00'
+    attempt-56a47bc40600: '2026-07-31T10:55:38.894280+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -134,7 +135,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-654
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -143,7 +144,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-56a47bc40600
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -153,13 +154,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T10:53:34.989195+00:00'
       branch_key: OOMPAH-654
+      verdict: pass
+      completed_at: '2026-07-31T10:55:38.894054+00:00'
+      ended_at: '2026-07-31T10:55:38.894054+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-07-31T10:50:36.583869+00:00'
-    updated_at: '2026-07-31T10:53:34.989195+00:00'
+    updated_at: '2026-07-31T10:55:38.894054+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-333fc6401a16
@@ -322,5 +326,27 @@ author: oompah
 created: 2026-07-31 10:53
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 10:55
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: b64cbc85adca310a10f767692302e004343f14cd
+- merge_commit: 54dd2509c6cbc73aaadbda2a3fdc7cfbb14530eb
+- pr_number: 617
+- gitignore_patterns_added: *.pid.meta and *.pid.meta.tmp.*
+- test_file_added: tests/test_pid_meta_gitignore.py (6 cases, 187 lines)
+- focused_gitignore_tests_result: 6 passed in 0.28s
+- focused_makefile_tests_result: 48 passed in 14.87s
+- focused_suites: test_pid_meta_gitignore.py, test_makefile_restart_wait.py, test_makefile_setup.py
+- working_tree_status: clean
+- git_diff_check: clean
+- branch_ahead_of_main: 0 commits (fully merged)
+- unrelated_meta_visibility_test: test_pid_meta_ignored_but_unrelated_meta_visible PASSED
+- commit_diff_files: .gitignore (+2), tests/test_pid_meta_gitignore.py (+187)
 ---
 <!-- COMMENTS:END -->
