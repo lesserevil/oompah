@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-649
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Preserve dirty task worktrees across worker termination and retry
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:19:33.053515Z'
-updated_at: '2026-07-31T07:22:35.545738Z'
+updated_at: '2026-07-31T08:04:25.797417Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -56,7 +56,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 8c89fc06-7400-475f-adc1-ccca7397ed24
+oompah.agent_run_id: a6ce7a88-ee0a-4a80-b475-3eab03135b4d
 oompah.task_costs:
   total_input_tokens: 146
   total_output_tokens: 3808
@@ -115,5 +115,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 2m 37s
 - Log: OOMPAH-649__20260731T072014Z.jsonl
+---
+author: oompah
+created: 2026-07-31 08:04
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-31 08:04
+---
+Focus: Frontend Developer
 ---
 <!-- COMMENTS:END -->
