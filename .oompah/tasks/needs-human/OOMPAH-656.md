@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:41:57.043640Z'
-updated_at: '2026-07-31T10:59:09.025048Z'
+updated_at: '2026-07-31T10:59:30.516749Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -301,5 +301,10 @@ author: oompah
 created: 2026-07-31 10:59
 ---
 Task handoff failed after the worker ran: the server-owned, task-scoped tracker capability could not update this task. The task is held in Needs Human and will not be redispatched automatically; verify the handoff service and reconcile the worker's branch before resuming it.
+---
+author: oompah
+created: 2026-07-31 10:59
+---
+Operator observed an unnecessary make test after the direct epic rebase was already published; it exited on its own before any signal was sent, so no process was altered. Complete this topology-only task from the published ancestry/diff evidence and avoid rerunning the full gate.
 ---
 <!-- COMMENTS:END -->
