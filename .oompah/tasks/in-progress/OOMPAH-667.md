@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T21:32:57.017227Z'
-updated_at: '2026-07-31T23:05:47.717701Z'
+updated_at: '2026-07-31T23:05:56.491543Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -143,5 +143,10 @@ author: oompah
 created: 2026-07-31 23:05
 ---
 Implementation: captured the pre-virtualenv PATH as OOMPAH_OPERATOR_PATH in Makefile (including recursive make), passed it via --operator-path through sync-cli/start/restart/force-restart, and added explicit operator-path handling to both lifecycle scripts. Internal UV/Python staging remains on the exported venv PATH; canonical resolution/version checks use the preserved operator PATH. Added shadowing/no-op/refusal and CLI/server equality regressions plus updated cli-install documentation.
+---
+author: oompah
+created: 2026-07-31 23:05
+---
+Verification: focused lifecycle and neighboring Makefile suites pass: 97 passed in 16.41s (test_canonical_cli_sync.py, test_lifecycle_cli_sync_integration.py, test_makefile_setup.py, test_makefile_restart_wait.py). Python compilation and both helper --help checks pass; git diff --check is clean. Make dry-runs confirm sync/restart receive the preserved operator PATH.
 ---
 <!-- COMMENTS:END -->
