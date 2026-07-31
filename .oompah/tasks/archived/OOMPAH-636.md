@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-636
 type: task
-status: Needs Human
+status: Archived
 priority: 0
 title: Rebase epic-OOMPAH-460 onto main
 parent: OOMPAH-460
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T02:48:03.196366Z'
-updated_at: '2026-07-31T02:53:34.459710Z'
+updated_at: '2026-07-31T04:21:47.057752Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-636
 target_branch: null
 review_url: null
@@ -53,6 +53,28 @@ oompah.task_costs:
     output_tokens: 2169
     cost_usd: 0.0
     recorded_at: '2026-07-31T02:53:28.241204+00:00'
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-419bbedacada
+    project_id: proj-14849f1b
+    task_id: OOMPAH-636
+    target_state: Archived
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f73ca3974e6251a8ef6a36f5e4b5580c332c02dc16ef59bdb93c28ab7966a713
+    authorized_by:
+      version: 1
+      identity: lesserevil
+      source: api
+    reason: This automatic rebase task duplicated OOMPAH-634 after the same shared-branch
+      rebase had already landed at 113e75ac8. It has no unique implementation or remaining
+      action and must not block epic rollup.
+    created_at: '2026-07-31T04:21:44.538887+00:00'
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
@@ -92,5 +114,12 @@ Run #1 [attempt=1, profile=standard, role=standard -> Codex/gpt-5.6-terra]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 2s
 - Log: OOMPAH-636__20260731T025234Z.jsonl
+---
+author: oompah
+created: 2026-07-31 04:21
+---
+Override by lesserevil: terminal transition to Archived applied by project owner.
+
+Reason: This automatic rebase task duplicated OOMPAH-634 after the same shared-branch rebase had already landed at 113e75ac8. It has no unique implementation or remaining action and must not block epic rollup.
 ---
 <!-- COMMENTS:END -->
