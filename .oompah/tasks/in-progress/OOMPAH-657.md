@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T11:06:15.542774Z'
-updated_at: '2026-07-31T11:59:18.889381Z'
+updated_at: '2026-07-31T12:00:09.235379Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -257,5 +257,20 @@ Implementation: Three fixes applied:
 4. **Test fixes**: Updated test_executor_rechecks_authority_after_gate_before_epic_push to use a gate wrapper pattern rather than a fixed iterator, since the new barriers now call is_current() more times. Added 5 new barrier tests + 2 _retire tests in test_delivery_plane_recovery.py.
 
 All 42 focused tests pass.
+---
+author: oompah
+created: 2026-07-31 12:00
+---
+Verification: All 42 focused tests pass:
+- tests/test_quality_gate.py: 27 passed (5 new barrier tests)
+- tests/test_integration_executor.py: 9 passed (updated existing test)
+- tests/test_delivery_plane_recovery.py: 6 passed (2 new retire tests)
+
+Branch pushed at 0593430f8. Summary of what was delivered:
+- _retire_inactive_integration_rows now retires any task not in READY_TO_INTEGRATE (was missing Open, In Progress, Needs CI Fix, etc.)
+- Three pre-spawn barrier checkpoints added to quality_gate.run() with durable tombstone set
+- Tombstone cleanup in finally block prevents unbounded set growth
+- cancel_generation() called during row retirement to stop running/pre-spawn gates
+- Integration executor test updated to be robust against variable is_current() call counts
 ---
 <!-- COMMENTS:END -->
