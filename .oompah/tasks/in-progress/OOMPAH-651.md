@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T09:54:19.817312Z'
+updated_at: '2026-07-31T09:55:27.706107Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -323,5 +323,10 @@ DISCOVERY: ROOT CAUSE CONFIRMED
 3. Redact ConsoleEvent fields before on_event callback fan-out
 4. Add end-to-end tests verifying secrets don't leak through JSONL/state/callbacks
 5. Run make test to verify no regressions
+---
+author: oompah
+created: 2026-07-31 09:55
+---
+Temporary gate safety constraint: this worktree does not yet contain OOMPAH-652's isolated test lifecycle. Run focused tests and git diff --check, but do not run make test locally before OOMPAH-652 is integrated/deployed and the branch is rebased onto that safe base. Oompah's exact post-submit full gate will provide the complete gate once the finish-order dependency is satisfied.
 ---
 <!-- COMMENTS:END -->

@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T09:51:59.314899Z'
+updated_at: '2026-07-31T09:55:26.126983Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -360,5 +360,10 @@ author: oompah
 created: 2026-07-31 09:51
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-07-31 09:55
+---
+Temporary gate safety constraint: this worktree does not yet contain OOMPAH-652's isolated test lifecycle. Run focused tests and git diff --check, but do not run make test locally before OOMPAH-652 is integrated/deployed and the branch is rebased onto that safe base. Oompah's exact post-submit full gate will provide the complete gate once the finish-order dependency is satisfied.
 ---
 <!-- COMMENTS:END -->
