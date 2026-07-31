@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-667
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Keep Makefile virtualenv PATH from defeating canonical CLI cutover
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T21:32:57.017227Z'
-updated_at: '2026-07-31T21:32:57.017227Z'
+updated_at: '2026-07-31T22:55:33.916834Z'
 work_branch: null
 target_branch: null
 review_url: null

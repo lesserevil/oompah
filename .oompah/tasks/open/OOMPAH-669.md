@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-669
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Same-head task resubmission must restore Ready to Integrate lifecycle
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T21:52:16.588312Z'
-updated_at: '2026-07-31T21:52:16.588312Z'
+updated_at: '2026-07-31T22:55:38.594067Z'
 work_branch: null
 target_branch: null
 review_url: null
