@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-632
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Refresh candidate refs before child landing reconciliation
 parent: OOMPAH-584
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:46:34.785511Z'
-updated_at: '2026-07-31T01:02:59.674734Z'
+updated_at: '2026-07-31T01:03:12.342890Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-632
 target_branch: null
 review_url: null
@@ -39,12 +39,12 @@ oompah.agent_run_id: 0d410b5d-40d5-4b37-a317-49d3daaa7c7c
 oompah.work_branch: epic-OOMPAH-584--task-OOMPAH-632
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-584--task-OOMPAH-632
-  base_branch: epic-OOMPAH-584
-  base_sha: d62dd4cff702ae2b818418407d7d15b7a643213e
-  updated_at: '2026-07-31T00:49:13.696647+00:00'
+  head_sha: 144970e31f6879394c2adfa95b780100c5d3aebd
+  submitted_at: '2026-07-31T01:03:10.114174+00:00'
+  updated_at: '2026-07-31T01:03:10.114174+00:00'
 oompah.task_costs:
   total_input_tokens: 595655
   total_output_tokens: 3140
@@ -207,5 +207,23 @@ created: 2026-07-31 01:02
 ✓ Missing remote branches tolerated (may be deleted after merge)
 ✓ Focused epic-strategy tests pass
 ✓ Complete test suite gate passes (272/272)
+---
+author: oompah
+created: 2026-07-31 01:03
+---
+Refresh candidate refs before child landing reconciliation
+
+Implemented fix for stale candidate branch refs being misjudged during epic 
+landing reconciliation. Added _refresh_landing_evidence_candidate_refs() to 
+fetch authoritative remote refs for candidate task branches before patch 
+comparison. Modified _mark_epic_merged() to refresh all candidate branches 
+for Done children before checking landing evidence.
+
+Result: Force-pushed rebases are now judged from authoritative remote refs, 
+preventing auditor PASS from being overwritten by stale local source evidence. 
+Fail-closed behavior preserved - reconciliation deferred only if container 
+target refs cannot be refreshed.
+
+All 272 focused tests pass including new test for candidate ref refresh.
 ---
 <!-- COMMENTS:END -->
