@@ -663,6 +663,30 @@ class MaintenanceJobState:
     current_deadline: float | None = None  # monotonic deadline for the active run
 
 
+@dataclass
+class StandaloneDeliveryAuthority:
+    """Mutable compare-and-swap claim for one standalone delivery attempt.
+
+    Standalone review creation runs in the maintenance pool and can spend
+    minutes in a branch-quality command or forge request.  The issue object
+    observed at the start of that work is therefore never sufficient
+    authority for a later tracker write.  This claim records the evidence the
+    delivery observed and is synchronously revoked when terminal ownership is
+    acquired.
+    """
+
+    project_id: str
+    task_id: str
+    issue: Issue
+    expected_state: str
+    branch: str
+    target_branch: str
+    evidence_revision: tuple[str, ...]
+    head_sha: str | None = None
+    head_resolver: Any | None = None
+    revoked: bool = False
+
+
 # ---------------------------------------------------------------------------
 # YOLO merge-failure classification (oompah-zlz_2-btf.2)
 #
@@ -873,6 +897,7 @@ class Orchestrator:
         self.terminal_transition_coordinator = TerminalTransitionCoordinator(
             tracker=self._tracker_for_project,
             project_store=self.project_store,
+            revoke_delivery_authority=self._revoke_standalone_delivery_authority,
         )
         # Serializes the final implementation status claim with terminal-audit
         # staging for one task.  The terminal path installs its in-memory fence
@@ -911,6 +936,14 @@ class Orchestrator:
         self._alerts: list[
             dict[str, str]
         ] = []  # {"level": "warning", "message": "..."}
+        # A terminal transition can arrive while a standalone quality gate is
+        # running in the maintenance pool.  Hold this lock for each delivery
+        # side effect and let the terminal coordinator revoke under the same
+        # lock so the winner is unambiguous.
+        self._standalone_delivery_authority_lock = threading.RLock()
+        self._standalone_delivery_authorities: dict[
+            tuple[str, str], StandaloneDeliveryAuthority
+        ] = {}
         # Terminal-audit metrics are durable service state, not tracker
         # metadata.  The metrics sink is attached to the coordinator below
         # after construction and also to the bootstrap replacement.
@@ -5800,14 +5833,24 @@ class Orchestrator:
                 )
                 continue
 
-            pending_review: list[Issue] = []
+            pending_review: list[tuple[Issue, StandaloneDeliveryAuthority]] = []
             for issue in standalone:
                 task_id = issue.identifier
+                authority = self._claim_standalone_delivery_authority(
+                    project,
+                    issue,
+                )
+                if authority is None:
+                    continue
                 queue_item = queued_by_task.get(task_id)
                 if queue_item is None:
-                    pending_review.append(issue)
+                    pending_review.append((issue, authority))
                     continue
-                self._clear_standalone_delivery_alert(project_id, task_id)
+                self._clear_standalone_delivery_alert(
+                    project_id,
+                    task_id,
+                    authority=authority,
+                )
                 logger.debug(
                     "Standalone Ready task %s already has integration "
                     "delivery state %s",
@@ -5849,7 +5892,7 @@ class Orchestrator:
                 if not getattr(review, "draft", False)
                 and str(getattr(review, "id", "") or "").strip()
             }
-            for issue in pending_review:
+            for issue, authority in pending_review:
                 issue.project_id = project_id
                 task_id = issue.identifier
 
@@ -5858,7 +5901,12 @@ class Orchestrator:
                         "repository slug could not be resolved; configure a "
                         "supported project repo_url"
                     )
-                    self._arm_standalone_delivery_alert(project_id, task_id, reason)
+                    self._arm_standalone_delivery_alert(
+                        project_id,
+                        task_id,
+                        reason,
+                        authority=authority,
+                    )
                     logger.warning(
                         "Standalone Ready task %s is undeliverable: %s",
                         task_id,
@@ -5867,7 +5915,12 @@ class Orchestrator:
                     continue
                 if not target_branch:
                     reason = "project default_branch is not configured"
-                    self._arm_standalone_delivery_alert(project_id, task_id, reason)
+                    self._arm_standalone_delivery_alert(
+                        project_id,
+                        task_id,
+                        reason,
+                        authority=authority,
+                    )
                     logger.warning(
                         "Standalone Ready task %s is undeliverable: %s",
                         task_id,
@@ -5878,7 +5931,12 @@ class Orchestrator:
                 task_branch = self._branch_for_issue(issue, project)
                 if not task_branch:
                     reason = "task work branch is not recorded"
-                    self._arm_standalone_delivery_alert(project_id, task_id, reason)
+                    self._arm_standalone_delivery_alert(
+                        project_id,
+                        task_id,
+                        reason,
+                        authority=authority,
+                    )
                     logger.warning(
                         "Standalone Ready task %s is undeliverable: %s",
                         task_id,
@@ -5897,9 +5955,7 @@ class Orchestrator:
                             "push it or correct oompah.work_branch metadata"
                         )
                         self._arm_standalone_delivery_alert(
-                            project_id,
-                            task_id,
-                            reason,
+                            project_id, task_id, reason, authority=authority
                         )
                         logger.warning(
                             "Standalone Ready task %s branch %s not found on remote",
@@ -5913,11 +5969,24 @@ class Orchestrator:
                         project_id,
                         task_id,
                         reason,
+                        authority=authority,
                     )
                     logger.warning(
                         "Could not check if branch exists for %s: %s",
                         task_id,
                         exc,
+                    )
+                    continue
+
+                if not self._set_standalone_delivery_head(
+                    authority,
+                    task_branch,
+                    branch_head,
+                    lambda: provider.get_branch_head_sha(repo_slug, task_branch),
+                ):
+                    self._record_superseded_standalone_delivery(
+                        authority,
+                        "delivery authority was revoked before review lookup",
                     )
                     continue
 
@@ -5932,6 +6001,7 @@ class Orchestrator:
                         project_id,
                         task_id,
                         reason,
+                        authority=authority,
                     )
                     logger.warning(
                         "Could not check for existing PR for %s: %s",
@@ -5955,24 +6025,33 @@ class Orchestrator:
                         if existing_review_id:
                             counted_review_ids.add(existing_review_id)
                     try:
-                        tracker.update_issue(task_id, status=IN_REVIEW)
-                        self._write_review_metadata(
+                        self._clear_standalone_delivery_alert(
+                            project_id,
+                            task_id,
+                            authority=authority,
+                        )
+                        if not self._write_review_metadata(
                             tracker,
                             task_id,
                             review_id=getattr(existing_pr, "id", None),
                             review_url=getattr(existing_pr, "url", None),
                             source_branch=task_branch,
                             target_branch=target_branch,
-                        )
-                        self._clear_standalone_delivery_alert(
-                            project_id,
-                            task_id,
+                            authority=authority,
+                        ):
+                            continue
+                        self._standalone_delivery_mutation(
+                            authority,
+                            tracker,
+                            lambda: tracker.update_issue(task_id, status=IN_REVIEW),
+                            next_state=IN_REVIEW,
                         )
                     except Exception as exc:  # noqa: BLE001
                         self._arm_standalone_delivery_alert(
                             project_id,
                             task_id,
                             f"existing review metadata update failed: {exc}",
+                            authority=authority,
                         )
                         logger.warning(
                             "Could not update %s to In Review: %s",
@@ -5982,31 +6061,50 @@ class Orchestrator:
                     continue
 
                 if existing_pr is not None and review_state == "merged":
-                    issue.work_branch = task_branch
-                    issue.branch_name = task_branch
-                    issue.target_branch = target_branch
-                    issue.review_number = str(
+                    review_number = str(
                         getattr(existing_pr, "id", "") or ""
                     ) or None
-                    issue.review_url = getattr(existing_pr, "url", None)
-                    self._write_review_metadata(
+                    review_url = getattr(existing_pr, "url", None)
+                    if not self._write_review_metadata(
                         tracker,
                         task_id,
-                        review_id=issue.review_number,
-                        review_url=issue.review_url,
+                        review_id=review_number,
+                        review_url=review_url,
                         source_branch=task_branch,
                         target_branch=target_branch,
+                        authority=authority,
+                    ):
+                        continue
+                    if not self._standalone_delivery_authorized(authority, tracker):
+                        self._record_superseded_standalone_delivery(
+                            authority,
+                            "delivery authority was revoked before terminal staging",
+                        )
+                        continue
+                    merged_issue = replace(
+                        issue,
+                        work_branch=task_branch,
+                        branch_name=task_branch,
+                        target_branch=target_branch,
+                        review_number=review_number,
+                        review_url=review_url,
                     )
                     transition = self._request_merged_via_coordinator(
-                        issue,
+                        merged_issue,
                         project_id,
                         trigger_identity="standalone-ready-reconciliation",
                         trigger_source="oompah",
                     )
                     if transition is not None and transition.success:
+                        issue.work_branch = task_branch
+                        issue.branch_name = task_branch
+                        issue.target_branch = target_branch
+                        issue.review_number = review_number
+                        issue.review_url = review_url
                         self._clear_standalone_delivery_alert(
                             project_id,
                             task_id,
+                            authority=authority,
                         )
                         logger.info(
                             "Staged merged standalone task %s for terminal audit "
@@ -6024,6 +6122,7 @@ class Orchestrator:
                             project_id,
                             task_id,
                             f"merged review could not enter terminal audit: {reason}",
+                            authority=authority,
                         )
                     continue
 
@@ -6036,6 +6135,7 @@ class Orchestrator:
                         project_id,
                         task_id,
                         reason,
+                        authority=authority,
                     )
                     logger.warning(
                         "Standalone Ready task %s is undeliverable: %s",
@@ -6053,7 +6153,11 @@ class Orchestrator:
                     # undeliverable submission.  Clear any stale failure alert
                     # and let the next serialized sweep retry after a review
                     # closes.
-                    self._clear_standalone_delivery_alert(project_id, task_id)
+                    self._clear_standalone_delivery_alert(
+                        project_id,
+                        task_id,
+                        authority=authority,
+                    )
                     logger.info(
                         "Deferred standalone review for %s: %s",
                         task_id,
@@ -6071,6 +6175,7 @@ class Orchestrator:
                         project_id,
                         task_id,
                         "configured branch quality gate did not pass",
+                        authority=authority,
                     )
                     continue
 
@@ -6090,18 +6195,23 @@ class Orchestrator:
                     )
 
                 try:
-                    result = provider.create_review(
-                        repo_slug,
-                        title,
-                        task_branch,
-                        target_branch=target_branch,
-                        description=description,
+                    created, result = self._standalone_delivery_action(
+                        authority,
+                        tracker,
+                        lambda: provider.create_review(
+                            repo_slug,
+                            title,
+                            task_branch,
+                            target_branch=target_branch,
+                            description=description,
+                        ),
                     )
                 except Exception as exc:
                     self._arm_standalone_delivery_alert(
                         project_id,
                         task_id,
                         f"review creation failed: {exc}",
+                        authority=authority,
                     )
                     logger.warning(
                         "Failed to create PR for standalone Ready task %s: %s",
@@ -6110,11 +6220,19 @@ class Orchestrator:
                     )
                     continue
 
+                if not created:
+                    self._record_superseded_standalone_delivery(
+                        authority,
+                        "delivery authority was revoked before review creation",
+                    )
+                    continue
+
                 if result is None:
                     self._arm_standalone_delivery_alert(
                         project_id,
                         task_id,
                         "forge provider returned no review",
+                        authority=authority,
                     )
                     logger.warning(
                         "Failed to create PR for standalone Ready task %s "
@@ -6138,16 +6256,27 @@ class Orchestrator:
                         counted_review_ids.add(created_review_id)
 
                 try:
-                    tracker.update_issue(task_id, status=IN_REVIEW)
-                    self._write_review_metadata(
+                    self._clear_standalone_delivery_alert(
+                        project_id,
+                        task_id,
+                        authority=authority,
+                    )
+                    if not self._write_review_metadata(
                         tracker,
                         task_id,
                         review_id=getattr(result, "id", None),
                         review_url=getattr(result, "url", None),
                         source_branch=task_branch,
                         target_branch=target_branch,
+                        authority=authority,
+                    ):
+                        continue
+                    self._standalone_delivery_mutation(
+                        authority,
+                        tracker,
+                        lambda: tracker.update_issue(task_id, status=IN_REVIEW),
+                        next_state=IN_REVIEW,
                     )
-                    self._clear_standalone_delivery_alert(project_id, task_id)
                     logger.info(
                         "Created PR for standalone Ready task %s (PR #%s)",
                         task_id,
@@ -6163,6 +6292,7 @@ class Orchestrator:
                         project_id,
                         task_id,
                         f"created review but tracker update failed: {exc}",
+                        authority=authority,
                     )
 
     def _arm_standalone_delivery_alert(
@@ -6170,33 +6300,309 @@ class Orchestrator:
         project_id: str,
         task_id: str,
         reason: str,
-    ) -> None:
+        *,
+        authority: StandaloneDeliveryAuthority | None = None,
+    ) -> bool:
         """Surface one idempotent actionable alert for a stranded submission."""
-        source = f"standalone_ready_delivery:{project_id}:{task_id}"
-        self._alerts = [
-            alert for alert in self._alerts if alert.get("source") != source
-        ]
-        self._alerts.append(
-            {
-                "level": "warning",
-                "source": source,
-                "message": (
-                    f"Standalone Ready task {task_id} has no active delivery: "
-                    f"{reason}."
-                ),
-            }
-        )
+        with self._standalone_delivery_authority_lock:
+            if authority is not None and not self._standalone_delivery_authorized(
+                authority
+            ):
+                self._record_superseded_standalone_delivery(
+                    authority,
+                    "delivery authority was revoked before alerting",
+                )
+                return False
+            source = f"standalone_ready_delivery:{project_id}:{task_id}"
+            self._alerts = [
+                alert for alert in self._alerts if alert.get("source") != source
+            ]
+            self._alerts.append(
+                {
+                    "level": "warning",
+                    "source": source,
+                    "message": (
+                        f"Standalone Ready task {task_id} has no active delivery: "
+                        f"{reason}."
+                    ),
+                }
+            )
+            return True
 
     def _clear_standalone_delivery_alert(
         self,
         project_id: str,
         task_id: str,
-    ) -> None:
+        *,
+        authority: StandaloneDeliveryAuthority | None = None,
+    ) -> bool:
         """Clear the stranded-submission alert once a delivery path exists."""
         source = f"standalone_ready_delivery:{project_id}:{task_id}"
-        self._alerts = [
-            alert for alert in self._alerts if alert.get("source") != source
-        ]
+        with self._standalone_delivery_authority_lock:
+            if not any(alert.get("source") == source for alert in self._alerts):
+                return True
+            if authority is not None and not self._standalone_delivery_authorized(
+                authority
+            ):
+                self._record_superseded_standalone_delivery(
+                    authority,
+                    "delivery authority was revoked before clearing an alert",
+                )
+                return False
+            self._alerts = [
+                alert for alert in self._alerts if alert.get("source") != source
+            ]
+            return True
+
+    @staticmethod
+    def _standalone_delivery_evidence_revision(issue: Issue) -> tuple[str, ...]:
+        """Return the tracker evidence that a standalone delivery observes.
+
+        ``updated_at`` is the primary revision for native and forge trackers.
+        The remaining fields make lightweight test doubles and trackers with
+        coarse timestamps fail closed when review or submission evidence
+        changes.
+        """
+
+        integration = getattr(issue, "integration", None)
+        return (
+            str(getattr(issue, "updated_at", "") or ""),
+            str(getattr(issue, "work_branch", "") or ""),
+            str(getattr(issue, "branch_name", "") or ""),
+            str(getattr(issue, "target_branch", "") or ""),
+            str(getattr(issue, "review_number", "") or ""),
+            str(getattr(issue, "review_url", "") or ""),
+            str(getattr(integration, "head_sha", "") or ""),
+        )
+
+    def _claim_standalone_delivery_authority(
+        self,
+        project: Project,
+        issue: Issue,
+        *,
+        expected_state: str = READY_TO_INTEGRATE,
+    ) -> StandaloneDeliveryAuthority | None:
+        """Claim the current standalone task revision for delivery work."""
+
+        task_id = str(issue.identifier or "").strip()
+        project_id = str(project.id or "").strip()
+        branch = self._branch_for_issue(issue, project)
+        target_branch = str(issue.target_branch or project.default_branch or "").strip()
+        expected_state = canonicalize_status(expected_state)
+        if (
+            not task_id
+            or not project_id
+            or not branch
+            or canonicalize_status(issue.state) != expected_state
+            or str(issue.parent_id or "").strip()
+            or _is_epic_issue(issue)
+        ):
+            return None
+
+        key = (project_id, task_id)
+        revision = self._standalone_delivery_evidence_revision(issue)
+        with self._standalone_delivery_authority_lock:
+            existing = self._standalone_delivery_authorities.get(key)
+            if (
+                existing is not None
+                and not existing.revoked
+                and existing.expected_state == expected_state
+                and existing.branch == branch
+                and existing.target_branch == target_branch
+                and existing.evidence_revision == revision
+            ):
+                return existing
+            if existing is not None:
+                existing.revoked = True
+            authority = StandaloneDeliveryAuthority(
+                project_id=project_id,
+                task_id=task_id,
+                issue=issue,
+                expected_state=expected_state,
+                branch=branch,
+                target_branch=target_branch,
+                evidence_revision=revision,
+            )
+            self._standalone_delivery_authorities[key] = authority
+            return authority
+
+    def _set_standalone_delivery_head(
+        self,
+        authority: StandaloneDeliveryAuthority,
+        branch: str,
+        head_sha: str,
+        head_resolver: Any,
+    ) -> bool:
+        """Bind a claim to the exact remote head used by the delivery."""
+
+        with self._standalone_delivery_authority_lock:
+            if not self._standalone_delivery_authorized(authority):
+                return False
+            if authority.branch != branch or not head_sha:
+                return False
+            authority.head_sha = str(head_sha)
+            authority.head_resolver = head_resolver
+            return True
+
+    def _fresh_standalone_delivery_issue(
+        self,
+        authority: StandaloneDeliveryAuthority,
+        tracker: TrackerProtocol | None,
+    ) -> Issue | None:
+        """Read the latest task revision, failing closed on a read error."""
+
+        if tracker is None:
+            try:
+                tracker = self._tracker_for_project(authority.project_id)
+            except Exception:  # noqa: BLE001 - authority must fail closed below
+                return None
+        try:
+            invalidate = getattr(tracker, "invalidate_read_cache", None)
+            if callable(invalidate):
+                invalidate()
+            current = tracker.fetch_issue_detail(authority.task_id)
+            if isinstance(current, Issue):
+                return current
+        except Exception:  # noqa: BLE001 - current authority is unknown
+            pass
+        return None
+
+    def _standalone_delivery_authorized(
+        self,
+        authority: StandaloneDeliveryAuthority,
+        tracker: TrackerProtocol | None = None,
+    ) -> bool:
+        """Compare the current task evidence with a delivery authority claim."""
+
+        with self._standalone_delivery_authority_lock:
+            key = (authority.project_id, authority.task_id)
+            if (
+                authority.revoked
+                or self._standalone_delivery_authorities.get(key) is not authority
+            ):
+                return False
+            current = self._fresh_standalone_delivery_issue(authority, tracker)
+            if current is None:
+                return False
+            if (
+                canonicalize_status(current.state) != authority.expected_state
+                or str(current.parent_id or "").strip()
+                or _is_epic_issue(current)
+                or self._standalone_delivery_evidence_revision(current)
+                != authority.evidence_revision
+            ):
+                return False
+            project = self.project_store.get(authority.project_id)
+            if project is None:
+                return False
+            if self._branch_for_issue(current, project) != authority.branch:
+                return False
+            if (
+                str(current.target_branch or project.default_branch or "").strip()
+                != authority.target_branch
+            ):
+                return False
+            if authority.head_sha:
+                try:
+                    current_head = authority.head_resolver()
+                except Exception:  # noqa: BLE001 - remote head is authoritative
+                    return False
+                if str(current_head or "") != authority.head_sha:
+                    return False
+            authority.issue = current
+            return True
+
+    def _refresh_standalone_delivery_authority(
+        self,
+        authority: StandaloneDeliveryAuthority,
+        tracker: TrackerProtocol,
+        *,
+        next_state: str | None = None,
+    ) -> None:
+        """Advance a claim only after its own guarded tracker mutation."""
+
+        current = self._fresh_standalone_delivery_issue(authority, tracker)
+        if current is None:
+            authority.revoked = True
+            self._standalone_delivery_authorities.pop(
+                (authority.project_id, authority.task_id), None
+            )
+            return
+        authority.issue = current
+        authority.evidence_revision = self._standalone_delivery_evidence_revision(
+            current
+        )
+        if next_state is not None:
+            authority.expected_state = canonicalize_status(next_state)
+
+    def _standalone_delivery_mutation(
+        self,
+        authority: StandaloneDeliveryAuthority,
+        tracker: TrackerProtocol,
+        mutation: Any,
+        *,
+        next_state: str | None = None,
+    ) -> bool:
+        """Run one tracker mutation while terminal revocation is excluded."""
+
+        with self._standalone_delivery_authority_lock:
+            if not self._standalone_delivery_authorized(authority, tracker):
+                self._record_superseded_standalone_delivery(
+                    authority,
+                    "delivery authority was revoked before tracker mutation",
+                )
+                return False
+            mutation()
+            self._refresh_standalone_delivery_authority(
+                authority,
+                tracker,
+                next_state=next_state,
+            )
+            return True
+
+    def _standalone_delivery_action(
+        self,
+        authority: StandaloneDeliveryAuthority,
+        tracker: TrackerProtocol,
+        action: Any,
+    ) -> tuple[bool, Any | None]:
+        """Run one forge delivery action only while the claim is current."""
+
+        with self._standalone_delivery_authority_lock:
+            if not self._standalone_delivery_authorized(authority, tracker):
+                return False, None
+            return True, action()
+
+    def _revoke_standalone_delivery_authority(
+        self,
+        project_id: str,
+        task_id: str,
+    ) -> None:
+        """Synchronously fence stale standalone work before terminal ownership."""
+
+        key = (str(project_id), str(task_id))
+        with self._standalone_delivery_authority_lock:
+            authority = self._standalone_delivery_authorities.pop(key, None)
+            if authority is not None:
+                authority.revoked = True
+            source = f"standalone_ready_delivery:{key[0]}:{key[1]}"
+            self._alerts = [
+                alert for alert in self._alerts if alert.get("source") != source
+            ]
+
+    @staticmethod
+    def _record_superseded_standalone_delivery(
+        authority: StandaloneDeliveryAuthority,
+        reason: str,
+    ) -> None:
+        """Record a non-mutating diagnostic for an obsolete delivery outcome."""
+
+        logger.info(
+            "Cancelled superseded standalone delivery for %s/%s: %s",
+            authority.project_id,
+            authority.task_id,
+            reason,
+        )
 
     def _integration_satisfied_dependencies(
         self,
@@ -9215,10 +9621,8 @@ class Orchestrator:
         """Route a failed pre-review gate to the normal CI repair workflow."""
         try:
             tracker = self._tracker_for_project(project_id)
-            tracker.update_issue(
-                issue.identifier,
-                status=NEEDS_CI_FIX,
-                **{"add-label": "ci-fix"},
+            authority = self._standalone_delivery_authorities.get(
+                (str(project_id), str(issue.identifier))
             )
             output = result.output_tail.strip()
             if len(output) > 4000:
@@ -9240,11 +9644,32 @@ class Orchestrator:
             if output:
                 lines.extend(["", "Output tail:", "```text", output, "```"])
             if post_comment:
-                tracker.add_comment(
-                    issue.identifier,
-                    "\n".join(lines),
-                    author="oompah",
+                comment = lambda: tracker.add_comment(
+                    issue.identifier, "\n".join(lines), author="oompah"
                 )
+                if authority is not None:
+                    if not self._standalone_delivery_mutation(
+                        authority,
+                        tracker,
+                        comment,
+                    ):
+                        return
+                else:
+                    comment()
+            status_update = lambda: tracker.update_issue(
+                issue.identifier,
+                status=NEEDS_CI_FIX,
+                **{"add-label": "ci-fix"},
+            )
+            if authority is not None:
+                self._standalone_delivery_mutation(
+                    authority,
+                    tracker,
+                    status_update,
+                    next_state=NEEDS_CI_FIX,
+                )
+            else:
+                status_update()
         except Exception as exc:  # noqa: BLE001 - gate still fails closed
             logger.warning(
                 "Failed to route quality-gate failure for %s: %s",
@@ -9262,6 +9687,21 @@ class Orchestrator:
         preferred_path: str | None = None,
     ) -> bool:
         """Run or reuse the exact-head full check before creating a review."""
+        project_id = str(project.id)
+        authority = self._standalone_delivery_authorities.get(
+            (project_id, str(issue.identifier))
+        )
+        if (
+            authority is None
+            and not str(issue.parent_id or "").strip()
+            and not _is_epic_issue(issue)
+            and canonicalize_status(issue.state) in {DONE, READY_TO_INTEGRATE}
+        ):
+            authority = self._claim_standalone_delivery_authority(
+                project,
+                issue,
+                expected_state=canonicalize_status(issue.state),
+            )
         command = self._quality_gate_command(project)
         if not command:
             logger.debug(
@@ -9305,7 +9745,7 @@ class Orchestrator:
             )
             self._record_quality_gate_failure(
                 issue,
-                str(project.id),
+                project_id,
                 branch,
                 target_branch,
                 result,
@@ -9315,14 +9755,18 @@ class Orchestrator:
 
         if not result.cached:
             try:
-                tracker = self._tracker_for_project(str(project.id))
-                tracker.add_comment(
+                tracker = self._tracker_for_project(project_id)
+                comment = lambda: tracker.add_comment(
                     issue.identifier,
                     "Branch quality gate passed for "
                     f"`{result.head_sha}` using `{result.command}` "
                     f"in {result.duration_seconds:.1f}s. Review creation may proceed.",
                     author="oompah",
                 )
+                if authority is not None:
+                    self._standalone_delivery_mutation(authority, tracker, comment)
+                else:
+                    comment()
             except Exception as exc:  # noqa: BLE001 - evidence is persisted
                 logger.debug(
                     "Failed to post quality-gate pass comment for %s: %s",
@@ -13719,7 +14163,8 @@ class Orchestrator:
         review_url: str | None,
         source_branch: str | None = None,
         target_branch: str | None = None,
-    ) -> None:
+        authority: StandaloneDeliveryAuthority | None = None,
+    ) -> bool:
         """Persist review metadata fields on a task (best-effort).
 
         Writes ``oompah.review_url`` and ``oompah.review_number`` to the
@@ -13740,7 +14185,18 @@ class Orchestrator:
             fields["oompah.target_branch"] = target_branch
         for key, value in fields.items():
             try:
-                tracker.set_metadata_field(identifier, key, value)
+                mutation = lambda key=key, value=value: tracker.set_metadata_field(
+                    identifier, key, value
+                )
+                if authority is not None:
+                    if not self._standalone_delivery_mutation(
+                        authority,
+                        tracker,
+                        mutation,
+                    ):
+                        return False
+                else:
+                    mutation()
             except Exception as exc:
                 logger.warning(
                     "Failed to write %s metadata %s=%r for %s: %s",
@@ -13750,6 +14206,7 @@ class Orchestrator:
                     identifier,
                     exc,
                 )
+        return True
 
     def _defer_review_handoff(
         self,
