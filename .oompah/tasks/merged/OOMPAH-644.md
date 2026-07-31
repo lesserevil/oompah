@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:46:11.947079Z'
-updated_at: '2026-07-31T08:55:19.796992Z'
+updated_at: '2026-07-31T08:55:22.746033Z'
 work_branch: OOMPAH-644
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/611
@@ -196,7 +196,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-644
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
