@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-586
 type: epic
-status: In Validation
+status: Merged
 priority: 0
 title: Restore least-privilege task and lifecycle access
 parent: OOMPAH-584
@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:13:33.901470Z'
-updated_at: '2026-07-31T01:17:16.292971Z'
+updated_at: '2026-07-31T01:22:36.037103Z'
 work_branch: epic-OOMPAH-586
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/597
@@ -65,6 +65,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-9b8858a0a4d1: '2026-07-31T00:39:45.680453+00:00'
+    attempt-6fadf019ce9c: '2026-07-31T01:22:33.566702+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -107,7 +108,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-586
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -116,7 +117,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-6fadf019ce9c
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -126,13 +127,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T01:17:11.031839+00:00'
       branch_key: epic-OOMPAH-586
+      verdict: pass
+      completed_at: '2026-07-31T01:22:33.566510+00:00'
+      ended_at: '2026-07-31T01:22:33.566510+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-07-31T00:36:41.194797+00:00'
-    updated_at: '2026-07-31T01:17:11.031839+00:00'
+    updated_at: '2026-07-31T01:22:33.566510+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-9b8858a0a4d1
@@ -314,5 +318,21 @@ author: oompah
 created: 2026-07-31 01:17
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 01:22
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit: cd08185c9
+- parent_epic_head: 63f8d043c (origin/epic-OOMPAH-584 tip; OOMPAH-586 merge is ancestor)
+- children_landed: OOMPAH-575, OOMPAH-593, OOMPAH-594, OOMPAH-595 all present in merge
+- focused_tests_passed: 876 (auth_health:28, client_auth:62, http_auth:53, server_auth:73, task_handoff:30, docs_authentication_contract+acp_codex_backend+admin_cli+task_cli+oompah_http:211, dashboard_terminal_audit_health+terminal_audit_health+terminal_audit_health_api+credential_error_alert+dashboard_credential_warning:114, dashboard_activity_summary+orchestrator_handlers:305)
+- focused_tests_failed: 0
+- prior_full_gate: make test passed at ca49d0c25 (pre-rebase) per 2026-07-31 00:25 comment; post-rebase head is patch-equivalent with timeout commit 0a260f027 dropped as already-upstream
+- prior_blocker_resolution: OOMPAH-593/594/595 confirmed Done by operator 2026-07-31 01:15
 ---
 <!-- COMMENTS:END -->
