@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-661
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Cancel stale implementation retries when task authority changes
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T13:12:19.387161Z'
-updated_at: '2026-07-31T15:27:14.022684Z'
+updated_at: '2026-07-31T15:27:27.907907Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -122,11 +122,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-661
-  base_branch: main
-  base_sha: 8c75a201e328949d4057bfbd53e11cd5498ed72f
-  head_sha: 76619929b63527d539c81f9dbdadf8c38047c461
-  submitted_at: '2026-07-31T15:02:55.174284+00:00'
-  updated_at: '2026-07-31T15:03:18.450256+00:00'
+  head_sha: e1c6e394e6136ec8057fb41684049d9b97b4ca2e
+  submitted_at: '2026-07-31T15:27:25.202544+00:00'
+  updated_at: '2026-07-31T15:27:25.202544+00:00'
 ---
 ## Summary
 
@@ -422,5 +420,10 @@ author: oompah
 created: 2026-07-31 15:27
 ---
 Implementation: Fixed 3 failing tests in tests/test_duplicate_preflight.py. Root cause: the _orch() helper creates an Orchestrator via __new__ (bypassing __init__), so the three retry authority attributes added by OOMPAH-661 (_retry_authority_lock, _retry_dispatching, _persisted_retry_entries) were never initialized. Tests calling _dispatch() and _reconcile() hit AttributeError when those methods accessed _retry_authority_lock. Fix: added 3 lines to _orch() to initialize the missing attributes with the same initial values as __init__. All 23 tests in test_duplicate_preflight.py pass; all 22 tests in test_retry_authority_generation.py + test_worker_submission.py pass. Commit: e1c6e394e
+---
+author: oompah
+created: 2026-07-31 15:27
+---
+Fixed 3 CI-failing tests in tests/test_duplicate_preflight.py. The _orch() test helper constructs Orchestrator via __new__, bypassing __init__. The OOMPAH-661 implementation added _retry_authority_lock, _retry_dispatching, and _persisted_retry_entries in __init__ but these were not present in the helper, causing AttributeError in test_dispatch_preflight_does_not_move_task_in_progress, test_reconcile_terminates_stale_preflight_without_implementation_retry, and test_reconcile_preserves_open_worker_with_current_preflight_claim. Fix: 5-line addition to the helper initializing the three missing attributes.
 ---
 <!-- COMMENTS:END -->
