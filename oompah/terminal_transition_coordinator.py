@@ -462,6 +462,7 @@ class TerminalTransitionCoordinator:
         *,
         post_comments: bool = True,
         metrics: Any | None = None,
+        revoke_delivery_authority: Callable[[str, str], None] | None = None,
     ) -> None:
         # The standalone API accepts one tracker, while the server passes a
         # project-aware factory because managed projects each have their own
@@ -474,6 +475,11 @@ class TerminalTransitionCoordinator:
         # coordinator's tracker-neutral API for small integrations and older
         # callers while allowing the service to count lifecycle transitions.
         self._metrics = metrics
+        # Delivery reconciliations may be executing a long quality gate in a
+        # different thread.  Revoke their compare-and-swap ownership before
+        # this coordinator acquires terminal authority so no stale result can
+        # later overwrite an owner-approved terminal decision.
+        self._revoke_delivery_authority = revoke_delivery_authority
 
     def _run_project_serialized(
         self,
@@ -499,6 +505,26 @@ class TerminalTransitionCoordinator:
             callback(*args, **kwargs)
         except Exception:  # metrics must never change transition semantics
             logger.warning("terminal-audit metric %s failed", method, exc_info=True)
+
+    def _revoke_delivery_for_terminal_transition(
+        self,
+        project_id: str,
+        task_id: str,
+    ) -> None:
+        """Synchronously withdraw in-flight delivery ownership, best effort."""
+
+        callback = self._revoke_delivery_authority
+        if callback is None:
+            return
+        try:
+            callback(project_id, task_id)
+        except Exception:  # terminal correctness must not depend on diagnostics
+            logger.warning(
+                "failed to revoke delivery authority for %s/%s",
+                project_id,
+                task_id,
+                exc_info=True,
+            )
 
     # ------------------------------------------------------------------
     # Public API — request_transition
@@ -546,6 +572,10 @@ class TerminalTransitionCoordinator:
             :class:`~oompah.terminal_audit.TargetState`.
         """
         requested_target = TargetState.from_raw(requested_target)
+        self._revoke_delivery_for_terminal_transition(
+            project_id,
+            current_issue.identifier,
+        )
 
         def _operation() -> TransitionResult:
             tracker = self._tracker_for_project(project_id)
@@ -610,6 +640,10 @@ class TerminalTransitionCoordinator:
         has a different timestamp in its retention evidence.
         """
         requested_target = TargetState.from_raw(requested_target)
+        self._revoke_delivery_for_terminal_transition(
+            project_id,
+            current_issue.identifier,
+        )
 
         def _operation() -> TransitionResult:
             tracker = self._tracker_for_project(project_id)
@@ -673,6 +707,13 @@ class TerminalTransitionCoordinator:
 
         if not isinstance(result, AuditResult):
             raise TypeError("result must be an AuditResult instance")
+
+        # A PASS may apply Done, Merged, or Archived.  Revocation here also
+        # protects a delivery gate that began before terminal audit completion.
+        self._revoke_delivery_for_terminal_transition(
+            project_id,
+            current_issue.identifier,
+        )
 
         def _operation() -> ResultOutcome:
             tracker = self._tracker_for_project(project_id)
@@ -1445,6 +1486,13 @@ class TerminalTransitionCoordinator:
                 reason="evidence fingerprint mismatch (stale override)",
                 error_code=OverrideRejection.FINGERPRINT_MISMATCH,
             )
+
+        # Validation has succeeded and this owner override is now about to
+        # acquire terminal authority.  Revoke synchronously, before its first
+        # durable mutation, so a concurrent standalone gate cannot publish a
+        # stale outcome.  Invalid or stale override attempts intentionally do
+        # not disturb a valid delivery claim.
+        self._revoke_delivery_for_terminal_transition(project_id, identifier)
 
         # Step 3: Create and persist the override record
         now = _now_iso8601()

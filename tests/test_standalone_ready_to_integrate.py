@@ -19,6 +19,7 @@ from oompah.scm import ReviewRequest, SCMProvider
 from oompah.statuses import IN_REVIEW, IN_VALIDATION, MERGED, READY_TO_INTEGRATE
 from oompah.terminal_audit import (
     ContributorIdentity,
+    EvidenceFingerprint,
     RequestState,
     TargetState,
     Verdict,
@@ -84,6 +85,10 @@ class _MemoryTracker:
     def fetch_issues_by_states(self, states: list[str]) -> list[Issue]:
         return [self.issue] if self.issue.state in states else []
 
+    def fetch_issue_detail(self, identifier: str) -> Issue | None:
+        assert identifier == self.issue.identifier
+        return self.issue
+
     def get_metadata(self, identifier: str) -> dict[str, Any]:
         return copy.deepcopy(self.metadata.get(identifier, {}))
 
@@ -144,6 +149,14 @@ def harness(tmp_path, monkeypatch):
     )
     tracker = mock.MagicMock()
     tracker.fetch_issues_by_states.return_value = []
+    tracker.fetch_issue_detail.side_effect = lambda identifier: next(
+        (
+            issue
+            for issue in tracker.fetch_issues_by_states.return_value
+            if issue.identifier == identifier
+        ),
+        None,
+    )
     provider = mock.MagicMock(spec=SCMProvider)
     provider.get_branch_head_sha.return_value = "abc123"
     provider.find_pr_for_branch.return_value = None
@@ -189,7 +202,7 @@ def test_real_orchestrator_provider_store_and_project_create_review(harness):
         project.repo_url,
         access_token=project.access_token,
     )
-    provider.get_branch_head_sha.assert_called_once_with(
+    provider.get_branch_head_sha.assert_any_call(
         "org/repo",
         "feature/task-1",
     )
@@ -351,7 +364,9 @@ def test_service_restart_rediscovers_existing_review_without_duplicate(
     monkeypatch.setattr("oompah.orchestrator.detect_provider", lambda *_a, **_k: provider)
 
     tracker_one = mock.MagicMock()
-    tracker_one.fetch_issues_by_states.return_value = [_issue("TASK-7")]
+    task_one = _issue("TASK-7")
+    tracker_one.fetch_issues_by_states.return_value = [task_one]
+    tracker_one.fetch_issue_detail.return_value = task_one
     orch_one = _make_orchestrator(
         tmp_path,
         project=project,
@@ -367,7 +382,9 @@ def test_service_restart_rediscovers_existing_review_without_duplicate(
     _close_orchestrator(orch_one)
 
     tracker_two = mock.MagicMock()
-    tracker_two.fetch_issues_by_states.return_value = [_issue("TASK-7")]
+    task_two = _issue("TASK-7")
+    tracker_two.fetch_issues_by_states.return_value = [task_two]
+    tracker_two.fetch_issue_detail.return_value = task_two
     orch_two = _make_orchestrator(
         tmp_path,
         project=project,
@@ -411,6 +428,136 @@ def test_gate_failure_blocks_review_and_ready_retry_can_succeed(harness):
     ]
     provider.create_review.assert_called_once()
     tracker.update_issue.assert_called_once_with("TASK-8", status=IN_REVIEW)
+    assert not _delivery_alerts(orch)
+
+
+def test_owner_override_during_failed_gate_cancels_stale_delivery(harness):
+    """A terminal owner override wins over a gate failure already in flight."""
+
+    orch, project, tracker, provider, _detect, gate = harness
+    task = _issue("TASK-OVERRIDE-FAIL", branch="feature/override-fail")
+    tracker.fetch_issues_by_states.return_value = [task]
+    project.status_label_authorized_logins = ["owner"]
+    tracker.fetch_issue_detail.return_value = task
+    tracker.get_metadata.return_value = {}
+    tracker.update_issue.side_effect = (
+        lambda _identifier, **fields: setattr(task, "state", fields["status"])
+        if "status" in fields
+        else None
+    )
+
+    def override_then_fail(*_args):
+        result = asyncio.run(
+            orch.terminal_transition_coordinator.override_transition(
+                current_issue=task,
+                requested_target=TargetState.MERGED,
+                authorized_actor=ContributorIdentity("owner", "test"),
+                project_id=project.id,
+                evidence_fingerprint=EvidenceFingerprint.from_evidence(
+                    requirements_text=task.description or "",
+                    project_id=project.id,
+                    task_id=task.identifier,
+                ),
+                reason="Verified branch already matches the target.",
+                project=project,
+            )
+        )
+        assert result.success is True
+        return False
+
+    gate.side_effect = override_then_fail
+
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+
+    assert task.state == MERGED
+    assert [call.kwargs.get("status") for call in tracker.update_issue.call_args_list] == [
+        MERGED
+    ]
+    provider.create_review.assert_not_called()
+    assert not _delivery_alerts(orch)
+
+
+def test_owner_override_during_passing_gate_cancels_review_creation(harness):
+    """A successful stale gate cannot create a review after terminal ownership."""
+
+    orch, project, tracker, provider, _detect, gate = harness
+    task = _issue("TASK-OVERRIDE-PASS", branch="feature/override-pass")
+    tracker.fetch_issues_by_states.return_value = [task]
+    project.status_label_authorized_logins = ["owner"]
+    tracker.fetch_issue_detail.return_value = task
+    tracker.get_metadata.return_value = {}
+    tracker.update_issue.side_effect = (
+        lambda _identifier, **fields: setattr(task, "state", fields["status"])
+        if "status" in fields
+        else None
+    )
+
+    def override_then_pass(*_args):
+        result = asyncio.run(
+            orch.terminal_transition_coordinator.override_transition(
+                current_issue=task,
+                requested_target=TargetState.MERGED,
+                authorized_actor=ContributorIdentity("owner", "test"),
+                project_id=project.id,
+                evidence_fingerprint=EvidenceFingerprint.from_evidence(
+                    requirements_text=task.description or "",
+                    project_id=project.id,
+                    task_id=task.identifier,
+                ),
+                reason="Verified branch already matches the target.",
+                project=project,
+            )
+        )
+        assert result.success is True
+        return True
+
+    gate.side_effect = override_then_pass
+
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+
+    assert task.state == MERGED
+    assert [call.kwargs.get("status") for call in tracker.update_issue.call_args_list] == [
+        MERGED
+    ]
+    provider.create_review.assert_not_called()
+    assert not _delivery_alerts(orch)
+
+
+def test_changed_remote_head_cancels_stale_gate_result(harness):
+    """A force-push during the gate cannot create a review for the old head."""
+
+    orch, _project, tracker, provider, _detect, gate = harness
+    task = _issue("TASK-HEAD-RACE", branch="feature/head-race")
+    tracker.fetch_issues_by_states.return_value = [task]
+    tracker.fetch_issue_detail.return_value = task
+    provider.get_branch_head_sha.side_effect = ["head-before", "head-after"]
+    gate.return_value = True
+
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+
+    provider.create_review.assert_not_called()
+    tracker.update_issue.assert_not_called()
+    assert task.state == READY_TO_INTEGRATE
+    assert not _delivery_alerts(orch)
+
+
+def test_restart_stale_ready_snapshot_cannot_mutate_terminal_task(harness):
+    """Fresh task evidence fences a stale Ready record recovered after restart."""
+
+    orch, _project, tracker, provider, _detect, gate = harness
+    stale_ready = _issue("TASK-RESTART-STALE", branch="feature/restart-stale")
+    terminal_current = copy.deepcopy(stale_ready)
+    terminal_current.state = MERGED
+    tracker.fetch_issues_by_states.return_value = [stale_ready]
+    tracker.fetch_issue_detail.side_effect = None
+    tracker.fetch_issue_detail.return_value = terminal_current
+
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+
+    gate.assert_not_called()
+    provider.create_review.assert_not_called()
+    tracker.update_issue.assert_not_called()
     assert not _delivery_alerts(orch)
 
 

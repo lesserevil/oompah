@@ -227,6 +227,8 @@ def test_orchestrator_resolves_exact_branch_worktree_and_posts_evidence(tmp_path
         str(tmp_path / "quality.json")
     )
     orch._tracker_for_project = MagicMock(return_value=tracker)
+    orch._standalone_delivery_authority_lock = threading.RLock()
+    orch._standalone_delivery_authorities = {}
 
     resolved = orch._quality_gate_worktree(project, issue, "work")
     passed = orch._review_quality_gate_passes(

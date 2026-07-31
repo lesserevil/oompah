@@ -370,6 +370,7 @@ async def setup_services(
     terminal_transition_coordinator = TerminalTransitionCoordinator(
         tracker=orchestrator._tracker_for_project,
         project_store=project_store,
+        revoke_delivery_authority=orchestrator._revoke_standalone_delivery_authority,
     )
     terminal_transition_coordinator.set_metrics(
         orchestrator._terminal_audit_metrics
