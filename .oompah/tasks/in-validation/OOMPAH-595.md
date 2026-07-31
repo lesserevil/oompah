@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-595
 type: feature
-status: Needs Human
+status: In Validation
 priority: 1
 title: Expose separate operator and worker task-auth health signals
 parent: OOMPAH-586
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:56.897824Z'
-updated_at: '2026-07-31T00:44:33.583191Z'
+updated_at: '2026-07-31T00:44:57.839464Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-595
 target_branch: null
 review_url: null
@@ -65,8 +65,8 @@ oompah.integration:
     OOMPAH-594: 31a10b064158948503a7eaa646a1bfa7d1b35e55
     OOMPAH-593: 0a260f0279690a12fb056da0c8becb6f492f8c26
 oompah.task_costs:
-  total_input_tokens: 47119
-  total_output_tokens: 41597
+  total_input_tokens: 47188
+  total_output_tokens: 54239
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -78,8 +78,8 @@ oompah.task_costs:
       output_tokens: 32089
       cost_usd: 0.0
     unknown:
-      input_tokens: 44
-      output_tokens: 8148
+      input_tokens: 113
+      output_tokens: 20790
       cost_usd: 0.0
   runs:
   - profile: default
@@ -106,6 +106,12 @@ oompah.task_costs:
     output_tokens: 8148
     cost_usd: 0.0
     recorded_at: '2026-07-31T00:18:52.888980+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 69
+    output_tokens: 12642
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T00:44:51.255521+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-595__20260730T152855Z
@@ -170,7 +176,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-595
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -199,6 +205,23 @@ oompah.terminal_audit:
     previous_state: Needs Human
     created_at: '2026-07-31T00:38:54.738900+00:00'
     updated_at: '2026-07-31T00:44:24.685068+00:00'
+  - version: 1
+    audit_id: audit-77e603230884
+    project_id: proj-14849f1b
+    task_id: OOMPAH-595
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 38ac014f417de8e864404d3d18ff24f573f275257d88db9eab2164e0a203f255
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Needs Human
+    created_at: '2026-07-31T00:44:54.940604+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-e7bb1375c3e2
@@ -485,5 +508,15 @@ author: oompah
 created: 2026-07-31 00:44
 ---
 The parent epic OOMPAH-586 merged from epic-OOMPAH-586, but this task was Done with work branch epic-OOMPAH-586--task-OOMPAH-595. Its work is not proven to be in the merged epic. Git evidence: OOMPAH-595 branch epic-OOMPAH-586--task-OOMPAH-595 has 1 unlanded commit(s), including ca49d0c25b30. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
+---
+author: oompah
+created: 2026-07-31 00:44
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 63
+- Tokens: 69 in / 12.6K out [12.7K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 5m 49s
+- Log: OOMPAH-595__20260731T003906Z.jsonl
 ---
 <!-- COMMENTS:END -->
