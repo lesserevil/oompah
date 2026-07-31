@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-670
 type: task
-status: Needs CI Fix
+status: In Progress
 priority: null
 title: Dashboard authenticated mutations must omit client-supplied actor identities
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T22:56:06.058439Z'
-updated_at: '2026-07-31T23:42:26.602345Z'
+updated_at: '2026-07-31T23:43:07.656018Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,7 +37,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 2dcbf35d-bd85-4dad-af1a-b78b09642038
+oompah.agent_run_id: ebbe1120-2e13-42f9-b6ed-01a8f28321df
 oompah.task_costs:
   total_input_tokens: 218616
   total_output_tokens: 1771
@@ -290,5 +290,15 @@ FAILED tests/test_orchestrator_handlers.py::TestMaintenanceLaneNonBlocking::test
 
 make: *** [Makefile:369: test] Error 1
 ```
+---
+author: oompah
+created: 2026-07-31 23:43
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-31 23:43
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
