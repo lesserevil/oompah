@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:03.538398Z'
-updated_at: '2026-07-31T05:28:20.675020Z'
+updated_at: '2026-07-31T05:28:29.379772Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-603
 target_branch: null
 review_url: null
@@ -263,7 +263,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-603
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -309,7 +309,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-ca1128a4dfe6
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -320,13 +320,18 @@ oompah.terminal_audit:
       started_at: '2026-07-31T05:28:19.718502+00:00'
       branch_key: epic-OOMPAH-588--task-OOMPAH-603
       candidate_rotation_count: 2
+      failure_classification: infrastructure_error
+      ended_at: '2026-07-31T05:28:22.076263+00:00'
+      failure_reason: Epic branch epic-OOMPAH-588 diverged from origin/epic-OOMPAH-588;
+        reconcile both heads before dispatching more children
+      next_retry_at: '2026-07-31T05:29:02.076222+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Needs Human
     created_at: '2026-07-31T05:27:38.043550+00:00'
-    updated_at: '2026-07-31T05:28:19.718502+00:00'
+    updated_at: '2026-07-31T05:28:22.076263+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-8da7556bb1d0
@@ -407,7 +412,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-ca1128a4dfe6
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -418,6 +423,11 @@ oompah.terminal_audit:
     started_at: '2026-07-31T05:28:19.718502+00:00'
     branch_key: epic-OOMPAH-588--task-OOMPAH-603
     candidate_rotation_count: 2
+    failure_classification: infrastructure_error
+    ended_at: '2026-07-31T05:28:22.076263+00:00'
+    failure_reason: Epic branch epic-OOMPAH-588 diverged from origin/epic-OOMPAH-588;
+      reconcile both heads before dispatching more children
+    next_retry_at: '2026-07-31T05:29:02.076222+00:00'
 ---
 ## Summary
 
@@ -871,6 +881,25 @@ author: oompah
 created: 2026-07-31 05:28
 ---
 Run #2 [attempt=2, profile=auditor, role=— -> unknown/unknown]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 1s
+---
+author: oompah
+created: 2026-07-31 05:28
+---
+Auditor attempt ended: Epic branch epic-OOMPAH-588 diverged from origin/epic-OOMPAH-588; reconcile both heads before dispatching more children. A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-07-31 05:28
+---
+Auditor dispatched (attempt #3, candidate: prov-651d553c/haiku)
+---
+author: oompah
+created: 2026-07-31 05:28
+---
+Run #3 [attempt=3, profile=auditor, role=— -> unknown/unknown]
 - Turns: 0, Tool calls: 0
 - Tokens: 0 in / 0 out [0 total]
 - Cost: $0.0000
