@@ -13,7 +13,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:28.342383Z'
-updated_at: '2026-07-31T03:21:32.794938Z'
+updated_at: '2026-07-31T03:25:51.360074Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-597
 target_branch: null
 review_url: null
@@ -45,11 +45,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: epic-OOMPAH-587--task-OOMPAH-597
-  base_branch: main
-  base_sha: 24bd5d6c166af7f8c839e9d5c9e4f3f17d17508e
-  head_sha: 54ebca942a9f40c156b0b4e5218e132a09ba841c
-  submitted_at: '2026-07-31T03:21:17.901268+00:00'
-  updated_at: '2026-07-31T03:21:29.923319+00:00'
+  head_sha: b193e8491240715e6382a572c8c277666c1ad974
+  submitted_at: '2026-07-31T03:25:49.102323+00:00'
+  updated_at: '2026-07-31T03:25:49.102323+00:00'
 oompah.task_costs:
   total_input_tokens: 1271487
   total_output_tokens: 24947
@@ -588,5 +586,15 @@ Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: normal, Duration: 6m 45s
 - Log: OOMPAH-597__20260731T031452Z.jsonl
+---
+author: oompah
+created: 2026-07-31 03:25
+---
+Old-runtime cache workaround: identical tree rearmed at fresh empty commit b193e84912 because the same-head resubmit immediately reused the prior failed gate result instead of executing. No files changed. Evidence remains 14,097 passed/7 skipped/1 xfailed with only one transient setup error, plus 20/20 isolated passes for that test. OOMPAH-628 contains the durable same-head rearm fix for the post-main restart.
+---
+author: oompah
+created: 2026-07-31 03:25
+---
+Fresh submission identity on identical tested recovery tree to bypass the pre-fix same-head failed-result cache.
 ---
 <!-- COMMENTS:END -->
