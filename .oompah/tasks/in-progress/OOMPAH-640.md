@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T05:59:47.260716Z'
-updated_at: '2026-07-31T06:08:22.768998Z'
+updated_at: '2026-07-31T06:16:38.708228Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -141,5 +141,32 @@ DISCOVERY FINDINGS:
 - Posts REFRESH_REQUESTED event to wake dispatch immediately
 - _handle_dispatch_needed_locked() fetches candidates and dispatches selected issues
 - DispatchEventType.REFRESH_REQUESTED is the waking mechanism
+---
+author: oompah
+created: 2026-07-31 06:16
+---
+IMPLEMENTATION: Created tests/test_stall_to_dispatch_recovery.py with 15 comprehensive regression tests covering the complete stall-to-dispatch recovery flow.
+
+Test coverage includes all requirements from OOMPAH-640:
+1. Stale loop detection + orphan reset combined scenario
+2. Orphaned In Progress tasks reset to Open (leverages OOMPAH-416)
+3. REFRESH_REQUESTED wake posted to wake dispatch immediately
+4. One wake per reset batch (idempotency verified)
+5. Recovered tasks eligible for next dispatch cycle
+6. Full recovery before legacy 15-minute threshold (120s + 30s grace = 150s)
+7. Deterministic and repeatable behavior
+8. Edge cases: partial failures, full worker pool, legacy orphans
+
+All tests pass:
+- 15 new combined regression tests: PASS
+- 46 existing dispatch/orphan tests: PASS
+- No new production code changes required (reuses existing OOMPAH-415/416)
+
+Mutation testing and idempotency covered by:
+- test_sequential_orphan_resets_each_post_wake (duplicate prevention)
+- test_no_wake_posted_when_no_orphans_exist (no false positives)
+- test_partial_orphan_reset_failure_still_wakes_for_successful_resets (partial failures)
+
+Terminal audit compliance: no production changes, all test-only additions.
 ---
 <!-- COMMENTS:END -->

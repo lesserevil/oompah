@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:25:29.809048Z'
-updated_at: '2026-07-31T06:04:11.600039Z'
+updated_at: '2026-07-31T06:16:35.942891Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-621
 target_branch: null
 review_url: null
@@ -44,12 +44,12 @@ oompah.agent_run_id: e07734e7-aab8-493f-9606-2e2652950492
 oompah.work_branch: epic-OOMPAH-619--task-OOMPAH-621
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-619--task-OOMPAH-621
-  base_branch: epic-OOMPAH-619
-  base_sha: 9d11014204d3a8a07b339c9e3627ae500064638d
-  updated_at: '2026-07-31T06:03:50.129882+00:00'
+  head_sha: b2191c92f124fdb33e5f0383e3eb458c22ff030d
+  submitted_at: '2026-07-31T06:16:33.460264+00:00'
+  updated_at: '2026-07-31T06:16:33.460264+00:00'
 oompah.task_costs:
   total_input_tokens: 2243823
   total_output_tokens: 37175
@@ -501,5 +501,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 23s
 - Log: OOMPAH-621__20260731T060353Z.jsonl
+---
+author: oompah
+created: 2026-07-31 06:16
+---
+Recovered auditor-requested netrc documentation and contract coverage at pushed canonical head b2191c92f; the exact-revision compatibility test is already integrated on the parent epic. Resubmitting after the prior authority-withdrawal race.
 ---
 <!-- COMMENTS:END -->

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-460
 type: epic
-status: Done
+status: In Validation
 priority: 1
 title: Expose terminal audits in the UI, observability, migration, and end-to-end
   tests
@@ -30,7 +30,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:03:47.776498Z'
-updated_at: '2026-07-31T04:36:28.609880Z'
+updated_at: '2026-07-31T06:16:40.414885Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -75,6 +75,37 @@ oompah.terminal_audit:
     previous_state: Open
     created_at: '2026-07-31T04:24:53.487735+00:00'
     updated_at: '2026-07-31T04:36:09.005406+00:00'
+  - version: 1
+    audit_id: audit-2b50ca0977be
+    project_id: proj-14849f1b
+    task_id: OOMPAH-460
+    target_state: Archived
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: fd0747b9bdba754f77a8fc86c71d70ecdff91f8b3cbad76a463dd53d3644e757
+    attempts:
+    - version: 1
+      attempt_id: attempt-01ce9e329c32
+      target_state: Archived
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: fd0747b9bdba754f77a8fc86c71d70ecdff91f8b3cbad76a463dd53d3644e757
+      created_at: '2026-07-31T06:16:38.724130+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-31T06:16:38.724130+00:00'
+      branch_key: OOMPAH-460
+    requested_by:
+      version: 1
+      identity: api-client
+      source: api
+    previous_state: Done
+    created_at: '2026-07-31T06:16:27.453081+00:00'
+    updated_at: '2026-07-31T06:16:38.724130+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-053f80903b1e
@@ -88,6 +119,19 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: opus
     started_at: '2026-07-31T04:24:57.796303+00:00'
+    branch_key: OOMPAH-460
+  - version: 1
+    attempt_id: attempt-01ce9e329c32
+    target_state: Archived
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: fd0747b9bdba754f77a8fc86c71d70ecdff91f8b3cbad76a463dd53d3644e757
+    created_at: '2026-07-31T06:16:38.724130+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-31T06:16:38.724130+00:00'
     branch_key: OOMPAH-460
 oompah.task_costs:
   total_input_tokens: 185
@@ -189,5 +233,10 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 11m 28s
 - Log: OOMPAH-460__20260731T042504Z.jsonl
+---
+author: oompah
+created: 2026-07-31 06:16
+---
+Post-recovery closure: all implementation children are Done or Archived, their reviewed feature commits are present in merged main via recovery PR #603, the exact main gate passed (14,163 passed), terminal audit passed, and GitHub CI was green. Archiving the superseded epic branch prevents duplicate review/delivery while retaining the audit record.
 ---
 <!-- COMMENTS:END -->
