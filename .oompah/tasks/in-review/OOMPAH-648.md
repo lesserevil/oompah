@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-648
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Keep live long-running tool calls from triggering agent stall termination
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:15:42.851609Z'
-updated_at: '2026-07-31T08:12:12.228602Z'
+updated_at: '2026-07-31T08:16:48.776869Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -265,5 +265,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 7m 58s
 - Log: OOMPAH-648__20260731T080421Z.jsonl
+---
+author: oompah
+created: 2026-07-31 08:16
+---
+Branch quality gate passed for `ca51c22b90785daec5d4dd7f0e29dc22045957cc` using `make test` in 264.5s. Review creation may proceed.
 ---
 <!-- COMMENTS:END -->
