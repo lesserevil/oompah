@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-575
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 0
 title: Propagate scoped task CLI auth to Codex agent sessions
 parent: null
@@ -12,7 +12,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-07-30T02:15:25.255613Z'
-updated_at: '2026-07-31T05:59:01.476673Z'
+updated_at: '2026-07-31T05:59:59.299765Z'
 work_branch: OOMPAH-575
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/604
@@ -87,13 +87,13 @@ oompah.work_contributors:
     source_sha: e404d6eb71998904a7a3e6bea4ef4c3320e43116
     completed_at: '2026-07-31T05:57:11.427227+00:00'
 oompah.integration:
-  version: 1
+  version: 2
   state: ready
   attempts: 0
   task_branch: OOMPAH-575
-  head_sha: e404d6eb71998904a7a3e6bea4ef4c3320e43116
-  submitted_at: '2026-07-30T14:11:41.342937+00:00'
-  updated_at: '2026-07-30T14:11:41.342937+00:00'
+  head_sha: bb0fd760c3b2938d15ec2026ef5bfc2fd34b0682
+  submitted_at: '2026-07-31T05:59:57.549171+00:00'
+  updated_at: '2026-07-31T05:59:57.549171+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/604
 oompah.review_number: '604'
 oompah.work_branch: OOMPAH-575
@@ -326,5 +326,10 @@ author: oompah
 created: 2026-07-31 05:59
 ---
 Understanding: Branch OOMPAH-575 has one commit (e404d6eb7) that adds regression tests to tests/test_acp_codex_backend.py and tests/test_task_handoff.py. Main has diverged significantly — several other commits also touched both those test files (OOMPAH-576, OOMPAH-593, OOMPAH-628, OOMPAH-600, OOMPAH-631). Starting rebase onto origin/main to resolve conflicts.
+---
+author: oompah
+created: 2026-07-31 05:59
+---
+Merge conflict resolved. The single branch commit (e404d6eb7 - regression tests in test_acp_codex_backend.py and test_task_handoff.py) was already cherry-picked into main as 5f001d4f4 during the epic integration. Git rebase detected this and skipped the duplicate. Force-pushed OOMPAH-575 to origin/main HEAD (bb0fd760c). MR #604 now shows 0 diff vs main. Focused tests: 95/95 passed (test_task_handoff.py + test_acp_codex_backend.py).
 ---
 <!-- COMMENTS:END -->
