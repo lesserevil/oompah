@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:06:15.542774Z'
-updated_at: '2026-07-31T12:23:30.142377Z'
+updated_at: '2026-07-31T12:24:35.691573Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -482,5 +482,10 @@ author: oompah
 created: 2026-07-31 12:23
 ---
 Operator stopped the manually launched repository-wide make test at 12:23 UTC before completion. This is an operator review hold, not a CI failure: the exact pushed head still requires code review against the outstanding generation/authority requirements, and the configured full gate must run once through the server-owned immutable exact-head path after acceptance. Focused tests remain appropriate meanwhile.
+---
+author: oompah
+created: 2026-07-31 12:24
+---
+Review of pushed head 771dbba8c: the standalone is_current wiring, ordinary Ready->Open authority revocation/alert clearing, same-generation waiter fence, bounded inactive tombstones, key-lock cleanup, and failed-snapshot cleanup are now present. One critical generation-authority hole remains in epic integration: _integration_task_still_ready(item) validates only tracker status + integration branch/head. It does not validate that the durable integration_queue row is still state=integrating with the same lease_owner/head. If a long gate's lease expires and is reclaimed, both the stale and replacement generations remain is_current=True; the stale executor can consume cached/pass evidence and reach branch mutation before its later queue CAS fails. Make the is_current/commit_allowed callback include exact durable queue authority (project/task/head plus current integrating lease owner, fail closed), and add a deterministic lease-expiry/reclaim barrier test proving the old generation is interrupted/discarded while only the replacement can commit. This is required by the task's exact generation acceptance criterion. Please run focused tests only; do not manually launch make test before operator review.
 ---
 <!-- COMMENTS:END -->
