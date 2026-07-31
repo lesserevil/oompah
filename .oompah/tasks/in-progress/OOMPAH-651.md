@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-651
 type: bug
-status: Needs CI Fix
+status: In Progress
 priority: 1
 title: Redact secrets from agent tool inputs, outputs, and JSONL event logs
 parent: null
@@ -15,7 +15,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T12:15:53.125052Z'
+updated_at: '2026-07-31T12:16:08.615955Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -57,7 +57,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 8d4c522c-870d-4fd0-80b1-18acad287fb8
+oompah.agent_run_id: cd8b2da4-c573-4377-80fa-2e3eae4d697f
 oompah.task_costs:
   total_input_tokens: 16588309
   total_output_tokens: 104315
@@ -969,5 +969,15 @@ author: oompah
 created: 2026-07-31 12:15
 ---
 Stopped the server-launched full gate at 12:16 UTC (exact PGID 3304998). The just-pushed branch still requires review of the embedded-short-secret fix and remains finish-order dependent on OOMPAH-650 renewal wiring. This termination is not a test failure. The current scheduler's premature standalone-gate behavior is now tracked as OOMPAH-659.
+---
+author: oompah
+created: 2026-07-31 12:16
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-31 12:16
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
