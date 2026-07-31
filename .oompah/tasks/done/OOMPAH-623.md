@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-623
 type: bug
-status: In Validation
+status: Done
 priority: 1
 title: Keep the canonical user CLI synchronized with the running server
 parent: OOMPAH-619
@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:32:18.734139Z'
-updated_at: '2026-07-31T14:36:23.100928Z'
+updated_at: '2026-07-31T14:48:50.482644Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-623
 target_branch: null
 review_url: null
@@ -180,6 +180,30 @@ oompah.work_contributors:
     completed_at: '2026-07-31T13:55:17.387376+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-a5f77013195d: '2026-07-31T14:48:47.174048+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-623
+    target_state: Done
+    evidence_fingerprint: 15f46479ad00c665ac467fccca03e20814f9d8a7173613942941483867d9d53a
+    audit_ids:
+    - audit-365a9b73d7a0
+    kind: result
+    applied: true
+    retired_at: '2026-07-31T14:48:47.174059+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-623
+    audit_id: audit-365a9b73d7a0
+    attempt_id: attempt-a5f77013195d
+    target_state: Done
+    evidence_fingerprint: 15f46479ad00c665ac467fccca03e20814f9d8a7173613942941483867d9d53a
+    status: Done
+    audit_ids:
+    - audit-365a9b73d7a0
+    applied: false
+    created_at: '2026-07-31T14:48:47.174077+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -187,7 +211,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-623
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -196,7 +220,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-a5f77013195d
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -206,13 +230,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T14:36:17.448769+00:00'
       branch_key: epic-OOMPAH-619--task-OOMPAH-623
+      verdict: pass
+      completed_at: '2026-07-31T14:48:47.173838+00:00'
+      ended_at: '2026-07-31T14:48:47.173838+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-31T14:36:12.201478+00:00'
-    updated_at: '2026-07-31T14:36:17.448769+00:00'
+    updated_at: '2026-07-31T14:48:47.173838+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-a5f77013195d
@@ -722,5 +749,23 @@ author: oompah
 created: 2026-07-31 14:36
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 14:48
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- task_branch_head: 659a09ddc01b4afba181e274e9650e944850367b
+- epic_base_head: 659a09ddc01b4afba181e274e9650e944850367b
+- task_commits: 8 (66727e2ce -> 659a09ddc, all prefixed OOMPAH-623)
+- focused_tests_passed: 136 (test_build_identity 2, test_canonical_cli_sync 16, test_ci_sync_race 6, test_lifecycle_cli_sync_integration 25, test_cli_install_revision_compatibility 19, test_task_handoff 57, test_task_cli_actor 11)
+- diff_check_over_task_range: clean (git diff --check 7add4cdbc..HEAD exit 0)
+- canonical_path_documented: docs/cli-install.md mentions /home/shedwards/.local/bin/oompah and make install-cli recovery
+- build_identity_source_of_truth: oompah/build_info.py build_identity() consumed by --version, /healthz, /api/v1/state
+- cutover_serialization: host-scoped flock at $HOME/.local/bin/.oompah-cli-lifecycle.lock shared by synchronize() and graceful_cutover() via serialized_cli_lifecycle decorator
+- makefile_lifecycle_wiring: start, restart (graceful alias), and force-restart invoke scripts/canonical_cli_cutover.py; start with running service performs --verify-only
 ---
 <!-- COMMENTS:END -->
