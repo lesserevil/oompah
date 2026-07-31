@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-645
 type: task
-status: Backlog
+status: Open
 priority: 0
 title: Clear recovered terminal-audit transport failures without contaminating later
   audits
@@ -16,7 +16,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T06:47:58.732088Z'
-updated_at: '2026-07-31T12:20:35.898802Z'
+updated_at: '2026-07-31T13:38:36.901870Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -24,86 +24,19 @@ review_number: null
 merged_at: null
 oompah.duplicate_screening:
   schema_version: 1
-  task_fingerprint: f4416679eb9e4638e32ed608869ac730e290b5104a858835ed90572897c53054
+  task_fingerprint: 7193098c5d9a1aaf78769d4e378b2753a99c32f04c1ad49d8b1775d26af41a7d
   detector_version: duplicate-detector-v1
-  verdict: no_duplicate
-  checked_at: '2026-07-31T06:51:24.951133+00:00'
+  verdict: inconclusive
+  checked_at: null
   matched_identifiers: []
-  evidence: 'Based on my comprehensive investigation, I can now provide my findings.
-
-
-    ## Investigation Summary
-
-
-    I performed an exhaustive search for existing tasks that might cover the same
-    issue as OOMPAH-645:
-
-
-    **Searches Performed:**
-
-    1. Scanned all `.oompah/tasks/` directories (open, backlog, merged, archived)
-
-    2. Searched for keywords: `terminal`, `audit`, `health`, `alert`, `failure`, `degradation`,
-    `recovery`, `transport`, `contamination`, `stale`
-
-    3. Searched for the referenced task IDs from the issue: OOMPAH-592, OOMPAH-607,
-    OOMPAH-641
-
-    4. Scanned documentation in `docs/` and `plans/` directories
-
-    5. Cross-referenced the highest numbered existing tasks (OOMPAH-282 is the highest
-    in backlog; OOMPAH-280 is the highest merged)
-
-
-    **Key Findings:**
-
-
-    1. **No existing task** covers the issue described in OOMPAH-645 (terminal audit
-    health alerts persisting after recovery, contaminating subsequent unrelated audits)
-
-
-    2. **Most recent activity**: OOMPAH-281 and OOMPAH-282 from July 20-22, 2026;
-    this issue is dated July 31, 2026 (today)
-
-
-    3. **Task numbering gap**: Highest existing task is OOMPAH-282; OOMPAH-645 is
-    being created as a new task
-
-
-    4. **Code exists but bug is new**: The file `oompah/terminal_audit_health.py`
-    exists and is referenced as the target for fixes, confirming this is infrastructure
-    work, not a duplicate of prior design discussions
-
-
-    5. **Closest reviewed tasks** (all unrelated to this issue): OOMPAH-281 (GitHub
-    Actions runner), OOMPAH-282 (Unicode encoding bug), OOMPAH-279/280 (epic branch
-    rebasing)
-
-
-    ---
-
-
-    **Focus handoff: duplicate_detector**
-
-
-    **Duplicate preflight verdict: no_duplicate**
-
-
-    **Matches: none**
-
-
-    **Evidence:** Comprehensive search of 280+ tasks across all states (open, backlog,
-    merged, archived) found no existing task addressing terminal audit health alert
-    clearing after recovery or stale failure contamination between audits. The issue
-    references live reproduction tasks (OOMPAH-607, 641, 592) from a managed project
-    that exposed this bug in oompah''s infrastru'
-  claim_id: null
-  claim_owner: null
-  claimed_at: null
-  claim_expires_at: null
+  evidence: ''
+  claim_id: 3248cae9-97e9-4aa8-80ea-73b50176fbb9
+  claim_owner: 660099b4-9353-48a0-9b6d-9b3e8f3b8896
+  claimed_at: '2026-07-31T13:38:27.089186+00:00'
+  claim_expires_at: '2026-07-31T14:08:27.089186+00:00'
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: aa3a6a51-405f-4be1-9308-b7b8dab72a67
+oompah.agent_run_id: ce705c7f-edf6-4cc2-87ab-db5d72dd996b
 oompah.task_costs:
   total_input_tokens: 2740130
   total_output_tokens: 64309
@@ -627,5 +560,15 @@ author: oompah
 created: 2026-07-31 12:20
 ---
 Replaced the intentional Needs Human hold with a hard-start dependency on OOMPAH-650 and parked this complete pushed branch in Backlog. Exact submitted head 6686290d5 is preserved on origin; after 650 deploys, return to Open/rebase and submit through the repaired handoff/gate flow. The clean inactive disposable worktree is being pruned to reclaim space.
+---
+author: oompah
+created: 2026-07-31 13:38
+---
+Duplicate screening dispatched (profile: standard, task remains Open)
+---
+author: oompah
+created: 2026-07-31 13:38
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->

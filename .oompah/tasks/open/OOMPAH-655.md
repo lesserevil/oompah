@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-655
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Enforce full-gate service isolation outside candidate branch code
 parent: null
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T12:19:01.361212Z'
+updated_at: '2026-07-31T13:38:25.969460Z'
 work_branch: null
 target_branch: null
 review_url: null

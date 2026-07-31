@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-650
 type: bug
-status: Backlog
+status: In Progress
 priority: 1
 title: Keep scoped task handoff credentials valid for the full worker lifetime
 parent: OOMPAH-619
@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T12:30:53.122810Z'
+updated_at: '2026-07-31T13:38:34.730726Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -46,7 +46,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: f7796bb5-a967-4bb1-8351-24acf43c5fd2
+oompah.agent_run_id: 28ca9f8d-df70-4010-8f8d-b76c2a58b03e
 oompah.work_branch: epic-OOMPAH-619--task-OOMPAH-650
 oompah.integration:
   version: 2
@@ -54,8 +54,8 @@ oompah.integration:
   attempts: 0
   task_branch: epic-OOMPAH-619--task-OOMPAH-650
   base_branch: epic-OOMPAH-619
-  base_sha: 3fcdf30caa62fb7709d0cd9e1553320dd11b3877
-  updated_at: '2026-07-31T12:28:53.744810+00:00'
+  base_sha: 17658b95e32641e8cf2dbfff06f780c0f6b57916
+  updated_at: '2026-07-31T13:38:30.366004+00:00'
 oompah.task_costs:
   total_input_tokens: 9427172
   total_output_tokens: 39533
@@ -1112,5 +1112,15 @@ author: oompah
 created: 2026-07-31 12:30
 ---
 Operator focused verification on frozen pushed head 3e1fba180: tests/test_task_handoff.py passed 57/57 in 1.97s (one existing Starlette/httpx deprecation warning). The inactive clean worktree is now safe to prune; the remote branch remains canonical and recoverable.
+---
+author: oompah
+created: 2026-07-31 13:38
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-31 13:38
+---
+Focus: Event Api Redaction Specialist
 ---
 <!-- COMMENTS:END -->

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-661
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Cancel stale implementation retries when task authority changes
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T13:12:19.387161Z'
-updated_at: '2026-07-31T13:12:19.387161Z'
+updated_at: '2026-07-31T13:38:29.115061Z'
 work_branch: null
 target_branch: null
 review_url: null
