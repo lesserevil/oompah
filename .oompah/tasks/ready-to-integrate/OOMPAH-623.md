@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:32:18.734139Z'
-updated_at: '2026-07-31T14:28:19.010695Z'
+updated_at: '2026-07-31T14:29:06.881512Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-623
 target_branch: null
 review_url: null
@@ -60,8 +60,8 @@ oompah.integration:
   submitted_at: '2026-07-31T14:28:15.965673+00:00'
   updated_at: '2026-07-31T14:28:15.965673+00:00'
 oompah.task_costs:
-  total_input_tokens: 31994324
-  total_output_tokens: 119244
+  total_input_tokens: 31994416
+  total_output_tokens: 133247
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -69,8 +69,8 @@ oompah.task_costs:
       output_tokens: 110331
       cost_usd: 0.0
     opus:
-      input_tokens: 2019266
-      output_tokens: 8913
+      input_tokens: 2019358
+      output_tokens: 22916
       cost_usd: 0.0
   runs:
   - profile: default
@@ -127,6 +127,12 @@ oompah.task_costs:
     output_tokens: 19129
     cost_usd: 0.0
     recorded_at: '2026-07-31T14:21:38.398860+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 92
+    output_tokens: 14003
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T14:29:05.165407+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-623__20260730T213656Z
@@ -639,5 +645,15 @@ author: oompah
 created: 2026-07-31 14:28
 ---
 Canonical CLI kept in sync with the running server. Adds shared build identity module used by --version and both /healthz and /api/v1/state. Adds scripts/sync_canonical_cli.py (immutable versioned CLI roots, atomic launcher swap, rollback journal, bounded pruning) and scripts/canonical_cli_cutover.py (host-scoped flock serialization, pause/drain-based safe point, staged install + activation, verified two-sided rollback or PID-scoped quarantine on post-cutover uncertainty, prior pause-state preservation). Makefile start/restart/graceful/force-restart target the safe point and never leave a live mismatched pair. Health/state require the same non-null instance and exact revision before candidate/old equality is proven. docs/cli-install.md documents canonical path and recovery. Focused tests cover initial install, upgrade, no-op, dirty checkout refusal, wrong PATH, install-failure rollback, atomic activation, drain failure, accepted-restart timeout/drop, wrong build, activation crash/interruption, concurrent activation, exact PID quarantine, prior pause preservation, active/backup-root pruning, scoped view+comment CLI compatibility against server-issued task-handoff capability, and authenticated task/admin equality after synchronization.
+---
+author: oompah
+created: 2026-07-31 14:29
+---
+Run #2 [attempt=2, profile=deep, role=deep -> Claude/opus]
+- Turns: 0, Tool calls: 69
+- Tokens: 92 in / 14.0K out [14.1K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 7m 12s
+- Log: OOMPAH-623__20260731T142202Z.jsonl
 ---
 <!-- COMMENTS:END -->

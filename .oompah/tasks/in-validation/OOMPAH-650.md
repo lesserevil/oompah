@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-650
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Keep scoped task handoff credentials valid for the full worker lifetime
 parent: OOMPAH-619
@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T14:22:13.564279Z'
+updated_at: '2026-07-31T14:29:15.070169Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -50,12 +50,15 @@ oompah.agent_run_id: b75d1a69-ecbe-4204-99c8-a46bef14ae1c
 oompah.work_branch: epic-OOMPAH-619--task-OOMPAH-650
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-619--task-OOMPAH-650
+  base_branch: epic-OOMPAH-619
+  base_sha: 61546199b2334fd861f2d0cd844ec631e8b8d0e4
   head_sha: 7add4cdbc455d2561ded080fc15fa082aa137409
+  integrated_sha: 7add4cdbc455d2561ded080fc15fa082aa137409
   submitted_at: '2026-07-31T14:21:44.699469+00:00'
-  updated_at: '2026-07-31T14:21:44.699469+00:00'
+  updated_at: '2026-07-31T14:28:48.262127+00:00'
 oompah.task_costs:
   total_input_tokens: 9427172
   total_output_tokens: 39533
@@ -159,6 +162,55 @@ oompah.work_contributors:
     source_sha: 3e1fba180c2c8b9f89bfea5951550c8e9764d13d
     completed_at: '2026-07-31T12:28:23.985400+00:00'
 oompah.start_blocked_by: *id001
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-8ba2bd45c96f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-650
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 108b99672f7aff58bdb9b0188bde718e8090c7446162bc12647eee10f688a096
+    attempts:
+    - version: 1
+      attempt_id: attempt-8f64880258e9
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 108b99672f7aff58bdb9b0188bde718e8090c7446162bc12647eee10f688a096
+      created_at: '2026-07-31T14:29:08.513496+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-31T14:29:08.513496+00:00'
+      branch_key: epic-OOMPAH-619--task-OOMPAH-650
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-31T14:28:49.696605+00:00'
+    updated_at: '2026-07-31T14:29:08.513496+00:00'
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-8f64880258e9
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 108b99672f7aff58bdb9b0188bde718e8090c7446162bc12647eee10f688a096
+    created_at: '2026-07-31T14:29:08.513496+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-31T14:29:08.513496+00:00'
+    branch_key: epic-OOMPAH-619--task-OOMPAH-650
 ---
 ## Summary
 
@@ -1283,5 +1335,20 @@ Run #7 [attempt=7, profile=deep, role=deep -> Codex/gpt-5.6-sol]
 - Cost: $0.0000
 - Exit: terminated, Duration: 11m 7s
 - Log: OOMPAH-650__20260731T141112Z.jsonl
+---
+author: oompah
+created: 2026-07-31 14:28
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-07-31 14:29
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-07-31 14:29
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
