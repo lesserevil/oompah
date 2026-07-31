@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T13:46:47.152585Z'
+updated_at: '2026-07-31T13:51:13.742183Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -608,5 +608,10 @@ author: oompah
 created: 2026-07-31 13:46
 ---
 Discovery: OOMPAH-655 (6 commits) and OOMPAH-657 (3 commits) have parallel implementations. OOMPAH-657 is now on main with generation management + exact-head snapshots (git worktrees). OOMPAH-655 adds bwrap empty-root sandboxing + git archive snapshots + minimal environment isolation. Both approaches address the task requirement but differ in implementation. Current rebase encounters widespread conflicts across 28 files (quality_gate, integration_executor, orchestrator, terminal_audit, etc.). Key decision needed: integrate both approaches (complex multi-file changes) OR validate that OOMPAH-657's generation + snapshot containment is sufficient for the task (simpler, run tests).
+---
+author: oompah
+created: 2026-07-31 13:51
+---
+Key finding: OOMPAH-655 includes regression tests like test_default_boundary_blocks_literal_host_pid_and_localhost_attack that validate bwrap sandboxing prevents old/malicious Makefiles from accessing host state. These tests don't exist on main. The task REQUIRES these regression tests per acceptance criteria. Proceeding with manual integration of OOMPAH-655's bwrap implementation + tests into main-based branch.
 ---
 <!-- COMMENTS:END -->
