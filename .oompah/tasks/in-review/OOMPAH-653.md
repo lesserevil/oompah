@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-653
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Make terminal-audit success and owner override retire every duplicate record
   and alert
@@ -16,11 +16,11 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T13:15:59.245058Z'
+updated_at: '2026-07-31T13:16:03.610837Z'
 work_branch: null
 target_branch: null
 review_url: https://github.com/lesserevil/oompah/pull/619
-review_number: null
+review_number: '619'
 merged_at: null
 oompah.duplicate_screening:
   schema_version: 1
@@ -195,6 +195,7 @@ oompah.integration:
   updated_at: '2026-07-31T13:09:27.539651+00:00'
 oompah.start_blocked_by: *id001
 oompah.review_url: https://github.com/lesserevil/oompah/pull/619
+oompah.review_number: '619'
 ---
 ## Summary
 
