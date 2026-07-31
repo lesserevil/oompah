@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T13:52:05.961085Z'
-updated_at: '2026-07-31T14:13:46.996356Z'
+updated_at: '2026-07-31T14:14:06.051357Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,13 +39,13 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 8d63f73f-78c2-4e47-97e1-e15c730c90cd
 oompah.task_costs:
-  total_input_tokens: 3662929
-  total_output_tokens: 8902
+  total_input_tokens: 3664223
+  total_output_tokens: 9236
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 3662929
-      output_tokens: 8902
+      input_tokens: 3664223
+      output_tokens: 9236
       cost_usd: 0.0
   runs:
   - profile: default
@@ -54,6 +54,12 @@ oompah.task_costs:
     output_tokens: 8902
     cost_usd: 0.0
     recorded_at: '2026-07-31T14:04:00.235023+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 1294
+    output_tokens: 334
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T14:14:03.905079+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-663__20260731T140033Z
@@ -206,5 +212,15 @@ author: oompah
 created: 2026-07-31 14:13
 ---
 Canonicalized integrated-task fingerprints for owner overrides. All code paths (orchestrator integration, API override, ACP override, restart recovery) now use compute_issue_evidence_fingerprint(). Added 3 regression tests to verify fingerprint consistency, first valid override succeeds without restaging, and stale evidence fails closed. All 174 tests pass.
+---
+author: oompah
+created: 2026-07-31 14:14
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 80
+- Tokens: 1.3K in / 334 out [1.6K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 9m 46s
+- Log: OOMPAH-663__20260731T140422Z.jsonl
 ---
 <!-- COMMENTS:END -->
