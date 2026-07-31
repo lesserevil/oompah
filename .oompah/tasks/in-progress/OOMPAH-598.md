@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:29.695490Z'
-updated_at: '2026-07-31T02:36:15.157386Z'
+updated_at: '2026-07-31T02:36:42.616112Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-598
 target_branch: null
 review_url: null
@@ -576,5 +576,10 @@ author: oompah
 created: 2026-07-31 02:36
 ---
 Live recovery note: PR #600 was opened while #599 remained open, briefly exceeding project max_in_flight_prs=1. The production path calls _project_review_capacity and should serialize future creation; please retain/add an explicit multi-ready capacity regression. Operator is leaving the independent recovery PRs in CI rather than inducing close/reopen webhook churn, and will verify merge serialization.
+---
+author: oompah
+created: 2026-07-31 02:36
+---
+Blocking correction to the prior capacity note: production also has a same-sweep capacity race. _project_review_capacity() -> _count_open_reviews() reads _reviews_cache, but _reconcile_standalone_ready_to_integrate_tasks does not update a local reservation/count after create_review. With multiple pending Ready rows and initial n_open=0, each iteration sees stale 0/1 and can create multiple PRs in one sweep (matching live #599/#600). Fix with atomic/local per-project reservation accounting under the existing maintenance serialization (or equivalent authoritative refresh), and add a regression with two Ready tasks, max_in_flight_prs=1, asserting exactly one review creation and the second remains retryable without an erroneous undeliverable alert. Races are bugs; do not submit the current head without this fix.
 ---
 <!-- COMMENTS:END -->
