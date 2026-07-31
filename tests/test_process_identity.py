@@ -20,11 +20,20 @@ def test_identity_matches_pid_start_group_session_and_workspace(tmp_path):
 
     assert identity_matches(identity, workspace=os.getcwd())
 
+    changed_pid = {**identity, "pid": identity["pid"] + 1}
+    assert not identity_matches(changed_pid, pid=os.getpid(), workspace=os.getcwd())
+
     changed_start = {**identity, "start_time": identity["start_time"] + 1}
     assert not identity_matches(changed_start, workspace=os.getcwd())
 
     changed_group = {**identity, "process_group": identity["process_group"] + 1}
     assert not identity_matches(changed_group, workspace=os.getcwd())
+
+    changed_session = {**identity, "session": identity["session"] + 1}
+    assert not identity_matches(changed_session, workspace=os.getcwd())
+
+    changed_cwd = {**identity, "cwd": str(tmp_path)}
+    assert not identity_matches(changed_cwd, workspace=os.getcwd())
 
     assert not identity_matches(identity, workspace=str(tmp_path))
 

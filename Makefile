@@ -119,11 +119,17 @@ $(VENV)/.uv-test-setup: pyproject.toml $(VENV)/.uv-setup
 
 start: setup
 	@mkdir -p "$$(dirname "$(PID_FILE)")" "$$(dirname "$(PID_META_FILE)")"; \
-	if [ -f $(PID_FILE) ] && [ -f $(PID_META_FILE) ] && kill -0 $$(cat $(PID_FILE)) 2>/dev/null && \
-		$(PYTHON) scripts/process_identity.py verify "$$(cat $(PID_FILE))" "$$(pwd)" "$(PID_META_FILE)"; then \
-		echo "oompah is already running (pid $$(cat $(PID_FILE)))"; \
+	EXISTING_PID=$$(cat "$(PID_FILE)" 2>/dev/null || true); \
+	if [ -n "$$EXISTING_PID" ] && kill -0 "$$EXISTING_PID" 2>/dev/null; then \
+		if [ ! -f "$(PID_META_FILE)" ] || \
+			! $(PYTHON) scripts/process_identity.py verify "$$EXISTING_PID" "$$(pwd)" "$(PID_META_FILE)"; then \
+			echo "ERROR: refusing to start over live PID $$EXISTING_PID without its exact stored identity." >&2; \
+			echo "Run 'make restart' to migrate a verified pre-identity Oompah service, or inspect the PID and port manually." >&2; \
+			exit 1; \
+		fi; \
+		echo "oompah is already running (pid $$EXISTING_PID)"; \
 	else \
-		rm -f $(PID_FILE) "$(PID_META_FILE)"; \
+		rm -f "$(PID_FILE)" "$(PID_META_FILE)"; \
 		if $(call port_in_use,$(PORT)); then \
 			echo "ERROR: Port $(PORT) is already in use. Cannot start oompah."; \
 			exit 1; \
@@ -134,11 +140,13 @@ start: setup
 			nohup $(PYTHON) -m oompah server >> $(LOG_FILE) 2>&1 </dev/null & \
 		fi; \
 		NEWPID=$$!; \
-		echo $$NEWPID > $(PID_FILE); \
-		if ! $(PYTHON) scripts/process_identity.py capture "$$NEWPID" "$$(pwd)" > "$(PID_META_FILE)" 2>/dev/null; then \
+		echo $$NEWPID > "$(PID_FILE)"; \
+		META_TMP=$$(mktemp "$(PID_META_FILE).tmp.XXXXXX"); \
+		if ! $(PYTHON) scripts/process_identity.py capture "$$NEWPID" "$$(pwd)" > "$$META_TMP" 2>/dev/null || \
+			! mv -f "$$META_TMP" "$(PID_META_FILE)"; then \
 			echo "ERROR: oompah process $$NEWPID did not expose an owned process identity"; \
 			kill -TERM $$NEWPID 2>/dev/null || true; \
-			rm -f $(PID_FILE) "$(PID_META_FILE)"; \
+			rm -f "$(PID_FILE)" "$(PID_META_FILE)" "$$META_TMP"; \
 			exit 1; \
 		fi; \
 		echo "Waiting for oompah (pid $$NEWPID) to start listening on port $(PORT)..."; \
@@ -146,12 +154,12 @@ start: setup
 		while ! $(call port_in_use,$(PORT)); do \
 			if [ $$ELAPSED -ge 10 ]; then \
 				echo "ERROR: oompah (pid $$NEWPID) did not start listening on port $(PORT) within 10 seconds"; \
-				rm -f $(PID_FILE) "$(PID_META_FILE)"; \
+				rm -f "$(PID_FILE)" "$(PID_META_FILE)"; \
 				exit 1; \
 			fi; \
 			if ! kill -0 $$NEWPID 2>/dev/null; then \
 				echo "ERROR: oompah process $$NEWPID exited unexpectedly"; \
-				rm -f $(PID_FILE) "$(PID_META_FILE)"; \
+				rm -f "$(PID_FILE)" "$(PID_META_FILE)"; \
 				exit 1; \
 			fi; \
 			sleep 1; \
@@ -161,9 +169,13 @@ start: setup
 	fi
 
 stop:
-	@if [ -f $(PID_FILE) ] && [ -f $(PID_META_FILE) ] && kill -0 $$(cat $(PID_FILE)) 2>/dev/null && \
-		$(PYTHON) scripts/process_identity.py verify "$$(cat $(PID_FILE))" "$$(pwd)" "$(PID_META_FILE)"; then \
-		PID=$$(cat $(PID_FILE)); \
+	@PID=$$(cat "$(PID_FILE)" 2>/dev/null || true); \
+	if [ -n "$$PID" ] && kill -0 "$$PID" 2>/dev/null; then \
+		if [ ! -f "$(PID_META_FILE)" ] || \
+			! $(PYTHON) scripts/process_identity.py verify "$$PID" "$$(pwd)" "$(PID_META_FILE)"; then \
+			echo "ERROR: refusing to stop live PID $$PID because its stored identity is missing or stale." >&2; \
+			exit 1; \
+		fi; \
 		IDENTITY_META="$(PID_META_FILE)"; \
 		if [ -r "$$IDENTITY_META" ]; then \
 			GROUP=$$($(PYTHON) -c 'import json,sys; print(json.load(open(sys.argv[1]))["process_group"])' "$$IDENTITY_META"); \
@@ -183,7 +195,8 @@ stop:
 	fi
 
 restart: setup
-	@if [ -f $(PID_FILE) ] && kill -0 $$(cat $(PID_FILE)) 2>/dev/null; then \
+	@PID=$$(cat "$(PID_FILE)" 2>/dev/null || :); \
+	if [ -n "$$PID" ] && kill -0 "$$PID" 2>/dev/null; then \
 		HEALTHZ_URL="http://127.0.0.1:$(PORT)/healthz"; \
 		STATE_PATH="/api/v1/state"; \
 		RESTART_PATH="/api/v1/orchestrator/restart"; \
@@ -191,6 +204,22 @@ restart: setup
 			echo "ERROR: oompah PID is running but /healthz is unavailable."; \
 			echo "Refusing to interrupt agents. Inspect logs, or use 'make force-restart' for an emergency."; \
 			exit 1; \
+		fi; \
+		if [ -f "$(PID_META_FILE)" ]; then \
+			if ! $(PYTHON) scripts/process_identity.py verify "$$PID" "$$(pwd)" "$(PID_META_FILE)"; then \
+				echo "ERROR: refusing restart because PID $$PID no longer matches its stored identity." >&2; \
+				exit 1; \
+			fi; \
+		else \
+			echo "Migrating verified pre-identity service PID $$PID to an owned lifecycle record..."; \
+			mkdir -p "$$(dirname "$(PID_META_FILE)")"; \
+			META_TMP=$$(mktemp "$(PID_META_FILE).tmp.XXXXXX"); \
+			if ! $(PYTHON) scripts/process_identity.py capture "$$PID" "$$(pwd)" > "$$META_TMP" 2>/dev/null; then \
+				rm -f "$$META_TMP"; \
+				echo "ERROR: refusing restart because PID $$PID is not owned by this checkout." >&2; \
+				exit 1; \
+			fi; \
+			mv -f "$$META_TMP" "$(PID_META_FILE)"; \
 		fi; \
 		if ! BEFORE=$$(OOMPAH_SERVER_URL="$(LOCAL_HTTP_URL)" $(PYTHON) scripts/oompah_http.py GET "$$STATE_PATH" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('service_instance_id') or '')"); then \
 			echo "ERROR: Cannot reach state API (authentication may be required or server is unhealthy)."; \
@@ -219,7 +248,7 @@ restart: setup
 		echo "Active tasks may still be draining; inspect 'make status' and 'make logs'. No force restart was attempted."; \
 		exit 1; \
 	else \
-		rm -f $(PID_FILE); \
+		rm -f "$(PID_FILE)" "$(PID_META_FILE)"; \
 		echo "oompah is not running; starting it."; \
 		make --no-print-directory start; \
 	fi
@@ -244,9 +273,14 @@ run-granian:
 	$(PYTHON) -m oompah server --server granian
 
 status:
-	@if [ -f $(PID_FILE) ] && [ -f $(PID_META_FILE) ] && kill -0 $$(cat $(PID_FILE)) 2>/dev/null && \
-		$(PYTHON) scripts/process_identity.py verify "$$(cat $(PID_FILE))" "$$(pwd)" "$(PID_META_FILE)"; then \
-		echo "oompah is running (pid $$(cat $(PID_FILE)))"; \
+	@PID=$$(cat "$(PID_FILE)" 2>/dev/null || true); \
+	if [ -n "$$PID" ] && kill -0 "$$PID" 2>/dev/null; then \
+		if [ ! -f "$(PID_META_FILE)" ] || \
+			! $(PYTHON) scripts/process_identity.py verify "$$PID" "$$(pwd)" "$(PID_META_FILE)"; then \
+			echo "ERROR: live PID $$PID has no matching stored Oompah identity; refusing to discard its lifecycle files." >&2; \
+			exit 1; \
+		fi; \
+		echo "oompah is running (pid $$PID)"; \
 		echo "Dashboard: http://0.0.0.0:$(PORT)"; \
 		if ! OOMPAH_SERVER_URL="$(LOCAL_HTTP_URL)" $(PYTHON) scripts/oompah_http.py GET /api/v1/state | python3 -m json.tool; then \
 			echo "ERROR: Could not fetch state (check OOMPAH_SERVER_USERNAME / OOMPAH_SERVER_PASSWORD_FILE)."; \

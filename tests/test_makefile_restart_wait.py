@@ -14,6 +14,7 @@ correct runtime behavior of that polling logic (functional).
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import signal
@@ -200,11 +201,11 @@ class TestMakefileStructure:
     def test_start_removes_pid_file_on_timeout(self):
         """start: must remove .oompah.pid when the new process never listens."""
         text = _makefile_text()
-        # Verify rm -f $(PID_FILE) appears in the start recipe error path
+        # Verify both lifecycle records are removed in the start error path.
         start_recipe_pos = text.find("start: setup")
         stop_recipe_pos = text.find("\nstop:")
         start_recipe = text[start_recipe_pos:stop_recipe_pos]
-        assert "rm -f $(PID_FILE)" in start_recipe, (
+        assert 'rm -f "$(PID_FILE)" "$(PID_META_FILE)"' in start_recipe, (
             "start: must clean up the PID file when the new process fails to start"
         )
 
@@ -215,7 +216,7 @@ class TestMakefileStructure:
         stop_recipe_pos = text.find("\nstop:")
         start_recipe = text[start_recipe_pos:stop_recipe_pos]
         # Two distinct error paths should both clean up
-        assert start_recipe.count("rm -f $(PID_FILE)") >= 2, (
+        assert start_recipe.count('rm -f "$(PID_FILE)" "$(PID_META_FILE)"') >= 2, (
             "start: must clean up PID file in both the timeout and crash error paths"
         )
 
@@ -252,6 +253,8 @@ class TestMakefileStructure:
         assert "OOMPAH_TEST_PID_META_FILE" in runner
         assert "_PYTEST_GATE" in makefile
         assert "process_identity.py capture" in makefile
+        assert 'mktemp "$(PID_META_FILE).tmp.XXXXXX"' in makefile
+        assert 'mv -f "$$META_TMP" "$(PID_META_FILE)"' in makefile
 
     @pytest.mark.timeout(120)
     @pytest.mark.skipif(
@@ -322,6 +325,67 @@ class TestMakefileStructure:
                 sentinel.process.communicate(timeout=2)
             except subprocess.TimeoutExpired:
                 pytest.fail("sentinel process was not reaped")
+
+    @pytest.mark.parametrize(
+        ("field", "replacement"),
+        [
+            ("pid", lambda value, tmp_path: value + 1),
+            ("start_time", lambda value, tmp_path: value + 1),
+            ("process_group", lambda value, tmp_path: value + 1),
+            ("session", lambda value, tmp_path: value + 1),
+            ("cwd", lambda value, tmp_path: str(tmp_path)),
+        ],
+    )
+    @pytest.mark.skipif(
+        os.name != "posix" or not Path("/proc").is_dir(),
+        reason="requires POSIX procfs process identities",
+    )
+    def test_stop_refuses_every_mismatched_stored_identity_field(
+        self, tmp_path, field, replacement
+    ):
+        """A stale or reused PID record never authorizes a lifecycle signal."""
+        sentinel = start_owned_process(
+            [sys.executable, "-c", "import time; time.sleep(60)"],
+            workspace=ROOT,
+            env=os.environ.copy(),
+        )
+        pid_file = tmp_path / "service.pid"
+        meta_file = tmp_path / "service.pid.meta"
+        identity = {
+            "pid": sentinel.identity.pid,
+            "start_time": sentinel.identity.starttime,
+            "process_group": sentinel.identity.process_group,
+            "session": sentinel.identity.session,
+            "cwd": sentinel.identity.cwd,
+        }
+        identity[field] = replacement(identity[field], tmp_path)
+        pid_file.write_text(f"{sentinel.identity.pid}\n", encoding="utf-8")
+        meta_file.write_text(json.dumps(identity), encoding="utf-8")
+
+        try:
+            result = subprocess.run(
+                [
+                    "make",
+                    "--no-print-directory",
+                    "stop",
+                    f"PYTHON={sys.executable}",
+                    f"PID_FILE={pid_file}",
+                    f"PID_META_FILE={meta_file}",
+                    f"PORT={find_free_port()}",
+                ],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+            assert result.returncode != 0
+            assert "refusing" in (result.stdout + result.stderr).lower()
+            assert sentinel.process.poll() is None
+        finally:
+            survivors = stop_owned_process(sentinel, timeout_s=2)
+            assert survivors == set()
+            sentinel.process.communicate(timeout=2)
+
     def test_port_in_use_uses_ss_with_lsof_fallback(self):
         """port_in_use must try ss first, fall back to lsof."""
         text = _makefile_text()
@@ -749,7 +813,10 @@ class TestMakefileAuthSecurity:
         content = self._read_makefile()
         restart = content[content.index("\nrestart:"):content.index("\ngraceful:")]
         assert "if ! BEFORE=$$(OOMPAH_SERVER_URL=" in restart
-        assert "|| true);" not in restart.split("Requesting draining restart", 1)[0]
+        state_probe = next(
+            line for line in restart.splitlines() if "if ! BEFORE=" in line
+        )
+        assert "|| true" not in state_probe
 
     def test_status_surfaces_state_auth_failure(self):
         content = self._read_makefile()

@@ -42,6 +42,45 @@ class _ProcessRecord:
     argv: tuple[str, ...]
 
 
+def _linux_process_record(pid: int) -> _ProcessRecord | None:
+    """Return one procfs record without scanning unrelated processes."""
+
+    try:
+        stat = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
+        fields = stat[stat.rfind(")") + 2 :].split()
+        if fields[0] == "Z":
+            return None
+        ppid = int(fields[1])
+        starttime = int(fields[19])
+        process_group = int(fields[2])
+        session = int(fields[3])
+    except (OSError, ValueError, IndexError):
+        return None
+    try:
+        cwd = os.path.realpath(os.readlink(f"/proc/{pid}/cwd"))
+    except OSError:
+        cwd = None
+    try:
+        argv = tuple(
+            value.decode("utf-8", errors="replace")
+            for value in Path(f"/proc/{pid}/cmdline").read_bytes().split(b"\0")
+            if value
+        )
+    except OSError:
+        argv = ()
+    return _ProcessRecord(
+        ppid=ppid,
+        identity=ProcessIdentity(
+            pid=pid,
+            starttime=starttime,
+            process_group=process_group,
+            session=session,
+            cwd=cwd,
+        ),
+        argv=argv,
+    )
+
+
 def _linux_process_snapshot() -> dict[int, _ProcessRecord]:
     """Return process records containing ancestry and kernel identity.
 
@@ -57,42 +96,9 @@ def _linux_process_snapshot() -> dict[int, _ProcessRecord]:
         if not raw_pid.isdigit():
             continue
         pid = int(raw_pid)
-        try:
-            stat = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
-            fields = stat[stat.rfind(")") + 2 :].split()
-            if fields[0] == "Z":
-                # A zombie has exited and cannot perform work; its owner only
-                # needs to reap it. Treat it as gone for termination safety.
-                continue
-            ppid = int(fields[1])
-            starttime = int(fields[19])
-            process_group = int(fields[2])
-            session = int(fields[3])
-        except (OSError, ValueError, IndexError):
-            continue
-        try:
-            cwd = os.path.realpath(os.readlink(f"/proc/{pid}/cwd"))
-        except OSError:
-            cwd = None
-        try:
-            argv = tuple(
-                value.decode("utf-8", errors="replace")
-                for value in Path(f"/proc/{pid}/cmdline").read_bytes().split(b"\0")
-                if value
-            )
-        except OSError:
-            argv = ()
-        snapshot[pid] = _ProcessRecord(
-            ppid=ppid,
-            identity=ProcessIdentity(
-                pid=pid,
-                starttime=starttime,
-                process_group=process_group,
-                session=session,
-                cwd=cwd,
-            ),
-            argv=argv,
-        )
+        record = _linux_process_record(pid)
+        if record is not None:
+            snapshot[pid] = record
     return snapshot
 
 
@@ -205,12 +211,12 @@ def terminate_captured_processes(
             captured[pid] = current[pid].identity
 
     def _alive() -> set[int]:
-        current = _linux_process_snapshot()
-        return {
-            pid
-            for pid, expected in captured.items()
-            if _matches(current, pid, expected)
-        }
+        alive: set[int] = set()
+        for pid, expected in captured.items():
+            record = _linux_process_record(pid)
+            if record is not None and _matches({pid: record}, pid, expected):
+                alive.add(pid)
+        return alive
 
     def _signal(pids: set[int], sig: signal.Signals) -> None:
         # Signal only the captured PID/start-time identities; never a broad
@@ -626,7 +632,7 @@ class AgentSession:
                 # the old fallback for test doubles.  Real subprocess handles
                 # without an identity are never safe to signal broadly.
                 return not isinstance(process, asyncio.subprocess.Process)
-            record = _linux_process_snapshot().get(pid)
+            record = _linux_process_record(pid)
             return bool(
                 record
                 and record.identity == identity
