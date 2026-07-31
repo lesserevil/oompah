@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T11:06:15.542774Z'
-updated_at: '2026-07-31T11:34:32.727447Z'
+updated_at: '2026-07-31T11:38:05.366098Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -209,5 +209,25 @@ author: oompah
 created: 2026-07-31 11:34
 ---
 Focus: Refactoring Specialist
+---
+author: oompah
+created: 2026-07-31 11:38
+---
+Understanding: The previous agent (08bc7ebfe) added snapshot isolation and generation-based cancellation to quality_gate.py, but three critical gaps remain:
+
+1. **_retire_inactive_integration_rows excludes Open**: When a task moves from Ready to Integrate -> Open, its integration row stays alive. The fix is to retire any row whose task status is NOT READY_TO_INTEGRATE.
+
+2. **Pre-spawn cancellation barriers missing**: cancel_generation() only kills already-registered processes. During _create_snapshot() (up to 60s) and between Popen() and _active_generations registration, a generation cancellation call cannot stop the gate.
+
+3. **No durable tombstone**: Need a _cancelled_generations set that persists across the pre-spawn window so cancel_generation() called before spawn blocks the gate.
+
+Also missing: cancel_generation() should be called when _retire_inactive_integration_rows retires a row (the row retirement doesn't stop the running gate).
+
+Plan: 
+- Add _cancelled_generations class-level set to BranchQualityGate
+- Check tombstone before snapshot creation and after snapshot but before Popen
+- Check is_current() at these same barrier points
+- In _retire_inactive_integration_rows: change inactive_states logic to retire when NOT READY_TO_INTEGRATE, and call cancel_generation for each retired row
+- Add deterministic barrier tests for pre-spawn revocation and Ready-to-Open retirement
 ---
 <!-- COMMENTS:END -->
