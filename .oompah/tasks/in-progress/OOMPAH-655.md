@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T16:09:43.297011Z'
+updated_at: '2026-07-31T16:11:29.813420Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -1048,5 +1048,28 @@ author: oompah
 created: 2026-07-31 16:09
 ---
 Focus: Event Api Redaction Specialist
+---
+author: oompah
+created: 2026-07-31 16:11
+---
+**Understanding & Assessment:**
+
+The OOMPAH-655 branch already contains the core isolation implementation in quality_gate.py with:
+- OS-level bwrap sandboxing (empty root, private /tmp, /home, $HOME)
+- Private port allocation and PID/lifecycle file separation
+- Ancestry verification (_verify_isolation_contract) checking for OOMPAH-652 safety head
+- Disposable snapshot via git archive (excludes operator state, rejects symlink escapes)
+- Graceful process group termination and generation tracking
+
+Tests in test_quality_gate.py cover:
+- Isolation boundary enforcement (no host file access, no localhost attacks)
+- Process reaping and cleanup
+- Caching and retry logic
+- Regression tests for old branches without OOMPAH-652 ancestry
+- Spoofed marker rejection (git ancestry is the enforcement boundary)
+
+**Status Check**: The worktree is at 9e4f9573c "OOMPAH-655: isolate candidate quality gate execution" with clean working tree. OOMPAH-657 (generation tracking blocker) is already merged to main at 3316ec409.
+
+**Assessment**: Current OOMPAH-655 has the focused bwrap boundary and regression tests. Need to verify the implementation meets acceptance criteria (no branch can weaken isolation; stale branches fail safely) and run focused tests to confirm.
 ---
 <!-- COMMENTS:END -->
