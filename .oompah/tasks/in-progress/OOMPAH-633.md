@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:54:49.391955Z'
-updated_at: '2026-07-31T05:52:40.422289Z'
+updated_at: '2026-07-31T05:53:00.971968Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-633
 target_branch: null
 review_url: null
@@ -46,16 +46,13 @@ oompah.duplicate_screening:
 oompah.agent_run_id: 62694961-95a5-4333-8098-bfd589e8b1ab
 oompah.work_branch: epic-OOMPAH-584--task-OOMPAH-633
 oompah.integration:
-  version: 1
-  state: integrated
-  attempts: 1
+  version: 2
+  state: working
+  attempts: 0
   task_branch: epic-OOMPAH-584--task-OOMPAH-633
   base_branch: epic-OOMPAH-584
-  base_sha: 63f8d043c4ffa718a0b26858d701e54fc3c9bc88
-  head_sha: ef3ba804da463a0e0dbcedecd715f8feaffe48e5
-  integrated_sha: ef3ba804da463a0e0dbcedecd715f8feaffe48e5
-  submitted_at: '2026-07-31T01:26:57.759303+00:00'
-  updated_at: '2026-07-31T01:31:58.076227+00:00'
+  base_sha: bb0fd760c3b2938d15ec2026ef5bfc2fd34b0682
+  updated_at: '2026-07-31T05:52:43.607541+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-633__20260731T010158Z
@@ -550,5 +547,15 @@ author: oompah
 created: 2026-07-31 05:52
 ---
 Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-31 05:52
+---
+Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-07-31 05:53
+---
+Post-restart landing re-evaluation: this task's refreshed exact remote work ref is an ancestor of merged origin/main bb0fd760c3. The Needs Human state was a false regression from the old runtime comparing a pre-rebase SHA. Restoring the task's previously audited Done state.
 ---
 <!-- COMMENTS:END -->

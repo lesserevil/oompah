@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:08:00.758352Z'
-updated_at: '2026-07-31T05:52:34.117662Z'
+updated_at: '2026-07-31T05:52:54.175329Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-631
 target_branch: null
 review_url: null
@@ -451,5 +451,10 @@ author: oompah
 created: 2026-07-31 05:52
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-31 05:52
+---
+Post-restart landing re-evaluation: this task's refreshed exact remote work ref is an ancestor of merged origin/main bb0fd760c3. The Needs Human state was a false regression from the old runtime comparing a pre-rebase SHA. Restoring the task's previously audited Done state.
 ---
 <!-- COMMENTS:END -->
