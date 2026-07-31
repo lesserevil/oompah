@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-653
 type: bug
-status: In Progress
+status: Needs Human
 priority: 1
 title: Make terminal-audit success and owner override retire every duplicate record
   and alert
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T10:35:54.412343Z'
+updated_at: '2026-07-31T10:37:45.266188Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,13 +46,17 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 18c90838-cd0d-4309-bd62-4f8debb65bb1
 oompah.task_costs:
-  total_input_tokens: 675552
-  total_output_tokens: 9881
+  total_input_tokens: 1396321
+  total_output_tokens: 13713
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 675552
       output_tokens: 9881
+      cost_usd: 0.0
+    opus:
+      input_tokens: 720769
+      output_tokens: 3832
       cost_usd: 0.0
   runs:
   - profile: default
@@ -79,6 +83,12 @@ oompah.task_costs:
     output_tokens: 72
     cost_usd: 0.0
     recorded_at: '2026-07-31T10:32:50.404232+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 720769
+    output_tokens: 3832
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T10:37:40.207635+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-653__20260731T090421Z
@@ -97,6 +107,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-653
     source_sha: 8fd133e26aa2823ab68cde2a42b446933142b614
     completed_at: '2026-07-31T09:12:25.802895+00:00'
+  - run_id: OOMPAH-653__20260731T103554Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-sol
+    focus: general
+    source_branch: OOMPAH-653
+    source_sha: 200e137052c016e40e2a28b2c43a5e0bd9e1f1c2
+    completed_at: '2026-07-31T10:37:40.210996+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -404,5 +422,20 @@ author: oompah
 created: 2026-07-31 10:35
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-31 10:37
+---
+Run #1 [attempt=1, profile=deep, role=deep -> Codex/gpt-5.6-sol]
+- Turns: 1, Tool calls: 16
+- Tokens: 720.8K in / 3.8K out [724.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 48s
+- Log: OOMPAH-653__20260731T103554Z.jsonl
+---
+author: oompah
+created: 2026-07-31 10:37
+---
+Task handoff failed after the worker ran: the server-owned, task-scoped tracker capability could not update this task. The task is held in Needs Human and will not be redispatched automatically; verify the handoff service and reconcile the worker's branch before resuming it.
 ---
 <!-- COMMENTS:END -->
