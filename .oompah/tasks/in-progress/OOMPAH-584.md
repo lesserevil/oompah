@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-584
 type: epic
-status: Needs Rebase
+status: In Progress
 priority: 0
 title: Return the oompah delivery control plane to green
 parent: null
@@ -21,7 +21,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-30T14:13:01.872040Z'
-updated_at: '2026-07-31T05:34:00.348340Z'
+updated_at: '2026-07-31T05:34:14.559000Z'
 work_branch: epic-OOMPAH-584
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/603
@@ -101,7 +101,7 @@ oompah.task_costs:
     output_tokens: 3374
     cost_usd: 0.0
     recorded_at: '2026-07-31T05:16:23.357022+00:00'
-oompah.agent_run_id: 75d2b45c-3d2c-4777-9bd9-578d0e0c0cb9
+oompah.agent_run_id: b1d8ec9a-282a-4935-8d82-ca5dc65deaa8
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-584__20260731T051445Z
@@ -218,5 +218,15 @@ author: oompah
 created: 2026-07-31 05:33
 ---
 YOLO: Merge conflict detected on MR #603. Rebase `epic-OOMPAH-584` onto main and resolve conflicts.
+---
+author: oompah
+created: 2026-07-31 05:34
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-31 05:34
+---
+Focus: Merge Conflict Resolver
 ---
 <!-- COMMENTS:END -->
