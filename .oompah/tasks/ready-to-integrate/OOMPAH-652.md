@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-652
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Isolate the full Makefile test gate from a running Oompah service
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:15.160957Z'
-updated_at: '2026-07-31T09:43:50.953131Z'
+updated_at: '2026-07-31T09:44:07.721846Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -70,6 +70,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-652
     source_sha: 8fd133e26aa2823ab68cde2a42b446933142b614
     completed_at: '2026-07-31T09:04:05.328759+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-652
+  head_sha: 6ef786631ee8b52c1b3138596a3dbbe04349868a
+  submitted_at: '2026-07-31T09:44:05.059912+00:00'
+  updated_at: '2026-07-31T09:44:05.059912+00:00'
 ---
 ## Summary
 
@@ -177,5 +185,10 @@ author: oompah
 created: 2026-07-31 09:43
 ---
 Operator recovery complete on pushed head 6ef786631. Live evidence: the original complete 14,257-test gate exited while pre-existing service PID 3339192 remained healthy. Review then added normal provider-exit reaping, atomic/fail-closed lifecycle identity handling, pre-identity restart migration, and exact PID/start-time/group/session/cwd mismatch tests. Final verification: 96 focused process/lifecycle/worker-exit tests pass; 3 live orphan/timing regressions pass; Granian and sentinel tests passed in the preceding focused run; terminal mutation scan passes; git diff --check is clean. Submit this exact pushed head to Oompah full integration gating.
+---
+author: oompah
+created: 2026-07-31 09:44
+---
+Isolated full gates from operator service state and added exact-identity cleanup for every test/worker subprocess lifecycle.
 ---
 <!-- COMMENTS:END -->

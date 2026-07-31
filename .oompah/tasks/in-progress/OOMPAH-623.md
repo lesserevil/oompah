@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:32:18.734139Z'
-updated_at: '2026-07-31T09:43:10.434412Z'
+updated_at: '2026-07-31T09:44:03.774328Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-623
 target_branch: null
 review_url: null
@@ -257,5 +257,10 @@ author: oompah
 created: 2026-07-31 09:43
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-07-31 09:44
+---
+UNDERSTANDING: Operator review identified critical timing issue: CLI sync is called as prerequisite of start/restart, but this creates a race window where CLI can be updated before old service is stopped. If drain/stop fails, CLI/server become mismatched. Fix requires: (1) Move sync-cli to safe point after successful drain but before new service starts, (2) Add tests for start no-op, restart drain failure, install failure, successful cutover with running old server, (3) Fix blank-at-EOF in test_build_identity.py, (4) Revert unrelated task_cli identifier payload change, (5) Add build-id equality verification to lifecycle checks.
 ---
 <!-- COMMENTS:END -->
