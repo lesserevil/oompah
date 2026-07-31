@@ -18,7 +18,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T21:33:07.751716Z'
+updated_at: '2026-07-31T21:41:19.539484Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -1251,5 +1251,15 @@ author: oompah
 created: 2026-07-31 21:33
 ---
 Understanding: The redaction implementation from prior sessions is complete (12 task commits at head b90d1e353). The branch is 42 commits behind origin/main and gate rejected as needs_rebase because .oompah-no-hooks/prepare-commit-msg was archived as an unsafe absolute symlink. Main already includes gate fixes (OOMPAH-665 exclude-generated-hooks and gitignore entry for .oompah-no-hooks/). Plan: (1) rebase OOMPAH-651 onto origin/main, resolving conflicts with orchestrator.py, quality_gate.py, and terminal audit tests noted by OOMPAH-665 coordination; (2) remove the tracked .oompah-no-hooks/prepare-commit-msg symlink and ensure .gitignore matches main; (3) run focused redaction + neighbor test suites; (4) push, then submit.
+---
+author: oompah
+created: 2026-07-31 21:41
+---
+Discovery: The rebase found two conflicts and one test contract regression: (1) oompah/client_auth.py — main added netrc-based credential resolution (resolved_password + password_source) which shifted the return line my register_secret call attached to. Merged both by inserting register_secret(resolved_password) just before the final return. (2) oompah/task_handoff.py — main added revoked_grant + lease.stop() flow in revoke(); my retire_secret() call moved to run after lease.stop(). (3) Post-rebase: two OOMPAH-650 tests failed because my earlier commit used a function-local 'from oompah.secrets import retire_secret, SECRET_REDACTION_GRACE_SECONDS' inside revoke(). That shadowed the module-level binding that test_revoke_retires_secret_with_bounded_grace patches via monkeypatch.setattr(task_handoff_module, 'retire_secret', ...), and cached SECRET_REDACTION_GRACE_SECONDS before test_revoke_retires_redaction_registration_to_bounded_grace could shorten it. Fixed by routing through the module-level retire_secret and reading the grace value from oompah.secrets at call time. Also: the stale .oompah-no-hooks/prepare-commit-msg symlink that blocked the previous gate is no longer tracked after rebase; main's .gitignore excludes it.
+---
+author: oompah
+created: 2026-07-31 21:41
+---
+Verification: Focused test suites pass on the rebased branch: tests/test_secrets.py (112 pass), tests/test_client_auth.py (79 pass), tests/test_task_handoff.py (58 pass), tests/test_agent.py + tests/test_api_agent_budget.py + tests/test_acp_agent.py + tests/test_acp_backends.py + tests/test_console*.py (298 pass), tests/test_projects.py + tests/test_github_tracker.py + tests/test_providers.py + tests/test_scm.py (combined 1064 pass with secrets/client_auth/task_handoff). make check-secrets passes clean. scripts/find_terminal_mutations.py passes (6/6 allowlisted). Branch is rebased onto origin/main head 16362384b.
 ---
 <!-- COMMENTS:END -->
