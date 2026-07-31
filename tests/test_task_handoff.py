@@ -1383,7 +1383,7 @@ class TestOOMPAH650WorkerLifetimeCredentials:
 
         assert store.refresh(token) is True
         grant = store._grants[store._digest(token)]
-        # Refreshed at t=1000 with original TTL 60 → expires at 1060, not 24h out.
+        # Refreshed at t=1000 with original TTL 60 → expires at 1060, not widened to default.
         assert grant.expires_at == pytest.approx(1060.0)
         assert grant.original_ttl_seconds == pytest.approx(60.0)
 
