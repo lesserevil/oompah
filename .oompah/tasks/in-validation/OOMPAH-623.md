@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-623
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Keep the canonical user CLI synchronized with the running server
 parent: OOMPAH-619
@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:32:18.734139Z'
-updated_at: '2026-07-31T14:29:06.881512Z'
+updated_at: '2026-07-31T14:36:23.100928Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-623
 target_branch: null
 review_url: null
@@ -53,12 +53,15 @@ oompah.agent_run_id: 4edfadaa-b983-42d6-9858-90416b588464
 oompah.work_branch: epic-OOMPAH-619--task-OOMPAH-623
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-619--task-OOMPAH-623
-  head_sha: 5d683ec20d2055b86f39038e2266e4596fb47aeb
+  base_branch: epic-OOMPAH-619
+  base_sha: 7add4cdbc455d2561ded080fc15fa082aa137409
+  head_sha: 659a09ddc01b4afba181e274e9650e944850367b
+  integrated_sha: 659a09ddc01b4afba181e274e9650e944850367b
   submitted_at: '2026-07-31T14:28:15.965673+00:00'
-  updated_at: '2026-07-31T14:28:15.965673+00:00'
+  updated_at: '2026-07-31T14:36:09.950033+00:00'
 oompah.task_costs:
   total_input_tokens: 31994416
   total_output_tokens: 133247
@@ -175,6 +178,55 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-619--task-OOMPAH-623
     source_sha: c8bb0b809154e396f2952159d71ac48feac511b2
     completed_at: '2026-07-31T13:55:17.387376+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-365a9b73d7a0
+    project_id: proj-14849f1b
+    task_id: OOMPAH-623
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 15f46479ad00c665ac467fccca03e20814f9d8a7173613942941483867d9d53a
+    attempts:
+    - version: 1
+      attempt_id: attempt-a5f77013195d
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 15f46479ad00c665ac467fccca03e20814f9d8a7173613942941483867d9d53a
+      created_at: '2026-07-31T14:36:17.448769+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-31T14:36:17.448769+00:00'
+      branch_key: epic-OOMPAH-619--task-OOMPAH-623
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-31T14:36:12.201478+00:00'
+    updated_at: '2026-07-31T14:36:17.448769+00:00'
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-a5f77013195d
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 15f46479ad00c665ac467fccca03e20814f9d8a7173613942941483867d9d53a
+    created_at: '2026-07-31T14:36:17.448769+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-31T14:36:17.448769+00:00'
+    branch_key: epic-OOMPAH-619--task-OOMPAH-623
 ---
 ## Summary
 
@@ -655,5 +707,20 @@ Run #2 [attempt=2, profile=deep, role=deep -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 7m 12s
 - Log: OOMPAH-623__20260731T142202Z.jsonl
+---
+author: oompah
+created: 2026-07-31 14:36
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-07-31 14:36
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-07-31 14:36
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
