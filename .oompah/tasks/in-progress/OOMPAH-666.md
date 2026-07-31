@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T21:19:38.816688Z'
-updated_at: '2026-07-31T22:57:32.195157Z'
+updated_at: '2026-07-31T22:58:45.706001Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -130,5 +130,10 @@ author: oompah
 created: 2026-07-31 22:57
 ---
 Understanding: I will trace dashboard document/application scroll ownership and the height/overflow rules around alerts, board, columns, sticky controls, and drag/drop. I will add regression coverage for no-alert and alert-present layouts, preserve horizontal/per-column scrolling, then run focused tests and the project gate as configured.
+---
+author: oompah
+created: 2026-07-31 22:58
+---
+Discovery: dashboard.html has four interacting constraints: body is height:100vh/overflow:hidden, .main-area is flex:1/overflow:hidden, flat .board hides vertical overflow, and .column uses max-height:calc(100vh - 80px) without subtracting the alert/banner stack. Alerts therefore reduce the available main-area height while columns can extend below the clipped region. Swimlane view has its own board scroller but remains nested under the same constrained parent. I will fix the layout contract and add static regression tests for both no-alert and alert-present states, including dynamic hidden/visible alert handling and preserved horizontal/column overflow.
 ---
 <!-- COMMENTS:END -->
