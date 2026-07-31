@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T09:59:31.314222Z'
+updated_at: '2026-07-31T10:26:47.965633Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -327,5 +327,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 19m 38s
 - Log: OOMPAH-653__20260731T094001Z.jsonl
+---
+author: oompah
+created: 2026-07-31 10:26
+---
+Live duplicate-audit reproduction on OOMPAH-652: terminal audit audit-21d2ede50738 completed PASS at 10:25:44Z (task comment #29; provider exited normally #30), incrementing passed and last_successful_audit_at, but the task remained In Validation. At 10:26:00Z Oompah dispatched a second Opus auditor for persisted audit-b1d3969a2c62 / attempt-071c375a0208 on the same exact terminal transition. State simultaneously showed terminal passed=19, stale_discarded=1152, queued=0, running=1. Recovery/reconciliation must consume a successful equivalent exact-head audit once, advance the tracker transition atomically, and fence any duplicate launch; add this exact pass-then-immediate-redispatch ordering as a deterministic regression.
 ---
 <!-- COMMENTS:END -->
