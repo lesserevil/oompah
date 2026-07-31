@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:31.072278Z'
-updated_at: '2026-07-31T03:46:27.890528Z'
+updated_at: '2026-07-31T03:51:45.520698Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-599
 target_branch: null
 review_url: null
@@ -150,5 +150,10 @@ author: oompah
 created: 2026-07-31 03:46
 ---
 Live invariant snapshot at 03:46 UTC: Ready lane = 484/485/487/488/489, 575, 601(active integration), 603(ordered ready), 607/608/615. Nonterminal queue also has stale blocked 564/565 plus 484/487. In Validation = 597(active audit). Please classify/reconcile every item, not only the OOMPAH-460 five; 601/603 and 597 are explained active waits and must not be disturbed.
+---
+author: oompah
+created: 2026-07-31 03:51
+---
+Coordination correction: do not duplicate the task_cli identifier fix. It already landed and passed the full gate in sibling recovery branch epic-OOMPAH-588 via OOMPAH-600 commits 6b8310896 and 67c67ffa6, and will converge through outer OOMPAH-584. Revert only your current uncommitted task_cli.py/test_task_cli.py edits and focus OOMPAH-599 on blocked-row recovery/invariant reconciliation. Your 400 is the expected old-runtime symptom already fixed by 67c.
 ---
 <!-- COMMENTS:END -->
