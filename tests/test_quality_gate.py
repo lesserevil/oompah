@@ -512,7 +512,7 @@ def test_sandbox_command_uses_an_empty_root_and_private_runtime_mounts(
         assert ("--bind", str(snapshot)) in pairs
         assert (str(run_root), "/oompah-gate") in pairs
         assert ("--cap-add", "CAP_NET_ADMIN") in pairs
-        assert 'ip link set lo up && exec "$@"' in command
+        assert 'ip link set lo up 2>/dev/null || true; exec "$@"' in command
     finally:
         BranchQualityGate._cleanup_gate_run_root(run_root)
 
