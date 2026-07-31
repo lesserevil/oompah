@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-595
 type: feature
-status: In Validation
+status: Done
 priority: 1
 title: Expose separate operator and worker task-auth health signals
 parent: OOMPAH-586
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:56.897824Z'
-updated_at: '2026-07-31T00:45:14.267830Z'
+updated_at: '2026-07-31T00:50:18.996872Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-595
 target_branch: null
 review_url: null
@@ -135,6 +135,7 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-e7bb1375c3e2: '2026-07-31T00:18:20.982747+00:00'
     attempt-05f1dc64fc23: '2026-07-31T00:44:24.685225+00:00'
+    attempt-744e4c989d95: '2026-07-31T00:50:15.225713+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -210,7 +211,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-595
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -219,7 +220,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-744e4c989d95
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -229,13 +230,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T00:45:09.152356+00:00'
       branch_key: epic-OOMPAH-586--task-OOMPAH-595
+      verdict: pass
+      completed_at: '2026-07-31T00:50:15.225537+00:00'
+      ended_at: '2026-07-31T00:50:15.225537+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Needs Human
     created_at: '2026-07-31T00:44:54.940604+00:00'
-    updated_at: '2026-07-31T00:45:09.152356+00:00'
+    updated_at: '2026-07-31T00:50:15.225537+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-e7bb1375c3e2
@@ -555,5 +559,32 @@ author: oompah
 created: 2026-07-31 00:45
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 00:50
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- branch_head_local: ca49d0c25b30d149cb59f0af0bac57276c1f8120
+- branch_head_origin: 04d072a5f1ade3a92506316ef102c84545b5fcd2
+- landing_ancestor_of: cd08185c9 (PR #597 epic-OOMPAH-586 -> epic-OOMPAH-584)
+- landed_in_branch: origin/epic-OOMPAH-584 contains 04d072a5f
+- working_tree: clean
+- auth_health_module: oompah/auth_health.py present; snapshot returns only int counts, bools, and static strings
+- operator_wiring: server.py:119 import, :614 record_operator_401() at _BasicAuthMiddleware 401 deny path
+- worker_wiring: server.py:3300 record_worker_401 (missing token); :3336 record_worker_403_action (intentional denial, no alert); :3359 record_worker_401 (invalid/missing scope); :3361 record_worker_403_scope; :3367 record_worker_token_accepted
+- mint_wiring: orchestrator.py:158 import, :20001 record_worker_token_minted() at successful handoff token issue
+- snapshot_wiring: orchestrator.py:25207 auth_health=auth_health_snapshot(); :25208 alerts += auth_health_alerts()
+- dashboard_wiring: templates/dashboard.html:2542 renderAuthHealthBanner; :2683 called from state update; auth_health:* alerts filtered from generic banner (source-prefix filter)
+- docs_change: docs/authentication.md:769 'Auth Health Dashboard Signals' section with recovery tables for both planes
+- tests_auth_health: 28/28 pass (tests/test_auth_health.py)
+- tests_server_auth: 73/73 pass (tests/test_server_auth.py; 1 unrelated crypt deprecation warning)
+- tests_task_handoff: 28/28 pass (tests/test_task_handoff.py)
+- tests_orchestrator_handlers: 269/269 pass (tests/test_orchestrator_handlers.py)
+- redaction_verified: oompah/auth_health.py contains no token/credential/Authorization value references; only method names and documentation mention 'token'
+- action_denial_semantics: record_worker_403_action stored in scope_denial_count (informational only); build_alert never surfaces it
 ---
 <!-- COMMENTS:END -->
