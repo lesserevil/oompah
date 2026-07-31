@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-619
 type: epic
-status: Done
+status: In Review
 priority: 1
 title: Unify CLI authentication sources and align the installed client
 parent: null
@@ -20,7 +20,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-30T21:24:41.452666Z'
-updated_at: '2026-07-31T19:56:35.709574Z'
+updated_at: '2026-07-31T19:57:23.242501Z'
 work_branch: null
 target_branch: null
 review_url: null
