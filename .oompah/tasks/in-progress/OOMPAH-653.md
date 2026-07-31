@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T10:30:59.510273Z'
+updated_at: '2026-07-31T10:31:32.981749Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -347,5 +347,26 @@ author: oompah
 created: 2026-07-31 10:30
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-31 10:31
+---
+Understanding: This issue requires fixing two live regressions in terminal audit handling:
+
+1. **Duplicate audits after PASS** (OOMPAH-648): When an audit succeeds (PASS), reconciliation still dispatches a second audit for the same terminal transition, causing the task to move to Needs Human incorrectly.
+
+2. **Stale alerts after override** (OOMPAH-644): When an owner override is applied, old error alerts remain actionable through multiple ticks and service restarts.
+
+**Key implementation scope**:
+- Enforce one canonical live audit per project/task/target-state/evidence fingerprint
+- Make pass/override atomic and idempotent  
+- Cancel/supersede sibling pending/in-progress audits
+- Prevent reconciliation from recreating audits for applied fingerprints
+- Remove actionable alert IDs and stale pending timestamps while retaining historical counters
+- Close races among auditor persistence, task status movement, reconcile scans, owner override, and restart recovery
+
+**Affected files**: terminal_transition_coordinator.py, orchestrator audit paths, terminal_audit_enforcement.py, terminal_audit_observability.py, bootstrap.py, and tests.
+
+**Prior work**: Implementation was started and tests added (commits 1274f1e3, 21791cde0). Need to verify implementation is complete and tests pass under isolated lifecycle.
 ---
 <!-- COMMENTS:END -->
