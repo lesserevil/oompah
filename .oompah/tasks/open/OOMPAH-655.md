@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T11:13:04.998726Z'
+updated_at: '2026-07-31T11:13:10.080390Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -32,7 +32,7 @@ oompah.duplicate_screening:
   claim_expires_at: '2026-07-31T11:43:04.065927+00:00'
   retry_count: 1
   retry_after: null
-oompah.agent_run_id: 37d8b290-51ed-401b-a6b1-98e1c86ffbe6
+oompah.agent_run_id: 325e75ad-2219-413c-a2c2-36fd1376b50b
 oompah.task_costs:
   total_input_tokens: 2700536
   total_output_tokens: 15119
@@ -326,5 +326,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 56s
 - Log: OOMPAH-655__20260731T110943Z.jsonl
+---
+author: oompah
+created: 2026-07-31 11:13
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-07-31 11:13
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
