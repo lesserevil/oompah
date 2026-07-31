@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-665
 type: task
-status: Ready to Integrate
+status: Needs Human
 priority: null
 title: Retire legacy no-auditor alerts after terminal task completion
 parent: null
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:07.401588Z'
-updated_at: '2026-07-31T21:59:08.310380Z'
+updated_at: '2026-07-31T21:59:23.810549Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -60,8 +60,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 488f38cf-f5de-483d-b679-350c2e2920b9
 oompah.task_costs:
-  total_input_tokens: 2388341
-  total_output_tokens: 18625
+  total_input_tokens: 2590496
+  total_output_tokens: 25179
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -69,8 +69,8 @@ oompah.task_costs:
       output_tokens: 4135
       cost_usd: 0.0
     sonnet:
-      input_tokens: 2388171
-      output_tokens: 14490
+      input_tokens: 2590326
+      output_tokens: 21044
       cost_usd: 0.0
   runs:
   - profile: default
@@ -103,6 +103,12 @@ oompah.task_costs:
     output_tokens: 7456
     cost_usd: 0.0
     recorded_at: '2026-07-31T19:19:05.475832+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 202155
+    output_tokens: 6554
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T21:59:17.591431+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-665__20260731T181648Z
@@ -121,6 +127,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-665
     source_sha: ccae8b8236d994df4ca11364841cf15619664e5d
     completed_at: '2026-07-31T19:19:05.478766+00:00'
+  - run_id: OOMPAH-665__20260731T214312Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-terra
+    focus: ci_fix
+    source_branch: OOMPAH-665
+    source_sha: e395a94af15e30d7e7aed08a45134a56d4e3b9a8
+    completed_at: '2026-07-31T21:59:17.595592+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -581,5 +595,20 @@ author: oompah
 created: 2026-07-31 21:59
 ---
 Coordination review: OOMPAH-668 has submitted the more constrained quality-gate bootstrap (1fe2181a2 / rearmed at 6d9698be0). OOMPAH-665 is already submitted at e395a94af and remains clean/current. Its core terminal-audit retirement changes are independent. If integration needs to reconcile the overlapping Makefile/tests hunk, retain OOMPAH-668's OOMPAH_PYTEST_GATE-only trusted-runtime validation (normal setup unchanged) rather than the broader fallback in e395a94af. No change is needed to OOMPAH-665's observability implementation.
+---
+author: oompah
+created: 2026-07-31 21:59
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Codex/gpt-5.6-terra]
+- Turns: 2, Tool calls: 79
+- Tokens: 202.2K in / 6.6K out [208.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 16m 9s
+- Log: OOMPAH-665__20260731T214312Z.jsonl
+---
+author: oompah
+created: 2026-07-31 21:59
+---
+Task handoff failed after the worker ran: the server-owned, task-scoped tracker capability could not update this task. The task is held in Needs Human and will not be redispatched automatically; verify the handoff service and reconcile the worker's branch before resuming it.
 ---
 <!-- COMMENTS:END -->
