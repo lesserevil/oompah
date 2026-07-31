@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-660
 type: task
-status: Needs Human
+status: Done
 priority: 0
 title: Rebase epic-OOMPAH-619 onto main
 parent: OOMPAH-619
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T12:53:39.335817Z'
-updated_at: '2026-07-31T13:42:55.835390Z'
+updated_at: '2026-07-31T13:50:45.804890Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-660
 target_branch: null
 review_url: null
@@ -150,6 +150,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     no-auditor-audit-8bf132785a1e-0: '2026-07-31T13:42:50.660537+00:00'
+    no-auditor-audit-ef827ed9402c-0: '2026-07-31T13:50:36.023096+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-660
@@ -160,6 +161,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-07-31T13:42:50.660545+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-660
+    target_state: Done
+    evidence_fingerprint: 62954f9b5fdcde9283f0c50a07f94d9234ba8307ec57b66d7f89475c1f68fd28
+    audit_ids:
+    - audit-ef827ed9402c
+    kind: result
+    applied: true
+    retired_at: '2026-07-31T13:50:36.023108+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-660
@@ -173,6 +183,40 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-07-31T13:42:50.660556+00:00'
     applied_at: '2026-07-31T13:42:54.792049+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-660
+    audit_id: audit-ef827ed9402c
+    attempt_id: no-auditor-audit-ef827ed9402c-0
+    target_state: Done
+    evidence_fingerprint: 62954f9b5fdcde9283f0c50a07f94d9234ba8307ec57b66d7f89475c1f68fd28
+    status: Needs Human
+    audit_ids:
+    - audit-ef827ed9402c
+    applied: true
+    created_at: '2026-07-31T13:50:36.023122+00:00'
+    applied_at: '2026-07-31T13:50:38.850412+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-6ca80332d3a5
+    project_id: proj-14849f1b
+    task_id: OOMPAH-660
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 62954f9b5fdcde9283f0c50a07f94d9234ba8307ec57b66d7f89475c1f68fd28
+    authorized_by:
+      version: 1
+      identity: lesserevil
+      source: api
+    reason: The exact integrated head 793bcc7969d39634dab560ed0a10b9dcad7a9716 completed
+      the requested rebase and test-isolation repair. Focused verification passed
+      all 24 affected tests, and the integration ledger records head_sha equal to
+      integrated_sha. The original terminal audit could not launch only because every
+      configured auditor candidate contributed to this task; the project owner is
+      applying the verified terminal transition to unblock epic OOMPAH-619.
+    created_at: '2026-07-31T13:50:42.120929+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -180,7 +224,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-660
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -205,6 +249,36 @@ oompah.terminal_audit:
     previous_state: Ready to Integrate
     created_at: '2026-07-31T13:42:29.739266+00:00'
     updated_at: '2026-07-31T13:42:50.660382+00:00'
+  - version: 1
+    audit_id: audit-ef827ed9402c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-660
+    target_state: Done
+    request_state: completed
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 62954f9b5fdcde9283f0c50a07f94d9234ba8307ec57b66d7f89475c1f68fd28
+    attempts:
+    - version: 1
+      attempt_id: no-auditor-audit-ef827ed9402c-0
+      target_state: Done
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 62954f9b5fdcde9283f0c50a07f94d9234ba8307ec57b66d7f89475c1f68fd28
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-07-31T13:50:36.023004+00:00'
+      completed_at: '2026-07-31T13:50:36.023004+00:00'
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: api
+    previous_state: Needs Human
+    created_at: '2026-07-31T13:50:33.363550+00:00'
+    updated_at: '2026-07-31T13:50:36.023004+00:00'
   attempt_history: []
 ---
 ## Summary
@@ -687,5 +761,19 @@ created: 2026-07-31 13:42
 Needs Human — Done audit requires operator input.
 
 No independent auditor candidate is available for this audit (All candidates are used by contributors.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then move the task back to Open to retry.
+---
+author: oompah
+created: 2026-07-31 13:50
+---
+Needs Human — Done audit requires operator input.
+
+No independent auditor candidate is available for this audit (All candidates are used by contributors.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then move the task back to Open to retry.
+---
+author: oompah
+created: 2026-07-31 13:50
+---
+Override by lesserevil: terminal transition to Done applied by project owner.
+
+Reason: The exact integrated head 793bcc7969d39634dab560ed0a10b9dcad7a9716 completed the requested rebase and test-isolation repair. Focused verification passed all 24 affected tests, and the integration ledger records head_sha equal to integrated_sha. The original terminal audit could not launch only because every configured auditor candidate contributed to this task; the project owner is applying the verified terminal transition to unblock epic OOMPAH-619.
 ---
 <!-- COMMENTS:END -->
