@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-576
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Reject integration submissions from the wrong checkout before mutating task
   worktrees
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T02:55:54.699694Z'
-updated_at: '2026-07-31T02:30:52.239963Z'
+updated_at: '2026-07-31T02:37:34.091592Z'
 work_branch: OOMPAH-576
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/599
@@ -137,6 +137,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/599
 oompah.review_number: '599'
 oompah.work_branch: OOMPAH-576
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-38593917d6d9
+    project_id: proj-14849f1b
+    task_id: OOMPAH-576
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8230cff302d77015c8b65bf822db7a071e4723f4dfa98b52b2efce394b40a17b
+    attempts: []
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-31T02:37:30.421048+00:00'
+  - version: 1
+    audit_id: audit-e4ce4c1b8864
+    project_id: proj-14849f1b
+    task_id: OOMPAH-576
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8230cff302d77015c8b65bf822db7a071e4723f4dfa98b52b2efce394b40a17b
+    attempts: []
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-31T02:37:30.421048+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -269,5 +308,15 @@ author: oompah
 created: 2026-07-30 20:52
 ---
 This parentless Ready-to-Integrate record cannot enter the project's require-epic-parent delivery path. OOMPAH-617 is the canonical OOMPAH-587 child carrying commit 6f5a859b2 through integration; keep this record as provenance and do not redispatch it.
+---
+author: oompah
+created: 2026-07-31 02:37
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-07-31 02:37
+---
+YOLO: merged PR #599.
 ---
 <!-- COMMENTS:END -->
