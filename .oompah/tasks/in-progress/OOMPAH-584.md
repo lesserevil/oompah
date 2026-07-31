@@ -19,9 +19,10 @@ start_blocked_by: []
 labels:
 - merge-conflict
 - epic:rebasing
+- ci-fix
 assignee: null
 created_at: '2026-07-30T14:13:01.872040Z'
-updated_at: '2026-07-31T05:34:43.501834Z'
+updated_at: '2026-07-31T05:35:05.578130Z'
 work_branch: epic-OOMPAH-584
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/603
@@ -233,5 +234,23 @@ author: oompah
 created: 2026-07-31 05:34
 ---
 Understanding: Starting merge conflict resolution for MR #603. Branch epic-OOMPAH-584 has many commits ahead of main including OOMPAH-574, OOMPAH-576, OOMPAH-581 which have also been merged directly to main via PRs #598, #599, #600. Plan: fetch origin, rebase onto origin/main, resolve any conflicts by understanding both sides' intent, run focused tests, force-push.
+---
+author: oompah
+created: 2026-07-31 05:35
+---
+Branch quality gate blocked review creation.
+
+Branch: `epic-OOMPAH-584`
+Target: `main`
+Head: `unknown`
+Command: `make test`
+Result: `error`
+
+Required: run the command in the task worktree, fix the failure, commit and push the repair, then leave the task in Done. Oompah will rerun the gate for the new head before creating the PR/MR.
+
+Output tail:
+```text
+No existing worktree matched the review branch tip. Recreate the task worktree before retrying.
+```
 ---
 <!-- COMMENTS:END -->
