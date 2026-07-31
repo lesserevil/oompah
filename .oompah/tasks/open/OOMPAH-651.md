@@ -17,7 +17,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T12:16:20.676663Z'
+updated_at: '2026-07-31T12:16:37.454960Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -982,5 +982,25 @@ author: oompah
 created: 2026-07-31 12:16
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-31 12:16
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Codex/gpt-5.6-sol]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 26s
+- Log: OOMPAH-651__20260731T121610Z.jsonl
+---
+author: oompah
+created: 2026-07-31 12:16
+---
+Code review accepts the embedded-short-secret repair at e4e36c44e. Temporarily parked this branch in Open behind hard-start dependencies on OOMPAH-650 and OOMPAH-657 to stop the current premature standalone-gate/watchdog loop. The accepted branch and submission metadata are preserved. After both dependency implementations merge/deploy, rebase, wire each live lease refresh/revoke into renew_secret/retire_secret, then submit once for the exact isolated full gate. Permanent dependency-aware standalone gating is OOMPAH-659.
+---
+author: oompah
+created: 2026-07-31 12:16
+---
+Code review accepts the embedded-short-secret repair at e4e36c44e. Temporarily parked this branch in Open behind hard-start dependencies on OOMPAH-650 and OOMPAH-657 to stop the current premature standalone-gate/watchdog loop. The accepted branch and submission metadata are preserved. After both dependency implementations merge/deploy, rebase, wire each live lease refresh/revoke into renew_secret/retire_secret, then submit once for the exact isolated full gate. Permanent dependency-aware standalone gating is OOMPAH-659.
 ---
 <!-- COMMENTS:END -->
