@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-584
 type: epic
-status: In Review
+status: In Progress
 priority: 0
 title: Return the oompah delivery control plane to green
 parent: null
@@ -22,7 +22,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-30T14:13:01.872040Z'
-updated_at: '2026-07-31T05:38:43.002965Z'
+updated_at: '2026-07-31T05:38:49.756302Z'
 work_branch: epic-OOMPAH-584
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/603
