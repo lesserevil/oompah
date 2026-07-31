@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-645
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Clear recovered terminal-audit transport failures without contaminating later
   audits
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:47:58.732088Z'
-updated_at: '2026-07-31T07:27:52.931403Z'
+updated_at: '2026-07-31T07:28:02.232869Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -126,6 +126,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-645
     source_sha: 1dc3f53e52b5d8ef704e16355d4cb0bb87379689
     completed_at: '2026-07-31T06:51:24.959976+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-645
+  head_sha: 7d1019194f919691333bf00b78cff1a7f73fdb33
+  submitted_at: '2026-07-31T07:27:58.460528+00:00'
+  updated_at: '2026-07-31T07:27:58.460528+00:00'
 ---
 ## Summary
 
@@ -249,5 +257,10 @@ Verification: All focused tests pass.
 Total: 211 passed, 0 failed
 
 The terminal mutation scan passes (test_repository_has_no_unauthorized_terminal_mutations). The fix is minimal and surgical — only 3 lines changed in the production code (the guard condition) with 18 lines of comments explaining the rationale.
+---
+author: oompah
+created: 2026-07-31 07:28
+---
+Fixed transport failure alert contamination in terminal_audit_health.py. When an audit record is IN_PROGRESS (active replacement running), past transport/launch failures are no longer counted as actionable alerts. Only PENDING records (no active retry) generate failure alerts. Added 11 new tests covering recovery lifecycle, multi-project isolation, and alert text correctness. All 211 focused tests pass.
 ---
 <!-- COMMENTS:END -->
