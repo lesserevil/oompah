@@ -1864,3 +1864,59 @@ class TestOrchestratorLastMessageRedaction:
         # Simulate the [:200] truncation the orchestrator applies.
         clipped = redacted[:200]
         _assert_no_sentinels(clipped)
+
+
+class TestCodexTruncateRedactsSecrets:
+    """Verify oompah.acp_backends.codex._truncate redacts BEFORE the
+    console fan-out boundary, so any observer set by tests or hooks
+    (see ``options.on_event``) receives a scrubbed payload.
+    """
+
+    def test_string_truncate_redacts_url_userinfo(self) -> None:
+        from oompah.acp_backends.codex import _truncate
+
+        value = (
+            f"psql 'postgres://admin:{SENTINEL_URL_USERINFO}@db/prod' -c 'select 1'"
+        )
+        out = _truncate(value)
+        _assert_no_sentinels(str(out))
+
+    def test_dict_truncate_redacts_bearer_header(self) -> None:
+        from oompah.acp_backends.codex import _truncate
+
+        value = {
+            "path": "/tmp/x",
+            "authorization": f"Bearer {SENTINEL_BEARER_TOKEN}",
+        }
+        out = _truncate(value)
+        _assert_no_sentinels(str(out))
+
+    def test_list_truncate_redacts_nested_strings(self) -> None:
+        from oompah.acp_backends.codex import _truncate
+
+        value = [
+            "echo hi",
+            f"curl -H 'X-API-Key: {SENTINEL_API_KEY}' https://api.example",
+        ]
+        out = _truncate(value)
+        _assert_no_sentinels(str(out))
+
+
+class TestOpencodeTruncateRedactsSecrets:
+    """Same defense-in-depth verification for the OpenCode backend."""
+
+    def test_string_truncate_redacts_url_userinfo(self) -> None:
+        from oompah.acp_backends.opencode import _truncate
+
+        value = f"https://user:{SENTINEL_HTTP_PASSWORD}@example.com/repo"
+        out = _truncate(value)
+        _assert_no_sentinels(str(out))
+
+    def test_dict_truncate_redacts_bearer_header(self) -> None:
+        from oompah.acp_backends.opencode import _truncate
+
+        value = {
+            "content": f"Authorization: Bearer {SENTINEL_BEARER_TOKEN}",
+        }
+        out = _truncate(value)
+        _assert_no_sentinels(str(out))
