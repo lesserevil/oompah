@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T10:57:20.726649Z'
+updated_at: '2026-07-31T10:57:45.530597Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,7 +44,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 17dfa9f9-ae79-45ee-9a0d-4195b9e5821b
+oompah.agent_run_id: 4bf6216b-a7cc-4d75-8a33-9293a654ade7
 oompah.task_costs:
   total_input_tokens: 16257952
   total_output_tokens: 55674
@@ -526,5 +526,15 @@ author: oompah
 created: 2026-07-31 10:57
 ---
 Agent completed without closing this issue (983s (14903592 tokens)). Escalating from 'default' to 'deep'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-31 10:57
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-31 10:57
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
