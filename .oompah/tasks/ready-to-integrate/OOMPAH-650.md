@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-650
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Keep scoped task handoff credentials valid for the full worker lifetime
 parent: OOMPAH-619
@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T14:21:45.680518Z'
+updated_at: '2026-07-31T14:21:49.754420Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -1268,5 +1268,10 @@ author: oompah
 created: 2026-07-31 14:11
 ---
 Focus: Event Api Redaction Specialist
+---
+author: oompah
+created: 2026-07-31 14:21
+---
+Rebased the security-reviewed worker-lifetime handoff implementation onto current epic head 61546199b and pushed exact head 7add4cdbc. Server-owned leases renew scoped grants through silent long tool calls; exact-owner replacement/exit/termination revokes stale grants; mutation admission is ordered against revocation; expired/revoked failures are explicit; cross-scope/action use and Basic fallback remain denied. Focused verification: 57 handoff tests passed, 609 neighboring tests passed plus 8/8 sandbox-corrected ACP model tests, terminal mutation scan passed, and diff hygiene is clean.
 ---
 <!-- COMMENTS:END -->
