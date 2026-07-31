@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-653
 type: bug
-status: Ready to Integrate
+status: Open
 priority: 1
 title: Make terminal-audit success and owner override retire every duplicate record
   and alert
@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T11:27:34.960570Z'
+updated_at: '2026-07-31T11:28:42.034924Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -22,30 +22,19 @@ review_number: null
 merged_at: null
 oompah.duplicate_screening:
   schema_version: 1
-  task_fingerprint: d6604a3d8a13689549017097fa0732aef577e7fffbf410a3e378f605d228d668
+  task_fingerprint: 6b1c286815aaf553975f6358446723482d3994ccfdaa1fc4be3ac60cf862e5f9
   detector_version: duplicate-detector-v1
-  verdict: no_duplicate
-  checked_at: '2026-07-31T09:12:25.797543+00:00'
+  verdict: inconclusive
+  checked_at: null
   matched_identifiers: []
-  evidence: 'Focus handoff: duplicate_detector
-
-
-    Duplicate preflight verdict: no_duplicate
-
-
-    Matches: none
-
-
-    Evidence: Active OOMPAH-281 and OOMPAH-282 are unrelated. Archived OOMPAH-212,
-    OOMPAH-220, OOMPAH-222, and OOMPAH-232 concern native tracker duplicate-file logging,
-    not terminal-audit lifecycle races.'
-  claim_id: null
-  claim_owner: null
-  claimed_at: null
-  claim_expires_at: null
+  evidence: ''
+  claim_id: 45ee06cb-15f8-4e2b-a3dc-e65cf431f24b
+  claim_owner: f6d86559-4e9d-42bf-ac66-416781dbb14f
+  claimed_at: '2026-07-31T11:28:37.311859+00:00'
+  claim_expires_at: '2026-07-31T11:58:37.311859+00:00'
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 6029ffca-4e4e-4a13-bdfa-ec6f669bfa1a
+oompah.agent_run_id: 6b2026e6-68ab-4b48-bdd5-44db21df166e
 oompah.task_costs:
   total_input_tokens: 16258103
   total_output_tokens: 60424
@@ -628,5 +617,20 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 15m 1s
 - Log: OOMPAH-653__20260731T111236Z.jsonl
+---
+author: oompah
+created: 2026-07-31 11:28
+---
+Clean pushed head 44742bb1f is preserved but not accepted: it is the same production recovery design reviewed in comment 62. It still selects the first unapplied override without checking the override fingerprint against freshly recomputed native task evidence, and selects result candidates by ledger list order rather than validated created_at/authority. The committed tests do not cover a production-like Markdown task source revision, multiple unapplied overrides, malformed/equal intent ordering, or prove no transient stale terminal write. Continue from this head and implement those exact authority checks; final gate remains blocked on OOMPAH-657.
+---
+author: oompah
+created: 2026-07-31 11:28
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-07-31 11:28
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
