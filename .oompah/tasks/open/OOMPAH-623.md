@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-623
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Keep the canonical user CLI synchronized with the running server
 parent: OOMPAH-619
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:32:18.734139Z'
-updated_at: '2026-07-31T09:28:37.421195Z'
+updated_at: '2026-07-31T09:29:55.417925Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-623
 target_branch: null
 review_url: null
@@ -249,5 +249,10 @@ author: oompah
 created: 2026-07-31 09:28
 ---
 Agent completed without closing this issue (1592s (2665389 tokens)). Escalating from 'default' to 'deep'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-31 09:29
+---
+Operator review rejects pushed head 136ac01fc before submission. start and restart declare sync-cli as a prerequisite, so the canonical CLI is replaced before start checks that an older service is already running and before restart knows that drain/stop will succeed. Thus make start on a new clean pushed HEAD can update the CLI while leaving the old server running, and any later drain/stop failure leaves a mismatched CLI/server pair—the exact invariant this task must prevent. Move installation to a true safe point tied to service replacement (and preserve/restore the known-good pair on failure), add live-old-server tests for start no-op, restart drain failure, install failure, and successful cutover, and make the build-id equality check part of lifecycle verification. Also fix the new blank-at-EOF reported by git diff --check. The unrelated task_cli handoff payload fix should be separated or explicitly justified.
 ---
 <!-- COMMENTS:END -->
