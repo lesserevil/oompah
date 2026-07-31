@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T10:35:49.213167Z'
+updated_at: '2026-07-31T10:37:58.487096Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -535,5 +535,26 @@ author: oompah
 created: 2026-07-31 10:35
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-07-31 10:37
+---
+UNDERSTANDING: Resuming after rebase onto origin/main (OOMPAH-652 merged). Prior head 627592f96 preserved and now b5b4a328d.
+
+Remaining gaps identified from operator review:
+1. secrets.py: unknown non-credential-like types return unchanged — json.dumps(default=str) can then leak Authorization headers or tokens embedded in their __str__/__repr__. Must fail-closed by scanning str() at the terminal fallback.
+2. orchestrator._on_event uses dict(redact_sensitive_data(ev.usage)) — not type-safe if redaction returns a marker string.
+3. ConsoleEvent attachments are fanned out unredacted.
+4. api_agent._log_event writes raw request/response/error JSONL with no redaction — high-risk sink (includes full messages/tool calls/tool outputs).
+5. console_legacy.ConsoleStore.append + _record_and_broadcast writes/broadcasts unredacted events to JSONL and WS.
+6. E2E test coverage missing for Codex/OpenCode/API-agent/legacy paths and their sinks.
+
+Plan:
+- Fail-closed secrets.py final fallback (str(value) + redact_string; return marker string if redaction fires or unknown non-primitive that isn't str-safe).
+- Type-safe usage handling (accept dict|marker).
+- Redact ConsoleEvent.attachments strings.
+- Apply redact_sensitive_data() inside api_agent._log_event before json.dumps.
+- Apply redact_sensitive_data() inside console_legacy.ConsoleStore.append and _record_and_broadcast.
+- Add e2e sentinel tests across all backends and sinks (JSONL, state activity, WS/broadcast, streaming chunk, exception, last_message).
 ---
 <!-- COMMENTS:END -->
