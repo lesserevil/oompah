@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-574
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Rerun failed cached quality gates on explicit same-head retry
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T02:15:22.112289Z'
-updated_at: '2026-07-31T02:20:26.510064Z'
+updated_at: '2026-07-31T02:27:21.055386Z'
 work_branch: OOMPAH-574
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/598
@@ -79,6 +79,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/598
 oompah.review_number: '598'
 oompah.work_branch: OOMPAH-574
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-d15c87f2b564
+    project_id: proj-14849f1b
+    task_id: OOMPAH-574
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b2380af8ba4a611b114d997d5c82adeb4bde96c09a87dc80fa7aeaa0622bc09a
+    attempts: []
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-31T02:27:17.415166+00:00'
+  - version: 1
+    audit_id: audit-9dfdc98a61de
+    project_id: proj-14849f1b
+    task_id: OOMPAH-574
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b2380af8ba4a611b114d997d5c82adeb4bde96c09a87dc80fa7aeaa0622bc09a
+    attempts: []
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-31T02:27:17.415166+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -280,5 +319,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 7m 14s
 - Log: OOMPAH-574__20260730T133254Z.jsonl
+---
+author: oompah
+created: 2026-07-31 02:27
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-07-31 02:27
+---
+YOLO: merged PR #598.
 ---
 <!-- COMMENTS:END -->
