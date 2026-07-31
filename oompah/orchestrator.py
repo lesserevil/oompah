@@ -8659,21 +8659,39 @@ class Orchestrator:
     def _open_review_ids(reviews: Any) -> set[str]:
         """Return stable identifiers for non-draft open review objects."""
         result: set[str] = set()
-        for review in reviews or []:
-            state = str(getattr(review, "state", "open") or "open").lower()
+        for index, review in enumerate(reviews or []):
+            # Provider responses normally carry a string state, but older
+            # provider/test doubles may omit it.  Treat a non-string value as
+            # the historical default (open) instead of turning an incomplete
+            # review object into an unoccupied slot.
+            raw_state = getattr(review, "state", None)
+            state = raw_state.strip().lower() if isinstance(raw_state, str) else "open"
             if state != "open" or bool(getattr(review, "draft", False)):
                 continue
-            review_id = str(getattr(review, "id", "") or "").strip()
+            raw_review_id = getattr(review, "id", None)
+            review_id = (
+                str(raw_review_id).strip()
+                if isinstance(raw_review_id, (str, int))
+                else ""
+            )
             if review_id:
                 result.add(review_id)
                 continue
             # A provider response without an ID is still an occupied forge
             # review.  Use its branch pair as a stable counting key rather
             # than allowing an incomplete API object to bypass the cap.
-            source = str(getattr(review, "source_branch", "") or "").strip()
-            target = str(getattr(review, "target_branch", "") or "").strip()
+            raw_source = getattr(review, "source_branch", None)
+            raw_target = getattr(review, "target_branch", None)
+            source = raw_source.strip() if isinstance(raw_source, str) else ""
+            target = raw_target.strip() if isinstance(raw_target, str) else ""
             if source:
                 result.add(f"branch:{source}:{target}")
+            else:
+                # An ID-less response without branch metadata is still an
+                # occupied review.  Keep each such response distinct for the
+                # capacity count; it cannot be used to reconcile a committed
+                # reservation, but it must not bypass the limit.
+                result.add(f"anonymous:{index}")
         return result
 
     def _reconcile_review_capacity_from_live_reviews(
@@ -11858,7 +11876,8 @@ class Orchestrator:
         source = str(getattr(review, "source_branch", "") or "")
         if source != branch:
             return False
-        state = str(getattr(review, "state", "open") or "open").lower()
+        raw_state = getattr(review, "state", None)
+        state = raw_state.strip().lower() if isinstance(raw_state, str) else "open"
         return state == "open"
 
     def _ensure_epic_in_review_metadata(
