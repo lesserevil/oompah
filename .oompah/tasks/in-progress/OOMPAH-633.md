@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:54:49.391955Z'
-updated_at: '2026-07-31T01:04:03.508382Z'
+updated_at: '2026-07-31T01:04:59.646810Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-633
 target_branch: null
 review_url: null
@@ -126,5 +126,20 @@ author: oompah
 created: 2026-07-31 01:04
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-07-31 01:04
+---
+Understanding: The issue is that _detect_and_repair_integration_queue_staleness_block returns False whenever target_branch starts with 'epic-', blocking stale queue repair for nested epics whose target is their parent epic branch. This leaves OOMPAH-587 Ready rows at attempts=0 even when the parent epic has advanced.
+
+Planned approach:
+1. Instead of blanketly rejecting epic- targets, resolve the epic's parent
+2. If the epic has a parent, get the parent's branch name
+3. Allow repair if target_branch equals the parent's branch (authoritative parent target)
+4. Reject if target_branch is an unrelated epic branch
+5. Use existing synchronization policy (_epic_synchronization_decision) with the parent target
+6. This preserves duplicate/cooldown fencing and rebase-task lifecycle
+
+Key files: oompah/orchestrator.py (_detect_and_repair_integration_queue_staleness_block), tests/test_parallel_epic_children.py
 ---
 <!-- COMMENTS:END -->
