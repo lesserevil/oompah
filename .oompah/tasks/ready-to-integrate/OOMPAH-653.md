@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-653
 type: bug
-status: Backlog
+status: Ready to Integrate
 priority: 1
 title: Make terminal-audit success and owner override retire every duplicate record
   and alert
@@ -16,7 +16,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T13:09:15.073977Z'
+updated_at: '2026-07-31T13:09:31.161530Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -190,9 +190,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-653
-  head_sha: 93c47346cd7317113482326ee975c7eba7b2a636
-  submitted_at: '2026-07-31T11:53:39.868841+00:00'
-  updated_at: '2026-07-31T11:53:39.868841+00:00'
+  head_sha: ff9771dbefc638350b7cc9d7025e3f677fef14a6
+  submitted_at: '2026-07-31T13:09:27.539651+00:00'
+  updated_at: '2026-07-31T13:09:27.539651+00:00'
 oompah.start_blocked_by: *id001
 ---
 ## Summary
@@ -948,5 +948,10 @@ author: oompah
 created: 2026-07-31 13:09
 ---
 Operator takeover complete on clean pushed head ff9771dbe after rebasing the accepted implementation onto current main. Rebase-only regression found and fixed: restart recovery no longer manufactures a stale mismatch when a legacy adapter exposes a branch but not its immutable revision; explicit/native persisted heads still fence stale records. Verification: 316 terminal-audit/health/dashboard/epic-contract tests passed with 1 expected xfail; terminal mutation scan passed; check-secrets passed with its existing null-byte command-substitution warning; git diff --check clean.
+---
+author: oompah
+created: 2026-07-31 13:09
+---
+Rebased and completed canonical duplicate-audit retirement with deterministic PASS/override recovery and authoritative restart evidence handling. Focused terminal-audit family: 316 passed, 1 xfailed.
 ---
 <!-- COMMENTS:END -->
