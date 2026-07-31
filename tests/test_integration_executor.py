@@ -125,6 +125,29 @@ def test_executor_preserves_retryable_quality_gate_interruption(tmp_path):
     assert _git(epic, "rev-parse", "HEAD") != result.rebased_task_sha
 
 
+def test_executor_rechecks_authority_after_gate_before_epic_push(tmp_path):
+    remote, epic, task, task_head = _repo(tmp_path)
+    original_epic_head = _git(epic, "rev-parse", "origin/epic-E-1")
+    checks = iter((True, False))
+
+    result = execute_integration(
+        project_lock=nullcontext(),
+        epic_worktree=str(epic),
+        task_worktree=str(task),
+        epic_branch="epic-E-1",
+        task_branch="epic-E-1--task-T-1",
+        submitted_head_sha=task_head,
+        quality_gate=BranchQualityGate(str(tmp_path / "quality.json")),
+        quality_command="true",
+        repo_identity=str(remote),
+        commit_allowed=lambda: next(checks),
+    )
+
+    assert result.status == "cancelled"
+    assert "before epic commit" in result.message
+    assert _git(epic, "rev-parse", "origin/epic-E-1") == original_epic_head
+
+
 def test_executor_rejects_changed_remote_task_head(tmp_path):
     remote, epic, task, task_head = _repo(tmp_path)
     seed = tmp_path / "seed"
