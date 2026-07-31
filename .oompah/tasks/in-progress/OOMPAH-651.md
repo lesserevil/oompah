@@ -18,7 +18,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T21:45:01.661805Z'
+updated_at: '2026-07-31T21:47:30.496868Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -1323,5 +1323,10 @@ author: oompah
 created: 2026-07-31 21:45
 ---
 Discovery: The exact gate failure is a bootstrap contract bug, not a redaction regression. quality_gate._sandbox_command mounts the server-owned trusted Python environment read-only at candidate .venv and _quality_gate_environment intentionally limits PATH to /usr/bin:/bin:/usr/sbin:/sbin. The host uv is user-local and hidden. Because the trusted mounted .venv lacks candidate marker files .uv-setup/.uv-test-setup, Make follows test-setup prerequisites and invokes bare uv against a read-only pre-provisioned environment. The gate must consume that trusted environment without attempting installation; ordinary developer make setup/test behavior must remain unchanged.
+---
+author: oompah
+created: 2026-07-31 21:47
+---
+Implementation: Updated Makefile setup/test-setup branching so OOMPAH_PYTEST_GATE consumes the server-owned pre-provisioned .venv and fails clearly only if its Python is absent; it no longer attempts uv installation inside the sandbox. The normal non-gate .uv-setup/.uv-test-setup dependency chain is unchanged. Added tests/test_makefile_setup.py subprocess dry-run regressions proving gate mode emits no uv command while ordinary developer setup still runs uv for server and dev extras.
 ---
 <!-- COMMENTS:END -->
