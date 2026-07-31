@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T14:39:36.045252Z'
+updated_at: '2026-07-31T14:40:09.710456Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -60,8 +60,8 @@ oompah.integration:
   submitted_at: '2026-07-31T14:21:44.699469+00:00'
   updated_at: '2026-07-31T14:28:48.262127+00:00'
 oompah.task_costs:
-  total_input_tokens: 9427172
-  total_output_tokens: 39533
+  total_input_tokens: 9427253
+  total_output_tokens: 55330
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -71,6 +71,10 @@ oompah.task_costs:
     opus:
       input_tokens: 155
       output_tokens: 4705
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 81
+      output_tokens: 15797
       cost_usd: 0.0
   runs:
   - profile: default
@@ -127,6 +131,12 @@ oompah.task_costs:
     output_tokens: 18566
     cost_usd: 0.0
     recorded_at: '2026-07-31T12:28:23.981925+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 81
+    output_tokens: 15797
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T14:40:07.864233+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-650__20260731T090726Z
@@ -1407,5 +1417,15 @@ Safe evidence:
 - zero_traffic_test: tests/test_task_handoff.py::test_worker_lifetime_grant_survives_zero_handoff_requests exercises real TaskHandoffLease thread with deterministic clock past initial TTL
 - endpoint_race_test: tests/test_task_handoff.py::test_endpoint_rejects_mutation_if_revoked_before_operation_admission uses real FastAPI TestClient and threading latch to prove mutation is blocked when revoke wins between acquire and admission
 - basic_auth_stripped: tests/test_task_handoff.py::test_no_basic_auth_environment_leaks_into_worker confirms agent_environment strips OOMPAH_SERVER_USERNAME/PASSWORD/PASSWORD_FILE
+---
+author: oompah
+created: 2026-07-31 14:40
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 75
+- Tokens: 81 in / 15.8K out [15.9K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 10m 58s
+- Log: OOMPAH-650__20260731T142915Z.jsonl
 ---
 <!-- COMMENTS:END -->
