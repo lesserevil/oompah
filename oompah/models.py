@@ -217,6 +217,11 @@ class Issue:
     duplicate_screening: dict[str, Any] | None = None
     # Versioned private-branch submission state (oompah.integration).
     integration: IntegrationRecord | None = None
+    # Durable task-worktree recovery evidence discovered during retry setup.
+    # This is populated from the project repository's recovery ref rather than
+    # trusted task text, so a restarted worker receives the exact prior
+    # snapshot even when the tracker was not updated before termination.
+    worktree_recovery: dict[str, Any] | None = None
     # Explicit work branch stored in tracker metadata (oompah.work_branch).
     # Populated for GitHub-backed tasks from the hidden body metadata block.
     # When set, branch-to-issue resolution uses this value instead of

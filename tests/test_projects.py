@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -767,6 +768,327 @@ class TestExistingWorktreeBranchValidation:
             text=True,
         ).stdout.strip() == original_head
         assert open(unsaved, encoding="utf-8").read() == "must not be cleaned\n"
+
+    def test_dirty_retry_snapshots_staged_unstaged_and_untracked_files(self, tmp_path):
+        """Retry reuse must preserve every task-owned dirty file byte-for-byte."""
+        repo = tmp_path / "repo"
+        subprocess.run(["git", "init", "-b", "main", str(repo)], check=True)
+        for key, value in (("user.name", "Test"), ("user.email", "test@example.com")):
+            subprocess.run(["git", "-C", str(repo), "config", key, value], check=True)
+        (repo / "tracked.txt").write_bytes(b"before\n")
+        subprocess.run(["git", "-C", str(repo), "add", "tracked.txt"], check=True)
+        subprocess.run(["git", "-C", str(repo), "commit", "-m", "base"], check=True)
+
+        store = _store(tmp_path)
+        project = Project(
+            id="proj-recovery",
+            name="recovery",
+            repo_url=str(repo),
+            repo_path=str(repo),
+            branch="main",
+            default_branch="main",
+        )
+        store._projects[project.id] = project
+        worktree = store.worktree_path_for(project.id, "TASK-RECOVERY")
+        subprocess.run(
+            ["git", "-C", str(repo), "worktree", "add", "-b", "TASK-RECOVERY", worktree, "main"],
+            check=True,
+        )
+
+        (Path(worktree) / "tracked.txt").write_bytes(b"unstaged bytes\n")
+        (Path(worktree) / "staged.txt").write_bytes(b"staged bytes\x00\n")
+        subprocess.run(["git", "-C", worktree, "add", "staged.txt"], check=True)
+        (Path(worktree) / "untracked.bin").write_bytes(b"untracked bytes\xff\n")
+
+        original_head = subprocess.run(
+            ["git", "-C", worktree, "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        returned = store.create_worktree(project.id, "TASK-RECOVERY")
+
+        assert returned == worktree
+        assert (Path(worktree) / "tracked.txt").read_bytes() == b"unstaged bytes\n"
+        assert (Path(worktree) / "staged.txt").read_bytes() == b"staged bytes\x00\n"
+        assert (Path(worktree) / "untracked.bin").read_bytes() == b"untracked bytes\xff\n"
+        status = subprocess.run(
+            ["git", "-C", worktree, "status", "--porcelain"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+        assert ".oompah-no-hooks" in status  # hook sentinel is not task content
+        task_status = store._git_status_for_worktree(worktree)
+        assert store._worktree_dirty_paths(task_status.stdout) == []
+
+        context = store.worktree_recovery_context(project.id, "TASK-RECOVERY")
+        assert context is not None
+        assert context["prior_head"] == original_head
+        assert context["branch"] == "TASK-RECOVERY"
+        assert set(context["changed_paths"]) == {
+            "tracked.txt",
+            "staged.txt",
+            "untracked.bin",
+        }
+        assert context["snapshot_head"] == subprocess.run(
+            ["git", "-C", worktree, "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        snapshot_identity = subprocess.run(
+            [
+                "git",
+                "-C",
+                worktree,
+                "show",
+                "-s",
+                "--format=%an%n%ae%n%B",
+                str(context["snapshot_head"]),
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+        assert snapshot_identity.startswith(
+            "oompah\nlesserevil@users.noreply.github.com\n"
+        )
+        assert snapshot_identity.rstrip().endswith(
+            "🤖 Generated with https://github.com/lesserevil/oompah\n\n"
+            "Co-authored-by: oompah <lesserevil@users.noreply.github.com>"
+        )
+
+    def test_recovery_snapshot_is_idempotent_across_repeated_retries(self, tmp_path):
+        """Repeated retry preparation reuses one durable snapshot."""
+        repo = tmp_path / "repo"
+        subprocess.run(["git", "init", "-b", "main", str(repo)], check=True)
+        for key, value in (("user.name", "Test"), ("user.email", "test@example.com")):
+            subprocess.run(["git", "-C", str(repo), "config", key, value], check=True)
+        (repo / "base.txt").write_text("base\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(repo), "add", "base.txt"], check=True)
+        subprocess.run(["git", "-C", str(repo), "commit", "-m", "base"], check=True)
+        store = _store(tmp_path)
+        project = Project(
+            id="proj-idempotent",
+            name="idempotent",
+            repo_url=str(repo),
+            repo_path=str(repo),
+            branch="main",
+            default_branch="main",
+        )
+        store._projects[project.id] = project
+        worktree = store.worktree_path_for(project.id, "TASK-IDEMPOTENT")
+        subprocess.run(
+            ["git", "-C", str(repo), "worktree", "add", "-b", "TASK-IDEMPOTENT", worktree, "main"],
+            check=True,
+        )
+        (Path(worktree) / "work.txt").write_text("preserved\n", encoding="utf-8")
+
+        store.create_worktree(project.id, "TASK-IDEMPOTENT")
+        first = store.worktree_recovery_context(project.id, "TASK-IDEMPOTENT")
+        first_head = subprocess.run(
+            ["git", "-C", worktree, "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        store.create_worktree(project.id, "TASK-IDEMPOTENT")
+        second = store.worktree_recovery_context(project.id, "TASK-IDEMPOTENT")
+        second_head = subprocess.run(
+            ["git", "-C", worktree, "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        assert first == second
+        assert first["snapshot_head"] == first_head == second_head
+
+    def test_recovery_survives_restart_base_advance_and_other_task(self, tmp_path):
+        """Recovery refs survive process restart and remain task-scoped."""
+        repo = tmp_path / "repo"
+        subprocess.run(["git", "init", "-b", "main", str(repo)], check=True)
+        for key, value in (("user.name", "Test"), ("user.email", "test@example.com")):
+            subprocess.run(["git", "-C", str(repo), "config", key, value], check=True)
+        (repo / "base.txt").write_text("base\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(repo), "add", "base.txt"], check=True)
+        subprocess.run(["git", "-C", str(repo), "commit", "-m", "base"], check=True)
+
+        project = Project(
+            id="proj-restarted-recovery",
+            name="restarted-recovery",
+            repo_url=str(repo),
+            repo_path=str(repo),
+            branch="main",
+            default_branch="main",
+        )
+        first_store = _store(tmp_path)
+        first_store._projects[project.id] = project
+        first_path = first_store.worktree_path_for(project.id, "TASK-FIRST")
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repo),
+                "worktree",
+                "add",
+                "-b",
+                "TASK-FIRST",
+                first_path,
+                "main",
+            ],
+            check=True,
+        )
+        (Path(first_path) / "first.txt").write_bytes(b"first task bytes\xff\n")
+        first_store.create_worktree(project.id, "TASK-FIRST")
+        first_context = first_store.worktree_recovery_context(
+            project.id, "TASK-FIRST"
+        )
+        first_head = subprocess.run(
+            ["git", "-C", first_path, "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+
+        (repo / "base.txt").write_text("advanced\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(repo), "add", "base.txt"], check=True)
+        subprocess.run(
+            ["git", "-C", str(repo), "commit", "-m", "advance main"],
+            check=True,
+        )
+
+        restarted_store = _store(tmp_path)
+        restarted_store._projects[project.id] = project
+        assert (
+            restarted_store.create_worktree(project.id, "TASK-FIRST")
+            == first_path
+        )
+        restarted_context = restarted_store.worktree_recovery_context(
+            project.id, "TASK-FIRST"
+        )
+        assert restarted_context == first_context
+        assert (Path(first_path) / "first.txt").read_bytes() == (
+            b"first task bytes\xff\n"
+        )
+        assert subprocess.run(
+            ["git", "-C", first_path, "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip() == first_head
+
+        second_path = restarted_store.worktree_path_for(
+            project.id, "TASK-SECOND"
+        )
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repo),
+                "worktree",
+                "add",
+                "-b",
+                "TASK-SECOND",
+                second_path,
+                "main",
+            ],
+            check=True,
+        )
+        (Path(second_path) / "second.txt").write_text(
+            "second task\n", encoding="utf-8"
+        )
+        restarted_store.create_worktree(project.id, "TASK-SECOND")
+        second_context = restarted_store.worktree_recovery_context(
+            project.id, "TASK-SECOND"
+        )
+        assert first_context is not None
+        assert second_context is not None
+        assert first_context["recovery_ref"] != second_context["recovery_ref"]
+        assert restarted_store.worktree_recovery_context(
+            project.id, "TASK-FIRST"
+        ) == first_context
+
+    def test_snapshot_failure_fails_closed_without_reset_or_clean(self, tmp_path):
+        """A failed snapshot leaves the exact dirty worktree for human repair."""
+        repo = tmp_path / "repo"
+        subprocess.run(["git", "init", "-b", "main", str(repo)], check=True)
+        for key, value in (("user.name", "Test"), ("user.email", "test@example.com")):
+            subprocess.run(["git", "-C", str(repo), "config", key, value], check=True)
+        (repo / "base.txt").write_text("base\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(repo), "add", "base.txt"], check=True)
+        subprocess.run(["git", "-C", str(repo), "commit", "-m", "base"], check=True)
+        store = _store(tmp_path)
+        project = Project(
+            id="proj-failed-recovery",
+            name="failed-recovery",
+            repo_url=str(repo),
+            repo_path=str(repo),
+            branch="main",
+            default_branch="main",
+        )
+        store._projects[project.id] = project
+        worktree = store.worktree_path_for(project.id, "TASK-FAILED")
+        subprocess.run(
+            ["git", "-C", str(repo), "worktree", "add", "-b", "TASK-FAILED", worktree, "main"],
+            check=True,
+        )
+        dirty = Path(worktree) / "dirty.txt"
+        dirty.write_text("do not lose this\n", encoding="utf-8")
+        real_run = subprocess.run
+        calls = []
+
+        def fail_add(args, **kwargs):
+            calls.append(list(args))
+            if args[:2] == ["git", "add"]:
+                return subprocess.CompletedProcess(args, 1, "", "snapshot denied")
+            return real_run(args, **kwargs)
+
+        with patch("oompah.projects.subprocess.run", side_effect=fail_add):
+            with pytest.raises(ProjectError, match="could not stage recovery snapshot"):
+                store.create_worktree(project.id, "TASK-FAILED")
+
+        assert dirty.read_text(encoding="utf-8") == "do not lose this\n"
+        assert not any(call[:2] == ["git", "reset"] for call in calls)
+        assert not any(call[:2] == ["git", "clean"] for call in calls)
+        assert store.worktree_recovery_context(project.id, "TASK-FAILED") is None
+
+    def test_terminal_cleanup_preserves_dirty_task_worktree(self, tmp_path):
+        """Terminal cleanup must snapshot then leave dirty unpublished work."""
+        repo = tmp_path / "repo"
+        subprocess.run(["git", "init", "-b", "main", str(repo)], check=True)
+        for key, value in (("user.name", "Test"), ("user.email", "test@example.com")):
+            subprocess.run(["git", "-C", str(repo), "config", key, value], check=True)
+        (repo / "base.txt").write_text("base\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(repo), "add", "base.txt"], check=True)
+        subprocess.run(["git", "-C", str(repo), "commit", "-m", "base"], check=True)
+        store = _store(tmp_path)
+        project = Project(
+            id="proj-terminal-recovery",
+            name="terminal-recovery",
+            repo_url=str(repo),
+            repo_path=str(repo),
+            branch="main",
+            default_branch="main",
+        )
+        store._projects[project.id] = project
+        worktree = store.worktree_path_for(project.id, "TASK-TERMINAL")
+        subprocess.run(
+            ["git", "-C", str(repo), "worktree", "add", "-b", "TASK-TERMINAL", worktree, "main"],
+            check=True,
+        )
+        (Path(worktree) / "dirty.txt").write_bytes(b"must survive\n")
+
+        with pytest.raises(ProjectError, match="dirty task worktree"):
+            store.cleanup_terminal_issue(
+                project.id,
+                "TASK-TERMINAL",
+                branch_name="TASK-TERMINAL",
+            )
+
+        assert Path(worktree, "dirty.txt").read_bytes() == b"must survive\n"
+        assert os.path.isdir(worktree)
+        assert store.worktree_recovery_context(project.id, "TASK-TERMINAL") is not None
 
 
 class TestGithubWorkBranchName:
