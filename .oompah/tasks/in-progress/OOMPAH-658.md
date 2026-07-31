@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-07-31T11:21:57.539338Z'
+updated_at: '2026-07-31T11:25:29.734672Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -158,5 +158,25 @@ The issue is that duplicate-preflight (duplicate screening) runs are being dispa
 - Examine task metadata and claimed/completed state handling
 
 Starting exploration of the codebase.
+---
+author: oompah
+created: 2026-07-31 11:25
+---
+## Discovery
+
+Found the duplicate-preflight logic chain:
+1. \`_select_duplicate_preflight_candidates\` loops through candidates fetched via \`fetch_candidate_issues()\`
+2. For each candidate, calls \`_duplicate_screening_assessment(issue)\` which calls \`assess_screening(issue)\`
+3. \`assess_screening\` checks the issue's \`duplicate_screening\` metadata to determine if screening was already done
+4. If CHECKED state found, task is skipped; otherwise, selected for screening
+5. When screening completes, \`_finish_duplicate_preflight_sync\` saves a CHECKED record via \`save_duplicate_screening_record\`
+
+**Suspected Root Cause:**
+The metadata is stored in the issue description (embedded in a hidden comment block). When \`fetch_candidate_issues()\` fetches issues for selection, the description metadata might not be fully loaded if GitLab's list API returns truncated descriptions. This causes \`assess_screening\` to not find the existing CHECKED record and incorrectly returns UNCHECKED, triggering re-dispatch of duplicate screening.
+
+**Solution:**
+Ensure the \`duplicate_screening\` metadata from a completed screening is retained/cached at the task/fingerprint level so that subsequent scheduler ticks recognize it as satisfied, or explicitly reload metadata before assessment if needed.
+
+Next: Verify this hypothesis by checking if descriptions are fully loaded in list responses.
 ---
 <!-- COMMENTS:END -->

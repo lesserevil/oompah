@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T11:24:33.553863Z'
+updated_at: '2026-07-31T11:25:24.306673Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -661,5 +661,48 @@ author: oompah
 created: 2026-07-31 11:24
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-07-31 11:25
+---
+**SECURITY AUDITOR — Understanding & Recovery**
+
+Prior implementation (3e8c4daf8) rejected due to critical design flaws:
+
+**Key Issues Identified:**
+1. DEFAULT_TTL_SECONDS set to 24 hours (should be ~15 minutes)
+   - Wall-clock TTL defeats server-owned lease mechanism
+   - Workers can stay alive via traffic despite owner heartbeat loss
+   - Bearer holder can keep itself alive even after worker dies
+
+2. Request-driven sliding refresh instead of server-owned heartbeat
+   - test_worker_survives_beyond_initial_ttl_via_endpoint_refresh makes a midpoint request
+   - Does NOT test zero-handoff interval (the actual required behavior)
+   - Any bearer holder can extend itself indefinitely by making requests
+
+3. Tracker mutation not atomic with revocation
+   - validate() + refresh() + tracker.add_comment/set_status/submit NOT atomic
+   - Revocation can win after refresh but before tracker mutation
+   - No per-grant generation/operation authorization to linearize
+
+4. Missing deterministic barrier tests
+   - No proof termination-race after validation-but-before-mutation is caught
+   - Mocks don't deterministically validate exact sequencing
+
+**Planned Fixes:**
+1. Restore DEFAULT_TTL_SECONDS to short duration (15 min as implied)
+2. Remove bearer-driven refresh from continuation mechanism
+3. Implement server-owned lease that renews based on owner_is_live callback
+4. Add per-grant operation authorization that linearizes with revocation
+5. Add deterministic barrier tests with controlled timing
+
+**Implementation Path:**
+- Fix DEFAULT_TTL_SECONDS 
+- Verify lease mechanism keeps grant alive during worker lifetime
+- Ensure revocation prevents any further operations
+- Add barrier test for mutation-after-revocation race
+- Run focused tests before finalizing
+
+Ready to investigate and fix.
 ---
 <!-- COMMENTS:END -->
