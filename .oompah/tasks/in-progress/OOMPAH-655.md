@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T16:32:21.262286Z'
+updated_at: '2026-07-31T16:33:48.016632Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -1110,5 +1110,28 @@ Confirmed implementation is complete on current OOMPAH-655 branch (9e4f9573c). T
 ✓ Regression tests prove old/malicious Makefiles can't breach boundary
 ✓ Normal branches continue to gate successfully
 ✓ Focused lifecycle/integration tests pass
+---
+author: oompah
+created: 2026-07-31 16:33
+---
+**Implementation** - Added design documentation (plans/candidate-code-sandbox.md):
+
+- Complete threat model showing why candidate code cannot be trusted
+- Defense mechanisms at each layer (ancestry check, snapshot, OS sandbox)
+- Table of attack vectors and how each is prevented
+- Integration with orchestrator and generation tracking (OOMPAH-657)
+- Failure modes and operator debugging guidance
+- Testing and maintenance notes for bubblewrap/namespace availability
+
+**Remaining Work:** None identified. The implementation:
+✓ Enforces isolation at server/runner boundary (outside branch code)
+✓ Detects non-cooperating branches with git ancestry verification
+✓ Fails closed with 'needs_rebase' before any candidate execution
+✓ Provides comprehensive regression tests with intentional old/malicious Makefiles
+✓ Prevents all identified attack vectors (PID file access, localhost signal, escape links)
+✓ Maintains operator service isolation through complete gate lifecycle
+✓ Includes deployment/troubleshooting documentation
+
+Ready for submission and integration review.
 ---
 <!-- COMMENTS:END -->
