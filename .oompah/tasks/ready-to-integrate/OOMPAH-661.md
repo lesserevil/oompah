@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-661
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Cancel stale implementation retries when task authority changes
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T13:12:19.387161Z'
-updated_at: '2026-07-31T15:02:42.959064Z'
+updated_at: '2026-07-31T15:02:58.121470Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -98,6 +98,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-661
     source_sha: 76619929b63527d539c81f9dbdadf8c38047c461
     completed_at: '2026-07-31T14:51:17.159348+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-661
+  head_sha: 76619929b63527d539c81f9dbdadf8c38047c461
+  submitted_at: '2026-07-31T15:02:55.174284+00:00'
+  updated_at: '2026-07-31T15:02:55.174284+00:00'
 ---
 ## Summary
 
@@ -217,5 +225,10 @@ Tests (all deterministic, live under tests/test_retry_authority_generation.py pl
 Verification run today: 17/17 pass in test_retry_authority_generation.py; 499/499 pass in test_worker_submission + test_github_tracker + test_oompah_md_tracker; 408/408 pass across test_stalled_task_watchdog + test_orchestrator_pause + test_dispatch_close_race + test_orchestrator_handlers + test_stall_to_dispatch_recovery; 39/39 in test_status_dispatch + test_orphan_reset_dispatch_wake + test_dispatch_lane_contract; 40/40 in test_auditor_dispatch + test_p0_dispatch_bypass + test_release_delivery_project_retry_api; 232/232 in orchestrator merged/conflict/hygiene/telemetry/duplicate; 34/34 in test_credential_error_alert. The only failing test seen (test_orchestrator_full_sync::TestFullSyncIntervalConfig) also fails on main and is unrelated to this task.
 
 Proceeding to submit.
+---
+author: oompah
+created: 2026-07-31 15:02
+---
+Bind delayed implementation retries to their failed generation (project/task/status/attempt/assignment/work-branch/head/updated_at) and cancel synchronously on submit, status change, replacement assignment, head/branch change, terminal transition, or reconciliation. Revalidate fresh tracker state under a compare-and-swap lock before dispatch; discard legacy or replaced entries at restart; expose only actionable retries in /api/v1/state counts/rows/alerts; preserve historical run/error comments. Covered by tests/test_retry_authority_generation.py (17 deterministic cases) plus updated test_worker_submission/test_github_tracker/test_oompah_md_tracker suites.
 ---
 <!-- COMMENTS:END -->
