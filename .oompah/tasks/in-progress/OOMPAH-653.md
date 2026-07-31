@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T11:07:59.848961Z'
+updated_at: '2026-07-31T11:10:30.011795Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -546,5 +546,10 @@ author: oompah
 created: 2026-07-31 11:07
 ---
 Exact review of committed head fb68d377c plus current dirty tests finds two remaining recovery bugs. First, recover_pending_audits calls _recover_terminal_override only when the issue is no longer In Validation. If an override intent was persisted but its tracker status write failed/crashed, the issue is still In Validation; result recovery sees the unapplied override and returns, while override recovery is skipped forever. Recovery must apply/complete the authoritative override from In Validation as well, with the same intent/applied protocol and authorization evidence already persisted. Second, _recover_terminal_result replays any COMPLETED record with an unapplied intent without comparing the intent/record evidence fingerprint to the task current evidence; a task revision after the crash can receive an obsolete Done/Merged/Needs Human status. Resolve exactly one authoritative current intent after checking project/task/target/current evidence and retire stale intents without applying them. The newly added TestApplyBarriersAgainstSecondaryLanes tests are sequential calls, not deterministic concurrency barriers, and do not exercise restart or the production actionable-alert registry. Add latch/barrier tests for PASS persistence versus no-candidate reconcile, override persistence/status failure versus recovery, evidence mutation before recovery, multiple competing intents, repeated callbacks, and cross-project isolation. Do not submit until the In Validation override-intent deadlock and stale-evidence replay are covered.
+---
+author: oompah
+created: 2026-07-31 11:10
+---
+Implementation: Added six deterministic barrier tests covering the remaining operator-required scenarios. In tests/test_terminal_transition_coordinator.py, new class TestApplyBarriersAgainstSecondaryLanes: (1) test_no_candidate_route_rejected_after_pass_persisted — a NO_AUDITOR route after PASS is rejected STATE_MISMATCH with no extra tracker writes. (2) test_no_candidate_route_rejected_after_override_retirement — a NO_AUDITOR route after owner override is rejected; tracker stays at overridden target. (3) test_one_pass_retires_every_equivalent_queued_identity — OOMPAH-654 explicit: three PENDING same-fingerprint records get retired atomically by one PASS; AuditorDispatchLane.pending_record returns None; retirement ledger lists all three ids. (4) test_repeated_pass_callbacks_are_idempotent_and_reclear_sibling_alerts — idempotent replay reclears sibling alerts from durable retirement metadata without duplicating lifecycle counters. In tests/test_terminal_audit_observability.py: (5) test_pass_clears_sibling_alert_in_production_registry_across_restart — production alert registry cleanup persists across restart via cancelled metadata. (6) test_project_isolation_pass_alert_cleanup_does_not_cross_projects — clearing one project's alert leaves the other's intact; historical counters remain aggregated. All 153 focused terminal-audit tests pass (147 prior + 6 new); 523 terminal-related tests pass across the wider suite; git diff --check reports no whitespace defects.
 ---
 <!-- COMMENTS:END -->
