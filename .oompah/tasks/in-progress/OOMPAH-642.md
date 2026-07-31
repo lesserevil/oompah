@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:09:07.190386Z'
-updated_at: '2026-07-31T06:47:28.092273Z'
+updated_at: '2026-07-31T06:47:58.103965Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -199,5 +199,20 @@ author: oompah
 created: 2026-07-31 06:47
 ---
 Discovery: The prior implementation (90307bc06) added the fencing authority infrastructure to Orchestrator.__init__ but the existing test_orchestrator_resolves_exact_branch_worktree_and_posts_evidence uses Orchestrator.__new__ to bypass __init__ and manually sets required attrs. The updated _review_quality_gate_passes reads self._standalone_delivery_authorities.get(...) unconditionally, which raised AttributeError since the test never set it up. Fix: initialize _standalone_delivery_authority_lock (RLock) and _standalone_delivery_authorities ({}) on the mocked orchestrator so the code can look up (missing) authority and fall through to the standard exact-head worktree resolution path being tested.
+---
+author: oompah
+created: 2026-07-31 06:47
+---
+Verification: focused suites all pass locally.
+- tests/test_quality_gate.py: 17 passed (previously 1 failed on the __new__ setup gap).
+- tests/test_standalone_ready_to_integrate.py: 17 passed.
+- tests/test_terminal_transition_coordinator.py: 108 passed.
+- tests/test_authority_boundary.py: 136 passed.
+- tests/test_terminal_override.py: 27 passed.
+- tests/test_delivery_plane_recovery.py + landing/transition/close/unpushed gates: 104 passed.
+- Release delivery executor/backlog/ci_monitor/e2e/queue: 208 passed.
+- Terminal audit (audit, enforcement, health, metadata, scanner, observability): 121 passed.
+- Orchestrator (duplicate_detection, merged, handlers, addendum_poll): 472 passed.
+Pushed as af6e42339.
 ---
 <!-- COMMENTS:END -->
