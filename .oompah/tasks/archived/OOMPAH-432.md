@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-432
 type: bug
-status: In Validation
+status: Archived
 priority: 2
 title: "[backend:orchestrator] Dispatch loop stale but 4 agent(s) are active \u2014\
   \ skipping auto-restart to avoid killing in-flight work. Restart manually when agents\
@@ -14,7 +14,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T22:58:15.387967Z'
-updated_at: '2026-07-31T02:09:38.182330Z'
+updated_at: '2026-07-31T02:11:33.086509Z'
 work_branch: OOMPAH-432
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/551
@@ -73,6 +73,8 @@ oompah.work_branch: OOMPAH-432
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-35525fa7b0fd: '2026-07-31T02:11:30.831177+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -80,7 +82,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-432
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -89,7 +91,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-35525fa7b0fd
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -99,13 +101,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T02:09:29.527305+00:00'
       branch_key: OOMPAH-432
+      verdict: pass
+      completed_at: '2026-07-31T02:11:30.830986+00:00'
+      ended_at: '2026-07-31T02:11:30.830986+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-07-31T02:09:14.198755+00:00'
-    updated_at: '2026-07-31T02:09:29.527305+00:00'
+    updated_at: '2026-07-31T02:11:30.830986+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-35525fa7b0fd
@@ -302,5 +307,25 @@ author: oompah
 created: 2026-07-31 02:09
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 02:11
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit: 2e045a2c6
+- fix_commit: 72561463b
+- pr: #551
+- orchestrator_log_call_line: oompah/orchestrator.py:3174 logger.warning(
+- orchestrator_message_line: oompah/orchestrator.py:3175 'Dispatch loop stale but %d agent(s) are active — '
+- regression_test_location: tests/test_dispatch_loop_heartbeat.py:355 test_skips_restart_logs_warning_not_error_with_active_agents
+- diff_stats: oompah/orchestrator.py 8 lines changed; tests/test_dispatch_loop_heartbeat.py +47
+- merge_date: 2026-07-23
+- days_since_merge: 7
+- worktree_status: clean, up to date with origin/main
+- prior_full_gate: make test 12069 passed / 39 skipped / 0 failed (reported 2026-07-24 01:07)
 ---
 <!-- COMMENTS:END -->
