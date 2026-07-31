@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:15:42.851609Z'
-updated_at: '2026-07-31T08:33:19.433467Z'
+updated_at: '2026-07-31T08:37:58.807154Z'
 work_branch: OOMPAH-648
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/614
@@ -117,6 +117,8 @@ oompah.work_branch: OOMPAH-648
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-7d1427097e93: '2026-07-31T08:37:54.213561+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -124,7 +126,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-648
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -133,7 +135,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-7d1427097e93
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -143,13 +145,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T08:33:13.899055+00:00'
       branch_key: OOMPAH-648
+      verdict: pass
+      completed_at: '2026-07-31T08:37:54.213364+00:00'
+      ended_at: '2026-07-31T08:37:54.213364+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-07-31T08:24:09.754329+00:00'
-    updated_at: '2026-07-31T08:33:13.899055+00:00'
+    updated_at: '2026-07-31T08:37:54.213364+00:00'
   - version: 1
     audit_id: audit-db48e6cb6d3e
     project_id: proj-14849f1b
@@ -360,5 +365,22 @@ author: oompah
 created: 2026-07-31 08:33
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 08:37
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- merged_commit: ca51c22b9
+- merge_commit: 8fd133e26
+- pr: #614
+- tool_liveness_tests: 11 passed in 1.47s
+- focused_suites_passed: 430 tests (api_agent_budget/stall_to_dispatch_recovery/orchestrator_handlers/orchestrator_tick_telemetry)
+- terminal_mutation_scanner: 15 passed
+- branch_gate: make test passed in 264.5s per prior scheduler comment
+- files_changed: oompah/tool_liveness.py (new, 165 lines), oompah/orchestrator.py (+136/-32 including _tool_stall_status), oompah/api_agent.py (+41), oompah/models.py (+3 LiveSession.tool_liveness), oompah/acp_agent.py (+5), oompah/acp_backends/base.py (+4), oompah/acp_backends/codex.py (+1), oompah/acp_backends/opencode.py (+1), oompah/acp_tools.py (+6), tests/test_tool_liveness.py (new, 231 lines)
 ---
 <!-- COMMENTS:END -->
