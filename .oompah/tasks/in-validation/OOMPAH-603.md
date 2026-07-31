@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-603
 type: feature
-status: Ready to Integrate
+status: In Validation
 priority: 2
 title: Define and enforce repository hygiene health thresholds
 parent: OOMPAH-588
@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:03.538398Z'
-updated_at: '2026-07-30T16:40:01.500835Z'
+updated_at: '2026-07-31T04:07:03.125009Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-603
 target_branch: null
 review_url: null
@@ -42,12 +42,19 @@ oompah.agent_run_id: 026c8411-9861-4b04-9e90-a96b31df962b
 oompah.work_branch: epic-OOMPAH-588--task-OOMPAH-603
 oompah.integration:
   version: 1
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-588--task-OOMPAH-603
-  head_sha: b1ea90dd6139324822a96c3e39816a611e82a216
+  base_branch: epic-OOMPAH-588
+  base_sha: 5176c9e479ada61e8ed9e505735c858808227774
+  head_sha: 3a1c79ed8150d7d754fcd5d26b0139c8affbc01f
+  integrated_sha: 3a1c79ed8150d7d754fcd5d26b0139c8affbc01f
   submitted_at: '2026-07-30T16:39:29.216566+00:00'
-  updated_at: '2026-07-30T16:39:29.216566+00:00'
+  updated_at: '2026-07-31T04:06:51.892035+00:00'
+  dependency_heads:
+    OOMPAH-601: 787385c6aad4f27d38edccec4ef98a598604dcb7
+    OOMPAH-602: 89dfc18811454bb05e0fd027702d9aafb2edc40c
+    OOMPAH-600: 67c67ffa6f932ca2a41ff1cd214ed33c9655becc
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-603__20260730T160448Z
@@ -94,6 +101,55 @@ oompah.task_costs:
     output_tokens: 350
     cost_usd: 0.0
     recorded_at: '2026-07-30T16:39:59.815675+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-69589ed26c67
+    project_id: proj-14849f1b
+    task_id: OOMPAH-603
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 11323b701ef2561d137f81c802784fa93a13cce2b21e7f95f0799d6d30dbbc1f
+    attempts:
+    - version: 1
+      attempt_id: attempt-8da7556bb1d0
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 11323b701ef2561d137f81c802784fa93a13cce2b21e7f95f0799d6d30dbbc1f
+      created_at: '2026-07-31T04:06:58.472347+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-31T04:06:58.472347+00:00'
+      branch_key: epic-OOMPAH-588--task-OOMPAH-603
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-31T04:06:53.081994+00:00'
+    updated_at: '2026-07-31T04:06:58.472347+00:00'
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-8da7556bb1d0
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 11323b701ef2561d137f81c802784fa93a13cce2b21e7f95f0799d6d30dbbc1f
+    created_at: '2026-07-31T04:06:58.472347+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-31T04:06:58.472347+00:00'
+    branch_key: epic-OOMPAH-588--task-OOMPAH-603
 ---
 ## Summary
 
@@ -342,5 +398,20 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 8m 3s
 - Log: OOMPAH-603__20260730T163202Z.jsonl
+---
+author: oompah
+created: 2026-07-31 04:06
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-07-31 04:07
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-07-31 04:07
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
