@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-584
 type: epic
-status: In Validation
+status: Open
 priority: 1
 title: Return the oompah delivery control plane to green
 parent: null
@@ -20,7 +20,7 @@ labels:
 - epic:stale
 assignee: null
 created_at: '2026-07-30T14:13:01.872040Z'
-updated_at: '2026-07-31T05:12:47.934068Z'
+updated_at: '2026-07-31T05:13:54.084367Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -126,5 +126,10 @@ author: oompah
 created: 2026-07-31 05:12
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 05:13
+---
+Operator race fence: outer validation started while required child epic OOMPAH-588 is Done but not Merged. Returning the outer epic to Open until OOMPAH-588 is rebased onto current parent 145b6b67e, passes exact-head verification, and merges. This prevents a stale audit from authorizing an incomplete outer review.
 ---
 <!-- COMMENTS:END -->
