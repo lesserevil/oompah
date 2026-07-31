@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T22:56:06.058439Z'
-updated_at: '2026-07-31T23:09:34.461898Z'
+updated_at: '2026-07-31T23:09:53.799197Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,13 +38,17 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 2dcbf35d-bd85-4dad-af1a-b78b09642038
 oompah.task_costs:
-  total_input_tokens: 217130
-  total_output_tokens: 1406
+  total_input_tokens: 218616
+  total_output_tokens: 1771
   total_cost_usd: 0.0
   by_model:
     sonnet:
       input_tokens: 217130
       output_tokens: 1406
+      cost_usd: 0.0
+    haiku:
+      input_tokens: 1486
+      output_tokens: 365
       cost_usd: 0.0
   runs:
   - profile: standard
@@ -53,6 +57,12 @@ oompah.task_costs:
     output_tokens: 1406
     cost_usd: 0.0
     recorded_at: '2026-07-31T23:02:39.109732+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 1486
+    output_tokens: 365
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T23:09:51.173325+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-670__20260731T230203Z
@@ -199,5 +209,15 @@ Key changes:
 - Preserved legacy actor path for unauthenticated deployments
 
 Implementation verified by 13 regression tests covering authenticated status moves, authenticated intake actions, auth-state refresh, and backward compatibility. All 887 dashboard tests pass.
+---
+author: oompah
+created: 2026-07-31 23:09
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 91
+- Tokens: 1.5K in / 365 out [1.9K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 6m 58s
+- Log: OOMPAH-670__20260731T230256Z.jsonl
 ---
 <!-- COMMENTS:END -->
