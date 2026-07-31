@@ -17,7 +17,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T16:06:59.004652Z'
+updated_at: '2026-07-31T16:14:16.957795Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -1117,5 +1117,10 @@ author: oompah
 created: 2026-07-31 16:06
 ---
 Focus: Event Api Redaction Specialist
+---
+author: oompah
+created: 2026-07-31 16:14
+---
+Understanding: Reviewed current state. The OOMPAH-651 branch already contains a comprehensive redaction implementation (9 commits, ~2.8k lines in oompah/secrets.py + tests + docs) that covers: (1) recursive redaction of dicts/lists/dataclasses/repr forms via redact_sensitive_data, (2) SecretRedactionFilter installed at both logger and LogRecordFactory boundaries, (3) fail-closed handling of unknown/credential-like objects, (4) a process-local registered-secret registry with register/renew/retire lifecycle for dynamic tokens, (5) applied at fan-out boundaries in console.py, console_legacy.py, console_format.py, orchestrator.py, api_agent.py, acp_backends/claude.py, and task_handoff.py issue/revoke, (6) operator runbook in docs/secret-redaction-and-rotation.md. Rebased onto latest origin/main (35 commits ahead) - clean rebase, no conflicts. Focused tests pass: test_secrets.py (101), test_task_handoff.py (33), test_console*.py (93). make check-secrets passes. Continuing verification and looking for any gaps in current backend coverage.
 ---
 <!-- COMMENTS:END -->
