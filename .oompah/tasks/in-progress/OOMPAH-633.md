@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:54:49.391955Z'
-updated_at: '2026-07-31T01:21:33.828516Z'
+updated_at: '2026-07-31T01:22:58.410667Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-633
 target_branch: null
 review_url: null
@@ -347,5 +347,26 @@ author: oompah
 created: 2026-07-31 01:21
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-07-31 01:22
+---
+Understanding: The auditor identified test coverage defects in the previous implementation:
+
+1. test_nested_epic_queue_repair_denies_unrelated_epic_target is a false positive - it mocks the parent as EPIC-OTHER with target epic-EPIC-OTHER, so the target actually IS the parent's branch. The test returns False only because _resolve_parent_epic isn't wired, creating a false pass.
+
+2. Missing required test scenarios:
+   - Already-reachable/nonterminal dependencies should NOT trigger rebase (dependencies that exist on the epic branch but are not in terminal states)
+   - Successful parent epic synchronization should let claim_next advance (after parent rebase completes, the nested epic's queue should be claimable)
+
+Plan:
+1. Fix test_nested_epic_queue_repair_denies_unrelated_epic_target: Mock a real parent (EPIC-P) with branch epic-EPIC-P, but set target_branch to different epic (epic-EPIC-X)
+2. Add test for nonterminal dependency scenario - queue should not repair when dependency is already reachable but not terminal
+3. Add test for successful parent sync - after parent epic's rebase completes, nested epic's claim_next should work
+
+Key code locations:
+- _detect_and_repair_integration_queue_staleness_block (line 5272) - checks parent epic target
+- _epic_synchronization_decision (line 10326) - validates parent target authorization
+- tests/test_parallel_epic_children.py - where tests need fixing
 ---
 <!-- COMMENTS:END -->
