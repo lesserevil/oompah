@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-655
 type: task
-status: Needs Rebase
+status: In Progress
 priority: 0
 title: Enforce full-gate service isolation outside candidate branch code
 parent: null
@@ -14,7 +14,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T16:41:36.276241Z'
+updated_at: '2026-07-31T16:41:49.835472Z'
 work_branch: OOMPAH-655
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/625
@@ -38,7 +38,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 3
   retry_after: null
-oompah.agent_run_id: f2a944f3-352e-48df-b26d-2f03f710928c
+oompah.agent_run_id: 0f116dfb-29dc-4dd7-b8cd-785f05f8956e
 oompah.task_costs:
   total_input_tokens: 8339587
   total_output_tokens: 55820
@@ -1169,5 +1169,15 @@ author: oompah
 created: 2026-07-31 16:41
 ---
 YOLO: Merge conflict detected on MR #625. Rebase onto main and resolve conflicts.
+---
+author: oompah
+created: 2026-07-31 16:41
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-31 16:41
+---
+Focus: Merge Conflict Resolver
 ---
 <!-- COMMENTS:END -->
