@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:25:29.809048Z'
-updated_at: '2026-07-31T06:21:54.844205Z'
+updated_at: '2026-07-31T06:22:26.456005Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-621
 target_branch: null
 review_url: null
@@ -167,18 +167,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-621
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 0bffd2023f81f2cd06df8484cf05a6a1e3dec19527926fee6ea0d2b6921c6ab2
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-52c9129eca9e
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 0bffd2023f81f2cd06df8484cf05a6a1e3dec19527926fee6ea0d2b6921c6ab2
+      created_at: '2026-07-31T06:22:19.195657+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-31T06:22:19.195657+00:00'
+      branch_key: epic-OOMPAH-619--task-OOMPAH-621
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-31T06:21:52.455730+00:00'
+    updated_at: '2026-07-31T06:22:19.195657+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-8a79c55ddcf1
@@ -192,6 +206,19 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: opus
     started_at: '2026-07-30T22:36:16.083460+00:00'
+    branch_key: epic-OOMPAH-619--task-OOMPAH-621
+  - version: 1
+    attempt_id: attempt-52c9129eca9e
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0bffd2023f81f2cd06df8484cf05a6a1e3dec19527926fee6ea0d2b6921c6ab2
+    created_at: '2026-07-31T06:22:19.195657+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-31T06:22:19.195657+00:00'
     branch_key: epic-OOMPAH-619--task-OOMPAH-621
 ---
 ## Summary
@@ -526,5 +553,15 @@ author: oompah
 created: 2026-07-31 06:16
 ---
 Recovered auditor-requested netrc documentation and contract coverage at pushed canonical head b2191c92f; the exact-revision compatibility test is already integrated on the parent epic. Resubmitting after the prior authority-withdrawal race.
+---
+author: oompah
+created: 2026-07-31 06:22
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-07-31 06:22
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
