@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-650
 type: bug
-status: In Validation
+status: Done
 priority: 1
 title: Keep scoped task handoff credentials valid for the full worker lifetime
 parent: OOMPAH-619
@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T14:29:15.070169Z'
+updated_at: '2026-07-31T14:39:33.250175Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -164,6 +164,30 @@ oompah.work_contributors:
 oompah.start_blocked_by: *id001
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-8f64880258e9: '2026-07-31T14:39:30.756741+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-650
+    target_state: Done
+    evidence_fingerprint: 108b99672f7aff58bdb9b0188bde718e8090c7446162bc12647eee10f688a096
+    audit_ids:
+    - audit-8ba2bd45c96f
+    kind: result
+    applied: true
+    retired_at: '2026-07-31T14:39:30.756749+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-650
+    audit_id: audit-8ba2bd45c96f
+    attempt_id: attempt-8f64880258e9
+    target_state: Done
+    evidence_fingerprint: 108b99672f7aff58bdb9b0188bde718e8090c7446162bc12647eee10f688a096
+    status: Done
+    audit_ids:
+    - audit-8ba2bd45c96f
+    applied: false
+    created_at: '2026-07-31T14:39:30.756759+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -171,7 +195,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-650
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -180,7 +204,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-8f64880258e9
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -190,13 +214,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T14:29:08.513496+00:00'
       branch_key: epic-OOMPAH-619--task-OOMPAH-650
+      verdict: pass
+      completed_at: '2026-07-31T14:39:30.756567+00:00'
+      ended_at: '2026-07-31T14:39:30.756567+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-31T14:28:49.696605+00:00'
-    updated_at: '2026-07-31T14:29:08.513496+00:00'
+    updated_at: '2026-07-31T14:39:30.756567+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-8f64880258e9
@@ -1350,5 +1377,34 @@ author: oompah
 created: 2026-07-31 14:29
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 14:39
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- branch: epic-OOMPAH-619--task-OOMPAH-650
+- head_sha: 7add4cdbc455d2561ded080fc15fa082aa137409
+- epic_base_sha: 61546199b2334fd861f2d0cd844ec631e8b8d0e4
+- commit_count_since_epic_base: 11
+- diff_stat: 6 files changed, 2131 insertions(+), 163 deletions(-)
+- diff_check: clean (no trailing whitespace or hygiene issues)
+- working_tree: clean, up to date with origin
+- test_task_handoff: 57 passed in 9.23s
+- test_task_cli: 137 passed in 0.55s
+- test_auth_bundle: 233 passed in 11.65s (client_auth+auth_health+http_auth+server_auth)
+- test_terminal_audit_bundle: 152 passed in 11.32s
+- test_orchestrator_bundle: 418 passed in 165.84s (orchestrator_handlers+authority_boundary+worker_submission)
+- test_lifecycle_bundle: 47 passed in 17.91s (auditor_termination_cleanup+dispatch_lane_contract+tool_liveness)
+- linearization_point: async with permit at oompah/server.py:1473 inside _run_task_handoff_mutation; permit.begin -> store._begin_operation under store lock re-checks revoked_at/expires_at/operation_permit_generation
+- revocation_generation_bump: TaskHandoffGrantStore.revoke increments operation_permit_generation under the store lock (task_handoff.py revoke)
+- termination_race_fix: revoke_task_handoff_token(entry.task_handoff_token) runs before state.running.get(issue_id) replacement check at orchestrator.py:26962 and 29122
+- predecessor_revocation: orchestrator.py:23801-23803 revokes previous entry token before publishing new token and starting new lease
+- zero_traffic_test: tests/test_task_handoff.py::test_worker_lifetime_grant_survives_zero_handoff_requests exercises real TaskHandoffLease thread with deterministic clock past initial TTL
+- endpoint_race_test: tests/test_task_handoff.py::test_endpoint_rejects_mutation_if_revoked_before_operation_admission uses real FastAPI TestClient and threading latch to prove mutation is blocked when revoke wins between acquire and admission
+- basic_auth_stripped: tests/test_task_handoff.py::test_no_basic_auth_environment_leaks_into_worker confirms agent_environment strips OOMPAH_SERVER_USERNAME/PASSWORD/PASSWORD_FILE
 ---
 <!-- COMMENTS:END -->
