@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-653
 type: bug
-status: Ready to Integrate
+status: Open
 priority: 1
 title: Make terminal-audit success and owner override retire every duplicate record
   and alert
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T09:25:14.212776Z'
+updated_at: '2026-07-31T09:26:38.293581Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -282,5 +282,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 11m 59s
 - Log: OOMPAH-653__20260731T091319Z.jsonl
+---
+author: oompah
+created: 2026-07-31 09:26
+---
+Operator review rejects Ready head 21791cde0. The code persists PASS/override metadata under the coordinator lock, then clears actionable alerts later through separate metrics calls and, for PASS, only from two outer result handlers. A crash or concurrent no-candidate route between those operations can still recreate the OOMPAH-644 stale-alert state, so the implementation is not atomic. The submitted tests cover only two sequential in-memory coordinator cases; they do not cover the required PASS-vs-reconcile barrier, override-vs-no-candidate barrier, production alert registry, restart persistence, repeated callbacks, or project isolation. Add a durable canonical retirement operation (or reconciliation derived solely from durable terminal state) and the deterministic race/restart tests from the acceptance criteria before resubmitting. Also remove the new trailing whitespace reported by git diff --check.
 ---
 <!-- COMMENTS:END -->
