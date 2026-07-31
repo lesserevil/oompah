@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-577
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Allow a changed integrated head to retry a failed completed terminal audit
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T03:07:59.102017Z'
-updated_at: '2026-07-31T06:06:22.935467Z'
+updated_at: '2026-07-31T06:07:01.529281Z'
 work_branch: OOMPAH-577
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/588
@@ -23,6 +23,23 @@ oompah.work_branch: OOMPAH-577
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-98c92344aec1
+    project_id: proj-14849f1b
+    task_id: OOMPAH-577
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 48fe0a0413a694bb96d0f317a7f6440aac564b1f9b3fac497a37a0bb5095d8cd
+    authorized_by:
+      version: 1
+      identity: lesserevil
+      source: api
+    reason: 'Restore proven merged state from PR #588 merge commit 70fa1de48 and recorded
+      green CI/live evidence.'
+    created_at: '2026-07-31T06:06:55.508737+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -124,5 +141,12 @@ author: oompah
 created: 2026-07-31 06:06
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 06:07
+---
+Override by lesserevil: terminal transition to Merged applied by project owner.
+
+Reason: Restore proven merged state from PR #588 merge commit 70fa1de48 and recorded green CI/live evidence.
 ---
 <!-- COMMENTS:END -->
