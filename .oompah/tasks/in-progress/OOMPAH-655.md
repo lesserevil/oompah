@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T10:39:40.874465Z'
+updated_at: '2026-07-31T10:41:08.275915Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -103,5 +103,10 @@ author: oompah
 created: 2026-07-31 10:39
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-07-31 10:41
+---
+Understanding: Post-OOMPAH-652 regression. The quality_gate.py subprocess spawns candidate branch commands without enforcing lifecycle isolation. A candidate branch with an old Makefile ignores OOMPAH_PYTEST_GATE/RUN_ROOT variables and uses canonical .oompah.pid, allowing it to discover/signal the live operator service. Fix: Enforce full lifecycle isolation (private temp root, PID files, port, HOME/tool state, process group/session capture, ownership cleanup) at the quality_gate.py subprocess launch boundary BEFORE executing any candidate command, not relying on candidate code cooperation. Will audit quality_gate.py subprocess.Popen() call and agent_environment() setup. Starting discovery phase.
 ---
 <!-- COMMENTS:END -->
