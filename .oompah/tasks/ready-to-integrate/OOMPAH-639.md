@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-639
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 0
 title: Rebase epic-OOMPAH-460 onto main
 parent: OOMPAH-460
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T03:11:53.982402Z'
-updated_at: '2026-07-31T03:19:32.963037Z'
+updated_at: '2026-07-31T03:19:44.255634Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-639
 target_branch: null
 review_url: null
@@ -21,12 +21,12 @@ oompah.agent_run_id: b050aaa9-a3be-448c-9815-81157a30eb39
 oompah.work_branch: epic-OOMPAH-460--task-OOMPAH-639
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-460--task-OOMPAH-639
-  base_branch: epic-OOMPAH-460
-  base_sha: 113e75ac87eca903188e3197754670f92371f805
-  updated_at: '2026-07-31T03:18:10.954424+00:00'
+  head_sha: fd19b48db0293b02a267e7cf4f22cca5cf8073a1
+  submitted_at: '2026-07-31T03:19:41.745295+00:00'
+  updated_at: '2026-07-31T03:19:41.745295+00:00'
 oompah.task_costs:
   total_input_tokens: 388211
   total_output_tokens: 11092
@@ -215,5 +215,10 @@ author: oompah
 created: 2026-07-31 03:19
 ---
 Discovery & Implementation: Successfully rebased epic-OOMPAH-460 onto origin/main. The branch had 4 commits (OOMPAH-486 audit observability work) that were 6 commits behind main. Rebase completed without conflicts. Force-pushed to epic-OOMPAH-460 using git push --force-with-lease origin epic-OOMPAH-460--task-OOMPAH-639:epic-OOMPAH-460. Verification: epic-OOMPAH-460 is now based on origin/main (commit 24bd5d6c1).
+---
+author: oompah
+created: 2026-07-31 03:19
+---
+Rebased epic-OOMPAH-460 onto origin/main. The 4 OOMPAH-486 commits on the epic were rebased without conflicts. Force-pushed with git push --force-with-lease. Verified epic-OOMPAH-460 is now based on main.
 ---
 <!-- COMMENTS:END -->
