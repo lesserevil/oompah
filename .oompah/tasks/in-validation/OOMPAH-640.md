@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-640
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Complete combined stall-to-dispatch recovery regression coverage
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T05:59:47.260716Z'
-updated_at: '2026-07-31T06:45:33.897293Z'
+updated_at: '2026-07-31T06:55:19.017306Z'
 work_branch: OOMPAH-640
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/608
@@ -108,6 +108,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/608
 oompah.review_number: '608'
 oompah.work_branch: OOMPAH-640
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-50ba79464bb3
+    project_id: proj-14849f1b
+    task_id: OOMPAH-640
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9fae4e3ab825e00cbc64ba02d9836dbc3c055e12b56f18d4c3c077dec93691ae
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-31T06:55:14.228060+00:00'
+  - version: 1
+    audit_id: audit-beb713efc129
+    project_id: proj-14849f1b
+    task_id: OOMPAH-640
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9fae4e3ab825e00cbc64ba02d9836dbc3c055e12b56f18d4c3c077dec93691ae
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-31T06:55:14.228060+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -413,5 +452,15 @@ author: oompah
 created: 2026-07-31 06:45
 ---
 Branch quality gate passed for `5a5f4867f2d5c640069b16fe6eaf45e09a54c963` using `make test` in 305.9s. Review creation may proceed.
+---
+author: oompah
+created: 2026-07-31 06:55
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-07-31 06:55
+---
+YOLO: merged PR #608.
 ---
 <!-- COMMENTS:END -->
