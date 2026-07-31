@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:07.401588Z'
-updated_at: '2026-07-31T21:43:04.670188Z'
+updated_at: '2026-07-31T21:43:11.453115Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -58,7 +58,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 3e04c872-b8c2-4cc6-93ec-fb00c76b32da
+oompah.agent_run_id: 488f38cf-f5de-483d-b679-350c2e2920b9
 oompah.task_costs:
   total_input_tokens: 2388341
   total_output_tokens: 18625
@@ -536,5 +536,15 @@ uv pip install -e '.[server]'
 make: uv: No such file or directory
 make: *** [Makefile:118: .venv/.uv-setup] Error 127
 ```
+---
+author: oompah
+created: 2026-07-31 21:43
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-31 21:43
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
