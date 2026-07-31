@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T09:41:22.235656Z'
+updated_at: '2026-07-31T09:45:48.217309Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -257,5 +257,10 @@ Server-side renewal mechanism that can be called from subprocess:
 
 **Files Modified:** oompah/task_handoff.py, oompah/server.py, oompah/task_cli.py, tests/test_task_handoff.py
 **Security Focus:** Server-owned store, no subprocess state, explicit revocation tracking
+---
+author: oompah
+created: 2026-07-31 09:45
+---
+In-progress operator correction: server-side refresh after validate is necessary but still insufficient. api_task_handoff validates first, so a worker that performs no handoff requests for longer than the TTL reaches final submit with an already-expired token; validation rejects it before refresh runs. The new test refreshes at t=1050 before the t=1060 expiry and therefore does not reproduce the live silent-tool failure. Bind renewal to observed live worker/session ownership or a server heartbeat independent of task requests, and add a true subprocess/live-server short-TTL test with no handoff traffic until after the original expiry, followed by successful view/comment/submit. Termination/restart must still revoke or atomically replace the old grant.
 ---
 <!-- COMMENTS:END -->
