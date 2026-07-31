@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-645
 type: task
-status: In Validation
+status: Merged
 priority: 0
 title: Clear recovered terminal-audit transport failures without contaminating later
   audits
@@ -16,7 +16,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T06:47:58.732088Z'
-updated_at: '2026-07-31T15:17:47.676572Z'
+updated_at: '2026-07-31T15:19:56.600131Z'
 work_branch: OOMPAH-645
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/623
@@ -187,6 +187,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-cd482e907e4c: '2026-07-31T15:17:19.855439+00:00'
+    attempt-4deff41dcadd: '2026-07-31T15:19:53.072640+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-645
@@ -197,6 +198,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-07-31T15:17:19.855448+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-645
+    target_state: Merged
+    evidence_fingerprint: 116e651c5b78d8c997dc2ee5480818b9f3f89f15a7e70320ed090774110723bf
+    audit_ids:
+    - audit-80ef01a97408
+    kind: result
+    applied: true
+    retired_at: '2026-07-31T15:19:53.072656+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-645
@@ -210,6 +220,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-07-31T15:17:19.855459+00:00'
     applied_at: '2026-07-31T15:17:23.617481+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-645
+    audit_id: audit-80ef01a97408
+    attempt_id: attempt-4deff41dcadd
+    target_state: Merged
+    evidence_fingerprint: 116e651c5b78d8c997dc2ee5480818b9f3f89f15a7e70320ed090774110723bf
+    status: Merged
+    audit_ids:
+    - audit-80ef01a97408
+    applied: false
+    created_at: '2026-07-31T15:19:53.072671+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -251,7 +272,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-645
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -260,7 +281,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-4deff41dcadd
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -270,13 +291,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T15:17:40.260993+00:00'
       branch_key: OOMPAH-645
+      verdict: pass
+      completed_at: '2026-07-31T15:19:53.072518+00:00'
+      ended_at: '2026-07-31T15:19:53.072518+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-07-31T15:13:51.660787+00:00'
-    updated_at: '2026-07-31T15:17:40.260993+00:00'
+    updated_at: '2026-07-31T15:19:53.072518+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-cd482e907e4c
@@ -865,5 +889,25 @@ author: oompah
 created: 2026-07-31 15:17
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 15:19
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: 9e4a0c877707d946a4504d664dba74811c2e0aac
+- merge_commit: 54be36f5dca92972dfb039c6f1eba6f4990235d3
+- pr_number: 623
+- impl_commit: 7782ae37271995a5031a96ad73812e2133bd3864
+- impl_files: oompah/terminal_audit_health.py (+50/-18); tests/test_terminal_audit_health.py (+360); tests/test_oompah_http.py (+3)
+- guard_expression: if record.request_state == RequestState.PENDING:
+- guard_locations: oompah/terminal_audit_health.py:301 (record-level counter) and :330 (failure classification block)
+- focused_health_tests: 43 passed in 0.16s (tests/test_terminal_audit_health.py)
+- neighboring_tests: 205 passed across dashboard/observability/enforcement/scanner/coordinator/health_api
+- gate_status: make test passed in 378.7s at 9e4a0c877 per branch quality gate comment
+- branch_merged_into_main: true
 ---
 <!-- COMMENTS:END -->
