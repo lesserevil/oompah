@@ -296,6 +296,9 @@ def test_installed_cli_from_exact_revision_reads_matching_authenticated_server(t
     cli_binary = cli_env_dir / "bin" / "oompah"
 
     source_ref = f"git+{REPO_ROOT.as_uri()}@{revision}"
+    dependency_site = str(Path(httpx.__file__).resolve().parent.parent)
+    install_env = os.environ.copy()
+    install_env["PYTHONPATH"] = dependency_site
     install = subprocess.run(
         [
             str(cli_python),
@@ -305,12 +308,14 @@ def test_installed_cli_from_exact_revision_reads_matching_authenticated_server(t
             "--disable-pip-version-check",
             "--no-input",
             "--no-deps",
+            "--no-build-isolation",
             source_ref,
         ],
         cwd=str(tmp_path),
         capture_output=True,
         text=True,
         timeout=120,
+        env=install_env,
     )
     assert install.returncode == 0, (
         "exact-revision standalone CLI installation failed:\n"
@@ -320,7 +325,6 @@ def test_installed_cli_from_exact_revision_reads_matching_authenticated_server(t
 
     isolated_env = os.environ.copy()
     isolated_env.pop("PYTHONPATH", None)
-    dependency_site = str(Path(httpx.__file__).resolve().parent.parent)
 
     version_probe = subprocess.run(
         [

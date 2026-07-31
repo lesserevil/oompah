@@ -67,29 +67,25 @@ def port_listening(port: int) -> bool:
     hosts where neither tool is installed (e.g. the self-hosted Actions runner
     container which does not bundle iproute2 or lsof by default).
     """
-    # Try ss first
-    try:
+    # An available ss command is authoritative even when it reports no
+    # listener.  Falling through to lsof in that case scans host-wide procfs
+    # and can exceed bounded test and restart budgets on shared runners.
+    if _SS_AVAILABLE:
         r = subprocess.run(
             ["ss", "-ltn", f"sport = :{port}"],
             capture_output=True,
             text=True,
         )
-        if r.returncode == 0 and "LISTEN" in r.stdout:
-            return True
-    except FileNotFoundError:
-        pass  # ss not installed; try next method
+        return r.returncode == 0 and "LISTEN" in r.stdout
 
     # Fallback: lsof
-    try:
+    if _LSOF_AVAILABLE:
         r2 = subprocess.run(
             ["lsof", "-ti", f":{port}", "-sTCP:LISTEN"],
             capture_output=True,
             text=True,
         )
-        if r2.returncode == 0 and bool(r2.stdout.strip()):
-            return True
-    except FileNotFoundError:
-        pass  # lsof not installed; fall through to Python socket probe
+        return r2.returncode == 0 and bool(r2.stdout.strip())
 
     # Last-resort pure-Python probe: attempt a non-blocking TCP connection.
     # The kernel completes the 3-way handshake (queuing the connection in the
