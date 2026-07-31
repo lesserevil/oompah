@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-651
 type: bug
-status: Needs Human
+status: Ready to Integrate
 priority: 0
 title: Redact secrets from agent tool inputs, outputs, and JSONL event logs
 parent: null
@@ -19,7 +19,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T23:19:20.344719Z'
+updated_at: '2026-07-31T23:28:26.189253Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -244,9 +244,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-651
-  head_sha: be84001032add7e0cc5d8b71f04308fcc7f2174a
-  submitted_at: '2026-07-31T21:42:01.005559+00:00'
-  updated_at: '2026-07-31T21:42:01.005559+00:00'
+  head_sha: 62328ae2881b05346ed02c0bef2a25cd57380567
+  submitted_at: '2026-07-31T23:28:22.099129+00:00'
+  updated_at: '2026-07-31T23:28:22.099129+00:00'
 oompah.start_blocked_by: *id001
 ---
 ## Summary
@@ -1429,5 +1429,15 @@ Oompah could not durably preserve this worker's task worktree before retry. The 
 .oompah-no-hooks
 hint: Use -f if you really want to add them.
 hint: Disable this message with "git config set advice.addIgnoredFile false"
+---
+author: oompah
+created: 2026-07-31 23:28
+---
+Direct operator recovery completed on the clean OOMPAH-665 head 04d681f10. Preserved the 13 security/redaction commits, reviewed and adopted only whitespace normalization from the raced server worker, and prevented further redispatch. Verification: 1,577 focused security/backend tests passed; make check-secrets passed; terminal mutation scan passed; complete make test passed with 14,660 passed, 7 skipped, 1 xfailed. Clean branch head: 62328ae2881b05346ed02c0bef2a25cd57380567.
+---
+author: oompah
+created: 2026-07-31 23:28
+---
+Rebased the complete cross-backend secret-redaction implementation onto the corrected terminal-audit base; security scans, focused coverage, and the complete gate pass.
 ---
 <!-- COMMENTS:END -->
