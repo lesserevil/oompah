@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-663
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Canonicalize integrated-task fingerprints for owner overrides
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T13:52:05.961085Z'
-updated_at: '2026-07-31T14:13:06.267800Z'
+updated_at: '2026-07-31T14:13:44.297957Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -64,6 +64,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-663
     source_sha: ef2938146bf828ddc8d8d677501f4fad61d65a73
     completed_at: '2026-07-31T14:04:00.251325+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-663
+  head_sha: 3bfc42ec9e14809441868bba108fe5dccec18ab7
+  submitted_at: '2026-07-31T14:13:42.564664+00:00'
+  updated_at: '2026-07-31T14:13:42.564664+00:00'
 ---
 ## Summary
 
@@ -168,5 +176,30 @@ created: 2026-07-31 14:13
    - test_api_override_uses_same_canonical_fingerprint_as_orchestrator_integration: Verifies all paths use identical computation
 
 All 149 affected tests pass (30 new + 119 existing).
+---
+author: oompah
+created: 2026-07-31 14:13
+---
+**Verification - All Tests Passing**:
+
+Focused test suite results:
+- test_terminal_fingerprint_canonicalization.py: 3 passed ✓
+- test_terminal_override.py: 27 passed ✓
+- test_terminal_transition_coordinator.py: 116 passed ✓  
+- test_terminal_audit.py: 28 passed ✓
+**Total: 174 tests passed**
+
+Acceptance criteria verified:
+✓ First valid override succeeds and retires audit alert (test_integrated_task_audit_staged_and_overridden_with_canonical_fingerprint)
+✓ No duplicate terminal request needed (fingerprints match across paths)
+✓ Stale evidence rejected with 409 (test_genuinely_changed_integration_sha_still_fails_closed)
+✓ All paths use canonical fingerprint computation (test_api_override_uses_same_canonical_fingerprint_as_orchestrator_integration)
+
+Code changes:
+- Enhanced compute_issue_evidence_fingerprint() documentation to clarify it is the canonical path
+- Added OOMPAH-663 references to all terminal fingerprint entry points
+- Created comprehensive regression test suite
+
+Ready for full branch gate test and integration.
 ---
 <!-- COMMENTS:END -->
