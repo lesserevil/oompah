@@ -16,11 +16,11 @@ labels:
 - epic:rebased
 assignee: null
 created_at: '2026-07-30T14:13:46.482910Z'
-updated_at: '2026-07-31T05:25:07.618316Z'
-work_branch: null
-target_branch: null
-review_url: null
-review_number: null
+updated_at: '2026-07-31T05:25:12.649909Z'
+work_branch: epic-OOMPAH-588
+target_branch: epic-OOMPAH-584
+review_url: https://github.com/lesserevil/oompah/pull/602
+review_number: '602'
 merged_at: null
 oompah.terminal_audit:
   queued_comment_posted: true
@@ -91,6 +91,10 @@ oompah.task_costs:
     output_tokens: 3061
     cost_usd: 0.0
     recorded_at: '2026-07-31T05:09:36.128152+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/602
+oompah.review_number: '602'
+oompah.work_branch: epic-OOMPAH-588
+oompah.target_branch: epic-OOMPAH-584
 ---
 ## Summary
 
