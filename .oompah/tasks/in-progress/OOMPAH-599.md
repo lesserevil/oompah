@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:31.072278Z'
-updated_at: '2026-07-31T03:52:05.519954Z'
+updated_at: '2026-07-31T03:54:36.889777Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-599
 target_branch: null
 review_url: null
@@ -160,5 +160,10 @@ author: oompah
 created: 2026-07-31 03:52
 ---
 Discovery: the parent head 44e5c5579 already covers Ready reconciliation and terminal-audit health, but its blocked integration path can remain silently blocked: background sync treats identical blocked rows as idempotent. I also found the scoped task-handoff comment CLI omitted the required identifier field, preventing milestone comments; I am adding a compatibility fix and regression test while covering blocked-row recovery.
+---
+author: oompah
+created: 2026-07-31 03:54
+---
+Implementation: background integration sync now explicitly re-arms an identical blocked queue row when tracker metadata records a durable ready retry. A blocked-row audit scans canonical tracker issues and emits idempotent integration_delivery alerts for rows with no active retry or actionable Needs Rebase/Needs CI Fix/Needs Human reason; explained human handoffs clear the alert. Added three deterministic recovery fixtures plus the scoped task-comment identifier regression.
 ---
 <!-- COMMENTS:END -->
