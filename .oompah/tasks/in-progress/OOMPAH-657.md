@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T11:06:15.542774Z'
-updated_at: '2026-07-31T11:20:02.326212Z'
+updated_at: '2026-07-31T11:25:57.845037Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -150,5 +150,10 @@ author: oompah
 created: 2026-07-31 11:20
 ---
 Current OOMPAH-657 tests cover snapshot input isolation and cancellation only after the process is already registered, but they do not cover the three live failure windows. Add deterministic barriers for (1) task authority revoked during git worktree creation before Popen, (2) revocation after Popen but before _active_generations registration, and (3) Ready to Integrate to Open cancelling/retiring the exact integration row and preventing any stale pass from changing status or creating review/integration. _retire_inactive_integration_rows still excludes Open, so the reproduced root cause is currently unchanged. cancel_generation also needs a durable/tombstoned cancellation state checked before and immediately after spawn; a map lookup cannot close those windows. Verify detached worktree registration/path cleanup, prune _key_locks or bound it with evidence retention, and use the current tracker IntegrationRecord branch/head/generation—not only a stale Issue/ref—to authorize both launch and pass consumption.
+---
+author: oompah
+created: 2026-07-31 11:25
+---
+Operator stopped only the exact direct python -m pytest process group 1597527. Project instructions require Makefile targets, and the branch still lacks the Ready-to-Open retirement plus pre-registration cancellation barriers, so a repository-wide run is premature. This was not a test failure. Finish the blocking production paths and deterministic focused regressions using an available Make target; run one immutable exact-head full make test only when the branch is clean/frozen and ready.
 ---
 <!-- COMMENTS:END -->

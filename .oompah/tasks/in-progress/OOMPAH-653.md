@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T11:23:37.702918Z'
+updated_at: '2026-07-31T11:25:56.232684Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -608,5 +608,10 @@ author: oompah
 created: 2026-07-31 11:23
 ---
 Current production diff fixes the two originally identified paths, but exact review still finds blocking recovery authority holes. _recover_terminal_override selects the first unapplied override and never compares its evidence_fingerprint with current task evidence; an old crashed override can therefore terminalize a revised task, and multiple unapplied overrides can apply oldest-first across scans. Select one deterministically newest authorized intent, verify its persisted project/task/target/evidence against freshly recomputed current Issue evidence before status mutation, and retire older/stale overrides without applying them. _recover_terminal_result similarly uses candidates[-1] as list-order authority even though intents have created_at; validate and select deterministically, including equal/malformed timestamps. The current evidence test relies on a dynamically attached explicit field, while the native task model does not expose evidence_fingerprint; add a production-like native Markdown task revision/source-head regression so recovery does not fall back to the old audit-chain fingerprint. Add multiple competing override/result intent tests and prove no transient downgrade or stale terminal write.
+---
+author: oompah
+created: 2026-07-31 11:25
+---
+Operator stopped only the exact in-branch make test process group 1596775 while the production diff still has blocking recovery-authority defects and is being edited. This was not a test failure and is not final gate evidence. Continue focused Makefile-backed checks for changed terminal-audit paths; the one canonical exact-head full gate remains finish-order blocked on OOMPAH-657.
 ---
 <!-- COMMENTS:END -->
