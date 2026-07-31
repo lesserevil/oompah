@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-439
 type: task
-status: Merged
+status: In Validation
 priority: null
 title: Restrict Epic Planner routing to epics or explicit handoffs
 parent: null
@@ -10,13 +10,35 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-24T15:59:50.769146Z'
-updated_at: '2026-07-24T16:03:14.679119Z'
+updated_at: '2026-07-31T16:44:45.316573Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
 oompah.agent_run_id: 916707ff-0426-4795-bb29-9b0ca988e585
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-da3077db1b59
+    project_id: proj-14849f1b
+    task_id: OOMPAH-439
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d487725d7a8a2868a9edec0cdc6ab5ef56dc9f14a7ab49db8349bc7d692a5749
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-07-31T16:44:42.196742+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -54,5 +76,10 @@ author: oompah
 created: 2026-07-24 16:02
 ---
 Deployed routing guard: Epic Planner now only selects true epics, unless explicitly requested with needs:epic_planner. Reactivated the local Feature Developer focus and added regression coverage for false-positive planning keywords, explicit handoffs, and ordinary epic routing. make test passed (12,314 tests). Commit 9af39f31f pushed to main.
+---
+author: oompah
+created: 2026-07-31 16:44
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
