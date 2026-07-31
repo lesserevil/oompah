@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:06.140108Z'
-updated_at: '2026-07-31T23:43:44.923212Z'
+updated_at: '2026-07-31T23:43:56.293593Z'
 work_branch: OOMPAH-664
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/628
@@ -47,8 +47,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: fdbef3c7-98d6-4f77-8802-14613381f4ab
 oompah.task_costs:
-  total_input_tokens: 8185398
-  total_output_tokens: 61298
+  total_input_tokens: 8185497
+  total_output_tokens: 83872
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -58,6 +58,10 @@ oompah.task_costs:
     sonnet:
       input_tokens: 6232450
       output_tokens: 50673
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 99
+      output_tokens: 22574
       cost_usd: 0.0
   runs:
   - profile: default
@@ -120,6 +124,12 @@ oompah.task_costs:
     output_tokens: 8802
     cost_usd: 0.0
     recorded_at: '2026-07-31T23:28:15.397597+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 99
+    output_tokens: 22574
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T23:43:54.169283+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-664__20260731T181337Z
@@ -1092,5 +1102,15 @@ Safe evidence:
 - required_tests_present: 6/6 (snapshot rejection, unavailable-generation stale preservation, detail cache rejection, direct/checkpoint tracking, callback fires for both, plus tracker_callback_invalidates_only_matching_detail_project inferred)
 - prior_gate_pass: 34c5751b7 make test 430.0s
 - post_rebase_ci: GHA run 30672935422 all three python jobs passed
+---
+author: oompah
+created: 2026-07-31 23:43
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 161, Tool calls: 133
+- Tokens: 99 in / 22.6K out [22.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 8m 20s
+- Log: OOMPAH-664__20260731T233538Z.jsonl
 ---
 <!-- COMMENTS:END -->
