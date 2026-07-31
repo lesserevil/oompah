@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T22:56:06.058439Z'
-updated_at: '2026-07-31T23:43:07.656018Z'
+updated_at: '2026-07-31T23:43:18.909661Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -300,5 +300,10 @@ author: oompah
 created: 2026-07-31 23:43
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-31 23:43
+---
+Understanding: CI failure fixer role. The branch gate failed with 1 test failure: tests/test_orchestrator_handlers.py::TestMaintenanceLaneNonBlocking::test_tick_starts_maintenance_future. The previous frontend agent successfully implemented the dashboard auth changes. My job is to identify and fix this failing test with minimal changes, then push and submit.
 ---
 <!-- COMMENTS:END -->
