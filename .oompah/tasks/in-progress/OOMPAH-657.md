@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T11:06:15.542774Z'
-updated_at: '2026-07-31T11:11:24.460275Z'
+updated_at: '2026-07-31T11:12:59.352083Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -135,5 +135,10 @@ author: oompah
 created: 2026-07-31 11:11
 ---
 Follow-up: the first guard intentionally sent no signal because the expected full SHA was mistyped; a second guard revalidated the actual full head b519be788276e349d4b39978660d6a9ee92b5cfa, cwd, and PGID, then terminated only PGID 1239518. No provider process or other task was signaled.
+---
+author: oompah
+created: 2026-07-31 11:12
+---
+Third live reproduction: moving rejected OOMPAH-653 head 59436e50aa0122224ad01746c6b7b8380a52241b from Ready to Integrate back to Open did not cancel its just-launched make test. Operator revalidated cwd/head/PGID and terminated only stale gate PGID 1303079. The tracker transition and gate launch are racing repeatedly across tasks.
 ---
 <!-- COMMENTS:END -->
