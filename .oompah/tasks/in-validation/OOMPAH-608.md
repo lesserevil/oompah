@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:28:42.855708Z'
-updated_at: '2026-07-31T06:18:58.752093Z'
+updated_at: '2026-07-31T06:27:52.445680Z'
 work_branch: OOMPAH-608
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/606
@@ -89,6 +89,8 @@ oompah.work_branch: OOMPAH-608
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-084f1d7c63d1: '2026-07-31T06:27:49.737161+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -96,7 +98,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-608
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -105,7 +107,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-084f1d7c63d1
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -115,13 +117,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T06:18:54.547725+00:00'
       branch_key: OOMPAH-608
+      verdict: pass
+      completed_at: '2026-07-31T06:27:49.736990+00:00'
+      ended_at: '2026-07-31T06:27:49.736990+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-07-31T06:18:40.660301+00:00'
-    updated_at: '2026-07-31T06:18:54.547725+00:00'
+    updated_at: '2026-07-31T06:27:49.736990+00:00'
   - version: 1
     audit_id: audit-bbea56031852
     project_id: proj-14849f1b
@@ -363,5 +368,26 @@ author: oompah
 created: 2026-07-31 06:18
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 06:27
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: 6d0cda5660632aaed34c722198fff17a913a66af
+- merge_commit: d4501e4a208a9295776854e477414e81c1b6b69c
+- pr_reference: PR 606 (merged)
+- focused_test_totals: 215 passed (result API + contract + terminal_audit + coordinator)
+- auditor_scope_totals: 157 passed (all auditor-tagged tests)
+- redaction_scope_totals: 286 passed (redaction and terminal_audit scope)
+- branch_gate: make test passed for 6d0cda566 in 260.8s
+- helpers_added: _redact_credential_patterns and _redact_safe_evidence
+- callsites: parse_auditor_result handles message, safe_evidence, questions, instructions
+- idempotency: Deterministic regex substitution; triple-submission test covers this
+- size_limits: Enforced on redacted output for message, evidence values, and list items
+- files_changed: oompah/auditor.py (+138/-24), tests/test_auditor_result_api.py (+156/-45)
 ---
 <!-- COMMENTS:END -->
