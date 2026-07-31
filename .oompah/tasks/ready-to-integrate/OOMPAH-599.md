@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-599
 type: task
-status: Needs Human
+status: Ready to Integrate
 priority: 1
 title: Verify zero stranded delivery states and close recovery epics
 parent: OOMPAH-587
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:31.072278Z'
-updated_at: '2026-07-31T04:07:30.751263Z'
+updated_at: '2026-07-31T04:19:06.808088Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-599
 target_branch: null
 review_url: null
@@ -41,12 +41,12 @@ oompah.agent_run_id: dd03958f-47cf-4d00-8f8e-7224e5a982cf
 oompah.work_branch: epic-OOMPAH-587--task-OOMPAH-599
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-587--task-OOMPAH-599
-  base_branch: epic-OOMPAH-587
-  base_sha: 44e5c5579d2d56ecc0ddc801d77e28d74dd734ce
-  updated_at: '2026-07-31T04:06:36.804666+00:00'
+  head_sha: 88adebe114c187b8fdc33f935e2fe4d61f1df3d1
+  submitted_at: '2026-07-31T04:19:01.637287+00:00'
+  updated_at: '2026-07-31T04:19:01.637287+00:00'
 oompah.task_costs:
   total_input_tokens: 615115
   total_output_tokens: 4150
@@ -221,5 +221,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 55s
 - Log: OOMPAH-599__20260731T040639Z.jsonl
+---
+author: oompah
+created: 2026-07-31 04:19
+---
+Operator implementation complete at 88adebe114c187b8fdc33f935e2fe4d61f1df3d1. Terminal/review tracker state now cancels stale ready/integrating/blocked rows; active lease invalidation rejects late completion/failure; executor checks the exact Ready submission before preparation and again under the shared project lock before epic push; tracker-unavailable checks fail closed and retry; retired/scan alerts self-clear. Focused: 46 passed. Full make test: 14,104 passed, 7 skipped, 1 xfailed.
+---
+author: oompah
+created: 2026-07-31 04:19
+---
+Fenced stale integration ownership and verified the delivery plane with a full green gate.
 ---
 <!-- COMMENTS:END -->
