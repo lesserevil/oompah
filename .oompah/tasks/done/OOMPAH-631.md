@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-631
 type: bug
-status: In Validation
+status: Done
 priority: 1
 title: Restore validation ownership when terminal retries coalesce
 parent: OOMPAH-584
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:08:00.758352Z'
-updated_at: '2026-07-31T05:54:20.849125Z'
+updated_at: '2026-07-31T05:55:30.745168Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-631
 target_branch: null
 review_url: null
@@ -93,6 +93,23 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-8940dbbdedb3: '2026-07-31T00:54:07.571118+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-d8c86c7dd1c3
+    project_id: proj-14849f1b
+    task_id: OOMPAH-631
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a60809caa3ec40c488ac43503fef367e4f6cadd8f68d85c602d3b69e9e293c16
+    authorized_by:
+      version: 1
+      identity: lesserevil
+      source: api
+    reason: Restore previously audited Done after false post-merge landing regression;
+      refreshed exact task ref is contained in main.
+    created_at: '2026-07-31T05:55:21.568555+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -520,5 +537,12 @@ author: oompah
 created: 2026-07-31 05:54
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 05:55
+---
+Override by lesserevil: terminal transition to Done applied by project owner.
+
+Reason: Restore previously audited Done after false post-merge landing regression; refreshed exact task ref is contained in main.
 ---
 <!-- COMMENTS:END -->
