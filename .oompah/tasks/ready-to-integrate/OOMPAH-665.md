@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-665
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 0
 title: Retire legacy no-auditor alerts after terminal task completion
 parent: null
@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:07.401588Z'
-updated_at: '2026-07-31T23:14:00.568615Z'
+updated_at: '2026-07-31T23:14:10.486010Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -141,9 +141,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-665
-  head_sha: e395a94af15e30d7e7aed08a45134a56d4e3b9a8
-  submitted_at: '2026-07-31T21:56:42.681380+00:00'
-  updated_at: '2026-07-31T21:56:42.681380+00:00'
+  head_sha: 04d681f1033fb34e61cb9a00647d87ef879b90da
+  submitted_at: '2026-07-31T23:14:07.326424+00:00'
+  updated_at: '2026-07-31T23:14:07.326424+00:00'
 oompah.start_blocked_by: *id001
 ---
 ## Summary
@@ -647,5 +647,10 @@ author: oompah
 created: 2026-07-31 23:14
 ---
 Implementation summary: The CI failure was due to the branch being based on pre-OOMPAH-668 main with OOMPAH-668 commits cherry-picked in as a workaround. A previous worker had already rebased the core OOMPAH-665 implementation (oompah/orchestrator.py terminal-audit retirement logic + tests/test_terminal_audit_observability.py) cleanly onto the current main (post-OOMPAH-668 merge). The Makefile changes from the old branch were correctly dropped since OOMPAH-668 already deployed those gate contracts. Force-pushed the clean rebased HEAD (04d681f10) to origin/OOMPAH-665 to update CI. All 89 focused tests pass.
+---
+author: oompah
+created: 2026-07-31 23:14
+---
+Rebased clean implementation of terminal-audit no-auditor alert retirement onto current main (post-OOMPAH-668). Dropped duplicate Makefile fallback that was already covered by OOMPAH-668. Force-pushed clean 2-commit history to origin/OOMPAH-665. All focused tests pass (89 tests across terminal_audit_observability, orchestrator_profile_reload, makefile_setup, quality_gate suites).
 ---
 <!-- COMMENTS:END -->
