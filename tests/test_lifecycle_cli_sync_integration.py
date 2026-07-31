@@ -13,11 +13,13 @@ Acceptance criteria:
   5. make force-restart: uses the same transaction while skipping agent drain
   6. Pre-restart failure: rolls back to the known-good CLI and resumes the service
   7. CLI/server build_id equality verified after successful lifecycle operations
-  8. Post-restart uncertainty retains the candidate CLI and emits a recovery alert
+  8. Post-restart probes prove a pair or quarantine the exact owned service
 """
 
 from __future__ import annotations
 
+import json
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -26,9 +28,12 @@ import pytest
 from scripts.canonical_cli_cutover import (
     CutoverError,
     CutoverUncertainError,
+    _capture_owned_service,
+    _quarantine_owned_service,
     graceful_cutover,
     verify_pair,
 )
+from scripts.process_identity import read_identity
 from scripts.sync_canonical_cli import StagedCLI, SyncError
 
 
@@ -57,6 +62,8 @@ class _LiveOldServer:
         new_health: bool = True,
         reported_new_revision: str | None = None,
         restart_drops: bool = False,
+        restart_drops_before_accept: bool = False,
+        initially_paused: bool = False,
     ):
         self.old_revision = "a" * 40
         self.new_revision = "b" * 40
@@ -66,33 +73,43 @@ class _LiveOldServer:
         self.new_health = new_health
         self.reported_new_revision = reported_new_revision or self.new_revision
         self.restart_drops = restart_drops
-        self.paused = False
+        self.restart_drops_before_accept = restart_drops_before_accept
+        self.paused = initially_paused
         self.committed = False
         self.resumed = False
+        self.stopped = False
+        self.quarantine_reason: str | None = None
         self.calls: list[tuple[str, str]] = []
 
     def __call__(self, method, path, body):
         self.calls.append((method, path))
+        if self.stopped:
+            raise ConnectionError("service is quarantined")
         if path == "/healthz":
-            instance = self.new_instance if self.committed and self.new_health else self.old_instance
+            if self.committed and not self.new_health:
+                raise ConnectionError("new service health is unavailable")
+            instance = self.new_instance if self.committed else self.old_instance
             revision = (
-                self.reported_new_revision
-                if self.committed and self.new_health
-                else self.old_revision
+                self.reported_new_revision if self.committed else self.old_revision
             )
-            return {"status": "ok", "instance_id": instance, "build_id": {"revision": revision}}
+            return {
+                "status": "ok",
+                "instance_id": instance,
+                "build_id": {"revision": revision},
+            }
         if path == "/api/v1/state" and method == "GET":
-            instance = self.new_instance if self.committed and self.new_health else self.old_instance
+            if self.committed and not self.new_health:
+                raise ConnectionError("new service state is unavailable")
+            instance = self.new_instance if self.committed else self.old_instance
             revision = (
-                self.reported_new_revision
-                if self.committed and self.new_health
-                else self.old_revision
+                self.reported_new_revision if self.committed else self.old_revision
             )
             return {
                 "paused": self.paused,
                 "counts": {"running": self.running},
                 "service_instance_id": instance,
                 "build_id": {"revision": revision},
+                "restart": {"in_progress": False},
             }
         if path == "/api/v1/orchestrator/pause":
             self.paused = True
@@ -102,11 +119,17 @@ class _LiveOldServer:
             self.resumed = True
             return {"ok": True, "paused": False}
         if path == "/api/v1/orchestrator/restart":
+            if self.restart_drops_before_accept:
+                raise ConnectionError("simulated drop before restart acceptance")
             self.committed = True
             if self.restart_drops:
                 raise ConnectionError("simulated connection drop during exec")
             return {"ok": True}
         raise AssertionError(f"unexpected request: {method} {path}")
+
+    def quarantine(self, reason: str) -> None:
+        self.quarantine_reason = reason
+        self.stopped = True
 
 
 def _canonical(tmp_path: Path, revision: str) -> Path:
@@ -153,6 +176,7 @@ def _run_cutover(tmp_path, server, *, stage=None, activate=None, **kwargs):
         timeout=kwargs.pop("timeout", 1),
         health_timeout=kwargs.pop("health_timeout", 1),
         sleep=lambda _: None,
+        quarantine=kwargs.pop("quarantine", server.quarantine),
         **kwargs,
     )
     return result, activation
@@ -234,9 +258,18 @@ def test_install_failure_preserves_known_good_cli_with_running_server(tmp_path):
 def test_force_restart_uses_transaction_without_agent_drain(tmp_path):
     """Force restart shares the cutover transaction and only skips drain wait."""
     makefile = (REPO_ROOT / "Makefile").read_text()
-    force = makefile[makefile.index("\nforce-restart:"):makefile.index("\n# Run oompah", makefile.index("\nforce-restart:"))]
+    restart = makefile[makefile.index("\nrestart:") : makefile.index("\ngraceful:")]
+    force = makefile[
+        makefile.index("\nforce-restart:") : makefile.index(
+            "\n# Run oompah", makefile.index("\nforce-restart:")
+        )
+    ]
+    assert '--pid-file "$(PID_FILE)"' in restart
+    assert '--pid-meta-file "$(PID_META_FILE)"' in restart
     assert "canonical_cli_cutover.py" in force
     assert "--force" in force
+    assert '--pid-file "$(PID_FILE)"' in force
+    assert '--pid-meta-file "$(PID_META_FILE)"' in force
 
 
 def test_cli_server_build_id_equality_after_start(tmp_path):
@@ -280,11 +313,33 @@ def test_activation_failure_resumes_old_pair(tmp_path):
     assert server.resumed is True
 
 
-def test_accepted_restart_health_timeout_retains_candidate_cli(tmp_path):
+def test_restart_refuses_to_activate_without_quarantine_identity(tmp_path):
+    server = _LiveOldServer()
+    canonical = _canonical(tmp_path, server.old_revision)
+
+    with pytest.raises(CutoverError, match="requires both --pid-file"):
+        graceful_cutover(
+            repo=REPO_ROOT,
+            canonical=canonical,
+            url="http://127.0.0.1:8090",
+            environ={"PATH": str(canonical.parent), "HOME": str(tmp_path / "home")},
+            request=server,
+            stage=_stager(tmp_path, server.new_revision),
+            timeout=1,
+            health_timeout=1,
+            sleep=lambda _: None,
+        )
+
+    assert ("POST", "/api/v1/orchestrator/pause") not in server.calls
+
+
+def test_accepted_restart_health_timeout_quarantines_service(tmp_path):
     server = _LiveOldServer(new_health=False)
     activation = _FakeActivation()
 
-    with pytest.raises(CutoverUncertainError, match="candidate CLI was retained"):
+    with pytest.raises(
+        CutoverUncertainError, match="stopped.*candidate CLI was retained"
+    ):
         _run_cutover(
             tmp_path,
             server,
@@ -293,31 +348,53 @@ def test_accepted_restart_health_timeout_retains_candidate_cli(tmp_path):
         )
     assert server.committed is True
     assert server.resumed is False
+    assert server.stopped is True
     assert activation.rollback_count == 0
     assert activation.commit_count == 1
 
 
-def test_connection_drop_during_restart_exec_retains_candidate_cli(tmp_path):
+def test_accepted_restart_connection_drop_proves_candidate_pair(tmp_path):
     server = _LiveOldServer(restart_drops=True)
     activation = _FakeActivation()
 
-    with pytest.raises(CutoverUncertainError, match="connection drop.*retained"):
-        _run_cutover(
-            tmp_path,
-            server,
-            activate=lambda *args, **kwargs: activation,
-        )
+    revision, _ = _run_cutover(
+        tmp_path,
+        server,
+        activate=lambda *args, **kwargs: activation,
+    )
+    assert revision == server.new_revision
     assert server.committed is True
-    assert server.resumed is False
+    assert server.resumed is True
+    assert server.stopped is False
     assert activation.rollback_count == 0
     assert activation.commit_count == 1
 
 
-def test_new_server_wrong_build_retains_candidate_cli(tmp_path):
+def test_connection_drop_with_old_instance_still_live_restores_old_pair(tmp_path):
+    server = _LiveOldServer(restart_drops_before_accept=True)
+    activation = _FakeActivation()
+
+    with pytest.raises(CutoverError, match="drop before.*old service and CLI pair"):
+        _run_cutover(
+            tmp_path,
+            server,
+            activate=lambda *args, **kwargs: activation,
+            health_timeout=0.001,
+        )
+    assert server.committed is False
+    assert server.resumed is True
+    assert server.stopped is False
+    assert activation.rollback_count == 1
+    assert activation.commit_count == 0
+
+
+def test_new_server_wrong_build_is_quarantined(tmp_path):
     server = _LiveOldServer(reported_new_revision="c" * 40)
     activation = _FakeActivation()
 
-    with pytest.raises(CutoverUncertainError, match="health/build-id.*retained"):
+    with pytest.raises(
+        CutoverUncertainError, match="stopped.*candidate CLI was retained"
+    ):
         _run_cutover(
             tmp_path,
             server,
@@ -326,5 +403,96 @@ def test_new_server_wrong_build_retains_candidate_cli(tmp_path):
         )
     assert server.committed is True
     assert server.resumed is False
+    assert server.stopped is True
     assert activation.rollback_count == 0
     assert activation.commit_count == 1
+
+
+def test_previously_paused_service_remains_paused_after_success(tmp_path):
+    server = _LiveOldServer(initially_paused=True)
+
+    revision, _ = _run_cutover(tmp_path, server)
+
+    assert revision == server.new_revision
+    assert server.paused is True
+    assert server.resumed is False
+    assert ("POST", "/api/v1/orchestrator/pause") not in server.calls
+    assert ("POST", "/api/v1/orchestrator/resume") not in server.calls
+
+
+def test_previously_paused_service_remains_paused_after_activation_failure(tmp_path):
+    server = _LiveOldServer(initially_paused=True)
+
+    with pytest.raises(CutoverError, match="activation failure"):
+        _run_cutover(
+            tmp_path,
+            server,
+            activate=lambda *args, **kwargs: (_ for _ in ()).throw(
+                SyncError("simulated activation failure")
+            ),
+        )
+
+    assert server.paused is True
+    assert server.resumed is False
+    assert ("POST", "/api/v1/orchestrator/resume") not in server.calls
+
+
+def test_quarantine_stops_only_the_captured_owned_process(tmp_path):
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    pid_file = tmp_path / "oompah.pid"
+    meta_file = tmp_path / "oompah.pid.meta"
+    process = subprocess.Popen(
+        ["sleep", "60"],
+        cwd=workspace,
+        start_new_session=True,
+    )
+    try:
+        identity = read_identity(process.pid)
+        assert identity is not None
+        pid_file.write_text(f"{process.pid}\n", encoding="utf-8")
+        meta_file.write_text(json.dumps(identity), encoding="utf-8")
+        owned = _capture_owned_service(
+            repo=workspace,
+            pid_file=pid_file,
+            pid_meta_file=meta_file,
+        )
+
+        _quarantine_owned_service(owned, timeout=2)
+
+        assert read_identity(process.pid) is None
+        assert not pid_file.exists()
+        assert not meta_file.exists()
+    finally:
+        if process.poll() is None:
+            process.terminate()
+            process.wait(timeout=2)
+
+
+def test_quarantine_capture_refuses_stale_process_identity(tmp_path):
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    pid_file = tmp_path / "oompah.pid"
+    meta_file = tmp_path / "oompah.pid.meta"
+    process = subprocess.Popen(
+        ["sleep", "60"],
+        cwd=workspace,
+        start_new_session=True,
+    )
+    try:
+        identity = read_identity(process.pid)
+        assert identity is not None
+        identity["start_time"] += 1
+        pid_file.write_text(f"{process.pid}\n", encoding="utf-8")
+        meta_file.write_text(json.dumps(identity), encoding="utf-8")
+
+        with pytest.raises(CutoverError, match="does not match"):
+            _capture_owned_service(
+                repo=workspace,
+                pid_file=pid_file,
+                pid_meta_file=meta_file,
+            )
+        assert process.poll() is None
+    finally:
+        process.terminate()
+        process.wait(timeout=2)

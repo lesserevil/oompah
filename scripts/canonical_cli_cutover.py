@@ -4,8 +4,11 @@
 The old service is paused and drained before a candidate is staged.  Staging
 uses an isolated UV tool root; activation is the only operation that changes
 the canonical launcher.  Failures before a restart attempt restore and resume
-the old pair.  Once restart acceptance is unknowable, the candidate launcher
-is retained: rolling back only the CLI could mismatch a new server.
+the old pair.  After a restart attempt, bounded build/instance probes either
+prove the candidate pair, prove that the untouched old service can be paired
+with the rollback launcher, or stop the exact lifecycle-owned service before
+returning an uncertain result.  The helper never knowingly leaves a live
+server paired with a launcher for another revision.
 """
 
 from __future__ import annotations
@@ -14,10 +17,12 @@ import argparse
 import json
 import os
 import re
+import signal
 import shutil
 import subprocess
 import sys
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
@@ -40,6 +45,11 @@ except ModuleNotFoundError:  # pragma: no cover - exercised by script startup
         stage_candidate,
     )
 
+try:
+    from scripts.process_identity import identity_matches, read_identity
+except ModuleNotFoundError:  # pragma: no cover - exercised by script startup
+    from process_identity import identity_matches, read_identity  # type: ignore[no-redef]
+
 
 class CutoverError(RuntimeError):
     """Raised when a service/CLI cutover cannot safely complete."""
@@ -50,6 +60,53 @@ class CutoverUncertainError(CutoverError):
 
 
 Request = Callable[[str, str, dict[str, Any] | None], dict[str, Any]]
+Quarantine = Callable[[str], None]
+
+
+@dataclass(frozen=True)
+class OwnedService:
+    """A lifecycle process identity captured before a risky cutover."""
+
+    pid: int
+    expected: dict[str, Any]
+    workspace: Path
+    pid_file: Path
+    pid_meta_file: Path
+
+
+@dataclass(frozen=True)
+class ServiceObservation:
+    """One best-effort view of the server after a restart attempt."""
+
+    health: dict[str, Any]
+    state: dict[str, Any]
+    errors: tuple[str, ...]
+
+    @property
+    def health_instance(self) -> str | None:
+        value = self.health.get("instance_id")
+        return value if isinstance(value, str) and value else None
+
+    @property
+    def state_instance(self) -> str | None:
+        value = self.state.get("service_instance_id")
+        return value if isinstance(value, str) and value else None
+
+    @property
+    def health_revision(self) -> str | None:
+        return _revision_from_identity(self.health)
+
+    @property
+    def state_revision(self) -> str | None:
+        return _revision_from_identity(self.state)
+
+    @property
+    def restart_in_progress(self) -> bool | None:
+        restart = self.state.get("restart")
+        if not isinstance(restart, dict):
+            return None
+        value = restart.get("in_progress")
+        return value if isinstance(value, bool) else None
 
 
 def _http_request(
@@ -107,6 +164,100 @@ def _running_count(state: dict[str, Any]) -> int | None:
     return value if isinstance(value, int) else None
 
 
+def _capture_owned_service(
+    *,
+    repo: Path,
+    pid_file: Path,
+    pid_meta_file: Path,
+) -> OwnedService:
+    """Capture and verify the exact service process before activation."""
+    try:
+        pid = int(pid_file.read_text(encoding="utf-8").strip())
+        expected = json.loads(pid_meta_file.read_text(encoding="utf-8"))
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        raise CutoverError(
+            "cannot capture the running service identity from the lifecycle "
+            "PID files; refusing a cutover that could not be quarantined"
+        ) from exc
+    if not isinstance(expected, dict) or not identity_matches(
+        expected,
+        pid=pid,
+        workspace=str(repo),
+    ):
+        raise CutoverError(
+            "running service PID does not match its stored lifecycle identity; "
+            "refusing to activate a new canonical CLI"
+        )
+    return OwnedService(
+        pid=pid,
+        expected=dict(expected),
+        workspace=repo,
+        pid_file=pid_file,
+        pid_meta_file=pid_meta_file,
+    )
+
+
+def _quarantine_owned_service(
+    service: OwnedService,
+    *,
+    timeout: float,
+    sleep: Callable[[float], None] = time.sleep,
+) -> None:
+    """Stop only the process that still matches the captured identity."""
+    actual = read_identity(service.pid)
+    if actual is None:
+        service.pid_file.unlink(missing_ok=True)
+        service.pid_meta_file.unlink(missing_ok=True)
+        return
+    if not identity_matches(
+        service.expected,
+        pid=service.pid,
+        workspace=str(service.workspace),
+    ):
+        raise CutoverError(
+            "refusing quarantine because the lifecycle PID identity changed"
+        )
+
+    process_group = int(service.expected.get("process_group", -1))
+    session = int(service.expected.get("session", -1))
+    if process_group == service.pid and session == service.pid:
+        os.killpg(service.pid, signal.SIGTERM)
+    else:
+        os.kill(service.pid, signal.SIGTERM)
+
+    deadline = time.monotonic() + max(timeout, 0.0)
+    while True:
+        try:
+            reaped_pid, _ = os.waitpid(service.pid, os.WNOHANG)
+        except ChildProcessError:
+            reaped_pid = 0
+        if reaped_pid == service.pid:
+            service.pid_file.unlink(missing_ok=True)
+            service.pid_meta_file.unlink(missing_ok=True)
+            return
+        actual = read_identity(service.pid)
+        if actual is None:
+            service.pid_file.unlink(missing_ok=True)
+            service.pid_meta_file.unlink(missing_ok=True)
+            return
+        if not identity_matches(
+            service.expected,
+            pid=service.pid,
+            workspace=str(service.workspace),
+        ):
+            # The captured process is gone and its PID was reused.  The
+            # quarantine objective is complete; importantly, do not signal
+            # the replacement process.
+            service.pid_file.unlink(missing_ok=True)
+            service.pid_meta_file.unlink(missing_ok=True)
+            return
+        if time.monotonic() >= deadline:
+            raise CutoverError(
+                f"owned service PID {service.pid} did not stop within {timeout:g}s"
+            )
+        sleep(min(0.1, max(deadline - time.monotonic(), 0.01)))
+
+
 def _wait_for_state(
     request: Request,
     predicate: Callable[[dict[str, Any]], bool],
@@ -127,31 +278,120 @@ def _wait_for_state(
     )
 
 
-def _wait_for_new_health(
+def _observe_service(request: Request) -> ServiceObservation:
+    health: dict[str, Any] = {}
+    state: dict[str, Any] = {}
+    errors: list[str] = []
+    try:
+        health = request("GET", "/healthz", None)
+    except Exception as exc:  # noqa: BLE001 - observations are best effort
+        errors.append(f"health={str(exc) or exc.__class__.__name__}")
+    try:
+        state = request("GET", "/api/v1/state", None)
+    except Exception as exc:  # noqa: BLE001 - observations are best effort
+        errors.append(f"state={str(exc) or exc.__class__.__name__}")
+    return ServiceObservation(health=health, state=state, errors=tuple(errors))
+
+
+def _is_candidate_pair(
+    observation: ServiceObservation,
+    *,
+    old_instance: str | None,
+    revision: str,
+) -> bool:
+    instance = observation.health_instance
+    state_instance = observation.state_instance
+    return bool(
+        observation.health.get("status") == "ok"
+        and instance
+        and instance != old_instance
+        and observation.health_revision == revision.lower()
+        and observation.state_revision == revision.lower()
+        and (state_instance is None or state_instance == instance)
+    )
+
+
+def _is_verified_old_pair(
+    observation: ServiceObservation,
+    *,
+    old_instance: str | None,
+    old_revision: str,
+) -> bool:
+    return bool(
+        old_instance
+        and observation.health.get("status") == "ok"
+        and observation.health_instance == old_instance
+        and observation.health_revision == old_revision.lower()
+        and observation.state_revision == old_revision.lower()
+        and observation.state_instance in (None, old_instance)
+        # The synchronous restart endpoint sets this before returning.  Only
+        # an explicit false proves that a dropped request did not schedule an
+        # exec which could occur after a one-sided launcher rollback.
+        and observation.restart_in_progress is False
+    )
+
+
+def _is_definitive_wrong_build(
+    observation: ServiceObservation,
+    *,
+    old_instance: str | None,
+    revision: str,
+) -> bool:
+    instance = observation.health_instance
+    return bool(
+        observation.health.get("status") == "ok"
+        and instance
+        and instance != old_instance
+        and observation.health_revision
+        and observation.health_revision != revision.lower()
+    )
+
+
+def _wait_for_cutover_resolution(
     request: Request,
     old_instance: str | None,
+    old_revision: str,
     revision: str,
     *,
     timeout: float,
     sleep: Callable[[float], None] = time.sleep,
-) -> dict[str, Any]:
+) -> tuple[str, ServiceObservation]:
+    """Classify the post-request service as candidate, old, or uncertain."""
     deadline = time.monotonic() + timeout
-    last: dict[str, Any] = {}
-    while time.monotonic() < deadline:
-        last = request("GET", "/healthz", None)
-        instance = last.get("instance_id")
-        if (
-            last.get("status") == "ok"
-            and instance
-            and instance != old_instance
-            and _revision_from_identity(last) == revision.lower()
+    last = ServiceObservation({}, {}, ())
+    while True:
+        last = _observe_service(request)
+        if _is_candidate_pair(last, old_instance=old_instance, revision=revision):
+            return "candidate", last
+        if _is_definitive_wrong_build(
+            last,
+            old_instance=old_instance,
+            revision=revision,
         ):
-            return last
+            return "uncertain", last
+        if time.monotonic() >= deadline:
+            break
         sleep(min(1.0, max(deadline - time.monotonic(), 0.01)))
-    raise CutoverError(
-        "new service instance did not pass the health/build-id check; "
-        f"expected revision {revision}, last health="
-        f"{json.dumps(last, sort_keys=True)[:500]}"
+    if _is_verified_old_pair(
+        last,
+        old_instance=old_instance,
+        old_revision=old_revision,
+    ):
+        return "old", last
+    return "uncertain", last
+
+
+def _observation_summary(observation: ServiceObservation) -> str:
+    return json.dumps(
+        {
+            "errors": list(observation.errors),
+            "health_instance": observation.health_instance,
+            "health_revision": observation.health_revision,
+            "state_instance": observation.state_instance,
+            "state_revision": observation.state_revision,
+            "restart_in_progress": observation.restart_in_progress,
+        },
+        sort_keys=True,
     )
 
 
@@ -223,8 +463,12 @@ def graceful_cutover(
     health_timeout: float = 3660,
     force: bool = False,
     sleep: Callable[[float], None] = time.sleep,
+    pid_file: Path | None = None,
+    pid_meta_file: Path | None = None,
+    quarantine: Quarantine | None = None,
+    quarantine_timeout: float = 30,
 ) -> str:
-    """Perform a pause, stage, activate, restart, and health-check transaction."""
+    """Perform a pause, stage, activate, restart, and identity transaction."""
     env = dict(os.environ if environ is None else environ)
     home = Path(env.get("HOME", str(Path.home())))
     tool_dir = tool_dir or Path(env.get("UV_TOOL_DIR", home / ".local/share/uv/tools"))
@@ -263,14 +507,43 @@ def graceful_cutover(
             "make install-cli before attempting a restart"
         )
 
+    owned_service: OwnedService | None = None
+    if quarantine is None:
+        if pid_file is None or pid_meta_file is None:
+            raise CutoverError(
+                "a restart cutover requires both --pid-file and --pid-meta-file "
+                "so an uncertain service can be stopped by exact identity"
+            )
+        owned_service = _capture_owned_service(
+            repo=repo,
+            pid_file=pid_file,
+            pid_meta_file=pid_meta_file,
+        )
+
+    def quarantine_service(reason: str) -> None:
+        if quarantine is not None:
+            quarantine(reason)
+            return
+        if owned_service is None:
+            raise CutoverError(
+                "post-restart identity is uncertain, but no verified PID/meta "
+                "identity was supplied for safe quarantine"
+            )
+        _quarantine_owned_service(
+            owned_service,
+            timeout=quarantine_timeout,
+            sleep=sleep,
+        )
+
     was_paused = bool(old_state.get("paused"))
-    paused = False
+    paused_by_cutover = False
     restart_attempted = False
     staged: StagedCLI | None = None
     activation: Activation | None = None
     try:
-        request("POST", "/api/v1/orchestrator/pause", {})
-        paused = True
+        if not was_paused:
+            request("POST", "/api/v1/orchestrator/pause", {})
+            paused_by_cutover = True
         if not force:
             _wait_for_state(
                 request,
@@ -299,47 +572,95 @@ def graceful_cutover(
         # mean the old process accepted the restart and dropped the connection
         # while executing the new revision.
         restart_attempted = True
-        request("POST", "/api/v1/orchestrator/restart", {"drain_timeout_s": 0})
-        _wait_for_new_health(
+        restart_error: Exception | None = None
+        try:
+            request("POST", "/api/v1/orchestrator/restart", {"drain_timeout_s": 0})
+        except Exception as exc:  # noqa: BLE001 - acceptance may be unknowable
+            restart_error = exc
+
+        resolution, observation = _wait_for_cutover_resolution(
             request,
             old_instance,
+            old_revision,
             staged.revision,
             timeout=health_timeout,
             sleep=sleep,
         )
-        new_state = request("GET", "/api/v1/state", None)
-        if _revision_from_identity(new_state) != staged.revision.lower():
+
+        if resolution == "candidate":
+            # Equality is proven.  Close the rollback journal before the
+            # optional resume request so a resume transport failure cannot
+            # roll the CLI back underneath a healthy new server.
+            activation.commit()
+            activation = None
+            restart_attempted = False
+            if not was_paused:
+                request("POST", "/api/v1/orchestrator/resume", {})
+            return staged.revision
+
+        if resolution == "old":
+            # The dropped request did not schedule a restart: the exact old
+            # instance and build are healthy and explicitly report no restart
+            # in progress.  Restoring the old launcher is a verified two-sided
+            # rollback because the server side never changed.
+            activation.rollback()
+            activation = None
+            restart_attempted = False
+            if paused_by_cutover:
+                request("POST", "/api/v1/orchestrator/resume", {})
+                paused_by_cutover = False
+            detail = str(restart_error) if restart_error else "restart was not accepted"
             raise CutoverError(
-                "new service state build identity does not match the staged CLI"
+                f"{detail}; the verified old service and CLI pair was restored"
             )
-        # Equality is proven.  Close the rollback journal before the optional
-        # resume request so a resume transport failure cannot roll the CLI
-        # back underneath a healthy new server.
+
+        # A wrong build, a still-pending restart, or unavailable health cannot
+        # safely be paired with either launcher.  Stop only the lifecycle PID
+        # captured before activation; never issue a broad process kill.
+        summary = _observation_summary(observation)
+        reason = (
+            str(restart_error)
+            if restart_error
+            else ("post-restart build/instance probes did not prove either pair")
+        )
+        quarantine_service(f"{reason}; observation={summary}")
         activation.commit()
-        if not was_paused:
-            request("POST", "/api/v1/orchestrator/resume", {})
-        return staged.revision
+        activation = None
+        restart_attempted = False
+        raise CutoverUncertainError(
+            f"{reason}; observation={summary}. The exact lifecycle-owned "
+            "service was stopped, so no mismatched server remains live. The "
+            "candidate CLI was retained for a clean recovery start."
+        )
+    except CutoverUncertainError:
+        raise
     except Exception as exc:
         if restart_attempted:
-            # The server may already be the candidate revision even when the
-            # POST or subsequent probes fail.  Close the rollback journal but
-            # retain the candidate launcher and immutable tool root.  Restoring
-            # only the old CLI here would recreate the mismatch this lifecycle
-            # transaction is designed to prevent.
+            # An unexpected failure while resolving the post-request identity
+            # has the same safety requirements as a failed probe: quarantine
+            # the exact owned process before retaining the candidate launcher.
+            detail = str(exc) or exc.__class__.__name__
+            try:
+                quarantine_service(detail)
+            except Exception as quarantine_exc:
+                raise CutoverUncertainError(
+                    f"{detail}; CRITICAL: the restart result is uncertain and "
+                    "the exact lifecycle-owned service could not be stopped: "
+                    f"{quarantine_exc}. Do not invoke either CLI until the "
+                    "service PID is inspected and stopped."
+                ) from exc
             if activation is not None:
                 activation.commit()
-            detail = str(exc) or exc.__class__.__name__
+                activation = None
             raise CutoverUncertainError(
-                f"{detail}; restart acceptance or server revision is uncertain. "
-                "The candidate CLI was retained and the service was left paused "
-                "where possible. Inspect make status and make logs, restore or "
-                "complete the server deployment, then rerun make restart; do not "
-                "roll back only the CLI."
+                f"{detail}; the restart result is uncertain, so the exact "
+                "lifecycle-owned service was stopped before retaining the "
+                "candidate CLI. No mismatched server remains live."
             ) from exc
 
         if activation is not None:
             activation.rollback()
-        if paused and not was_paused:
+        if paused_by_cutover:
             try:
                 request("POST", "/api/v1/orchestrator/resume", {})
             except Exception as resume_exc:  # pragma: no cover - defensive alert
@@ -368,6 +689,9 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--bin-dir", type=Path)
     parser.add_argument("--timeout", type=float, default=3600)
     parser.add_argument("--health-timeout", type=float, default=3660)
+    parser.add_argument("--pid-file", type=Path)
+    parser.add_argument("--pid-meta-file", type=Path)
+    parser.add_argument("--quarantine-timeout", type=float, default=30)
     parser.add_argument(
         "--force",
         action="store_true",
@@ -402,13 +726,17 @@ def main(argv: list[str] | None = None) -> int:
                 timeout=args.timeout,
                 health_timeout=args.health_timeout,
                 force=args.force,
+                pid_file=args.pid_file,
+                pid_meta_file=args.pid_meta_file,
+                quarantine_timeout=args.quarantine_timeout,
             )
     except CutoverUncertainError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         print(
-            "Recovery: the candidate CLI remains canonical because the server "
-            "may have restarted. Inspect 'make status' and 'make logs', repair "
-            "or complete the server deployment, then rerun 'make restart'.",
+            "Recovery: the candidate CLI remains canonical and the exact "
+            "lifecycle-owned service was quarantined where identity proof was "
+            "available. Inspect 'make status' and 'make logs', then use "
+            "'make start' to establish the matching candidate pair.",
             file=sys.stderr,
         )
         return 1

@@ -17,12 +17,15 @@ import subprocess
 import sys
 import tempfile
 import uuid
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
 
 DEFAULT_SOURCE_URL = "https://github.com/lesserevil/oompah"
 _REVISION_RE = re.compile(r"revision\s+([0-9a-fA-F]{7,64})\b")
+_PUBLISHED_ROOT_RE = re.compile(r"[0-9a-f]{7,64}-[0-9a-f]{32}")
+DEFAULT_RETAINED_REVISION_ROOTS = 4
 
 
 class SyncError(RuntimeError):
@@ -53,7 +56,27 @@ class Activation:
     backup_root: Path
     launcher_backup: Path | None
     published_tool: Path
+    revisions_dir: Path
     _closed: bool = False
+
+    def _prune(self) -> None:
+        """Best-effort cleanup which can never invalidate the live pair."""
+        try:
+            prune_revision_roots(
+                self.revisions_dir,
+                canonical=self.canonical,
+                backup_launchers=(self.launcher_backup,)
+                if self.launcher_backup
+                else (),
+            )
+        except OSError as exc:
+            # Cleanup failure is operationally useful to report, but it must
+            # not turn an already-safe activation/rollback into a failed
+            # lifecycle transaction.
+            print(
+                f"WARNING: could not prune obsolete canonical CLI roots: {exc}",
+                file=sys.stderr,
+            )
 
     def rollback(self) -> None:
         """Atomically restore the launcher from before activation.
@@ -66,6 +89,7 @@ class Activation:
         if self._closed:
             return
         _restore_launcher_atomically(self.canonical, self.launcher_backup)
+        self._prune()
         shutil.rmtree(self.backup_root, ignore_errors=True)
         self._closed = True
 
@@ -73,6 +97,7 @@ class Activation:
         """Discard rollback material after the new service is healthy."""
         if self._closed:
             return
+        self._prune()
         shutil.rmtree(self.backup_root, ignore_errors=True)
         self._closed = True
 
@@ -155,6 +180,125 @@ def _remove_path(path: Path) -> None:
         path.unlink(missing_ok=True)
     elif path.is_dir():
         shutil.rmtree(path)
+
+
+def _published_revision_roots(revisions_dir: Path) -> list[Path]:
+    """Return complete immutable roots, excluding in-progress publications."""
+    if not revisions_dir.is_dir():
+        return []
+    roots = [
+        path
+        for path in revisions_dir.iterdir()
+        if path.is_dir() and _PUBLISHED_ROOT_RE.fullmatch(path.name)
+    ]
+    return sorted(
+        roots,
+        key=lambda path: (path.stat().st_mtime_ns, path.name),
+        reverse=True,
+    )
+
+
+def _launcher_references(
+    launcher: Path,
+    roots: Iterable[Path],
+) -> set[Path]:
+    """Find immutable roots referenced by a live or rollback launcher."""
+    if not os.path.lexists(launcher):
+        return set()
+    chunks: list[bytes] = []
+    try:
+        if launcher.is_symlink():
+            target = os.readlink(launcher)
+            chunks.append(target.encode(errors="surrogateescape"))
+            resolved = (launcher.parent / target).resolve()
+            chunks.append(str(resolved).encode())
+        elif launcher.is_file():
+            chunks.append(launcher.read_bytes())
+    except OSError:
+        # A concurrent launcher replacement is safe: the replacement itself
+        # is examined by the caller on the next deployment.  Conservatively
+        # skip pruning whenever any live/rollback launcher cannot be read.
+        return set(roots)
+    payload = b"\0".join(chunks)
+    return {root for root in roots if str(root).encode() in payload}
+
+
+def _active_revision_roots(
+    roots: Iterable[Path],
+    *,
+    proc_root: Path = Path("/proc"),
+) -> set[Path]:
+    """Return roots referenced by currently running processes.
+
+    After launcher activation, no new normal invocation can enter an old
+    root.  Scanning ``exe``, ``cwd``, and ``cmdline`` protects invocations
+    that crossed the launcher before activation and are still using it.
+    Permission races and processes exiting during the scan are ignored.
+    """
+    candidates = list(roots)
+    if not candidates or not proc_root.is_dir():
+        return set()
+    encoded = {root: str(root).encode() for root in candidates}
+    active: set[Path] = set()
+    for process_dir in proc_root.iterdir():
+        if not process_dir.name.isdigit():
+            continue
+        chunks: list[bytes] = []
+        for link_name in ("exe", "cwd"):
+            try:
+                chunks.append(os.readlink(process_dir / link_name).encode())
+            except OSError:
+                pass
+        try:
+            chunks.append((process_dir / "cmdline").read_bytes())
+        except OSError:
+            pass
+        payload = b"\0".join(chunks)
+        for root, marker in encoded.items():
+            if marker in payload:
+                active.add(root)
+        if len(active) == len(candidates):
+            break
+    return active
+
+
+def prune_revision_roots(
+    revisions_dir: Path,
+    *,
+    canonical: Path,
+    backup_launchers: Iterable[Path] = (),
+    max_roots: int = DEFAULT_RETAINED_REVISION_ROOTS,
+    proc_root: Path = Path("/proc"),
+) -> list[Path]:
+    """Remove obsolete immutable roots without racing live invocations.
+
+    The newest ``max_roots`` are retained as a recovery window.  Older roots
+    are removed only when no canonical/rollback launcher and no active process
+    references them.  Rollback launchers left by an interrupted activation are
+    discovered as well as those explicitly supplied by the current journal.
+    """
+    roots = _published_revision_roots(revisions_dir)
+    if len(roots) <= max(max_roots, 0):
+        return []
+
+    launchers = [canonical, *backup_launchers]
+    launchers.extend(
+        path
+        for backup_root in canonical.parent.glob(".oompah-cli-activation-*")
+        for path in backup_root.glob(f"launcher/{canonical.name}")
+    )
+    protected: set[Path] = set(roots[: max(max_roots, 0)])
+    for launcher in launchers:
+        protected.update(_launcher_references(launcher, roots))
+    protected.update(_active_revision_roots(roots, proc_root=proc_root))
+
+    removed: list[Path] = []
+    for root in roots:
+        if root in protected:
+            continue
+        _remove_path(root)
+        removed.append(root)
+    return removed
 
 
 def _restore_launcher_atomically(path: Path, backup: Path | None) -> None:
@@ -323,6 +467,7 @@ def activate_candidate(
         backup_root=backup_root,
         launcher_backup=launcher_backup,
         published_tool=published_tool,
+        revisions_dir=revisions_dir,
     )
     try:
         tool_dir.mkdir(parents=True, exist_ok=True)
@@ -393,7 +538,20 @@ def synchronize(
         )
     if os.path.lexists(canonical) and _command_resolves_to(canonical, path=env.get("PATH")):
         current = _run([str(canonical), "--version"], env=env)
-        if current.returncode == 0 and _version_revision(current.stdout + current.stderr) == revision.lower():
+        if (
+            current.returncode == 0
+            and _version_revision(current.stdout + current.stderr) == revision.lower()
+        ):
+            try:
+                prune_revision_roots(
+                    tool_dir / ".oompah-revisions",
+                    canonical=canonical,
+                )
+            except OSError as exc:
+                print(
+                    f"WARNING: could not prune obsolete canonical CLI roots: {exc}",
+                    file=sys.stderr,
+                )
             print(f"Canonical oompah already matches revision {revision}.")
             return False
 

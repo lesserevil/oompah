@@ -88,17 +88,34 @@ revision-addressed directory. One atomic replacement of
 `$HOME/.local/bin/oompah` is the activation point; the previous tool root is
 retained so an invocation already in progress cannot lose its interpreter.
 The helper then requests the server cutover and commits the activation only
-after the new health and state surfaces report the same revision.
+after the new health and state surfaces report the same revision. A service
+that was explicitly paused before the command remains paused after success or
+rollback; a service paused only for the cutover is resumed after a verified
+pair is established.
+
+Published environments live below UV's `.oompah-revisions` directory. The
+newest four roots form a bounded recovery window. Older roots are pruned only
+when they are not referenced by the canonical launcher, an activation rollback
+launcher, or a currently running process. This lets invocations that crossed
+the atomic launcher replacement finish against their immutable environment
+without allowing successful deployments to grow the directory indefinitely.
 
 A dirty, unpushed, diverged, failed, or wrong-PATH install before the restart
 attempt leaves the old executable and old service running; the command prints
 the reason and resumes the old service. After a restart request is attempted,
-a timeout, connection drop, or wrong server build makes the cutover result
-uncertain. In that case the helper retains the candidate CLI and leaves the
-service paused where possible, because restoring only the old CLI could put it
-beside an already-running new server. Inspect `make status` and `make logs`,
-repair or complete the server deployment, then rerun `make restart`; do not
-roll back only the CLI.
+the helper probes both the public health identity and authenticated state. A
+connection drop is harmless when those probes prove the candidate pair. If
+they instead prove that the exact old instance is healthy and has no restart
+pending, the helper atomically restores the old launcher and resumes that old
+pair. A timeout, pending restart, or wrong-build response cannot safely be
+paired with either launcher, so the helper verifies the lifecycle PID metadata
+and stops only that exact owned service process before returning an uncertain
+result. The candidate CLI remains canonical, but no mismatched server remains
+live.
+
+After a quarantined result, inspect `make status` and `make logs`, correct the
+deployment problem, and run `make start` to establish the matching candidate
+pair. Do not start an unverified service manually or roll back only the CLI.
 
 For a failed pre-cutover install, after pushing the intended server revision,
 recover with:

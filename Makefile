@@ -256,6 +256,9 @@ restart: setup
 			--url "$(LOCAL_HTTP_URL)" \
 			--source-url "$(CLI_SOURCE_URL)" \
 			--uv "$(UV)" \
+			--pid-file "$(PID_FILE)" \
+			--pid-meta-file "$(PID_META_FILE)" \
+			--quarantine-timeout "$(STOP_TIMEOUT)" \
 			--timeout "$(DRAIN_TIMEOUT)" \
 			--health-timeout "$(RESTART_HEALTH_TIMEOUT)" || exit 1; \
 	else \
@@ -277,6 +280,9 @@ force-restart: setup
 			--url "$(LOCAL_HTTP_URL)" \
 			--source-url "$(CLI_SOURCE_URL)" \
 			--uv "$(UV)" \
+			--pid-file "$(PID_FILE)" \
+			--pid-meta-file "$(PID_META_FILE)" \
+			--quarantine-timeout "$(STOP_TIMEOUT)" \
 			--force || exit 1; \
 	else \
 		$(MAKE) --no-print-directory start; \

@@ -12,6 +12,7 @@ import pytest
 from scripts.sync_canonical_cli import (
     SyncError,
     activate_candidate,
+    prune_revision_roots,
     stage_candidate,
     synchronize,
 )
@@ -349,3 +350,74 @@ def test_concurrent_invocations_see_complete_cli_during_atomic_activation(
         permit_activation.set()
         worker.join(timeout=5)
         staged.cleanup()
+
+
+def test_successive_upgrades_bound_obsolete_immutable_roots(tmp_path):
+    repo = _repo(tmp_path)
+    uv = _fake_uv(tmp_path)
+    _, canonical, tool_dir, env = _paths(tmp_path)
+    env["FAKE_CLI_REVISION"] = _git(repo, "rev-parse", "HEAD")
+    kwargs = _kwargs(repo, canonical, uv, tool_dir, env)
+    assert synchronize(**kwargs) is True
+
+    for index in range(6):
+        revision = _push_change(repo, f"upgrade-{index}\n")
+        env["FAKE_CLI_REVISION"] = revision
+        assert synchronize(**kwargs) is True
+
+    roots = list((tool_dir / ".oompah-revisions").iterdir())
+    assert len(roots) <= 4
+    current_revision = _git(repo, "rev-parse", "HEAD")
+    assert current_revision in subprocess.check_output(
+        [str(canonical), "--version"], text=True
+    )
+
+    stale_roots = []
+    for index in range(100, 103):
+        stale = tool_dir / ".oompah-revisions" / f"{index:040x}-{index:032x}"
+        stale.mkdir()
+        os.utime(stale, (1, 1))
+        stale_roots.append(stale)
+    assert synchronize(**kwargs) is False
+    assert all(not stale.exists() for stale in stale_roots)
+
+
+def test_pruning_protects_live_backup_and_active_invocation_roots(tmp_path):
+    revisions_dir = tmp_path / "tools" / ".oompah-revisions"
+    revisions_dir.mkdir(parents=True)
+    roots = []
+    for index in range(6):
+        root = revisions_dir / f"{index:040x}-{index:032x}"
+        root.mkdir()
+        roots.append(root)
+
+    canonical = tmp_path / "bin" / "oompah"
+    canonical.parent.mkdir()
+    canonical.write_text(f"#!/bin/sh\n# {roots[5]}\n", encoding="utf-8")
+    backup = tmp_path / "backup" / "oompah"
+    backup.parent.mkdir()
+    backup.write_text(f"#!/bin/sh\n# {roots[4]}\n", encoding="utf-8")
+
+    active_script = roots[0] / "active.py"
+    active_script.write_text(
+        "#!/usr/bin/python3\nimport time\ntime.sleep(60)\n",
+        encoding="utf-8",
+    )
+    active_script.chmod(0o755)
+    process = subprocess.Popen([str(active_script)])
+    try:
+        removed = prune_revision_roots(
+            revisions_dir,
+            canonical=canonical,
+            backup_launchers=(backup,),
+            max_roots=1,
+        )
+
+        assert roots[5].is_dir(), "canonical launcher root must be retained"
+        assert roots[4].is_dir(), "rollback launcher root must be retained"
+        assert roots[0].is_dir(), "active invocation root must be retained"
+        assert removed
+        assert all(not root.exists() for root in removed)
+    finally:
+        process.terminate()
+        process.wait(timeout=2)
