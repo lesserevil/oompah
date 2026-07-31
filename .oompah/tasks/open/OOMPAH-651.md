@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-651
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Redact secrets from agent tool inputs, outputs, and JSONL event logs
 parent: null
@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T11:49:19.355610Z'
+updated_at: '2026-07-31T11:52:12.423330Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -22,26 +22,22 @@ review_number: null
 merged_at: null
 oompah.duplicate_screening:
   schema_version: 1
-  task_fingerprint: 27f1faaa27c090245ce9b8a7b013b0e34ec7f359b5db4bf1eb5b65d7424d36b5
+  task_fingerprint: 21d224299fc9dcf5a4bde909c0ae41cde15956cdb0ac0c7de5e3c079c8e3aa2d
   detector_version: duplicate-detector-v1
-  verdict: no_duplicate
-  checked_at: '2026-07-31T09:51:22.005507+00:00'
+  verdict: inconclusive
+  checked_at: null
   matched_identifiers: []
-  evidence: "Focus handoff: duplicate_detector  \nDuplicate preflight verdict: no_duplicate\
-    \  \nMatches: none  \nEvidence: Active OOMPAH-281 and OOMPAH-282 were read fully\
-    \ and cover self-hosted CI and state-branch migration, respectively. OOMPAH-652\
-    \ concerns process lifecycle cleanup. Historical agent/telemetry tasks are terminal\
-    \ and excluded; none cover secret redaction."
-  claim_id: null
-  claim_owner: null
-  claimed_at: null
-  claim_expires_at: null
+  evidence: ''
+  claim_id: 10fe2a28-5c21-439d-83f0-f3d75b72138c
+  claim_owner: f6d86559-4e9d-42bf-ac66-416781dbb14f
+  claimed_at: '2026-07-31T11:52:11.581954+00:00'
+  claim_expires_at: '2026-07-31T12:22:11.581954+00:00'
   retry_count: 0
   retry_after: null
 oompah.agent_run_id: 8beae452-2b35-406b-8eda-4a9f141cb75e
 oompah.task_costs:
-  total_input_tokens: 14929976
-  total_output_tokens: 97398
+  total_input_tokens: 16588299
+  total_output_tokens: 103458
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -49,8 +45,8 @@ oompah.task_costs:
       output_tokens: 53593
       cost_usd: 0.0
     opus:
-      input_tokens: 104
-      output_tokens: 43805
+      input_tokens: 1658427
+      output_tokens: 49865
       cost_usd: 0.0
   runs:
   - profile: default
@@ -89,6 +85,12 @@ oompah.task_costs:
     output_tokens: 36165
     cost_usd: 0.0
     recorded_at: '2026-07-31T11:48:56.086352+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 1658323
+    output_tokens: 6060
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T11:52:01.211166+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-651__20260731T090132Z
@@ -123,6 +125,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-651
     source_sha: 6cfb486668c6b24b6cb5bac5c463966946b4bc85
     completed_at: '2026-07-31T11:48:56.090265+00:00'
+  - run_id: OOMPAH-651__20260731T114920Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-sol
+    focus: duplicate_detector
+    source_branch: OOMPAH-651
+    source_sha: 6cfb486668c6b24b6cb5bac5c463966946b4bc85
+    completed_at: '2026-07-31T11:52:01.215120+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -720,5 +730,20 @@ author: oompah
 created: 2026-07-31 11:49
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-31 11:52
+---
+Agent completed successfully in 166s (1664383 tokens)
+---
+author: oompah
+created: 2026-07-31 11:52
+---
+Run #2 [attempt=2, profile=deep, role=deep -> Codex/gpt-5.6-sol]
+- Turns: 1, Tool calls: 23
+- Tokens: 1.7M in / 6.1K out [1.7M total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 46s
+- Log: OOMPAH-651__20260731T114920Z.jsonl
 ---
 <!-- COMMENTS:END -->
