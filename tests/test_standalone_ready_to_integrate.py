@@ -16,7 +16,13 @@ from oompah.models import Issue, Project
 from oompah.orchestrator import Orchestrator
 from oompah.providers import ProviderStore
 from oompah.scm import ReviewRequest, SCMProvider
-from oompah.statuses import IN_REVIEW, IN_VALIDATION, MERGED, READY_TO_INTEGRATE
+from oompah.statuses import (
+    IN_REVIEW,
+    IN_VALIDATION,
+    MERGED,
+    OPEN,
+    READY_TO_INTEGRATE,
+)
 from oompah.terminal_audit import (
     ContributorIdentity,
     EvidenceFingerprint,
@@ -183,6 +189,39 @@ def _delivery_alerts(orch: Orchestrator) -> list[dict[str, str]]:
         for alert in orch._alerts
         if str(alert.get("source", "")).startswith("standalone_ready_delivery:")
     ]
+
+
+def test_ready_to_open_reconciliation_revokes_delivery_and_clears_alert(harness):
+    """A rejected standalone task cannot retain an old gate generation."""
+    orch, project, tracker, _provider, _detect, _gate = harness
+    task = _issue("TASK-REOPEN", branch="feature/reopen")
+    tracker.fetch_issues_by_states.return_value = [task]
+
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+    authority = orch._standalone_delivery_authorities[
+        (project.id, task.identifier)
+    ]
+    orch._alerts.append(
+        {
+            "level": "warning",
+            "source": f"standalone_ready_delivery:{project.id}:{task.identifier}",
+            "message": "stale delivery alert",
+        }
+    )
+
+    # The replacement worker owns the reopened task.  Its non-Ready status
+    # is absent from the Ready query, so the authority reconciliation must
+    # inspect the claimed task directly and fence the old generation.
+    task.state = OPEN
+    with mock.patch.object(
+        orch._branch_quality_gate,
+        "cancel_generation",
+    ) as cancel_generation:
+        orch._reconcile_standalone_ready_to_integrate_tasks()
+
+    cancel_generation.assert_called_once_with(authority.generation)
+    assert (project.id, task.identifier) not in orch._standalone_delivery_authorities
+    assert not _delivery_alerts(orch)
 
 
 def test_real_orchestrator_provider_store_and_project_create_review(harness):

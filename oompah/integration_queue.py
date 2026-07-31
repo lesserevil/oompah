@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import math
 import os
 import sqlite3
 import threading
@@ -454,6 +455,78 @@ class IntegrationQueueStore:
             )
             self._conn.commit()
         return bool(result.rowcount)
+
+    def owns_active_lease(
+        self,
+        *,
+        project_id: str,
+        task_id: str,
+        task_branch: str,
+        head_sha: str,
+        lease_owner: str | None,
+        now: float | None = None,
+    ) -> bool:
+        """Return whether an executor still owns this exact integration row.
+
+        Tracker status alone cannot distinguish an expired lease from the
+        replacement executor that reclaimed the same Ready-to-Integrate
+        submission.  The executor must therefore retain the durable queue
+        authority it was claimed with: an ``integrating`` row for the same
+        project, task, branch, head, and lease owner.
+        """
+
+        values = {
+            "project_id": str(project_id or "").strip(),
+            "task_id": str(task_id or "").strip(),
+            "task_branch": str(task_branch or "").strip(),
+            "head_sha": str(head_sha or "").strip(),
+            "lease_owner": str(lease_owner or "").strip(),
+        }
+        if not all(values.values()):
+            return False
+        observed_at: float | None = None
+        if now is not None:
+            try:
+                observed_at = float(now)
+            except (TypeError, ValueError, OverflowError):
+                return False
+            if not math.isfinite(observed_at):
+                return False
+        with self._lock:
+            row = self._conn.execute(
+                """
+                SELECT lease_expires_at FROM integration_queue
+                WHERE project_id = ? AND task_id = ?
+                  AND task_branch = ? AND head_sha = ?
+                  AND state = 'integrating' AND lease_owner = ?
+                """,
+                (
+                    values["project_id"],
+                    values["task_id"],
+                    values["task_branch"],
+                    values["head_sha"],
+                    values["lease_owner"],
+                ),
+            ).fetchone()
+            # Sample the production clock while the same lock still protects
+            # the row read.  A caller delayed on this lock cannot return old
+            # authority merely because its invocation began before expiry.
+            if observed_at is None:
+                observed_at = float(time.time())
+        if row is None:
+            return False
+        expires_at = row["lease_expires_at"]
+        if (
+            isinstance(expires_at, bool)
+            or not isinstance(expires_at, (int, float))
+        ):
+            return False
+        deadline = float(expires_at)
+        return (
+            math.isfinite(observed_at)
+            and math.isfinite(deadline)
+            and deadline > observed_at
+        )
 
     def items(
         self,

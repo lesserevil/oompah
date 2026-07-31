@@ -95,6 +95,7 @@ def execute_integration(
     repo_identity: str,
     retry_forced: bool = False,
     commit_allowed: Callable[[], bool] | None = None,
+    gate_generation: str | None = None,
 ) -> IntegrationExecutionResult:
     """Rebase, test, and compare-and-swap one task onto an epic branch."""
 
@@ -284,6 +285,9 @@ def execute_integration(
         work_branch=task_branch,
         command=quality_command,
         retry_forced=retry_forced,
+        expected_head_sha=rebased_sha,
+        generation=gate_generation,
+        is_current=commit_allowed,
     )
     if not quality.passed:
         if quality.status == "interrupted":
