@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-650
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Keep scoped task handoff credentials valid for the full worker lifetime
 parent: OOMPAH-619
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T11:36:47.740706Z'
+updated_at: '2026-07-31T11:37:09.163175Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -49,12 +49,12 @@ oompah.agent_run_id: 0b790007-df10-4605-b2b1-3d0e679e64a4
 oompah.work_branch: epic-OOMPAH-619--task-OOMPAH-650
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-619--task-OOMPAH-650
-  base_branch: epic-OOMPAH-619
-  base_sha: 3fcdf30caa62fb7709d0cd9e1553320dd11b3877
-  updated_at: '2026-07-31T11:24:31.378256+00:00'
+  head_sha: 7d9b597a1a504309bc48a2d4c55ecfc70f97d505
+  submitted_at: '2026-07-31T11:37:06.033601+00:00'
+  updated_at: '2026-07-31T11:37:06.033601+00:00'
 oompah.task_costs:
   total_input_tokens: 3448363
   total_output_tokens: 20211
@@ -785,5 +785,26 @@ All critical security properties verified:
   - Plus 40 existing regressions covering all attack surfaces
 
 Pushed commits: 81d4c7d71..7d9b597a1
+---
+author: oompah
+created: 2026-07-31 11:37
+---
+Fixed critical TTL safety issue and added zero-handoff lifetime test
+
+Security Issue: DEFAULT_TTL_SECONDS was set to 24 hours instead of 15 minutes,
+defeating the wall-clock safety mechanism. If the lease renewal thread crashed
+or the server restarted, granted tokens could remain valid indefinitely.
+
+Fix: Restored DEFAULT_TTL_SECONDS = 15 * 60 and updated documentation to
+clarify the design: short wall-clock TTL provides safety-by-timeout; the
+server-owned lease keeps the grant renewed while the worker is live; if the
+lease dies, the grant expires naturally instead of remaining active.
+
+Added test_worker_lifetime_grant_survives_zero_handoff_requests to verify
+that a grant with a short initial TTL stays valid through the worker's lifetime
+via lease renewal, even without any tracker handoff requests. This is the
+critical acceptance case from the issue description.
+
+All 44 task_handoff tests pass; 297 auth/handoff/orchestrator tests pass.
 ---
 <!-- COMMENTS:END -->
