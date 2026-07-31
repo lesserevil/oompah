@@ -18,7 +18,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T21:47:30.496868Z'
+updated_at: '2026-07-31T22:04:19.652112Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -1328,5 +1328,10 @@ author: oompah
 created: 2026-07-31 21:47
 ---
 Implementation: Updated Makefile setup/test-setup branching so OOMPAH_PYTEST_GATE consumes the server-owned pre-provisioned .venv and fails clearly only if its Python is absent; it no longer attempts uv installation inside the sandbox. The normal non-gate .uv-setup/.uv-test-setup dependency chain is unchanged. Added tests/test_makefile_setup.py subprocess dry-run regressions proving gate mode emits no uv command while ordinary developer setup still runs uv for server and dev extras.
+---
+author: oompah
+created: 2026-07-31 22:04
+---
+Coordination update: OOMPAH-665 submitted the canonical trusted-quality-gate virtualenv fallback at e395a94af, while OOMPAH-668 is independently hardening the same gate-mode setup. OOMPAH-651 will drop its duplicate Makefile/test_makefile_setup commit, stack its security-only commits on e395a94af for verification, and wait for OOMPAH-665 in finish order before final submission. No peer-owned orchestrator or terminal-audit changes will be copied.
 ---
 <!-- COMMENTS:END -->
