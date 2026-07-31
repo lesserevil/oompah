@@ -14,6 +14,7 @@ Acceptance criteria:
 
 from __future__ import annotations
 
+import base64
 import contextlib
 import json
 import os
@@ -99,6 +100,7 @@ def _running_matching_server(
     server_script.write_text(
         """
 import os
+from pathlib import Path
 from types import SimpleNamespace
 
 import uvicorn
@@ -106,6 +108,12 @@ import uvicorn
 import oompah.server as server
 from oompah.http_auth import load_credentials
 from oompah.models import Issue
+
+if Path(server.__file__).resolve().parent.parent != Path(os.environ["E2E_PACKAGE_ROOT"]).resolve():
+    raise RuntimeError(
+        f"loaded unexpected oompah package: {server.__file__!r}; "
+        f"expected {os.environ['E2E_PACKAGE_ROOT']!r}"
+    )
 
 
 task = Issue(
@@ -203,6 +211,7 @@ uvicorn.run(
             "E2E_REPO_PATH": str(repo_path),
             "E2E_HTPASSWD_PATH": str(htpasswd_path),
             "E2E_PORT": str(port),
+            "E2E_PACKAGE_ROOT": str(package_root),
             # Import the exact package tree installed from the pinned git
             # revision, rather than the possibly dirty checkout.
             "PYTHONPATH": str(package_root),
@@ -279,6 +288,9 @@ def test_installed_cli_from_exact_revision_reads_matching_authenticated_server(t
     )
     assert cli_binary.is_file()
 
+    isolated_env = os.environ.copy()
+    isolated_env.pop("PYTHONPATH", None)
+
     version_probe = subprocess.run(
         [
             str(cli_python),
@@ -296,12 +308,13 @@ def test_installed_cli_from_exact_revision_reads_matching_authenticated_server(t
         capture_output=True,
         text=True,
         check=True,
+        env=isolated_env,
     )
     version_lines = version_probe.stdout.splitlines()
     assert version_lines[0] == "0.1.0"
     assert str(REPO_ROOT) not in version_lines[1]
-    installed_package_root = Path(version_lines[1]).resolve().parent
-    assert installed_package_root.is_dir()
+    installed_package_root = Path(version_lines[1]).resolve().parent.parent
+    assert (installed_package_root / "oompah").is_dir()
     direct_url = json.loads(version_lines[2])
     assert direct_url["vcs_info"]["commit_id"] == revision
 
@@ -311,6 +324,7 @@ def test_installed_cli_from_exact_revision_reads_matching_authenticated_server(t
         capture_output=True,
         text=True,
         check=True,
+        env=isolated_env,
     )
     assert "--password-file" in help_result.stdout
 
@@ -341,6 +355,7 @@ def test_installed_cli_from_exact_revision_reads_matching_authenticated_server(t
         "OOMPAH_SERVER_PASSWORD",
         "OOMPAH_SERVER_PASSWORD_FILE",
         "OOMPAH_SERVER_URL",
+        "PYTHONPATH",
     ):
         client_env.pop(name, None)
     client_env.update(
@@ -361,6 +376,32 @@ def test_installed_cli_from_exact_revision_reads_matching_authenticated_server(t
         htpasswd_path=htpasswd_file,
         forbidden_output=(username, password),
     ) as base_url:
+        cli_version = subprocess.run(
+            [str(cli_binary), "--version"],
+            cwd=str(tmp_path),
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        assert revision in cli_version.stdout
+
+        import urllib.request
+
+        with urllib.request.urlopen(f"{base_url}/healthz", timeout=5) as response:
+            health = json.load(response)
+        assert health["build_id"]["revision"] == revision
+
+        state_request = urllib.request.Request(
+            f"{base_url}/api/v1/state",
+            headers={
+                "Authorization": "Basic "
+                + base64.b64encode(f"{username}:{password}".encode()).decode()
+            },
+        )
+        with urllib.request.urlopen(state_request, timeout=5) as response:
+            state = json.load(response)
+        assert state["build_id"] == health["build_id"]
+
         task_result = subprocess.run(
             [
                 str(cli_binary),

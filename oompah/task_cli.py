@@ -497,6 +497,7 @@ def _cmd_comment(base_url: str, args: argparse.Namespace) -> None:
     """oompah task comment <identifier> --message "..." [--author oompah]"""
     identifier = args.identifier
     data: dict[str, Any] = {
+        "identifier": identifier,
         "text": args.message,
         "author": args.author,
         "identifier": identifier,

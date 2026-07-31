@@ -57,9 +57,44 @@ pipx install "https://github.com/lesserevil/oompah/releases/download/v1.0.0/oomp
 ## Verify the install
 
 ```bash
+command -v oompah
 oompah --help
+oompah --version
 oompah task --help
 ```
+
+For a source-managed service deployment, the canonical operator command is
+`$HOME/.local/bin/oompah` (normally `/home/shedwards/.local/bin/oompah`).
+`oompah --version` prints the human-readable package version and full source
+revision. The machine-readable `build_id` in `GET /healthz` and
+`GET /api/v1/state` contains the same `name`, `version`, and `revision` fields.
+The CLI and server revisions must match before task or admin requests are
+used.
+
+Normal source-managed lifecycle commands run the synchronization check before
+starting or draining the service:
+
+```bash
+make start
+make restart
+make graceful
+```
+
+The check installs the exact clean, pushed `HEAD` revision into the canonical
+UV tool and verifies both `command -v oompah` and `oompah --version`. A dirty,
+unpushed, diverged, or failed install is refused before a running service is
+interrupted. On an install failure, the known-good executable is restored and
+the command prints the reason. After pushing the intended server revision,
+recover with:
+
+```bash
+make install-cli
+```
+
+If that command reports a PATH error, put `$HOME/.local/bin` before project
+virtualenv directories in `PATH`, then rerun `make install-cli`. Verify the
+pair with `command -v oompah`, `oompah --version`, the public health check,
+and an authenticated state request before retrying a lifecycle operation.
 
 ## What you get
 

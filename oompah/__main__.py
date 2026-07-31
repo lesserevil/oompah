@@ -183,6 +183,14 @@ Examples:
             "Must be 1 when --server granian is used."
         ),
     )
+    from oompah.build_info import version_text
+
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=version_text(),
+        help="Show the installed package version and source revision",
+    )
     return parser
 
 

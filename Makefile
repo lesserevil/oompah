@@ -33,8 +33,9 @@ _ENV_TEMP_ROOT := $(shell grep -E '^OOMPAH_TEMP_ROOT[[:space:]]*=' .env 2>/dev/n
 PYTEST_TEMP_ROOT ?= $(if $(OOMPAH_TEMP_ROOT),$(OOMPAH_TEMP_ROOT),$(if $(_ENV_TEMP_ROOT),$(_ENV_TEMP_ROOT),~/.oompah/tmp))
 # Timeout (seconds) for waiting on process exit and port release during stop/restart.
 STOP_TIMEOUT ?= 30
-
-export PATH := $(abspath $(VENV)/bin):$(PATH)
+CANONICAL_CLI ?= $(if $(OOMPAH_CANONICAL_CLI),$(OOMPAH_CANONICAL_CLI),$(HOME)/.local/bin/oompah)
+CLI_SOURCE_URL ?= $(if $(OOMPAH_CLI_SOURCE_URL),$(OOMPAH_CLI_SOURCE_URL),https://github.com/lesserevil/oompah)
+UV ?= uv
 
 # Internal helper: wait for a PID to exit, then wait for the port to be free.
 # Usage: $(call wait_for_stop,PID,PORT,TIMEOUT)
@@ -77,11 +78,13 @@ define port_in_use
 	[ $$? -eq 0 ] || (command -v lsof >/dev/null 2>&1 && lsof -ti:"$1" -sTCP:LISTEN 2>/dev/null | grep -q .)
 endef
 
-.PHONY: help setup test-setup start stop restart graceful force-restart status logs test test-serial terminal-audit-scan clean install-hooks check-secrets install-gh-extensions run-granian runner-setup runner-start runner-stop runner-status
+.PHONY: help setup test-setup sync-cli install-cli start stop restart graceful force-restart status logs test test-serial terminal-audit-scan clean install-hooks check-secrets install-gh-extensions run-granian runner-setup runner-start runner-stop runner-status
 
 help:
 	@echo "oompah — make targets:"
 	@echo "  setup          Install server dependencies into $(VENV) (idempotent)"
+	@echo "  sync-cli       Install the exact clean pushed server revision at $(CANONICAL_CLI)"
+	@echo "  install-cli    Alias for sync-cli"
 	@echo "  start          Start oompah in the background (default port: $(PORT))"
 	@echo "  stop           Stop the background oompah process"
 	@echo "  restart        Drain active agents, restart in-place, and verify new process health"
@@ -110,6 +113,15 @@ $(VENV)/.uv-setup: pyproject.toml
 	@touch $@
 	@echo "Setup complete. Run 'make start' to launch oompah."
 
+sync-cli: setup
+	@$(PYTHON) scripts/sync_canonical_cli.py \
+		--repo . \
+		--canonical "$(CANONICAL_CLI)" \
+		--source-url "$(CLI_SOURCE_URL)" \
+		--uv "$(UV)"
+
+install-cli: sync-cli
+
 test-setup: $(VENV)/.uv-test-setup
 
 $(VENV)/.uv-test-setup: pyproject.toml $(VENV)/.uv-setup
@@ -117,7 +129,7 @@ $(VENV)/.uv-test-setup: pyproject.toml $(VENV)/.uv-setup
 	@touch $@
 	@echo "Test dependencies installed."
 
-start: setup
+start: setup sync-cli
 	@mkdir -p "$$(dirname "$(PID_FILE)")" "$$(dirname "$(PID_META_FILE)")"; \
 	EXISTING_PID=$$(cat "$(PID_FILE)" 2>/dev/null || true); \
 	if [ -n "$$EXISTING_PID" ] && kill -0 "$$EXISTING_PID" 2>/dev/null; then \
@@ -194,7 +206,7 @@ stop:
 		echo "oompah is not running"; \
 	fi
 
-restart: setup
+restart: setup sync-cli
 	@PID=$$(cat "$(PID_FILE)" 2>/dev/null || :); \
 	if [ -n "$$PID" ] && kill -0 "$$PID" 2>/dev/null; then \
 		HEALTHZ_URL="http://127.0.0.1:$(PORT)/healthz"; \
@@ -255,7 +267,12 @@ restart: setup
 
 graceful: restart
 
-force-restart: stop start
+# The emergency implementation remains an explicit stop followed by start;
+# synchronization is deliberately completed before the stop operation.
+# force-restart: stop start
+force-restart: sync-cli
+	@$(MAKE) --no-print-directory stop
+	@$(MAKE) --no-print-directory start
 
 # Run oompah in the foreground using the Granian ASGI server.
 #

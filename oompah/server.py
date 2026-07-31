@@ -28,6 +28,7 @@ from oompah.agent_instructions import (
     ensure_github_issues_agent_instructions,
     ensure_oompah_task_agent_instructions,
 )
+from oompah.build_info import build_identity
 from oompah.events import EventType
 from oompah.scm import (
     ReviewRequest,
@@ -876,6 +877,10 @@ class _BasicAuthMiddleware:
 app = FastAPI(title="oompah", version="0.1.0", lifespan=_lifespan)
 app.add_middleware(_BasicAuthMiddleware)
 
+# Captured once when the service process imports the package.  The same
+# identity is reported by the standalone CLI installed from this revision.
+_BUILD_ID: dict[str, str] = build_identity()
+
 # Serve static assets (favicon, etc.) from oompah/static/
 from fastapi.staticfiles import StaticFiles
 
@@ -898,7 +903,9 @@ async def healthz():
     alerts, or credentials are included.  This endpoint is exempt from HTTP
     Basic authentication even when auth is enabled.
     """
-    return JSONResponse({"status": "ok", "instance_id": _INSTANCE_ID})
+    return JSONResponse(
+        {"status": "ok", "instance_id": _INSTANCE_ID, "build_id": dict(_BUILD_ID)}
+    )
 
 
 @app.get("/favicon.ico")
@@ -3107,9 +3114,17 @@ async def api_state():
             snapshot, _ = _ipc.read_state()
             if snapshot is None:
                 return JSONResponse(
-                    {"error": {"code": "unavailable", "message": "State snapshot not yet available from scheduler"}},
+                    {
+                        "build_id": dict(_BUILD_ID),
+                        "error": {
+                            "code": "unavailable",
+                            "message": "State snapshot not yet available from scheduler",
+                        },
+                    },
                     status_code=503,
                 )
+            snapshot = dict(snapshot)
+            snapshot["build_id"] = dict(_BUILD_ID)
             duration_ms = (time.monotonic() - t_start) * 1000
             _record_api_latency("/api/v1/state", duration_ms)
             snapshot["api_metrics"] = _api_metrics_snapshot()
@@ -3119,6 +3134,7 @@ async def api_state():
         # Combined mode: prefer the cached snapshot to avoid recomputing
         # during maintenance / tick bursts.
         snapshot = _cached_state_snapshot_or_unavailable()
+        snapshot["build_id"] = dict(_BUILD_ID)
         duration_ms = (time.monotonic() - t_start) * 1000
         _record_api_latency("/api/v1/state", duration_ms)
         snapshot["api_metrics"] = _api_metrics_snapshot()
