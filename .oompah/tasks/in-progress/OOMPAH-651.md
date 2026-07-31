@@ -17,7 +17,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T16:29:55.848251Z'
+updated_at: '2026-07-31T16:53:21.720882Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -1132,5 +1132,20 @@ author: oompah
 created: 2026-07-31 16:29
 ---
 Implementation: Two changes on top of the accepted redaction baseline. (1) oompah/agent.py::AgentSession._classify_message now redacts message summary via redact_sensitive_data before packaging into AgentEvent.payload, and oompah/orchestrator.py _handle_agent_event + API-agent result path now redact before assigning to LiveSession.last_message (state-API + HTML visible). (2) tests/conftest.py adds an autouse fixture clearing the process-local registered-secret registry between tests. Fixes cross-test isolation where a preceding test registering a short credential value ('p') would cause 'unsafe permissions'/'group'/'oompah/tmp/...' substrings in later log-assertion tests to be partially redacted. New tests in tests/test_secrets.py cover TestLegacyAgentClassifiedMessageRedaction (URL userinfo, Bearer header, registered opaque secret, non-secret pass-through) and TestOrchestratorLastMessageRedaction (mirrors _handle_agent_event + ApiAgentResult redaction shape).
+---
+author: oompah
+created: 2026-07-31 16:53
+---
+Verification: Focused tests all pass across the redaction-relevant paths:
+- tests/test_secrets.py: 107 (added TestLegacyAgentClassifiedMessageRedaction + TestOrchestratorLastMessageRedaction)
+- tests/test_agent.py: 7
+- tests/test_task_handoff.py: 33
+- tests/test_console.py + session + store + format: 93
+- tests/test_client_auth.py: 62 (now pass in any order with test_secrets)
+- tests/test_api_agent_budget.py: 34
+- tests/test_acp_agent.py + acp_backends + codex/opencode: 190
+- tests/test_projects.py + github_tracker + providers + scm: 815
+
+Combined focused subset: 1414 passed. make check-secrets passes; scripts/find_terminal_mutations.py passes (6/6 allowlisted).
 ---
 <!-- COMMENTS:END -->
