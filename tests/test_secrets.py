@@ -1116,6 +1116,31 @@ class TestSecretRedactionLoggingFilter:
         formatted = rec.getMessage()
         _assert_no_sentinels(formatted)
 
+    def test_descendant_and_late_handler_are_redacted(self):
+        import io
+        import logging
+
+        from oompah.secrets import install_secret_redaction_filter
+
+        install_secret_redaction_filter("oompah")
+        log = logging.getLogger("oompah.test-late-handler")
+        log.propagate = False
+        stream = io.StringIO()
+        handler = logging.StreamHandler(stream)
+        log.addHandler(handler)
+        try:
+            log.warning(
+                "late handler received Authorization: Bearer %s",
+                SENTINEL_BEARER_TOKEN,
+            )
+        finally:
+            log.removeHandler(handler)
+            handler.close()
+
+        rendered = stream.getvalue()
+        _assert_no_sentinels(rendered)
+        assert "[REDACTED]" in rendered
+
     def test_filter_redacts_args_tuple(self):
         import logging
         from oompah.secrets import install_secret_redaction_filter
@@ -1441,6 +1466,56 @@ class TestConfiguredSecretRegistry:
         assert file_secret not in rendered
         assert env_secret not in caplog.text
         assert file_secret not in caplog.text
+
+    def test_authoritative_short_values_are_registered_but_heuristic_names_are_not(self):
+        from oompah.secrets import register_configured_secrets
+
+        short_configured = "s7"
+        unrelated_value = "ordinary-value"
+        register_configured_secrets(
+            {
+                "OOMPAH_SERVER_PASSWORD": short_configured,
+                "CUSTOM_TOKEN": unrelated_value,
+                "BUILD_KEY": "1",
+            }
+        )
+
+        result = redact_sensitive_data(
+            {"detail": f"{short_configured} {unrelated_value} 1"}
+        )
+        assert short_configured not in result["detail"]
+        assert unrelated_value in result["detail"]
+        assert "1" in result["detail"]
+
+    def test_registered_short_bytes_are_redacted(self):
+        from oompah.secrets import register_secret
+
+        register_secret(b"b7")
+        result = redact_sensitive_data(b"chunk:b7")
+
+        assert result == b"chunk:[REDACTED]"
+
+    def test_acp_environment_uses_the_authoritative_allow_list(self, tmp_path):
+        from oompah.acp_agent import AcpAgentSession
+
+        ordinary_key_value = "opaque-build-key-value-7Q"
+        configured_key_value = "opaque-openai-key-value-8R"
+        AcpAgentSession(
+            workspace_path=str(tmp_path),
+            prompt="test",
+            env={
+                "BUILD_KEY": ordinary_key_value,
+                "OPENAI_API_KEY": configured_key_value,
+            },
+        )
+
+        rendered = str(
+            redact_sensitive_data(
+                {"detail": f"{ordinary_key_value} {configured_key_value}"}
+            )
+        )
+        assert ordinary_key_value in rendered
+        assert configured_key_value not in rendered
 
     def test_rotation_keeps_old_and_new_values_redacted(self):
         from oompah.secrets import register_secret_values

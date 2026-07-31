@@ -75,11 +75,6 @@ _KNOWN_SECRET_BYTES: dict[bytes, float | None] = {}
 # guard against an operator repeatedly rotating configured credentials.
 _MAX_REGISTERED_SECRET_VALUES = 4096
 _DEFAULT_DYNAMIC_SECRET_RETENTION_SECONDS = 60 * 60
-# Literal registration is for opaque values in arbitrary text.  Very short
-# values (common in unit-test provider fixtures and not useful as bearer/API
-# credentials) would redact ordinary prose everywhere; credential-shaped
-# fields remain protected by SECRET_KEYS regardless of this threshold.
-_MIN_REGISTERED_SECRET_LENGTH = 8
 
 # Environment sources which can contain plaintext credentials in a running
 # oompah process.  Keep this allow-list explicit: registering every process
@@ -105,6 +100,7 @@ _CONFIGURED_SECRET_ENV_NAMES = frozenset(
         "GOOGLE_APPLICATION_CREDENTIALS_JSON",
         "OOMPAH_CODEX_API_KEY",
         "OOMPAH_OPENCODE_API_KEY",
+        "OOMPAH_GITHUB_APP_PRIVATE_KEY",
     }
 )
 _CONFIGURED_SECRET_FILE_ENV_NAMES = frozenset(
@@ -120,12 +116,6 @@ _CONFIGURED_SECRET_FILE_ENV_NAMES = frozenset(
         "OOMPAH_GITHUB_APP_PRIVATE_KEY_PATH",
     }
 )
-_CONFIGURED_SECRET_ENV_PATTERN = re.compile(
-    r"(?:PASSWORD|PASSWD|TOKEN|SECRET|API[_-]?KEY|PRIVATE[_-]?KEY|ACCESS[_-]?KEY)(?:_|$)",
-    re.IGNORECASE,
-)
-
-
 def _normalise_registered_secret(value: Any) -> tuple[str | None, bytes | None]:
     """Return a safe registry representation without logging *value*.
 
@@ -134,17 +124,17 @@ def _normalise_registered_secret(value: Any) -> tuple[str | None, bytes | None]:
     values are ignored because registering them would redact every string.
     """
     if isinstance(value, bytes):
-        if len(value) < _MIN_REGISTERED_SECRET_LENGTH or not value.strip():
+        if not value.strip():
             return None, None
         try:
             decoded = value.decode("utf-8")
         except UnicodeDecodeError:
             return None, value
-        if len(decoded) < _MIN_REGISTERED_SECRET_LENGTH or not decoded.strip():
+        if not decoded.strip():
             return None, None
         return decoded, value
     if isinstance(value, str):
-        if len(value) < _MIN_REGISTERED_SECRET_LENGTH or not value.strip():
+        if not value.strip():
             return None, None
         return value, None
     return None, None
@@ -296,6 +286,27 @@ def _registered_secret_snapshot() -> tuple[tuple[str, ...], tuple[bytes, ...]]:
     return strings, byte_values
 
 
+def _replace_registered_literals(value: str, secrets: tuple[str, ...]) -> str:
+    """Replace registered values without corrupting surrounding identifiers.
+
+    Explicitly configured values may be short (for example, a deliberately
+    tiny development password). Longest-first literal replacement is required
+    for opaque credentials, but replacing a short value inside an identifier
+    such as ``PASSWORD_FILE`` would damage otherwise useful diagnostics. Short
+    values therefore require non-alphanumeric boundaries; longer credentials
+    retain substring replacement so values embedded in URLs, JSON, or command
+    output are still removed.
+    """
+    result = value
+    for secret in secrets:
+        if len(secret) < 8:
+            pattern = rf"(?<![A-Za-z0-9]){re.escape(secret)}(?![A-Za-z0-9])"
+            result = re.sub(pattern, _REDACTED, result)
+        else:
+            result = result.replace(secret, _REDACTED)
+    return result
+
+
 def register_configured_secrets(
     environment: Mapping[str, str] | None = None,
 ) -> None:
@@ -312,10 +323,7 @@ def register_configured_secrets(
     dynamic_values: list[str] = []
     for name, raw_value in env.items():
         upper_name = str(name).upper()
-        if upper_name in _CONFIGURED_SECRET_FILE_ENV_NAMES or (
-            upper_name.endswith("_FILE")
-            and _CONFIGURED_SECRET_ENV_PATTERN.search(upper_name[:-5])
-        ):
+        if upper_name in _CONFIGURED_SECRET_FILE_ENV_NAMES:
             path = raw_value
             if not path:
                 continue
@@ -329,9 +337,7 @@ def register_configured_secrets(
                     dynamic_values.append(value)
                 else:
                     values.append(value)
-        elif upper_name in _CONFIGURED_SECRET_ENV_NAMES or (
-            _CONFIGURED_SECRET_ENV_PATTERN.search(upper_name) is not None
-        ):
+        elif upper_name in _CONFIGURED_SECRET_ENV_NAMES:
             if raw_value:
                 if upper_name == "OOMPAH_TASK_HANDOFF_TOKEN":
                     dynamic_values.append(raw_value)
@@ -414,15 +420,25 @@ SECRET_PATTERNS = [
     # Redact everything between :// and @ to handle both user and password
     (r"([a-zA-Z][a-zA-Z0-9+.-]*://)([^@\s/]+(?::[^@\s/]+)?)(@)", r"\1[REDACTED]\3"),
     # Bearer tokens: Bearer xxxxx (with optional padding)
-    (r"(Bearer\s+)([A-Za-z0-9\-._~+/]+=*)", r"\1[REDACTED]"),
+    (r"(Bearer\s+)([A-Za-z0-9\-._~+/]+=*)", r"\1[REDACTED]", re.IGNORECASE),
     # API keys: with = or : as separator (both query strings and config files)
     (r"((?:\?|&)?api[_-]?key)\s*(?:=|:)\s*([^\s&\"\';,]+)", r"\1=[REDACTED]", re.IGNORECASE),
     # Authorization/X-* headers with any scheme
     (r"((?:Authorization|X-API-Key|X-Auth-Token|X-Access-Token)\s*:\s*)([^\s]+)", r"\1[REDACTED]", re.IGNORECASE),
-    # Common password/token patterns with various delimiters
-    # Matches: password=xxx, password: xxx, password was 'xxx', token: xxx, --password xxx, etc.
-    # Note: character class excludes & to respect query string delimiters
-    (r"((?:--)?(?:password|passwd|pwd|token|api[_-]?key|secret|bearer)\s*(?:=|:|was|is)?\s*)['\"]?([a-zA-Z0-9\-._~+/!@#$%^*=\[\]{}]+)['\"]?", r"\1[REDACTED]", re.IGNORECASE),
+    # Common password/token patterns with explicit delimiters. Requiring an
+    # assignment, narrative phrase, or CLI separator avoids treating names
+    # such as ``OOMPAH_SERVER_PASSWORD_FILE`` and ordinary words beginning
+    # with ``token`` as credentials.
+    # Note: character class excludes & to respect query string delimiters.
+    (
+        r"((?:--)?(?:password|passwd|pwd|token|api[_-]?key|secret|bearer)\s*(?:=|:)\s*"
+        r"|(?:password|passwd|pwd|token|api[_-]?key|secret|bearer)\s+(?:was|is)\s+"
+        r"|--(?:password|passwd|pwd|token|api[_-]?key|secret|bearer)\s+"
+        r"|(?:password|passwd|pwd|token|api[_-]?key|secret|bearer)[_-]+(?!file\b|path\b))"
+        r"['\"]?([a-zA-Z0-9\-._~+/!@#$%^*=\[\]{}]+)['\"]?",
+        r"\1[REDACTED]",
+        re.IGNORECASE,
+    ),
 ]
 
 
@@ -466,9 +482,7 @@ def _redact_string(value: str) -> str:
     # ordering avoids exposing the remainder when one credential is a prefix
     # of another during a rotation.
     registered_strings, _ = _registered_secret_snapshot()
-    result = value
-    for secret in registered_strings:
-        result = result.replace(secret, _REDACTED)
+    result = _replace_registered_literals(value, registered_strings)
 
     # Detect if string looks like it contains secrets before applying patterns
     # This avoids unnecessary regex work on normal strings
@@ -555,7 +569,11 @@ def redact_sensitive_data(
         _, registered_bytes = _registered_secret_snapshot()
         byte_result = value
         for secret in registered_bytes:
-            byte_result = byte_result.replace(secret, _REDACTED.encode("utf-8"))
+            if len(secret) < 8:
+                pattern = rb"(?<![A-Za-z0-9])" + re.escape(secret) + rb"(?![A-Za-z0-9])"
+                byte_result = re.sub(pattern, _REDACTED.encode("utf-8"), byte_result)
+            else:
+                byte_result = byte_result.replace(secret, _REDACTED.encode("utf-8"))
         try:
             decoded = byte_result.decode("utf-8", errors="replace")
             redacted = _redact_string(decoded)
@@ -705,7 +723,8 @@ class SecretRedactionFilter(logging.Filter):
     Attach to the ``oompah`` logger namespace to catch anything a developer
     accidentally logs — for example ``logger.warning("connect failed to %s",
     url_with_userinfo)`` — without requiring the callsite to remember to
-    redact.
+    redact. Startup also installs this filter at the LogRecord factory, which
+    protects descendant loggers and handlers added after startup.
 
     Design:
 
@@ -729,6 +748,10 @@ class SecretRedactionFilter(logging.Filter):
         try:
             if isinstance(record.msg, str):
                 record.msg = _redact_string(record.msg)
+            else:
+                # A formatter stringifies non-string messages directly. Make
+                # that fallback safe before any handler sees the record.
+                record.msg = redact_sensitive_data(record.msg)
             args = record.args
             if args is None:
                 pass
@@ -770,6 +793,33 @@ class SecretRedactionFilter(logging.Filter):
         return True
 
 
+_FACTORY_LOCK = threading.Lock()
+_FACTORY_MARKER = "_oompah_secret_redaction_factory"
+
+
+def _install_record_factory(flt: SecretRedactionFilter) -> None:
+    """Install a process-wide record boundary exactly once.
+
+    Logger filters attached to ``oompah`` do not run for records emitted by
+    descendant loggers, and handler filters only protect handlers that exist
+    at installation time.  The LogRecord factory runs before either routing
+    decision, so it covers both cases without requiring every callsite or
+    future handler to opt in.
+    """
+    with _FACTORY_LOCK:
+        current = logging.getLogRecordFactory()
+        if getattr(current, _FACTORY_MARKER, False):
+            return
+
+        def redacting_factory(*args: Any, **kwargs: Any) -> logging.LogRecord:
+            record = current(*args, **kwargs)
+            flt.filter(record)
+            return record
+
+        setattr(redacting_factory, _FACTORY_MARKER, True)
+        logging.setLogRecordFactory(redacting_factory)
+
+
 def install_secret_redaction_filter(logger_name: str = "oompah") -> SecretRedactionFilter:
     """Attach a :class:`SecretRedactionFilter` to a logger namespace.
 
@@ -786,11 +836,13 @@ def install_secret_redaction_filter(logger_name: str = "oompah") -> SecretRedact
         flt = SecretRedactionFilter()
         target.addFilter(flt)
 
+    _install_record_factory(flt)
+
     # Logger filters do not run on records propagated from child loggers
     # (e.g. ``oompah.api_agent`` → ``oompah``).  Install the same filter on
-    # current root handlers as well so every service log sink gets the
-    # boundary.  The handler check keeps repeated startup/reload calls
-    # idempotent.
+    # current root handlers as a defense in depth for records constructed
+    # with a custom factory. The record-factory boundary above also protects
+    # handlers created after this function returns.
     for handler in logging.getLogger().handlers:
         if not any(isinstance(f, SecretRedactionFilter) for f in handler.filters):
             handler.addFilter(flt)
