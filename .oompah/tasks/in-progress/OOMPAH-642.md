@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:09:07.190386Z'
-updated_at: '2026-07-31T06:40:35.289742Z'
+updated_at: '2026-07-31T06:47:28.092273Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -194,5 +194,10 @@ author: oompah
 created: 2026-07-31 06:40
 ---
 Continuation: previous agent committed 90307bc06 with fencing implementation (591 lines to orchestrator.py, 48 lines to terminal_transition_coordinator.py, 153 lines to test_standalone_ready_to_integrate.py, +1 in bootstrap.py). Running focused tests now to verify the fix and check for any remaining CI failures.
+---
+author: oompah
+created: 2026-07-31 06:47
+---
+Discovery: The prior implementation (90307bc06) added the fencing authority infrastructure to Orchestrator.__init__ but the existing test_orchestrator_resolves_exact_branch_worktree_and_posts_evidence uses Orchestrator.__new__ to bypass __init__ and manually sets required attrs. The updated _review_quality_gate_passes reads self._standalone_delivery_authorities.get(...) unconditionally, which raised AttributeError since the test never set it up. Fix: initialize _standalone_delivery_authority_lock (RLock) and _standalone_delivery_authorities ({}) on the mocked orchestrator so the code can look up (missing) authority and fall through to the standard exact-head worktree resolution path being tested.
 ---
 <!-- COMMENTS:END -->

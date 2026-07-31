@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-607
 type: bug
-status: In Validation
+status: Needs Human
 priority: 0
 title: Canonicalize project aliases before terminal owner authorization
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-30T18:17:13.371379Z'
-updated_at: '2026-07-31T06:47:19.797032Z'
+updated_at: '2026-07-31T06:47:35.439023Z'
 work_branch: OOMPAH-607
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/605
@@ -162,6 +162,8 @@ oompah.work_branch: OOMPAH-607
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    no-auditor-audit-269a81d7e2e1-2: '2026-07-31T06:47:32.662269+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -169,7 +171,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-607
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -193,7 +195,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-28a666e82f2e
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -204,13 +206,27 @@ oompah.terminal_audit:
       started_at: '2026-07-31T06:39:53.863661+00:00'
       branch_key: OOMPAH-607
       candidate_rotation_count: 1
+      ended_at: '2026-07-31T06:47:28.927535+00:00'
+      failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: no-auditor-audit-269a81d7e2e1-2
+      target_state: Done
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 6160b3dfb070244f9a80659b313af3703d96f06581279d3226b8167fa7dff5cd
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-07-31T06:47:32.662132+00:00'
+      completed_at: '2026-07-31T06:47:32.662132+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Progress
     created_at: '2026-07-31T06:25:49.441224+00:00'
-    updated_at: '2026-07-31T06:39:53.863661+00:00'
+    updated_at: '2026-07-31T06:47:32.662132+00:00'
   - version: 1
     audit_id: audit-48d8fb52ec07
     project_id: proj-14849f1b
@@ -247,7 +263,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-28a666e82f2e
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -258,6 +274,8 @@ oompah.terminal_audit:
     started_at: '2026-07-31T06:39:53.863661+00:00'
     branch_key: OOMPAH-607
     candidate_rotation_count: 1
+    ended_at: '2026-07-31T06:47:28.927535+00:00'
+    failure_reason: auditor session abandoned; no live worker owns the attempt
 ---
 ## Summary
 
@@ -536,5 +554,12 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/s
 - Cost: $0.0000
 - Exit: terminated, Duration: 7m 23s
 - Log: OOMPAH-607__20260731T063959Z.jsonl
+---
+author: oompah
+created: 2026-07-31 06:47
+---
+Needs Human — Done audit requires operator input.
+
+No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then move the task back to Open to retry.
 ---
 <!-- COMMENTS:END -->
