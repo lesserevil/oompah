@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-643
 type: task
-status: In Review
+status: In Validation
 priority: 0
 title: Reconcile stale terminal-audit enforcement records and live queue metrics
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:17:38.708513Z'
-updated_at: '2026-07-31T07:11:16.731457Z'
+updated_at: '2026-07-31T07:16:56.189819Z'
 work_branch: OOMPAH-643
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/610
@@ -111,6 +111,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/610
 oompah.review_number: '610'
 oompah.work_branch: OOMPAH-643
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-e2ade2dd2cf1
+    project_id: proj-14849f1b
+    task_id: OOMPAH-643
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b3f64339bccb9579dcf9d5e977b6e5261b10507166297c31a5a800c4446143cf
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-31T07:16:50.523212+00:00'
+  - version: 1
+    audit_id: audit-a683b49271d9
+    project_id: proj-14849f1b
+    task_id: OOMPAH-643
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b3f64339bccb9579dcf9d5e977b6e5261b10507166297c31a5a800c4446143cf
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-31T07:16:50.523212+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -262,5 +301,15 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Claude
 - Cost: $0.0000
 - Exit: terminated, Duration: 7m 15s
 - Log: OOMPAH-643__20260731T070337Z.jsonl
+---
+author: oompah
+created: 2026-07-31 07:16
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-07-31 07:16
+---
+YOLO: merged PR #610.
 ---
 <!-- COMMENTS:END -->
