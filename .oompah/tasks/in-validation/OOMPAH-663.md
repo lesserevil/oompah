@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T13:52:05.961085Z'
-updated_at: '2026-07-31T14:29:59.140813Z'
+updated_at: '2026-07-31T14:37:57.525854Z'
 work_branch: OOMPAH-663
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/622
@@ -84,6 +84,31 @@ oompah.work_branch: OOMPAH-663
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-6e2ab2992878: '2026-07-31T14:37:53.998603+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-663
+    target_state: Done
+    evidence_fingerprint: 790ee7440f97e73faa428b23003453c657218534cdd2ca9e06be63e1de774c92
+    audit_ids:
+    - audit-be39dfefe987
+    kind: result
+    applied: true
+    retired_at: '2026-07-31T14:37:53.998615+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-663
+    audit_id: audit-be39dfefe987
+    attempt_id: attempt-6e2ab2992878
+    target_state: Done
+    evidence_fingerprint: 790ee7440f97e73faa428b23003453c657218534cdd2ca9e06be63e1de774c92
+    status: In Validation
+    audit_ids:
+    - audit-be39dfefe987
+    applied: true
+    created_at: '2026-07-31T14:37:53.998631+00:00'
+    applied_at: '2026-07-31T14:37:56.824563+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -91,7 +116,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-663
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -100,7 +125,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-6e2ab2992878
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -110,13 +135,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T14:29:54.748475+00:00'
       branch_key: OOMPAH-663
+      verdict: pass
+      completed_at: '2026-07-31T14:37:53.998406+00:00'
+      ended_at: '2026-07-31T14:37:53.998406+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-07-31T14:29:26.730864+00:00'
-    updated_at: '2026-07-31T14:29:54.748475+00:00'
+    updated_at: '2026-07-31T14:37:53.998406+00:00'
   - version: 1
     audit_id: audit-72931fc74ad8
     project_id: proj-14849f1b
@@ -317,5 +345,23 @@ author: oompah
 created: 2026-07-31 14:29
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 14:37
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- head_sha: 3bfc42ec9e14809441868bba108fe5dccec18ab7
+- branch_gate: make test PASS in 399.8s at 3bfc42ec9
+- focused_tests: 174 passed (3 new + 27 override + 116 coordinator + 28 audit)
+- canonical_function: compute_issue_evidence_fingerprint (oompah/terminal_audit.py:379)
+- entry_points_using_canonical: orchestrator.py:2869/2928/9704/27450; server.py:4040; acp_tools.py:405; terminal_audit_enforcement.py:553/646/661/905/1214/1475
+- canonical_function_origin: OOMPAH-653 (commit 276346488), formalized in OOMPAH-663
+- regression_test_file: tests/test_terminal_fingerprint_canonicalization.py (397 lines, 3 tests)
+- pr_merged: PR #622 merged via 8c75a201e
+- auditor_provenance_separation: AuditAttempt.provider_id/model/started_at/ended_at excluded from EvidenceFingerprint payload
 ---
 <!-- COMMENTS:END -->
