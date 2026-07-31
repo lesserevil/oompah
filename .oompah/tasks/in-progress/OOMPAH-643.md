@@ -8,11 +8,10 @@ parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels:
-- merge-conflict
+labels: []
 assignee: null
 created_at: '2026-07-31T06:17:38.708513Z'
-updated_at: '2026-07-31T07:04:28.729348Z'
+updated_at: '2026-07-31T07:09:58.066825Z'
 work_branch: OOMPAH-643
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/610
@@ -232,5 +231,10 @@ author: oompah
 created: 2026-07-31 07:04
 ---
 Understanding: Rebasing OOMPAH-643 onto origin/main. The branch has 1 commit (84521c288) touching oompah/orchestrator.py, oompah/terminal_audit_enforcement.py, oompah/terminal_audit_observability.py, oompah/terminal_transition_coordinator.py, and 3 test files. The upstream main has 8 new commits (OOMPAH-640, OOMPAH-641, OOMPAH-642) that also touch oompah/orchestrator.py, oompah/terminal_transition_coordinator.py, oompah/bootstrap.py, and test files. Starting rebase now to identify conflicts.
+---
+author: oompah
+created: 2026-07-31 07:09
+---
+Discovery: Conflict was in oompah/terminal_transition_coordinator.py at the apply_terminal_owner_override method. Two upstream commits (OOMPAH-641/642) added a _revoke_delivery_for_terminal_transition() call to prevent race conditions with the standalone gate. OOMPAH-643 added capture of overridden_audit_ids to cancel pending audits after the override. Both changes were needed and non-overlapping in intent — resolved by including both: revoke delivery authority first (before any mutation), then capture audit IDs.
 ---
 <!-- COMMENTS:END -->
