@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:31.072278Z'
-updated_at: '2026-07-31T03:45:56.748059Z'
+updated_at: '2026-07-31T03:46:27.890528Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-599
 target_branch: null
 review_url: null
@@ -145,5 +145,10 @@ author: oompah
 created: 2026-07-31 03:45
 ---
 Operator handoff: reconcile stale Ready children OOMPAH-484/485/487/488/489 whose code was linearized and gate-passed through OOMPAH-597 head 44e5c5579, plus stale blocked queue rows for 484/487. Do not edit task Markdown or the SQLite queue directly. Use tracker/service transitions and add deterministic regression coverage for this post-recovery shape. OOMPAH-597 audit is currently independent and may remain pending until these records are corrected. OOMPAH-601 is concurrently in its exact integration gate; do not restart the service. The operator owns the final drained restart after the outer recovery reaches main.
+---
+author: oompah
+created: 2026-07-31 03:46
+---
+Live invariant snapshot at 03:46 UTC: Ready lane = 484/485/487/488/489, 575, 601(active integration), 603(ordered ready), 607/608/615. Nonterminal queue also has stale blocked 564/565 plus 484/487. In Validation = 597(active audit). Please classify/reconcile every item, not only the OOMPAH-460 five; 601/603 and 597 are explained active waits and must not be disturbed.
 ---
 <!-- COMMENTS:END -->
