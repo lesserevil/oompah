@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-640
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Complete combined stall-to-dispatch recovery regression coverage
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T05:59:47.260716Z'
-updated_at: '2026-07-31T06:17:25.927721Z'
+updated_at: '2026-07-31T06:17:34.601259Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -69,6 +69,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-640
     source_sha: bb0fd760c3b2938d15ec2026ef5bfc2fd34b0682
     completed_at: '2026-07-31T06:06:48.905150+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-640
+  head_sha: f97d7eca3762178778c7ef49b3c89ae64a0bba0c
+  submitted_at: '2026-07-31T06:17:31.124480+00:00'
+  updated_at: '2026-07-31T06:17:31.124480+00:00'
 ---
 ## Summary
 
@@ -195,5 +203,10 @@ Key metrics:
 - Orphan reset idempotency: no production code changes needed (reuses OOMPAH-415/416)
 
 Branch pushed to origin/OOMPAH-640. Ready for integration.
+---
+author: oompah
+created: 2026-07-31 06:17
+---
+Completed combined stall-to-dispatch recovery regression test. Added tests/test_stall_to_dispatch_recovery.py with 15 comprehensive tests covering the complete recovery flow: stale loop detection + orphan reset + REFRESH_REQUESTED wake + event-driven dispatch. All 61 focused tests pass (15 new + 46 existing). No production code changes required - reuses shipped OOMPAH-415/416 features. Recovery time 150s well below legacy 15-minute threshold. Idempotency verified. Branch pushed to origin/OOMPAH-640.
 ---
 <!-- COMMENTS:END -->
