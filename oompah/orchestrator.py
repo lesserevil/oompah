@@ -6898,7 +6898,24 @@ class Orchestrator:
         self,
         item: IntegrationQueueItem,
     ) -> bool:
-        """Return whether the tracker still authorizes this exact submission."""
+        """Return whether tracker and queue still authorize this executor.
+
+        A Ready-to-Integrate tracker record identifies the submission, but not
+        the executor that owns it.  Once a lease expires, a replacement can
+        claim the same branch and head while the old executor is still waiting
+        on a quality gate.  Require the exact durable queue lease as well so
+        the old generation is interrupted before it can consume passing
+        evidence or mutate the epic branch.
+        """
+
+        if not self.integration_queue.owns_active_lease(
+            project_id=item.project_id,
+            task_id=item.task_id,
+            task_branch=item.task_branch,
+            head_sha=item.head_sha,
+            lease_owner=item.lease_owner,
+        ):
+            return False
 
         tracker = self._tracker_for_project(item.project_id)
         issue = tracker.fetch_issue_detail(item.task_id)

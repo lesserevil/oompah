@@ -455,6 +455,51 @@ class IntegrationQueueStore:
             self._conn.commit()
         return bool(result.rowcount)
 
+    def owns_active_lease(
+        self,
+        *,
+        project_id: str,
+        task_id: str,
+        task_branch: str,
+        head_sha: str,
+        lease_owner: str | None,
+    ) -> bool:
+        """Return whether an executor still owns this exact integration row.
+
+        Tracker status alone cannot distinguish an expired lease from the
+        replacement executor that reclaimed the same Ready-to-Integrate
+        submission.  The executor must therefore retain the durable queue
+        authority it was claimed with: an ``integrating`` row for the same
+        project, task, branch, head, and lease owner.
+        """
+
+        values = {
+            "project_id": str(project_id or "").strip(),
+            "task_id": str(task_id or "").strip(),
+            "task_branch": str(task_branch or "").strip(),
+            "head_sha": str(head_sha or "").strip(),
+            "lease_owner": str(lease_owner or "").strip(),
+        }
+        if not all(values.values()):
+            return False
+        with self._lock:
+            row = self._conn.execute(
+                """
+                SELECT 1 FROM integration_queue
+                WHERE project_id = ? AND task_id = ?
+                  AND task_branch = ? AND head_sha = ?
+                  AND state = 'integrating' AND lease_owner = ?
+                """,
+                (
+                    values["project_id"],
+                    values["task_id"],
+                    values["task_branch"],
+                    values["head_sha"],
+                    values["lease_owner"],
+                ),
+            ).fetchone()
+        return row is not None
+
     def items(
         self,
         *,

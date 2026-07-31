@@ -297,18 +297,31 @@ def test_exact_ready_submission_is_required_for_executor_authority(tmp_path):
             task_branch=issue.integration.task_branch,
             head_sha=issue.integration.head_sha,
         )
-        assert orchestrator._integration_task_still_ready(row)
+        # A queued submission has no executor authority until it has an exact
+        # durable integrating lease.
+        assert not orchestrator._integration_task_still_ready(row)
+        claimed = orchestrator.integration_queue.claim_next(
+            project_id=project.id,
+            epic_id=issue.parent_id or "EPIC-1",
+            lease_owner="first-generation",
+            dependency_map={issue.identifier: ()},
+            satisfied=set(),
+            lease_seconds=1,
+            now=10,
+        )
+        assert claimed is not None
+        assert orchestrator._integration_task_still_ready(claimed)
 
         issue.state = DONE
-        assert not orchestrator._integration_task_still_ready(row)
+        assert not orchestrator._integration_task_still_ready(claimed)
         issue.state = READY_TO_INTEGRATE
         issue.integration = IntegrationRecord(
             state="ready",
-            task_branch=row.task_branch,
+            task_branch=claimed.task_branch,
             head_sha="b" * 40,
         )
-        assert not orchestrator._integration_task_still_ready(row)
+        assert not orchestrator._integration_task_still_ready(claimed)
         tracker.fetch_issue_detail.return_value = None
-        assert not orchestrator._integration_task_still_ready(row)
+        assert not orchestrator._integration_task_still_ready(claimed)
     finally:
         _close(orchestrator)
