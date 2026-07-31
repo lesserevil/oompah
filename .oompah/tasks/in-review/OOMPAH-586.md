@@ -16,7 +16,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-30T14:13:33.901470Z'
-updated_at: '2026-07-31T00:28:37.617494Z'
+updated_at: '2026-07-31T00:31:54.710242Z'
 work_branch: epic-OOMPAH-586
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/597
@@ -115,5 +115,10 @@ author: oompah
 created: 2026-07-31 00:27
 ---
 Task handoff failed after the worker ran: the server-owned, task-scoped tracker capability could not update this task. The task is held in Needs Human and will not be redispatched automatically; verify the handoff service and reconcile the worker's branch before resuming it.
+---
+author: oompah
+created: 2026-07-31 00:31
+---
+Operator takeover after the dispatched merge-conflict resolver completed but its task-scoped handoff failed. PR #597 remains DIRTY. I am rebasing exact remote epic head ca49d0c25 onto parent epic-OOMPAH-584 at c03e52f66 in an isolated worktree, preserving the managed worktree until the resolved head is verified and pushed with lease.
 ---
 <!-- COMMENTS:END -->
