@@ -11,12 +11,27 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:19:33.053515Z'
-updated_at: '2026-07-31T07:19:41.988423Z'
+updated_at: '2026-07-31T07:19:57.690100Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 34b7218c890759bfab1fc1575e53815c1060649d03e9dae5e880401024c8464e
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 913e3cb4-4f87-48df-9661-5d7b878c5efc
+  claim_owner: d12922aa-baf6-4258-aa45-02da3deea710
+  claimed_at: '2026-07-31T07:19:49.635543+00:00'
+  claim_expires_at: '2026-07-31T07:49:49.635543+00:00'
+  retry_count: 0
+  retry_after: null
+oompah.agent_run_id: 8c89fc06-7400-475f-adc1-ccca7397ed24
 ---
 ## Summary
 
@@ -28,3 +43,16 @@ Live data-loss reproduction on 2026-07-31: OOMPAH-645's first worker produced an
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-31 07:19
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-07-31 07:19
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
