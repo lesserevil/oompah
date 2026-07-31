@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-655
 type: task
-status: Needs Human
+status: Open
 priority: null
 title: Enforce full-gate service isolation outside candidate branch code
 parent: null
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T15:13:40.913590Z'
+updated_at: '2026-07-31T16:03:04.268288Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -996,5 +996,10 @@ author: oompah
 created: 2026-07-31 15:13
 ---
 Duplicate screening was inconclusive 3 times. Human action required: review the latest duplicate-screening comments, then either identify the active canonical duplicate or confirm that no active duplicate exists and move the task back to Open.
+---
+author: oompah
+created: 2026-07-31 16:03
+---
+Operator duplicate/worktree review: no other task contains OOMPAH-655's bwrap empty-root OS sandbox scope; OOMPAH-657 supplies complementary immutable generation authority but not this security boundary. The clean worktree was safely switched from preservation branch OOMPAH-655-final back to the expected published branch OOMPAH-655 at 9e4f9573c0ebf13f9f429967b35d5a5eb6d9d9da. Preservation refs OOMPAH-655-final and OOMPAH-655-integrated remain intact. Resume by rebasing/porting the focused bwrap boundary and regression tests onto current main while retaining OOMPAH-657's exact-head generation contract.
 ---
 <!-- COMMENTS:END -->
