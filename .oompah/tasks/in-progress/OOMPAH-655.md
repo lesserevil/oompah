@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T11:05:58.487797Z'
+updated_at: '2026-07-31T11:06:06.943800Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -253,5 +253,10 @@ author: oompah
 created: 2026-07-31 11:05
 ---
 Operator invalidated only full-gate PGID 1132630 after exact cwd/PGID validation; the implementation provider and dirty edits remain running. This gate was launched for previously submitted head 2713e14ea, but after rejection/reopen the same OOMPAH-655 worktree was handed back to an agent and modified while pytest was still reading it. Any eventual result would be mixed-state evidence, not an exact-head gate. Do not use that run as validation. A separate tracker bug is being filed for immutable exact-head gate execution/locking.
+---
+author: oompah
+created: 2026-07-31 11:06
+---
+Implementation: Replaced substring matching with git ancestry verification. The _verify_isolation_contract() method now uses 'git merge-base --is-ancestor ec0ec7d89 HEAD' to verify candidate branch contains OOMPAH-652 safety head before executing any candidate command. Test improvements: Updated _git_repo() to create synthetic safety head for test repos and set OOMPAH_TEST_SAFETY_HEAD environment variable. New test test_spoofed_markers_without_oompah652_ancestor_is_rejected() proves hostile Makefiles with fake markers are rejected without executing (verified by checking that sentinel file is not created). All 93 tests pass.
 ---
 <!-- COMMENTS:END -->
