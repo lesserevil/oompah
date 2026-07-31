@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T05:59:47.260716Z'
-updated_at: '2026-07-31T06:30:44.122274Z'
+updated_at: '2026-07-31T06:33:08.918249Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -314,5 +314,16 @@ UNDERSTANDING: CI Failure Fixer dispatched. The branch gate failed with 2 test f
 2. tests/test_intake_promotion.py::test_approval_comment_auto_promotes_when_project_allows_it
 
 These failures are pre-existing (not caused by this branch's new test file). My job is to investigate the root cause of each failure and make the minimal fix. I will read the failing tests, reproduce locally, and fix.
+---
+author: oompah
+created: 2026-07-31 06:33
+---
+DISCOVERY: Two distinct failures:
+
+1. test_client_auth.py::test_current_dotenv_replaces_stale_client_inputs — fails because OOMPAH_DISABLE_CLIENT_AUTH=1 is set in the agent worktree environment (agent_environment() sets this as a worker marker). The test doesn't use monkeypatch.delenv(CLIENT_AUTH_DISABLED_ENV) to clear it before calling load_client_environment(). Fix: add monkeypatch.delenv(CLIENT_AUTH_DISABLED_ENV, raising=False) to the test setup.
+
+2. test_intake_promotion.py::test_approval_comment_auto_promotes_when_project_allows_it — flaky under load, uses 50x20ms polling (1s max). Adjacent test test_plain_requestor_approval_comment_auto_promotes_ready_issue was stabilized in commit d61679dbe with threading.Event (3s timeout). Same fix needed here.
+
+Neither failure was caused by this branch's changes (branch only added test_stall_to_dispatch_recovery.py). Both are pre-existing test defects in the agent worktree environment.
 ---
 <!-- COMMENTS:END -->
