@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:46:11.947079Z'
-updated_at: '2026-07-31T18:17:28.717721Z'
+updated_at: '2026-07-31T18:17:33.323086Z'
 work_branch: OOMPAH-644
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/611
@@ -146,7 +146,20 @@ oompah.terminal_audit:
       it to current evidence and retiring the obsolete pre-fix no-independent-candidate
       alert audit-710535de2bba.
     created_at: '2026-07-31T18:17:24.314056+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-644
+    target_state: Merged
+    evidence_fingerprint: a81c4c36325d4f4720adcfab95e9468745bbc8a9b18d42ba39a23726310c0601
+    audit_ids:
+    - audit-710535de2bba
+    - audit-68272593d90a
+    - audit-2117ba0c1103
+    kind: override
+    applied: true
+    retired_at: '2026-07-31T18:17:31.295631+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -232,7 +245,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-644
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -244,6 +257,7 @@ oompah.terminal_audit:
       source: api
     previous_state: Merged
     created_at: '2026-07-31T18:16:55.443513+00:00'
+    updated_at: '2026-07-31T18:17:31.295589+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-ab69e882ab0d
