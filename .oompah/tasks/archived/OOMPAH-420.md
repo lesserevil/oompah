@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-420
 type: feature
-status: In Validation
+status: Archived
 priority: 1
 title: Implement an embedded oompah OpenAPI MCP gateway
 parent: OOMPAH-418
@@ -13,7 +13,7 @@ labels:
 - focus-complete:refactor
 assignee: null
 created_at: '2026-07-23T19:41:55.025847Z'
-updated_at: '2026-07-31T02:13:56.261182Z'
+updated_at: '2026-07-31T02:16:59.139662Z'
 work_branch: epic-OOMPAH-418
 target_branch: null
 review_url: null
@@ -51,6 +51,8 @@ oompah.task_costs:
     recorded_at: '2026-07-24T01:56:27.727400+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-49d2222dba29: '2026-07-31T02:16:56.608141+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -58,7 +60,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-420
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -67,7 +69,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-49d2222dba29
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -77,13 +79,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T02:13:48.849591+00:00'
       branch_key: epic-OOMPAH-418
+      verdict: pass
+      completed_at: '2026-07-31T02:16:56.607990+00:00'
+      ended_at: '2026-07-31T02:16:56.607990+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-07-31T02:09:10.586194+00:00'
-    updated_at: '2026-07-31T02:13:48.849591+00:00'
+    updated_at: '2026-07-31T02:16:56.607990+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-49d2222dba29
@@ -285,5 +290,22 @@ author: oompah
 created: 2026-07-31 02:13
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 02:16
+---
+Audit PASS — Archived
+
+Archived audit for OOMPAH-420 (aged Merged auto-archive). Evidence verifies the embedded MCP gateway feature is present, merged to main, and covered by passing tests. Safe to archive.
+
+Safe evidence:
+- gateway_module: oompah/mcp_gateway.py implements build_mcp_gateway using FastMCP (mcp.server.fastmcp) with .streamable_http_app(); filters routes via mcp_exposure_policy.is_route_exposed; dispatches via httpx.ASGITransport to the in-process FastAPI app.
+- server_mount: oompah/server.py imports MCP_ENDPOINT_PATH/MCP_DISCOVERY_PATH, builds _mcp_gateway, and calls app.mount(MCP_ENDPOINT_PATH, _mcp_gateway_app); handles lifespan_context and session_manager cleanup.
+- discovery_route: oompah/server.py registers @app.get(MCP_DISCOVERY_PATH, include_in_schema=False) returning discovery_document(); MCP_DISCOVERY_PATH = '/.well-known/mcp' and MCP_ENDPOINT_PATH = '/api/mcp/v1'.
+- dependencies: pyproject.toml declares 'mcp>=1.27,<2' in both dependency groups (lines 20 and 77).
+- tests: tests/test_mcp_gateway.py: 14 tests pass locally including initialize/list-tools, allowed 'api_state_api_v1_state_get' call returning 200, exclusion of orchestrator restart and webhook routes, loopback host protection, basic-auth challenges, and header-spoofing protection.
+- git_history: Commit 3aa8dd5e1 'Expose OpenAPI through embedded MCP gateway' is on main; subsequent hardening in OOMPAH-524 (224fd7305, ca4c062d7) and 8fc368e6d 'Allow configured network MCP access' also on main.
+- test_run: python -m pytest tests/test_mcp_gateway.py --rootdir=. -q → 14 passed, 2 deprecation warnings, exit 0.
+- previous_state: Merged; aged 7-day auto-archive.
 ---
 <!-- COMMENTS:END -->
