@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-655
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Enforce full-gate service isolation outside candidate branch code
 parent: null
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T11:15:15.841104Z'
+updated_at: '2026-07-31T11:15:28.445041Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -56,7 +56,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 1
   retry_after: null
-oompah.agent_run_id: 325e75ad-2219-413c-a2c2-36fd1376b50b
+oompah.agent_run_id: 80326dea-0859-4970-9029-2f8b9eb7452a
 oompah.task_costs:
   total_input_tokens: 2700714
   total_output_tokens: 21075
@@ -384,5 +384,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 2m 3s
 - Log: OOMPAH-655__20260731T111310Z.jsonl
+---
+author: oompah
+created: 2026-07-31 11:15
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-31 11:15
+---
+Focus: Maintenance Engineer
 ---
 <!-- COMMENTS:END -->
