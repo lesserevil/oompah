@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T13:12:19.387161Z'
-updated_at: '2026-07-31T15:59:31.945239Z'
+updated_at: '2026-07-31T15:59:35.171794Z'
 work_branch: OOMPAH-661
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/624
@@ -159,6 +159,16 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-07-31T15:43:38.196336+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-661
+    target_state: Merged
+    evidence_fingerprint: 14b0fff947c955531a8c8d60ffe3d0bb1ff97cdf73430f4b709cecfddd63f421
+    audit_ids:
+    - audit-0e987255d283
+    - audit-a05244d88a7c
+    kind: override
+    applied: true
+    retired_at: '2026-07-31T15:59:33.970763+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-661
@@ -172,6 +182,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-07-31T15:43:38.196347+00:00'
     applied_at: '2026-07-31T15:43:41.029231+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-1cb26d61af6f
@@ -193,7 +204,7 @@ oompah.terminal_audit:
       had contributed; the already-queued Merged transition is owner-verified and
       should retire the obsolete Done audit and alert.
     created_at: '2026-07-31T15:59:28.977761+00:00'
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -231,7 +242,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-661
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -243,6 +254,7 @@ oompah.terminal_audit:
       source: forge
     previous_state: In Review
     created_at: '2026-07-31T15:42:22.659039+00:00'
+    updated_at: '2026-07-31T15:59:33.970726+00:00'
   attempt_history: []
 ---
 ## Summary
