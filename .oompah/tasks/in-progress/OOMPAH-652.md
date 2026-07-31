@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T08:57:15.160957Z'
-updated_at: '2026-07-31T09:51:38.791792Z'
+updated_at: '2026-07-31T09:56:27.538081Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -332,5 +332,10 @@ author: oompah
 created: 2026-07-31 09:51
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-31 09:56
+---
+CI-fix diagnostic: the failure summary's event-loop-closed subprocess transport is likely attributed to the later epic-maintenance test but leaked by the new tests/test_agent.py::test_stop_refuses_reused_or_reassigned_process_identity. AgentSession.start() creates _drain_stderr with untracked asyncio.create_task(); the test intentionally makes stop refuse ownership, then finally does only process.kill()/await process.wait(), so the stderr drain task and pipe transport can outlive asyncio.run/pytest's loop and surface as PytestUnraisableExceptionWarning in the next test. Your current paired -W error reproduction is the right sequence. Fix production lifecycle by retaining/awaiting the drain task and closing/reaping subprocess streams on all exit/refusal paths (with regression proving zero pending task/transport warning), rather than merely suppressing the warning or changing test order.
 ---
 <!-- COMMENTS:END -->
