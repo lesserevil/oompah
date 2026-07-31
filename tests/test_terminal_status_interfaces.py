@@ -1,22 +1,594 @@
-"""Cross-surface terminal-status staging coverage (OOMPAH-476)."""
+"""API serialization/redaction tests for terminal-audit state exposure.
+
+Covers: queued, running, passed, failed, overridden, grandfathered, malformed
+metadata, and ACP unknown-model records.
+
+Acceptance criteria (from OOMPAH-484):
+- list/detail/activity agree on field names and shape
+- sensitive content (credentials, prompts, full diffs, model output) is absent
+- existing API consumers see no change when terminal_audit_summary is absent
+- grandfathered / never-audited tasks return None (summary omitted)
+"""
 
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 
-import oompah.server as server_module
+from oompah import server as server_module
 from oompah.models import Issue, Project
 from oompah.server import app
-from oompah.terminal_audit import TargetState
+from oompah.terminal_audit import (
+    AuditAttempt,
+    ContributorIdentity,
+    EvidenceFingerprint,
+    FailureClassification,
+    OverrideRecord,
+    RequestState,
+    TargetState,
+    TerminalAuditRecord,
+    Verdict,
+)
+from oompah.terminal_audit_metadata import (
+    METADATA_KEY,
+    MetadataQuarantine,
+    TerminalAuditMetadata,
+)
 from oompah.terminal_transition_coordinator import (
     OverrideRejection,
     OverrideResult,
     TransitionResult,
 )
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+_FINGERPRINT = EvidenceFingerprint("a" * 64)
+_FINGERPRINT2 = EvidenceFingerprint("b" * 64)
+
+
+def _issue(identifier: str, state: str = "In Validation") -> Issue:
+    return Issue(
+        id=identifier,
+        identifier=identifier,
+        title=identifier,
+        description="Task description",
+        state=state,
+    )
+
+
+def _attempt(
+    attempt_id: str = "attempt-1",
+    *,
+    request_state: RequestState = RequestState.PENDING,
+    verdict: Verdict | None = None,
+    failure_classification: FailureClassification | None = None,
+) -> AuditAttempt:
+    return AuditAttempt(
+        attempt_id=attempt_id,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=_FINGERPRINT,
+        request_state=request_state,
+        verdict=verdict,
+        failure_classification=failure_classification,
+        requested_by=ContributorIdentity("alice", "github"),
+        created_at="2026-07-28T00:00:00Z",
+        completed_at="2026-07-28T00:01:00Z" if verdict is not None else None,
+    )
+
+
+def _record(
+    audit_id: str = "audit-1",
+    *,
+    request_state: RequestState = RequestState.PENDING,
+    attempts: list[AuditAttempt] | None = None,
+) -> TerminalAuditRecord:
+    return TerminalAuditRecord(
+        audit_id=audit_id,
+        project_id="proj-1",
+        task_id="TASK-1",
+        target_state=TargetState.DONE,
+        evidence_fingerprint=_FINGERPRINT,
+        request_state=request_state,
+        attempts=attempts or [],
+        requested_by=ContributorIdentity("alice", "github"),
+        previous_state="Done",
+        created_at="2026-07-28T00:00:00Z",
+        updated_at="2026-07-28T00:02:00Z",
+    )
+
+
+def _metadata_dict(
+    record: TerminalAuditRecord | None = None,
+    *,
+    attempt_history: list[AuditAttempt] | None = None,
+    quarantine: MetadataQuarantine | None = None,
+    unknown_fields: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    doc = TerminalAuditMetadata(
+        pending_chain=[record] if record is not None else [],
+        attempt_history=attempt_history or [],
+        quarantine=quarantine,
+        unknown_fields=unknown_fields or {},
+    )
+    return doc.to_dict()
+
+
+def _tracker_with_metadata(metadata: dict[str, Any]) -> MagicMock:
+    """Return a mock tracker whose get_metadata() returns the given metadata."""
+    tracker = MagicMock()
+    tracker.get_metadata.return_value = {METADATA_KEY: metadata}
+    return tracker
+
+
+# ---------------------------------------------------------------------------
+# _issue_terminal_audit_summary — unit tests
+# ---------------------------------------------------------------------------
+
+
+class TestIssueTerminalAuditSummaryUnit:
+    def test_returns_none_for_issue_without_terminal_audit_and_no_tracker(self):
+        issue = _issue("TASK-1")
+        result = server_module._issue_terminal_audit_summary(issue)
+        assert result is None
+
+    def test_returns_none_for_grandfathered_empty_document(self):
+        """Empty document (no pending chain, no history) = grandfathered."""
+        issue = _issue("TASK-1")
+        issue.terminal_audit = _metadata_dict()  # type: ignore[attr-defined]
+        result = server_module._issue_terminal_audit_summary(issue)
+        assert result is None
+
+    def test_queued_phase_for_pending_record(self):
+        record = _record(request_state=RequestState.PENDING)
+        issue = _issue("TASK-1")
+        issue.terminal_audit = _metadata_dict(record)  # type: ignore[attr-defined]
+
+        result = server_module._issue_terminal_audit_summary(issue)
+
+        assert result is not None
+        assert result["phase"] == "queued"
+        assert result["target_state"] == "Done"
+        assert result["request_state"] == "pending"
+        assert result["attempt_count"] == 0
+        assert result["fingerprint_prefix"] == "a" * 12
+        assert result["verdict"] is None
+        assert result["failure_classification"] is None
+        assert result["is_overridden"] is False
+        assert result["quarantined"] is False
+
+    def test_running_phase_for_in_progress_record(self):
+        record = _record(request_state=RequestState.IN_PROGRESS, attempts=[_attempt()])
+        issue = _issue("TASK-1")
+        issue.terminal_audit = _metadata_dict(record)  # type: ignore[attr-defined]
+
+        result = server_module._issue_terminal_audit_summary(issue)
+
+        assert result is not None
+        assert result["phase"] == "running"
+        assert result["attempt_count"] == 1
+
+    def test_passed_phase_for_completed_pass(self):
+        attempt = _attempt(
+            request_state=RequestState.COMPLETED,
+            verdict=Verdict.PASS,
+        )
+        record = _record(
+            request_state=RequestState.COMPLETED,
+            attempts=[attempt],
+        )
+        issue = _issue("TASK-1", state="Done")
+        issue.terminal_audit = _metadata_dict(record)  # type: ignore[attr-defined]
+
+        result = server_module._issue_terminal_audit_summary(issue)
+
+        assert result is not None
+        assert result["phase"] == "passed"
+        assert result["verdict"] == "pass"
+        assert result["failure_classification"] is None
+
+    def test_failed_phase_for_completed_fail(self):
+        attempt = _attempt(
+            request_state=RequestState.COMPLETED,
+            verdict=Verdict.FAIL,
+            failure_classification=FailureClassification.INCOMPLETE,
+        )
+        record = _record(
+            request_state=RequestState.COMPLETED,
+            attempts=[attempt],
+        )
+        issue = _issue("TASK-1", state="In Validation")
+        issue.terminal_audit = _metadata_dict(record)  # type: ignore[attr-defined]
+
+        result = server_module._issue_terminal_audit_summary(issue)
+
+        assert result is not None
+        assert result["phase"] == "failed"
+        assert result["verdict"] == "fail"
+        assert result["failure_classification"] == "incomplete"
+
+    def test_overridden_is_detected_from_unknown_fields(self):
+        override = OverrideRecord(
+            override_id="override-1",
+            project_id="proj-1",
+            task_id="TASK-1",
+            target_state=TargetState.DONE,
+            evidence_fingerprint=_FINGERPRINT,
+            authorized_by=ContributorIdentity("owner", "github"),
+            reason="emergency",
+            created_at="2026-07-29T00:00:00Z",
+        )
+        record = _record(request_state=RequestState.COMPLETED, attempts=[
+            _attempt(request_state=RequestState.COMPLETED, verdict=Verdict.PASS)
+        ])
+        issue = _issue("TASK-1", state="Done")
+        issue.terminal_audit = _metadata_dict(  # type: ignore[attr-defined]
+            record,
+            unknown_fields={
+                "oompah.terminal_override_records": [override.to_dict()]
+            },
+        )
+
+        result = server_module._issue_terminal_audit_summary(issue)
+
+        assert result is not None
+        assert result["is_overridden"] is True
+        assert "override" in result
+        override_info = result["override"]
+        assert override_info["authorized_by"]["identity"] == "owner"
+        assert override_info["authorized_by"]["source"] == "github"
+        assert override_info["target_state"] == "Done"
+
+    def test_malformed_metadata_returns_error_phase(self):
+        issue = _issue("TASK-1")
+        issue.terminal_audit = {"version": 999, "corrupt": True}  # type: ignore[attr-defined]
+
+        result = server_module._issue_terminal_audit_summary(issue)
+
+        assert result is not None
+        assert result["phase"] == "error"
+        assert result["quarantined"] is True
+
+    def test_quarantined_document_returns_error_phase(self):
+        quarantine = MetadataQuarantine(
+            fingerprint="c" * 64,
+            reason="malformed terminal-audit metadata",
+        )
+        issue = _issue("TASK-1")
+        issue.terminal_audit = _metadata_dict(quarantine=quarantine)  # type: ignore[attr-defined]
+
+        result = server_module._issue_terminal_audit_summary(issue)
+
+        assert result is not None
+        assert result["phase"] == "error"
+        assert result["quarantined"] is True
+
+    def test_tracker_fallback_when_issue_has_no_terminal_audit(self):
+        record = _record(request_state=RequestState.PENDING)
+        meta = _metadata_dict(record)
+        tracker = _tracker_with_metadata(meta)
+
+        issue = _issue("TASK-1")
+        # issue.terminal_audit is NOT set — simulate tracker adapter not loading it
+
+        result = server_module._issue_terminal_audit_summary(issue, tracker=tracker)
+
+        assert result is not None
+        assert result["phase"] == "queued"
+        tracker.get_metadata.assert_called_once_with("TASK-1")
+
+    def test_tracker_read_failure_returns_none(self):
+        tracker = MagicMock()
+        tracker.get_metadata.side_effect = RuntimeError("connection lost")
+        issue = _issue("TASK-1")
+
+        result = server_module._issue_terminal_audit_summary(issue, tracker=tracker)
+
+        assert result is None
+
+    def test_acp_unknown_model_recorded_as_provider_identity(self):
+        """Provider-model identity is not exposed in the summary (safe by design)."""
+        record = _record(request_state=RequestState.IN_PROGRESS, attempts=[
+            _attempt("attempt-1", request_state=RequestState.IN_PROGRESS)
+        ])
+        issue = _issue("TASK-1")
+        issue.terminal_audit = _metadata_dict(record)  # type: ignore[attr-defined]
+
+        result = server_module._issue_terminal_audit_summary(issue)
+
+        # The summary deliberately omits provider/model identity (can be unknown).
+        assert result is not None
+        assert "provider_name" not in result
+        assert "model_name" not in result
+        assert "provider_id" not in result
+
+    def test_requested_by_identity_is_exposed_safely(self):
+        record = _record(request_state=RequestState.PENDING)
+        issue = _issue("TASK-1")
+        issue.terminal_audit = _metadata_dict(record)  # type: ignore[attr-defined]
+
+        result = server_module._issue_terminal_audit_summary(issue)
+
+        assert result is not None
+        assert result["requested_by"] == {"identity": "alice", "source": "github"}
+
+    def test_no_credentials_or_secrets_in_summary(self):
+        """Summary must not contain credential-like keys."""
+        record = _record(request_state=RequestState.PENDING)
+        issue = _issue("TASK-1")
+        issue.terminal_audit = _metadata_dict(record)  # type: ignore[attr-defined]
+
+        result = server_module._issue_terminal_audit_summary(issue)
+
+        serialized = json.dumps(result)
+        assert "token" not in serialized.lower()
+        assert "secret" not in serialized.lower()
+        assert "password" not in serialized.lower()
+        assert "credential" not in serialized.lower()
+        assert "diff" not in serialized.lower()
+
+    def test_summary_omits_prompt_and_model_output(self):
+        """Model output and prompts must not appear in the summary."""
+        record = _record(request_state=RequestState.PENDING)
+        issue = _issue("TASK-1")
+        issue.terminal_audit = _metadata_dict(record)  # type: ignore[attr-defined]
+
+        result = server_module._issue_terminal_audit_summary(issue)
+
+        serialized = json.dumps(result)
+        assert "prompt" not in serialized.lower()
+        assert "completion" not in serialized.lower()
+
+
+# ---------------------------------------------------------------------------
+# _terminal_audit_phase — unit tests
+# ---------------------------------------------------------------------------
+
+
+class TestTerminalAuditPhase:
+    def test_queued_when_no_record(self):
+        doc = TerminalAuditMetadata()
+        assert server_module._terminal_audit_phase(doc, None, None) == "queued"
+
+    def test_queued_when_pending_state(self):
+        doc = TerminalAuditMetadata()
+        record = _record(request_state=RequestState.PENDING)
+        assert server_module._terminal_audit_phase(doc, record, None) == "queued"
+
+    def test_running_when_in_progress(self):
+        doc = TerminalAuditMetadata()
+        record = _record(request_state=RequestState.IN_PROGRESS)
+        assert server_module._terminal_audit_phase(doc, record, None) == "running"
+
+    def test_passed_when_completed_with_pass_verdict(self):
+        doc = TerminalAuditMetadata()
+        record = _record(request_state=RequestState.COMPLETED)
+        attempt = _attempt(
+            request_state=RequestState.COMPLETED, verdict=Verdict.PASS
+        )
+        assert server_module._terminal_audit_phase(doc, record, attempt) == "passed"
+
+    def test_failed_when_completed_with_fail_verdict(self):
+        doc = TerminalAuditMetadata()
+        record = _record(request_state=RequestState.COMPLETED)
+        attempt = _attempt(
+            request_state=RequestState.COMPLETED, verdict=Verdict.FAIL
+        )
+        assert server_module._terminal_audit_phase(doc, record, attempt) == "failed"
+
+    def test_failed_when_needs_human(self):
+        doc = TerminalAuditMetadata()
+        record = _record(request_state=RequestState.COMPLETED)
+        attempt = _attempt(
+            request_state=RequestState.COMPLETED, verdict=Verdict.NEEDS_HUMAN
+        )
+        assert server_module._terminal_audit_phase(doc, record, attempt) == "failed"
+
+    def test_cancelled_when_superseded(self):
+        doc = TerminalAuditMetadata()
+        record = _record(request_state=RequestState.SUPERSEDED)
+        assert server_module._terminal_audit_phase(doc, record, None) == "cancelled"
+
+    def test_error_when_quarantined(self):
+        quarantine = MetadataQuarantine(fingerprint="c" * 64)
+        doc = TerminalAuditMetadata(quarantine=quarantine)
+        assert server_module._terminal_audit_phase(doc, None, None) == "error"
+
+
+# ---------------------------------------------------------------------------
+# Integration: _fetch_and_serialize_issues includes terminal_audit_summary
+# ---------------------------------------------------------------------------
+
+
+def _orch_with_issues(issues: list[Issue]) -> MagicMock:
+    project = SimpleNamespace(id="proj-1", name="project-1")
+    tracker = MagicMock()
+    tracker.fetch_all_issues.return_value = list(issues)
+    orch = MagicMock()
+    orch.project_store.list_all.return_value = [project]
+    orch._tracker_for_project.return_value = tracker
+    orch._project_epic_strategy.return_value = "flat"
+    return orch
+
+
+class TestListApiIncludesTerminalAuditSummary:
+    def test_terminal_audit_summary_included_when_issue_has_terminal_audit(self):
+        record = _record(request_state=RequestState.PENDING)
+        issue = _issue("TASK-1", state="In Validation")
+        issue.terminal_audit = _metadata_dict(record)  # type: ignore[attr-defined]
+        orch = _orch_with_issues([issue])
+
+        board = server_module._fetch_and_serialize_issues(orch)
+
+        rows = {row["identifier"]: row for rows in board.values() for row in rows}
+        entry = rows.get("TASK-1")
+        assert entry is not None
+        assert "terminal_audit_summary" in entry
+        assert entry["terminal_audit_summary"]["phase"] == "queued"
+        assert entry["terminal_audit_summary"]["target_state"] == "Done"
+
+    def test_terminal_audit_summary_omitted_when_not_available(self):
+        issue = _issue("TASK-2", state="Open")
+        orch = _orch_with_issues([issue])
+
+        board = server_module._fetch_and_serialize_issues(orch)
+
+        rows = {row["identifier"]: row for rows in board.values() for row in rows}
+        entry = rows.get("TASK-2")
+        assert entry is not None
+        assert "terminal_audit_summary" not in entry
+
+    def test_terminal_audit_summary_omitted_for_grandfathered_empty_document(self):
+        issue = _issue("TASK-3", state="Done")
+        issue.terminal_audit = _metadata_dict()  # type: ignore[attr-defined]
+        orch = _orch_with_issues([issue])
+
+        board = server_module._fetch_and_serialize_issues(orch)
+
+        rows = {row["identifier"]: row for rows in board.values() for row in rows}
+        entry = rows.get("TASK-3")
+        assert entry is not None
+        assert "terminal_audit_summary" not in entry
+
+    def test_list_and_detail_have_same_summary_fields(self):
+        """Both list and detail endpoints must use identical field names."""
+        record = _record(
+            request_state=RequestState.COMPLETED,
+            attempts=[_attempt(
+                request_state=RequestState.COMPLETED, verdict=Verdict.PASS
+            )],
+        )
+        meta = _metadata_dict(record)
+        issue = _issue("TASK-4", state="Done")
+        issue.terminal_audit = meta  # type: ignore[attr-defined]
+        tracker = _tracker_with_metadata(meta)
+
+        # List endpoint reads from issue.terminal_audit
+        list_summary = server_module._issue_terminal_audit_summary(issue)
+        # Detail endpoint reads from tracker metadata
+        detail_summary = server_module._issue_terminal_audit_summary(
+            _issue("TASK-4", state="Done"), tracker=tracker
+        )
+
+        assert list_summary is not None
+        assert detail_summary is not None
+        # Both summaries must expose the same field names
+        assert set(list_summary.keys()) == set(detail_summary.keys())
+        # Core fields must agree
+        assert list_summary["phase"] == detail_summary["phase"]
+        assert list_summary["verdict"] == detail_summary["verdict"]
+        assert list_summary["target_state"] == detail_summary["target_state"]
+        assert list_summary["attempt_count"] == detail_summary["attempt_count"]
+
+    def test_existing_issue_fields_unchanged_by_audit_summary(self):
+        """Legacy consumers must see all existing fields without alteration."""
+        record = _record(request_state=RequestState.PENDING)
+        issue = _issue("TASK-5", state="In Validation")
+        issue.terminal_audit = _metadata_dict(record)  # type: ignore[attr-defined]
+        orch = _orch_with_issues([issue])
+
+        board = server_module._fetch_and_serialize_issues(orch)
+
+        rows = {row["identifier"]: row for rows in board.values() for row in rows}
+        entry = rows.get("TASK-5")
+        assert entry is not None
+        # Existing fields that must remain present
+        for field in (
+            "id",
+            "identifier",
+            "title",
+            "state",
+            "priority",
+            "labels",
+            "issue_type",
+            "project_id",
+        ):
+            assert field in entry, f"Missing legacy field: {field}"
+
+
+# ---------------------------------------------------------------------------
+# Dashboard HTML static contract
+# ---------------------------------------------------------------------------
+
+
+def _dashboard() -> str:
+    from pathlib import Path
+    return (
+        Path(__file__).resolve().parents[1]
+        / "oompah"
+        / "templates"
+        / "dashboard.html"
+    ).read_text(encoding="utf-8")
+
+
+class TestDashboardTerminalAuditRendering:
+    def test_render_function_exists(self):
+        html = _dashboard()
+        assert "function renderTerminalAuditSummary(summary)" in html
+
+    def test_render_detail_function_exists(self):
+        html = _dashboard()
+        assert "function renderTerminalAuditDetail(summary)" in html
+
+    def test_card_includes_audit_summary_render(self):
+        html = _dashboard()
+        assert "renderTerminalAuditSummary(issue.terminal_audit_summary)" in html
+
+    def test_detail_panel_includes_audit_summary_render(self):
+        html = _dashboard()
+        assert "renderTerminalAuditDetail(detail.terminal_audit_summary)" in html
+
+    def test_all_audit_phases_have_labels(self):
+        html = _dashboard()
+        # All phase labels must be defined in the JS
+        for phase_label in (
+            "Audit queued",
+            "Audit running",
+            "Audit passed",
+            "Audit failed",
+            "Owner overridden",
+            "Audit cancelled",
+            "Audit error",
+        ):
+            assert phase_label in html, f"Missing phase label: {phase_label}"
+
+    def test_css_classes_for_all_phases_exist(self):
+        html = _dashboard()
+        for phase in ("queued", "running", "passed", "failed", "overridden", "error"):
+            assert f"terminal-audit-phase-{phase}" in html, f"Missing CSS for phase: {phase}"
+
+    def test_audit_pill_css_exists(self):
+        html = _dashboard()
+        assert ".terminal-audit-pill" in html
+        assert ".terminal-audit-summary" in html
+
+    def test_accessibility_attributes_present(self):
+        html = _dashboard()
+        assert 'role="status"' in html
+        # aria-label on terminal audit div (check it's in the right context)
+        assert "aria-label" in html
+
+    def test_terminal_audit_summary_in_card_fingerprint(self):
+        html = _dashboard()
+        assert "terminal_audit_summary: issue.terminal_audit_summary" in html
+
+    def test_detail_renders_key_fields(self):
+        html = _dashboard()
+        # Detail rendering must expose safe fields
+        for field_label in ("Phase", "Target state", "Attempts", "Verdict", "Classification", "Fingerprint", "Owner override"):
+            assert field_label in html, f"Missing field label: {field_label}"
+
+
+# ---------------------------------------------------------------------------
+# Cross-surface terminal-status staging (OOMPAH-476)
+# ---------------------------------------------------------------------------
 
 
 class _Tracker:
@@ -135,8 +707,6 @@ def test_patch_terminal_status_rolls_back_dispatch_fence_when_staging_fails(clie
     assert response.status_code == 503
     assert tracker.status_updates == []
     assert issue.id not in orch.state.completed
-    # A retry may have observed the temporary fence. Wake ordinary dispatch
-    # after rollback so a failed staging request cannot strand the task.
     orch.request_refresh.assert_called_once_with()
 
 
@@ -200,12 +770,7 @@ def test_patch_owner_override_requires_reason_and_uses_coordinator(client):
     ):
         missing_reason = client.patch(
             "/api/v1/issues/task-3",
-            json={
-                "project_id": "proj-1",
-                "status": "Done",
-                "audit_override": True,
-                "actor_login": "owner",
-            },
+            json={"project_id": "proj-1", "status": "Done", "audit_override": True, "actor_login": "owner"},
         )
         applied = client.patch(
             "/api/v1/issues/task-3",
@@ -263,10 +828,7 @@ def test_label_terminal_mutation_is_staged_without_override(client):
     ):
         response = client.post(
             "/api/v1/issues/task-4/labels",
-            json={
-                "project_id": "proj-1",
-                "label": "oompah:status:archived",
-            },
+            json={"project_id": "proj-1", "label": "oompah:status:archived"},
         )
 
     assert response.status_code == 201
@@ -316,13 +878,7 @@ async def test_acp_terminal_router_stages_and_supports_override():
 async def test_acp_terminal_router_reports_unrepaired_current_state():
     from oompah.acp_tools import _exec_oompah_task_command_async
 
-    issue = Issue(
-        "task-acp-pending",
-        "task-acp-pending",
-        "Task",
-        description="work",
-        state="Needs Human",
-    )
+    issue = Issue("task-acp-pending", "task-acp-pending", "Task", description="work", state="Needs Human")
     tracker = _Tracker(issue)
     coordinator = _Coordinator()
     coordinator.request_transition = AsyncMock(
@@ -404,9 +960,6 @@ def test_task_handoff_terminal_label_rejects_override_fields(client):
         patch.object(server_module, "_get_orchestrator", return_value=orch),
         patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
     ):
-        # TestClient cannot set the private ASGI scope capability directly;
-        # exercise the same validation helper through the handoff route's
-        # authorization middleware header.
         response = client.post(
             "/api/v1/task-handoff",
             headers={"x-oompah-task-capability": token},

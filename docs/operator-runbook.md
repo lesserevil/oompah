@@ -775,6 +775,7 @@ make start
 | `.oompah/tasks/` | Native Markdown task store for the self-hosted project |
 | `.oompah.pid` | PID of the background oompah process |
 | `oompah.log` | Service log (append-only; survives restarts) |
+| `.oompah/roles.json` | Auditor and other agent role configuration |
 | `$OOMPAH_WORKSPACE_ROOT` | Root for agent workspaces and git worktrees |
 | `$OOMPAH_TEMP_ROOT` | Private temporary root inherited by Oompah, Git, and agent tools; defaults to `~/.oompah/tmp` |
 
@@ -818,3 +819,26 @@ flowchart LR
 | `orchestrator_metrics.project_refresh` | Per-project tracker fetch latency and error counts |
 
 For detailed tick latency diagnostics, see `docs/tick-latency-diagnostics.md`.
+
+---
+
+## 10. Migration Notes
+
+### 10.1 Independent Auditor Dispatch (OOMPAH-460)
+
+The `OOMPAH_VERIFY_COMPLETION` and `OOMPAH_VERIFY_COMPLETION_LLM` environment
+variables are **deprecated**. Oompah emits a startup warning when either is
+set. They are retained for one compatibility release but do **not** disable the
+mandatory terminal-audit gate introduced in the OOMPAH-460 epic.
+
+**Action required:** remove both variables from your `.env` file and configure
+the auditor role:
+
+1. Open `.oompah/roles.json` (or the dashboard Roles section).
+2. Add at least two independent candidates to the `auditor` role.
+3. Set `OOMPAH_AUDIT_MAX_ATTEMPTS` in `.env` to the number of candidates.
+4. Restart: `make restart`.
+
+See [`docs/auditor-dispatch-operations.md`](auditor-dispatch-operations.md)
+for the full configuration guide, including role setup, monitoring,
+troubleshooting, and the owner override procedure.
