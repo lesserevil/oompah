@@ -16,7 +16,7 @@ labels:
 - epic:rebased
 assignee: null
 created_at: '2026-07-30T14:13:46.482910Z'
-updated_at: '2026-07-31T05:18:03.334544Z'
+updated_at: '2026-07-31T05:24:52.428746Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -183,5 +183,10 @@ author: oompah
 created: 2026-07-31 05:18
 ---
 Operator self-hosting recovery: rebased origin/epic-OOMPAH-588 from 869005b38 onto current parent origin/epic-OOMPAH-584 145b6b67e, resolving cleanup-result and terminal-metrics overlaps by preserving both newer contracts. Added conflict regression commit c2549a76d. Focused repository hygiene/projects/config/merged-label suite: 530 passed. Terminal mutation scan passed. Pushed exact head c2549a76d; parent comparison 0 behind / 10 ahead; all four terminal child refs refreshed to contained rebased heads.
+---
+author: oompah
+created: 2026-07-31 05:24
+---
+Operator recovery validation completed on exact rebased head c2549a76d08cd51eb979aa710c4c9778b7468a26. Full Makefile gate passed: 14,163 passed, 7 skipped, 1 xfailed, 56 warnings in 255.21s. Terminal-audit mutation scan also passed. The old runtime continues to defer PR creation using stale pre-rebase integration evidence, so the approved operator fallback will open the nested PR to epic-OOMPAH-584 from this exact validated head.
 ---
 <!-- COMMENTS:END -->
