@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T10:56:52.309528Z'
+updated_at: '2026-07-31T11:00:16.571790Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -583,5 +583,28 @@ Sinks that were still unredacted before this pass:
 
 Fail-closed refactor:
 - secrets.py: unknown non-credential-typed objects no longer pass through unchanged. All unknown types now render via repr()/str() and are scanned through _redact_string before being returned. Downstream json.dumps(default=str) can never bypass the redaction pass. Credential-named classes still get the typed marker branch.
+---
+author: oompah
+created: 2026-07-31 11:00
+---
+VERIFICATION:
+
+Focused test suites (post-changes):
+- tests/test_secrets.py: 82 pass (up from 51; +31 new e2e sentinel tests covering api_agent JSONL, console_legacy, ConsoleEvent attachments, unknown-object fail-closed, logging filter, Codex/OpenCode payload shapes, streaming chunks, exceptions, and state snapshot).
+- tests/test_console.py, test_console_format.py, test_console_session.py, test_console_store.py, test_console_endpoints.py, test_console_crossagent.py, test_console_ui.py, test_console_translator_claude.py, test_console_translator_codex.py, test_console_opencode.py: 274+ pass.
+- tests/test_acp_agent.py, test_acp_backends.py, test_acp_codex_backend.py, test_acp_opencode_backend.py: 193 pass.
+- tests/test_api_agent_budget.py, test_orchestrator_handlers.py, test_acp_billing*.py: 426 pass.
+
+Total focused: 745 pass across all directly-affected suites.
+
+Static analysis:
+- make check-secrets: pass (no plaintext credentials in tree).
+- scripts/find_terminal_mutations.py: pass (6 identified, 6 allowlisted).
+
+Documentation:
+- docs/secret-redaction-and-rotation.md: operator runbook for auditing existing logs (without copying plaintext into task comments), rotating credentials via make graceful, and verifying no post-rotation writes leak.
+
+COMPLETION:
+Every persisted / streamed / logged sink now runs through the central redact_sensitive_data pass, with unknown-type objects rendered + scanned before return (no default=str bypass). Type-safe usage handling in the orchestrator + console paths. Comprehensive sentinel tests for every backend (Claude, Codex, OpenCode, API-agent, legacy) and every sink (JSONL, state activity, session.last_message, WS broadcast, service log). Fail-closed edge cases (max depth, dataclass reconstruction failure, credential-named class, broken repr) verified.
 ---
 <!-- COMMENTS:END -->
