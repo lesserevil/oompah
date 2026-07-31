@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T12:53:39.335817Z'
-updated_at: '2026-07-31T13:23:36.385837Z'
+updated_at: '2026-07-31T13:32:15.076849Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-660
 target_branch: null
 review_url: null
@@ -530,5 +530,16 @@ author: oompah
 created: 2026-07-31 13:23
 ---
 Understanding: The epic branch was previously rebased onto main. The quality gate failed with 2 test failures: (1) test_lifecycle_helper_refreshes_current_dotenv_client_inputs in test_oompah_http.py and (2) TestFullSyncIntervalConfig::test_from_workflow_string_value in test_orchestrator_full_sync.py. My plan: read both failing tests, identify root causes, fix them, run focused tests to verify, then commit/push/submit.
+---
+author: oompah
+created: 2026-07-31 13:32
+---
+Discovery: Found root cause of both test failures.
+
+1. test_lifecycle_helper_refreshes_current_dotenv_client_inputs: The server env has OOMPAH_DISABLE_CLIENT_AUTH=1 which causes load_client_environment() to return early without reading .env. The test needs monkeypatch.delenv('OOMPAH_DISABLE_CLIENT_AUTH', raising=False).
+
+2. test_from_workflow_string_value: The server env has OOMPAH_FULL_SYNC_INTERVAL_MS=300000 which overrides the YAML test value '900000'. The test needs monkeypatch.delenv('OOMPAH_FULL_SYNC_INTERVAL_MS', raising=False). The pattern already exists in test_event_driven_loop.py:122.
+
+run-tests.sh clears OOMPAH_SERVER_URL/USERNAME/PASSWORD but not OOMPAH_DISABLE_CLIENT_AUTH or OOMPAH_FULL_SYNC_INTERVAL_MS. Fix: add isolation to the failing tests.
 ---
 <!-- COMMENTS:END -->
