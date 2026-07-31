@@ -19,7 +19,12 @@ import pytest
 
 from oompah.models import Issue, Project
 from oompah.orchestrator import Orchestrator
-from oompah.quality_gate import BranchQualityGate, QualityGateResult, _SandboxUnavailable
+from oompah.quality_gate import (
+    BranchQualityGate,
+    QualityGateResult,
+    _SANDBOX_RUN_ROOT,
+    _SandboxUnavailable,
+)
 from oompah.statuses import OPEN, READY_TO_INTEGRATE
 
 
@@ -435,7 +440,8 @@ def test_gate_subprocess_isolates_operator_and_tool_state(tmp_path, monkeypatch)
     assert values[4].isdigit() and values[4] != "8090"
     assert values[5] == "/oompah-gate/tmp"
     assert values[6] == "/oompah-gate/tmp"
-    if os.environ.get("OOMPAH_PYTEST_GATE") == "1":
+    runner_root = Path(os.environ.get("OOMPAH_PYTEST_RUN_ROOT", "/"))
+    if runner_root.is_relative_to(_SANDBOX_RUN_ROOT):
         assert Path(values[0]).is_dir(), "outer gate root is not available"
     else:
         assert not Path(values[0]).exists(), "sandbox-visible gate root leaked on host"
