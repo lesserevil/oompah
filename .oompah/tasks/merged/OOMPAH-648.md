@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:15:42.851609Z'
-updated_at: '2026-07-31T09:02:37.893216Z'
+updated_at: '2026-07-31T18:18:05.556159Z'
 work_branch: OOMPAH-648
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/614
@@ -150,6 +150,25 @@ oompah.terminal_audit:
       that pass and then exhausted candidates. Operator is applying the already-established
       successful verdict and clearing the duplicate-audit deadlock.'
     created_at: '2026-07-31T09:02:33.518649+00:00'
+  - version: 1
+    override_id: override-44e2b327e566
+    project_id: proj-14849f1b
+    task_id: OOMPAH-648
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: bbbfa5c899c5ac3aaeb4f52b4bb73aa58cf5db653ad790a7f2f72c0cfaf5d8d6
+    authorized_by:
+      version: 1
+      identity: lesserevil
+      source: api
+    reason: PR 614 merged exact head ca51c22b90785daec5d4dd7f0e29dc22045957cc as 8fd133e26aa2823ab68cde2a42b446933142b614
+      after a recorded passing terminal audit. This owner restage preserves the existing
+      Merged lifecycle outcome while binding it to current evidence and retiring the
+      obsolete pre-fix no-independent-candidate alert audit-db48e6cb6d3e.
+    created_at: '2026-07-31T18:18:02.531977+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -191,7 +210,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-648
     target_state: Merged
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -247,6 +266,23 @@ oompah.terminal_audit:
     previous_state: In Review
     created_at: '2026-07-31T08:24:09.754329+00:00'
     updated_at: '2026-07-31T09:01:23.248744+00:00'
+  - version: 1
+    audit_id: audit-e0a48441d5a8
+    project_id: proj-14849f1b
+    task_id: OOMPAH-648
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: bbbfa5c899c5ac3aaeb4f52b4bb73aa58cf5db653ad790a7f2f72c0cfaf5d8d6
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: api
+    previous_state: In Validation
+    created_at: '2026-07-31T18:17:59.081777+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-7d1427097e93
@@ -532,5 +568,12 @@ created: 2026-07-31 09:02
 Override by lesserevil: terminal transition to Merged applied by project owner.
 
 Reason: PR #614 is merged at 8fd133e26; exact branch gate passed with 14,217 tests; the first independent opus audit already recorded Audit PASS with safe merge/test evidence at 08:37. A duplicate audit was incorrectly dispatched after that pass and then exhausted candidates. Operator is applying the already-established successful verdict and clearing the duplicate-audit deadlock.
+---
+author: oompah
+created: 2026-07-31 18:18
+---
+Override by lesserevil: terminal transition to Merged applied by project owner.
+
+Reason: PR 614 merged exact head ca51c22b90785daec5d4dd7f0e29dc22045957cc as 8fd133e26aa2823ab68cde2a42b446933142b614 after a recorded passing terminal audit. This owner restage preserves the existing Merged lifecycle outcome while binding it to current evidence and retiring the obsolete pre-fix no-independent-candidate alert audit-db48e6cb6d3e.
 ---
 <!-- COMMENTS:END -->
