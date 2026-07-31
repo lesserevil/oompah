@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-655
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Enforce full-gate service isolation outside candidate branch code
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T10:36:31.766282Z'
+updated_at: '2026-07-31T10:39:40.874465Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -21,17 +21,46 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: c4b23c89dcfc0193c43c11b0db6cfe4a74992181d8fcf9756474c5929cc1a56c
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-07-31T10:39:27.536184+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: fbd0b9b1-5dc1-44fe-afe7-02166e1f78d1
-  claim_owner: f6d86559-4e9d-42bf-ac66-416781dbb14f
-  claimed_at: '2026-07-31T10:36:25.688036+00:00'
-  claim_expires_at: '2026-07-31T11:06:25.688036+00:00'
+  evidence: "Focus handoff: duplicate_detector\n\nDuplicate preflight verdict: no_duplicate\n\
+    \nMatches: none\n\nEvidence: Reviewed the authoritative state-branch records for\
+    \ OOMPAH-619, 623, 650\u2013654 and historical matches. OOMPAH-652 is merged and\
+    \ the active tasks have distinct scopes; no active duplicate exists."
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 23e66880-628a-4786-9e29-2eb363e3d3e4
+oompah.agent_run_id: 5f8d0cf1-7f01-48be-916e-0905e57ca0cb
+oompah.task_costs:
+  total_input_tokens: 2697692
+  total_output_tokens: 7615
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 2697692
+      output_tokens: 7615
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 2697692
+    output_tokens: 7615
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T10:39:27.535729+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-655__20260731T103632Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: OOMPAH-655
+    source_sha: ec0ec7d89fb8804571fcf7e780558e6d979b73ea
+    completed_at: '2026-07-31T10:39:27.539684+00:00'
 ---
 ## Summary
 
@@ -54,5 +83,25 @@ author: oompah
 created: 2026-07-31 10:36
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-31 10:39
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 25
+- Tokens: 2.7M in / 7.6K out [2.7M total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 58s
+- Log: OOMPAH-655__20260731T103632Z.jsonl
+---
+author: oompah
+created: 2026-07-31 10:39
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-31 10:39
+---
+Focus: Maintenance Engineer
 ---
 <!-- COMMENTS:END -->
