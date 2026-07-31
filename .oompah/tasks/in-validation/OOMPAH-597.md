@@ -13,7 +13,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:28.342383Z'
-updated_at: '2026-07-31T03:39:57.595055Z'
+updated_at: '2026-07-31T03:41:52.488056Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-597
 target_branch: null
 review_url: null
@@ -769,5 +769,10 @@ author: oompah
 created: 2026-07-31 03:39
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 03:41
+---
+Auditor evidence: the configured integration gate ran on exact candidate head 44e5c5579 and passed after the test-isolation fix. This is the authoritative combined-tree gate; review its recorded result and focused regression evidence rather than starting a duplicate serial full-suite run.
 ---
 <!-- COMMENTS:END -->
