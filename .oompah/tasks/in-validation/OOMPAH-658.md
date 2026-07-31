@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-07-31T14:01:29.160738Z'
+updated_at: '2026-07-31T14:01:53.178928Z'
 work_branch: OOMPAH-658
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/621
@@ -224,18 +224,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-658
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 7b601a0c846d29144f10dd9b6c4410fb286457ab82f64927c5f527a1a9d28131
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-ae659838a4e8
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 7b601a0c846d29144f10dd9b6c4410fb286457ab82f64927c5f527a1a9d28131
+      created_at: '2026-07-31T14:01:48.953135+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-07-31T14:01:48.953135+00:00'
+      branch_key: OOMPAH-658
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-07-31T13:57:06.950079+00:00'
+    updated_at: '2026-07-31T14:01:48.953135+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-8afffb09ac0d
@@ -249,6 +263,19 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: sonnet
     started_at: '2026-07-31T13:57:31.243300+00:00'
+    branch_key: OOMPAH-658
+  - version: 1
+    attempt_id: attempt-ae659838a4e8
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7b601a0c846d29144f10dd9b6c4410fb286457ab82f64927c5f527a1a9d28131
+    created_at: '2026-07-31T14:01:48.953135+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-07-31T14:01:48.953135+00:00'
     branch_key: OOMPAH-658
 ---
 ## Summary
@@ -950,5 +977,15 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/s
 - Cost: $0.0000
 - Exit: normal, Duration: 3m 53s
 - Log: OOMPAH-658__20260731T135744Z.jsonl
+---
+author: oompah
+created: 2026-07-31 14:01
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/sonnet)
+---
+author: oompah
+created: 2026-07-31 14:01
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
