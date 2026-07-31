@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-661
 type: task
-status: Needs CI Fix
+status: In Progress
 priority: null
 title: Cancel stale implementation retries when task authority changes
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T13:12:19.387161Z'
-updated_at: '2026-07-31T15:21:35.927962Z'
+updated_at: '2026-07-31T15:21:47.873731Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -54,7 +54,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 2b97250b-0de6-49c0-bf97-ad8aff1be6e8
+oompah.agent_run_id: 2d812e35-e62d-4ad6-9cfd-c149c4a34214
 oompah.task_costs:
   total_input_tokens: 484277
   total_output_tokens: 21234
@@ -397,5 +397,15 @@ Installed 23 packages in 71ms
  + websockets==16.1.1
 make[1]: *** [Makefile:295: test] Error 1
 ```
+---
+author: oompah
+created: 2026-07-31 15:21
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-31 15:21
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
