@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-657
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Run branch quality gates from immutable exact-head snapshots
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T11:06:15.542774Z'
-updated_at: '2026-07-31T11:06:15.542774Z'
+updated_at: '2026-07-31T11:06:57.247258Z'
 work_branch: null
 target_branch: null
 review_url: null
