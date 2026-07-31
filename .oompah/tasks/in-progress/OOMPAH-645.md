@@ -16,7 +16,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T06:47:58.732088Z'
-updated_at: '2026-07-31T14:41:54.929549Z'
+updated_at: '2026-07-31T14:58:28.184694Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -616,5 +616,10 @@ author: oompah
 created: 2026-07-31 14:41
 ---
 Understanding: Branch OOMPAH-645 has 2 implementation commits on top of an old merge base (1dc3f53e5), while origin/main is 51 commits ahead. The implementation logic looks correct - transport failures clear when record is IN_PROGRESS (active retry running). The focused tests all pass locally. Plan: rebase onto current origin/main, resolve any conflicts, rerun tests, push, and submit.
+---
+author: oompah
+created: 2026-07-31 14:58
+---
+Discovery: The 2 implementation commits were already on branch OOMPAH-645 (6686290d5, 7d1019194) but the branch was 51 commits behind origin/main. The core fix in oompah/terminal_audit_health.py is correct: failure classification is now guarded by `if record.request_state == RequestState.PENDING:` so IN_PROGRESS records (active retry running) don't surface stale failure alerts. The rebase had one trivial conflict in tests/test_client_auth.py: a comment added by a later merge vs our monkeypatch.delenv line — both were kept.
 ---
 <!-- COMMENTS:END -->
