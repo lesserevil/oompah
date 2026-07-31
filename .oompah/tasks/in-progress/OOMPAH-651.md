@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-651
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Redact secrets from agent tool inputs, outputs, and JSONL event logs
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T09:02:34.425023Z'
+updated_at: '2026-07-31T09:03:05.001014Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -51,7 +51,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: bbb8dc38-259d-4b59-bb50-ec4646233e27
+oompah.agent_run_id: f7f4595d-abc9-40eb-97a8-2f1981f2b7f4
 oompah.task_costs:
   total_input_tokens: 82
   total_output_tokens: 2879
@@ -110,5 +110,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 1s
 - Log: OOMPAH-651__20260731T090132Z.jsonl
+---
+author: oompah
+created: 2026-07-31 09:03
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-31 09:03
+---
+Focus: Security Auditor
 ---
 <!-- COMMENTS:END -->
