@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-653
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Make terminal-audit success and owner override retire every duplicate record
   and alert
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T09:24:48.302755Z'
+updated_at: '2026-07-31T09:24:58.048147Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -85,6 +85,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-653
     source_sha: 8fd133e26aa2823ab68cde2a42b446933142b614
     completed_at: '2026-07-31T09:12:25.802895+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-653
+  head_sha: 21791cde02de485119f62e2b670f83842b09afd1
+  submitted_at: '2026-07-31T09:24:55.041886+00:00'
+  updated_at: '2026-07-31T09:24:55.041886+00:00'
 ---
 ## Summary
 
@@ -253,5 +261,10 @@ created: 2026-07-31 09:24
 - tests/test_terminal_transition_coordinator.py: New race condition tests
 
 Ready to submit.
+---
+author: oompah
+created: 2026-07-31 09:24
+---
+Implemented duplicate audit prevention and alert clearing for OOMPAH-648 and OOMPAH-644 regressions. Canonical live audit identity per fingerprint enforced through sibling cancellation on PASS/override. Alerts cleared atomically via metrics. All 340 related tests pass. Ready for integration.
 ---
 <!-- COMMENTS:END -->
