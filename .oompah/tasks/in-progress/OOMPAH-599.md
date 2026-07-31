@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-599
 type: task
-status: Open
+status: In Progress
 priority: 1
 title: Verify zero stranded delivery states and close recovery epics
 parent: OOMPAH-587
@@ -9,12 +9,11 @@ children: []
 blocked_by: []
 start_blocked_by: &id001
 - OOMPAH-591
-- OOMPAH-597
 - OOMPAH-598
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:31.072278Z'
-updated_at: '2026-07-30T18:25:31.106034Z'
+updated_at: '2026-07-31T03:45:33.936787Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-599
 target_branch: null
 review_url: null
@@ -38,7 +37,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 94c03fd9-f4c9-487a-af0f-8015cecdb1a3
+oompah.agent_run_id: ff6818ff-97ac-40aa-8587-09810c0a5af4
 oompah.work_branch: epic-OOMPAH-587--task-OOMPAH-599
 oompah.integration:
   version: 1
@@ -46,8 +45,8 @@ oompah.integration:
   attempts: 0
   task_branch: epic-OOMPAH-587--task-OOMPAH-599
   base_branch: epic-OOMPAH-587
-  base_sha: 12f63352ba017c6ffe88b0ca730bf3f7f973304e
-  updated_at: '2026-07-30T15:46:50.290422+00:00'
+  base_sha: 44e5c5579d2d56ecc0ddc801d77e28d74dd734ce
+  updated_at: '2026-07-31T03:45:30.920855+00:00'
 oompah.task_costs:
   total_input_tokens: 614841
   total_output_tokens: 4092
@@ -126,5 +125,20 @@ author: oompah
 created: 2026-07-30 18:25
 ---
 Owner liveness invariant (2026-07-30): a stable scheduler state with nonterminal runnable or review-ready work but no legal transition is a product bug. The invariant checker must distinguish healthy bounded waiting from deadlock, identify the blocking wait-graph edge, attempt a safe bounded recovery, and otherwise emit an actionable durable alert plus a deduplicated bug/recovery task. Zero active workers is healthy only when there is no eligible work or every wait has an explicit external/human reason. OOMPAH-605 documents and exercises the standalone bootstrap path for self-hosting control-plane deadlocks; OOMPAH-607 covers the project-alias override regression found during recovery.
+---
+author: oompah
+created: 2026-07-31 03:45
+---
+Deadlock repair: OOMPAH-597 implementation is integrated at exact green head 44e5c5579, but its Done audit checks the stranded OOMPAH-460 child states that this task owns reconciling. The hard-start edge has completed its implementation-order purpose and now forms a circular validation wait. Removing only the OOMPAH-597 hard-start edge; finish-order and remaining prerequisites are unchanged.
+---
+author: oompah
+created: 2026-07-31 03:45
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-31 03:45
+---
+Focus: Test Engineer
 ---
 <!-- COMMENTS:END -->
