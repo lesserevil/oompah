@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T11:02:31.565407Z'
+updated_at: '2026-07-31T11:14:04.430114Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -520,5 +520,28 @@ author: oompah
 created: 2026-07-31 11:02
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-07-31 11:14
+---
+**SECURITY AUDITOR — Understanding & Plan (attempt #2)**
+
+Rebased task work onto current epic head 3fcdf30c (OOMPAH-621/620/624 already integrated). Cherry-picked OOMPAH-650 commits, resolved merge conflicts by keeping epic's new record_worker_token_minted/record_worker_401/record_worker_403_scope health telemetry AND the OOMPAH-650 lease/owner_id/short-TTL work.
+
+Bugs fixed on top of the prior work:
+
+1. **Custom TTL preserved on refresh & heartbeat.** Added original_ttl_seconds to TaskHandoffGrant. refresh() and the heartbeat now use the grant's minted TTL by default and clamp any oversize explicit override. Prior version silently widened a grant minted with a 60 s TTL to 24 h on the first heartbeat.
+
+2. **Generation-bound owner check.** Orchestrator now derives owner_id per dispatch and threads it into the lease's _owner_is_live callback, which compares entry identity AND bearer-token identity. A replacement dispatch under the same issue_id can never renew the previous grant.
+
+3. **_terminate_running early-return race closed.** Moved revoke_task_handoff_token(entry.task_handoff_token) BEFORE the state.running.get(issue_id) is not entry early-return so a surviving subprocess of the OLD entry cannot mutate the tracker during the window before the daemon heartbeat notices ownership moved. The revocation is scoped to the captured entry's token; the replacement holds a distinct token and is unaffected.
+
+4. **Endpoint auth-plane telemetry preserved.** The 401/403 branching now feeds record_worker_401() / record_worker_403_scope(); refresh failure at the mutation commit point additionally records a 401.
+
+5. **Direct-mint call paths tolerated.** _issue_task_handoff_token no longer requires state.running to be populated (retains existing test callers) but still binds the lease when an entry is present.
+
+Test file additions cover: worker-outlives-TTL via endpoint refresh, endpoint returns handoff_expired/handoff_revoked with the right codes, endpoint aborts mutation when refresh races termination, owner-mismatch denies renewal, lease revokes on generation change, forced termination revokes even when the entry has been replaced, no Basic-auth env leak into worker.
+
+Running focused tests next.
 ---
 <!-- COMMENTS:END -->

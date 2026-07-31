@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T11:08:57.329749Z'
+updated_at: '2026-07-31T11:14:09.530757Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -649,5 +649,10 @@ author: oompah
 created: 2026-07-31 11:08
 ---
 Registry draft direction is good, but environment-only initialization is not the actual configured-secret set in this service. Plaintext credentials also live in loaded Project.access_token and Project.webhook_secret, ProviderConfig.api_key, GitHub App private-key/token state, and dynamically minted task-handoff grants; provider/project API updates and credential rotation can add values after startup. Register those values at their authoritative load/mint/update boundaries (without logging), retain retired values for delayed writers, and test live reload/update plus dynamic handoff token redaction. A startup call that scans only selected env/file names leaves innocuously placed configured project/provider values unchanged. Keep the current longest-first str/bytes behavior, and add tests using the model/config paths rather than only calling register_secret directly.
+---
+author: oompah
+created: 2026-07-31 11:14
+---
+Additional security review of the current registry draft: installing a Filter on logger named oompah does not filter records emitted by descendant loggers during propagation; Python applies logger filters only at the originating logger. The existing exact-name tests therefore give false coverage. Attach the filter to the actual root/service handlers (and Granian handlers) or use an equivalent global record boundary, then test logger oompah.child through the real configured handler and traceback formatting. Also avoid unbounded O(number of all historical workers) literal scans: every minted handoff token is currently retained forever and each redaction loops over the whole registry. Give dynamic grants a safe refcount/expiry-retention lifecycle or another bounded exact-match structure while preserving delayed-write protection; add growth/rotation tests. Do not heuristically register arbitrary short env values merely because a key ends in _KEY, since values like 1 or a would corrupt ordinary output. Finally remove raw exception objects from debug logging inside the redactor and update the stale filter doc that still says exc_info is not rewritten.
 ---
 <!-- COMMENTS:END -->
