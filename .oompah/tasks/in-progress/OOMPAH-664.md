@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-664
 type: task
-status: Needs Human
+status: In Progress
 priority: null
 title: Make issue-list snapshots advance with canonical state-branch task changes
 parent: null
@@ -12,7 +12,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-07-31T16:04:06.140108Z'
-updated_at: '2026-07-31T18:44:53.246593Z'
+updated_at: '2026-07-31T21:31:58.697761Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -43,7 +43,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: e56d3b2c-daff-4379-9387-c179f39c9a84
+oompah.agent_run_id: 16067305-5adf-457b-ab49-01ec4a3d6c65
 oompah.task_costs:
   total_input_tokens: 3977031
   total_output_tokens: 23733
@@ -247,5 +247,20 @@ Run #1 [attempt=1, profile=standard, role=standard -> Codex/gpt-5.6-terra]
 - Cost: $0.0000
 - Exit: normal, Duration: 5m 27s
 - Log: OOMPAH-664__20260731T183925Z.jsonl
+---
+author: oompah
+created: 2026-07-31 21:31
+---
+Operator recovery 2026-07-31: the task-scoped handoff lifetime/race fix is merged and deployed on main at 16362384be835d1485d1121ce3c8329743391c79; canonical CLI and server build IDs match, and worker auth health has no recent 401 or 403 failures. Preserved remote branch OOMPAH-664 is at 376af6de0 and is 33 main commits behind with 2 task commits ahead. Reopening with needs-rebase retained so Oompah can rebase the completed snapshot-generation fix onto the deployed base, rerun its focused and full gates, and resume normal submission.
+---
+author: oompah
+created: 2026-07-31 21:31
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-31 21:31
+---
+Focus: Event Api Redaction Specialist
 ---
 <!-- COMMENTS:END -->

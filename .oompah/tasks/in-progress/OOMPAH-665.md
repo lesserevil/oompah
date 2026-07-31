@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-665
 type: task
-status: Needs Human
+status: In Progress
 priority: null
 title: Retire legacy no-auditor alerts after terminal task completion
 parent: null
@@ -12,7 +12,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-07-31T16:04:07.401588Z'
-updated_at: '2026-07-31T19:19:10.775090Z'
+updated_at: '2026-07-31T21:32:03.170096Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -57,7 +57,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 9a906e06-c250-4763-868c-866a893d6e4b
+oompah.agent_run_id: 3e04c872-b8c2-4cc6-93ec-fb00c76b32da
 oompah.task_costs:
   total_input_tokens: 2388341
   total_output_tokens: 18625
@@ -459,5 +459,20 @@ author: oompah
 created: 2026-07-31 19:19
 ---
 Task handoff failed after the worker ran: the server-owned, task-scoped tracker capability could not update this task. The task is held in Needs Human and will not be redispatched automatically; verify the handoff service and reconcile the worker's branch before resuming it.
+---
+author: oompah
+created: 2026-07-31 21:31
+---
+Operator recovery 2026-07-31: the task-scoped handoff lifetime/race fix and the quality-gate bootstrap prerequisite are merged and deployed on main at 16362384be835d1485d1121ce3c8329743391c79; canonical CLI and server build IDs match, and worker auth health has no recent 401 or 403 failures. Preserved remote branch OOMPAH-665 is at ccae8b823 and is 33 main commits behind with 4 task commits ahead. Reopening with needs-rebase retained so Oompah can rebase the completed alert-retirement implementation, drop any prerequisite commits already present on main, rerun the exact-head gate, and resume normal submission.
+---
+author: oompah
+created: 2026-07-31 21:32
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-31 21:32
+---
+Focus: Event Api Redaction Specialist
 ---
 <!-- COMMENTS:END -->

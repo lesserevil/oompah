@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-651
 type: bug
-status: Needs Human
+status: In Progress
 priority: 1
 title: Redact secrets from agent tool inputs, outputs, and JSONL event logs
 parent: null
@@ -18,7 +18,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T17:02:30.043515Z'
+updated_at: '2026-07-31T21:31:53.771645Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -51,7 +51,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 553dc708-1e85-42db-a8bf-863dd25a6e25
+oompah.agent_run_id: e6ba8394-9414-4c61-b65e-744d4a037728
 oompah.task_costs:
   total_input_tokens: 19682222
   total_output_tokens: 127443
@@ -1231,5 +1231,20 @@ author: oompah
 created: 2026-07-31 17:02
 ---
 Task handoff failed after the worker ran: the server-owned, task-scoped tracker capability could not update this task. The task is held in Needs Human and will not be redispatched automatically; verify the handoff service and reconcile the worker's branch before resuming it.
+---
+author: oompah
+created: 2026-07-31 21:31
+---
+Operator recovery 2026-07-31: the task-scoped handoff lifetime/race fix is merged and deployed on main at 16362384be835d1485d1121ce3c8329743391c79; canonical CLI and server build IDs match, and worker auth health has no recent 401 or 403 failures. Preserved remote branch OOMPAH-651 is at b90d1e353 and is 42 main commits behind with 12 task commits ahead. Reopening with needs-rebase retained so Oompah can perform a bounded rebase, preserve the completed security implementation and tests, rerun the exact-head gate, and resume normal submission.
+---
+author: oompah
+created: 2026-07-31 21:31
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-31 21:31
+---
+Focus: Event Api Redaction Specialist
 ---
 <!-- COMMENTS:END -->
