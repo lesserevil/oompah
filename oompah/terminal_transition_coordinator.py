@@ -8,14 +8,14 @@ after a process restart.
 
 Concurrency model
 -----------------
-Per-project :class:`asyncio.Lock` objects serialise concurrent requests for
-tasks in the same project.  The lock is held for the whole duration of
-:meth:`TerminalTransitionCoordinator.request_transition` so two concurrent
-calls for the same project cannot interleave their read-modify-write cycles.
-The inner :class:`~oompah.terminal_audit_metadata.TerminalAuditMetadataStore`
-additionally holds the project write lock (a ``threading.RLock``) for each
-individual metadata operation so external audit-record writers (e.g. the
-auditor) do not corrupt the chain.
+The project store's per-project ``threading.RLock`` serialises the complete
+transition operation across the server and orchestrator event loops.  Async
+entry points execute their synchronous tracker work in a worker thread while
+holding that shared lock, so one coordinator can safely serve multiple event
+loops without binding an ``asyncio.Lock`` to whichever loop happened to wait
+first.  The inner
+:class:`~oompah.terminal_audit_metadata.TerminalAuditMetadataStore` re-enters
+the same lock for each metadata operation.
 
 Coalescing and superseding
 --------------------------
@@ -436,8 +436,8 @@ class TerminalTransitionCoordinator:
 
     One coordinator instance is created during server bootstrap and owned by
     the orchestrator.  It is safe for concurrent calls from different asyncio
-    tasks because all per-project state mutations happen inside a per-project
-    :class:`asyncio.Lock`.
+    tasks and event loops because all per-project state mutations happen
+    inside the project store's cross-thread reentrant lock.
 
     Parameters
     ----------
@@ -466,7 +466,16 @@ class TerminalTransitionCoordinator:
         self._tracker = tracker
         self._project_store = project_store
         self._post_comments = post_comments
-        self._async_locks: dict[str, asyncio.Lock] = {}
+
+    def _run_project_serialized(
+        self,
+        project_id: str,
+        operation: Callable[[], Any],
+    ) -> Any:
+        """Run one complete transition under the cross-loop project lock."""
+
+        with self._project_store.project_write_lock(project_id):
+            return operation()
 
     # ------------------------------------------------------------------
     # Public API — request_transition
@@ -514,8 +523,8 @@ class TerminalTransitionCoordinator:
             :class:`~oompah.terminal_audit.TargetState`.
         """
         requested_target = TargetState.from_raw(requested_target)
-        lock = self._async_locks.setdefault(project_id, asyncio.Lock())
-        async with lock:
+
+        def _operation() -> TransitionResult:
             tracker = self._tracker_for_project(project_id)
             store = TerminalAuditMetadataStore(
                 tracker, self._project_store, project_id
@@ -529,6 +538,12 @@ class TerminalTransitionCoordinator:
                 project_id,
                 evidence_fingerprint,
             )
+
+        return await asyncio.to_thread(
+            self._run_project_serialized,
+            project_id,
+            _operation,
+        )
 
     def request_transition_sync(
         self,
@@ -552,20 +567,26 @@ class TerminalTransitionCoordinator:
         has a different timestamp in its retention evidence.
         """
         requested_target = TargetState.from_raw(requested_target)
-        tracker = self._tracker_for_project(project_id)
-        store = TerminalAuditMetadataStore(tracker, self._project_store, project_id)
-        return self._transition_locked(
-            store,
-            tracker,
-            current_issue,
-            requested_target,
-            trigger_identity,
-            project_id,
-            evidence_fingerprint,
-            coalesce_pending_target=coalesce_pending_target,
-            ensure_validation_on_coalesce=ensure_validation_on_coalesce,
-            queued_comment=queued_comment,
-        )
+
+        def _operation() -> TransitionResult:
+            tracker = self._tracker_for_project(project_id)
+            store = TerminalAuditMetadataStore(
+                tracker, self._project_store, project_id
+            )
+            return self._transition_locked(
+                store,
+                tracker,
+                current_issue,
+                requested_target,
+                trigger_identity,
+                project_id,
+                evidence_fingerprint,
+                coalesce_pending_target=coalesce_pending_target,
+                ensure_validation_on_coalesce=ensure_validation_on_coalesce,
+                queued_comment=queued_comment,
+            )
+
+        return self._run_project_serialized(project_id, _operation)
 
     # ------------------------------------------------------------------
     # Public API — apply_audit_result
@@ -610,8 +631,7 @@ class TerminalTransitionCoordinator:
         if not isinstance(result, AuditResult):
             raise TypeError("result must be an AuditResult instance")
 
-        lock = self._async_locks.setdefault(project_id, asyncio.Lock())
-        async with lock:
+        def _operation() -> ResultOutcome:
             tracker = self._tracker_for_project(project_id)
             store = TerminalAuditMetadataStore(
                 tracker, self._project_store, project_id
@@ -619,6 +639,12 @@ class TerminalTransitionCoordinator:
             return self._apply_result_locked(
                 store, tracker, current_issue, result, project_id
             )
+
+        return await asyncio.to_thread(
+            self._run_project_serialized,
+            project_id,
+            _operation,
+        )
 
     # ------------------------------------------------------------------
     # Public API — override_transition
@@ -689,8 +715,7 @@ class TerminalTransitionCoordinator:
         if not isinstance(project_id, str) or not project_id.strip():
             raise ValueError("project_id must be a non-empty string")
 
-        lock = self._async_locks.setdefault(project_id, asyncio.Lock())
-        async with lock:
+        def _operation() -> OverrideResult:
             tracker = self._tracker_for_project(project_id)
             store = TerminalAuditMetadataStore(
                 tracker, self._project_store, project_id
@@ -707,8 +732,14 @@ class TerminalTransitionCoordinator:
                 project,
             )
 
+        return await asyncio.to_thread(
+            self._run_project_serialized,
+            project_id,
+            _operation,
+        )
+
     # ------------------------------------------------------------------
-    # Internal helpers — all called while the per-project asyncio.Lock is held
+    # Internal helpers — all called while the project write lock is held
     # ------------------------------------------------------------------
 
     def _transition_locked(
