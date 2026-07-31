@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:15:42.851609Z'
-updated_at: '2026-07-31T18:18:05.556159Z'
+updated_at: '2026-07-31T18:18:08.214195Z'
 work_branch: OOMPAH-648
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/614
@@ -168,7 +168,20 @@ oompah.terminal_audit:
       Merged lifecycle outcome while binding it to current evidence and retiring the
       obsolete pre-fix no-independent-candidate alert audit-db48e6cb6d3e.
     created_at: '2026-07-31T18:18:02.531977+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-648
+    target_state: Merged
+    evidence_fingerprint: bbbfa5c899c5ac3aaeb4f52b4bb73aa58cf5db653ad790a7f2f72c0cfaf5d8d6
+    audit_ids:
+    - audit-b23dd91dd27c
+    - audit-db48e6cb6d3e
+    - audit-e0a48441d5a8
+    kind: override
+    applied: true
+    retired_at: '2026-07-31T18:18:07.434305+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -271,7 +284,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-648
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -283,6 +296,7 @@ oompah.terminal_audit:
       source: api
     previous_state: In Validation
     created_at: '2026-07-31T18:17:59.081777+00:00'
+    updated_at: '2026-07-31T18:18:07.434279+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-7d1427097e93
