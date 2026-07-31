@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-599
 type: task
-status: In Progress
+status: Needs Human
 priority: 1
 title: Verify zero stranded delivery states and close recovery epics
 parent: OOMPAH-587
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:31.072278Z'
-updated_at: '2026-07-31T04:06:38.942419Z'
+updated_at: '2026-07-31T04:07:18.687701Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-599
 target_branch: null
 review_url: null
@@ -200,5 +200,10 @@ author: oompah
 created: 2026-07-31 04:06
 ---
 Focus: Test Engineer
+---
+author: oompah
+created: 2026-07-31 04:07
+---
+Moved to Needs Human from the dashboard/API. Human action required: inspect OOMPAH-599 (Verify zero stranded delivery states and close recovery epics), add the specific decision, missing information, or manual fix needed, then move the task back to Open when it is ready for agents again.
 ---
 <!-- COMMENTS:END -->
