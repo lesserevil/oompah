@@ -304,6 +304,33 @@ def test_duplicate_ticks_do_not_create_duplicate_reviews(harness):
     provider.create_review.assert_called_once()
 
 
+def test_same_sweep_reserves_review_capacity_without_false_alert(harness):
+    orch, project, tracker, provider, _detect, gate = harness
+    project.max_in_flight_prs = 1
+    first = _issue("TASK-CAPACITY-1")
+    second = _issue("TASK-CAPACITY-2")
+    tracker.fetch_issues_by_states.return_value = [first, second]
+    provider.find_pr_for_branch.return_value = None
+    provider.create_review.return_value = _review(
+        "TASK-CAPACITY-1",
+        review_id="61",
+    )
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+
+    provider.create_review.assert_called_once()
+    gate.assert_called_once_with(
+        project,
+        first,
+        "TASK-CAPACITY-1",
+        "trunk",
+    )
+    tracker.update_issue.assert_called_once_with(
+        "TASK-CAPACITY-1",
+        status=IN_REVIEW,
+    )
+    assert not _delivery_alerts(orch)
+
+
 def test_service_restart_rediscovers_existing_review_without_duplicate(
     tmp_path,
     monkeypatch,
