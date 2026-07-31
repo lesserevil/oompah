@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-671
 type: task
-status: Backlog
+status: Needs Human
 priority: null
 title: Recover terminal audits when historical work branches were deleted
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T23:31:12.705782Z'
-updated_at: '2026-07-31T23:31:12.705782Z'
+updated_at: '2026-07-31T23:31:27.639287Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -28,3 +28,16 @@ Fix terminal-audit dispatch for terminal or auto-archive audits whose persisted 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-31 23:31
+---
+Claimed for direct operator implementation at the project owner's request. Needs Human will be used only as a scheduler-control hold while I implement and verify the fix; do not dispatch a worker for this task.
+---
+author: oompah
+created: 2026-07-31 23:31
+---
+Moved to Needs Human from the dashboard/API. Human action required: inspect OOMPAH-671 (Recover terminal audits when historical work branches were deleted), add the specific decision, missing information, or manual fix needed, then move the task back to Open when it is ready for agents again.
+---
+<!-- COMMENTS:END -->
