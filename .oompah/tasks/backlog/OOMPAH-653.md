@@ -16,7 +16,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T13:03:54.329388Z'
+updated_at: '2026-07-31T13:09:15.073977Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -943,5 +943,10 @@ author: oompah
 created: 2026-07-31 13:03
 ---
 Server worker stopped without changes because its scoped comment endpoint returned 400 despite explicit project/task fields. Operator takeover is authorized under the project handoff rule; parking prevents an automatic retry from racing the same branch. This is not a code or CI failure.
+---
+author: oompah
+created: 2026-07-31 13:09
+---
+Operator takeover complete on clean pushed head ff9771dbe after rebasing the accepted implementation onto current main. Rebase-only regression found and fixed: restart recovery no longer manufactures a stale mismatch when a legacy adapter exposes a branch but not its immutable revision; explicit/native persisted heads still fence stale records. Verification: 316 terminal-audit/health/dashboard/epic-contract tests passed with 1 expected xfail; terminal mutation scan passed; check-secrets passed with its existing null-byte command-substitution warning; git diff --check clean.
 ---
 <!-- COMMENTS:END -->
