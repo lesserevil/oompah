@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-597
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Recover and drain the OOMPAH-460 ordered integration chain
 parent: OOMPAH-587
@@ -13,7 +13,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:28.342383Z'
-updated_at: '2026-07-31T03:12:58.967393Z'
+updated_at: '2026-07-31T03:13:23.507955Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-597
 target_branch: null
 review_url: null
@@ -42,12 +42,12 @@ oompah.agent_run_id: cdfbb001-857c-44fe-95fd-5b71f6ffc754
 oompah.work_branch: epic-OOMPAH-587--task-OOMPAH-597
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-587--task-OOMPAH-597
-  base_branch: epic-OOMPAH-587
-  base_sha: 33b773bd2f8fd82605e44165c362e0f6071d9d66
-  updated_at: '2026-07-31T03:11:47.232549+00:00'
+  head_sha: 5d88239c93ea679f8e0b9b19a4927ba51b004422
+  submitted_at: '2026-07-31T03:13:21.182888+00:00'
+  updated_at: '2026-07-31T03:13:21.182888+00:00'
 oompah.task_costs:
   total_input_tokens: 1271455
   total_output_tokens: 12292
@@ -444,5 +444,10 @@ author: oompah
 created: 2026-07-31 03:12
 ---
 Rearm identical tested head after isolated transient setup error.
+---
+author: oompah
+created: 2026-07-31 03:13
+---
+Retry exact 5d88239c9 head; 20/20 isolated reproductions pass after the sole transient full-gate setup error.
 ---
 <!-- COMMENTS:END -->
