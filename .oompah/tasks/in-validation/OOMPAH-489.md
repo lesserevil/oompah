@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-489
 type: task
-status: Needs Human
+status: In Validation
 priority: 1
 title: Validate nested epic auditing, repair planning, races, and cross-tracker behavior
 parent: OOMPAH-460
@@ -16,7 +16,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:28.198709Z'
-updated_at: '2026-07-31T04:12:42.673354Z'
+updated_at: '2026-07-31T04:17:34.921461Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-489
 target_branch: null
 review_url: null
@@ -100,14 +100,15 @@ oompah.task_costs:
     recorded_at: '2026-07-31T04:06:16.985435+00:00'
 oompah.integration:
   version: 1
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-460--task-OOMPAH-489
-  base_branch: main
-  base_sha: 24bd5d6c166af7f8c839e9d5c9e4f3f17d17508e
+  base_branch: epic-OOMPAH-460
+  base_sha: fd19b48db0293b02a267e7cf4f22cca5cf8073a1
   head_sha: 0d7c3578f56f2939e4d9d3b73b5a92cad10d203a
+  integrated_sha: 0d7c3578f56f2939e4d9d3b73b5a92cad10d203a
   submitted_at: '2026-07-31T04:06:06.400927+00:00'
-  updated_at: '2026-07-31T04:06:18.629283+00:00'
+  updated_at: '2026-07-31T04:17:21.985962+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-489__20260729T184610Z
@@ -157,9 +158,54 @@ oompah.terminal_audit:
       with the recovered content. This override closes bookkeeping only and does not
       waive code verification.'
     created_at: '2026-07-31T03:57:24.408336+00:00'
+  queued_comment_posted: true
   version: 1
-  pending_chain: []
-  attempt_history: []
+  pending_chain:
+  - version: 1
+    audit_id: audit-4a788dc333a6
+    project_id: proj-14849f1b
+    task_id: OOMPAH-489
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 1322c51c8efba224eb27bc1d79ff58ae72d08788276b0196c8679ab1dc5c7404
+    attempts:
+    - version: 1
+      attempt_id: attempt-43399ec755b0
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 1322c51c8efba224eb27bc1d79ff58ae72d08788276b0196c8679ab1dc5c7404
+      created_at: '2026-07-31T04:17:28.737762+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-31T04:17:28.737762+00:00'
+      branch_key: epic-OOMPAH-460--task-OOMPAH-489
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Needs Human
+    created_at: '2026-07-31T04:17:23.331609+00:00'
+    updated_at: '2026-07-31T04:17:28.737762+00:00'
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-43399ec755b0
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 1322c51c8efba224eb27bc1d79ff58ae72d08788276b0196c8679ab1dc5c7404
+    created_at: '2026-07-31T04:17:28.737762+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-31T04:17:28.737762+00:00'
+    branch_key: epic-OOMPAH-460--task-OOMPAH-489
 ---
 ## Summary
 
@@ -490,5 +536,20 @@ author: oompah
 created: 2026-07-31 04:12
 ---
 Temporary operator fence: old runtime rearmed this already-reconciled terminal task from stale integration state. Preserve the verified code in OOMPAH-597 head 44e5c5579; reassert Done after OOMPAH-599 lands and the fixed runtime retires stale rows.
+---
+author: oompah
+created: 2026-07-31 04:17
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-07-31 04:17
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-07-31 04:17
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
