@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-651
 type: bug
-status: Ready to Integrate
+status: Needs CI Fix
 priority: 1
 title: Redact secrets from agent tool inputs, outputs, and JSONL event logs
 parent: null
@@ -15,7 +15,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T12:15:08.186495Z'
+updated_at: '2026-07-31T12:15:53.125052Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -909,5 +909,65 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Codex/gpt-5.6-
 - Cost: $0.0000
 - Exit: terminated, Duration: 6m 14s
 - Log: OOMPAH-651__20260731T120856Z.jsonl
+---
+author: oompah
+created: 2026-07-31 12:15
+---
+Branch quality gate blocked review creation.
+
+Branch: `OOMPAH-651`
+Target: `main`
+Head: `e4e36c44ecceb87ea28b5f1871d8c3e256588ec2`
+Command: `make test`
+Result: `failed`
+
+Required: run the command in the task worktree, fix the failure, commit and push the repair, then leave the task in Done. Oompah will rerun the gate for the new head before creating the PR/MR.
+
+Output tail:
+```text
+ PASSED tests/test_acp_codex_backend.py::TestCodexValidateProvider::test_subscription_case_insensitive 
+tests/test_acp_codex_backend.py::TestCodexValidateProvider::test_unknown_billing_model_defaults_to_per_token 
+[gw0] [  1%] PASSED tests/test_granian_parity.py::TestHtmlRoutes::test_pragma_no_cache[/]@oompah_process_global 
+tests/test_granian_parity.py::TestHtmlRoutes::test_pragma_no_cache[/providers]@oompah_process_global 
+[gw1] [  1%] PASSED tests/test_acp_codex_backend.py::TestCodexValidateProvider::test_unknown_billing_model_defaults_to_per_token 
+tests/test_acp_codex_backend.py::TestCodexValidateProvider::test_base_url_default_passes 
+[gw1] [  1%] PASSED tests/test_acp_codex_backend.py::TestCodexValidateProvider::test_base_url_default_passes 
+tests/test_acp_codex_backend.py::TestCodexValidateProvider::test_base_url_https_passes 
+[gw1] [  1%] PASSED tests/test_acp_codex_backend.py::TestCodexValidateProvider::test_base_url_https_passes 
+tests/test_acp_codex_backend.py::TestCodexValidateProvider::test_base_url_http_passes 
+[gw1] [  1%] PASSED tests/test_acp_codex_backend.py::TestCodexValidateProvider::test_base_url_http_passes 
+tests/test_acp_codex_backend.py::TestCodexValidateProvider::test_base_url_invalid_scheme_fails 
+[gw1] [  1%] PASSED tests/test_acp_codex_backend.py::TestCodexValidateProvider::test_base_url_invalid_scheme_fails 
+tests/test_acp_codex_backend.py::TestCodexStartSession::test_start_session_returns_session 
+[gw1] [  1%] PASSED tests/test_acp_codex_backend.py::TestCodexStartSession::test_start_session_returns_session 
+[gw0] [  1%] PASSED tests/test_granian_parity.py::TestHtmlRoutes::test_pragma_no_cache[/providers]@oompah_process_global 
+tests/test_acp_codex_backend.py::TestCodexStartSession::test_session_zero_counters_before_run 
+tests/test_granian_parity.py::TestHtmlRoutes::test_pragma_no_cache[/projects-manage]@oompah_process_global 
+[gw1] [  1%] PASSED tests/test_acp_codex_backend.py::TestCodexStartSession::test_session_zero_counters_before_run 
+tests/test_acp_codex_backend.py::TestCodexSessionLifecycle::test_succeeded_lifecycle 
+[gw1] [  1%] PASSED tests/test_acp_codex_backend.py::TestCodexSessionLifecycle::test_succeeded_lifecycle 
+tests/test_acp_codex_backend.py::TestCodexSessionLifecycle::test_terminal_result_payload_has_normalized_cost_dict 
+[gw1] [  1%] PASSED tests/test_acp_codex_backend.py::TestCodexSessionLifecycle::test_terminal_result_payload_has_normalized_cost_dict 
+tests/test_acp_codex_backend.py::TestCodexSessionLifecycle::test_subscription_billing_routes_to_cli_not_api 
+[gw1] [  1%] PASSED tests/test_acp_codex_backend.py::TestCodexSessionLifecycle::test_subscription_billing_routes_to_cli_not_api 
+tests/test_acp_codex_backend.py::TestCodexSessionLifecycle::test_close_before_run_returns_interrupted 
+[gw0] [  1%] PASSED tests/test_granian_parity.py::TestHtmlRoutes::test_pragma_no_cache[/projects-manage]@oompah_process_global 
+[gw1] [  1%] PASSED tests/test_acp_codex_backend.py::TestCodexSessionLifecycle::test_close_before_run_returns_interrupted 
+tests/test_granian_parity.py::TestHtmlRoutes::test_pragma_no_cache[/foci]@oompah_process_global 
+tests/test_acp_codex_backend.py::TestCodexSessionLifecycle::test_missing_sdk_returns_errored 
+[gw1] [  1%] PASSED tests/test_acp_codex_backend.py::TestCodexSessionLifecycle::test_missing_sdk_returns_errored 
+tests/test_acp_codex_backend.py::TestCodexSessionLifecycle::test_runtime_exception_during_stream_errors 
+[gw1] [  1%] PASSED tests/test_acp_codex_backend.py::TestCodexSessionLifecycle::test_runtime_exception_during_stream_errors 
+tests/test_acp_codex_backend.py::TestCodexCliPath::test_turn_failed_sets_failed_status 
+[gw1] [  1%] PASSED tests/test_acp_codex_backend.py::TestCodexCliPath::test_turn_failed_sets_failed_status 
+tests/test_acp_codex_backend.py::TestCodexCliPath::test_thread_error_sets_errored 
+[gw1] [  1%] PASSED tests/test_acp_codex_backend.py::TestCodexCliPath::test_thread_error_sets_errored 
+make[1]: *** [Makefile:295: test] Terminated
+```
+---
+author: oompah
+created: 2026-07-31 12:15
+---
+Stopped the server-launched full gate at 12:16 UTC (exact PGID 3304998). The just-pushed branch still requires review of the embedded-short-secret fix and remains finish-order dependent on OOMPAH-650 renewal wiring. This termination is not a test failure. The current scheduler's premature standalone-gate behavior is now tracked as OOMPAH-659.
 ---
 <!-- COMMENTS:END -->
