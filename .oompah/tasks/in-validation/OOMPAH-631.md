@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-631
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Restore validation ownership when terminal retries coalesce
 parent: OOMPAH-584
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:08:00.758352Z'
-updated_at: '2026-07-31T00:37:42.452617Z'
+updated_at: '2026-07-31T00:42:21.237934Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-631
 target_branch: null
 review_url: null
@@ -35,12 +35,15 @@ oompah.agent_run_id: 09a8240d-a79e-456b-8c2a-126d6348b9cd
 oompah.work_branch: epic-OOMPAH-584--task-OOMPAH-631
 oompah.integration:
   version: 1
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-584--task-OOMPAH-631
-  head_sha: b385d90cc7bc4c55c1c1921b6b00a2a6a46ef15b
+  base_branch: epic-OOMPAH-584
+  base_sha: cd08185c98161bbf27d9f6c0de6b80865e060644
+  head_sha: d62dd4cff702ae2b818418407d7d15b7a643213e
+  integrated_sha: d62dd4cff702ae2b818418407d7d15b7a643213e
   submitted_at: '2026-07-31T00:37:40.093444+00:00'
-  updated_at: '2026-07-31T00:37:40.093444+00:00'
+  updated_at: '2026-07-31T00:42:17.237369+00:00'
 oompah.task_costs:
   total_input_tokens: 1487488
   total_output_tokens: 12834
@@ -73,6 +76,28 @@ oompah.task_costs:
     output_tokens: 565
     cost_usd: 0.0
     recorded_at: '2026-07-31T00:36:33.313579+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-71704fde0628
+    project_id: proj-14849f1b
+    task_id: OOMPAH-631
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f544eb1341fa0c2be4367907ee41fa0e196f1264907c9993570697c186b7af82
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-31T00:42:18.787715+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -258,5 +283,10 @@ author: oompah
 created: 2026-07-31 00:37
 ---
 Coalesced audit repair and load-safe concurrency regressions complete at b385d90cc.
+---
+author: oompah
+created: 2026-07-31 00:42
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
