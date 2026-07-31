@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-661
 type: task
-status: In Validation
+status: Needs Human
 priority: null
 title: Cancel stale implementation retries when task authority changes
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T13:12:19.387161Z'
-updated_at: '2026-07-31T15:42:28.300223Z'
+updated_at: '2026-07-31T15:43:41.742256Z'
 work_branch: OOMPAH-661
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/624
@@ -147,6 +147,31 @@ oompah.work_branch: OOMPAH-661
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    no-auditor-audit-0e987255d283-0: '2026-07-31T15:43:38.196329+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-661
+    target_state: Done
+    evidence_fingerprint: 14b0fff947c955531a8c8d60ffe3d0bb1ff97cdf73430f4b709cecfddd63f421
+    audit_ids:
+    - audit-0e987255d283
+    kind: result
+    applied: true
+    retired_at: '2026-07-31T15:43:38.196336+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-661
+    audit_id: audit-0e987255d283
+    attempt_id: no-auditor-audit-0e987255d283-0
+    target_state: Done
+    evidence_fingerprint: 14b0fff947c955531a8c8d60ffe3d0bb1ff97cdf73430f4b709cecfddd63f421
+    status: Needs Human
+    audit_ids:
+    - audit-0e987255d283
+    applied: true
+    created_at: '2026-07-31T15:43:38.196347+00:00'
+    applied_at: '2026-07-31T15:43:41.029231+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -154,18 +179,31 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-661
     target_state: Done
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 14b0fff947c955531a8c8d60ffe3d0bb1ff97cdf73430f4b709cecfddd63f421
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: no-auditor-audit-0e987255d283-0
+      target_state: Done
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 14b0fff947c955531a8c8d60ffe3d0bb1ff97cdf73430f4b709cecfddd63f421
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-07-31T15:43:38.196222+00:00'
+      completed_at: '2026-07-31T15:43:38.196222+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-07-31T15:42:22.659039+00:00'
+    updated_at: '2026-07-31T15:43:38.196222+00:00'
   - version: 1
     audit_id: audit-a05244d88a7c
     project_id: proj-14849f1b
@@ -514,5 +552,12 @@ author: oompah
 created: 2026-07-31 15:42
 ---
 YOLO: merged PR #624.
+---
+author: oompah
+created: 2026-07-31 15:43
+---
+Needs Human — Done audit requires operator input.
+
+No independent auditor candidate is available for this audit (All candidates are used by contributors.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then move the task back to Open to retry.
 ---
 <!-- COMMENTS:END -->
