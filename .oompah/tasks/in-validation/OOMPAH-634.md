@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-634
 type: task
-status: Needs Human
+status: In Validation
 priority: 0
 title: Rebase epic-OOMPAH-460 onto main
 parent: OOMPAH-460
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T02:27:37.845123Z'
-updated_at: '2026-07-31T02:42:52.221066Z'
+updated_at: '2026-07-31T02:46:28.592215Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-634
 target_branch: null
 review_url: null
@@ -21,12 +21,15 @@ oompah.agent_run_id: 7f1550d3-e1b4-4d89-a540-b63fe048b536
 oompah.work_branch: epic-OOMPAH-460--task-OOMPAH-634
 oompah.integration:
   version: 1
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-460--task-OOMPAH-634
+  base_branch: epic-OOMPAH-460
+  base_sha: 113e75ac87eca903188e3197754670f92371f805
   head_sha: 113e75ac87eca903188e3197754670f92371f805
+  integrated_sha: 113e75ac87eca903188e3197754670f92371f805
   submitted_at: '2026-07-31T02:41:47.876600+00:00'
-  updated_at: '2026-07-31T02:41:47.876600+00:00'
+  updated_at: '2026-07-31T02:46:23.246123+00:00'
 oompah.task_costs:
   total_input_tokens: 3720699
   total_output_tokens: 35611
@@ -141,6 +144,28 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-9f1cb6c31d68
+    project_id: proj-14849f1b
+    task_id: OOMPAH-634
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 3f4e195dcd5995dd9feea20ad9681af19d7aefa0dd06e74ad93c9f53ee102947
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Needs Human
+    created_at: '2026-07-31T02:46:24.698988+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -280,5 +305,10 @@ author: oompah
 created: 2026-07-31 02:42
 ---
 Task handoff failed after the worker ran: the server-owned, task-scoped tracker capability could not update this task. The task is held in Needs Human and will not be redispatched automatically; verify the handoff service and reconcile the worker's branch before resuming it.
+---
+author: oompah
+created: 2026-07-31 02:46
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
