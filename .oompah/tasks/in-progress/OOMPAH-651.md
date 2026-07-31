@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T10:52:27.061476Z'
+updated_at: '2026-07-31T10:56:52.309528Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -566,5 +566,22 @@ author: oompah
 created: 2026-07-31 10:52
 ---
 Operator stopped only raw serial pytest PGID 853573 after exact cwd/PGID validation at 7m elapsed. Project instructions require Makefile targets, and Oompah will run one canonical full make test gate after submission; do not rerun python -m pytest tests/ directly. Use focused tests for changed security/sink paths, make check-secrets/terminal scan targets where applicable, then commit/push/submit. Dirty implementation remains intact and the provider is still running.
+---
+author: oompah
+created: 2026-07-31 10:56
+---
+DISCOVERY + IMPLEMENTATION: Additional sinks identified and closed.
+
+Sinks that were still unredacted before this pass:
+- oompah/api_agent.py:_log_event — full request/response/error JSONL written with json.dumps default=str, no redaction. Fixed: fields recursively scrubbed via redact_sensitive_data before serialization.
+- oompah/api_agent.py:_emit — summary/detail forwarded to on_activity callback and _log_event. Fixed: both fields scrubbed.
+- oompah/console_legacy.py:ConsoleStore.append — same store fans out to disk JSONL and WS broadcast (via _record_and_broadcast). Fixed: payload+usage scrubbed at append, size-trim branch reuses the already-scrubbed usage.
+- oompah/console_format.py:ConsoleEvent.to_dict — attachments (list[str] of operator input) written unredacted. Fixed: each attachment scrubbed through redact_sensitive_data.
+- oompah/console.py:_redact_console_event — extended to redact attachments, and to enforce dict-shape on usage after redaction.
+- oompah/orchestrator.py:_on_event AgentActivity usage — dict(redact(...)) was not type-safe if redaction returned a marker string. Fixed with isinstance guard.
+- Python service logs — logger.warning('...: %s', url_with_userinfo) had no scrubbing. Added SecretRedactionFilter + install_secret_redaction_filter installed on 'oompah' namespace in __main__.
+
+Fail-closed refactor:
+- secrets.py: unknown non-credential-typed objects no longer pass through unchanged. All unknown types now render via repr()/str() and are scanned through _redact_string before being returned. Downstream json.dumps(default=str) can never bypass the redaction pass. Credential-named classes still get the typed marker branch.
 ---
 <!-- COMMENTS:END -->
