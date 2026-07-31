@@ -83,16 +83,17 @@ def _running_matching_server(
     port: int,
     task_id: str,
     project_id: str,
+    package_root: Path,
     repo_path: Path,
     htpasswd_path: Path,
     forbidden_output: tuple[str, ...] = (),
 ) -> "object":
     """Run the current checkout's server code with a real bcrypt auth file.
 
-    The installed CLI is tested separately below.  This process imports the
-    same git checkout at the revision installed into the venv, but uses a
-    small in-memory tracker fixture so the two CLI reads are deterministic and
-    do not mutate task state.
+    The server subprocess uses the package tree installed into the isolated
+    venv by the parent test, while the host interpreter supplies the server
+    runtime dependencies. A small in-memory tracker fixture keeps the two CLI
+    reads deterministic and prevents task-state mutations.
     """
     server_script = tmp_path / "matching_revision_server.py"
     server_script.write_text(
@@ -202,9 +203,9 @@ uvicorn.run(
             "E2E_REPO_PATH": str(repo_path),
             "E2E_HTPASSWD_PATH": str(htpasswd_path),
             "E2E_PORT": str(port),
-            "PYTHONPATH": os.pathsep.join(
-                part for part in (str(REPO_ROOT), server_env.get("PYTHONPATH", "")) if part
-            ),
+            # Import the exact package tree installed from the pinned git
+            # revision, rather than the possibly dirty checkout.
+            "PYTHONPATH": str(package_root),
         }
     )
     process = subprocess.Popen(
@@ -299,6 +300,8 @@ def test_installed_cli_from_exact_revision_reads_matching_authenticated_server(t
     version_lines = version_probe.stdout.splitlines()
     assert version_lines[0] == "0.1.0"
     assert str(REPO_ROOT) not in version_lines[1]
+    installed_package_root = Path(version_lines[1]).resolve().parent
+    assert installed_package_root.is_dir()
     direct_url = json.loads(version_lines[2])
     assert direct_url["vcs_info"]["commit_id"] == revision
 
@@ -353,6 +356,7 @@ def test_installed_cli_from_exact_revision_reads_matching_authenticated_server(t
         port=port,
         task_id=task_id,
         project_id=project_id,
+        package_root=installed_package_root,
         repo_path=repo_path,
         htpasswd_path=htpasswd_file,
         forbidden_output=(username, password),
