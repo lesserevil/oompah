@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:41:57.043640Z'
-updated_at: '2026-07-31T10:42:03.827746Z'
+updated_at: '2026-07-31T10:42:09.614710Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -31,6 +31,7 @@ oompah.duplicate_screening:
   claim_expires_at: '2026-07-31T11:12:02.984723+00:00'
   retry_count: 0
   retry_after: null
+oompah.agent_run_id: c236920c-fd79-41b7-aaa4-422897ff891f
 ---
 ## Summary
 
@@ -42,3 +43,16 @@ Explicit operator-required base repair for active epic OOMPAH-619. The remote ep
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-31 10:42
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-07-31 10:42
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
