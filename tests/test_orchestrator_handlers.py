@@ -2409,18 +2409,33 @@ class TestMaintenanceLaneNonBlocking:
         asyncio.run(_run_tick_with_blocked_maintenance())
 
     def test_tick_starts_maintenance_future(self, tmp_path):
-        """_tick() must set _maintenance_future so status is trackable."""
+        """_tick() must set _maintenance_future so status is trackable.
+
+        _recover_release_addendum_leases is the only awaited non-stubbed I/O
+        operation left in _tick(): it calls tracker.fetch_all_issues(), which
+        reads all .oompah/tasks/*.md files sequentially.  Under four-way
+        parallel CI load this consistently exceeded the 5s per-test timeout.
+        Stub it (and the fire-and-forget maintenance submitters) so the test
+        only observes the _maintenance_future assignment it was written to guard.
+        Same pattern as OOMPAH-664 / test_tick_applies_pending_at_quiescent_point.
+        """
         orch = _make_orchestrator(tmp_path)
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
         orch._handle_dispatch_needed = AsyncMock()
         orch._handle_yolo_review = AsyncMock(return_value=0.0)
-        orch._run_step5c_epic_maintenance = MagicMock()
         orch._handle_auto_update = AsyncMock()
         orch._notify_observers = MagicMock()
         orch._maybe_run_watchdog = MagicMock()
         orch._maybe_heal_repos = MagicMock()
         orch._maybe_cleanup_worktrees = MagicMock()
+        # Stub the awaited tracker I/O that reads all task files — can exceed
+        # the 5s test timeout under four-way xdist parallel load (OOMPAH-664).
+        orch._recover_release_addendum_leases = MagicMock(return_value=0)
+        # Stub fire-and-forget maintenance to prevent background I/O noise
+        # after the assertion completes (same isolation as OOMPAH-652).
+        orch._run_step5b_maintenance = MagicMock()
+        orch._run_step5c_epic_maintenance = MagicMock()
 
         with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
             asyncio.run(orch._tick())
