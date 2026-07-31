@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-667
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Keep Makefile virtualenv PATH from defeating canonical CLI cutover
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T21:32:57.017227Z'
-updated_at: '2026-07-31T23:32:08.130687Z'
+updated_at: '2026-07-31T23:35:17.807580Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -104,11 +104,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-667
-  base_branch: main
-  base_sha: d96740a6ecdca353e40ef87e94a4ee91b8828df0
-  head_sha: 6ee3e02133d9f8668597285110e480069d92c6af
-  submitted_at: '2026-07-31T23:06:43.628498+00:00'
-  updated_at: '2026-07-31T23:06:59.425379+00:00'
+  head_sha: 669094c81f4b2d52431134b99f084878223785dc
+  submitted_at: '2026-07-31T23:35:16.004331+00:00'
+  updated_at: '2026-07-31T23:35:16.004331+00:00'
 ---
 ## Summary
 
@@ -288,5 +286,10 @@ author: oompah
 created: 2026-07-31 23:32
 ---
 Discovery: gate failure is tests/test_orchestrator_handlers.py::TestTickDelegation::test_tick_notifies_observers, which passes ~10/10 locally in isolation and passes under xdist -n 8 loadgroup here too. My branch does not touch orchestrator.py or that test file. Root cause is a flaky race: _tick() fires _run_step5b_maintenance, _run_step5c_epic_maintenance, and _maybe_run_watchdog (on the tick_pool) plus real _recover_release_addendum_leases, and any of these can transitively touch _notify_observers under load. Fix pattern is the same one OOMPAH-652 applied to TestRunStep5cEpicMaintenance: mock the fire-and-forget maintenance methods so the assert_called_once() invariant is deterministic.
+---
+author: oompah
+created: 2026-07-31 23:35
+---
+Verification: TestTickDelegation now 7/7 passes on repeated runs; whole tests/test_orchestrator_handlers.py file (277 tests) passes under xdist -n 8 --dist loadgroup. Pushed 669094c81 to origin/OOMPAH-667. Ready for the gate rerun.
 ---
 <!-- COMMENTS:END -->

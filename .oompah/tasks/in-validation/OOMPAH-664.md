@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-664
 type: task
-status: In Progress
+status: In Validation
 priority: 0
 title: Make issue-list snapshots advance with canonical state-branch task changes
 parent: null
@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:06.140108Z'
-updated_at: '2026-07-31T23:31:17.247873Z'
+updated_at: '2026-07-31T23:35:11.344744Z'
 work_branch: OOMPAH-664
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/628
@@ -175,6 +175,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/628
 oompah.review_number: '628'
 oompah.work_branch: OOMPAH-664
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-2c863f5bcc95
+    project_id: proj-14849f1b
+    task_id: OOMPAH-664
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c8c93da308a6dac77c8b00e8cc3fdce32ee0cec85808541fa261c5a23f933e2b
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Progress
+    created_at: '2026-07-31T23:35:05.212351+00:00'
+  - version: 1
+    audit_id: audit-e84f78d77f57
+    project_id: proj-14849f1b
+    task_id: OOMPAH-664
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c8c93da308a6dac77c8b00e8cc3fdce32ee0cec85808541fa261c5a23f933e2b
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Progress
+    created_at: '2026-07-31T23:35:05.212351+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -940,5 +979,15 @@ author: oompah
 created: 2026-07-31 23:31
 ---
 Discovery: The preserved branch had already been rebased and force-pushed before this continuation. Git confirms origin/main d96740a6e is an ancestor (0 behind, 7 task commits ahead), the worktree matches origin/OOMPAH-664 at a79a28d01, and GitHub now reports MR #628 MERGEABLE. No current failing GitHub job exists: CI run 30672935422 is the first Actions run for this branch and all Python 3.11/3.12/3.13 jobs are still pending. The prior actionable failure remains the internal exact-head gate timeout documented in task history and fixed by the final test-only commit.
+---
+author: oompah
+created: 2026-07-31 23:35
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-07-31 23:35
+---
+YOLO: merged PR #628.
 ---
 <!-- COMMENTS:END -->
