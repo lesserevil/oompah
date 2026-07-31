@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T20:52:01.122820Z'
-updated_at: '2026-07-30T21:16:05.540650Z'
+updated_at: '2026-07-31T05:03:21.427137Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-617
 target_branch: null
 review_url: null
@@ -167,5 +167,10 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: normal, Duration: 7m 50s
 - Log: OOMPAH-617__20260730T211250Z.jsonl
+---
+author: oompah
+created: 2026-07-31 05:03
+---
+Operator rebase bookkeeping: refreshed the terminal task branch from a678afc20 to its patch-equivalent rebased head b30aa99dd under an exact force-with-lease. The branch is now an ancestor of origin/epic-OOMPAH-587 (0 commits outside the epic); the newer wrong-worktree resolution remains preserved.
 ---
 <!-- COMMENTS:END -->

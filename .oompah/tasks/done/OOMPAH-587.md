@@ -18,7 +18,7 @@ labels:
 - epic:rebased
 assignee: null
 created_at: '2026-07-30T14:13:38.093049Z'
-updated_at: '2026-07-31T05:00:14.246138Z'
+updated_at: '2026-07-31T05:03:25.264033Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -172,5 +172,10 @@ author: oompah
 created: 2026-07-31 05:00
 ---
 Operator self-hosting recovery: old runtime cannot perform the required nested epic-to-epic synchronization, while that fix is contained in the recovery branch. Rebased origin/epic-OOMPAH-587 onto exact parent origin/epic-OOMPAH-584 b1425f6be with lease 88adebe11; preserved the newer wrong-worktree fence during the OOMPAH-576 overlap; pushed exact new head c1b23d67e. Focused delivery/rebase/auth suite: 262 passed, 1 xfailed. Makefile terminal mutation scan passed. Parent comparison is now 0 behind / 15 ahead.
+---
+author: oompah
+created: 2026-07-31 05:03
+---
+Refreshed the two stale child refs identified by the old PR eligibility check (OOMPAH-596 -> c45aa5574, OOMPAH-617 -> b30aa99dd). Both are patch-equivalent rebase results and now have zero commits outside the epic branch; supported tracker history and exact remote leases record the repair.
 ---
 <!-- COMMENTS:END -->
