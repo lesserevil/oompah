@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-665
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Retire legacy no-auditor alerts after terminal task completion
 parent: null
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:07.401588Z'
-updated_at: '2026-07-31T21:56:43.661465Z'
+updated_at: '2026-07-31T21:56:47.557819Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -571,5 +571,10 @@ author: oompah
 created: 2026-07-31 21:56
 ---
 Completion: pushed CI bootstrap repair e395a94af to the existing OOMPAH-665 branch. Make test now passes the prior missing-uv bootstrap and terminal-audit scan; 143 focused tests pass. The local full run recorded 14,539 passing tests, with only the pre-existing host hatchling packaging prerequisite and a parallel timing flake failing. No PR/Actions run exists yet because the earlier gate blocked review creation; submission requests a fresh isolated gate for this exact head.
+---
+author: oompah
+created: 2026-07-31 21:56
+---
+Reused the trusted quality-gate venv when uv is unavailable; pushed e395a94af with regression coverage.
 ---
 <!-- COMMENTS:END -->
