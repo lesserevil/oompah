@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-418
 type: epic
-status: Merged
+status: In Validation
 priority: 0
 title: Expose oompah's OpenAPI as a streamable MCP server
 parent: null
@@ -15,7 +15,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-23T19:41:39.116461Z'
-updated_at: '2026-07-24T02:04:08.020723Z'
+updated_at: '2026-07-31T02:09:08.436944Z'
 work_branch: epic-OOMPAH-418
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/542
@@ -25,6 +25,28 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/542
 oompah.review_number: '542'
 oompah.work_branch: epic-OOMPAH-418
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-f40f33a428ec
+    project_id: proj-14849f1b
+    task_id: OOMPAH-418
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 694c4c3fdfdd694922c9b7879727bc7b0048bfa8e8017c38abdd28ac13b67e46
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-07-31T02:09:03.971828+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -57,5 +79,10 @@ author: oompah
 created: 2026-07-23 20:44
 ---
 YOLO: merged PR #542.
+---
+author: oompah
+created: 2026-07-31 02:09
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
