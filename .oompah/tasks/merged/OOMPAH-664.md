@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-664
 type: task
-status: In Validation
+status: Merged
 priority: 0
 title: Make issue-list snapshots advance with canonical state-branch task changes
 parent: null
@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:06.140108Z'
-updated_at: '2026-07-31T23:44:09.417332Z'
+updated_at: '2026-07-31T23:45:58.526134Z'
 work_branch: OOMPAH-664
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/628
@@ -189,6 +189,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-0387de50d11a: '2026-07-31T23:43:40.044182+00:00'
+    attempt-261a622d563d: '2026-07-31T23:45:54.858013+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-664
@@ -199,6 +200,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-07-31T23:43:40.044193+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-664
+    target_state: Merged
+    evidence_fingerprint: c8c93da308a6dac77c8b00e8cc3fdce32ee0cec85808541fa261c5a23f933e2b
+    audit_ids:
+    - audit-e84f78d77f57
+    kind: result
+    applied: true
+    retired_at: '2026-07-31T23:45:54.858032+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-664
@@ -212,6 +222,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-07-31T23:43:40.044208+00:00'
     applied_at: '2026-07-31T23:43:43.929260+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-664
+    audit_id: audit-e84f78d77f57
+    attempt_id: attempt-261a622d563d
+    target_state: Merged
+    evidence_fingerprint: c8c93da308a6dac77c8b00e8cc3fdce32ee0cec85808541fa261c5a23f933e2b
+    status: Merged
+    audit_ids:
+    - audit-e84f78d77f57
+    applied: false
+    created_at: '2026-07-31T23:45:54.858054+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -253,7 +274,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-664
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -262,7 +283,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-261a622d563d
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -272,13 +293,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T23:44:05.319073+00:00'
       branch_key: OOMPAH-664
+      verdict: pass
+      completed_at: '2026-07-31T23:45:54.857777+00:00'
+      ended_at: '2026-07-31T23:45:54.857777+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Progress
     created_at: '2026-07-31T23:35:05.212351+00:00'
-    updated_at: '2026-07-31T23:44:05.319073+00:00'
+    updated_at: '2026-07-31T23:45:54.857777+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-0387de50d11a
@@ -1149,5 +1173,26 @@ author: oompah
 created: 2026-07-31 23:44
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 23:45
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: a79a28d01f485674532555d610a9f26d3051d367
+- origin_main_head: 9fc14256e7912023844663ddfee2a9940c71e05f
+- merge_commit: 9fc14256e (Merge pull request #628 from lesserevil/OOMPAH-664)
+- oompah_664_commits_on_main: 7 (4d144d4f7, a2c6800cf, a291ade1e, 573555491, 8e6eed57c, e450ec532, a79a28d01)
+- tracker_generation_method_line: oompah/oompah_md_tracker.py:1095 get_state_branch_generation
+- tracker_callback_register_line: oompah/oompah_md_tracker.py:531 add_read_change_callback
+- tracker_notify_read_change_lines: oompah/oompah_md_tracker.py:522,543,1093
+- server_source_generations_refs: 31 occurrences across oompah/server.py including snapshot record, sources_match, current_tracker_source_generations, _fetch_all_issues path
+- required_tests_present: 6/6 (test_generation_bound_snapshot_rejects_newer_project_state, test_unavailable_generation_preserves_stale_snapshot_instead_of_empty_fresh_lane, test_detail_cache_is_rejected_when_project_generation_advances, test_tracker_callback_invalidates_only_matching_detail_project, test_generation_tracks_direct_mutation_checkpoint_and_restart, test_read_change_callback_runs_for_direct_write_and_checkpoint)
+- prior_gate_pass: 34c5751b7 make test 430.0s (recorded in task history)
+- post_rebase_ci: GHA run 30672935422 all three python jobs passed (recorded in task history)
+- changed_files_in_merge: 11 files, +701/-35 (Makefile, oompah_md_tracker.py, quality_gate.py, server.py, plus tests)
 ---
 <!-- COMMENTS:END -->
