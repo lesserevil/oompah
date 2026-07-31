@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-631
 type: bug
-status: Open
+status: In Validation
 priority: 1
 title: Restore validation ownership when terminal retries coalesce
 parent: OOMPAH-584
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:08:00.758352Z'
-updated_at: '2026-07-31T05:52:54.175329Z'
+updated_at: '2026-07-31T05:54:20.849125Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-631
 target_branch: null
 review_url: null
@@ -24,13 +24,13 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: d8dde7af-8d33-4ff8-9104-8d2a304683d8
-  claim_owner: d12922aa-baf6-4258-aa45-02da3deea710
-  claimed_at: '2026-07-31T05:52:14.606423+00:00'
-  claim_expires_at: '2026-07-31T06:22:14.606423+00:00'
+  evidence: Duplicate screening worker was terminated.
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
-  retry_after: null
+  retry_after: '2026-07-31T05:54:07.511913+00:00'
 oompah.agent_run_id: 3fbdb4b0-3ca9-42f0-a85f-c1bd1e08df4a
 oompah.work_branch: epic-OOMPAH-584--task-OOMPAH-631
 oompah.integration:
@@ -100,7 +100,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-631
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -145,6 +145,37 @@ oompah.terminal_audit:
     previous_state: Ready to Integrate
     created_at: '2026-07-31T00:42:18.787715+00:00'
     updated_at: '2026-07-31T00:54:07.570958+00:00'
+  - version: 1
+    audit_id: audit-4bcc5ce0916e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-631
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a60809caa3ec40c488ac43503fef367e4f6cadd8f68d85c602d3b69e9e293c16
+    attempts:
+    - version: 1
+      attempt_id: attempt-97b5537d0a0b
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: a60809caa3ec40c488ac43503fef367e4f6cadd8f68d85c602d3b69e9e293c16
+      created_at: '2026-07-31T05:54:16.033306+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-31T05:54:16.033306+00:00'
+      branch_key: epic-OOMPAH-584--task-OOMPAH-631
+    requested_by:
+      version: 1
+      identity: api-client
+      source: api
+    previous_state: Open
+    created_at: '2026-07-31T05:53:55.139641+00:00'
+    updated_at: '2026-07-31T05:54:16.033306+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-fff5850c2750
@@ -175,6 +206,19 @@ oompah.terminal_audit:
     started_at: '2026-07-31T00:50:46.352516+00:00'
     branch_key: epic-OOMPAH-584--task-OOMPAH-631
     candidate_rotation_count: 1
+  - version: 1
+    attempt_id: attempt-97b5537d0a0b
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a60809caa3ec40c488ac43503fef367e4f6cadd8f68d85c602d3b69e9e293c16
+    created_at: '2026-07-31T05:54:16.033306+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-31T05:54:16.033306+00:00'
+    branch_key: epic-OOMPAH-584--task-OOMPAH-631
 ---
 ## Summary
 
@@ -456,5 +500,25 @@ author: oompah
 created: 2026-07-31 05:52
 ---
 Post-restart landing re-evaluation: this task's refreshed exact remote work ref is an ancestor of merged origin/main bb0fd760c3. The Needs Human state was a false regression from the old runtime comparing a pre-rebase SHA. Restoring the task's previously audited Done state.
+---
+author: oompah
+created: 2026-07-31 05:54
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 19
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 1m 49s
+- Log: OOMPAH-631__20260731T055234Z.jsonl
+---
+author: oompah
+created: 2026-07-31 05:54
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-07-31 05:54
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->

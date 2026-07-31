@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-630
 type: task
-status: Open
+status: In Validation
 priority: null
 title: Fetch rollup targets before judging child landing evidence
 parent: OOMPAH-584
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T23:37:58.090708Z'
-updated_at: '2026-07-31T05:52:50.789412Z'
+updated_at: '2026-07-31T05:54:04.423399Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-630
 target_branch: null
 review_url: null
@@ -91,7 +91,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-630
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -120,6 +120,37 @@ oompah.terminal_audit:
     previous_state: Ready to Integrate
     created_at: '2026-07-31T00:21:38.160095+00:00'
     updated_at: '2026-07-31T00:27:16.916751+00:00'
+  - version: 1
+    audit_id: audit-6ea9ba841ad7
+    project_id: proj-14849f1b
+    task_id: OOMPAH-630
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a04b5dada176e1e62367fe170ccb5de77843fd1337fc44e48e99532911f7f924
+    attempts:
+    - version: 1
+      attempt_id: attempt-42070aeed259
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: a04b5dada176e1e62367fe170ccb5de77843fd1337fc44e48e99532911f7f924
+      created_at: '2026-07-31T05:53:58.218969+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-31T05:53:58.218969+00:00'
+      branch_key: epic-OOMPAH-584--task-OOMPAH-630
+    requested_by:
+      version: 1
+      identity: api-client
+      source: api
+    previous_state: Open
+    created_at: '2026-07-31T05:53:50.812698+00:00'
+    updated_at: '2026-07-31T05:53:58.218969+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-0add3cf25974
@@ -133,6 +164,19 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: opus
     started_at: '2026-07-31T00:21:49.594379+00:00'
+    branch_key: epic-OOMPAH-584--task-OOMPAH-630
+  - version: 1
+    attempt_id: attempt-42070aeed259
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a04b5dada176e1e62367fe170ccb5de77843fd1337fc44e48e99532911f7f924
+    created_at: '2026-07-31T05:53:58.218969+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-31T05:53:58.218969+00:00'
     branch_key: epic-OOMPAH-584--task-OOMPAH-630
 ---
 ## Summary
@@ -370,5 +414,15 @@ author: oompah
 created: 2026-07-31 05:52
 ---
 Post-restart landing re-evaluation: this task's refreshed exact remote work ref is an ancestor of merged origin/main bb0fd760c3. The Needs Human state was a false regression from the old runtime comparing a pre-rebase SHA. Restoring the task's previously audited Done state.
+---
+author: oompah
+created: 2026-07-31 05:54
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-07-31 05:54
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->

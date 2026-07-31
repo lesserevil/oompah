@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-632
 type: bug
-status: In Progress
+status: In Validation
 priority: 1
 title: Refresh candidate refs before child landing reconciliation
 parent: OOMPAH-584
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:46:34.785511Z'
-updated_at: '2026-07-31T05:52:56.795913Z'
+updated_at: '2026-07-31T05:54:14.135194Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-632
 target_branch: null
 review_url: null
@@ -146,7 +146,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-632
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -175,6 +175,23 @@ oompah.terminal_audit:
     previous_state: Ready to Integrate
     created_at: '2026-07-31T01:37:14.210926+00:00'
     updated_at: '2026-07-31T01:42:02.889038+00:00'
+  - version: 1
+    audit_id: audit-449b3a5b92ca
+    project_id: proj-14849f1b
+    task_id: OOMPAH-632
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 19a92356cfab7a1ca8683861f06b4da799bc0a1e44ab53adddb393aae1460ef3
+    attempts: []
+    requested_by:
+      version: 1
+      identity: api-client
+      source: api
+    previous_state: In Progress
+    created_at: '2026-07-31T05:54:11.262646+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-4e25047be4f6
