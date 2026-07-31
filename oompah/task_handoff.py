@@ -143,7 +143,7 @@ class TaskHandoffGrant:
     extension so a grant minted with a deliberately short TTL is not silently
     widened to the module default. Operators who configure a short-lived
     capability retain that bound across the entire session.
-    
+
     ``operation_permit_generation`` is incremented when the grant is revoked.
     An OperationPermit holds the generation number at acquisition time. Before
     performing tracker mutations, the permit checks its generation matches
@@ -164,7 +164,7 @@ class TaskHandoffGrant:
 
 class TaskHandoffGrantStore:
     """In-memory capability registry with constant-time token lookup.
-    
+
     Provides linearizable operation authorization: a permit acquired after
     validation remains valid only until revoke() invalidates it. This prevents
     tracker mutations from racing with termination-triggered revocation.
@@ -250,16 +250,16 @@ class TaskHandoffGrantStore:
             # Now purge expired grants from the store
             self._purge_locked(now)
             grant = self._grants.get(digest)
-        
+
         # Distinguish revoked (explicit termination) from expired (TTL)
         if grant is None or not hmac.compare_digest(grant.token_digest, digest):
             # Token never existed, was purged, or digest doesn't match
             return False, "invalid or expired task handoff capability"
-        
+
         # Check revocation state (should not happen given purge above, but be safe)
         if grant.revoked_at is not None:
             return False, "task handoff capability was revoked when the worker terminated"
-        
+
         # Check project/task scope (prevent cross-task/project use)
         if not hmac.compare_digest(grant.project_id, str(project_id or "")):
             return False, "task handoff capability is scoped to another project"
@@ -267,7 +267,7 @@ class TaskHandoffGrantStore:
             grant.task_identifier, str(task_identifier or "")
         ):
             return False, "task handoff capability is scoped to another task"
-        
+
         # Check action scope (prevent privilege escalation)
         if action not in grant.allowed_actions:
             return False, "task handoff action is not granted"
@@ -275,7 +275,7 @@ class TaskHandoffGrantStore:
 
     def revoke(self, token: str | None) -> None:
         """Revoke a capability after its worker exits.
-        
+
         Marks the grant as revoked to prevent reuse after termination and
         increments the operation permit generation to invalidate any permits
         that were acquired before this revocation. This ensures that even if
@@ -338,7 +338,7 @@ class TaskHandoffGrantStore:
             return None
         with self._lock:
             return self._failures.pop(self._digest(token), None)
-    
+
     def _begin_operation(self, token_digest: str, generation: int) -> bool:
         """Atomically admit one mutation before its first awaited I/O."""
         now = float(self._now())
@@ -385,7 +385,7 @@ class TaskHandoffGrantStore:
             ):
                 return None
             return float(grant.original_ttl_seconds)
-    
+
     def acquire_permit(
         self,
         token: str | None,
@@ -395,11 +395,11 @@ class TaskHandoffGrantStore:
         action: str,
     ) -> OperationPermit | None:
         """Acquire an operation permit after successful validation.
-        
+
         Returns a permit if the token is valid and scope matches. The permit
         must be entered as an async context manager around exactly one
         tracker mutation; admission then remains active across awaited I/O.
-        
+
         This is called AFTER validate() succeeds and should only fail if the
         grant was just revoked or expired in the narrow window between
         validation and permit acquisition.
@@ -431,7 +431,7 @@ class TaskHandoffGrantStore:
             store=self,
             generation_at_acquisition=generation,
         )
-    
+
     def refresh(
         self,
         token: str | None,

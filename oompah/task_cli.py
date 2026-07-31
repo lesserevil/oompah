@@ -291,7 +291,7 @@ def _http(
                 err = body.get("error", {}) if isinstance(body, dict) else {}
                 error_code = err.get("code", "")
                 error_message = err.get("message", "")
-                
+
                 if "expired" in error_message.lower():
                     sys.exit(
                         f"ERROR (401): Task handoff capability expired.\n"
@@ -333,7 +333,7 @@ def _task_handoff_request(
     ``None`` means this is an ordinary operator CLI invocation and callers
     should use the legacy tracker endpoint.  A capability is never sent to a
     general endpoint, even when a command is malformed.
-    
+
     Grant renewal is handled only by the server-owned worker lease. The
     task-handoff endpoint never extends a bearer token in response to a
     request.
@@ -341,7 +341,7 @@ def _task_handoff_request(
     token = _task_handoff_token()
     if token is None:
         return None
-    
+
     payload = {**data}
     if not payload.get("project_id"):
         project_id = _task_handoff_project(payload)

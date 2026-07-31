@@ -1659,13 +1659,13 @@ class TestOOMPAH650WorkerLifetimeCredentials:
         the grant while the worker is live. This is the core acceptance case:
         no 401 solely because the initial TTL aged out during a legitimate
         long-running tool call.
-        
+
         This test verifies the lease-based mechanism (NOT bearer-driven endpoint
         refresh) keeps the grant alive.
         """
         now = [1000.0]
         store = TaskHandoffGrantStore(now=lambda: now[0])
-        
+
         # Issue with short TTL (10 seconds).
         token = store.issue(
             project_id="proj-a",
@@ -1675,7 +1675,7 @@ class TestOOMPAH650WorkerLifetimeCredentials:
             owner_id="worker-gen-1",
         )
         # Grant expires at 1010
-        
+
         # Start a server-owned lease (simulating orchestrator startup).
         lease = store.start_lease(
             token,
@@ -1684,7 +1684,7 @@ class TestOOMPAH650WorkerLifetimeCredentials:
             owner_is_live=lambda: True,  # Pretend worker is always live
         )
         assert lease is not None
-        
+
         # At t=1007 (3 seconds before expiry), worker makes a tracker call.
         now[0] = 1007.0
         permit = store.acquire_permit(
@@ -1696,16 +1696,16 @@ class TestOOMPAH650WorkerLifetimeCredentials:
         assert permit is not None
         permit.begin()
         permit.end()
-        
+
         # Lease renews at t=1007 (before expiry).
         assert lease.heartbeat() is True
         grant = store._grants[store._digest(token)]
         renewed_expiry = grant.expires_at
         assert renewed_expiry > 1010.0  # Renewed by ~10s
-        
+
         # Advance to t=1014 (PAST the original 1010 expiry, but within renewed window).
         now[0] = 1014.0
-        
+
         # Worker's second tracker mutation at t=1014 (past original TTL) still succeeds.
         permit2 = store.acquire_permit(
             token,
@@ -1716,7 +1716,7 @@ class TestOOMPAH650WorkerLifetimeCredentials:
         assert permit2 is not None
         permit2.begin()
         permit2.end()
-        
+
         # This is the critical OOMPAH-650 case: worker is past initial TTL but
         # grant is still valid because lease kept it renewed.
         valid, reason = store.validate(
@@ -1726,7 +1726,7 @@ class TestOOMPAH650WorkerLifetimeCredentials:
             action="comment",
         )
         assert valid is True, f"Expected valid at t={now[0]}; reason: {reason}"
-        
+
         lease.stop()
 
     def test_endpoint_returns_handoff_expired_when_grant_ages_out(self):
@@ -1876,10 +1876,10 @@ class TestOOMPAH650WorkerLifetimeCredentials:
                 )
                 assert r1.status_code == 200, r1.text
                 assert tracker.add_comment.call_count == 1
-                
+
                 # Now revoke the grant (simulates termination signal).
                 store.revoke(token)
-                
+
                 # Second request: even though the grant was valid, it's now
                 # revoked. The endpoint checks permit validity and aborts.
                 r2 = client.post(
@@ -2162,7 +2162,7 @@ class TestOOMPAH650WorkerLifetimeCredentials:
             allowed_actions={"comment"},
             ttl_seconds=60,
         )
-        
+
         # Validate succeeds.
         valid, _ = store.validate(
             token,
@@ -2171,7 +2171,7 @@ class TestOOMPAH650WorkerLifetimeCredentials:
             action="comment",
         )
         assert valid is True
-        
+
         # Acquire permit after validation.
         permit = store.acquire_permit(
             token,
@@ -2182,10 +2182,10 @@ class TestOOMPAH650WorkerLifetimeCredentials:
         assert permit is not None
         permit.begin()
         permit.end()
-        
+
         # Permit captures current generation (initially 0).
         assert permit.generation_at_acquisition == 0
-        
+
         # After revocation, the same permit cannot begin another operation.
         store.revoke(token)
         with pytest.raises(OperationPermitDenied):
@@ -2200,7 +2200,7 @@ class TestOOMPAH650WorkerLifetimeCredentials:
             allowed_actions={"comment"},
             ttl_seconds=60,
         )
-        
+
         # Acquire permit before revocation.
         permit_before = store.acquire_permit(
             token,
@@ -2210,14 +2210,14 @@ class TestOOMPAH650WorkerLifetimeCredentials:
         )
         assert permit_before is not None
         assert permit_before.generation_at_acquisition == 0
-        
+
         # Revoke the grant (simulates termination signal).
         store.revoke(token)
-        
+
         # Permit detects revocation at the shared admission point.
         with pytest.raises(OperationPermitDenied):
             permit_before.begin()
-        
+
         # New permit cannot be acquired.
         permit_after = store.acquire_permit(
             token,
@@ -2365,7 +2365,7 @@ class TestOOMPAH650WorkerLifetimeCredentials:
         a deterministic clock to verify the heartbeat mechanism works correctly."""
         now = [1000.0]
         store = TaskHandoffGrantStore(now=lambda: now[0])
-        
+
         # Issue with short TTL (5 seconds).
         token = store.issue(
             project_id="proj-a",
@@ -2375,7 +2375,7 @@ class TestOOMPAH650WorkerLifetimeCredentials:
             owner_id="worker-1",
         )
         # Grant expires at 1005
-        
+
         # Start a lease with deterministic heartbeat interval.
         lease = store.start_lease(
             token,
@@ -2384,23 +2384,23 @@ class TestOOMPAH650WorkerLifetimeCredentials:
             owner_is_live=lambda: True,  # Pretend worker is always live
         )
         assert lease is not None
-        
+
         # Manually trigger first heartbeat.
         assert lease.heartbeat() is True
         grant = store._grants.get(store._digest(token))
         first_expiry = grant.expires_at
         assert first_expiry > 1004.0  # Renewed by ~5 seconds
-        
+
         # Advance time to 2 seconds before expiry (still before expiry).
         now[0] = first_expiry - 2.0
-        
+
         # Lease renews again before expiry.
         assert lease.heartbeat() is True
         grant = store._grants.get(store._digest(token))
         assert grant is not None
         second_expiry = grant.expires_at
         assert second_expiry > first_expiry  # Renewed again
-        
+
         # Verify grant is still valid despite being well past original TTL.
         # We started at t=1000 with 5s TTL (expires 1005), but are now at
         # t=second_expiry-2, which is way past 1005.
@@ -2411,7 +2411,7 @@ class TestOOMPAH650WorkerLifetimeCredentials:
             action="comment",
         )
         assert valid is True, f"Expected valid at t={now[0]}; reason: {reason}"
-        
+
         # Stop lease.
         lease.stop()
 
@@ -2420,7 +2420,7 @@ class TestOOMPAH650WorkerLifetimeCredentials:
         task, the old grant is explicitly revoked. This prevents the old
         lease from renewing and blocks use of the old token."""
         store = TaskHandoffGrantStore()
-        
+
         # Issue first grant for worker.
         old_token = store.issue(
             project_id="proj-a",
@@ -2429,7 +2429,7 @@ class TestOOMPAH650WorkerLifetimeCredentials:
             ttl_seconds=60.0,
             owner_id="dispatch-gen-1",
         )
-        
+
         # Start lease for first grant.
         old_lease = store.start_lease(
             old_token,
@@ -2438,7 +2438,7 @@ class TestOOMPAH650WorkerLifetimeCredentials:
             owner_is_live=lambda: True,
         )
         assert old_lease is not None
-        
+
         # Old token works initially.
         valid, _ = store.validate(
             old_token,
@@ -2447,7 +2447,7 @@ class TestOOMPAH650WorkerLifetimeCredentials:
             action="comment",
         )
         assert valid is True
-        
+
         # Simulate orchestrator restart: orchestrator issues NEW grant
         # and immediately revokes the OLD grant.
         new_token = store.issue(
@@ -2457,10 +2457,10 @@ class TestOOMPAH650WorkerLifetimeCredentials:
             ttl_seconds=60.0,
             owner_id="dispatch-gen-2",  # New generation
         )
-        
+
         # Orchestrator revokes the old grant (atomically with new grant issuance).
         store.revoke(old_token)
-        
+
         # Old token is now revoked and cannot be used.
         valid, reason = store.validate(
             old_token,
@@ -2470,13 +2470,13 @@ class TestOOMPAH650WorkerLifetimeCredentials:
         )
         assert valid is False
         assert "revoked" in reason.lower()
-        
+
         # Old lease cannot renew (token is revoked).
         assert store.refresh(old_token, owner_id="dispatch-gen-1") is False
-        
+
         # The new token can be used by the new dispatch.
         assert store.refresh(new_token, owner_id="dispatch-gen-2") is True
-        
+
         # Start a new lease for the new grant.
         new_lease = store.start_lease(
             new_token,
@@ -2485,7 +2485,7 @@ class TestOOMPAH650WorkerLifetimeCredentials:
             owner_is_live=lambda: True,
         )
         assert new_lease is not None
-        
+
         # New token works.
         valid, _ = store.validate(
             new_token,
@@ -2494,7 +2494,7 @@ class TestOOMPAH650WorkerLifetimeCredentials:
             action="comment",
         )
         assert valid is True
-        
+
         # Clean up leases.
         old_lease.stop()
         new_lease.stop()
@@ -2505,9 +2505,9 @@ class TestOOMPAH650WorkerLifetimeCredentials:
         the lease's background thread stops and revokes the grant."""
         now = [2000.0]
         store = TaskHandoffGrantStore(now=lambda: now[0])
-        
+
         owner_alive = [True]
-        
+
         token = store.issue(
             project_id="proj-a",
             task_identifier="TASK-1",
@@ -2515,7 +2515,7 @@ class TestOOMPAH650WorkerLifetimeCredentials:
             ttl_seconds=10.0,
             owner_id="worker-2",
         )
-        
+
         lease = store.start_lease(
             token,
             owner_id="worker-2",
@@ -2523,7 +2523,7 @@ class TestOOMPAH650WorkerLifetimeCredentials:
             owner_is_live=lambda: owner_alive[0],
         )
         assert lease is not None
-        
+
         # Worker is alive, heartbeat succeeds.
         assert lease.heartbeat() is True
         valid, _ = store.validate(
@@ -2533,20 +2533,20 @@ class TestOOMPAH650WorkerLifetimeCredentials:
             action="comment",
         )
         assert valid is True
-        
+
         # Worker dies, owner_is_live returns False.
         owner_alive[0] = False
-        
+
         # The lease's background thread will detect this and revoke the grant.
         # Since we can't directly control the thread timing in this test,
         # we stop the lease and check the grant state.
         lease.stop()
-        
+
         # Simulate what the lease's background thread would do: check
         # owner_is_live and revoke if needed.
         if not owner_alive[0]:
             store.revoke(token)
-        
+
         # Grant is now revoked.
         valid, reason = store.validate(
             token,
