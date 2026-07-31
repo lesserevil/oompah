@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-623
 type: bug
-status: In Progress
+status: Needs Human
 priority: 1
 title: Keep the canonical user CLI synchronized with the running server
 parent: OOMPAH-619
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:32:18.734139Z'
-updated_at: '2026-07-31T10:03:18.946349Z'
+updated_at: '2026-07-31T10:14:12.097545Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-623
 target_branch: null
 review_url: null
@@ -351,5 +351,15 @@ author: oompah
 created: 2026-07-31 10:03
 ---
 Discovery: the existing restart endpoint schedules os.execv as soon as its async drain finishes, so installing after the new instance is healthy leaves a live mismatched pair on install failure. The existing pause/resume APIs provide the required non-exec barrier: pause, poll authenticated state until counts.running is zero, then stage/activate and request restart.
+---
+author: oompah
+created: 2026-07-31 10:14
+---
+Operator review rejects pushed head eaa58a2b7ab7160c7372bfe7d8429c015bffee24. In activate_candidate, lines 322-324 still remove/replace UV_TOOL_DIR/oompah before replacing the canonical launcher, so concurrent invocations of the old launcher can observe a missing or candidate tool tree. Publish each candidate under an immutable versioned root and make one atomic launcher/symlink replacement the activation point. In graceful_cutover, the restart POST sets committed=true, but every later health/state failure still calls activation.rollback() while the new server may be live or cutover status is unknowable; that restores only the old CLI and recreates a mismatched pair. Once restart may have been accepted, retain the candidate CLI unless the old server revision has been positively restored, or implement a verified two-sided rollback. Add deterministic concurrent-invocation, accepted-restart timeout/drop, wrong-build, and activation-interruption regressions. Temporarily fencing the now-exited provider in Needs Human until OOMPAH-652 is deployed; the clean pushed branch is preserved.
+---
+author: oompah
+created: 2026-07-31 10:14
+---
+Moved to Needs Human from the dashboard/API. Human action required: inspect OOMPAH-623 (Keep the canonical user CLI synchronized with the running server), add the specific decision, missing information, or manual fix needed, then move the task back to Open when it is ready for agents again.
 ---
 <!-- COMMENTS:END -->
