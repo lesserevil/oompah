@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-650
 type: bug
-status: In Progress
+status: Backlog
 priority: 1
 title: Keep scoped task handoff credentials valid for the full worker lifetime
 parent: OOMPAH-619
@@ -9,11 +9,12 @@ children: []
 blocked_by:
 - OOMPAH-652
 - OOMPAH-657
-start_blocked_by: []
+start_blocked_by: &id001
+- OOMPAH-657
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T12:28:56.050426Z'
+updated_at: '2026-07-31T12:30:22.687901Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -157,6 +158,7 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-619--task-OOMPAH-650
     source_sha: 3e1fba180c2c8b9f89bfea5951550c8e9764d13d
     completed_at: '2026-07-31T12:28:23.985400+00:00'
+oompah.start_blocked_by: *id001
 ---
 ## Summary
 
@@ -1090,5 +1092,10 @@ author: oompah
 created: 2026-07-31 12:28
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-07-31 12:30
+---
+Operator security/code review accepted clean pushed head 3e1fba180 at the task level. Exact-entry lease ownership, predecessor revocation-before-publication, natural/forced exit revocation, revoke-first/admit-first mutation ordering, zero-traffic heartbeat renewal, explicit expired/revoked diagnostics, cross-scope denial, and no Basic fallback are implemented. The new lease heartbeat/revoke hooks intentionally remain import-compatible until OOMPAH-651 rebases and supplies immediate issuance registration plus the real bounded secret registry. Parking in Backlog with a hard-start dependency on OOMPAH-657 to stop redundant re-review and avoid an untrustworthy premature full gate. Operator will run the focused handoff suite on this frozen head; after OOMPAH-657 deploys, return Open/rebase and submit once through immutable exact-head integration.
 ---
 <!-- COMMENTS:END -->
