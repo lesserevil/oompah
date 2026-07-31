@@ -7,13 +7,14 @@ title: Retire legacy no-auditor alerts after terminal task completion
 parent: null
 children: []
 blocked_by: []
-start_blocked_by: []
+start_blocked_by: &id001
+- OOMPAH-668
 labels:
 - needs-rebase
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:07.401588Z'
-updated_at: '2026-07-31T21:59:23.810549Z'
+updated_at: '2026-07-31T22:34:39.492835Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -143,6 +144,7 @@ oompah.integration:
   head_sha: e395a94af15e30d7e7aed08a45134a56d4e3b9a8
   submitted_at: '2026-07-31T21:56:42.681380+00:00'
   updated_at: '2026-07-31T21:56:42.681380+00:00'
+oompah.start_blocked_by: *id001
 ---
 ## Summary
 
@@ -610,5 +612,10 @@ author: oompah
 created: 2026-07-31 21:59
 ---
 Task handoff failed after the worker ran: the server-owned, task-scoped tracker capability could not update this task. The task is held in Needs Human and will not be redispatched automatically; verify the handoff service and reconcile the worker's branch before resuming it.
+---
+author: oompah
+created: 2026-07-31 22:34
+---
+Recovery ordering recorded: OOMPAH-665 now hard-start depends on OOMPAH-668. Its core terminal-audit retirement implementation remains preserved; after OOMPAH-668 merges, rebase onto main and drop the broader duplicate Makefile fallback in favor of the deployed gate-only contract before resubmission.
 ---
 <!-- COMMENTS:END -->

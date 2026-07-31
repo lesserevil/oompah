@@ -7,13 +7,14 @@ title: Make issue-list snapshots advance with canonical state-branch task change
 parent: null
 children: []
 blocked_by: []
-start_blocked_by: []
+start_blocked_by: &id001
+- OOMPAH-668
 labels:
 - needs-rebase
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:06.140108Z'
-updated_at: '2026-07-31T22:33:45.363859Z'
+updated_at: '2026-07-31T22:34:38.131479Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -135,6 +136,7 @@ oompah.integration:
   head_sha: 2bbe670c66058884869ad53b235b2f0a3f19c355
   submitted_at: '2026-07-31T22:25:51.397485+00:00'
   updated_at: '2026-07-31T22:25:51.397485+00:00'
+oompah.start_blocked_by: *id001
 ---
 ## Summary
 
@@ -674,5 +676,10 @@ author: oompah
 created: 2026-07-31 22:33
 ---
 Understanding: I am taking the CI-fix pass on the existing OOMPAH-664 branch. I will synchronize the branch, inspect the failing GitHub Actions job, reproduce the evidenced failure locally where practical, then make and verify only the minimal repair before pushing and submitting.
+---
+author: oompah
+created: 2026-07-31 22:34
+---
+Coordination: OOMPAH-668 is now running its canonical exact-head gate at 9e520df9a and owns the durable fixes for the eight installed-CLI failures, projected editable paths, exact-revision metadata, and nested-gate assertion. A hard-start dependency is now recorded. Preserve OOMPAH-664's snapshot-generation/core behavior and its three task-specific collapsed-epic test updates; do not add more overlapping gate work. Once OOMPAH-668 merges/deploys, rebase onto that main and resolve overlaps in favor of OOMPAH-668.
 ---
 <!-- COMMENTS:END -->

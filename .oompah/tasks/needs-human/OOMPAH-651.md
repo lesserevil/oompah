@@ -13,12 +13,13 @@ blocked_by:
 start_blocked_by: &id001
 - OOMPAH-650
 - OOMPAH-657
+- OOMPAH-665
 labels:
 - ci-fix
 - needs-rebase
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T22:17:56.635037Z'
+updated_at: '2026-07-31T22:34:40.807254Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -1367,5 +1368,10 @@ author: oompah
 created: 2026-07-31 22:17
 ---
 Task handoff failed after the worker ran: the server-owned, task-scoped tracker capability could not update this task. The task is held in Needs Human and will not be redispatched automatically; verify the handoff service and reconcile the worker's branch before resuming it.
+---
+author: oompah
+created: 2026-07-31 22:34
+---
+Recovery ordering recorded: OOMPAH-651 now hard-start depends on OOMPAH-665. Its pushed security implementation is preserved. After OOMPAH-668 and then OOMPAH-665 land, rebase the security-only commits onto main, verify the redaction suites and complete gate, and resubmit.
 ---
 <!-- COMMENTS:END -->
