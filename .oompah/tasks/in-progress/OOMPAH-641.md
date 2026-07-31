@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T05:59:48.550048Z'
-updated_at: '2026-07-31T06:12:17.252146Z'
+updated_at: '2026-07-31T06:17:11.387122Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -134,5 +134,22 @@ Key issue: _ensure_review_exists needs to:
 1. Use resolvable parent_epic as fail-closed signal (not just parent_id)
 2. Verify work_branch matches expected epic branch before routing
 3. Test cases needed for: stale work_branch+parent_id, missing parent_id+resolvable parent, persistence failure in _create_workspace
+---
+author: oompah
+created: 2026-07-31 06:17
+---
+IMPLEMENTATION: Modified oompah/orchestrator.py with three key hardening changes:
+
+1. _ensure_review_exists (line 13461-13510): Now fails closed when parent is resolvable even if parent_id is absent. Corrects stale work_branch in-memory regardless of persistence failure.
+
+2. _close_invalid_epic_policy_review (line 18071-18107): Restructured to always attempt parent resolution for all issues, enabling closure of child PRs even when parent_id is missing but parent is resolvable.
+
+3. Added 4 new regression tests in test_epic_strategy.py:
+- test_blocks_child_pr_with_stale_work_branch_and_parent_id_oompah641
+- test_blocks_child_pr_with_missing_parent_id_but_resolvable_parent_oompah641
+- test_corrects_stale_work_branch_despite_persistence_failure_oompah641
+- test_closes_child_pr_with_missing_parent_id_but_resolvable_parent_oompah641
+
+All 219 existing epic_strategy tests pass. Acceptance: no child-to-main PR can bypass review blockers through stale work_branch or missing parent_id.
 ---
 <!-- COMMENTS:END -->
