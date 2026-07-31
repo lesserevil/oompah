@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-645
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Clear recovered terminal-audit transport failures without contaminating later
   audits
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:47:58.732088Z'
-updated_at: '2026-07-31T06:47:58.732088Z'
+updated_at: '2026-07-31T06:48:09.393718Z'
 work_branch: null
 target_branch: null
 review_url: null

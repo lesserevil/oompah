@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-642
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Fence standalone delivery gate outcomes after terminal authority changes
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:09:07.190386Z'
-updated_at: '2026-07-31T06:47:58.103965Z'
+updated_at: '2026-07-31T06:48:16.012001Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -92,6 +92,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-642
     source_sha: 90307bc066784b62b96b8508030d9cb4c2f86c64
     completed_at: '2026-07-31T06:39:30.910201+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-642
+  head_sha: af6e423391f3756f99900cf4263cbb6f4d3d07de
+  submitted_at: '2026-07-31T06:48:13.595313+00:00'
+  updated_at: '2026-07-31T06:48:13.595313+00:00'
 ---
 ## Summary
 
@@ -214,5 +222,10 @@ Verification: focused suites all pass locally.
 - Terminal audit (audit, enforcement, health, metadata, scanner, observability): 121 passed.
 - Orchestrator (duplicate_detection, merged, handlers, addendum_poll): 472 passed.
 Pushed as af6e42339.
+---
+author: oompah
+created: 2026-07-31 06:48
+---
+Fenced standalone delivery gate outcomes behind a compare-and-swap authority token (per-project-per-task) stored on the orchestrator, revoked synchronously by the terminal transition coordinator on Done/Merged/Archived/branch-or-head change, and validated on every tracker mutation, alert emit/clear, queue update, and retry schedule. Terminal owner overrides now claim/revoke authority atomically, keeping OOMPAH-575-style Merged overrides stable while in-flight gates fall through with a superseded diagnostic instead of committing 'Needs CI Fix' or emitting stranded-delivery alerts. Follow-up commit af6e42339 initialized the new authority state in the exact-head worktree unit test so the CI Failure Fixer suite is green.
 ---
 <!-- COMMENTS:END -->
