@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:54:49.391955Z'
-updated_at: '2026-07-31T01:04:59.646810Z'
+updated_at: '2026-07-31T01:05:46.813542Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-633
 target_branch: null
 review_url: null
@@ -141,5 +141,18 @@ Planned approach:
 6. This preserves duplicate/cooldown fencing and rebase-task lifecycle
 
 Key files: oompah/orchestrator.py (_detect_and_repair_integration_queue_staleness_block), tests/test_parallel_epic_children.py
+---
+author: oompah
+created: 2026-07-31 01:05
+---
+Discovery: Found the root cause in two locations:
+
+1. _detect_and_repair_integration_queue_staleness_block (line 5317): Returns False when target_branch starts with 'epic-', blocking all nested epic repairs
+2. _epic_synchronization_decision (line 10264): Rejects all epic- targets with 'epic_to_epic_prohibited'
+
+Solution implemented:
+1. Modified _detect_and_repair_integration_queue_staleness_block to check if epic- target is the authoritative parent branch
+2. Modified _epic_synchronization_decision to allow parent epic targets while rejecting unrelated epics
+3. This preserves the existing "rebase-requested" label and state-based authorization flow
 ---
 <!-- COMMENTS:END -->
