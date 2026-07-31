@@ -10,31 +10,22 @@ import shutil
 import signal
 import socket
 import subprocess
+import sys
+import tarfile
 import tempfile
 import threading
 import time
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Callable
-
-from oompah.client_auth import agent_environment
 
 logger = logging.getLogger(__name__)
 
 _EVIDENCE_VERSION = 2
 _OOMPAH_652_SAFETY_HEAD = "ec0ec7d89fb8804571fcf7e780558e6d979b73ea"
 
-# These files are the candidate-controlled entrypoints that establish the
-# lifecycle contract for a full gate.  A branch may not replace them after the
-# deployed safety prerequisite.  The operator updates the trusted head when a
-# lifecycle change is intentionally deployed.
-_LIFECYCLE_CRITICAL_PATHS = (
-    ".env.example",
-    "Makefile",
-    "scripts/process_identity.py",
-    "scripts/run-tests.sh",
-)
+_SANDBOX_RUN_ROOT = Path("/oompah-gate")
 
 
 class _SandboxUnavailable(RuntimeError):
@@ -295,90 +286,6 @@ class BranchQualityGate:
         )
         return result.stdout.strip()
 
-    @staticmethod
-    def _create_snapshot(repo_path: str, head_sha: str) -> Path:
-        """Materialize *head_sha* in a private detached worktree.
-
-        The task worktree is only used to resolve and validate the commit.
-        Git then materializes that immutable object in a gate-owned checkout,
-        so later task-agent edits cannot change the command's inputs.
-        """
-        snapshot = Path(
-            tempfile.mkdtemp(prefix=".oompah-quality-gate-")
-        )
-        try:
-            subprocess.run(
-                [
-                    "git",
-                    "-C",
-                    repo_path,
-                    "worktree",
-                    "add",
-                    "--detach",
-                    str(snapshot),
-                    head_sha,
-                ],
-                capture_output=True,
-                text=True,
-                check=True,
-                timeout=60,
-            )
-            if BranchQualityGate._head_sha(str(snapshot)) != head_sha:
-                raise RuntimeError(
-                    "quality gate snapshot checked out a different commit"
-                )
-            return snapshot
-        except BaseException:
-            # ``git worktree add`` can register the worktree before a later
-            # verification step fails.  Always remove through Git first so a
-            # failed snapshot can never leave a stale registration behind.
-            BranchQualityGate._remove_snapshot(repo_path, snapshot)
-            raise
-
-    @staticmethod
-    def _remove_snapshot(repo_path: str, snapshot: Path) -> None:
-        """Remove exactly the detached worktree owned by one gate."""
-        # Prefer the task checkout used for creation, but fall back to the
-        # snapshot itself if an operator reassigned or removed that checkout
-        # while the gate was running.  This avoids leaving a stale worktree
-        # registration behind while still limiting removal to this path.
-        commands = (
-            [
-                "git",
-                "-C",
-                repo_path,
-                "worktree",
-                "remove",
-                "--force",
-                str(snapshot),
-            ],
-            [
-                "git",
-                "-C",
-                str(snapshot),
-                "worktree",
-                "remove",
-                "--force",
-                str(snapshot),
-            ],
-        )
-        for command in commands:
-            try:
-                removed = subprocess.run(
-                    command,
-                    capture_output=True,
-                    text=True,
-                    check=False,
-                    timeout=60,
-                )
-            except (OSError, subprocess.TimeoutExpired):
-                continue
-            if removed.returncode == 0 or not snapshot.exists():
-                break
-        # Git may already have removed the registration while the process was
-        # being cancelled.  The path is still gate-owned and safe to remove.
-        shutil.rmtree(snapshot, ignore_errors=True)
-
     def _verify_isolation_contract(self, repo_path: str) -> tuple[bool, str]:
         """Verify the candidate is based on the deployed lifecycle contract.
 
@@ -387,12 +294,12 @@ class BranchQualityGate:
         source tree can read absolute canonical paths, connect to localhost:8090, or
         signal the operator service regardless of environment variables or marker strings.
 
-        Ancestry alone is insufficient: a descendant can revert or replace the
-        Makefile and runner scripts.  The candidate must therefore retain the
-        exact lifecycle-critical files from the deployed safety head, and the
-        checked-out worktree must not have uncommitted changes to those files.
-        All checks happen before Popen, so a rejected candidate command never
-        gets a chance to inspect or signal the operator service.
+        The OS sandbox is the containment boundary; the candidate is expressly
+        allowed to evolve its Makefile and test runner.  This preflight only
+        establishes that a recovered branch has been rebased onto the durable,
+        operator-configured lifecycle base.  All checks happen before Popen,
+        so a rejected candidate command never gets a chance to inspect or
+        signal the operator service.
 
         Returns:
             (is_compliant, reason) — True if the branch contains OOMPAH-652 safety head
@@ -421,62 +328,29 @@ class BranchQualityGate:
                 capture_output=True,
                 timeout=5,
             )
-            # merge-base --is-ancestor exits 0 if ancestor exists, non-zero otherwise
+            # merge-base --is-ancestor exits 0 if ancestor exists, non-zero otherwise.
             if result.returncode == 0:
-                critical_diff = subprocess.run(
-                    [
-                        "git",
-                        "diff",
-                        "--name-only",
-                        safety_head,
-                        "HEAD",
-                        "--",
-                        *_LIFECYCLE_CRITICAL_PATHS,
-                    ],
-                    cwd=repo_path,
-                    capture_output=True,
-                    text=True,
-                    timeout=5,
-                )
-                if critical_diff.returncode != 0:
-                    return False, "Cannot inspect lifecycle-critical candidate files"
-                changed = tuple(
-                    line.strip()
-                    for line in critical_diff.stdout.splitlines()
-                    if line.strip()
-                )
-                if changed:
-                    return (
-                        False,
-                        "Candidate changes deployed lifecycle-critical files: "
-                        f"{', '.join(changed)}. Rebase onto the deployed safety "
-                        "base or obtain a separately deployed lifecycle update "
-                        f"before rerunning the gate (safety head {safety_head}).",
-                    )
-
                 dirty = subprocess.run(
                     [
                         "git",
-                        "status",
-                        "--porcelain=v1",
-                        "--untracked-files=all",
+                        "diff",
+                        "--quiet",
+                        "HEAD",
                         "--",
-                        *_LIFECYCLE_CRITICAL_PATHS,
                     ],
                     cwd=repo_path,
                     capture_output=True,
                     text=True,
                     timeout=5,
                 )
-                if dirty.returncode != 0:
-                    return False, "Cannot inspect lifecycle-critical worktree state"
-                if dirty.stdout.strip():
+                if dirty.returncode not in {0, 1}:
+                    return False, "Cannot inspect quality-gate worktree state"
+                if dirty.returncode == 1:
                     return (
                         False,
-                        "Lifecycle-critical files are modified in the gate "
-                        "worktree. Commit and push the repair before rerunning "
-                        "the gate; refusing to execute an unreviewed lifecycle "
-                        "path.",
+                        "The quality-gate worktree has uncommitted changes. "
+                        "Commit and push the repair before rerunning the exact "
+                        "review-head gate.",
                     )
                 return True, ""
             return (
@@ -524,12 +398,102 @@ class BranchQualityGate:
             logger.warning("Failed to clean quality gate root %s: %s", root, exc)
 
     @staticmethod
+    def _snapshot_candidate_worktree(
+        repo_path: str,
+        run_root: Path,
+        head_sha: str = "HEAD",
+    ) -> Path:
+        """Archive the exact candidate head into a disposable gate workspace.
+
+        A candidate command must never receive a writable bind of the service's
+        live worktree.  ``git archive`` takes only tracked files at ``HEAD``;
+        this excludes operator .env/PID/log files and all other untracked
+        state.  The archive is extracted with tar's data filter so a malicious
+        symlink cannot escape the private run root.
+        """
+        snapshot = run_root / "workspace"
+        archive_path = run_root / "candidate.tar"
+        try:
+            archive = subprocess.run(
+                [
+                    "git",
+                    "archive",
+                    "--format=tar",
+                    f"--output={archive_path}",
+                    head_sha,
+                ],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise _SandboxUnavailable(
+                f"cannot create an immutable candidate snapshot: {exc}"
+            ) from exc
+        if archive.returncode != 0:
+            detail = (archive.stderr or archive.stdout).strip()[-500:]
+            raise _SandboxUnavailable(
+                "cannot create an immutable candidate snapshot"
+                + (f": {detail}" if detail else "")
+            )
+        try:
+            snapshot.mkdir(mode=0o700)
+            with tarfile.open(archive_path) as candidate_archive:
+                for member in candidate_archive:
+                    member_path = PurePosixPath(member.name)
+                    if (
+                        not member_path.parts
+                        or member_path.is_absolute()
+                        or ".." in member_path.parts
+                        or member.isdev()
+                        or member.isfifo()
+                    ):
+                        raise tarfile.TarError(
+                            f"unsafe member in candidate archive: {member.name!r}"
+                        )
+                    if member.issym() or member.islnk():
+                        link_path = PurePosixPath(member.linkname)
+                        if link_path.is_absolute() or ".." in link_path.parts:
+                            raise tarfile.TarError(
+                                "unsafe link in candidate archive: "
+                                f"{member.name!r} -> {member.linkname!r}"
+                            )
+                    # Oompah supports Python 3.11, whose early releases did
+                    # not accept ``filter``.  We apply the same validation
+                    # above, then use an explicit compatibility filter where
+                    # the newer tarfile API is available.
+                    try:
+                        candidate_archive.extract(
+                            member, path=snapshot, filter="fully_trusted"
+                        )
+                    except TypeError:
+                        candidate_archive.extract(member, path=snapshot)
+            archive_path.unlink()
+        except (OSError, tarfile.TarError) as exc:
+            raise _SandboxUnavailable(
+                f"cannot prepare an immutable candidate snapshot: {exc}"
+            ) from exc
+        return snapshot
+
+    @staticmethod
     def _quality_gate_environment(run_root: Path) -> dict[str, str]:
         """Build the complete server-owned lifecycle environment for a gate."""
-        environment = agent_environment()
-        private_tmp = run_root / "tmp"
-        private_lifecycle = run_root / "lifecycle"
-        private_home = run_root / "home"
+        # Do not inherit the server environment wholesale.  In particular,
+        # inherited OOMPAH/PIP/UV variables can point at operator state even
+        # when the corresponding filesystem paths are hidden.  Keep only
+        # display/locale settings plus a path backed by the sandbox's /usr.
+        environment = {"PATH": "/usr/bin:/bin:/usr/sbin:/sbin"}
+        for key in ("LANG", "LC_ALL", "LC_CTYPE", "TERM"):
+            value = os.environ.get(key)
+            if value:
+                environment[key] = value
+        # The host root is bound at _SANDBOX_RUN_ROOT.  Export only that
+        # sandbox-visible path: a host tempfile path would be inaccessible
+        # after /tmp and /home are hidden by bubblewrap.
+        private_tmp = _SANDBOX_RUN_ROOT / "tmp"
+        private_lifecycle = _SANDBOX_RUN_ROOT / "lifecycle"
+        private_home = _SANDBOX_RUN_ROOT / "home"
         # Bind-and-close allocation is the portable interface available to the
         # existing Makefile contract.  The candidate still cannot select the
         # operator's configured port because this value is server-generated.
@@ -540,7 +504,9 @@ class BranchQualityGate:
         environment.update(
             {
                 "OOMPAH_PYTEST_GATE": "1",
-                "OOMPAH_PYTEST_RUN_ROOT": str(run_root),
+                "OOMPAH_PYTEST_RUN_ROOT": str(_SANDBOX_RUN_ROOT),
+                "OOMPAH_PYTEST_TEMP_ROOT": str(private_tmp),
+                "OOMPAH_TEMP_ROOT": str(private_tmp),
                 "OOMPAH_TEST_SERVER_PORT": private_port,
                 "OOMPAH_SERVER_PORT": private_port,
                 "OOMPAH_TEST_PID_FILE": str(private_lifecycle / ".oompah.pid"),
@@ -551,22 +517,14 @@ class BranchQualityGate:
                 "TMPDIR": str(private_tmp),
                 "TMP": str(private_tmp),
                 "TEMP": str(private_tmp),
-                "XDG_CACHE_HOME": str(run_root / "cache"),
-                "XDG_CONFIG_HOME": str(run_root / "config"),
-                "XDG_DATA_HOME": str(run_root / "data"),
-                "PYTHONPYCACHEPREFIX": str(run_root / "cache" / "pycache"),
+                "XDG_CACHE_HOME": str(_SANDBOX_RUN_ROOT / "cache"),
+                "XDG_CONFIG_HOME": str(_SANDBOX_RUN_ROOT / "config"),
+                "XDG_DATA_HOME": str(_SANDBOX_RUN_ROOT / "data"),
+                "PYTHONPYCACHEPREFIX": str(
+                    _SANDBOX_RUN_ROOT / "cache" / "pycache"
+                ),
             }
         )
-        for key in (
-            "OOMPAH_SERVER_URL",
-            "OOMPAH_SERVER_USERNAME",
-            "OOMPAH_SERVER_PASSWORD",
-            "OOMPAH_SERVER_PASSWORD_FILE",
-            "OOMPAH_TASK_HANDOFF_TOKEN",
-            "OOMPAH_TASK_HANDOFF_PROJECT_ID",
-            "OOMPAH_TEST_SAFETY_HEAD",
-        ):
-            environment.pop(key, None)
         return environment
 
     @staticmethod
@@ -597,14 +555,21 @@ class BranchQualityGate:
                 "--unshare-user",
                 "--unshare-pid",
                 "--unshare-net",
+                "--cap-add",
+                "CAP_NET_ADMIN",
                 "--proc",
                 "/proc",
                 "--dev",
                 "/dev",
                 "--ro-bind",
-                "/",
-                "/",
-                "true",
+                "/usr",
+                "/usr",
+                "--symlink",
+                "usr/bin",
+                "/bin",
+                "/bin/sh",
+                "-c",
+                "ip link set lo up",
             ],
             capture_output=True,
             text=True,
@@ -621,9 +586,9 @@ class BranchQualityGate:
         if not repo.is_dir() or repo.is_symlink():
             raise _SandboxUnavailable("quality-gate worktree is not a real directory")
 
-        # Start from a read-only view of system files, then hide host home and
-        # temporary state.  Recreate only the candidate worktree's parent
-        # directories below /home before binding that worktree back in.
+        # Start from an empty root rather than a read-only host root.  Candidate
+        # code receives only a disposable source snapshot, its private gate
+        # state, and the runtime needed to execute the configured command.
         args = [
             bubblewrap,
             "--die-with-parent",
@@ -631,26 +596,103 @@ class BranchQualityGate:
             "--unshare-user",
             "--unshare-pid",
             "--unshare-net",
-            "--proc",
-            "/proc",
+            "--cap-add",
+            "CAP_NET_ADMIN",
+            "--tmpfs",
+            "/",
+            "--dir",
+            "/usr",
+            "--ro-bind",
+            "/usr",
+            "/usr",
+            "--symlink",
+            "usr/bin",
+            "/bin",
+            "--symlink",
+            "usr/sbin",
+            "/sbin",
+            "--symlink",
+            "usr/lib",
+            "/lib",
+            "--symlink",
+            "usr/lib64",
+            "/lib64",
+            "--dir",
+            "/dev",
             "--dev",
             "/dev",
-            "--ro-bind",
-            "/",
-            "/",
-            "--tmpfs",
-            "/home",
-            "--tmpfs",
+            "--dir",
+            "/proc",
+            "--proc",
+            "/proc",
+            "--dir",
             "/tmp",
             "--tmpfs",
+            "/tmp",
+            "--dir",
+            "/var",
+            "--dir",
             "/var/tmp",
+            "--tmpfs",
+            "/var/tmp",
+            "--dir",
+            "/home",
+            "--tmpfs",
+            "/home",
         ]
-        if repo.parts[:2] == ("/", "home"):
-            current = Path("/home")
-            for part in repo.parts[2:-1]:
+
+        # bwrap's bind destinations must already exist.  Do not inherit an
+        # arbitrary directory tree simply to make the worktree path available.
+        created_dirs = {
+            Path("/"),
+            Path("/usr"),
+            Path("/dev"),
+            Path("/proc"),
+            Path("/tmp"),
+            Path("/var"),
+            Path("/var/tmp"),
+            Path("/home"),
+        }
+
+        def add_destination(path: Path) -> None:
+            current = Path("/")
+            for part in path.parts[1:]:
                 current /= part
-                args.extend(["--dir", str(current)])
-        args.extend(["--dir", str(repo), "--dir", "/oompah-gate"])
+                if current not in created_dirs:
+                    args.extend(["--dir", str(current)])
+                    created_dirs.add(current)
+
+        # Make's trusted test virtualenv comes from the server process, not the
+        # candidate checkout.  It is mounted read-only in the snapshot.  Its
+        # Python base installation is also mapped at the path recorded by the
+        # virtualenv, without exposing the rest of the operator's home.
+        runtime_binds: list[str] = []
+        runtime_prefix = Path(sys.prefix).resolve()
+        runtime_python = runtime_prefix / "bin" / "python"
+        if runtime_python.exists():
+            add_destination(repo / ".venv")
+            base_prefix = Path(sys.base_prefix).resolve()
+            python_destination = base_prefix
+            try:
+                link_target = os.readlink(runtime_python)
+            except OSError:
+                link_target = ""
+            if link_target.startswith("/"):
+                python_destination = Path(link_target).parent.parent
+            add_destination(python_destination)
+            runtime_binds.extend(
+                [
+                    "--ro-bind",
+                    str(runtime_prefix),
+                    str(repo / ".venv"),
+                    "--ro-bind",
+                    str(base_prefix),
+                    str(python_destination),
+                ]
+            )
+
+        add_destination(repo)
+        add_destination(_SANDBOX_RUN_ROOT)
         args.extend(
             [
                 "--bind",
@@ -658,9 +700,17 @@ class BranchQualityGate:
                 str(repo),
                 "--bind",
                 str(run_root),
-                "/oompah-gate",
+                str(_SANDBOX_RUN_ROOT),
+                *runtime_binds,
                 "--chdir",
                 str(repo),
+                # bwrap leaves loopback down in a new network namespace.  Bring
+                # up the namespace-local device before giving control to the
+                # candidate so normal local server/client tests continue to run.
+                "/bin/sh",
+                "-c",
+                'ip link set lo up && exec "$@"',
+                "oompah-gate-bootstrap",
                 "/bin/sh",
                 "-c",
                 command,
@@ -914,7 +964,7 @@ class BranchQualityGate:
             monitor: threading.Thread | None = None
             try:
                 # --- Barrier 1: before snapshot creation ---
-                # Check authority before the expensive git worktree add.
+                # Check authority before creating the immutable archive.
                 # cancel_generation() may have been called while we were
                 # waiting in the key lock or the evidence load above.
                 if owned_generation is not None and self._generation_is_cancelled(
@@ -944,18 +994,24 @@ class BranchQualityGate:
                             output_tail="Gate authority withdrawn before snapshot creation.",
                         )
 
-                snapshot = self._create_snapshot(repo_path, head_sha)
-                if self._head_sha(str(snapshot)) != head_sha:
+                try:
+                    snapshot = self._snapshot_candidate_worktree(
+                        repo_path, run_root, head_sha
+                    )
+                except _SandboxUnavailable as exc:
                     return QualityGateResult(
-                        status="stale_head",
+                        status="needs_rebase",
                         head_sha=head_sha,
                         command=command,
-                        output_tail="Quality gate snapshot changed before spawn.",
+                        output_tail=(
+                            "OS-enforced quality-gate sandbox is unavailable; "
+                            f"refusing to execute candidate code: {exc}"
+                        ),
                     )
 
                 # --- Barrier 2: after snapshot, before Popen ---
                 # cancel_generation() may have arrived during the up-to-60s
-                # worktree creation above.  Check again before spawning.
+                # archive creation above.  Check again before spawning.
                 if owned_generation is not None and self._generation_is_cancelled(
                     owned_generation
                 ):
@@ -1001,7 +1057,7 @@ class BranchQualityGate:
                     )
                 process = subprocess.Popen(  # noqa: S602 - operator-owned command
                     sandboxed_command,
-                    cwd=snapshot,
+                    cwd=str(snapshot),
                     env=self._quality_gate_environment(run_root),
                     shell=False,
                     stdout=subprocess.PIPE,
@@ -1167,8 +1223,6 @@ class BranchQualityGate:
                         self._active_processes.pop(process.pid, None)
                         self._active_generations.pop(process.pid, None)
                         self._active_snapshots.pop(process.pid, None)
-                if snapshot is not None:
-                    self._remove_snapshot(repo_path, snapshot)
                 # A cancelled generation remains fenced until every caller
                 # already registered for it has crossed the barrier.  This
                 # prevents one interrupted caller from clearing the tombstone

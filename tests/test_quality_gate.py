@@ -1,18 +1,23 @@
 from __future__ import annotations
 
 import hashlib
+import http.server
 import json
 from pathlib import Path
 import shlex
+import shutil
 import subprocess
 import threading
 import time
+import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import MagicMock
 
+import pytest
+
 from oompah.models import Issue, Project
 from oompah.orchestrator import Orchestrator
-from oompah.quality_gate import BranchQualityGate, QualityGateResult
+from oompah.quality_gate import BranchQualityGate, QualityGateResult, _SandboxUnavailable
 from oompah.statuses import OPEN, READY_TO_INTEGRATE
 
 
@@ -231,7 +236,7 @@ def test_concurrent_readiness_checks_execute_once(tmp_path):
 def test_gate_reads_only_its_detached_snapshot_after_task_worktree_changes(tmp_path):
     repo = _git_repo(tmp_path)
     observed = tmp_path / "observed.txt"
-    gate = BranchQualityGate(str(tmp_path / "quality.json"))
+    gate = _gate(tmp_path / "quality.json", repo)
     head = _run(gate, repo, "true").head_sha
     command = (
         f"sleep 0.3; cat source.txt > {shlex.quote(str(observed))}"
@@ -272,7 +277,7 @@ def test_gate_reads_only_its_detached_snapshot_after_task_worktree_changes(tmp_p
 
 def test_gate_rejects_a_worktree_that_is_not_the_recorded_head(tmp_path):
     repo = _git_repo(tmp_path)
-    gate = BranchQualityGate(str(tmp_path / "quality.json"))
+    gate = _gate(tmp_path / "quality.json", repo)
     first_head = _run(gate, repo, "true").head_sha
     (repo / "source.txt").write_text("two\n", encoding="utf-8")
     subprocess.run(["git", "add", "source.txt"], cwd=repo, check=True)
@@ -292,7 +297,7 @@ def test_gate_rejects_a_worktree_that_is_not_the_recorded_head(tmp_path):
 
 def test_generation_cancellation_does_not_stop_a_replacement_head_gate(tmp_path):
     repo = _git_repo(tmp_path)
-    gate = BranchQualityGate(str(tmp_path / "quality.json"))
+    gate = _gate(tmp_path / "quality.json", repo)
     old_head = _run(gate, repo, "true").head_sha
     old_marker = tmp_path / "old-marker"
     new_marker = tmp_path / "new-marker"
@@ -345,7 +350,7 @@ def test_generation_cancellation_does_not_stop_a_replacement_head_gate(tmp_path)
 
 def test_gate_liveness_callback_cancels_only_its_owned_process(tmp_path):
     repo = _git_repo(tmp_path)
-    gate = BranchQualityGate(str(tmp_path / "quality.json"))
+    gate = _gate(tmp_path / "quality.json", repo)
     head = BranchQualityGate._head_sha(str(repo))
     current = threading.Event()
     current.set()
@@ -398,17 +403,18 @@ def test_gate_subprocess_isolates_operator_and_tool_state(tmp_path, monkeypatch)
     monkeypatch.setenv("OOMPAH_SERVER_USERNAME", "operator")
     monkeypatch.setenv("OOMPAH_SERVER_PASSWORD", "secret")
     monkeypatch.setenv("OOMPAH_SERVER_PASSWORD_FILE", "/secret/path")
-    monkeypatch.setenv("QUALITY_GATE_SENTINEL", "visible")
+    monkeypatch.setenv("QUALITY_GATE_SENTINEL", "operator-only")
     command = (
         'test -z "${OOMPAH_SERVER_URL+x}"'
         ' && test -z "${OOMPAH_TASK_HANDOFF_TOKEN+x}"'
         ' && test -z "${OOMPAH_SERVER_USERNAME+x}"'
         ' && test -z "${OOMPAH_SERVER_PASSWORD+x}"'
         ' && test -z "${OOMPAH_SERVER_PASSWORD_FILE+x}"'
-        ' && test "$QUALITY_GATE_SENTINEL" = visible'
-        f' && printf "%s\\n%s\\n%s\\n%s\\n%s\\n" '
+        ' && test -z "${QUALITY_GATE_SENTINEL+x}"'
+        f' && printf "%s\\n%s\\n%s\\n%s\\n%s\\n%s\\n%s\\n" '
         f'"$HOME" "$TMPDIR" "$OOMPAH_TEST_PID_FILE" '
         f'"$OOMPAH_TEST_PID_META_FILE" "$OOMPAH_TEST_SERVER_PORT" '
+        f'"$OOMPAH_TEMP_ROOT" "$OOMPAH_PYTEST_TEMP_ROOT" '
         f'> {shlex.quote(str(sentinel))}'
     )
 
@@ -420,18 +426,18 @@ def test_gate_subprocess_isolates_operator_and_tool_state(tmp_path, monkeypatch)
 
     assert result.passed
     values = sentinel.read_text(encoding="utf-8").splitlines()
-    private_home = Path(values[0])
-    private_root = private_home.parent
-    assert private_root.name.startswith("oompah-quality-gate-")
-    assert values[1] == str(private_root / "tmp")
-    assert values[2] == str(private_root / "lifecycle" / ".oompah.pid")
-    assert values[3] == str(private_root / "lifecycle" / ".oompah.pid.meta")
+    assert values[0] == "/oompah-gate/home"
+    assert values[1] == "/oompah-gate/tmp"
+    assert values[2] == "/oompah-gate/lifecycle/.oompah.pid"
+    assert values[3] == "/oompah-gate/lifecycle/.oompah.pid.meta"
     assert values[4].isdigit() and values[4] != "8090"
-    assert not private_root.exists(), "gate-owned lifecycle root leaked"
+    assert values[5] == "/oompah-gate/tmp"
+    assert values[6] == "/oompah-gate/tmp"
+    assert not Path(values[0]).exists(), "sandbox-visible gate root leaked on host"
 
 
-def test_preflight_rejects_descendant_that_replaces_lifecycle_entrypoint(tmp_path):
-    """An OOMPAH-652 descendant cannot replace the trusted Makefile and run."""
+def test_preflight_allows_lifecycle_evolution_behind_os_boundary(tmp_path):
+    """A rebased candidate may evolve Makefile code without self-approving it."""
     repo = _git_repo(tmp_path)
     sentinel = tmp_path / "replaced-entrypoint-executed"
     (repo / "Makefile").write_text(
@@ -447,26 +453,105 @@ def test_preflight_rejects_descendant_that_replaces_lifecycle_entrypoint(tmp_pat
 
     result = _run(_gate(tmp_path / "quality.json", repo), repo, "make test")
 
-    assert result.status == "needs_rebase"
-    assert "lifecycle-critical" in result.output_tail
-    assert not sentinel.exists(), "replaced lifecycle entrypoint executed"
+    assert result.passed
+    assert sentinel.exists(), "legitimate lifecycle evolution did not execute"
+
+
+def test_snapshot_excludes_host_lifecycle_state_and_preserves_source_worktree(tmp_path):
+    """An untracked canonical PID file is absent from the disposable snapshot."""
+    repo = _git_repo(tmp_path)
+    canonical_pid = repo / ".oompah.pid"
+    canonical_pid.write_text("host sentinel\n", encoding="utf-8")
+
+    result = _run(
+        _gate(tmp_path / "quality.json", repo),
+        repo,
+        "test ! -e .oompah.pid && test -f source.txt && printf snapshot-control",
+    )
+
+    assert result.passed
+    assert "snapshot-control" in result.output_tail
+    assert canonical_pid.read_text(encoding="utf-8") == "host sentinel\n"
+
+
+def test_snapshot_rejects_a_candidate_symlink_to_host_state(tmp_path):
+    """Snapshot preparation fails closed rather than preserving an escape link."""
+    repo = _git_repo(tmp_path)
+    (repo / "host-escape").symlink_to("/etc/passwd")
+    subprocess.run(["git", "add", "host-escape"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "host escape link"], cwd=repo, check=True)
+    run_root = BranchQualityGate._gate_run_root()
+    try:
+        with pytest.raises(_SandboxUnavailable, match="unsafe link"):
+            BranchQualityGate._snapshot_candidate_worktree(str(repo), run_root)
+    finally:
+        BranchQualityGate._cleanup_gate_run_root(run_root)
+
+
+def test_sandbox_command_uses_an_empty_root_and_private_runtime_mounts(
+    tmp_path, monkeypatch
+):
+    """The wrapper never inherits the host root to make a candidate runnable."""
+    snapshot = tmp_path / "snapshot"
+    snapshot.mkdir()
+    run_root = BranchQualityGate._gate_run_root()
+    try:
+        monkeypatch.setattr(shutil, "which", lambda _name: "/usr/bin/bwrap")
+        monkeypatch.setattr(
+            subprocess,
+            "run",
+            lambda args, **_kwargs: subprocess.CompletedProcess(args, 0),
+        )
+
+        command = BranchQualityGate._sandbox_command("true", str(snapshot), run_root)
+
+        pairs = set(zip(command, command[1:]))
+        assert ("--tmpfs", "/") in pairs
+        assert ("--ro-bind", "/") not in pairs
+        assert ("/", "/") not in pairs
+        assert ("--bind", str(snapshot)) in pairs
+        assert (str(run_root), "/oompah-gate") in pairs
+        assert ("--cap-add", "CAP_NET_ADMIN") in pairs
+        assert 'ip link set lo up && exec "$@"' in command
+    finally:
+        BranchQualityGate._cleanup_gate_run_root(run_root)
 
 
 def test_default_boundary_blocks_literal_host_pid_and_localhost_attack(tmp_path):
-    """Candidate test code cannot reach host lifecycle state or the operator port."""
+    """A capable sandbox protects a live host sentinel while candidate code runs."""
     repo = _git_repo(tmp_path)
-    sentinel = tmp_path / "host-attack-succeeded"
+    canonical_pid = repo / ".oompah.pid"
+    canonical_pid.write_text("canonical host lifecycle state\n", encoding="utf-8")
+    sentinel = subprocess.Popen(["sleep", "60"], start_new_session=True)
+
+    class HealthHandler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):  # noqa: N802 - stdlib handler API
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"ok")
+
+        def log_message(self, _format, *_args):
+            return
+
+    service = http.server.ThreadingHTTPServer(("127.0.0.1", 0), HealthHandler)
+    service_thread = threading.Thread(target=service.serve_forever, daemon=True)
+    service_thread.start()
     attack = repo / "attack.sh"
     attack.write_text(
         "#!/bin/sh\n"
-        "if test -e /home/shedwards/.oompah/.oompah.pid; then\n"
-        f"  touch {shlex.quote(str(sentinel))}\n"
+        f"if test -e {shlex.quote(str(canonical_pid))}; then\n"
+        "  printf 'host-pid-file-reachable\\n'\n"
         "fi\n"
         "if command -v curl >/dev/null 2>&1 && "
-        "curl -fsS --max-time 1 http://127.0.0.1:8090/healthz "
+        f"curl -fsS --max-time 1 http://127.0.0.1:{service.server_port}/healthz "
         ">/dev/null 2>&1; then\n"
-        f"  touch {shlex.quote(str(sentinel))}\n"
-        "fi\n",
+        "  printf 'host-localhost-reachable\\n'\n"
+        "fi\n"
+        + "if kill -TERM " + str(sentinel.pid) + " 2>/dev/null; then\n"
+        "  printf 'host-pid-signalled\\n'\n"
+        "fi\n"
+        + f"rm -rf {shlex.quote(str(canonical_pid))}\n"
+        + "printf 'candidate-control-complete\\n'\n",
         encoding="utf-8",
     )
     attack.chmod(0o755)
@@ -477,16 +562,119 @@ def test_default_boundary_blocks_literal_host_pid_and_localhost_attack(tmp_path)
         check=True,
     )
 
-    gate = BranchQualityGate(
-        str(tmp_path / "quality.json"),
-        safety_head=_safety_head(repo),
-    )
-    result = _run(gate, repo, "./attack.sh")
+    try:
+        gate = BranchQualityGate(
+            str(tmp_path / "quality.json"),
+            safety_head=_safety_head(repo),
+        )
+        result = _run(gate, repo, "./attack.sh")
 
-    assert result.status in {"needs_rebase", "passed"}
-    assert not sentinel.exists(), "candidate reached host PID or localhost state"
+        if result.status == "needs_rebase":
+            assert "OS-enforced quality-gate sandbox" in result.output_tail
+            assert "candidate-control-complete" not in result.output_tail
+        else:
+            assert result.status == "passed"
+            assert "candidate-control-complete" in result.output_tail
+            assert "host-pid-file-reachable" not in result.output_tail
+            assert "host-localhost-reachable" not in result.output_tail
+            assert "host-pid-signalled" not in result.output_tail
+        assert sentinel.poll() is None, "candidate signalled the live host sentinel"
+        assert canonical_pid.read_text(encoding="utf-8") == "canonical host lifecycle state\n"
+        with urllib.request.urlopen(
+            f"http://127.0.0.1:{service.server_port}/healthz", timeout=1
+        ) as response:
+            assert response.read() == b"ok"
+    finally:
+        service.shutdown()
+        service.server_close()
+        sentinel.terminate()
+        sentinel.wait(timeout=5)
+
+
+def test_default_sandbox_keeps_namespace_local_loopback_available(tmp_path):
+    """Local HTTP-style tests work after the wrapper brings namespace lo up."""
+    repo = _git_repo(tmp_path)
+    command = "python3 -c " + shlex.quote(
+        "import os, socket, threading; "
+        "server = socket.socket(); "
+        "server.bind(('127.0.0.1', int(os.environ['OOMPAH_TEST_SERVER_PORT']))); "
+        "server.listen(1); "
+        "threading.Thread(target=lambda: server.accept()[0].sendall(b'ok'), "
+        "daemon=True).start(); "
+        "client = socket.create_connection(('127.0.0.1', int(os.environ['OOMPAH_TEST_SERVER_PORT']))); "
+        "assert client.recv(2) == b'ok'; print('namespace-loopback-ok')"
+    )
+    result = _run(
+        BranchQualityGate(
+            str(tmp_path / "quality.json"), safety_head=_safety_head(repo)
+        ),
+        repo,
+        command,
+    )
+
     if result.status == "needs_rebase":
         assert "OS-enforced quality-gate sandbox" in result.output_tail
+    else:
+        assert result.status == "passed"
+        assert "namespace-loopback-ok" in result.output_tail
+
+
+def test_default_sandbox_runs_a_normal_make_target_or_fails_before_start(tmp_path):
+    """The OS boundary permits an ordinary candidate Make target to gate."""
+    repo = _git_repo(tmp_path)
+    marker = "normal-make-target-ran"
+    (repo / "Makefile").write_text(
+        f".PHONY: test\ntest:\n\t@printf '{marker}\\n'\n",
+        encoding="utf-8",
+    )
+    subprocess.run(["git", "add", "Makefile"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "normal make target"], cwd=repo, check=True)
+
+    result = _run(
+        BranchQualityGate(
+            str(tmp_path / "quality.json"), safety_head=_safety_head(repo)
+        ),
+        repo,
+        "make test",
+    )
+
+    if result.status == "needs_rebase":
+        assert "OS-enforced quality-gate sandbox" in result.output_tail
+        assert marker not in result.output_tail
+    else:
+        assert result.status == "passed"
+        assert marker in result.output_tail
+
+
+def test_default_sandbox_reaps_owned_descendants_or_fails_before_start(tmp_path):
+    """A timeout cannot leave a candidate child outside the wrapper's ownership."""
+    repo = _git_repo(tmp_path)
+    marker = f"oompah-gate-child-{time.time_ns()}"
+    command = "/bin/bash -c " + shlex.quote(f"exec -a {marker} sleep 60")
+    result = _run(
+        BranchQualityGate(
+            str(tmp_path / "quality.json"),
+            timeout_seconds=1,
+            safety_head=_safety_head(repo),
+        ),
+        repo,
+        command,
+    )
+
+    if result.status == "needs_rebase":
+        assert "OS-enforced quality-gate sandbox" in result.output_tail
+    else:
+        assert result.status == "timed_out"
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            processes = subprocess.run(
+                ["ps", "-eo", "args="], capture_output=True, text=True, check=True
+            ).stdout
+            if marker not in processes:
+                break
+            time.sleep(0.05)
+        else:
+            raise AssertionError("sandbox-owned descendant survived gate cleanup")
 
 
 def test_orchestrator_resolves_exact_branch_worktree_and_posts_evidence(tmp_path):
@@ -863,13 +1051,13 @@ def test_explicit_retry_can_recover_from_transient_failure(tmp_path):
 def test_tombstone_set_before_run_stops_gate_at_first_barrier(tmp_path):
     """cancel_generation before run() prevents any snapshot or spawn.
 
-    Barrier 1: The tombstone is checked before _create_snapshot().  A gate
+    Barrier 1: The tombstone is checked before snapshot creation. A gate
     cancelled by the tracker transition to Open/rejected before it even
     starts must not create a snapshot or run the command.
     """
     repo = _git_repo(tmp_path)
     marker = tmp_path / "must-not-run"
-    gate = BranchQualityGate(str(tmp_path / "quality.json"))
+    gate = _gate(tmp_path / "quality.json", repo)
     head = BranchQualityGate._head_sha(str(repo))
 
     # Tombstone the generation before run() is called.  This simulates
@@ -900,13 +1088,13 @@ def test_tombstone_set_before_run_stops_gate_at_first_barrier(tmp_path):
 def test_is_current_false_before_snapshot_stops_gate_at_barrier_one(tmp_path):
     """is_current() returning False before snapshot creation stops the gate.
 
-    Barrier 1: authority is checked before _create_snapshot() so that the
-    expensive git worktree add is never called when the task is no longer
+    Barrier 1: authority is checked before snapshot creation so the archive
+    is never materialised when the task is no longer
     authorised.
     """
     repo = _git_repo(tmp_path)
     marker = tmp_path / "must-not-run"
-    gate = BranchQualityGate(str(tmp_path / "quality.json"))
+    gate = _gate(tmp_path / "quality.json", repo)
     head = BranchQualityGate._head_sha(str(repo))
 
     result = _run(
@@ -930,30 +1118,30 @@ def test_is_current_false_before_snapshot_stops_gate_at_barrier_one(tmp_path):
 def test_is_current_false_after_snapshot_stops_gate_before_spawn(tmp_path):
     """is_current() returning False after snapshot but before Popen stops gate.
 
-    Barrier 2: authority is rechecked after _create_snapshot() completes
-    (which can take up to 60 s) and before subprocess.Popen() is called,
+    Barrier 2: authority is rechecked after the snapshot completes and before
+    subprocess.Popen() is called,
     closing the window where cancel_generation() arrived during worktree
     creation but found no registered process to kill.
     """
     repo = _git_repo(tmp_path)
     marker = tmp_path / "must-not-run"
-    gate = BranchQualityGate(str(tmp_path / "quality.json"))
+    gate = _gate(tmp_path / "quality.json", repo)
     head = BranchQualityGate._head_sha(str(repo))
-    original_create = BranchQualityGate._create_snapshot
+    original_create = BranchQualityGate._snapshot_candidate_worktree
 
-    # Simulate authority being withdrawn mid-snapshot by patching
-    # _create_snapshot to flip the authority flag after it returns.
+    # Simulate authority being withdrawn mid-snapshot by flipping the
+    # authority flag after immutable archive extraction returns.
     authority = threading.Event()
     authority.set()
 
-    def _create_and_revoke(repo_path: str, head_sha: str):
-        snap = original_create(repo_path, head_sha)
+    def _create_and_revoke(repo_path: str, run_root: Path, head_sha: str = "HEAD"):
+        snap = original_create(repo_path, run_root, head_sha)
         # Revoke authority to simulate the Ready-to-Open transition arriving
         # while the worktree was being created.
         authority.clear()
         return snap
 
-    gate._create_snapshot = staticmethod(_create_and_revoke)
+    gate._snapshot_candidate_worktree = staticmethod(_create_and_revoke)
     try:
         result = _run(
             gate,
@@ -971,7 +1159,7 @@ def test_is_current_false_after_snapshot_stops_gate_before_spawn(tmp_path):
 
 
 def test_tombstone_during_snapshot_stops_gate_at_barrier_two(tmp_path):
-    """cancel_generation() during _create_snapshot() stops gate before spawn.
+    """cancel_generation() during snapshot creation stops gate before spawn.
 
     This covers the same Barrier 2 window as the is_current variant but
     uses the tombstone path: cancel_generation() is called on a thread
@@ -980,20 +1168,20 @@ def test_tombstone_during_snapshot_stops_gate_at_barrier_two(tmp_path):
     """
     repo = _git_repo(tmp_path)
     marker = tmp_path / "must-not-run"
-    gate = BranchQualityGate(str(tmp_path / "quality.json"))
+    gate = _gate(tmp_path / "quality.json", repo)
     head = BranchQualityGate._head_sha(str(repo))
-    original_create = BranchQualityGate._create_snapshot
+    original_create = BranchQualityGate._snapshot_candidate_worktree
 
     snapshot_started = threading.Event()
 
-    def _slow_create(repo_path: str, head_sha: str):
+    def _slow_create(repo_path: str, run_root: Path, head_sha: str = "HEAD"):
         snapshot_started.set()
         # Block until the test thread has set the tombstone.
         while "tombstone-during-snap" not in BranchQualityGate._cancelled_generations:
             time.sleep(0.01)
-        return original_create(repo_path, head_sha)
+        return original_create(repo_path, run_root, head_sha)
 
-    gate._create_snapshot = staticmethod(_slow_create)
+    gate._snapshot_candidate_worktree = staticmethod(_slow_create)
     try:
         with ThreadPoolExecutor(max_workers=1) as pool:
             future = pool.submit(
@@ -1032,21 +1220,21 @@ def test_tombstone_set_between_popen_and_registration_stops_gate(tmp_path):
     """
     repo = _git_repo(tmp_path)
     marker = tmp_path / "must-not-run"
-    gate = BranchQualityGate(str(tmp_path / "quality.json"))
+    gate = _gate(tmp_path / "quality.json", repo)
     head = BranchQualityGate._head_sha(str(repo))
-    original_create = BranchQualityGate._create_snapshot
+    original_create = BranchQualityGate._snapshot_candidate_worktree
 
     snapshot_done = threading.Event()
 
-    def _create_and_signal(repo_path: str, head_sha: str):
-        snap = original_create(repo_path, head_sha)
+    def _create_and_signal(repo_path: str, run_root: Path, head_sha: str = "HEAD"):
+        snap = original_create(repo_path, run_root, head_sha)
         # Signal that the snapshot is ready; the test thread will tombstone
         # the generation while Popen is being called.  The gate must still
         # detect the cancel via barrier 3 (post-registration check).
         snapshot_done.set()
         return snap
 
-    gate._create_snapshot = staticmethod(_create_and_signal)
+    gate._snapshot_candidate_worktree = staticmethod(_create_and_signal)
     try:
         with ThreadPoolExecutor(max_workers=1) as pool:
             future = pool.submit(
@@ -1076,7 +1264,7 @@ def test_tombstone_set_between_popen_and_registration_stops_gate(tmp_path):
 def test_cancelled_generation_stays_tombstoned_for_waiting_same_generation(tmp_path):
     """One interrupted caller cannot revive another caller waiting on its key."""
     repo = _git_repo(tmp_path)
-    gate = BranchQualityGate(str(tmp_path / "quality.json"))
+    gate = _gate(tmp_path / "quality.json", repo)
     head = BranchQualityGate._head_sha(str(repo))
     marker = tmp_path / "must-not-run"
     generation = "shared-generation"
@@ -1170,33 +1358,21 @@ def test_cancel_before_spawn_tombstones_are_bounded(monkeypatch):
             BranchQualityGate._generation_run_counts.clear()
 
 
-def test_failed_snapshot_verification_removes_worktree_registration(tmp_path, monkeypatch):
-    """A post-add snapshot verification failure leaves no registered worktree."""
+def test_snapshot_archive_uses_the_requested_exact_head(tmp_path):
+    """The disposable archive is materialised from the submitted head, not HEAD."""
     repo = _git_repo(tmp_path)
     head = BranchQualityGate._head_sha(str(repo))
-    snapshot = tmp_path / "failed-snapshot"
-    monkeypatch.setattr(
-        "oompah.quality_gate.tempfile.mkdtemp",
-        lambda prefix: str(snapshot),
-    )
-    monkeypatch.setattr(
-        BranchQualityGate,
-        "_head_sha",
-        staticmethod(lambda _path: "not-the-requested-head"),
-    )
-
-    with pytest.raises(RuntimeError, match="different commit"):
-        BranchQualityGate._create_snapshot(str(repo), head)
-
-    registered = subprocess.run(
-        ["git", "worktree", "list", "--porcelain"],
-        cwd=repo,
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout
-    assert f"worktree {snapshot}" not in registered
-    assert not snapshot.exists()
+    (repo / "source.txt").write_text("replacement\n", encoding="utf-8")
+    subprocess.run(["git", "add", "source.txt"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "replacement"], cwd=repo, check=True)
+    run_root = BranchQualityGate._gate_run_root()
+    try:
+        snapshot = BranchQualityGate._snapshot_candidate_worktree(
+            str(repo), run_root, head
+        )
+        assert (snapshot / "source.txt").read_text(encoding="utf-8") == "one\n"
+    finally:
+        BranchQualityGate._cleanup_gate_run_root(run_root)
 
 
 def test_preflight_rejects_old_branch_without_oompah652_ancestor(tmp_path):
