@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:06.140108Z'
-updated_at: '2026-07-31T23:29:20.310719Z'
+updated_at: '2026-07-31T23:31:17.247873Z'
 work_branch: OOMPAH-664
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/628
@@ -935,5 +935,10 @@ author: oompah
 created: 2026-07-31 23:29
 ---
 Understanding: Continuing after MR #628 reported a merge conflict. The preserved worktree is clean on OOMPAH-664 at a79a28d01, already tracking origin/OOMPAH-664, with origin/main d96740a6e (OOMPAH-668) in its ancestry. I will verify the rebase resolution against main and the MR's live status/checks, run the task-focused regression suites on this exact head, and make only a minimal CI repair if current evidence shows one is still needed.
+---
+author: oompah
+created: 2026-07-31 23:31
+---
+Discovery: The preserved branch had already been rebased and force-pushed before this continuation. Git confirms origin/main d96740a6e is an ancestor (0 behind, 7 task commits ahead), the worktree matches origin/OOMPAH-664 at a79a28d01, and GitHub now reports MR #628 MERGEABLE. No current failing GitHub job exists: CI run 30672935422 is the first Actions run for this branch and all Python 3.11/3.12/3.13 jobs are still pending. The prior actionable failure remains the internal exact-head gate timeout documented in task history and fixed by the final test-only commit.
 ---
 <!-- COMMENTS:END -->
