@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:17:38.708513Z'
-updated_at: '2026-07-31T06:19:35.486212Z'
+updated_at: '2026-07-31T06:20:00.709556Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -115,5 +115,10 @@ author: oompah
 created: 2026-07-31 06:19
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-31 06:20
+---
+Understanding: Investigating the reconciliation issue between stale terminal_audit_enforcement records and live queue metrics. The problem is that after runtime recovery, stale entries are being rehydrated by sync_pending, causing incorrect counts and metrics. Need to ensure enforcement records, dispatchable audits, health scans, and observability gauges all converge correctly. Will examine terminal_audit_enforcement.py, terminal_audit_observability.py, and related files to understand the data flow and implement reconciliation logic.
 ---
 <!-- COMMENTS:END -->
