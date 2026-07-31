@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:32:18.734139Z'
-updated_at: '2026-07-31T12:18:56.303159Z'
+updated_at: '2026-07-31T13:13:22.226525Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-623
 target_branch: null
 review_url: null
@@ -536,5 +536,10 @@ author: oompah
 created: 2026-07-31 12:18
 ---
 Temporary containment update: parked in Backlog rather than Open because deployed duplicate-preflight intentionally bypasses hard-start constraints and the OOMPAH-658 dedup repair is not deployed yet. Pushed c8bb0b809 remains preserved and accepted pending OOMPAH-657. Return to Open after 657 deploys.
+---
+author: oompah
+created: 2026-07-31 13:13
+---
+Fresh compatibility reproduction after main advanced: the OOMPAH-653 Codex worker's canonical PATH oompah CLI could view its scoped task, but every task comment invocation returned HTTP 400 'project_id and identifier are required' even when both positional identifier and --project/--project-id were supplied exactly as --help documented. The same operator CLI command succeeds from the current project checkout. This server/CLI payload drift blocked the worker before implementation and forced operator takeover. Add this exact view-succeeds/comment-payload-fails case to the canonical CLI/server revision compatibility coverage.
 ---
 <!-- COMMENTS:END -->
