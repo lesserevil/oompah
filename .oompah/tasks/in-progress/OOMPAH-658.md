@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-07-31T12:02:33.583449Z'
+updated_at: '2026-07-31T12:05:04.932257Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -433,5 +433,19 @@ Changes:
    - persisted checked verdict + on-disk finish-order dependency, start dep, and transient scheduler labels + fresh orchestrator/tracker instance => two ticks both skipped_checked, zero screens.
    - concurrent-tick race on the same persisted candidate after mutating intake.proposal_fingerprint on disk => exactly one winner.
    - persisted inconclusive result with fresh orchestrator => selection admits it, matching retry policy.
+---
+author: oompah
+created: 2026-07-31 12:05
+---
+Verification: Focused suites all green.
+- tests/test_duplicate_screening.py: 9 passed
+- tests/test_duplicate_preflight.py: 23 passed (added 3 native adapter-backed regressions)
+- tests/test_candidate_preflight.py + test_orchestrator_duplicate_detection.py + test_server_duplicate_screening_sync.py + test_dashboard_duplicate_screening.py: 87 additional related passed (119 total across the duplicate-screening test surface)
+- tests/test_models.py, tests/test_intake_schema.py, tests/test_intake_approval.py: 164 passed (dataclass removal didn't disturb neighbors)
+- tests/test_oompah_md_tracker.py: 122 passed (adapter path exercised by the new regression is stable)
+
+Skipping the repository-wide make test gate as instructed until OOMPAH-657 lands exact-head enforcement; server owns the one review-ready full gate.
+
+Head: 1b49ab0f4 pushed to origin/OOMPAH-658.
 ---
 <!-- COMMENTS:END -->
