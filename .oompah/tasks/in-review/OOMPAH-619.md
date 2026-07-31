@@ -20,7 +20,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-30T21:24:41.452666Z'
-updated_at: '2026-07-31T19:57:29.850469Z'
+updated_at: '2026-07-31T20:15:51.378085Z'
 work_branch: epic-OOMPAH-619
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/626
@@ -197,5 +197,10 @@ author: oompah
 created: 2026-07-31 19:56
 ---
 Rebased the completed epic onto main, preserving the owner-authority retry cancellation alongside the task-handoff permit changes. Removed the tracked generated hook symlink, normalized inherited whitespace, and pushed b55160d3798d228e140881d9d5bacbc0439cfc78. Verification: 213 focused tests passed; full make test passed with 14,534 passed, 7 skipped, 1 xfailed.
+---
+author: oompah
+created: 2026-07-31 20:15
+---
+Hosted CI exposed two environment-budget regressions after the rebase: identity-safe Granian cleanup scanned host-wide procfs under a 5-second test timeout, and the isolated exact-revision pip install had a 120-second subprocess limit. Fixed at 34a612911 by walking only kernel-reported owned descendants, restoring direct child identity capture, adding a no-global-scan regression, and using a hosted-runner-safe install budget. Verification: 56 focused tests passed; full make test passed with 14,534 passed, 7 skipped, 1 xfailed.
 ---
 <!-- COMMENTS:END -->
