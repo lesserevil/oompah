@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T09:39:57.961293Z'
+updated_at: '2026-07-31T09:52:43.998245Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -297,5 +297,10 @@ author: oompah
 created: 2026-07-31 09:39
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-31 09:52
+---
+In-progress operator review: the durable-source direction is right, but the current dirty diff still has two race/recovery holes and is missing the required deterministic barriers. First, apply_audit_result writes a retirement with applied=true and marks the audit COMPLETED before tracker.update_issue; if that status write fails or the process dies there, the task can remain In Validation while every replay/reconcile is fenced as already completed. Use an intent/applied protocol with restart recovery (or make the durable outcome/status mutation atomic) and test the crash window. Second, TerminalAuditEnforcement._recover_terminal_override captures raw_overrides before store.update, then its updater rebuilds the ledger from that stale outer list; a concurrent appended record can be silently overwritten. Derive the ledger from the updater's current document. The modified enforcement recovery path also has no new test in the current diff. Before submission add deterministic PASS-persist-vs-reconcile/no-candidate and override-vs-no-candidate barriers, interrupted PASS/status recovery, interrupted override finalization/restart, repeated callbacks, and project-isolation assertions against the production alert registry—not only sequential coordinator tests.
 ---
 <!-- COMMENTS:END -->

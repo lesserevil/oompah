@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T09:51:34.743025Z'
+updated_at: '2026-07-31T09:52:41.328437Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -264,5 +264,34 @@ author: oompah
 created: 2026-07-31 09:51
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-07-31 09:52
+---
+SECURITY AUDITOR ANALYSIS & PLAN
+
+**Root Cause (Operator Review Findings):**
+The previous implementation applied redaction only at isolated points (Claude _truncate_for_log, ConsoleEvent.to_dict) but NOT at the central event fan-out boundary in orchestrator._on_event(). Raw event payloads still leak through:
+
+1. **orchestrator.py _on_event()** - writes ev.payload directly to per-agent JSONL without redaction (line ~24461)
+2. **sess.last_message** - set from unredacted payload details (line ~24539)
+3. **Codex/OpenCode/_emit_agent_event** - not reviewed yet, may also emit raw payloads
+4. **API agent paths** - need to verify if they also write raw events
+5. **secrets.py edge cases** - returns original unredacted value at max depth, failed dataclass reconstruction, unknown credential-like fallbacks
+
+**Acceptance Criteria (from task description):**
+- No injected sentinel secrets in agent JSONL, service logs, state API, alerts, comments, or telemetry
+- End-to-end tests through Codex, OpenCode, API, and legacy backends
+- State snapshots properly redacted
+- Fail-closed on edge cases (no fallback to unredacted)
+
+**Implementation Plan:**
+1. Locate all event emission points (orchestrator, Codex, OpenCode, API backends)
+2. Apply centralized redaction at the EVENT PAYLOAD level before JSONL/state/telemetry use
+3. Fix secrets.py edge cases to fail-closed
+4. Add end-to-end sentinel tests for each backend path including state snapshots
+5. Run focused tests (test_secrets.py, test_orchestrator.py, etc.)
+
+**Next Step:** Explore all event emission paths to identify central redaction points.
 ---
 <!-- COMMENTS:END -->
