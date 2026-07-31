@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-602
 type: bug
-status: Done
+status: Needs Human
 priority: 1
 title: Repair project scope propagation in merged-label maintenance
 parent: OOMPAH-588
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:01.749200Z'
-updated_at: '2026-07-31T05:17:49.894270Z'
+updated_at: '2026-07-31T05:25:49.986198Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-602
 target_branch: null
 review_url: null
@@ -681,5 +681,10 @@ author: oompah
 created: 2026-07-31 05:17
 ---
 Operator rebase bookkeeping: refreshed this terminal task branch with an exact lease to patch-equivalent rebased head 93f92c0130ad9d7340c0a202a357e8d7242d1dd7, now contained in origin/epic-OOMPAH-588 with zero commits outside the epic. This prevents the old post-merge landing check from regressing the audited task after the nested epic merges.
+---
+author: oompah
+created: 2026-07-31 05:25
+---
+The parent epic OOMPAH-588 merged from epic-OOMPAH-588, but this task was Done with work branch epic-OOMPAH-588--task-OOMPAH-602. Its work is not proven to be in the merged epic. Git evidence: OOMPAH-602 branch epic-OOMPAH-588--task-OOMPAH-602 has 1 unlanded commit(s), including 89dfc1881145. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
 ---
 <!-- COMMENTS:END -->

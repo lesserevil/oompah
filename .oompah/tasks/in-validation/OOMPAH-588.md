@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-588
 type: epic
-status: In Review
+status: In Validation
 priority: 1
 title: Finish safe repository hygiene and maintenance correctness
 parent: OOMPAH-584
@@ -16,7 +16,7 @@ labels:
 - epic:rebased
 assignee: null
 created_at: '2026-07-30T14:13:46.482910Z'
-updated_at: '2026-07-31T05:25:12.649909Z'
+updated_at: '2026-07-31T05:25:53.273231Z'
 work_branch: epic-OOMPAH-588
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/602
@@ -61,6 +61,37 @@ oompah.terminal_audit:
     previous_state: Open
     created_at: '2026-07-31T05:02:58.950383+00:00'
     updated_at: '2026-07-31T05:09:14.294662+00:00'
+  - version: 1
+    audit_id: audit-2acc16bd16f2
+    project_id: proj-14849f1b
+    task_id: OOMPAH-588
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 4b103ce873cb0ba5c01da5f327fb8d227c3c3337cab3e7aa30a168dcd3bcd957
+    attempts:
+    - version: 1
+      attempt_id: attempt-5c2400157350
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 4b103ce873cb0ba5c01da5f327fb8d227c3c3337cab3e7aa30a168dcd3bcd957
+      created_at: '2026-07-31T05:25:47.139650+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-31T05:25:47.139650+00:00'
+      branch_key: epic-OOMPAH-588
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-31T05:25:38.259925+00:00'
+    updated_at: '2026-07-31T05:25:47.139650+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-d986f94b1463
@@ -75,6 +106,19 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-07-31T05:03:04.101670+00:00'
     branch_key: OOMPAH-588
+  - version: 1
+    attempt_id: attempt-5c2400157350
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 4b103ce873cb0ba5c01da5f327fb8d227c3c3337cab3e7aa30a168dcd3bcd957
+    created_at: '2026-07-31T05:25:47.139650+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-31T05:25:47.139650+00:00'
+    branch_key: epic-OOMPAH-588
 oompah.task_costs:
   total_input_tokens: 90
   total_output_tokens: 3061
@@ -192,5 +236,15 @@ author: oompah
 created: 2026-07-31 05:24
 ---
 Operator recovery validation completed on exact rebased head c2549a76d08cd51eb979aa710c4c9778b7468a26. Full Makefile gate passed: 14,163 passed, 7 skipped, 1 xfailed, 56 warnings in 255.21s. Terminal-audit mutation scan also passed. The old runtime continues to defer PR creation using stale pre-rebase integration evidence, so the approved operator fallback will open the nested PR to epic-OOMPAH-584 from this exact validated head.
+---
+author: oompah
+created: 2026-07-31 05:25
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-07-31 05:25
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
