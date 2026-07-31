@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-643
 type: task
-status: In Validation
+status: Merged
 priority: 0
 title: Reconcile stale terminal-audit enforcement records and live queue metrics
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:17:38.708513Z'
-updated_at: '2026-07-31T08:04:01.208823Z'
+updated_at: '2026-07-31T08:05:49.826924Z'
 work_branch: OOMPAH-643
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/610
@@ -125,6 +125,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-e5b97bb4551d: '2026-07-31T07:20:21.752967+00:00'
+    attempt-616413d31544: '2026-07-31T08:05:46.127554+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -166,7 +167,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-643
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -175,7 +176,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-616413d31544
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -185,13 +186,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T08:03:53.959409+00:00'
       branch_key: OOMPAH-643
+      verdict: pass
+      completed_at: '2026-07-31T08:05:46.127450+00:00'
+      ended_at: '2026-07-31T08:05:46.127450+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-07-31T07:16:50.523212+00:00'
-    updated_at: '2026-07-31T08:03:53.959409+00:00'
+    updated_at: '2026-07-31T08:05:46.127450+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-e5b97bb4551d
@@ -426,5 +430,24 @@ author: oompah
 created: 2026-07-31 08:04
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 08:05
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: 2b3a967c8d86a285cd3327aec58d52a5b0e64411
+- merge_commit: d48b971c58b8622e9c63de4923db08b755b5434b
+- pr: #610
+- diff_stat: 7 files changed, 461 insertions(+), 39 deletions(-)
+- merged_into_main: true
+- changed_paths: oompah/orchestrator.py, oompah/terminal_audit_enforcement.py, oompah/terminal_audit_observability.py, oompah/terminal_transition_coordinator.py, tests/test_terminal_audit_enforcement.py, tests/test_terminal_audit_observability.py, tests/test_terminal_transition_coordinator.py
+- prior_audit: attempt-1 verdict=pass audit_id=(prior)
+- focused_tests_prior: 139/139 passed
+- mutation_scan_prior: 15/15 passed
+- branch_gate_prior: make test passed for 84521c288 in 276.6s
 ---
 <!-- COMMENTS:END -->
