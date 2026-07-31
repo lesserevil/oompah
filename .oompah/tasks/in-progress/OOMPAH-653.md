@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T11:03:33.221995Z'
+updated_at: '2026-07-31T11:07:59.848961Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -541,5 +541,10 @@ author: oompah
 created: 2026-07-31 11:03
 ---
 Understanding: Reviewed continuation state. Prior commit fb68d377c already implements: (1) result-intent protocol with restart recovery for the PASS→status crash window, (2) CAS check on _audit_update_record to fence stale dispatch snapshots, (3) fix to _recover_terminal_override to derive ledger from current document (not stale outer list), (4) override-vs-result intent priority so an override supersedes an unacknowledged PASS. Tests in place: test_restart_replays_unacknowledged_result_status_and_is_idempotent, test_override_recovery_preserves_concurrent_ledger_append, test_dispatch_cas_does_not_resurrect_completed_audit. All 147 focused tests pass. Gaps I still need to close per operator feedback: (a) PASS-persist-vs-reconcile/no-candidate barrier against production alert registry, (b) override-vs-no-candidate barrier, (c) repeated-callbacks scenario, (d) project-isolation assertions against production alert registry, (e) explicit OOMPAH-654 test — one PASS retires every equivalent queued identity without a second provider launch. Adding these tests now.
+---
+author: oompah
+created: 2026-07-31 11:07
+---
+Exact review of committed head fb68d377c plus current dirty tests finds two remaining recovery bugs. First, recover_pending_audits calls _recover_terminal_override only when the issue is no longer In Validation. If an override intent was persisted but its tracker status write failed/crashed, the issue is still In Validation; result recovery sees the unapplied override and returns, while override recovery is skipped forever. Recovery must apply/complete the authoritative override from In Validation as well, with the same intent/applied protocol and authorization evidence already persisted. Second, _recover_terminal_result replays any COMPLETED record with an unapplied intent without comparing the intent/record evidence fingerprint to the task current evidence; a task revision after the crash can receive an obsolete Done/Merged/Needs Human status. Resolve exactly one authoritative current intent after checking project/task/target/current evidence and retire stale intents without applying them. The newly added TestApplyBarriersAgainstSecondaryLanes tests are sequential calls, not deterministic concurrency barriers, and do not exercise restart or the production actionable-alert registry. Add latch/barrier tests for PASS persistence versus no-candidate reconcile, override persistence/status failure versus recovery, evidence mutation before recovery, multiple competing intents, repeated callbacks, and cross-project isolation. Do not submit until the In Validation override-intent deadlock and stale-evidence replay are covered.
 ---
 <!-- COMMENTS:END -->
