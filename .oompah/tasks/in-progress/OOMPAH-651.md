@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T12:02:47.909278Z'
+updated_at: '2026-07-31T12:04:23.986662Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -821,5 +821,10 @@ author: oompah
 created: 2026-07-31 12:02
 ---
 Implementation: added explicit renew_secret and retire_secret lifecycle APIs, wired current handoff revocation to bounded grace, and added deterministic renewal/revocation tests plus runbook semantics. Lease integration is coordinated with OOMPAH-650.
+---
+author: oompah
+created: 2026-07-31 12:04
+---
+Verification: 131 focused tests pass (test_secrets.py + test_task_handoff.py); 228 console/API-budget tests pass; 193 ACP/backend tests pass with OOMPAH_AGENT_LOG_DIR directed to the writable temp root; make check-secrets passes; make terminal-audit-scan passes (6/6 allowlisted). The initial ACP run hit only the sandbox read-only default agent-log path and passed when redirected to TMPDIR.
 ---
 <!-- COMMENTS:END -->
