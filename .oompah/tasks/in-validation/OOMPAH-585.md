@@ -24,7 +24,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:13:32.577860Z'
-updated_at: '2026-07-31T00:12:19.864078Z'
+updated_at: '2026-07-31T00:12:50.168256Z'
 work_branch: epic-OOMPAH-585
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/596
@@ -97,18 +97,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-585
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 0cfb98eafc768e5e2b01af3fc05a46d57c2174f15a248e0583518caca77a559e
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-e6d2d009f03d
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 0cfb98eafc768e5e2b01af3fc05a46d57c2174f15a248e0583518caca77a559e
+      created_at: '2026-07-31T00:12:46.095751+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-31T00:12:46.095751+00:00'
+      branch_key: epic-OOMPAH-585
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-07-30T23:32:29.243227+00:00'
+    updated_at: '2026-07-31T00:12:46.095751+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-49359e458701
@@ -141,14 +155,27 @@ oompah.terminal_audit:
     started_at: '2026-07-31T00:03:51.620034+00:00'
     branch_key: epic-OOMPAH-585
     candidate_rotation_count: 1
+  - version: 1
+    attempt_id: attempt-e6d2d009f03d
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0cfb98eafc768e5e2b01af3fc05a46d57c2174f15a248e0583518caca77a559e
+    created_at: '2026-07-31T00:12:46.095751+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-31T00:12:46.095751+00:00'
+    branch_key: epic-OOMPAH-585
 oompah.task_costs:
-  total_input_tokens: 6
-  total_output_tokens: 89
+  total_input_tokens: 9
+  total_output_tokens: 176
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 6
-      output_tokens: 89
+      input_tokens: 9
+      output_tokens: 176
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -157,6 +184,12 @@ oompah.task_costs:
     output_tokens: 89
     cost_usd: 0.0
     recorded_at: '2026-07-30T23:57:12.421230+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 3
+    output_tokens: 87
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T00:12:42.540710+00:00'
 ---
 ## Summary
 
@@ -247,5 +280,25 @@ Safe evidence:
 - focused_tests_provider_health: 167 passed
 - new_module: oompah/terminal_audit_health.py (460 lines)
 - changed_files: 31 files, 3388 insertions, 94 deletions
+---
+author: oompah
+created: 2026-07-31 00:12
+---
+Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 93, Tool calls: 60
+- Tokens: 3 in / 87 out [90 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 8m 50s
+- Log: OOMPAH-585__20260731T000356Z.jsonl
+---
+author: oompah
+created: 2026-07-31 00:12
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-07-31 00:12
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
