@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T22:56:06.058439Z'
-updated_at: '2026-07-31T23:02:55.958707Z'
+updated_at: '2026-07-31T23:03:10.880516Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -105,5 +105,10 @@ author: oompah
 created: 2026-07-31 23:02
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-07-31 23:03
+---
+Understanding: With HTTP Basic authentication enabled, the dashboard incorrectly sends client-supplied actor_login in mutations (status updates, intake actions). The server correctly rejects mismatched actors as actor_mismatch. Solution: Update dashboard.html to detect http_auth.enabled from state and conditionally omit actor/actor_login fields in authenticated requests, while preserving the legacy actor path for unauthenticated deployments. Must maintain auth-state through refreshes and WebSocket updates. Planned approach: (1) Explore dashboard.html and related code, (2) Identify mutation request paths, (3) Detect http_auth.enabled in state, (4) Conditionally build payloads, (5) Add tests for both auth modes, (6) Verify no server-side spoofing weakening.
 ---
 <!-- COMMENTS:END -->
