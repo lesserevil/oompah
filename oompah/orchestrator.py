@@ -882,6 +882,11 @@ class Orchestrator:
         self._branch_quality_gate = BranchQualityGate(
             os.path.join(_state_dir, "quality_gates.json"),
             timeout_seconds=config.quality_gate_timeout_seconds,
+            **(
+                {"safety_head": config.quality_gate_safety_head}
+                if config.quality_gate_safety_head
+                else {}
+            ),
         )
         self.coordination_store = CoordinationStore(
             os.path.join(_state_dir, "coordination.sqlite3")

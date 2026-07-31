@@ -240,6 +240,22 @@ class TestServiceConfig:
             encoding="utf-8"
         )
 
+    def test_quality_gate_safety_head_comes_from_environment(self, monkeypatch):
+        safety_head = "a" * 40
+        monkeypatch.setenv("OOMPAH_QUALITY_GATE_SAFETY_HEAD", safety_head)
+
+        cfg = ServiceConfig.from_workflow(
+            WorkflowDefinition(config={}, prompt_template="test")
+        )
+
+        assert cfg.quality_gate_safety_head == safety_head
+
+    def test_quality_gate_safety_head_is_documented(self):
+        env_example = Path(__file__).parents[1] / ".env.example"
+        assert "OOMPAH_QUALITY_GATE_SAFETY_HEAD=" in env_example.read_text(
+            encoding="utf-8"
+        )
+
 
 class TestRepoMapEnvironmentConfiguration(TestServiceConfig):
     """Repository-map settings are environment-only operator controls."""

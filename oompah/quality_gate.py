@@ -37,6 +37,10 @@ _LIFECYCLE_CRITICAL_PATHS = (
 )
 
 
+class _SandboxUnavailable(RuntimeError):
+    """Raised when the operator cannot create the required OS boundary."""
+
+
 @dataclass(frozen=True)
 class QualityGateResult:
     """Outcome of checking one exact branch head with one exact command."""
@@ -103,11 +107,13 @@ class BranchQualityGate:
         timeout_seconds: int = 3600,
         output_tail_bytes: int = 16 * 1024,
         safety_head: str = _OOMPAH_652_SAFETY_HEAD,
+        sandbox_launcher: Callable[[str, str, Path], list[str]] | None = None,
     ) -> None:
         self.state_path = Path(state_path)
         self.timeout_seconds = max(int(timeout_seconds), 1)
         self.output_tail_bytes = max(int(output_tail_bytes), 1024)
         self.safety_head = safety_head
+        self._sandbox_launcher = sandbox_launcher or self._sandbox_command
         self._lock = threading.Lock()
         self._key_locks: dict[str, _KeyLockEntry] = {}
 
@@ -564,6 +570,105 @@ class BranchQualityGate:
         return environment
 
     @staticmethod
+    def _sandbox_command(
+        command: str,
+        repo_path: str,
+        run_root: Path,
+    ) -> list[str]:
+        """Return a bubblewrap command with host lifecycle state hidden.
+
+        The candidate command runs in a private mount, PID, and network
+        namespace.  The repository and one operator-created run root are the
+        only task-owned paths made visible.  If bubblewrap or unprivileged
+        namespaces are unavailable, the caller fails closed before starting
+        candidate code.
+        """
+        bubblewrap = shutil.which("bwrap")
+        if not bubblewrap:
+            raise _SandboxUnavailable(
+                "bubblewrap is not installed; refusing to run an unsandboxed gate"
+            )
+
+        probe = subprocess.run(
+            [
+                bubblewrap,
+                "--die-with-parent",
+                "--new-session",
+                "--unshare-user",
+                "--unshare-pid",
+                "--unshare-net",
+                "--proc",
+                "/proc",
+                "--dev",
+                "/dev",
+                "--ro-bind",
+                "/",
+                "/",
+                "true",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if probe.returncode != 0:
+            detail = (probe.stderr or probe.stdout).strip()[-500:]
+            raise _SandboxUnavailable(
+                "bubblewrap cannot create the required OS namespaces"
+                + (f": {detail}" if detail else "")
+            )
+
+        repo = Path(repo_path).resolve()
+        if not repo.is_dir() or repo.is_symlink():
+            raise _SandboxUnavailable("quality-gate worktree is not a real directory")
+
+        # Start from a read-only view of system files, then hide host home and
+        # temporary state.  Recreate only the candidate worktree's parent
+        # directories below /home before binding that worktree back in.
+        args = [
+            bubblewrap,
+            "--die-with-parent",
+            "--new-session",
+            "--unshare-user",
+            "--unshare-pid",
+            "--unshare-net",
+            "--proc",
+            "/proc",
+            "--dev",
+            "/dev",
+            "--ro-bind",
+            "/",
+            "/",
+            "--tmpfs",
+            "/home",
+            "--tmpfs",
+            "/tmp",
+            "--tmpfs",
+            "/var/tmp",
+        ]
+        if repo.parts[:2] == ("/", "home"):
+            current = Path("/home")
+            for part in repo.parts[2:-1]:
+                current /= part
+                args.extend(["--dir", str(current)])
+        args.extend(["--dir", str(repo), "--dir", "/oompah-gate"])
+        args.extend(
+            [
+                "--bind",
+                str(repo),
+                str(repo),
+                "--bind",
+                str(run_root),
+                "/oompah-gate",
+                "--chdir",
+                str(repo),
+                "/bin/sh",
+                "-c",
+                command,
+            ]
+        )
+        return args
+
+    @staticmethod
     def _evidence_key(
         *,
         repo_identity: str,
@@ -878,11 +983,27 @@ class BranchQualityGate:
                             output_tail="Gate authority withdrawn after snapshot, before spawn.",
                         )
 
+                try:
+                    sandboxed_command = self._sandbox_launcher(
+                        command,
+                        str(snapshot),
+                        run_root,
+                    )
+                except _SandboxUnavailable as exc:
+                    return QualityGateResult(
+                        status="needs_rebase",
+                        head_sha=head_sha,
+                        command=command,
+                        output_tail=(
+                            "OS-enforced quality-gate sandbox is unavailable; "
+                            f"refusing to execute candidate code: {exc}"
+                        ),
+                    )
                 process = subprocess.Popen(  # noqa: S602 - operator-owned command
-                    command,
+                    sandboxed_command,
                     cwd=snapshot,
                     env=self._quality_gate_environment(run_root),
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     text=True,

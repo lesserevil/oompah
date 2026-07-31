@@ -28,11 +28,17 @@ def _safety_head(repo_path):
     return result.stdout.strip()
 
 
+def _passthrough_sandbox(command, _repo_path, _run_root):
+    """Inject a launch stub for unit tests that exercise gate mechanics."""
+    return ["/bin/sh", "-c", command]
+
+
 def _gate(state_path, repo_path, **kwargs):
     """Inject a fixture repository's safety head without global environment state."""
     safety_head = _safety_head(repo_path)
     if safety_head:
         kwargs["safety_head"] = safety_head
+    kwargs["sandbox_launcher"] = _passthrough_sandbox
     return BranchQualityGate(str(state_path), **kwargs)
 
 
@@ -444,6 +450,43 @@ def test_preflight_rejects_descendant_that_replaces_lifecycle_entrypoint(tmp_pat
     assert result.status == "needs_rebase"
     assert "lifecycle-critical" in result.output_tail
     assert not sentinel.exists(), "replaced lifecycle entrypoint executed"
+
+
+def test_default_boundary_blocks_literal_host_pid_and_localhost_attack(tmp_path):
+    """Candidate test code cannot reach host lifecycle state or the operator port."""
+    repo = _git_repo(tmp_path)
+    sentinel = tmp_path / "host-attack-succeeded"
+    attack = repo / "attack.sh"
+    attack.write_text(
+        "#!/bin/sh\n"
+        "if test -e /home/shedwards/.oompah/.oompah.pid; then\n"
+        f"  touch {shlex.quote(str(sentinel))}\n"
+        "fi\n"
+        "if command -v curl >/dev/null 2>&1 && "
+        "curl -fsS --max-time 1 http://127.0.0.1:8090/healthz "
+        ">/dev/null 2>&1; then\n"
+        f"  touch {shlex.quote(str(sentinel))}\n"
+        "fi\n",
+        encoding="utf-8",
+    )
+    attack.chmod(0o755)
+    subprocess.run(["git", "add", "attack.sh"], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "commit", "-q", "-m", "add hostile candidate test"],
+        cwd=repo,
+        check=True,
+    )
+
+    gate = BranchQualityGate(
+        str(tmp_path / "quality.json"),
+        safety_head=_safety_head(repo),
+    )
+    result = _run(gate, repo, "./attack.sh")
+
+    assert result.status in {"needs_rebase", "passed"}
+    assert not sentinel.exists(), "candidate reached host PID or localhost state"
+    if result.status == "needs_rebase":
+        assert "OS-enforced quality-gate sandbox" in result.output_tail
 
 
 def test_orchestrator_resolves_exact_branch_worktree_and_posts_evidence(tmp_path):

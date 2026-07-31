@@ -606,6 +606,10 @@ class ServiceConfig:
     coordination_retention_seconds: int = 30 * 24 * 60 * 60
     restart_drain_timeout_seconds: int = 60 * 60
     quality_gate_timeout_seconds: int = 60 * 60
+    # Full SHA of the lifecycle contract deployed by the operator. This is
+    # intentionally server configuration, never candidate-branch input; set
+    # it only after a lifecycle change has been separately reviewed/deployed.
+    quality_gate_safety_head: str = ""
     # Give epic children isolated branches and integrate submitted heads in
     # finish-dependency order. Environment-only rollout switch.
     parallel_epic_children_enabled: bool = False
@@ -1161,6 +1165,9 @@ class ServiceConfig:
             ),
             quality_gate_timeout_seconds=_env_int(
                 "OOMPAH_QUALITY_GATE_TIMEOUT_SECONDS", None, 60 * 60
+            ),
+            quality_gate_safety_head=_env_str(
+                "OOMPAH_QUALITY_GATE_SAFETY_HEAD", None, ""
             ),
             parallel_epic_children_enabled=_env_bool(
                 "OOMPAH_PARALLEL_EPIC_CHILDREN_ENABLED", None, False

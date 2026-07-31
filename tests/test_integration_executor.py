@@ -23,9 +23,24 @@ def _git(path, *args):
     ).stdout.strip()
 
 
+def _passthrough_sandbox(command, _repo, _root):
+    return ["/bin/sh", "-c", command]
+
+
 def _gate(state_path, repo_path):
-    safety_head = _git(repo_path, "log", "--format=%H", "--grep=^OOMPAH-652: lifecycle isolation$", "-n", "1")
-    return BranchQualityGate(str(state_path), safety_head=safety_head)
+    safety_head = _git(
+        repo_path,
+        "log",
+        "--format=%H",
+        "--grep=^OOMPAH-652: lifecycle isolation$",
+        "-n",
+        "1",
+    )
+    return BranchQualityGate(
+        str(state_path),
+        safety_head=safety_head,
+        sandbox_launcher=_passthrough_sandbox,
+    )
 
 
 def _repo(tmp_path):
