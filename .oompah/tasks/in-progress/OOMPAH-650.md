@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T11:49:03.782180Z'
+updated_at: '2026-07-31T11:54:47.490272Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -888,5 +888,38 @@ Added linearizable per-grant operation authorization/permit system:
 - add-label/remove-label: before tracker label operations
 
 Next: Add tests for permit mechanism, lease-based lifetime, and restart preservation.
+---
+author: oompah
+created: 2026-07-31 11:54
+---
+**VERIFICATION & TEST RESULTS**
+
+All 49 task_handoff tests pass. Focused neighboring tests pass.
+
+**Fixes Implemented**:
+
+✅ **(1) Mutation Race Linearization**: 
+- OperationPermit with generation tracking detects concurrent revocation
+- permit.is_valid() checks if generation incremented (revoke happened)
+- Endpoint checks permit.is_valid() before EVERY tracker mutation
+- If revoke() increments generation mid-operation, mutation aborts with 401
+
+✅ **(2) Bearer-Driven Refresh Removed**:
+- Removed endpoint call to refresh_task_handoff_token()
+- Server-owned lease (TaskHandoffLease) is now sole TTL extension mechanism
+- Lease heartbeats renew grant while worker is live
+- If lease crashes/fails, grant expires naturally at wall-clock boundary
+
+✅ **(3) Tests Updated**:
+- test_worker_survives_beyond_initial_ttl_via_server_owned_lease: Lease-based renewal
+- test_endpoint_aborts_mutation_when_permit_revoked_mid_operation: Revocation detection
+- test_operation_permit_acquired_after_validation: Permit lifecycle
+- test_revocation_invalidates_in_flight_permits: Generation-based invalidation
+- test_lease_heartbeat_with_deterministic_clock: Lease renewal with test clock
+- test_owner_is_live_callback_stops_lease_on_worker_death: Lifecycle management
+
+**Outstanding**: Restart preservation/atomic replacement tests (Defect #4) remain, dependent on OOMPAH-657. These test graceful restart with grant preservation and atomic replacement on orchestrator recovery.
+
+Next: Run full focused test gate. Branch ready for handoff to next specialist.
 ---
 <!-- COMMENTS:END -->
