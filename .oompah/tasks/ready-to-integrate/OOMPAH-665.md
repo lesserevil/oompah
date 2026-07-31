@@ -12,7 +12,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-07-31T16:04:07.401588Z'
-updated_at: '2026-07-31T18:50:29.851445Z'
+updated_at: '2026-07-31T18:50:51.068894Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -59,8 +59,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: feef7a6d-45b1-4e65-a2a5-303469c28e40
 oompah.task_costs:
-  total_input_tokens: 225
-  total_output_tokens: 5403
+  total_input_tokens: 290
+  total_output_tokens: 7388
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -68,8 +68,8 @@ oompah.task_costs:
       output_tokens: 4135
       cost_usd: 0.0
     sonnet:
-      input_tokens: 55
-      output_tokens: 1268
+      input_tokens: 120
+      output_tokens: 3253
       cost_usd: 0.0
   runs:
   - profile: default
@@ -84,6 +84,12 @@ oompah.task_costs:
     output_tokens: 1268
     cost_usd: 0.0
     recorded_at: '2026-07-31T18:45:08.346008+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 65
+    output_tokens: 1985
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T18:50:42.920666+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-665__20260731T181648Z
@@ -254,5 +260,33 @@ author: oompah
 created: 2026-07-31 18:50
 ---
 Retire legacy no-auditor alerts after terminal task completion. Extended _reconcile_terminal_audit_observability_from_metadata to check 4 retirement paths (retirement rows, legacy overrides, later PASS verdicts, canonical tracker state). Added .oompah-no-hooks/ to .gitignore to unblock the OS-enforced quality-gate sandbox. 133 focused tests pass. Branch head 8aacda651.
+---
+author: oompah
+created: 2026-07-31 18:50
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 0, Tool calls: 40
+- Tokens: 65 in / 2.0K out [2.0K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 5m 30s
+- Log: OOMPAH-665__20260731T184518Z.jsonl
+---
+author: oompah
+created: 2026-07-31 18:50
+---
+Branch quality gate blocked review creation.
+
+Branch: `OOMPAH-665`
+Target: `main`
+Head: `8aacda6516595119ec57e530abbb9dbae8365a22`
+Command: `make test`
+Result: `needs_rebase`
+
+Required: rebase this branch onto the current deployed base so it contains the lifecycle safety prerequisite and does not replace the protected gate entrypoints. Run the full command, commit and push the repair, then leave the task in Done; Oompah will rerun the gate for the new head before creating the PR/MR.
+
+Output tail:
+```text
+OS-enforced quality-gate sandbox is unavailable; refusing to execute candidate code: bubblewrap cannot create the required OS namespaces: bwrap: execvp /bin/sh: No such file or directory
+```
 ---
 <!-- COMMENTS:END -->
