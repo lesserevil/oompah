@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:06.140108Z'
-updated_at: '2026-07-31T23:28:46.258439Z'
+updated_at: '2026-07-31T23:29:20.310719Z'
 work_branch: OOMPAH-664
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/628
@@ -930,5 +930,10 @@ author: oompah
 created: 2026-07-31 23:28
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-31 23:29
+---
+Understanding: Continuing after MR #628 reported a merge conflict. The preserved worktree is clean on OOMPAH-664 at a79a28d01, already tracking origin/OOMPAH-664, with origin/main d96740a6e (OOMPAH-668) in its ancestry. I will verify the rebase resolution against main and the MR's live status/checks, run the task-focused regression suites on this exact head, and make only a minimal CI repair if current evidence shows one is still needed.
 ---
 <!-- COMMENTS:END -->
