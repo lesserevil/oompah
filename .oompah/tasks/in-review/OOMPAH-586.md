@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-586
 type: epic
-status: In Progress
+status: In Review
 priority: 1
 title: Restore least-privilege task and lifecycle access
 parent: OOMPAH-584
@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:13:33.901470Z'
-updated_at: '2026-07-30T15:20:13.232096Z'
+updated_at: '2026-07-31T00:26:00.632363Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -47,5 +47,10 @@ author: oompah
 created: 2026-07-30 14:18
 ---
 Project-owner-approved green recovery work; dispatch under recorded dependencies and acceptance criteria.
+---
+author: oompah
+created: 2026-07-31 00:25
+---
+Branch quality gate passed for `ca49d0c25b30d149cb59f0af0bac57276c1f8120` using `make test` in 260.9s. Review creation may proceed.
 ---
 <!-- COMMENTS:END -->
