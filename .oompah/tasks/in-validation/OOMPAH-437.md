@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-437
 type: task
-status: Merged
+status: In Validation
 priority: null
 title: Promote YOLO decomposition children after application
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-24T02:42:07.784157Z'
-updated_at: '2026-07-24T02:45:47.114290Z'
+updated_at: '2026-07-31T03:09:27.893504Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -33,6 +33,28 @@ oompah.task_costs:
     output_tokens: 40
     cost_usd: 0.0
     recorded_at: '2026-07-24T02:44:54.701520+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-a64e188caf1b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-437
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 3570a795d41d58af0f79d537e94313eb84d0a150571af2ee9b873b045f057345
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-07-31T03:09:25.417445+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -75,5 +97,10 @@ author: oompah
 created: 2026-07-24 02:45
 ---
 Implemented and deployed: YOLO-generated decomposition children remain Proposed until every child is created and linked, then are moved to Open. Added complete-link, partial-link safety, retry-idempotence, and integration tests; make test passed (12,310 tests). Commit 5d724c34c is on main.
+---
+author: oompah
+created: 2026-07-31 03:09
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
