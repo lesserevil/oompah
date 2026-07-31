@@ -24142,6 +24142,12 @@ class Orchestrator:
                     )
                     outcome = future.result(timeout=60)
                     self._record_audit_outcome_ownership(_issue.id, outcome)
+                    # Clear alerts for any sibling audits that were cancelled due to duplicate
+                    # fingerprint detection (duplicate audit race condition prevention)
+                    for cancelled_audit_id in getattr(outcome, "cancelled_audit_ids", []):
+                        self.clear_terminal_audit_alert(
+                            _pid, _issue.identifier, cancelled_audit_id
+                        )
                     return {
                         "accepted": outcome.success,
                         "audit_id": outcome.audit_id,
@@ -24658,6 +24664,12 @@ class Orchestrator:
                     )
                     outcome = future.result(timeout=60)
                     self._record_audit_outcome_ownership(_issue.id, outcome)
+                    # Clear alerts for any sibling audits that were cancelled due to duplicate
+                    # fingerprint detection (duplicate audit race condition prevention)
+                    for cancelled_audit_id in getattr(outcome, "cancelled_audit_ids", []):
+                        self.clear_terminal_audit_alert(
+                            _pid, _issue.identifier, cancelled_audit_id
+                        )
                     return {
                         "accepted": outcome.success,
                         "audit_id": outcome.audit_id,

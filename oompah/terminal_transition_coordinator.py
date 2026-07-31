@@ -376,6 +376,8 @@ class ResultOutcome:
     ``attempt_id`` had already been applied and the coordinator short-
     circuited without re-applying tracker state.  ``advanced_target`` is
     populated when a passing audit leaves further work pending in the chain.
+    ``cancelled_audit_ids`` contains any sibling audits cancelled due to
+    duplicate fingerprint detection.
     """
 
     success: bool
@@ -384,6 +386,7 @@ class ResultOutcome:
     posted_comment: bool = False
     idempotent: bool = False
     advanced_target: TargetState | None = None
+    cancelled_audit_ids: list[str] = field(default_factory=list)
     reason: str | None = None
 
 
@@ -420,6 +423,7 @@ class _ResultDecision:
         "advanced_target",
         "applied_attempt",
         "keep_in_validation",
+        "cancelled_audit_ids",
     )
 
     def __init__(self) -> None:
@@ -430,6 +434,7 @@ class _ResultDecision:
         self.advanced_target: TargetState | None = None
         self.applied_attempt: bool = False
         self.keep_in_validation: bool = False
+        self.cancelled_audit_ids: list[str] = []
 
 
 # ---------------------------------------------------------------------------
@@ -763,6 +768,14 @@ class TerminalTransitionCoordinator:
                         current_issue.identifier,
                         result.audit_id,
                     )
+                # Record metrics for cancelled sibling audits (duplicate fingerprint prevention)
+                for cancelled_audit_id in outcome.cancelled_audit_ids:
+                    self._record_metric(
+                        "record_stale_discarded",
+                        project_id,
+                        current_issue.identifier,
+                        cancelled_audit_id,
+                    )
             return outcome
 
         return await asyncio.to_thread(
@@ -861,6 +874,14 @@ class TerminalTransitionCoordinator:
                     if audit_id:
                         self._record_metric(
                             "record_overridden",
+                            project_id,
+                            current_issue.identifier,
+                            audit_id,
+                        )
+                        # Clear any actionable alerts for the overridden audit
+                        # to prevent stale alerts from appearing after the override
+                        self._record_metric(
+                            "clear_actionable_alert",
                             project_id,
                             current_issue.identifier,
                             audit_id,
@@ -1325,6 +1346,30 @@ class TerminalTransitionCoordinator:
             )
             chain[target_index] = completed
 
+            # --- Cancel/supersede all sibling audits for the same target/fingerprint ---
+            # When an audit PASS is recorded, any other pending/in-progress audits for the
+            # same target state and evidence fingerprint must be cancelled to prevent
+            # duplicate dispatches. This closes the race where multiple audits for the
+            # same fingerprint exist in the chain and the second one gets dispatched
+            # after the first one passes.
+            target_record = record
+            siblings_to_cancel = [
+                idx for idx, r in enumerate(chain)
+                if (
+                    idx != target_index
+                    and r.target_state == target_record.target_state
+                    and r.evidence_fingerprint == target_record.evidence_fingerprint
+                    and r.request_state in (RequestState.PENDING, RequestState.IN_PROGRESS)
+                )
+            ]
+            for sibling_idx in siblings_to_cancel:
+                chain[sibling_idx] = replace(
+                    chain[sibling_idx],
+                    request_state=RequestState.SUPERSEDED,
+                    updated_at=now,
+                )
+            decision.cancelled_audit_ids = [chain[idx].audit_id for idx in siblings_to_cancel]
+
             # Detect the next pending target so we can report it to the
             # caller and — for a passing Done in a Done→Merged chain — keep
             # the task in In Validation while the auditor drives Merged.
@@ -1415,6 +1460,7 @@ class TerminalTransitionCoordinator:
             applied_status=applied_status,
             posted_comment=posted,
             advanced_target=decision.advanced_target,
+            cancelled_audit_ids=decision.cancelled_audit_ids,
         )
 
     def _override_transition_locked(
