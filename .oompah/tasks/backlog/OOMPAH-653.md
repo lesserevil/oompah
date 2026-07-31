@@ -16,7 +16,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T12:28:18.667644Z'
+updated_at: '2026-07-31T12:28:33.647492Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,8 +42,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: e1d18ffb-6ac8-45f3-881f-1a7674c1423e
 oompah.task_costs:
-  total_input_tokens: 20632216
-  total_output_tokens: 89340
+  total_input_tokens: 20632255
+  total_output_tokens: 90198
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -51,8 +51,8 @@ oompah.task_costs:
       output_tokens: 61859
       cost_usd: 0.0
     opus:
-      input_tokens: 4301570
-      output_tokens: 27481
+      input_tokens: 4301609
+      output_tokens: 28339
       cost_usd: 0.0
   runs:
   - profile: default
@@ -115,6 +115,12 @@ oompah.task_costs:
     output_tokens: 18899
     cost_usd: 0.0
     recorded_at: '2026-07-31T12:25:15.190528+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 39
+    output_tokens: 858
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T12:28:30.890356+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-653__20260731T090421Z
@@ -873,5 +879,15 @@ author: oompah
 created: 2026-07-31 12:28
 ---
 Operator code review accepted clean pushed head 69fff643e at the task level: canonical Issue/integration fingerprints are shared across creation/recovery, real native Markdown restart and source-head mutation cases are covered, authority selection is list-order independent, and current-document finalization fences concurrent older/equal overrides while preserving only a strictly newer one. Focused report: 200 terminal-audit tests and terminal-audit-scan passed. Parking in Backlog with a hard-start rebase/gate dependency on OOMPAH-657; this intentionally terminates the redundant CI-fixer redispatch. After OOMPAH-657 is integrated/deployed, return this task to Open, rebase onto current main, resolve the small orchestrator overlap, and submit once through the server-owned immutable gate.
+---
+author: oompah
+created: 2026-07-31 12:28
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Claude/opus]
+- Turns: 0, Tool calls: 20
+- Tokens: 39 in / 858 out [897 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 2m 28s
+- Log: OOMPAH-653__20260731T122607Z.jsonl
 ---
 <!-- COMMENTS:END -->
