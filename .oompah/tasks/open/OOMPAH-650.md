@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-650
 type: bug
-status: Ready to Integrate
+status: Open
 priority: 1
 title: Keep scoped task handoff credentials valid for the full worker lifetime
 parent: OOMPAH-619
@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T13:45:27.969295Z'
+updated_at: '2026-07-31T13:59:31.984371Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -50,12 +50,17 @@ oompah.agent_run_id: 28ca9f8d-df70-4010-8f8d-b76c2a58b03e
 oompah.work_branch: epic-OOMPAH-619--task-OOMPAH-650
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: blocked
+  attempts: 1
   task_branch: epic-OOMPAH-619--task-OOMPAH-650
+  base_branch: epic-OOMPAH-619
+  base_sha: 61546199b2334fd861f2d0cd844ec631e8b8d0e4
   head_sha: 3e1fba180c2c8b9f89bfea5951550c8e9764d13d
   submitted_at: '2026-07-31T13:45:00.694624+00:00'
-  updated_at: '2026-07-31T13:45:00.694624+00:00'
+  updated_at: '2026-07-31T13:59:25.693929+00:00'
+  last_error: epic worktree head 793bcc7969d39634dab560ed0a10b9dcad7a9716 differs
+    from the published epic head 61546199b2334fd861f2d0cd844ec631e8b8d0e4; refusing
+    to reset a preserved recovery snapshot
 oompah.task_costs:
   total_input_tokens: 9427172
   total_output_tokens: 39533
@@ -1137,5 +1142,12 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 7m 3s
 - Log: OOMPAH-650__20260731T133835Z.jsonl
+---
+author: oompah
+created: 2026-07-31 13:59
+---
+Integration could not verify `epic-OOMPAH-619--task-OOMPAH-650`: epic worktree head 793bcc7969d39634dab560ed0a10b9dcad7a9716 differs from the published epic head 61546199b2334fd861f2d0cd844ec631e8b8d0e4; refusing to reset a preserved recovery snapshot
+
+Fetch the private branch, preserve its commits, push a clean current head, and submit it again.
 ---
 <!-- COMMENTS:END -->
