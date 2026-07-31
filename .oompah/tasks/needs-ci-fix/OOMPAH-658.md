@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-658
 type: bug
-status: In Progress
+status: Needs CI Fix
 priority: 2
 title: Deduplicate duplicate-preflight runs across deferred dispatch ticks
 parent: null
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-07-31T12:09:28.508617Z'
+updated_at: '2026-07-31T12:09:45.877342Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -96,8 +96,8 @@ oompah.integration:
   attempts: 0
   task_branch: OOMPAH-658
   head_sha: 1b49ab0f4732ca40bfb7355f726a8da6bacc234f
-  submitted_at: '2026-07-31T12:05:22.629962+00:00'
-  updated_at: '2026-07-31T12:05:22.629962+00:00'
+  submitted_at: '2026-07-31T12:09:39.261217+00:00'
+  updated_at: '2026-07-31T12:09:39.261217+00:00'
 ---
 ## Summary
 
@@ -570,5 +570,10 @@ Verification: Focused suites all green at head 1b49ab0f4.
 - tests/test_intake_promotion.py + tests/test_epic_proposal.py + tests/test_duplicate_names.py: 45 passed (3.1s)
 
 Total: 450 focused tests passing across the duplicate-screening / intake surface. No code changes required; the previous 'gate blocked' notices were operator-terminated premature full make test runs, per operator's explicit guidance (11:53, 12:07) to run focused regressions only until OOMPAH-657 finalizes exact-head gate authority. Ready for the server-owned single full gate.
+---
+author: oompah
+created: 2026-07-31 12:09
+---
+Adapter-backed duplicate-preflight deduplication complete at head 1b49ab0f4. Fingerprint composes (title, description with Triggered-by header, project, type, parent, intake.proposal_fingerprint); scheduling metadata (deps, labels, updated_at, last_validated_at) excluded. Native persisted regressions verify zero re-screens across ticks/fresh orchestrator on unchanged intake, exactly-one claim under concurrent ticks on mutated intake proposal_fingerprint, and continued retry for inconclusive verdicts. 450 focused tests pass; full make test gate deferred to the server-owned single review-ready run per operator guidance.
 ---
 <!-- COMMENTS:END -->
