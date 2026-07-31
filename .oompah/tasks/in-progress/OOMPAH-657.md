@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T11:06:15.542774Z'
-updated_at: '2026-07-31T11:32:15.093412Z'
+updated_at: '2026-07-31T11:34:13.986028Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -58,13 +58,13 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: f75cece9-82da-4c80-842b-614d77367f5b
 oompah.task_costs:
-  total_input_tokens: 186
-  total_output_tokens: 5176
+  total_input_tokens: 718067
+  total_output_tokens: 13082
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 186
-      output_tokens: 5176
+      input_tokens: 718067
+      output_tokens: 13082
       cost_usd: 0.0
   runs:
   - profile: default
@@ -73,6 +73,12 @@ oompah.task_costs:
     output_tokens: 5176
     cost_usd: 0.0
     recorded_at: '2026-07-31T11:08:39.611070+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 717881
+    output_tokens: 7906
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T11:34:08.105837+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-657__20260731T110710Z
@@ -83,6 +89,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-657
     source_sha: 54dd2509c6cbc73aaadbda2a3fdc7cfbb14530eb
     completed_at: '2026-07-31T11:08:39.620340+00:00'
+  - run_id: OOMPAH-657__20260731T110941Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: refactor
+    source_branch: OOMPAH-657
+    source_sha: 08bc7ebfe44162adef3edb516f21ce01d6bdfdb8
+    completed_at: '2026-07-31T11:34:08.109526+00:00'
 ---
 ## Summary
 
@@ -165,5 +179,25 @@ author: oompah
 created: 2026-07-31 11:32
 ---
 Fifth live reproduction against the current candidate head: exact-head review moved rejected OOMPAH-658 head 7e4375e6f from Ready to Integrate to Open, and the stale row immediately launched server-owned make test PGID 1882247 in that worktree. Operator revalidated Open status/cwd/head/PGID and terminated only that gate group. This is the exact deterministic Ready-to-Open case still absent from 08bc7ebfe; polling is_current after process registration does not retire the row or close pre-spawn races.
+---
+author: oompah
+created: 2026-07-31 11:34
+---
+Agent completed successfully in 1474s (725787 tokens)
+---
+author: oompah
+created: 2026-07-31 11:34
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 2, Tool calls: 149
+- Tokens: 717.9K in / 7.9K out [725.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 24m 34s
+- Log: OOMPAH-657__20260731T110941Z.jsonl
+---
+author: oompah
+created: 2026-07-31 11:34
+---
+Agent completed without closing this issue (1474s (725787 tokens)). Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
 ---
 <!-- COMMENTS:END -->
