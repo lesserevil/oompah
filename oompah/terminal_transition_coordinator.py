@@ -251,6 +251,9 @@ class TransitionResult:
     audit_id: str | None = None
     """``audit_id`` of the first new record in the chain, or the coalesced record."""
 
+    audit_ids: list[str] = field(default_factory=list)
+    """All new audit IDs in this request, including multi-target chains."""
+
     queued_targets: list[TargetState] = field(default_factory=list)
     """Ordered list of :class:`~oompah.terminal_audit.TargetState` values in the new chain."""
 
@@ -458,6 +461,7 @@ class TerminalTransitionCoordinator:
         project_store: Any,
         *,
         post_comments: bool = True,
+        metrics: Any | None = None,
     ) -> None:
         # The standalone API accepts one tracker, while the server passes a
         # project-aware factory because managed projects each have their own
@@ -466,6 +470,10 @@ class TerminalTransitionCoordinator:
         self._tracker = tracker
         self._project_store = project_store
         self._post_comments = post_comments
+        # Optional observability sink.  Keeping this duck-typed preserves the
+        # coordinator's tracker-neutral API for small integrations and older
+        # callers while allowing the service to count lifecycle transitions.
+        self._metrics = metrics
 
     def _run_project_serialized(
         self,
@@ -476,6 +484,21 @@ class TerminalTransitionCoordinator:
 
         with self._project_store.project_write_lock(project_id):
             return operation()
+
+    def set_metrics(self, metrics: Any | None) -> None:
+        """Attach or replace the service-owned audit metrics sink."""
+
+        self._metrics = metrics
+
+    def _record_metric(self, method: str, *args: Any, **kwargs: Any) -> None:
+        sink = self._metrics
+        callback = getattr(sink, method, None) if sink is not None else None
+        if callback is None:
+            return
+        try:
+            callback(*args, **kwargs)
+        except Exception:  # metrics must never change transition semantics
+            logger.warning("terminal-audit metric %s failed", method, exc_info=True)
 
     # ------------------------------------------------------------------
     # Public API — request_transition
@@ -529,7 +552,7 @@ class TerminalTransitionCoordinator:
             store = TerminalAuditMetadataStore(
                 tracker, self._project_store, project_id
             )
-            return self._transition_locked(
+            outcome = self._transition_locked(
                 store,
                 tracker,
                 current_issue,
@@ -539,6 +562,25 @@ class TerminalTransitionCoordinator:
                 evidence_fingerprint,
                 ensure_validation_on_coalesce=True,
             )
+            if outcome.success and not outcome.coalesced:
+                if outcome.superseded_audit_id:
+                    self._record_metric(
+                        "record_stale_discarded",
+                        project_id,
+                        current_issue.identifier,
+                        outcome.superseded_audit_id,
+                    )
+                audit_ids = outcome.audit_ids or (
+                    [outcome.audit_id] if outcome.audit_id else []
+                )
+                for audit_id in audit_ids:
+                    self._record_metric(
+                        "record_queued",
+                        project_id,
+                        current_issue.identifier,
+                        audit_id,
+                    )
+            return outcome
 
         return await asyncio.to_thread(
             self._run_project_serialized,
@@ -637,9 +679,47 @@ class TerminalTransitionCoordinator:
             store = TerminalAuditMetadataStore(
                 tracker, self._project_store, project_id
             )
-            return self._apply_result_locked(
+            outcome = self._apply_result_locked(
                 store, tracker, current_issue, result, project_id
             )
+            if outcome.success and not outcome.idempotent:
+                if result.verdict == Verdict.PASS:
+                    self._record_metric(
+                        "record_passed",
+                        project_id,
+                        current_issue.identifier,
+                        result.audit_id,
+                    )
+                elif result.verdict == Verdict.FAIL:
+                    if result.failure_classification == FailureClassification.NO_AUDITOR:
+                        self._record_metric(
+                            "record_no_independent_candidate",
+                            project_id,
+                            current_issue.identifier,
+                            result.audit_id,
+                        )
+                    else:
+                        self._record_metric(
+                            "record_failed",
+                            project_id,
+                            current_issue.identifier,
+                            result.audit_id,
+                        )
+                elif result.verdict == Verdict.NEEDS_HUMAN:
+                    self._record_metric(
+                        "record_failed",
+                        project_id,
+                        current_issue.identifier,
+                        result.audit_id,
+                    )
+                else:
+                    self._record_metric(
+                        "record_retried",
+                        project_id,
+                        current_issue.identifier,
+                        result.audit_id,
+                    )
+            return outcome
 
         return await asyncio.to_thread(
             self._run_project_serialized,
@@ -721,7 +801,7 @@ class TerminalTransitionCoordinator:
             store = TerminalAuditMetadataStore(
                 tracker, self._project_store, project_id
             )
-            return self._override_transition_locked(
+            outcome = self._override_transition_locked(
                 store,
                 tracker,
                 current_issue,
@@ -732,6 +812,14 @@ class TerminalTransitionCoordinator:
                 reason,
                 project,
             )
+            if outcome.success and outcome.override_id:
+                self._record_metric(
+                    "record_overridden",
+                    project_id,
+                    current_issue.identifier,
+                    outcome.override_id,
+                )
+            return outcome
 
         return await asyncio.to_thread(
             self._run_project_serialized,
@@ -774,6 +862,7 @@ class TerminalTransitionCoordinator:
                     decision.early_result = TransitionResult(
                         success=False,
                         audit_id=record.audit_id,
+                        audit_ids=[],
                         reason="already completed",
                     )
                     return doc
@@ -818,6 +907,7 @@ class TerminalTransitionCoordinator:
                     decision.early_result = TransitionResult(
                         success=True,
                         audit_id=record.audit_id,
+                        audit_ids=[record.audit_id],
                         queued_targets=[requested_target],
                         coalesced=True,
                         superseded_audit_id=superseded_id,
@@ -946,6 +1036,7 @@ class TerminalTransitionCoordinator:
             audit_id=(
                 decision.new_entries[0].audit_id if decision.new_entries else None
             ),
+            audit_ids=[entry.audit_id for entry in decision.new_entries],
             queued_targets=[r.target_state for r in decision.new_entries],
             coalesced=False,
             superseded_audit_id=decision.superseded_id,

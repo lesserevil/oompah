@@ -141,6 +141,12 @@ from oompah.terminal_audit import (
 )
 from oompah.terminal_audit_metadata import TerminalAuditMetadataStore
 from oompah.terminal_audit_enforcement import TerminalAuditEnforcement
+from oompah.terminal_audit_observability import (
+    AuditAlertCondition,
+    TerminalAuditAlertRegistry,
+    TerminalAuditMetrics,
+    threshold_conditions,
+)
 from oompah.terminal_audit_health import (
     AuditHealthObservation,
     HEALTH_ALERT_PREFIX,
@@ -899,6 +905,21 @@ class Orchestrator:
         self._alerts: list[
             dict[str, str]
         ] = []  # {"level": "warning", "message": "..."}
+        # Terminal-audit metrics are durable service state, not tracker
+        # metadata.  The metrics sink is attached to the coordinator below
+        # after construction and also to the bootstrap replacement.
+        self._terminal_audit_metrics = TerminalAuditMetrics(
+            load_state=self._load_state_for_terminal_audit,
+            save_state=self._save_state_for_terminal_audit,
+        )
+        self._terminal_audit_alerts = TerminalAuditAlertRegistry()
+        self._terminal_audit_manual_alerts: dict[
+            tuple[str, str, str, str], AuditAlertCondition
+        ] = {}
+        # A failed enforcement scan is actionable until a later scan confirms
+        # recovery.  Keep that condition separate from the per-audit metric
+        # conditions so a read-only snapshot cannot accidentally clear it.
+        self._terminal_audit_recovery_alert: AuditAlertCondition | None = None
         self._rate_limit_until: float = 0.0  # epoch time until which dispatch is paused
         # Throttle for _auto_archive: it does a full-corpus read per project
         # but only ever acts on issues closed >= _ARCHIVE_DAYS ago, so it
@@ -911,6 +932,7 @@ class Orchestrator:
             dict(cursors) if isinstance(cursors, dict) else {}
         )
         self._maintenance_status: dict[str, Any] = {}
+        self.terminal_transition_coordinator.set_metrics(self._terminal_audit_metrics)
         self._last_tick_metrics: dict[str, Any] = {}
         self._last_dispatch_metrics: dict[str, Any] = {}
         self._dispatch_pending_event_keys: set[str] = set()
@@ -1410,38 +1432,143 @@ class Orchestrator:
             result = self._terminal_audit_enforcement.initialize(
                 self._terminal_audit_scopes()
             )
-            self._maintenance_status["terminal_audit_enforcement"] = result
-            if result.get("errors") and not any(
-                alert.get("source") == "terminal_audit_enforcement"
-                for alert in self._alerts
-            ):
-                self._alerts.append(
-                    {
-                        "level": "error",
-                        "source": "terminal_audit_enforcement",
-                        "message": "Terminal-audit enforcement requires operator attention",
-                    }
+            metrics = self._terminal_audit_metrics
+            metrics.sync_pending(self._terminal_audit_enforcement.pending_audits)
+            for entry in self._terminal_audit_enforcement.state.grandfathered:
+                metrics.record_grandfathered(
+                    entry.project_id,
+                    entry.task_id,
+                    self._terminal_audit_enforcement._audit_id(entry),
                 )
+            metrics_snapshot = metrics.snapshot()
+            self._terminal_audit_enforcement.last_result = {
+                **result,
+                "metrics": metrics_snapshot,
+            }
+            self._maintenance_status["terminal_audit_enforcement"] = {
+                **result,
+                "metrics": metrics_snapshot,
+            }
+            self._maintenance_status["terminal_audit"] = metrics_snapshot
+            self._sync_terminal_audit_observability_alerts(
+                result.get("errors") or None,
+                recovery_complete=not bool(result.get("errors")),
+            )
         except Exception as exc:  # noqa: BLE001 - startup must remain observable
             logger.exception("terminal-audit enforcement startup failed")
             self._maintenance_status["terminal_audit_enforcement"] = {
                 "quarantined": True,
                 "errors": [type(exc).__name__],
             }
-            if not any(
-                alert.get("source") == "terminal_audit_enforcement"
-                for alert in self._alerts
-            ):
-                self._alerts.append(
-                    {
-                        "level": "error",
-                        "source": "terminal_audit_enforcement",
-                        "message": "Terminal-audit enforcement startup failed closed",
-                    }
-                )
+            self._terminal_audit_enforcement.last_result = dict(
+                self._maintenance_status["terminal_audit_enforcement"]
+            )
+            self._sync_terminal_audit_observability_alerts([type(exc).__name__])
         finally:
             self._terminal_audit_started = True
             self._terminal_audit_last_scan = time.monotonic()
+
+    def _sync_terminal_audit_observability_alerts(
+        self,
+        recovery_errors: list[str] | None = None,
+        *,
+        recovery_complete: bool = False,
+    ) -> None:
+        """Refresh only actionable terminal-audit alerts.
+
+        Queued, running, and successful audits intentionally contribute no
+        alert condition.  Conditions are keyed by project/task/audit, so a
+        repeated maintenance scan replaces one alert instead of appending a
+        duplicate, and an empty subsequent scan clears recovered conditions.
+        """
+
+        metrics = self._terminal_audit_metrics
+        conditions = threshold_conditions(
+            metrics,
+            max_attempts=max(1, int(getattr(self.config, "audit_max_attempts", 3))),
+            max_age_seconds=max(
+                1.0,
+                float(getattr(self.config, "audit_attempt_ttl_seconds", 3600)),
+            ),
+        )
+        if recovery_errors:
+            detail = ", ".join(str(error) for error in recovery_errors)
+            corrupt = any(
+                token in detail.lower()
+                for token in ("corrupt", "quarantin", "metadata")
+            )
+            kind = "persistence_corrupt" if corrupt else "queue_recovery"
+            self._terminal_audit_recovery_alert = AuditAlertCondition(
+                kind,
+                "service",
+                "terminal-audit",
+                "recovery",
+                f"Terminal-audit queue recovery failed: {detail}.",
+                "Inspect the terminal-audit persistence and restart the service after repair.",
+            )
+        elif recovery_complete:
+            self._terminal_audit_recovery_alert = None
+        if self._terminal_audit_recovery_alert is not None:
+            conditions.append(self._terminal_audit_recovery_alert)
+        # A newly queued retry is the recovery signal for a prior
+        # no-candidate condition.  Drop the one-shot manual mirror so the
+        # same project/task/audit does not keep warning after recovery.
+        self._terminal_audit_manual_alerts = {
+            key: condition
+            for key, condition in self._terminal_audit_manual_alerts.items()
+            if condition.kind != "no_independent_candidate"
+            or key[1:] in metrics._no_candidate
+        }
+        conditions.extend(self._terminal_audit_manual_alerts.values())
+        alerts = self._terminal_audit_alerts.sync(conditions)
+        terminal_sources = {
+            condition.source for condition in self._terminal_audit_alerts.conditions
+        }
+        self._alerts = [
+            alert
+            for alert in self._alerts
+            if not str(alert.get("source", "")).startswith("terminal_audit:")
+            or str(alert.get("source", "")) in terminal_sources
+        ]
+        existing_sources = {str(alert.get("source", "")) for alert in self._alerts}
+        self._alerts.extend(
+            alert for alert in alerts if str(alert.get("source", "")) not in existing_sources
+        )
+
+    def record_terminal_audit_no_candidate(
+        self, project_id: str, task_id: str, audit_id: str, *, reason: str = "no eligible candidate"
+    ) -> None:
+        """Record and surface an actionable no-independent-candidate outcome."""
+
+        self._terminal_audit_metrics.record_no_independent_candidate(
+            project_id, task_id, audit_id
+        )
+        condition = AuditAlertCondition(
+            "no_independent_candidate",
+            project_id,
+            task_id,
+            audit_id,
+            f"No independent auditor candidate is available ({reason}).",
+            "Configure a healthy auditor provider/model independent of the task contributors, then retry the audit.",
+        )
+        self._terminal_audit_manual_alerts[condition.key] = condition
+        self._sync_terminal_audit_observability_alerts()
+
+    def clear_terminal_audit_alert(
+        self, project_id: str, task_id: str, audit_id: str
+    ) -> None:
+        """Clear an audit's actionable condition after recovery."""
+
+        self._terminal_audit_metrics.clear_actionable_alert(
+            project_id, task_id, audit_id
+        )
+        self._terminal_audit_manual_alerts = {
+            key: condition
+            for key, condition in self._terminal_audit_manual_alerts.items()
+            if key[1:] != (project_id, task_id, audit_id)
+        }
+        self._terminal_audit_alerts.clear(project_id, task_id, audit_id)
+        self._sync_terminal_audit_observability_alerts()
 
     def _refresh_terminal_audit_health(
         self,
@@ -26313,6 +26440,35 @@ Return ONLY a JSON object (no markdown fences, no commentary):
     def get_snapshot(self) -> dict[str, Any]:
         """Return a snapshot of the current orchestrator state for the API."""
         now = datetime.now(timezone.utc)
+        live_audit_keys: set[tuple[str, str, str]] = set()
+        auditor_tracking_available = False
+        for entry in self.state.running.values():
+            if not hasattr(entry, "is_auditor"):
+                continue
+            auditor_tracking_available = True
+            if not getattr(entry, "is_auditor", False) or not getattr(entry, "audit_id", None):
+                continue
+            issue = getattr(entry, "issue", None)
+            project_id = str(getattr(issue, "project_id", "") or "legacy")
+            task_id = str(getattr(issue, "identifier", "") or "")
+            audit_id = str(getattr(entry, "audit_id", "") or "")
+            if task_id and audit_id:
+                key = (project_id, task_id, audit_id)
+                live_audit_keys.add(key)
+                self._terminal_audit_metrics.record_running(
+                    *key,
+                    attempts=int(getattr(entry, "attempt", 0) or 0),
+                )
+        if auditor_tracking_available:
+            self._terminal_audit_metrics.discard_missing_running(live_audit_keys)
+
+        # Coordinator callbacks can arrive between maintenance scans (for
+        # example a no-candidate result submitted by an auditor).  Refresh the
+        # small dashboard alert registry at read time so recovery and action
+        # signals are visible immediately without alerting on normal states.
+        # Do this after promoting live auditor entries from queued to running;
+        # otherwise a long-running audit can briefly emit a queue-age alert.
+        self._sync_terminal_audit_observability_alerts()
 
         running_rows = []
         live_seconds = 0.0
@@ -26391,6 +26547,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             )
 
         totals = self.state.agent_totals
+        terminal_audit_metrics = self._terminal_audit_metrics.snapshot(now=now)
         return {
             "generated_at": now.isoformat(),
             "paused": self._paused,
@@ -26490,6 +26647,9 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 getattr(self._terminal_audit_enforcement, "last_result", {}) or {}
             ),
             "audits": dict(getattr(self, "_audit_metrics", {}) or {}),
+            # Stable top-level shape for API consumers that do not need the
+            # rest of orchestrator telemetry.
+            "terminal_audit": terminal_audit_metrics,
             "terminal_audit_health": getattr(self, "_audit_health", TerminalAuditHealth()).to_dict(),
             "health": {
                 "status": "degraded" if getattr(self, "_audit_health", TerminalAuditHealth()).degraded else "healthy",
@@ -26507,6 +26667,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 "maintenance": dict(
                     getattr(self, "_maintenance_status", {}) or {}
                 ),
+                "terminal_audit": terminal_audit_metrics,
                 # Per-project, per-operation refresh timing and timeout counts.
                 # Operators can use this to identify which project or operation
                 # is causing slow ticks. Each entry has:
@@ -26569,6 +26730,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     }
                     for name, state in self._maintenance_jobs.items()
                 },
+                "terminal_audit": terminal_audit_metrics,
             },
             # Fine-grained tick telemetry (TASK-465.1).  Empty dict until the
             # first tick completes.  Top-level keys are phase timings in ms;

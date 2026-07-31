@@ -60,8 +60,8 @@ details.
 
 Only `Open`, `Needs CI Fix`, and `Needs Rebase` are dispatchable agent states.
 `Proposed` and `Backlog` are intake and prioritization states. `Needs Answer`
-and `Needs Human` are waiting states. `Done`, `Merged`, and `Archived` are
-terminal states.
+and `Needs Human` are waiting states. `In Validation` is the terminal-audit
+staging state. `Done`, `Merged`, and `Archived` are terminal states.
 
 ```mermaid
 flowchart TD
@@ -89,15 +89,20 @@ flowchart TD
     InProgress --> Review[In Review]
     InProgress --> NeedsAnswer[Needs Answer]
     InProgress --> Decomposed[Decomposed]
-    InProgress --> Ready[Ready to Integrate]
-    Ready --> Integrated[Integrated on epic branch]
-    Integrated --> Validation[Independent validation]
-    Validation --> Done[Done]
+    InProgress --> InVal[In Validation]
+
+    InVal --> Audit{Auditor verdict}
+    Audit -- pass --> Done[Done]
+    Audit -- fail: incomplete --> Open
+    Audit -- fail: ci_failure --> NeedsCIFix[Needs CI Fix]
+    Audit -- fail: conflict --> NeedsRebase[Needs Rebase]
+    Audit -- fail: no_auditor / ambiguous --> Waiting
+    Audit -- owner override --> Done
 
     NeedsAnswer --> Open
     Waiting --> Open
-    Review --> NeedsCIFix[Needs CI Fix]
-    Review --> NeedsRebase[Needs Rebase]
+    Review --> NeedsCIFix
+    Review --> NeedsRebase
     NeedsCIFix --> InProgress
     NeedsRebase --> InProgress
     Review --> Merged[Merged]
@@ -119,15 +124,23 @@ The main dispatch gates are:
 | `Needs Rebase` | Yes | Reuse the existing branch or PR to rebase or resolve conflicts |
 | `Needs Answer` | No | Waiting for requested information |
 | `Needs Human` | No | Requires operator or maintainer action |
+| `In Validation` | No (auditor only) | Terminal-audit staging; an independent auditor agent is verifying the work |
 | `Done` | No | Work is complete, but may still be awaiting an epic rollup |
 | `Merged` | No | Review branch has landed |
 | `Archived` | No | Permanently closed |
 
-Dispatch also requires clear task content, no unresolved hard-start
-dependencies, available agent capacity, project/global pause gates to be open,
-and valid branch metadata. Normal dependencies constrain finish/integration
-order and do not block worker start. Non-epic tasks with empty descriptions are
-rejected because agents need enough context to act.
+**In Validation** is entered automatically when an agent submits completed
+work for a terminal state (Done, Merged, or Archived). The task stays in
+`In Validation` until an independent auditor agent returns a verdict. A
+passing verdict advances the task to the requested terminal state; a failing
+verdict routes it to the appropriate repair state. See
+[`docs/auditor-dispatch-operations.md`](auditor-dispatch-operations.md) for
+configuration and recovery guidance.
+
+Dispatch also requires clear task content, no unresolved dependencies, available
+agent capacity, project/global pause gates to be open, and valid branch
+metadata. Non-epic tasks with empty descriptions are rejected because agents
+need enough context to act.
 
 ## Epic Planning
 
@@ -156,18 +169,15 @@ The parent epic acts as a rollup. In `shared` projects, a parent with children
 is rejected from ordinary dispatch with `epic_rollup_parent` unless the epic
 branch itself needs CI or rebase repair during final review.
 
-## Epic Branch Integration
+## Shared Epic Branch
 
-All managed projects use a shared epic delivery branch. The child workspace
-strategy depends on `OOMPAH_PARALLEL_EPIC_CHILDREN_ENABLED`:
+All managed projects use the shared epic workflow:
 
-| Aspect | Legacy mode (`false`) | Parallel mode (`true`) |
-|---|---|---|
-| Child worktrees | Shared epic worktree and branch | Private child worktree and branch |
-| Same-epic dispatch | Serialized | Concurrent, subject to capacity and hard-start edges |
-| Normal dependencies | Recorded as blockers | Order queue integration, not worker start |
-| Child PR/MR | Suppressed | Suppressed |
-| Epic rollup PR/MR | Created only when the entire epic branch is ready | Created only when the entire epic branch is ready |
+| Aspect | Shared behavior |
+|---|---|
+| Child worktrees | Shared epic worktree and branch |
+| Child PR target | Epic branch only; child PRs are suppressed |
+| Epic rollup PR/MR | Created only when the entire epic branch is ready to merge |
 
 The generated epic branch name (`epic-<epic-id>`) is owned by oompah. If a
 child task has `target_branch: epic-<parent-id>`, dispatch treats that as an
@@ -176,13 +186,9 @@ patterns only list branches such as `main` or `release/*`.
 
 ```mermaid
 flowchart TD
-    ChildOpen[Open child task] --> Mode{Parallel mode?}
-    Mode -- no --> SharedWork[Use shared epic worktree]
-    Mode -- yes --> PrivateWork[Use private child branch and worktree]
-    PrivateWork --> Ready[Submit pushed head: Ready to Integrate]
-    Ready --> Ordered[Dependency-ordered rebase and quality gate]
-    Ordered --> EpicBranch[Epic branch accumulates verified child work]
-    SharedWork --> EpicBranch
+    ChildOpen[Open child task] --> SharedWork[Use shared epic worktree]
+    SharedWork --> SharedBranch[Commit child work to epic branch]
+    SharedBranch --> EpicBranch[Epic branch accumulates child work]
     EpicBranch --> ChildrenDone{All normal children Done, nested epics Merged, and landing evidence verified?}
     ChildrenDone -- no --> ChildOpen
     ChildrenDone -- yes --> RollupPR[Open epic rollup PR]
@@ -190,12 +196,9 @@ flowchart TD
     EpicReview --> EpicMerged[Epic Merged]
 ```
 
-In legacy mode, oompah serializes normal child dispatch within the same epic so
-two agents do not write to one shared worktree. In parallel mode, each child
-gets an isolated branch. The durable per-epic queue serializes only integration:
-it rebases a submitted head onto the current epic branch, runs the configured
-full quality gate, verifies the epic head has not changed, then fast-forwards
-and pushes. An independent terminal audit runs after integration.
+Oompah serializes normal child dispatch within the same epic so two agents do
+not write to the same shared worktree at the same time. High priority repair
+work may still be selected according to the orchestrator's repair rules.
 
 For nested epics, a child epic rollup PR targets the parent epic branch. The
 top-level epic targets the project default branch.
@@ -205,9 +208,6 @@ Oompah creates the single rollup review only after every actionable normal
 child is `Done`, every nested epic is `Merged` into the branch, and recorded
 child work has positive landing evidence. Readiness is refreshed immediately
 before review creation so a newly added or reopened child cancels creation.
-
-See [Parallel Epic Integration](parallel-epic-integration.md) for activation,
-submission, coordination, queue recovery, and rollback procedures.
 
 ## Review And Repair
 
@@ -235,10 +235,10 @@ epic branch and returns it to review.
 
 ## Closing And Rollup
 
-Child task completion is not the same as project integration:
+Child task completion is not always the same as project integration:
 
-- `Ready to Integrate` means the worker submitted a committed private branch.
-- `Done` means oompah integrated and audited the task result.
+- `Done` means the agent finished the task. For shared epics, a child can be
+  `Done` while its work still waits on the epic rollup PR.
 - `In Review` means a PR exists and review metadata is recorded.
 - `Merged` means the review branch landed on its expected target.
 - `Archived` means the task is intentionally closed and should not reopen.
@@ -259,13 +259,8 @@ oompah task create --project <project-id> --title "Title" --description "Details
 oompah task create --project <project-id> --title "Follow-up" --source <originating-task-id>
 oompah task child-create <epic-id> --project <project-id> --title "Child title" --description "Details"
 oompah task set-dependency <task-id> --project <project-id> --depends-on <other-task-id>
-oompah task set-dependency <task-id> --project <project-id> --depends-on <other-task-id> --hard-start
 oompah task set-status <task-id> Open --project <project-id>
-oompah task submit <task-id> --project <project-id> --summary "Completed"
-oompah coordinate peers <task-id> --project <project-id>
-oompah coordinate inbox <task-id> --project <project-id> --unread
-oompah coordinate send <task-id> --project <project-id> --to <peer-task-id> --message "Interface update"
-oompah coordinate checkpoint <task-id> --project <project-id> --summary "Checkpoint" --path <changed-path>
+oompah task set-status <task-id> Done --project <project-id> --summary "Completed"
 oompah task comment <task-id> --project <project-id> --message "Progress update" --author oompah
 ```
 

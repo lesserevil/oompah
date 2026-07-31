@@ -395,6 +395,36 @@ def _parse_tracker_kind(value: Any) -> str:
     return _TRACKER_KIND_ALIASES.get(raw, raw)
 
 
+_VERIFY_COMPLETION_DEPRECATION_MSG = (
+    "OOMPAH_VERIFY_COMPLETION is deprecated and will be removed in a future "
+    "release. The independent auditor dispatch (OOMPAH-460 epic) provides "
+    "mandatory terminal-task auditing that cannot be disabled. Setting "
+    "OOMPAH_VERIFY_COMPLETION=true has no effect on the audit gate. "
+    "Remove this variable from your .env file."
+)
+
+_VERIFY_COMPLETION_LLM_DEPRECATION_MSG = (
+    "OOMPAH_VERIFY_COMPLETION_LLM is deprecated and will be removed in a future "
+    "release. LLM verification is now controlled by the auditor role configured "
+    "in .oompah/roles.json. Remove this variable from your .env file."
+)
+
+
+def warn_deprecated_verify_completion_vars() -> None:
+    """Emit startup warnings when deprecated VERIFY_COMPLETION vars are set.
+
+    The variables are parsed and retained for one compatibility release so
+    existing .env files do not break service startup.  However, they no
+    longer control the mandatory terminal-audit gate introduced in
+    OOMPAH-460 — operators should remove them and configure the auditor
+    role in .oompah/roles.json instead.
+    """
+    if os.environ.get("OOMPAH_VERIFY_COMPLETION") is not None:
+        logger.warning(_VERIFY_COMPLETION_DEPRECATION_MSG)
+    if os.environ.get("OOMPAH_VERIFY_COMPLETION_LLM") is not None:
+        logger.warning(_VERIFY_COMPLETION_LLM_DEPRECATION_MSG)
+
+
 @dataclass
 class ServiceConfig:
     """Typed runtime configuration derived from workflow front matter."""
@@ -471,6 +501,27 @@ class ServiceConfig:
     # continues up the hierarchy on subsequent failures.
     # Default False: current behaviour (best-match profile on first dispatch).
     default_first_dispatch: bool = False
+    # Independent completion-auditor dispatch.
+    # Maximum number of auditor candidates to attempt per audit before
+    # routing to Needs Human when all independent candidates are exhausted.
+    # Configurable via OOMPAH_AUDIT_MAX_ATTEMPTS. Default: 3.
+    audit_max_attempts: int = 3
+    # Time-to-live (seconds) for a running auditor attempt.  An attempt with
+    # a live worker older than this threshold is considered abandoned and
+    # eligible for reclaim and rotation.  An attempt whose worker is not
+    # live is reclaimed immediately regardless of TTL.
+    # Configurable via OOMPAH_AUDIT_ATTEMPT_TTL. Default: 3600 (1 hour).
+    audit_attempt_ttl: int = 3600
+    # Relative dispatch priority for In Validation audits that do not carry
+    # an explicit task priority.  The audit lane still runs before ordinary
+    # Open work when a slot is available.
+    # Configurable via OOMPAH_AUDIT_PRIORITY. Default: 100.
+    audit_priority: int = 100
+    # Maximum In Validation tasks scanned per scheduler tick by the audit
+    # dispatch lane.  Set to 0 for no per-tick cap (scan all pending audits).
+    # Configurable via OOMPAH_AUDIT_LANE_SCAN_LIMIT. Default: 32.
+    audit_lane_scan_limit: int = 32
+
     # Completion verifier (oompah-zlz_2-y0ns). When True, after a worker
     # exits with reason="normal" AND has moved the issue to a terminal
     # state, the orchestrator runs a two-stage check (regex + LLM)
@@ -479,11 +530,17 @@ class ServiceConfig:
     # reopened, a diagnostic comment is posted, and the issue is
     # rescheduled. Default False during initial rollout — flip via
     # OOMPAH_VERIFY_COMPLETION=true after a soak window.
+    # DEPRECATED: Use the independent auditor dispatch instead (OOMPAH-460
+    # epic).  OOMPAH_VERIFY_COMPLETION and OOMPAH_VERIFY_COMPLETION_LLM are
+    # retained for one compatibility release but do not disable the mandatory
+    # terminal-audit gate introduced in that epic.  A startup warning is
+    # emitted when either variable is explicitly set.
     verify_completion: bool = False
     # When False, the LLM (stage 2) leg of the verifier is skipped.
     # Stage 1 still runs and only rejects close on missing FILE
     # references (not bare symbol misses). Useful for offline /
     # provider-less testing. Default True.
+    # DEPRECATED: See verify_completion above.
     verify_completion_llm: bool = True
     # Close gate (oompah-zlz_2-gz8w). When True, agent-driven closes
     # are refused when the branch has commits not on the base branch
@@ -729,6 +786,10 @@ class ServiceConfig:
         self.stalled_task_watchdog_interval_seconds = max(
             int(self.stalled_task_watchdog_interval_seconds), 60
         )
+        self.audit_max_attempts = max(int(self.audit_max_attempts), 1)
+        self.audit_attempt_ttl = max(int(self.audit_attempt_ttl), 1)
+        self.audit_priority = max(int(self.audit_priority), 1)
+        self.audit_lane_scan_limit = max(int(self.audit_lane_scan_limit), 0)
         self.temp_root = str(resolve_temp_root(self.temp_root or default_temp_root()))
         if not self.workspace_root:
             self.workspace_root = default_workspace_root()
@@ -920,6 +981,10 @@ class ServiceConfig:
             ws_root = _expand_path(env_ws)
         temp_root = os.environ.get("OOMPAH_TEMP_ROOT") or default_temp_root()
 
+        # Emit once per service load (not per reload) so operators see
+        # deprecation notices without drowning in repeated warnings.
+        warn_deprecated_verify_completion_vars()
+
         return cls(
             tracker_kind=tracker_kind,
             tracker_active_states=_parse_state_list(
@@ -943,7 +1008,7 @@ class ServiceConfig:
             audit_max_attempts=_parse_positive_env_int(
                 "OOMPAH_AUDIT_MAX_ATTEMPTS", 3
             ),
-            audit_attempt_ttl_seconds=_parse_positive_env_int(
+            audit_attempt_ttl=_parse_positive_env_int(
                 "OOMPAH_AUDIT_ATTEMPT_TTL", 3600
             ),
             audit_priority=_env_int("OOMPAH_AUDIT_PRIORITY", None, 100),
@@ -980,7 +1045,7 @@ class ServiceConfig:
                 agent.get("default_first_dispatch"),
                 False,
             ),
-          verify_completion=_env_bool(
+            verify_completion=_env_bool(
                 "OOMPAH_VERIFY_COMPLETION",
                 agent.get("verify_completion"),
                 False,
@@ -1167,8 +1232,8 @@ def validate_dispatch_config(config: ServiceConfig) -> list[str]:
 
     if config.audit_max_attempts <= 0:
         errors.append("audit_max_attempts must be positive")
-    if config.audit_attempt_ttl_seconds <= 0:
-        errors.append("audit_attempt_ttl_seconds must be positive")
+    if config.audit_attempt_ttl <= 0:
+        errors.append("audit_attempt_ttl must be positive")
     if config.audit_lane_scan_limit < 0:
         errors.append("audit_lane_scan_limit must be non-negative")
     if config.audit_stale_pending_seconds <= 0:
