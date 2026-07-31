@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T09:17:19.607932Z'
+updated_at: '2026-07-31T09:22:36.616296Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -198,5 +198,31 @@ created: 2026-07-31 09:17
 4. Add tests for PASS+duplicate siblings, override+alert clearing, restart persistence
 
 Starting implementation...
+---
+author: oompah
+created: 2026-07-31 09:22
+---
+**Implementation: Duplicate Audit Prevention & Alert Clearing**
+
+Implemented core fixes for OOMPAH-648 and OOMPAH-644 regressions:
+
+**Changes**:
+1. When PASS recorded, cancel all sibling audits (same target/fingerprint) to prevent re-dispatch
+2. Return cancelled_audit_ids from apply_audit_result for caller handling
+3. API/ACP handlers clear alerts for cancelled audits immediately
+4. override_transition clears alerts for overridden audits via metrics
+5. New test: test_pass_cancels_sibling_audits_with_same_fingerprint
+
+**Test Results**:
+- 110/110 terminal_transition_coordinator tests ✓
+- 27/27 terminal_override tests ✓
+- 10/10 terminal_audit_observability tests ✓
+- 32/32 terminal_audit_health tests ✓
+
+**Acceptance Criteria Status**:
+- ✓ PASS cannot be followed by second audit (siblings cancelled)
+- ✓ Override immediately clears superseded alerts
+- ✓ Historical evidence remains queryable (no changes to records)
+- Next: Run broader test suite and verify restart persistence
 ---
 <!-- COMMENTS:END -->
