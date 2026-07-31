@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-598
 type: bug
-status: Needs Human
+status: Ready to Integrate
 priority: 1
 title: Detect and deliver standalone Ready to Integrate tasks without PRs
 parent: OOMPAH-587
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:29.695490Z'
-updated_at: '2026-07-31T01:48:23.945013Z'
+updated_at: '2026-07-31T01:49:20.644911Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-598
 target_branch: null
 review_url: null
@@ -43,12 +43,12 @@ oompah.agent_run_id: ef756d66-4afe-4ceb-9c44-19eb8946d427
 oompah.work_branch: epic-OOMPAH-587--task-OOMPAH-598
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-587--task-OOMPAH-598
-  base_branch: epic-OOMPAH-587
-  base_sha: 8a875b1c321d5d1a0ae5623158a3eb98ad940313
-  updated_at: '2026-07-31T01:47:07.199813+00:00'
+  head_sha: 9b51b35a065906909c98a205fbeab27c3f691692
+  submitted_at: '2026-07-31T01:49:16.486589+00:00'
+  updated_at: '2026-07-31T01:49:16.486589+00:00'
 oompah.task_costs:
   total_input_tokens: 1166036
   total_output_tokens: 7396
@@ -437,5 +437,10 @@ author: oompah
 created: 2026-07-31 01:48
 ---
 Temporary operator fence restored after the executor proved that merge-based conflict resolution is insufficient: its mandatory rebase drops the merge commit and replays e474c into the same conflict. Rewriting the two task commits linearly onto origin/epic-OOMPAH-587, resolving the conflict in the rebased commit, then force-pushing with lease and resubmitting.
+---
+author: oompah
+created: 2026-07-31 01:49
+---
+Rewrote the repaired branch linearly onto authoritative parent 8a875b1c3 so the executor can replay it without dropping a merge-resolution commit. Head 9b51b35a0 preserves both standalone Ready delivery and integration repair backoff; 49 focused conflict/standalone tests pass. Force-push was lease-fenced to prior head ef40deab8.
 ---
 <!-- COMMENTS:END -->
