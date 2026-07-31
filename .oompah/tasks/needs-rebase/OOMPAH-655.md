@@ -1,8 +1,8 @@
 ---
 id: OOMPAH-655
 type: task
-status: In Review
-priority: null
+status: Needs Rebase
+priority: 0
 title: Enforce full-gate service isolation outside candidate branch code
 parent: null
 children: []
@@ -10,10 +10,11 @@ blocked_by:
 - OOMPAH-657
 start_blocked_by: &id001
 - OOMPAH-657
-labels: []
+labels:
+- merge-conflict
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T16:40:54.022218Z'
+updated_at: '2026-07-31T16:41:36.276241Z'
 work_branch: OOMPAH-655
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/625
@@ -1163,5 +1164,10 @@ author: oompah
 created: 2026-07-31 16:40
 ---
 Branch quality gate passed for `8da703b5f921db6987355ccc3bce10d3ac0b7881` using `make test` in 379.1s. Review creation may proceed.
+---
+author: oompah
+created: 2026-07-31 16:41
+---
+YOLO: Merge conflict detected on MR #625. Rebase onto main and resolve conflicts.
 ---
 <!-- COMMENTS:END -->
