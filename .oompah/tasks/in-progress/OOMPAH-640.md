@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T05:59:47.260716Z'
-updated_at: '2026-07-31T06:07:10.317446Z'
+updated_at: '2026-07-31T06:08:22.768998Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -111,5 +111,35 @@ author: oompah
 created: 2026-07-31 06:07
 ---
 Focus: Test Engineer
+---
+author: oompah
+created: 2026-07-31 06:08
+---
+UNDERSTANDING: Task requires a combined integrated regression test that exercises the full stall-to-dispatch recovery path:
+
+1. OOMPAH-415 (stale loop detection/recovery) + OOMPAH-416 (orphan reset + wake) are already shipped
+2. Need NEW integrated test that verifies the complete flow works end-to-end:
+   - Dispatch loop goes stale
+   - Orphaned In Progress tasks are detected
+   - Tasks reset to Open + REFRESH_REQUESTED posted
+   - Tasks dispatched on next event-driven tick (not waiting for full sync)
+   - Duplicate wake/tick idempotency covered
+
+APPROACH:
+1. Create test that combines stale-loop and orphan-reset scenarios
+2. Verify recovered tasks appear in candidate fetch and are dispatched
+3. Test wake deduplication (multiple resets → one wake)
+4. Ensure recovery beats legacy 15-minute threshold
+5. Run focused tests before submitting
+
+FILES TO MODIFY:
+- Create new test file tests/test_stall_to_dispatch_recovery.py OR
+- Extend existing tests/test_dispatch_loop_heartbeat.py with integrated test
+
+DISCOVERY FINDINGS:
+- _reset_orphaned_in_progress() in orchestrator.py resets In Progress → Open
+- Posts REFRESH_REQUESTED event to wake dispatch immediately
+- _handle_dispatch_needed_locked() fetches candidates and dispatches selected issues
+- DispatchEventType.REFRESH_REQUESTED is the waking mechanism
 ---
 <!-- COMMENTS:END -->
