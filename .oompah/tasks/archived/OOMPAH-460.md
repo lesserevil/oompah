@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-460
 type: epic
-status: In Validation
+status: Archived
 priority: 1
 title: Expose terminal audits in the UI, observability, migration, and end-to-end
   tests
@@ -30,7 +30,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:03:47.776498Z'
-updated_at: '2026-07-31T06:16:54.473368Z'
+updated_at: '2026-07-31T06:21:05.075882Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,6 +40,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-053f80903b1e: '2026-07-31T04:36:09.005592+00:00'
+    attempt-01ce9e329c32: '2026-07-31T06:21:01.577316+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -80,7 +81,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-460
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -89,7 +90,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-01ce9e329c32
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -99,13 +100,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T06:16:38.724130+00:00'
       branch_key: OOMPAH-460
+      verdict: pass
+      completed_at: '2026-07-31T06:21:01.577146+00:00'
+      ended_at: '2026-07-31T06:21:01.577146+00:00'
     requested_by:
       version: 1
       identity: api-client
       source: api
     previous_state: Done
     created_at: '2026-07-31T06:16:27.453081+00:00'
-    updated_at: '2026-07-31T06:16:38.724130+00:00'
+    updated_at: '2026-07-31T06:21:01.577146+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-053f80903b1e
@@ -248,5 +252,29 @@ author: oompah
 created: 2026-07-31 06:16
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 06:21
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- prior_done_audit_verdict: pass (audit-072565b727d5 at 2026-07-31T04:36:09Z, same evidence fingerprint)
+- children_done_count: 13
+- children_archived_count: 5
+- children_terminal_total_vs_declared: 18 of 18
+- epic_branch_head: origin/epic-OOMPAH-460 @ 0d7c3578f (unmerged; 6 ahead of the 24bd5d6c1 baseline captured at prior Done audit)
+- current_main_head: origin/main @ bb0fd760c
+- feature_landing_commit: 15c96dac6 OOMPAH-597: land recovered audit integration chain
+- landed_paths: oompah/terminal_audit_observability.py; oompah/terminal_transition_coordinator.py; oompah/templates/dashboard.html; docs/auditor-dispatch-operations.md; docs/task-epic-workflow.md; docs/operator-runbook.md; .env.example; tests/test_terminal_audit_observability.py; tests/test_dashboard_terminal_audit.py; tests/test_epic_terminal_audit_contract.py; tests/test_done_merged_archived_lifecycle.py; tests/test_terminal_status_interfaces.py; tests/test_terminal_transition_coordinator.py
+- subsequent_work_on_same_files: OOMPAH-604, OOMPAH-615, OOMPAH-626, OOMPAH-630, OOMPAH-631, OOMPAH-603, OOMPAH-595, OOMPAH-592 (would conflict if epic branch were re-integrated)
+- state_branch_pending_target: audit-2b50ca0977be Archived in_progress on origin/oompah/state/proj-14849f1b:.oompah/tasks/in-validation/OOMPAH-460.md
+- contract_previous_state: Done (matches trusted scheduler input)
+- evidence_fingerprint_match: state branch pending_chain digest fd0747b9bdba754f77a8fc86c71d70ecdff91f8b3cbad76a463dd53d3644e757 == trusted scheduler input
+- audit_id_match: audit-2b50ca0977be == trusted scheduler input
+- attempt_id_match: attempt-01ce9e329c32 == trusted scheduler input
+- unsafe_archive_check: safe; feature commits preserved on main via OOMPAH-597 recovery chain
 ---
 <!-- COMMENTS:END -->
