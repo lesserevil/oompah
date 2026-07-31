@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T11:49:01.867209Z'
+updated_at: '2026-07-31T11:49:19.355610Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,7 +38,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 16005eb1-3510-47a7-a6ee-589a06efd44f
+oompah.agent_run_id: 8beae452-2b35-406b-8eda-4a9f141cb75e
 oompah.task_costs:
   total_input_tokens: 14929976
   total_output_tokens: 97398
@@ -710,5 +710,15 @@ author: oompah
 created: 2026-07-31 11:49
 ---
 Agent completed without closing this issue (2643s (11076853 tokens)). Escalating from 'default' to 'deep'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-31 11:49
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-31 11:49
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
