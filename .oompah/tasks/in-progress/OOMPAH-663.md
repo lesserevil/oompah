@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T13:52:05.961085Z'
-updated_at: '2026-07-31T14:04:43.850646Z'
+updated_at: '2026-07-31T14:07:59.680344Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -113,5 +113,17 @@ created: 2026-07-31 14:04
 **Understanding & Plan**: The issue reports fingerprint mismatches when OOMPAH-660's integration-staged audit used epic branch + git-branch contributor evidence, but the API owner-override path recomputed evidence from normalized task issue. This HTTP 409 conflict required duplicate restaging. 
 
 Plan: (1) Identify the canonical fingerprinting path used by terminal audit creation, (2) trace how API and ACP owner-override paths diverge from it, (3) unify them to use the same evidence snapshot, (4) preserve auditor-independence provenance separately if needed, (5) add regression tests covering integrated task audit → Needs Human → authorized owner override without restaging, (6) verify changed SHA still fails. Focusing on oompah/orchestrator.py, oompah/server.py, oompah/acp_tools.py, oompah/terminal_audit.py and related tests.
+---
+author: oompah
+created: 2026-07-31 14:07
+---
+**Discovery**: Reviewed terminal_audit.py, terminal_transition_coordinator.py, acp_tools.py, and server.py. Found:
+
+1. Canonical fingerprint function exists: \`compute_issue_evidence_fingerprint\` in terminal_audit.py
+2. Both API paths (acp_tools.py and server.py) already use this canonical function via \`_task_evidence_fingerprint\` and \`_terminal_evidence_fingerprint\`
+3. Orchestrator's Done audit staging (orchestrator.py:27443) also uses \`compute_issue_evidence_fingerprint\`
+4. Terminal audit enforcement (terminal_audit_enforcement.py) also uses \`compute_issue_evidence_fingerprint\`
+
+The issue appears to be that during integration, the issue object passed to fingerprint computation might contain different evidence data (e.g., epic branch data or git-branch contributor data) compared to when the override is applied later. The fingerprint functions fall back to integration record data when available, so the key is ensuring the SAME issue snapshot is used across all paths (integration staging, API override, and restart recovery).
 ---
 <!-- COMMENTS:END -->
