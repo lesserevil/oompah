@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T05:59:48.550048Z'
-updated_at: '2026-07-31T06:09:46.114936Z'
+updated_at: '2026-07-31T06:10:24.191688Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -111,5 +111,16 @@ author: oompah
 created: 2026-07-31 06:09
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-31 06:10
+---
+UNDERSTANDING: This task completes the hardening of shared-epic child PR creation and reconciliation from OOMPAH-428. Key areas:
+1. _ensure_review_exists must block per-child PR creation when work_branch is stale to child identifier
+2. Fail-closed when parent_id is absent but parent epic is resolvable
+3. _create_workspace_for_issue must correct in-memory work/branch identity even if persistence fails
+4. Independently merged reconciliation must detect stale work_branch bypassing epic
+Required test cases: stale work_branch+parent_id, missing parent_id+resolvable parent, persistence failure, independently merged child.
+Starting with code exploration in orchestrator.py, epic_proposal.py, and test_epic_strategy.py.
 ---
 <!-- COMMENTS:END -->
