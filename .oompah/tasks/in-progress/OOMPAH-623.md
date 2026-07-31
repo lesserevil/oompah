@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:32:18.734139Z'
-updated_at: '2026-07-31T09:06:56.704277Z'
+updated_at: '2026-07-31T09:15:07.501542Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-623
 target_branch: null
 review_url: null
@@ -205,5 +205,10 @@ author: oompah
 created: 2026-07-31 09:02
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-07-31 09:15
+---
+Implementation: added shared build identity from checkout Git metadata or installed direct_url.json; added human-readable --version; exposed matching build_id objects from /healthz and /api/v1/state; added guarded scripts/sync_canonical_cli.py with clean/pushed upstream checks, PATH/revision verification, and rollback; wired sync-cli/install-cli into lifecycle targets; documented canonical path and recovery; fixed task-handoff comments to include identifier scope.
 ---
 <!-- COMMENTS:END -->
