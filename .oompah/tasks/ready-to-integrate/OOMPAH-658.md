@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-07-31T11:47:19.791448Z'
+updated_at: '2026-07-31T11:47:32.939634Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -338,5 +338,15 @@ author: oompah
 created: 2026-07-31 11:47
 ---
 Implemented revision-aware duplicate-preflight deduplication: scheduling dependencies and labels no longer stale checked results, stable source/intake revisions still invalidate, and claim/retry single-flight behavior is preserved. Focused suites pass; full gate passed 14,274 tests with one pre-existing lifecycle-helper environment failure.
+---
+author: oompah
+created: 2026-07-31 11:47
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 61
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 15m 3s
+- Log: OOMPAH-658__20260731T113234Z.jsonl
 ---
 <!-- COMMENTS:END -->
