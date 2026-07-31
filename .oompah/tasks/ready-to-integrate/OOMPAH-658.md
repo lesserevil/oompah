@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-658
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 2
 title: Deduplicate duplicate-preflight runs across deferred dispatch ticks
 parent: null
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-07-31T11:29:28.492702Z'
+updated_at: '2026-07-31T11:29:37.744154Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -65,6 +65,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-658
     source_sha: 54dd2509c6cbc73aaadbda2a3fdc7cfbb14530eb
     completed_at: '2026-07-31T11:21:27.888975+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-658
+  head_sha: 7e4375e6f87e14cd31fd4f9073c4d2b1f8109930
+  submitted_at: '2026-07-31T11:29:35.016344+00:00'
+  updated_at: '2026-07-31T11:29:35.016344+00:00'
 ---
 ## Summary
 
@@ -239,5 +247,10 @@ OOMPAH-658: Load duplicate_screening metadata during candidate selection
 ✓ Full test suite passes without regressions
 
 Ready for integration.
+---
+author: oompah
+created: 2026-07-31 11:29
+---
+Fixed duplicate-preflight repeated dispatches by loading metadata from tracker during candidate selection. All tests pass.
 ---
 <!-- COMMENTS:END -->
