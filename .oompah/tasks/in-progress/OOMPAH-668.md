@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-668
 type: bug
-status: Needs Human
+status: In Progress
 priority: 1
 title: Use the trusted test virtualenv without reinstalling inside quality-gate sandbox
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T21:35:20.853943Z'
-updated_at: '2026-07-31T21:48:43.047084Z'
+updated_at: '2026-07-31T21:49:18.864592Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -349,5 +349,10 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 40s
 - Log: OOMPAH-668__20260731T214807Z.jsonl
+---
+author: oompah
+created: 2026-07-31 21:49
+---
+Managed worktree is now clean at tested/pushed head 1fe2181a2 and tracks origin/OOMPAH-668. Resubmitting unchanged from the registered checkout so exact-head validation can resolve the worktree.
 ---
 <!-- COMMENTS:END -->
