@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:29.695490Z'
-updated_at: '2026-07-31T01:41:51.179853Z'
+updated_at: '2026-07-31T01:41:54.183251Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-598
 target_branch: null
 review_url: null
@@ -352,5 +352,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 16m 45s
 - Log: OOMPAH-598__20260731T012509Z.jsonl
+---
+author: oompah
+created: 2026-07-31 01:41
+---
+Operator takeover after the conflict-repair worker repeatedly reran the pre-conflict test suite without reconciling head 131913c against authoritative parent 8a875b1c3. This is the documented fallback for a current worker-control limitation. Resolving the single orchestrator conflict directly, preserving both backoff detection and standalone delivery, then running focused tests, pushing, and resubmitting.
 ---
 <!-- COMMENTS:END -->
