@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T11:42:44.303346Z'
+updated_at: '2026-07-31T11:43:48.620731Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -58,13 +58,13 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 80326dea-0859-4970-9029-2f8b9eb7452a
 oompah.task_costs:
-  total_input_tokens: 2700714
-  total_output_tokens: 21075
+  total_input_tokens: 5729550
+  total_output_tokens: 33129
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 2700714
-      output_tokens: 21075
+      input_tokens: 5729550
+      output_tokens: 33129
       cost_usd: 0.0
   runs:
   - profile: default
@@ -103,6 +103,12 @@ oompah.task_costs:
     output_tokens: 5956
     cost_usd: 0.0
     recorded_at: '2026-07-31T11:15:11.465379+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 3028836
+    output_tokens: 12054
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T11:43:38.815076+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-655__20260731T103632Z
@@ -129,6 +135,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-655
     source_sha: b519be788276e349d4b39978660d6a9ee92b5cfa
     completed_at: '2026-07-31T11:15:11.482390+00:00'
+  - run_id: OOMPAH-655__20260731T111530Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: chore
+    source_branch: OOMPAH-655
+    source_sha: c0b3eebec358c3bfcbf939bae61522c08c960681
+    completed_at: '2026-07-31T11:43:38.826495+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -424,5 +438,25 @@ author: oompah
 created: 2026-07-31 11:42
 ---
 Operator stopped only exact test process group 2152948 in the OOMPAH-655 worktree. Although the branch was clean, OOMPAH-657 has not yet deployed immutable exact-head gates and the candidate still requires exact sandbox-boundary review, so this repository-wide make test was premature and is not a test failure. Continue focused checks; the server should run the one exact review-ready full gate after the dependency is satisfied.
+---
+author: oompah
+created: 2026-07-31 11:43
+---
+Agent completed successfully in 1693s (3040890 tokens)
+---
+author: oompah
+created: 2026-07-31 11:43
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 2, Tool calls: 134
+- Tokens: 3.0M in / 12.1K out [3.0M total]
+- Cost: $0.0000
+- Exit: normal, Duration: 28m 13s
+- Log: OOMPAH-655__20260731T111530Z.jsonl
+---
+author: oompah
+created: 2026-07-31 11:43
+---
+Agent completed without closing this issue (1693s (3040890 tokens)). Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
 ---
 <!-- COMMENTS:END -->

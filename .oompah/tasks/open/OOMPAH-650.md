@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-650
 type: bug
-status: Ready to Integrate
+status: Open
 priority: 1
 title: Keep scoped task handoff credentials valid for the full worker lifetime
 parent: OOMPAH-619
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T11:37:25.951710Z'
+updated_at: '2026-07-31T11:43:38.500900Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -822,5 +822,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 12m 57s
 - Log: OOMPAH-650__20260731T112436Z.jsonl
+---
+author: oompah
+created: 2026-07-31 11:43
+---
+Exact-head review rejects 7d9b597a1. Blocking defects remain: (1) api_task_handoff calls validate, then request-driven refresh, then performs async tracker I/O after both grant-store locks are released, so revoke can occur after refresh and before mutation; test_endpoint_aborts_mutation_when_refresh_races_with_termination only mocks refresh=False and does not exercise the real post-refresh revocation window. Add a linearizable per-grant operation authorization/permit shared with revoke, with deterministic barriers proving termination after authentication but before mutation cannot permit stale mutation. (2) Remove bearer-request-driven refresh as the credential lifetime mechanism; the server-owned live-worker lease must be sufficient. (3) test_worker_lifetime_grant_survives_zero_handoff_requests manually invokes store.refresh and never starts TaskHandoffLease, so it does not test its name or acceptance criterion; exercise the actual heartbeat with a deterministic clock/barrier. (4) the store is process-local and the branch has no graceful restart preservation/atomic replacement test despite the task requirement. Cover launch failure, replacement/owner disappearance, lease cleanup, restart behavior, and exact revocation. Focused tests only until OOMPAH-657 deploys exact-head gates.
 ---
 <!-- COMMENTS:END -->
