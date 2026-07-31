@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:24.220262Z'
-updated_at: '2026-07-31T03:58:12.849615Z'
+updated_at: '2026-07-31T03:58:27.650600Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-485
 target_branch: null
 review_url: null
@@ -369,5 +369,20 @@ created: 2026-07-31 03:58
 Override by lesserevil: terminal transition to Done applied by project owner.
 
 Reason: Reassert terminal tracker reconciliation after the old runtime raced a stale blocked integration row against the prior owner override. Code is already present and verified in OOMPAH-597 head 44e5c5579. This second override is an ownership fence; the obsolete queue attempt must not reopen or redispatch implementation.
+---
+author: oompah
+created: 2026-07-31 03:58
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Codex/gpt-5.6-terra]
+- Turns: 0, Tool calls: 4
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 40s
+- Log: OOMPAH-485__20260731T035756Z.jsonl
+---
+author: oompah
+created: 2026-07-31 03:58
+---
+Re-fenced after stale old-runtime queue race; no additional implementation is authorized.
 ---
 <!-- COMMENTS:END -->

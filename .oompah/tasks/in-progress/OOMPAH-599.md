@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:31.072278Z'
-updated_at: '2026-07-31T03:54:36.889777Z'
+updated_at: '2026-07-31T03:58:29.924847Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-599
 target_branch: null
 review_url: null
@@ -165,5 +165,10 @@ author: oompah
 created: 2026-07-31 03:54
 ---
 Implementation: background integration sync now explicitly re-arms an identical blocked queue row when tracker metadata records a durable ready retry. A blocked-row audit scans canonical tracker issues and emits idempotent integration_delivery alerts for rows with no active retry or actionable Needs Rebase/Needs CI Fix/Needs Human reason; explained human handoffs clear the alert. Added three deterministic recovery fixtures plus the scoped task-comment identifier regression.
+---
+author: oompah
+created: 2026-07-31 03:58
+---
+Live race reproduced after five owner reconciliations: old runtime claimed stale OOMPAH-485 queue row after Done, regressed task to Needs Rebase, and dispatched an implementation agent. Reasserted Done owner fence. Add a deterministic regression that terminal task state prevents queue claim/route from reopening or dispatching even when a stale ready/blocked SQLite row remains; this is essential to the task, not only an alert.
 ---
 <!-- COMMENTS:END -->
