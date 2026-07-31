@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T05:59:48.550048Z'
-updated_at: '2026-07-31T06:20:18.720143Z'
+updated_at: '2026-07-31T06:20:35.596564Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,13 +44,13 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 6f9dfb99-e74b-4994-92a6-57bf0be75548
 oompah.task_costs:
-  total_input_tokens: 1005636
-  total_output_tokens: 5072
+  total_input_tokens: 1006238
+  total_output_tokens: 25529
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 1005636
-      output_tokens: 5072
+      input_tokens: 1006238
+      output_tokens: 25529
       cost_usd: 0.0
   runs:
   - profile: default
@@ -59,6 +59,12 @@ oompah.task_costs:
     output_tokens: 5072
     cost_usd: 0.0
     recorded_at: '2026-07-31T06:09:21.929155+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 602
+    output_tokens: 20457
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T06:20:31.073365+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-641__20260731T060717Z
@@ -69,14 +75,24 @@ oompah.work_contributors:
     source_branch: OOMPAH-641
     source_sha: bb0fd760c3b2938d15ec2026ef5bfc2fd34b0682
     completed_at: '2026-07-31T06:09:21.941067+00:00'
+  - run_id: OOMPAH-641__20260731T060946Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: general
+    source_branch: OOMPAH-641
+    source_sha: da31ef4be079544368bd09899b4e248f2953b3ee
+    completed_at: '2026-07-31T06:20:31.080846+00:00'
 oompah.integration:
   version: 2
   state: ready
   attempts: 0
   task_branch: OOMPAH-641
+  base_branch: main
+  base_sha: d4501e4a208a9295776854e477414e81c1b6b69c
   head_sha: da31ef4be079544368bd09899b4e248f2953b3ee
   submitted_at: '2026-07-31T06:20:08.268662+00:00'
-  updated_at: '2026-07-31T06:20:08.268662+00:00'
+  updated_at: '2026-07-31T06:20:33.067178+00:00'
 ---
 ## Summary
 
@@ -210,5 +226,20 @@ Code committed: OOMPAH-641 branch (da31ef4be)
 Branch status: up to date with origin/OOMPAH-641
 
 Ready for integration and terminal audit.
+---
+author: oompah
+created: 2026-07-31 06:20
+---
+Agent completed successfully in 647s (21059 tokens)
+---
+author: oompah
+created: 2026-07-31 06:20
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 170, Tool calls: 74
+- Tokens: 602 in / 20.5K out [21.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 10m 47s
+- Log: OOMPAH-641__20260731T060946Z.jsonl
 ---
 <!-- COMMENTS:END -->
