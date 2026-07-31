@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-634
 type: task
-status: Ready to Integrate
+status: Needs Human
 priority: 0
 title: Rebase epic-OOMPAH-460 onto main
 parent: OOMPAH-460
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T02:27:37.845123Z'
-updated_at: '2026-07-31T02:42:29.485122Z'
+updated_at: '2026-07-31T02:42:52.221066Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-634
 target_branch: null
 review_url: null
@@ -28,8 +28,8 @@ oompah.integration:
   submitted_at: '2026-07-31T02:41:47.876600+00:00'
   updated_at: '2026-07-31T02:41:47.876600+00:00'
 oompah.task_costs:
-  total_input_tokens: 182
-  total_output_tokens: 12602
+  total_input_tokens: 3720699
+  total_output_tokens: 35611
   total_cost_usd: 0.0
   by_model:
     sonnet:
@@ -41,8 +41,8 @@ oompah.task_costs:
       output_tokens: 5279
       cost_usd: 0.0
     haiku:
-      input_tokens: 146
-      output_tokens: 4357
+      input_tokens: 3720663
+      output_tokens: 27366
       cost_usd: 0.0
   runs:
   - profile: standard
@@ -63,6 +63,12 @@ oompah.task_costs:
     output_tokens: 4357
     cost_usd: 0.0
     recorded_at: '2026-07-31T02:34:02.518761+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 3720517
+    output_tokens: 23009
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T02:42:48.069000+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-634__20260731T022754Z
@@ -89,6 +95,14 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-460--task-OOMPAH-634
     source_sha: 868f1e391361f315198995b0569688f0142e1062
     completed_at: '2026-07-31T02:34:02.529200+00:00'
+  - run_id: OOMPAH-634__20260731T023427Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: general
+    source_branch: epic-OOMPAH-460--task-OOMPAH-634
+    source_sha: 113e75ac87eca903188e3197754670f92371f805
+    completed_at: '2026-07-31T02:42:48.073591+00:00'
 oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 04ce92916ff7e3e48e86aaf90629a7d27feb1844a88781b35f92d48131db7aa4
@@ -251,5 +265,20 @@ author: oompah
 created: 2026-07-31 02:42
 ---
 Verification: origin/main is an ancestor of 113e75ac8, git diff --check is clean, local and remote heads match, and OOMPAH-634 is Ready to Integrate.
+---
+author: oompah
+created: 2026-07-31 02:42
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 78
+- Tokens: 3.7M in / 23.0K out [3.7M total]
+- Cost: $0.0000
+- Exit: normal, Duration: 8m 29s
+- Log: OOMPAH-634__20260731T023427Z.jsonl
+---
+author: oompah
+created: 2026-07-31 02:42
+---
+Task handoff failed after the worker ran: the server-owned, task-scoped tracker capability could not update this task. The task is held in Needs Human and will not be redispatched automatically; verify the handoff service and reconcile the worker's branch before resuming it.
 ---
 <!-- COMMENTS:END -->
