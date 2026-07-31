@@ -5310,8 +5310,18 @@ class Orchestrator:
             epic_branch = self.project_store.epic_branch_name(epic_id)
             target_branch = self._resolve_epic_target_branch(epic, project) or "main"
 
+            # Nested epics may target their parent epic's branch. Allow repair
+            # if target_branch is the authoritative parent's branch; reject if
+            # it's an unrelated epic branch (epic-to-epic not via parent).
             if target_branch.startswith("epic-"):
-                return False
+                parent_epic = self._resolve_parent_epic(epic)
+                if parent_epic is None:
+                    # Epic branches without a parent are not allowed.
+                    return False
+                parent_branch = self._epic_branch_for_issue(parent_epic)
+                if target_branch != parent_branch:
+                    # Target is an unrelated epic branch, not the parent.
+                    return False
 
             with self.project_store.project_write_lock(project_id):
                 refreshed = subprocess.run(
@@ -10319,13 +10329,25 @@ class Orchestrator:
         """Return whether an epic branch may be synchronized and why.
 
         A periodic stale observation is never sufficient authority to modify
-        an unfinished branch.  Epic-to-epic synchronization is prohibited;
-        those branches integrate through main.  The ``rebase-requested`` label
-        is the durable operator-request signal, while ``Needs Rebase`` is the
-        existing merge-conflict/PR-repair workflow signal.
+        an unfinished branch.  Epic-to-epic synchronization is prohibited
+        except for nested epics syncing with their authoritative parent branch.
+        The ``rebase-requested`` label is the durable operator-request signal,
+        while ``Needs Rebase`` is the existing merge-conflict/PR-repair workflow
+        signal.
         """
         if target_branch.startswith("epic-"):
-            return False, "epic_to_epic_prohibited"
+            # Nested epics may sync with their parent epic's branch.
+            parent_epic = self._resolve_parent_epic(issue)
+            if parent_epic is None:
+                # No parent: unrelated epic branch is prohibited.
+                return False, "epic_to_epic_prohibited"
+            parent_branch = self._epic_branch_for_issue(parent_epic)
+            if target_branch != parent_branch:
+                # Target is an unrelated epic, not the authoritative parent.
+                return False, "epic_to_epic_prohibited"
+            # Target is the parent epic's branch; continue to label/state
+            # checks below.
+
         labels = {str(label).strip().lower() for label in issue.labels or []}
         if "rebase-requested" in labels:
             return True, "operator_requested"
