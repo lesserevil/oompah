@@ -645,6 +645,7 @@ class TestInterruptedMigration:
 class TestConcurrentWrite:
     """Verify that the write lock prevents concurrent mutations during cutover."""
 
+    @pytest.mark.timeout(30)
     def test_shadow_write_tracker_serializes_writes(self, tmp_path: Path):
         """Two concurrent writes to a shadow-write tracker must both succeed.
 
@@ -695,9 +696,12 @@ class TestConcurrentWrite:
         t2 = threading.Thread(target=_create_task, args=("CONC-2",))
         t1.start()
         t2.start()
-        t1.join(timeout=10)
-        t2.join(timeout=10)
+        deadline = time.monotonic() + 20
+        for worker in (t1, t2):
+            worker.join(timeout=max(0, deadline - time.monotonic()))
 
+        assert not t1.is_alive(), "First serialized shadow write did not complete"
+        assert not t2.is_alive(), "Second serialized shadow write did not complete"
         assert errors == [], f"Concurrent writes produced errors: {errors}"
 
         # Both tasks must be readable.
