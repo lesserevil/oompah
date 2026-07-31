@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-631
 type: bug
-status: Open
+status: Backlog
 priority: 1
 title: Restore validation ownership when terminal retries coalesce
 parent: OOMPAH-584
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:08:00.758352Z'
-updated_at: '2026-07-31T00:26:47.483391Z'
+updated_at: '2026-07-31T00:27:48.988914Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-631
 target_branch: null
 review_url: null
@@ -24,13 +24,13 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: b5e1b7ef-4508-4075-9d2c-00a74b387545
-  claim_owner: b1126b43-a708-4576-a58f-88442a7059a7
-  claimed_at: '2026-07-31T00:26:38.416573+00:00'
-  claim_expires_at: '2026-07-31T00:56:38.416573+00:00'
+  evidence: Duplicate screening worker was terminated.
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
-  retry_after: null
+  retry_after: '2026-07-31T00:27:45.046849+00:00'
 oompah.agent_run_id: 7a8389ea-e98b-4684-a850-d63e707d978f
 oompah.work_branch: epic-OOMPAH-584--task-OOMPAH-631
 oompah.integration:
@@ -42,13 +42,13 @@ oompah.integration:
   base_sha: c03e52f66f4e5123576f4de3f21e4a763cc9c4b1
   updated_at: '2026-07-31T00:26:44.943400+00:00'
 oompah.task_costs:
-  total_input_tokens: 1487295
-  total_output_tokens: 12212
+  total_input_tokens: 1487463
+  total_output_tokens: 12269
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 1487295
-      output_tokens: 12212
+      input_tokens: 1487463
+      output_tokens: 12269
       cost_usd: 0.0
   runs:
   - profile: default
@@ -57,6 +57,12 @@ oompah.task_costs:
     output_tokens: 12212
     cost_usd: 0.0
     recorded_at: '2026-07-31T00:20:22.442488+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 168
+    output_tokens: 57
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T00:27:44.603524+00:00'
 ---
 ## Summary
 
@@ -114,5 +120,15 @@ author: oompah
 created: 2026-07-31 00:26
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-31 00:27
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 11
+- Tokens: 168 in / 57 out [225 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 1m 3s
+- Log: OOMPAH-631__20260731T002649Z.jsonl
 ---
 <!-- COMMENTS:END -->

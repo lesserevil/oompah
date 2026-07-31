@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T23:37:58.090708Z'
-updated_at: '2026-07-31T00:27:19.940309Z'
+updated_at: '2026-07-31T00:27:43.089956Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-630
 target_branch: null
 review_url: null
@@ -45,8 +45,8 @@ oompah.integration:
   submitted_at: '2026-07-31T00:17:01.449875+00:00'
   updated_at: '2026-07-31T00:21:36.903304+00:00'
 oompah.task_costs:
-  total_input_tokens: 137
-  total_output_tokens: 10429
+  total_input_tokens: 185
+  total_output_tokens: 18932
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -56,6 +56,10 @@ oompah.task_costs:
     sonnet:
       input_tokens: 27
       output_tokens: 10390
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 48
+      output_tokens: 8503
       cost_usd: 0.0
   runs:
   - profile: default
@@ -70,6 +74,12 @@ oompah.task_costs:
     output_tokens: 10390
     cost_usd: 0.0
     recorded_at: '2026-07-31T00:15:26.415217+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 48
+    output_tokens: 8503
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T00:27:41.560166+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
@@ -328,5 +338,15 @@ Safe evidence:
 - fail_closed_helper: oompah/orchestrator.py:_refresh_landing_evidence_target_refs (bounded fetch, redacted reason)
 - call_site: oompah/orchestrator.py:_mark_epic_merged skips Done children when refresh cannot be proven successful and skips In Validation children so the terminal auditor keeps ownership
 - worktree_status: clean, up to date with origin
+---
+author: oompah
+created: 2026-07-31 00:27
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 42
+- Tokens: 48 in / 8.5K out [8.6K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 5m 51s
+- Log: OOMPAH-630__20260731T002155Z.jsonl
 ---
 <!-- COMMENTS:END -->

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-586
 type: epic
-status: In Review
+status: Needs Human
 priority: 0
 title: Restore least-privilege task and lifecycle access
 parent: OOMPAH-584
@@ -16,7 +16,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-30T14:13:33.901470Z'
-updated_at: '2026-07-31T00:27:22.419306Z'
+updated_at: '2026-07-31T00:27:41.458322Z'
 work_branch: epic-OOMPAH-586
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/597
@@ -27,6 +27,32 @@ oompah.review_number: '597'
 oompah.work_branch: epic-OOMPAH-586
 oompah.target_branch: epic-OOMPAH-584
 oompah.agent_run_id: f7d66fe8-6544-4878-bfab-c6c2704820d7
+oompah.task_costs:
+  total_input_tokens: 245565
+  total_output_tokens: 1879
+  total_cost_usd: 0.0
+  by_model:
+    opus:
+      input_tokens: 245565
+      output_tokens: 1879
+      cost_usd: 0.0
+  runs:
+  - profile: deep
+    model: opus
+    input_tokens: 245565
+    output_tokens: 1879
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T00:27:37.416571+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-586__20260731T002641Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-sol
+    focus: merge_conflict
+    source_branch: epic-OOMPAH-586
+    source_sha: ca49d0c25b30d149cb59f0af0bac57276c1f8120
+    completed_at: '2026-07-31T00:27:37.421183+00:00'
 ---
 ## Summary
 
@@ -74,5 +100,20 @@ author: oompah
 created: 2026-07-31 00:26
 ---
 Focus: Merge Conflict Resolver
+---
+author: oompah
+created: 2026-07-31 00:27
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Codex/gpt-5.6-sol]
+- Turns: 1, Tool calls: 5
+- Tokens: 245.6K in / 1.9K out [247.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 59s
+- Log: OOMPAH-586__20260731T002641Z.jsonl
+---
+author: oompah
+created: 2026-07-31 00:27
+---
+Task handoff failed after the worker ran: the server-owned, task-scoped tracker capability could not update this task. The task is held in Needs Human and will not be redispatched automatically; verify the handoff service and reconcile the worker's branch before resuming it.
 ---
 <!-- COMMENTS:END -->
