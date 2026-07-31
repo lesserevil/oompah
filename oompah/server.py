@@ -3197,9 +3197,15 @@ def _submission_record(issue, body: dict[str, Any]) -> IntegrationRecord:
         else {}
     )
     existing = getattr(issue, "integration", None)
+    # An accepted ``ready`` / ``queued`` / ``integrating`` record for the same
+    # generation is durable evidence we can reuse: the integration queue
+    # already owns the row and no fresh timestamp is required. ``integrated``
+    # is intentionally excluded — an explicit resubmit of an already-integrated
+    # head is an explicit reflow (OOMPAH-628) and must build a fresh ``ready``
+    # record so :func:`_enqueue_worker_submission` triggers ``rearm_integrated``.
     if (
         existing is not None
-        and existing.state in {"ready", "queued", "integrating", "integrated"}
+        and existing.state in {"ready", "queued", "integrating"}
         and existing.head_sha == head_sha
         and existing.task_branch == task_branch
     ):
@@ -3227,28 +3233,63 @@ async def _persist_worker_submission(
     *,
     record: IntegrationRecord | None = None,
 ) -> IntegrationRecord:
-    """Atomically order tracker writes so evidence exists before lifecycle state."""
+    """Atomically reconcile lifecycle to ``Ready to Integrate`` on every accepted submit.
+
+    Every accepted ``POST /submit`` (or scoped task-handoff submit) must end with
+    the task at the ``Ready to Integrate`` canonical lifecycle stage for the
+    accepted generation. That reconciliation is a durable invariant regardless
+    of what path moved the task to ``In Progress``, ``Needs Human``, or
+    ``Needs CI Fix`` between two same-head submissions.
+
+    Idempotency is scoped to a *duplicate accepted* generation: when the
+    integration record is unchanged **and** the canonical tracker status is
+    already ``Ready to Integrate``, no tracker writes fire (no duplicate
+    summary comment, status update, or metadata write). This preserves the
+    existing ``open_review`` / queue-owned properties while letting a same-head
+    recovery from ``In Progress`` / ``Needs Human`` / ``Needs CI Fix`` write
+    the ``Ready to Integrate`` status and a fresh summary comment so the 201
+    response is truthful. The queue rearm from OOMPAH-628 (in
+    :func:`_enqueue_worker_submission`) handles the queue side of the same-head
+    reflow and is not duplicated here.
+    """
 
     record = record or _submission_record(issue, body)
     existing = getattr(issue, "integration", None)
-    if (
+    canonical_status = canonicalize_status(getattr(issue, "state", None))
+    reuses_existing_record = (
         existing is not None
         and record is existing
         and existing.head_sha == record.head_sha
         and existing.task_branch == record.task_branch
-    ):
+    )
+    if reuses_existing_record and canonical_status == READY_TO_INTEGRATE:
+        # Duplicate accepted submit for the same generation: nothing new to
+        # persist, no fresh summary to record, and the queue still owns the
+        # active row.
         return existing
-    await _run_api_io(
-        tracker.set_metadata_field,
-        issue.identifier,
-        "oompah.integration",
-        record.to_dict(),
-    )
-    await _run_api_io(
-        tracker.update_issue,
-        issue.identifier,
-        status=READY_TO_INTEGRATE,
-    )
+    if not reuses_existing_record:
+        # A fresh integration record is durable evidence for a new generation
+        # (new head, or a recovery from a state that dropped the ``ready``
+        # record). Same-head recovery reuses the existing record, so we skip
+        # this write to avoid an identical metadata rewrite.
+        await _run_api_io(
+            tracker.set_metadata_field,
+            issue.identifier,
+            "oompah.integration",
+            record.to_dict(),
+        )
+    if canonical_status != READY_TO_INTEGRATE:
+        # Same-head recovery from In Progress / Needs Human / Needs CI Fix
+        # (and any other non-ready status) reconciles the canonical lifecycle
+        # atomically before the response returns 201. Doing this even when
+        # the durable record is unchanged is the fix for OOMPAH-669: the
+        # previous ``record is existing`` short-circuit stranded the task in
+        # the pre-submit status despite a success response.
+        await _run_api_io(
+            tracker.update_issue,
+            issue.identifier,
+            status=READY_TO_INTEGRATE,
+        )
     summary = str(body.get("summary") or "").strip()
     await _run_api_io(
         tracker.add_comment,

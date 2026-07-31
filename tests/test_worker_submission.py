@@ -187,6 +187,195 @@ def test_submit_endpoint_rejects_invalid_git_object_id_without_writing():
     tracker.update_issue.assert_not_called()
 
 
+def _post_submit(client, *, head=None, summary="Done", branch="oompah/task/TASK-2"):
+    """Helper: post a submit body for the shared test task with defaults."""
+    return client.post(
+        "/api/v1/issues/TASK-2/submit",
+        json={
+            "project_id": "proj-1",
+            "task_branch": branch,
+            "head_sha": head or "a" * 40,
+            "remote_head_sha": head or "a" * 40,
+            "worktree_clean": True,
+            "summary": summary,
+        },
+    )
+
+
+def _submit_test_bed(tmp_path, *, issue_state, existing_integration):
+    """Wire an issue at a given canonical status with an existing integration.
+
+    Returns (issue, tracker, orch, queue) that share a single queue store the
+    caller must ``close()``. Metadata / status / comment tracker calls are
+    recorded in ``tracker.set_metadata_field``, ``tracker.update_issue`` and
+    ``tracker.add_comment``.
+    """
+
+    issue = Issue(
+        id="TASK-2",
+        identifier="TASK-2",
+        title="Submitted task",
+        state=issue_state,
+        project_id="proj-1",
+        work_branch="oompah/task/TASK-2",
+        target_branch="main",
+    )
+    issue.parent_id = "EPIC-1"
+    issue.integration = existing_integration
+    tracker = MagicMock()
+    tracker.fetch_issue_detail.return_value = issue
+    orch = MagicMock()
+    orch._tracker_for_project.return_value = tracker
+    orch.project_store.list_all.return_value = []
+    queue = IntegrationQueueStore(str(tmp_path / "integration.sqlite"))
+    orch.config.parallel_epic_children_enabled = True
+    orch.integration_queue = queue
+    return issue, tracker, orch, queue
+
+
+def _run_submit(orch, body_head=None, summary="Done"):
+    """Post a submit and return (response, tracker calls captured)."""
+    with (
+        patch.object(server_module, "_get_orchestrator", return_value=orch),
+        patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+        TestClient(app, raise_server_exceptions=False) as client,
+    ):
+        return _post_submit(client, head=body_head, summary=summary)
+
+
+def _same_head_recovery_case(tmp_path, initial_status):
+    """Same-head resubmit from a non-ready canonical status must reconcile
+    the lifecycle to Ready to Integrate atomically and record the fresh
+    summary comment.
+
+    This is the OOMPAH-669 acceptance case: previously the identity-based
+    guard in ``_persist_worker_submission`` returned early for a matching
+    integration record and stranded the task at ``initial_status`` despite
+    the 201 response.
+    """
+
+    existing = IntegrationRecord(
+        state="ready",
+        task_branch="oompah/task/TASK-2",
+        head_sha="a" * 40,
+    )
+    _, tracker, orch, queue = _submit_test_bed(
+        tmp_path, issue_state=initial_status, existing_integration=existing
+    )
+    try:
+        response = _run_submit(orch, summary=f"Recovered from {initial_status}")
+        assert response.status_code == 201, response.json()
+        # Canonical lifecycle atomically reconciled to Ready to Integrate.
+        tracker.update_issue.assert_called_once_with(
+            "TASK-2", status="Ready to Integrate"
+        )
+        # Fresh summary comment recorded for this accepted generation.
+        tracker.add_comment.assert_called_once()
+        assert tracker.add_comment.call_args.args[1] == (
+            f"Recovered from {initial_status}"
+        )
+        # Same-head recovery reuses the existing durable record, so no
+        # spurious metadata rewrite fires.
+        tracker.set_metadata_field.assert_not_called()
+        # Queue is (re)armed for exactly one fresh delivery.
+        queued = queue.items(project_id="proj-1", epic_id="EPIC-1")
+        assert len(queued) == 1
+        assert queued[0].head_sha == "a" * 40
+        assert queued[0].state == "ready"
+    finally:
+        queue.close()
+
+
+def test_same_head_resubmit_from_in_progress_restores_ready_lifecycle(tmp_path):
+    _same_head_recovery_case(tmp_path, "In Progress")
+
+
+def test_same_head_resubmit_from_needs_human_restores_ready_lifecycle(tmp_path):
+    _same_head_recovery_case(tmp_path, "Needs Human")
+
+
+def test_same_head_resubmit_from_needs_ci_fix_restores_ready_lifecycle(tmp_path):
+    _same_head_recovery_case(tmp_path, "Needs CI Fix")
+
+
+def test_duplicate_same_head_submit_already_ready_is_fully_idempotent(tmp_path):
+    """A duplicate submit for a task already at Ready to Integrate with a
+    matching integration record must not duplicate the summary comment, the
+    status transition, or a metadata rewrite. Queue rearm must also be a
+    no-op so identical resubmits cannot reset an active row."""
+
+    existing = IntegrationRecord(
+        state="ready",
+        task_branch="oompah/task/TASK-2",
+        head_sha="a" * 40,
+    )
+    _, tracker, orch, queue = _submit_test_bed(
+        tmp_path,
+        issue_state="Ready to Integrate",
+        existing_integration=existing,
+    )
+    # Pre-populate the queue as though a prior accepted submit already
+    # placed the row in ready state.
+    queue.enqueue(
+        project_id="proj-1",
+        epic_id="EPIC-1",
+        task_id="TASK-2",
+        task_branch="oompah/task/TASK-2",
+        head_sha="a" * 40,
+    )
+    try:
+        response = _run_submit(orch, summary="Duplicate request")
+        assert response.status_code == 201, response.json()
+        # Zero tracker writes for a duplicate accepted submit.
+        tracker.set_metadata_field.assert_not_called()
+        tracker.update_issue.assert_not_called()
+        tracker.add_comment.assert_not_called()
+        # Queue still has exactly one identical row.
+        queued = queue.items(project_id="proj-1", epic_id="EPIC-1")
+        assert len(queued) == 1
+        assert queued[0].head_sha == "a" * 40
+        assert queued[0].state == "ready"
+    finally:
+        queue.close()
+
+
+def test_same_head_resubmit_does_not_leak_to_other_projects(tmp_path):
+    """Reconciling one task's lifecycle must not touch an unrelated task's
+    tracker record or its integration queue row."""
+
+    existing = IntegrationRecord(
+        state="ready",
+        task_branch="oompah/task/TASK-2",
+        head_sha="a" * 40,
+    )
+    _, tracker, orch, queue = _submit_test_bed(
+        tmp_path, issue_state="In Progress", existing_integration=existing
+    )
+    # Pre-seed an unrelated project's row that must remain untouched.
+    queue.enqueue(
+        project_id="proj-other",
+        epic_id="EPIC-X",
+        task_id="TASK-99",
+        task_branch="oompah/task/TASK-99",
+        head_sha="b" * 40,
+    )
+    try:
+        response = _run_submit(orch)
+        assert response.status_code == 201, response.json()
+        # Only the submitted task's tracker is written.
+        tracker.update_issue.assert_called_once_with(
+            "TASK-2", status="Ready to Integrate"
+        )
+        # Unrelated project's queue row is untouched.
+        untouched = queue.items(project_id="proj-other", epic_id="EPIC-X")
+        assert len(untouched) == 1
+        assert untouched[0].task_id == "TASK-99"
+        assert untouched[0].head_sha == "b" * 40
+        assert untouched[0].state == "ready"
+    finally:
+        queue.close()
+
+
 def test_submit_endpoint_rejects_foreign_task_branch_without_writing():
     issue = _issue()
     tracker = MagicMock()
