@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-621
 type: task
-status: Open
+status: In Progress
 priority: 1
 title: Document and integration-test CLI credential precedence
 parent: OOMPAH-619
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:25:29.809048Z'
-updated_at: '2026-07-31T06:25:37.092339Z'
+updated_at: '2026-07-31T06:25:50.294363Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-621
 target_branch: null
 review_url: null
@@ -40,19 +40,16 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: e07734e7-aab8-493f-9606-2e2652950492
+oompah.agent_run_id: b8b55e47-6b1f-4878-a9a9-85624430da71
 oompah.work_branch: epic-OOMPAH-619--task-OOMPAH-621
 oompah.integration:
   version: 2
-  state: integrated
-  attempts: 1
+  state: working
+  attempts: 0
   task_branch: epic-OOMPAH-619--task-OOMPAH-621
   base_branch: epic-OOMPAH-619
-  base_sha: 9d11014204d3a8a07b339c9e3627ae500064638d
-  head_sha: b2191c92f124fdb33e5f0383e3eb458c22ff030d
-  integrated_sha: b2191c92f124fdb33e5f0383e3eb458c22ff030d
-  submitted_at: '2026-07-31T06:16:33.460264+00:00'
-  updated_at: '2026-07-31T06:21:47.652242+00:00'
+  base_sha: b2191c92f124fdb33e5f0383e3eb458c22ff030d
+  updated_at: '2026-07-31T06:25:48.094484+00:00'
 oompah.task_costs:
   total_input_tokens: 2243852
   total_output_tokens: 45793
@@ -598,5 +595,15 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: normal, Duration: 3m 14s
 - Log: OOMPAH-621__20260731T062232Z.jsonl
+---
+author: oompah
+created: 2026-07-31 06:25
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-31 06:25
+---
+Focus: Technical Writer
 ---
 <!-- COMMENTS:END -->

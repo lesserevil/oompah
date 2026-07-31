@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-607
 type: bug
-status: In Progress
+status: In Validation
 priority: 0
 title: Canonicalize project aliases before terminal owner authorization
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-30T18:17:13.371379Z'
-updated_at: '2026-07-31T06:10:02.251970Z'
+updated_at: '2026-07-31T06:25:55.043745Z'
 work_branch: OOMPAH-607
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/605
@@ -144,6 +144,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/605
 oompah.review_number: '605'
 oompah.work_branch: OOMPAH-607
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-269a81d7e2e1
+    project_id: proj-14849f1b
+    task_id: OOMPAH-607
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6160b3dfb070244f9a80659b313af3703d96f06581279d3226b8167fa7dff5cd
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Progress
+    created_at: '2026-07-31T06:25:49.441224+00:00'
+  - version: 1
+    audit_id: audit-48d8fb52ec07
+    project_id: proj-14849f1b
+    task_id: OOMPAH-607
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6160b3dfb070244f9a80659b313af3703d96f06581279d3226b8167fa7dff5cd
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Progress
+    created_at: '2026-07-31T06:25:49.441224+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -362,5 +401,15 @@ author: oompah
 created: 2026-07-31 06:10
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-31 06:25
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-07-31 06:25
+---
+YOLO: merged PR #605.
 ---
 <!-- COMMENTS:END -->
