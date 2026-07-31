@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-651
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Redact secrets from agent tool inputs, outputs, and JSONL event logs
 parent: null
@@ -18,7 +18,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T21:41:19.539484Z'
+updated_at: '2026-07-31T21:42:04.108992Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -223,9 +223,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-651
-  head_sha: b90d1e353e2dd5fd321c048ca84eb71eea9e20d4
-  submitted_at: '2026-07-31T16:56:45.923689+00:00'
-  updated_at: '2026-07-31T16:56:45.923689+00:00'
+  head_sha: be84001032add7e0cc5d8b71f04308fcc7f2174a
+  submitted_at: '2026-07-31T21:42:01.005559+00:00'
+  updated_at: '2026-07-31T21:42:01.005559+00:00'
 oompah.start_blocked_by: *id001
 ---
 ## Summary
@@ -1261,5 +1261,10 @@ author: oompah
 created: 2026-07-31 21:41
 ---
 Verification: Focused test suites pass on the rebased branch: tests/test_secrets.py (112 pass), tests/test_client_auth.py (79 pass), tests/test_task_handoff.py (58 pass), tests/test_agent.py + tests/test_api_agent_budget.py + tests/test_acp_agent.py + tests/test_acp_backends.py + tests/test_console*.py (298 pass), tests/test_projects.py + tests/test_github_tracker.py + tests/test_providers.py + tests/test_scm.py (combined 1064 pass with secrets/client_auth/task_handoff). make check-secrets passes clean. scripts/find_terminal_mutations.py passes (6/6 allowlisted). Branch is rebased onto origin/main head 16362384b.
+---
+author: oompah
+created: 2026-07-31 21:42
+---
+Rebased onto origin/main (16362384b) with 13 commits preserved. Resolved conflicts in oompah/client_auth.py (netrc integration → register_secret(resolved_password) before final return) and oompah/task_handoff.py (revoke lifecycle → retire_secret call after lease.stop()). Added post-rebase fix so tests can patch task_handoff.retire_secret and shorten SECRET_REDACTION_GRACE_SECONDS. The .oompah-no-hooks/prepare-commit-msg symlink that blocked the previous gate is now untracked (main .gitignore excludes it). Focused suites: tests/test_secrets.py 112, tests/test_client_auth.py 79, tests/test_task_handoff.py 58, agent/console/acp/api-agent 298, projects/github/providers/scm bulk 1064 combined - all green. make check-secrets and terminal mutation scan pass. Branch head be84001032add7e0cc5d8b71f04308fcc7f2174a.
 ---
 <!-- COMMENTS:END -->
