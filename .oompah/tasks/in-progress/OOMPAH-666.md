@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T21:19:38.816688Z'
-updated_at: '2026-07-31T23:03:31.097636Z'
+updated_at: '2026-07-31T23:11:11.734811Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -140,5 +140,11 @@ author: oompah
 created: 2026-07-31 23:03
 ---
 Implementation: Updated dashboard flex sizing so .main-area and .board can shrink to the space remaining after visible banners; changed flat .column max-height from calc(100vh - 80px) to 100% and removed the 60px column-body minimum. Explicitly kept the existing scroll owners (.column-body for flat view, .board for swimlane view), horizontal board/swimlane scrolling, and drag/drop DOM structure. Marked the remaining pre-board health panels non-shrinking so alert content stays visible during dynamic updates. Added tests/test_dashboard_vertical_scroll.py covering no-alert ordering/hidden state, one-or-many alert transitions, bottom reachability contract, and preserved horizontal/swimlane scroll rules.
+---
+author: oompah
+created: 2026-07-31 23:11
+---
+Verification: focused dashboard suites passed (48 passed), the isolated full project harness passed 14,545 tests with 8 skipped and 1 expected xfail, and terminal-mutation scan passed (6/6 allowlisted). Direct make[1]: Entering directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-666'
+make[1]: Leaving directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-666' setup could not initialize this worktree because the host uv launcher failed with a DBus transient-scope error; the trusted-gate retry rejected the separate source checkout as a non-candidate alias. The exact run-tests.sh parallel harness completed successfully against this worktree.
 ---
 <!-- COMMENTS:END -->
