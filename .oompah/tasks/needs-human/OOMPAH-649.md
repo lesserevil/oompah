@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-649
 type: task
-status: In Progress
+status: Needs Human
 priority: null
 title: Preserve dirty task worktrees across worker termination and retry
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:19:33.053515Z'
-updated_at: '2026-07-31T08:34:03.810215Z'
+updated_at: '2026-07-31T08:34:24.452129Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -145,5 +145,25 @@ author: oompah
 created: 2026-07-31 08:34
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-07-31 08:34
+---
+Operator claim after old-runtime false-stall termination: the agent's complete dirty worktree is intact and anchored at recovery ref 33e1f9cc22a5. Holding dispatch while the operator commits, rebases, verifies, pushes, and submits this branch; the currently running server cannot safely retry this task until this fix is integrated.
+---
+author: oompah
+created: 2026-07-31 08:34
+---
+Moved to Needs Human from the dashboard/API. Human action required: inspect OOMPAH-649 (Preserve dirty task worktrees across worker termination and retry), add the specific decision, missing information, or manual fix needed, then move the task back to Open when it is ready for agents again.
+---
+author: oompah
+created: 2026-07-31 08:34
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 25s
+- Log: OOMPAH-649__20260731T083405Z.jsonl
 ---
 <!-- COMMENTS:END -->
