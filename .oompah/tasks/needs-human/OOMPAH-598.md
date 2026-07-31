@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-598
 type: bug
-status: In Progress
+status: Needs Human
 priority: 1
 title: Detect and deliver standalone Ready to Integrate tasks without PRs
 parent: OOMPAH-587
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:29.695490Z'
-updated_at: '2026-07-31T01:43:16.186550Z'
+updated_at: '2026-07-31T01:43:48.730774Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-598
 target_branch: null
 review_url: null
@@ -367,5 +367,10 @@ author: oompah
 created: 2026-07-31 01:43
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-31 01:43
+---
+Moved to Needs Human from the dashboard/API. Human action required: inspect OOMPAH-598 (Detect and deliver standalone Ready to Integrate tasks without PRs), add the specific decision, missing information, or manual fix needed, then move the task back to Open when it is ready for agents again.
 ---
 <!-- COMMENTS:END -->
