@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T09:12:30.906591Z'
+updated_at: '2026-07-31T09:12:37.600035Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -23,14 +23,25 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: d6604a3d8a13689549017097fa0732aef577e7fffbf410a3e378f605d228d668
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-07-31T09:12:25.797543+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: dde9bb7d-5706-48b5-9a73-9eb2fc0f53b0
-  claim_owner: 432b475d-ac6b-4689-b481-380c0818b1e9
-  claimed_at: '2026-07-31T09:10:41.903698+00:00'
-  claim_expires_at: '2026-07-31T09:40:41.903698+00:00'
+  evidence: 'Focus handoff: duplicate_detector
+
+
+    Duplicate preflight verdict: no_duplicate
+
+
+    Matches: none
+
+
+    Evidence: Active OOMPAH-281 and OOMPAH-282 are unrelated. Archived OOMPAH-212,
+    OOMPAH-220, OOMPAH-222, and OOMPAH-232 concern native tracker duplicate-file logging,
+    not terminal-audit lifecycle races.'
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
 oompah.agent_run_id: 6160c2d4-52a0-466b-a51c-3f935f07d260
@@ -66,6 +77,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-653
     source_sha: 8fd133e26aa2823ab68cde2a42b446933142b614
     completed_at: '2026-07-31T09:06:39.833015+00:00'
+  - run_id: OOMPAH-653__20260731T091050Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: OOMPAH-653
+    source_sha: 8fd133e26aa2823ab68cde2a42b446933142b614
+    completed_at: '2026-07-31T09:12:25.802895+00:00'
 ---
 ## Summary
 
