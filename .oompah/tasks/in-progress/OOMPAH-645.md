@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:47:58.732088Z'
-updated_at: '2026-07-31T07:24:46.497151Z'
+updated_at: '2026-07-31T07:26:58.285448Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -203,5 +203,12 @@ Root cause: The failure-counting loop in build_terminal_audit_health counts ALL 
 Fix: Only count transport/launch failures when record.request_state == RequestState.PENDING (no active attempt running). When IN_PROGRESS, past failures are being recovered - no operator action needed. Also guard retry_exhausted_count similarly since an IN_PROGRESS last attempt hasn't failed yet.
 
 Required tests: IN_PROGRESS record with past transport failure → no alert; PENDING record with transport failure → alert; transition from IN_PROGRESS back to PENDING re-fires alert; multi-project isolation; one recovered + different pending stays clean.
+---
+author: oompah
+created: 2026-07-31 07:26
+---
+Discovery: Root cause confirmed in oompah/terminal_audit_health.py:build_terminal_audit_health(). The failure-counting loop iterated all PENDING attempts with ended_at on ANY record, regardless of the record's request_state. When attempt 2 was IN_PROGRESS (recovering), attempt 1's transport failure was still counted, surfacing as transport_failure_count=1. On the next scan after OOMPAH-607 left In Validation, OOMPAH-641 was processed with clean observations but the alert appeared to reference OOMPAH-641 because the text said 'pending audits' generically.
+
+Fix: Guarded the exhaustion and transport/launch failure counts with if record.request_state == RequestState.PENDING: — only PENDING records (no active replacement) generate actionable failure alerts. IN_PROGRESS records have an active auditor recovering the audit; no operator action is needed.
 ---
 <!-- COMMENTS:END -->
