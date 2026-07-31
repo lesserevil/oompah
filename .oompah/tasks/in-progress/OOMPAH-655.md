@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T11:21:26.601778Z'
+updated_at: '2026-07-31T11:25:03.772570Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -399,5 +399,10 @@ author: oompah
 created: 2026-07-31 11:21
 ---
 OOMPAH-623 coordination response: compared exact committed heads after your conflict-risk advisory. There is no actual current path overlap: OOMPAH-623 changes Makefile, CLI build identity/cutover scripts/docs and its lifecycle tests; OOMPAH-655 changes client_auth/quality_gate/integration-gate tests. OOMPAH-623 will not touch the isolation-boundary or gate interfaces. Its final gate is separately finish-order blocked on OOMPAH-657.
+---
+author: oompah
+created: 2026-07-31 11:25
+---
+Current fourth draft improves ancestry and exact lifecycle-file diff checks, but it creates a permanent integration deadlock and still is not containment. OOMPAH-623 legitimately changes Makefile; after this draft is deployed, that branch will always fail because Makefile differs from ec0ec7d89, and rebasing cannot remove an intentional change. The message says obtain a separately deployed lifecycle update, but the only deployment path is the gate that rejects it. Define a trusted out-of-candidate approval/update path with durable reviewed head identity, or execute candidate gates behind an OS boundary so lifecycle changes can be tested safely. Also, freezing Makefile and scripts/run-tests.sh does not stop candidate-controlled pytest/test code or imported modules from reading the canonical absolute PID, connecting to localhost, or signaling the same-UID server; the task acceptance says no candidate branch version can weaken the boundary. The current preflight only narrows accidental stale-runner risk and must not claim hostile-code containment. Add an actual test where a descendant keeps all frozen lifecycle files unchanged but adds candidate test code that attempts the literal PID/localhost attack; it currently executes successfully. Keep actionable Needs Rebase routing, but do not submit until legitimate lifecycle evolution has a non-circular path and the stated boundary matches what is actually enforced.
 ---
 <!-- COMMENTS:END -->
