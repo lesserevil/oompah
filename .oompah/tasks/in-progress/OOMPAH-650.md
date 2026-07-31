@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T14:06:02.059270Z'
+updated_at: '2026-07-31T14:11:10.796859Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -46,21 +46,16 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 71a2e6e2-2463-4dda-a78c-b1b177cd9492
+oompah.agent_run_id: b75d1a69-ecbe-4204-99c8-a46bef14ae1c
 oompah.work_branch: epic-OOMPAH-619--task-OOMPAH-650
 oompah.integration:
   version: 2
-  state: blocked
-  attempts: 1
+  state: working
+  attempts: 0
   task_branch: epic-OOMPAH-619--task-OOMPAH-650
   base_branch: epic-OOMPAH-619
   base_sha: 61546199b2334fd861f2d0cd844ec631e8b8d0e4
-  head_sha: 3e1fba180c2c8b9f89bfea5951550c8e9764d13d
-  submitted_at: '2026-07-31T13:45:00.694624+00:00'
-  updated_at: '2026-07-31T13:59:25.693929+00:00'
-  last_error: epic worktree head 793bcc7969d39634dab560ed0a10b9dcad7a9716 differs
-    from the published epic head 61546199b2334fd861f2d0cd844ec631e8b8d0e4; refusing
-    to reset a preserved recovery snapshot
+  updated_at: '2026-07-31T14:11:09.337936+00:00'
 oompah.task_costs:
   total_input_tokens: 9427172
   total_output_tokens: 39533
@@ -1263,5 +1258,15 @@ Run #6 [attempt=6, profile=deep, role=— -> Claude/opus]
 - Tokens: 0 in / 0 out [0 total]
 - Cost: $0.0000
 - Exit: error, Duration: 2s
+---
+author: oompah
+created: 2026-07-31 14:11
+---
+Retrying (attempt #6, agent: deep)
+---
+author: oompah
+created: 2026-07-31 14:11
+---
+Focus: Event Api Redaction Specialist
 ---
 <!-- COMMENTS:END -->
