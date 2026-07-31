@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-651
 type: bug
-status: Needs CI Fix
+status: In Progress
 priority: 1
 title: Redact secrets from agent tool inputs, outputs, and JSONL event logs
 parent: null
@@ -15,7 +15,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T12:08:02.909893Z'
+updated_at: '2026-07-31T12:08:55.812749Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -57,7 +57,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 1f3fb952-3677-48f3-9b83-56dd808eb351
+oompah.agent_run_id: 8d4c522c-870d-4fd0-80b1-18acad287fb8
 oompah.task_costs:
   total_input_tokens: 16588309
   total_output_tokens: 104315
@@ -879,5 +879,15 @@ author: oompah
 created: 2026-07-31 12:08
 ---
 Stopped a premature full make test at 12:09 UTC (exact gate PGID 3037783). OOMPAH-651 still has a finish-order dependency on OOMPAH-650, whose lease/auth semantics are actively changing, so this is not an accepted exact review-ready head. Run focused redaction and renewal regressions only; Oompah will run the configured complete gate after the dependency is integrated and the branch is rebased.
+---
+author: oompah
+created: 2026-07-31 12:08
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-31 12:08
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
