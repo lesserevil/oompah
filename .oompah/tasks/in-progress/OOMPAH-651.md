@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-651
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Redact secrets from agent tool inputs, outputs, and JSONL event logs
 parent: null
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T09:42:57.498221Z'
+updated_at: '2026-07-31T09:51:34.743025Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -22,25 +22,29 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 27f1faaa27c090245ce9b8a7b013b0e34ec7f359b5db4bf1eb5b65d7424d36b5
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-07-31T09:51:22.005507+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 661fc467-e33a-40c9-881f-183092140793
-  claim_owner: 8b381976-a4b3-414f-8bc1-d45817f13ed4
-  claimed_at: '2026-07-31T09:42:52.426565+00:00'
-  claim_expires_at: '2026-07-31T10:12:52.426565+00:00'
+  evidence: "Focus handoff: duplicate_detector  \nDuplicate preflight verdict: no_duplicate\
+    \  \nMatches: none  \nEvidence: Active OOMPAH-281 and OOMPAH-282 were read fully\
+    \ and cover self-hosted CI and state-branch migration, respectively. OOMPAH-652\
+    \ concerns process lifecycle cleanup. Historical agent/telemetry tasks are terminal\
+    \ and excluded; none cover secret redaction."
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 83ec2e5e-699f-4c23-abd3-9ccb11502682
+oompah.agent_run_id: 7ca073e7-5cdf-40f4-8df2-7fe9ae6687ef
 oompah.task_costs:
-  total_input_tokens: 2376
-  total_output_tokens: 3527
+  total_input_tokens: 3889174
+  total_output_tokens: 16997
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 2376
-      output_tokens: 3527
+      input_tokens: 3889174
+      output_tokens: 16997
       cost_usd: 0.0
   runs:
   - profile: default
@@ -55,6 +59,12 @@ oompah.task_costs:
     output_tokens: 648
     cost_usd: 0.0
     recorded_at: '2026-07-31T09:19:37.722574+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 3886798
+    output_tokens: 13470
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T09:51:22.004483+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-651__20260731T090132Z
@@ -65,6 +75,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-651
     source_sha: 8fd133e26aa2823ab68cde2a42b446933142b614
     completed_at: '2026-07-31T09:02:29.895786+00:00'
+  - run_id: OOMPAH-651__20260731T094300Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: OOMPAH-651
+    source_sha: 1bea7c39dd0a64593284c59209f55a8e84f41fca
+    completed_at: '2026-07-31T09:51:22.016400+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -226,5 +244,25 @@ author: oompah
 created: 2026-07-31 09:42
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-31 09:51
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 2, Tool calls: 69
+- Tokens: 3.9M in / 13.5K out [3.9M total]
+- Cost: $0.0000
+- Exit: normal, Duration: 8m 27s
+- Log: OOMPAH-651__20260731T094300Z.jsonl
+---
+author: oompah
+created: 2026-07-31 09:51
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-31 09:51
+---
+Focus: Security Auditor
 ---
 <!-- COMMENTS:END -->

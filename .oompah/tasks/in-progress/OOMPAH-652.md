@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-652
 type: bug
-status: Needs CI Fix
+status: In Progress
 priority: 1
 title: Isolate the full Makefile test gate from a running Oompah service
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T08:57:15.160957Z'
-updated_at: '2026-07-31T09:50:45.405978Z'
+updated_at: '2026-07-31T09:51:38.791792Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,7 +38,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: e277c191-f91f-404d-96a9-40432266a464
+oompah.agent_run_id: e0aaf53e-d450-4020-ac99-3c392be123a8
 oompah.task_costs:
   total_input_tokens: 20730993
   total_output_tokens: 60215
@@ -322,5 +322,15 @@ Installed 23 packages in 38ms
  + websockets==16.1.1
 make[1]: *** [Makefile:295: test] Error 1
 ```
+---
+author: oompah
+created: 2026-07-31 09:51
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-31 09:51
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->

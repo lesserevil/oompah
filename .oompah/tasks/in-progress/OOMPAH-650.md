@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-650
 type: bug
-status: Ready to Integrate
+status: In Progress
 priority: 1
 title: Keep scoped task handoff credentials valid for the full worker lifetime
 parent: OOMPAH-619
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T09:50:19.973718Z'
+updated_at: '2026-07-31T09:51:49.799526Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -47,13 +47,13 @@ oompah.integration:
   submitted_at: '2026-07-31T09:50:17.437536+00:00'
   updated_at: '2026-07-31T09:50:17.437536+00:00'
 oompah.task_costs:
-  total_input_tokens: 1607075
-  total_output_tokens: 8327
+  total_input_tokens: 1607085
+  total_output_tokens: 9124
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 1607075
-      output_tokens: 8327
+      input_tokens: 1607085
+      output_tokens: 9124
       cost_usd: 0.0
   runs:
   - profile: default
@@ -68,6 +68,12 @@ oompah.task_costs:
     output_tokens: 422
     cost_usd: 0.0
     recorded_at: '2026-07-31T09:19:48.228455+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 10
+    output_tokens: 797
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T09:51:22.086848+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-650__20260731T090726Z
@@ -329,5 +335,20 @@ author: oompah
 created: 2026-07-31 09:50
 ---
 Fixed server-side token refresh for long-running workers. Previous subprocess-based refresh operated on empty process-local store. Solution: server endpoint automatically refreshes grants on each validated request, keeping workers authorized for full session lifetime without Basic-auth fallback. 24+134 tests pass.
+---
+author: oompah
+created: 2026-07-31 09:51
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 61
+- Tokens: 10 in / 797 out [807 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 11m 33s
+- Log: OOMPAH-650__20260731T094003Z.jsonl
+---
+author: oompah
+created: 2026-07-31 09:51
+---
+Second operator review rejects head 2700a4903. Comment #20 implements exactly the request-triggered refresh that comment #19 explained is insufficient: validation occurs before refresh, so a live worker with no handoff traffic longer than the TTL reaches its final view/comment/submit with an expired token and gets 401. The claimed tests repeatedly refresh before expiry and do not reproduce the required silent-tool interval. Do not resubmit another sliding request TTL. Bind authorization to durable live worker/session ownership (or an independent server heartbeat), allow a live owner past the original grant expiry without weakening scope, and revoke atomically when ownership ends. Required regression: live server plus spawned worker, very short grant TTL, zero handoff requests until after that TTL, then successful view/comment/submit; additionally cover service restart/recovery and termination/retry revocation.
 ---
 <!-- COMMENTS:END -->
