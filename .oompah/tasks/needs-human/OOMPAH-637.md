@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-637
 type: task
-status: In Progress
+status: Needs Human
 priority: 0
 title: Rebase epic-OOMPAH-587 onto main
 parent: OOMPAH-587
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T02:48:10.674366Z'
-updated_at: '2026-07-31T02:51:39.320059Z'
+updated_at: '2026-07-31T02:51:56.640555Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-637
 target_branch: null
 review_url: null
@@ -107,5 +107,15 @@ author: oompah
 created: 2026-07-31 02:51
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-31 02:51
+---
+Operator claim: duplicate preflight completed without action and escalated to another preflight; the current runtime's task workers also cannot authenticate handoff, as demonstrated by OOMPAH-634/598. Temporarily fencing as Needs Human while the operator rebases the clean authoritative epic-OOMPAH-587 branch onto current origin/main with force-with-lease and reconciles via authenticated CLI. This is not a human decision blocker.
+---
+author: oompah
+created: 2026-07-31 02:51
+---
+Moved to Needs Human from the dashboard/API. Human action required: inspect OOMPAH-637 (Rebase epic-OOMPAH-587 onto main), add the specific decision, missing information, or manual fix needed, then move the task back to Open when it is ready for agents again.
 ---
 <!-- COMMENTS:END -->
