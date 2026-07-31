@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-630
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Fetch rollup targets before judging child landing evidence
 parent: OOMPAH-584
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T23:37:58.090708Z'
-updated_at: '2026-07-31T00:14:57.319371Z'
+updated_at: '2026-07-31T00:15:06.426292Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-630
 target_branch: null
 review_url: null
@@ -35,12 +35,12 @@ oompah.agent_run_id: ae4b8567-559a-461a-bbce-4e9de1ef34b7
 oompah.work_branch: epic-OOMPAH-584--task-OOMPAH-630
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-584--task-OOMPAH-630
-  base_branch: epic-OOMPAH-584
-  base_sha: f9f1e78ae25afb462d71a360bf93cc2d4f0804a2
-  updated_at: '2026-07-31T00:09:19.344842+00:00'
+  head_sha: 797d2c0de1322ec2610e714c59ccd4e69e055833
+  submitted_at: '2026-07-31T00:15:04.097008+00:00'
+  updated_at: '2026-07-31T00:15:04.097008+00:00'
 oompah.task_costs:
   total_input_tokens: 110
   total_output_tokens: 39
@@ -200,5 +200,10 @@ Duplicate investigation: no active duplicate found. Only 2 non-terminal tasks ex
 Gate failure analysis: the failing test (test_orphan_resets_for_different_projects_are_independent) is a concurrency timing test that passes locally now. The gate failure at 00:09 was a transient flake on the loaded CI host — not a structural regression from this branch's changes.
 
 Current state: branch epic-OOMPAH-584--task-OOMPAH-630 is already pushed at 797d2c0de. Focused suites: test_project_locks.py (26 passed), test_epic_strategy.py (212 passed), test_orchestrator_merged.py (160 passed). Implementation complete; ready to re-submit for the combined-tree gate.
+---
+author: oompah
+created: 2026-07-31 00:15
+---
+Fixed post-merge race: refreshes exact rollup target ref before evaluating child landing evidence. Fails closed on fetch errors without demoting Done children based on stale cached refs. Preserved redacted diagnostics and runtime budget. Also fixed: active child validation ownership preserved during merged-epic maintenance; terminal transitions serialized under project RLock across event loops. Gate failure (test_orphan_resets_for_different_projects_are_independent) confirmed as transient timing flake — passes locally; branch at 797d2c0de.
 ---
 <!-- COMMENTS:END -->
