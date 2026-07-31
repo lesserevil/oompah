@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-632
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Refresh candidate refs before child landing reconciliation
 parent: OOMPAH-584
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:46:34.785511Z'
-updated_at: '2026-07-31T01:05:07.151387Z'
+updated_at: '2026-07-31T01:08:17.148932Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-632
 target_branch: null
 review_url: null
@@ -39,12 +39,15 @@ oompah.agent_run_id: 0d410b5d-40d5-4b37-a317-49d3daaa7c7c
 oompah.work_branch: epic-OOMPAH-584--task-OOMPAH-632
 oompah.integration:
   version: 1
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-584--task-OOMPAH-632
+  base_branch: epic-OOMPAH-584
+  base_sha: d62dd4cff702ae2b818418407d7d15b7a643213e
   head_sha: 144970e31f6879394c2adfa95b780100c5d3aebd
+  integrated_sha: 144970e31f6879394c2adfa95b780100c5d3aebd
   submitted_at: '2026-07-31T01:03:10.114174+00:00'
-  updated_at: '2026-07-31T01:03:10.114174+00:00'
+  updated_at: '2026-07-31T01:08:13.312219+00:00'
 oompah.task_costs:
   total_input_tokens: 597125
   total_output_tokens: 3510
@@ -77,6 +80,28 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-584--task-OOMPAH-632
     source_sha: d62dd4cff702ae2b818418407d7d15b7a643213e
     completed_at: '2026-07-31T00:48:54.116448+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-14d4c4a404a1
+    project_id: proj-14849f1b
+    task_id: OOMPAH-632
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 2671315e76396f1ff524c5cf146bf089997f06489138f9b27b68033d21e86e28
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-31T01:08:14.614625+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -246,5 +271,10 @@ author: oompah
 created: 2026-07-31 01:05
 ---
 Pre-audit defect found in submitted head 144970e31: it discards the (False, error) result from _refresh_landing_evidence_candidate_refs, explicitly treats every nonzero fetch as success, and leaves _resolve_git_branch_refs returning both origin and the stale refs/heads branch. Therefore the actual ca49-local/04d-origin reproduction still reports the ca49 patch unlanded, and candidate transport failure does not defer mutation. The added test mocks the helper and only proves it was called. Do not PASS this head. Required regression: a real force-pushed rewritten remote contained by target while stale local remains must avoid Needs Human; candidate fetch failure must leave Done unchanged. A corrected local commit f33d843df (not pushed because the exact 144970e gate already holds the queue lease) passes these paths.
+---
+author: oompah
+created: 2026-07-31 01:08
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
