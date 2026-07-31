@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-488
 type: task
-status: Needs Human
+status: Done
 priority: 1
 title: Validate the complete task Done-Merged-Archived audit lifecycle
 parent: OOMPAH-460
@@ -19,7 +19,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:27.238658Z'
-updated_at: '2026-07-31T04:12:37.044702Z'
+updated_at: '2026-07-31T04:20:35.266785Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-488
 target_branch: null
 review_url: null
@@ -148,6 +148,24 @@ oompah.terminal_audit:
       with the recovered content. This override closes bookkeeping only and does not
       waive code verification.'
     created_at: '2026-07-31T03:57:15.385143+00:00'
+  - version: 1
+    override_id: override-96a55438e78b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-488
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ef70d3db523ec85a70efe0f5ccf80986bd299426f03774a4d52034193fda9b05
+    authorized_by:
+      version: 1
+      identity: lesserevil
+      source: api
+    reason: 'Linearized recovery supersedes the stale private-row gate: OOMPAH-488
+      content is preserved in OOMPAH-597 head 44e5c5579, which passed the complete
+      14,098-test branch gate and an independent 376-test audit. The old blocked row
+      must not replay duplicate commits.'
+    created_at: '2026-07-31T04:20:30.003150+00:00'
   version: 1
   pending_chain: []
   attempt_history: []
@@ -506,5 +524,12 @@ author: oompah
 created: 2026-07-31 04:12
 ---
 Temporary operator fence: old runtime claimed this already-reconciled terminal task from a stale integration row and dispatched a CI worker. Preserve the verified code in OOMPAH-597 head 44e5c5579; reassert Done after OOMPAH-599 lands and the fixed runtime retires stale rows.
+---
+author: oompah
+created: 2026-07-31 04:20
+---
+Override by lesserevil: terminal transition to Done applied by project owner.
+
+Reason: Linearized recovery supersedes the stale private-row gate: OOMPAH-488 content is preserved in OOMPAH-597 head 44e5c5579, which passed the complete 14,098-test branch gate and an independent 376-test audit. The old blocked row must not replay duplicate commits.
 ---
 <!-- COMMENTS:END -->
