@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-598
 type: bug
-status: Ready to Integrate
+status: Needs Rebase
 priority: 1
 title: Detect and deliver standalone Ready to Integrate tasks without PRs
 parent: OOMPAH-587
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:29.695490Z'
-updated_at: '2026-07-30T20:52:17.779701Z'
+updated_at: '2026-07-31T01:23:10.685808Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-598
 target_branch: null
 review_url: null
@@ -43,12 +43,32 @@ oompah.agent_run_id: 254adbea-a1a2-47d2-9313-917b08a98287
 oompah.work_branch: epic-OOMPAH-587--task-OOMPAH-598
 oompah.integration:
   version: 1
-  state: ready
-  attempts: 0
+  state: blocked
+  attempts: 1
   task_branch: epic-OOMPAH-587--task-OOMPAH-598
+  base_branch: epic-OOMPAH-587
+  base_sha: 8a875b1c321d5d1a0ae5623158a3eb98ad940313
   head_sha: 131913c09676d9585a15835acf1483c1c9e183f8
   submitted_at: '2026-07-30T15:50:53.733141+00:00'
-  updated_at: '2026-07-30T15:50:53.733141+00:00'
+  updated_at: '2026-07-31T01:23:08.398179+00:00'
+  last_error: 'Rebase onto the latest epic head conflicted: Rebasing (1/2)
+
+    error: could not apply e474c0021... OOMPAH-598: Add reconciliation for standalone
+    Ready to Integrate tasks
+
+    hint: Resolve all conflicts manually, mark them as resolved with
+
+    hint: "git add/rm <conflicted_files>", then run "git rebase --continue".
+
+    hint: You can instead skip this commit: run "git rebase --skip".
+
+    hint: To abort and get back to the state before "git rebase", run "git rebase
+    --abort".
+
+    hint: Disable this message with "git config set advice.mergeConflict false"
+
+    Could not apply e474c0021... # OOMPAH-598: Add reconciliation for standalone Ready
+    to Integrate tasks'
 oompah.task_costs:
   total_input_tokens: 1165491
   total_output_tokens: 6630
@@ -253,5 +273,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 10m 6s
 - Log: OOMPAH-598__20260730T154213Z.jsonl
+---
+author: oompah
+created: 2026-07-31 01:23
+---
+Integration found a rebase conflict on `epic-OOMPAH-587--task-OOMPAH-598`. Resolve it against `epic-OOMPAH-587`, run the required tests, push the same private branch, and `oompah task submit` it again.
 ---
 <!-- COMMENTS:END -->
