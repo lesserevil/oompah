@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-645
 type: task
-status: Needs Human
+status: Backlog
 priority: 0
 title: Clear recovered terminal-audit transport failures without contaminating later
   audits
@@ -10,12 +10,13 @@ children: []
 blocked_by:
 - OOMPAH-650
 - OOMPAH-652
-start_blocked_by: []
+start_blocked_by: &id001
+- OOMPAH-650
 labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T06:47:58.732088Z'
-updated_at: '2026-07-31T09:07:08.833602Z'
+updated_at: '2026-07-31T12:20:35.898802Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -197,6 +198,7 @@ oompah.integration:
   head_sha: 6686290d51cfff9d63270ee27da19d2aafd0fd87
   submitted_at: '2026-07-31T08:57:53.486261+00:00'
   updated_at: '2026-07-31T08:57:53.486261+00:00'
+oompah.start_blocked_by: *id001
 ---
 ## Summary
 
@@ -620,5 +622,10 @@ author: oompah
 created: 2026-07-31 09:07
 ---
 Holding this clean pushed branch in Needs Human intentionally until OOMPAH-650 fixes the repeated scoped-handoff failure and OOMPAH-652 prevents the exact full gate from killing its parent service. These are finish-order dependencies only; no further OOMPAH-645 implementation is missing. Re-evaluate and submit 6686290d5 after both prerequisites land.
+---
+author: oompah
+created: 2026-07-31 12:20
+---
+Replaced the intentional Needs Human hold with a hard-start dependency on OOMPAH-650 and parked this complete pushed branch in Backlog. Exact submitted head 6686290d5 is preserved on origin; after 650 deploys, return to Open/rebase and submit through the repaired handoff/gate flow. The clean inactive disposable worktree is being pruned to reclaim space.
 ---
 <!-- COMMENTS:END -->
