@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T21:52:16.588312Z'
-updated_at: '2026-07-31T22:59:16.970056Z'
+updated_at: '2026-07-31T23:01:55.345496Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -22,17 +22,48 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 2fdeca993d4c091dd5af6a63ea4ddf674c7e65b46f17ae5430e199130f7db418
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-07-31T23:01:50.853075+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 99ffddbe-5bff-4298-855a-4047cfcfa436
-  claim_owner: 83d630e6-ba64-48af-a521-3ffb6e2a4e3f
-  claimed_at: '2026-07-31T22:59:09.564544+00:00'
-  claim_expires_at: '2026-07-31T23:29:09.564544+00:00'
+  evidence: "Focus handoff: duplicate_detector\n\nDuplicate preflight verdict: no_duplicate\n\
+    \nMatches: none\n\nEvidence: OOMPAH-570, OOMPAH-574, OOMPAH-628, and OOMPAH-661\
+    \ are the closest records, but all are terminal and address queue rearming, gate-cache\
+    \ retries, integrated-row reflow, or stale worker retries\u2014not `_persist_worker_submission`\
+    \ failing to restore the canonical lifecycle. Active tasks OOMPAH-651, OOMPAH-664\u2013\
+    667, and OOMPAH-670 are unrelated."
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
 oompah.agent_run_id: ccc4ab87-4d9a-4c27-a4c8-b4e5cc51b684
+oompah.task_costs:
+  total_input_tokens: 834061
+  total_output_tokens: 5102
+  total_cost_usd: 0.0
+  by_model:
+    opus:
+      input_tokens: 834061
+      output_tokens: 5102
+      cost_usd: 0.0
+  runs:
+  - profile: deep
+    model: opus
+    input_tokens: 834061
+    output_tokens: 5102
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T23:01:50.846145+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-669__20260731T225919Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-sol
+    focus: duplicate_detector
+    source_branch: OOMPAH-669
+    source_sha: d96740a6ecdca353e40ef87e94a4ee91b8828df0
+    completed_at: '2026-07-31T23:01:50.885987+00:00'
 ---
 ## Summary
 
@@ -57,5 +88,15 @@ author: oompah
 created: 2026-07-31 22:59
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-31 23:01
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Codex/gpt-5.6-sol]
+- Turns: 1, Tool calls: 19
+- Tokens: 834.1K in / 5.1K out [839.2K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 37s
+- Log: OOMPAH-669__20260731T225919Z.jsonl
 ---
 <!-- COMMENTS:END -->

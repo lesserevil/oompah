@@ -8,16 +8,30 @@ parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels:
-- needs:frontend
+labels: []
 assignee: null
 created_at: '2026-07-31T22:56:06.058439Z'
-updated_at: '2026-07-31T22:56:14.190581Z'
+updated_at: '2026-07-31T23:02:03.180043Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: dee78a5f3d6e0185edec8c7096d78609e02af0974c9fa79e1bff6a11b9b7be26
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 234f8b5e-382c-468b-898a-3d446079aace
+  claim_owner: 83d630e6-ba64-48af-a521-3ffb6e2a4e3f
+  claimed_at: '2026-07-31T23:01:56.617004+00:00'
+  claim_expires_at: '2026-07-31T23:31:56.617004+00:00'
+  retry_count: 0
+  retry_after: null
+oompah.agent_run_id: 62a1a832-53cd-494b-8216-babc953ed38e
 ---
 ## Summary
 
@@ -29,3 +43,16 @@ Triggered by: OOMPAH-624 and the live Backlog → Open failure reproduced on 202
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-31 23:02
+---
+Duplicate screening dispatched (profile: standard, task remains Open)
+---
+author: oompah
+created: 2026-07-31 23:02
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
