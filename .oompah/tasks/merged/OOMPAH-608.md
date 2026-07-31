@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-608
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Let auditors submit redacted verdicts for credential-safety tasks
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:28:42.855708Z'
-updated_at: '2026-07-31T06:30:16.770932Z'
+updated_at: '2026-07-31T06:32:58.845168Z'
 work_branch: OOMPAH-608
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/606
@@ -101,6 +101,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-084f1d7c63d1: '2026-07-31T06:27:49.737161+00:00'
+    attempt-afe11c46a4fd: '2026-07-31T06:32:56.163390+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -142,7 +143,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-608
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -151,7 +152,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-afe11c46a4fd
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -161,13 +162,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T06:30:12.806732+00:00'
       branch_key: OOMPAH-608
+      verdict: pass
+      completed_at: '2026-07-31T06:32:56.163279+00:00'
+      ended_at: '2026-07-31T06:32:56.163279+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-07-31T06:18:40.660301+00:00'
-    updated_at: '2026-07-31T06:30:12.806732+00:00'
+    updated_at: '2026-07-31T06:32:56.163279+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-084f1d7c63d1
@@ -446,5 +450,29 @@ author: oompah
 created: 2026-07-31 06:30
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 06:32
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: 6d0cda5660632aaed34c722198fff17a913a66af
+- merge_commit_on_main: d4501e4a208a9295776854e477414e81c1b6b69c
+- pr_reference: PR 606 (merged)
+- focused_result_api_totals: 71 passed
+- focused_auditor_suite_totals: 78 passed
+- focused_terminal_audit_totals: 178 passed
+- prior_branch_gate: make test passed for 6d0cda566 in 260.8s
+- helpers_present: _redact_credential_patterns, _redact_safe_evidence
+- callsites_covered: message, safe_evidence keys and values, questions, instructions
+- idempotency: Deterministic regex substitution; triple-submission test verifies identical output across 3 attempts
+- size_limits_post_redaction: Enforced for message, safe_evidence key and value, questions, instructions
+- files_changed: oompah/auditor.py (+138/-24), tests/test_auditor_result_api.py (+156/-45)
+- requested_target: Merged
+- previous_state: In Review
+- pending_target_count: 2
 ---
 <!-- COMMENTS:END -->
