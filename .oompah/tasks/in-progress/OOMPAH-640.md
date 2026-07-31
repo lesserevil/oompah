@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T05:59:47.260716Z'
-updated_at: '2026-07-31T06:33:08.918249Z'
+updated_at: '2026-07-31T06:34:31.964630Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -325,5 +325,20 @@ DISCOVERY: Two distinct failures:
 2. test_intake_promotion.py::test_approval_comment_auto_promotes_when_project_allows_it — flaky under load, uses 50x20ms polling (1s max). Adjacent test test_plain_requestor_approval_comment_auto_promotes_ready_issue was stabilized in commit d61679dbe with threading.Event (3s timeout). Same fix needed here.
 
 Neither failure was caused by this branch's changes (branch only added test_stall_to_dispatch_recovery.py). Both are pre-existing test defects in the agent worktree environment.
+---
+author: oompah
+created: 2026-07-31 06:34
+---
+IMPLEMENTATION: Two minimal fixes for the 2 failing tests:
+
+1. tests/test_client_auth.py::TestCurrentClientEnvironment::test_current_dotenv_replaces_stale_client_inputs
+   Root cause: OOMPAH_DISABLE_CLIENT_AUTH=1 is set in agent worktree environments (by agent_environment()). load_client_environment() checks this marker first and returns 0 early, so the test failed with assert 0 == 3.
+   Fix: Added monkeypatch.delenv(CLIENT_AUTH_DISABLED_ENV, raising=False) to clear the worker marker before calling load_client_environment(). This is consistent with the test's intent (testing non-worker/client code path).
+
+2. tests/test_intake_promotion.py::test_approval_comment_auto_promotes_when_project_allows_it
+   Root cause: Flaky test using 50x20ms polling (1s max wait) for a background thread to complete. Under CI load, the thread doesn't finish in time.
+   Fix: Applied the same threading.Event stabilization that was already applied to the adjacent test (test_plain_requestor_approval_comment_auto_promotes_ready_issue in commit d61679dbe) — set add_comment.side_effect to signal a promotion_finished event, then wait on it with a 3-second timeout.
+
+Neither failure was caused by this branch's changes (which only added test_stall_to_dispatch_recovery.py).
 ---
 <!-- COMMENTS:END -->
