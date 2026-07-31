@@ -24,7 +24,7 @@ from oompah.duplicate_screening import (
     new_claim_record,
 )
 from oompah.events import EventBus
-from oompah.models import Issue, OrchestratorState, RunningEntry
+from oompah.models import BlockerRef, Issue, OrchestratorState, RunningEntry
 from oompah.orchestrator import Orchestrator
 from oompah.statuses import (
     DONE,
@@ -509,6 +509,298 @@ def test_selection_skips_checked_running_and_backoff_records():
     assert metrics["skipped_checked"] == 1
     assert metrics["skipped_running"] == 1
     assert metrics["skipped_backoff"] == 1
+
+
+def test_checked_result_survives_finish_order_and_scheduler_metadata_changes():
+    """A scheduling-only update must not launch a second screening run."""
+    checked_issue = _issue("TASK-1", title="Already screened")
+    tracker = _Tracker([checked_issue])
+    orch = _orch(tracker, slots=4, preflight_limit=4)
+    now = datetime.now(timezone.utc)
+
+    claim = orch._claim_duplicate_preflight(checked_issue)
+    assert claim is not None
+    checked = complete_claim_record(
+        claim,
+        verdict=ScreeningVerdict.NO_DUPLICATE,
+        now=now,
+    )
+    tracker.set_metadata_field(
+        checked_issue.identifier,
+        METADATA_KEY,
+        checked.to_dict(),
+    )
+
+    # This mirrors the live incident: a finish-order dependency and scheduler
+    # labels change after the no-duplicate result has already been persisted.
+    tracker.issues[checked_issue.identifier].blocked_by = [
+        BlockerRef(id="OOMPAH-657", identifier="OOMPAH-657")
+    ]
+    tracker.issues[checked_issue.identifier].start_blocked_by = [
+        BlockerRef(id="START-1", identifier="START-1")
+    ]
+    tracker.issues[checked_issue.identifier].labels = ["oompah:status:open"]
+
+    candidate = tracker.fetch_issue_detail(checked_issue.identifier)
+    assert candidate is not None
+    orch._should_dispatch = lambda issue, duplicate_preflight=False: True
+
+    selected = orch._select_duplicate_preflight_candidates([candidate])
+
+    assert selected == []
+    metrics = orch._last_duplicate_preflight_metrics
+    assert metrics["skipped_checked"] == 1
+
+
+def test_changed_intake_revision_selects_one_fresh_screening():
+    issue = _issue()
+    issue.intake = {"proposal_fingerprint": "proposal-1"}
+    tracker = _Tracker([issue])
+    orch = _orch(tracker, slots=4, preflight_limit=4)
+    claim = orch._claim_duplicate_preflight(issue)
+    assert claim is not None
+    checked = complete_claim_record(claim, verdict=ScreeningVerdict.NO_DUPLICATE)
+    tracker.set_metadata_field(issue.identifier, METADATA_KEY, checked.to_dict())
+
+    tracker.issues[issue.identifier].intake = {"proposal_fingerprint": "proposal-2"}
+    candidate = tracker.fetch_issue_detail(issue.identifier)
+    assert candidate is not None
+    orch._should_dispatch = lambda issue, duplicate_preflight=False: True
+
+    selected = orch._select_duplicate_preflight_candidates([candidate])
+
+    assert [item.identifier for item in selected] == [issue.identifier]
+
+
+# ---------------------------------------------------------------------------
+# Native-tracker adapter-backed regression tests (OOMPAH-658).
+#
+# The unit-level tests above run against an in-memory tracker fixture.  The
+# tests in this section persist a native oompah_md task to disk, then spin up
+# a fresh :class:`OompahMarkdownTracker` + orchestrator to simulate a service
+# restart (or scheduler tick from a different process).  Together they prove
+# that the fingerprint fix survives real adapter I/O, not just direct
+# ``replace(...)`` mutation of an in-memory ``Issue``.
+# ---------------------------------------------------------------------------
+
+
+def _fresh_native_tracker(root):
+    from oompah.oompah_md_tracker import OompahMarkdownTracker
+
+    return OompahMarkdownTracker(
+        active_states=[OPEN],
+        terminal_states=[DONE],
+        cwd=str(root),
+        default_branch="main",
+        git_sync=False,
+    )
+
+
+def test_native_persisted_checked_result_survives_finish_order_and_labels(tmp_path):
+    """A persisted ``no_duplicate`` verdict must survive scheduler churn.
+
+    Reproduces the live OOMPAH-655 incident against a native adapter: after
+    the screening result is persisted, a finish-order dependency + transient
+    scheduler labels are added on disk, the tracker read cache is cleared and
+    a *fresh* orchestrator/tracker instance is created, and the scheduler
+    reads the task back.  Selection must skip every subsequent tick.
+    """
+    root = tmp_path / "repo"
+    root.mkdir()
+    writer = _fresh_native_tracker(root)
+    persisted = writer.create_issue(
+        "Persist duplicate-preflight verdict",
+        description="Implementation scope and acceptance criteria.",
+        initial_status=OPEN,
+    )
+    persisted.project_id = "project-1"
+
+    # First tick: claim + complete the screening on this instance.
+    setup_orch = _orch(writer, slots=4, preflight_limit=4)
+    setup_orch._should_dispatch = (
+        lambda issue, duplicate_preflight=False: True
+    )
+    setup_orch._tracker_for_issue = lambda issue: writer
+    setup_orch._tracker_for_project = lambda project_id: writer
+    claim = setup_orch._claim_duplicate_preflight(persisted)
+    assert claim is not None
+    checked = complete_claim_record(claim, verdict=ScreeningVerdict.NO_DUPLICATE)
+    writer.set_metadata_field(
+        persisted.identifier, METADATA_KEY, checked.to_dict()
+    )
+
+    # Scheduler churn AFTER the pass: add a finish-order dependency and a
+    # transient label directly through the tracker adapter — the same
+    # mutations OOMPAH-657 dependency editing produces in production.
+    writer.add_dependency(persisted.identifier, "OOMPAH-999")
+    writer.add_start_dependency(persisted.identifier, "START-1")
+    writer.add_label(persisted.identifier, "focus-complete:duplicate_detector")
+    writer.add_label(persisted.identifier, "needs:feature")
+
+    # Fresh orchestrator + tracker instances — no shared in-memory state.
+    reader = _fresh_native_tracker(root)
+    fresh_orch = _orch(reader, slots=4, preflight_limit=4)
+    fresh_orch._should_dispatch = (
+        lambda issue, duplicate_preflight=False: True
+    )
+    fresh_orch._tracker_for_issue = lambda issue: reader
+    fresh_orch._tracker_for_project = lambda project_id: reader
+
+    # Two successive scheduler ticks: neither may launch a screen.
+    for _ in range(2):
+        reread = reader.fetch_issue_detail(persisted.identifier)
+        assert reread is not None
+        reread.project_id = "project-1"
+        # Confirm the finish-order dependency + labels are actually persisted.
+        assert any(
+            blocker.identifier == "OOMPAH-999" for blocker in reread.blocked_by
+        )
+        assert "focus-complete:duplicate_detector" in reread.labels
+
+        selected = fresh_orch._select_duplicate_preflight_candidates([reread])
+        assert selected == []
+        metrics = fresh_orch._last_duplicate_preflight_metrics
+        assert metrics["skipped_checked"] == 1
+
+
+def test_native_persisted_intake_revision_change_admits_one_claim(tmp_path):
+    """Mutating the persisted intake fingerprint admits exactly one new run.
+
+    Two concurrent ticks race on the same fresh candidate; only one must
+    win the tracker-backed claim, matching production single-flight behavior.
+    """
+    root = tmp_path / "repo"
+    root.mkdir()
+    writer = _fresh_native_tracker(root)
+    persisted = writer.create_issue(
+        "Intake revision invalidates screening",
+        description="Implementation scope and acceptance criteria.",
+        initial_status=OPEN,
+    )
+    persisted.project_id = "project-1"
+
+    # Seed intake proposal fingerprint on disk.
+    writer.set_metadata_field(
+        persisted.identifier,
+        "oompah.intake",
+        {
+            "proposal_fingerprint": "proposal-1",
+            "last_validated_at": "2026-07-31T00:00:00+00:00",
+        },
+    )
+    seed_view = writer.fetch_issue_detail(persisted.identifier)
+    assert seed_view is not None
+    seed_view.project_id = "project-1"
+
+    setup_orch = _orch(writer, slots=4, preflight_limit=4)
+    setup_orch._should_dispatch = (
+        lambda issue, duplicate_preflight=False: True
+    )
+    setup_orch._tracker_for_issue = lambda issue: writer
+    setup_orch._tracker_for_project = lambda project_id: writer
+    claim = setup_orch._claim_duplicate_preflight(seed_view)
+    assert claim is not None
+    checked = complete_claim_record(claim, verdict=ScreeningVerdict.NO_DUPLICATE)
+    writer.set_metadata_field(
+        persisted.identifier, METADATA_KEY, checked.to_dict()
+    )
+
+    # Mutate the persisted intake proposal fingerprint through the adapter.
+    metadata = writer.get_metadata(persisted.identifier)
+    intake = dict(metadata.get("oompah.intake") or {})
+    intake["proposal_fingerprint"] = "proposal-2"
+    intake["last_validated_at"] = "2026-08-01T00:00:00+00:00"
+    writer.set_metadata_field(persisted.identifier, "oompah.intake", intake)
+
+    reader = _fresh_native_tracker(root)
+    fresh_orch = _orch(reader, slots=4, preflight_limit=4)
+    fresh_orch._should_dispatch = (
+        lambda issue, duplicate_preflight=False: True
+    )
+    fresh_orch._tracker_for_issue = lambda issue: reader
+    fresh_orch._tracker_for_project = lambda project_id: reader
+
+    fresh = reader.fetch_issue_detail(persisted.identifier)
+    assert fresh is not None
+    fresh.project_id = "project-1"
+    assert (fresh.intake or {}).get("proposal_fingerprint") == "proposal-2"
+
+    # Two concurrent claim attempts must produce exactly one winner.
+    barrier = threading.Barrier(2)
+    winners: list = []
+    winners_lock = threading.Lock()
+
+    def attempt():
+        barrier.wait()
+        # Each thread reads its own copy of the candidate, mirroring how two
+        # scheduler ticks would race on separate in-memory issue objects.
+        candidate = reader.fetch_issue_detail(persisted.identifier)
+        assert candidate is not None
+        candidate.project_id = "project-1"
+        result = fresh_orch._claim_duplicate_preflight(candidate)
+        with winners_lock:
+            winners.append(result)
+
+    threads = [threading.Thread(target=attempt) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert sum(record is not None for record in winners) == 1
+    stored = reader.get_metadata(persisted.identifier)[METADATA_KEY]
+    assert stored["claim_id"]
+
+
+def test_native_persisted_inconclusive_verdict_remains_retryable(tmp_path):
+    """An inconclusive result must not be treated as satisfied.
+
+    The completed record has ``verdict=inconclusive`` and no ``retry_after``
+    delay set.  Selection must classify the task as re-screenable.
+    """
+    root = tmp_path / "repo"
+    root.mkdir()
+    writer = _fresh_native_tracker(root)
+    persisted = writer.create_issue(
+        "Retry inconclusive screening",
+        description="Implementation scope and acceptance criteria.",
+        initial_status=OPEN,
+    )
+    persisted.project_id = "project-1"
+
+    setup_orch = _orch(writer, slots=4, preflight_limit=4)
+    setup_orch._should_dispatch = (
+        lambda issue, duplicate_preflight=False: True
+    )
+    setup_orch._tracker_for_issue = lambda issue: writer
+    setup_orch._tracker_for_project = lambda project_id: writer
+    claim = setup_orch._claim_duplicate_preflight(persisted)
+    assert claim is not None
+    inconclusive = complete_claim_record(
+        claim,
+        verdict=ScreeningVerdict.INCONCLUSIVE,
+    )
+    writer.set_metadata_field(
+        persisted.identifier, METADATA_KEY, inconclusive.to_dict()
+    )
+
+    reader = _fresh_native_tracker(root)
+    fresh_orch = _orch(reader, slots=4, preflight_limit=4)
+    fresh_orch._should_dispatch = (
+        lambda issue, duplicate_preflight=False: True
+    )
+    fresh_orch._tracker_for_issue = lambda issue: reader
+    fresh_orch._tracker_for_project = lambda project_id: reader
+
+    candidate = reader.fetch_issue_detail(persisted.identifier)
+    assert candidate is not None
+    candidate.project_id = "project-1"
+
+    selected = fresh_orch._select_duplicate_preflight_candidates([candidate])
+
+    assert [item.identifier for item in selected] == [candidate.identifier]
+    metrics = fresh_orch._last_duplicate_preflight_metrics
+    assert metrics["skipped_checked"] == 0
 
 
 @pytest.mark.asyncio

@@ -19,7 +19,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from enum import Enum
-from typing import Any, Iterable
+from typing import Any
 
 from oompah.models import Issue
 from oompah.statuses import OPEN, canonicalize_status
@@ -30,21 +30,6 @@ DETECTOR_VERSION = "duplicate-detector-v1"
 DEFAULT_CLAIM_TTL_SECONDS = 30 * 60
 
 _SPACE_RE = re.compile(r"\s+")
-_TRANSIENT_LABEL_PREFIXES = (
-    "focus-complete:",
-    "needs:",
-    "oompah:",
-    "epic:",
-    "duplicate-preflight:",
-)
-_TRANSIENT_LABELS = {
-    "asking_question",
-    "ci-fix",
-    "decomposed",
-    "duplicate-candidate",
-    "human-only",
-    "merge-conflict",
-}
 
 
 class ScreeningState(str, Enum):
@@ -69,43 +54,51 @@ def _normalize_text(value: object) -> str:
     return _SPACE_RE.sub(" ", text).strip().casefold()
 
 
-def _relevant_labels(labels: Iterable[str]) -> list[str]:
-    normalized: set[str] = set()
-    for raw in labels:
-        label = _normalize_text(raw)
-        if not label:
-            continue
-        if label in _TRANSIENT_LABELS:
-            continue
-        if any(label.startswith(prefix) for prefix in _TRANSIENT_LABEL_PREFIXES):
-            continue
-        normalized.add(label)
-    return sorted(normalized)
+def _intake_revision(issue: Issue) -> str:
+    """Return the stable intake revision associated with *issue*, if any.
+
+    Reads ``proposal_fingerprint`` from the ``oompah.intake`` metadata block
+    normalized by every tracker adapter (see :class:`IntakeReadiness`).  This
+    is the only intake field considered a duplicate-screening input.
+    Scheduling writes (state transitions, dependency edits, transient labels,
+    generic ``updated_at`` timestamps, ``last_validated_at`` refreshes)
+    intentionally do NOT influence this input, so a checked ``no_duplicate``
+    verdict survives finish-order coordination and label churn.
+
+    The task title, description (which already contains any ``Triggered by:
+    <id>`` header the server prepends for follow-up tasks), project, issue
+    type, and parent are already part of the fingerprint payload — the intake
+    revision only adds signal when a body section outside the summary changes
+    materially enough for the intake normalizer to record a new proposal
+    fingerprint.
+    """
+
+    intake = getattr(issue, "intake", None)
+    if isinstance(intake, dict):
+        value = intake.get("proposal_fingerprint")
+        if value:
+            return _normalize_text(value)
+    return ""
 
 
 def compute_task_fingerprint(issue: Issue) -> str:
     """Return a stable SHA-256 fingerprint of duplicate-relevant task input.
 
-    Tracker state, priority, timestamps, comments, and Oompah-owned transient
-    labels are intentionally excluded.  Writing screening metadata or agent
-    telemetry therefore cannot make its own result stale.
+    Tracker state, priority, timestamps, comments, labels, and scheduling
+    dependencies are intentionally excluded. Writing screening metadata or
+    agent telemetry therefore cannot make its own result stale. The stable
+    intake proposal fingerprint from ``oompah.intake`` is included when
+    supplied by a tracker adapter — the only intake field that changes
+    materially with issue content and not with scheduler-driven rewrites.
     """
 
-    dependencies = sorted(
-        {
-            _normalize_text(blocker.identifier or blocker.id)
-            for blocker in (issue.blocked_by or [])
-            if _normalize_text(blocker.identifier or blocker.id)
-        }
-    )
     payload = {
         "title": _normalize_text(issue.title),
         "description": _normalize_text(issue.description),
         "project_id": _normalize_text(issue.project_id),
         "issue_type": _normalize_text(issue.issue_type),
         "parent_id": _normalize_text(issue.parent_id),
-        "dependencies": dependencies,
-        "labels": _relevant_labels(issue.labels or []),
+        "intake_revision": _intake_revision(issue),
     }
     canonical = json.dumps(
         payload,

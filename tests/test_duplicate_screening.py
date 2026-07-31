@@ -79,23 +79,56 @@ def test_transient_oompah_labels_do_not_invalidate_fingerprint():
     assert compute_task_fingerprint(original) == compute_task_fingerprint(updated)
 
 
-def test_each_material_field_invalidates_fingerprint():
+def test_relevant_task_inputs_invalidate_fingerprint():
     issue = _issue()
     original = compute_task_fingerprint(issue)
     changes = [
         replace(issue, title="A different title"),
         replace(issue, description="A different description"),
+        replace(
+            issue,
+            description="Triggered by: OOMPAH-999\n\n" + (issue.description or ""),
+        ),
         replace(issue, project_id="project-2"),
         replace(issue, issue_type="bug"),
         replace(issue, parent_id="EPIC-2"),
-        replace(issue, labels=[*issue.labels, "frontend"]),
-        replace(
-            issue,
-            blocked_by=[BlockerRef(id="TASK-9", identifier="TASK-9")],
-        ),
+        replace(issue, intake={"proposal_fingerprint": "proposal-2"}),
     ]
 
     assert all(compute_task_fingerprint(changed) != original for changed in changes)
+
+
+def test_intake_scheduler_writes_do_not_invalidate_fingerprint():
+    """Only the stable proposal fingerprint is a duplicate-screening input.
+
+    ``last_validated_at`` and similar scheduler telemetry rewrites of the
+    ``oompah.intake`` metadata block must not stale a completed screen.
+    """
+    intake_base = {
+        "proposal_fingerprint": "proposal-1",
+        "last_validated_at": "2026-01-01T00:00:00+00:00",
+        "requestor_approved_at": "2026-01-01T00:00:00+00:00",
+    }
+    intake_after = dict(intake_base)
+    intake_after["last_validated_at"] = "2026-01-02T00:00:00+00:00"
+    intake_after["requestor_approved_at"] = "2026-01-02T00:00:00+00:00"
+
+    issue = _issue(intake=intake_base)
+    after = replace(issue, intake=intake_after)
+
+    assert compute_task_fingerprint(issue) == compute_task_fingerprint(after)
+
+
+def test_scheduler_metadata_does_not_invalidate_fingerprint():
+    issue = _issue()
+    changed = replace(
+        issue,
+        labels=["different-scheduling-label"],
+        blocked_by=[BlockerRef(id="TASK-9", identifier="TASK-9")],
+        start_blocked_by=[BlockerRef(id="TASK-10", identifier="TASK-10")],
+    )
+
+    assert compute_task_fingerprint(changed) == compute_task_fingerprint(issue)
 
 
 def test_unchecked_legacy_malformed_and_future_records_fail_closed():
