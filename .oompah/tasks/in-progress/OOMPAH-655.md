@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T11:33:11.954099Z'
+updated_at: '2026-07-31T11:39:33.197971Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -414,5 +414,10 @@ author: oompah
 created: 2026-07-31 11:33
 ---
 In-progress bubblewrap review: this is the correct enforcement direction, but the current dirty wrapper cannot run the real gate yet. _quality_gate_environment exports HOME/TMPDIR/XDG/PYTHONPYCACHEPREFIX as host run_root paths, while bubblewrap hides /home and mounts that root only at /oompah-gate; every exported path must use its sandbox-visible /oompah-gate/... counterpart. --unshare-net leaves loopback down, so many legitimate tests that start local HTTP servers will fail; initialize namespace-local lo before the command and prove a local server/client round trip works while host localhost remains unreachable. The worktree .git indirection points into the hidden common git dir; decide which read-only git metadata the gate/test/build-identity paths require without exposing host lifecycle/config state. The hostile fixture checks /home/shedwards/.oompah/.oompah.pid, but the reproduced canonical file is the source checkout .oompah.pid; assert the actual configured canonical path is hidden and attempt kill of an exact live host sentinel PID from inside the PID namespace. Do not permit a generic command failure to count as attack protection: the hostile command must otherwise complete successfully, create a sandbox-local control marker, and fail only the host reach/signal operations. Add namespace-local networking, real make-test smoke, descendant cleanup, and fail-closed setup tests before committing.
+---
+author: oompah
+created: 2026-07-31 11:39
+---
+OOMPAH-623 follow-up coordination: pushed head 3c65ddb648b49ecd396bbf600bf6467ca21ed430 intentionally changes Makefile restart/force-restart recipes to pass PID_FILE, PID_META_FILE, and STOP_TIMEOUT into canonical_cli_cutover.py for exact-process quarantine. It does not change quality_gate/client_auth interfaces. Please treat this Makefile delta as legitimate lifecycle evolution in OOMPAH-655's non-circular isolation design; the exact change is six recipe lines and is covered by lifecycle assertions.
 ---
 <!-- COMMENTS:END -->

@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:32:18.734139Z'
-updated_at: '2026-07-31T11:21:12.236518Z'
+updated_at: '2026-07-31T11:39:31.776942Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-623
 target_branch: null
 review_url: null
@@ -476,5 +476,10 @@ author: oompah
 created: 2026-07-31 11:21
 ---
 Coordination checkpoint addressed: compared exact committed diffs for OOMPAH-650 at 3e8c4daf8 and OOMPAH-655 at b519be788. OOMPAH-650 overlaps only server.py in disjoint endpoint regions (build identity vs task-handoff renewal); OOMPAH-655 has no actual current path overlap. Durable interface notes were sent to both peers before further implementation.
+---
+author: oompah
+created: 2026-07-31 11:39
+---
+Implementation checkpoint pushed at 3c65ddb648b49ecd396bbf600bf6467ca21ed430. Post-restart resolution now has three safe outcomes: prove and keep the candidate pair; prove the exact old instance has no restart pending and atomically restore/resume the old pair; or verify lifecycle PID metadata and stop only that owned service before retaining the candidate CLI. Prior pause state is preserved. Immutable CLI roots are bounded and pruned only when no canonical/rollback launcher or active process references them. Deterministic regressions cover accepted POST/connection drop, old instance still live, wrong build, health timeout, activation failure/interruption, concurrent invocation, exact PID quarantine/refusal, prior pause state, and active/backup-root pruning. Verification: 309 broader focused tests passed; final direct suite 30 passed; Ruff check, git diff --check, and make check-secrets passed. make test-setup was attempted first per project convention but host uv failed before setup with transient-scope DBus error; the configured existing Python test environment was used. Branch is clean and pushed. Do not submit yet: OOMPAH-657 remains In Progress and comment #58 requires final immutable exact-head gate evidence only after it is merged/deployed.
 ---
 <!-- COMMENTS:END -->
