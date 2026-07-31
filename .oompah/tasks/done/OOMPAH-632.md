@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-632
 type: bug
-status: In Validation
+status: Done
 priority: 1
 title: Refresh candidate refs before child landing reconciliation
 parent: OOMPAH-584
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:46:34.785511Z'
-updated_at: '2026-07-31T01:37:29.725875Z'
+updated_at: '2026-07-31T01:42:05.246505Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-632
 target_branch: null
 review_url: null
@@ -100,6 +100,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-4e25047be4f6: '2026-07-31T01:11:36.064660+00:00'
+    attempt-e1419da9c61c: '2026-07-31T01:42:02.889212+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -142,7 +143,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-632
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -151,7 +152,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-e1419da9c61c
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -161,13 +162,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T01:37:24.334014+00:00'
       branch_key: epic-OOMPAH-584--task-OOMPAH-632
+      verdict: pass
+      completed_at: '2026-07-31T01:42:02.889038+00:00'
+      ended_at: '2026-07-31T01:42:02.889038+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-31T01:37:14.210926+00:00'
-    updated_at: '2026-07-31T01:37:24.334014+00:00'
+    updated_at: '2026-07-31T01:42:02.889038+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-4e25047be4f6
@@ -443,5 +447,28 @@ author: oompah
 created: 2026-07-31 01:37
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 01:42
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- head_sha: b1425f6be8a8914c336d4dcb748ad4e10dc7a372
+- branch: epic-OOMPAH-584--task-OOMPAH-632
+- origin_sha_matches_head: true
+- focused_TestLabelMergedEpics: 19/19 passed
+- focused_test_epic_strategy: 215/215 passed
+- focused_test_epic_auto_close: 25/25 passed
+- focused_test_shared_absorption: 34/34 passed
+- regression_test_a_rebased_landed: passed
+- regression_test_b_fetch_failure_defers: passed
+- regression_test_c_unlanded_rewritten_escalates: passed
+- instruction_1_candidate_refresh_returns_reason: addressed
+- instruction_2_mark_epic_captures_and_defers: addressed
+- instruction_3_prefers_origin_ref: addressed
+- instruction_4_three_real_repo_tests: addressed
 ---
 <!-- COMMENTS:END -->
