@@ -15,7 +15,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-23T19:41:39.116461Z'
-updated_at: '2026-07-31T02:17:17.375829Z'
+updated_at: '2026-07-31T02:21:53.745555Z'
 work_branch: epic-OOMPAH-418
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/542
@@ -29,6 +29,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-148316224bb3: '2026-07-31T02:13:31.751337+00:00'
+    attempt-1e7c852922ee: '2026-07-31T02:21:50.510089+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -70,7 +71,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-418
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -79,7 +80,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-1e7c852922ee
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -89,13 +90,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T02:17:12.320242+00:00'
       branch_key: epic-OOMPAH-418
+      verdict: pass
+      completed_at: '2026-07-31T02:21:50.509856+00:00'
+      ended_at: '2026-07-31T02:21:50.509856+00:00'
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
       source: oompah
     previous_state: In Validation
     created_at: '2026-07-31T02:10:20.408357+00:00'
-    updated_at: '2026-07-31T02:17:12.320242+00:00'
+    updated_at: '2026-07-31T02:21:50.509856+00:00'
   - version: 1
     audit_id: audit-08957463466d
     project_id: proj-14849f1b
@@ -239,5 +243,25 @@ author: oompah
 created: 2026-07-31 02:17
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 02:21
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit: 10fac3f6e Merge pull request #542 from lesserevil/epic-OOMPAH-418
+- branch_head: c048ba706 (epic-OOMPAH-418 == origin/main == origin/epic-OOMPAH-418)
+- gateway_module: oompah/mcp_gateway.py present on main; exports build_mcp_gateway, discovery_document, mcp_transport_security_settings
+- policy_module: oompah/mcp_exposure_policy.py present on main; provides MCP_ENDPOINT_PATH, MCP_DISCOVERY_PATH, is_route_exposed
+- server_integration: oompah/server.py imports build_mcp_gateway/discovery_document/MCP_ENDPOINT_PATH; mounts _mcp_gateway_app at MCP_ENDPOINT_PATH; exposes /mcp discovery route (line 16315+)
+- tests_mcp_gateway: tests/test_mcp_gateway.py — 14 passed (streamable-HTTP client init, tool listing, protected-tool dispatch, auth challenge, DNS-rebinding defaults, network-enable toggle, marker-header bypass rejection)
+- tests_mcp_exposure_policy: tests/test_mcp_exposure_policy.py — 294 passed (route categorisation, injection resistance, method case)
+- docs: plans/mcp-openapi-exposure-policy.md documents policy, gateway integration, and security rationale
+- dependency_packaging: pyproject.toml updated in commit 3aa8dd5e1 to add mcp dependency
+- prior_audit_result: Prior audit (2026-07-31 02:13) passed the Archived target with same safe evidence
+- labels: epic:stale, ci-fix
 ---
 <!-- COMMENTS:END -->
