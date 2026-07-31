@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-668
 type: bug
-status: Backlog
+status: In Progress
 priority: 1
 title: Use the trusted test virtualenv without reinstalling inside quality-gate sandbox
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T21:35:20.853943Z'
-updated_at: '2026-07-31T21:35:20.853943Z'
+updated_at: '2026-07-31T21:35:32.308503Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -30,3 +30,11 @@ Production reproduction on 2026-07-31 after OOMPAH-664 rebased onto deployed mai
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-31 21:35
+---
+Claimed directly for operator recovery because OOMPAH-664 is otherwise deadlocked in Ready delivery. Reproduction is the production gate on head 9b0696866: make test enters .venv/.uv-setup and fails before pytest because uv is deliberately absent from the sandbox. I will separate gate-mode trusted-runtime validation from normal dependency installation, add regression coverage, run focused and full gates, and deploy before requeueing OOMPAH-664.
+---
+<!-- COMMENTS:END -->
