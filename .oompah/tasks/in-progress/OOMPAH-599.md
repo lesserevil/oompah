@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:31.072278Z'
-updated_at: '2026-07-31T03:51:45.520698Z'
+updated_at: '2026-07-31T03:52:05.519954Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-599
 target_branch: null
 review_url: null
@@ -155,5 +155,10 @@ author: oompah
 created: 2026-07-31 03:51
 ---
 Coordination correction: do not duplicate the task_cli identifier fix. It already landed and passed the full gate in sibling recovery branch epic-OOMPAH-588 via OOMPAH-600 commits 6b8310896 and 67c67ffa6, and will converge through outer OOMPAH-584. Revert only your current uncommitted task_cli.py/test_task_cli.py edits and focus OOMPAH-599 on blocked-row recovery/invariant reconciliation. Your 400 is the expected old-runtime symptom already fixed by 67c.
+---
+author: oompah
+created: 2026-07-31 03:52
+---
+Discovery: the parent head 44e5c5579 already covers Ready reconciliation and terminal-audit health, but its blocked integration path can remain silently blocked: background sync treats identical blocked rows as idempotent. I also found the scoped task-handoff comment CLI omitted the required identifier field, preventing milestone comments; I am adding a compatibility fix and regression test while covering blocked-row recovery.
 ---
 <!-- COMMENTS:END -->
