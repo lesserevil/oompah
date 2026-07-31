@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-666
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Fix dashboard vertical scrolling when alerts precede the Kanban board
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T21:19:38.816688Z'
-updated_at: '2026-07-31T23:11:11.734811Z'
+updated_at: '2026-07-31T23:12:10.319438Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -83,6 +83,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-666
     source_sha: d96740a6ecdca353e40ef87e94a4ee91b8828df0
     completed_at: '2026-07-31T22:56:58.164909+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-666
+  head_sha: 8d3da62bf488a6537a188303934957293b2d2951
+  submitted_at: '2026-07-31T23:12:06.885897+00:00'
+  updated_at: '2026-07-31T23:12:06.885897+00:00'
 ---
 ## Summary
 
@@ -146,5 +154,15 @@ created: 2026-07-31 23:11
 ---
 Verification: focused dashboard suites passed (48 passed), the isolated full project harness passed 14,545 tests with 8 skipped and 1 expected xfail, and terminal-mutation scan passed (6/6 allowlisted). Direct make[1]: Entering directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-666'
 make[1]: Leaving directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-666' setup could not initialize this worktree because the host uv launcher failed with a DBus transient-scope error; the trusted-gate retry rejected the separate source checkout as a non-candidate alias. The exact run-tests.sh parallel harness completed successfully against this worktree.
+---
+author: oompah
+created: 2026-07-31 23:12
+---
+Completion: Pushed commit 8d3da62bf to origin/OOMPAH-666. Dashboard flex sizing now tracks the space left after dynamic alerts, flat columns scroll to their bottom without viewport-formula clipping, and existing horizontal/swimlane/per-column scrolling remains intact. Regression coverage is in tests/test_dashboard_vertical_scroll.py; focused and full isolated gates are green. Worktree is clean and branch is up to date with origin.
+---
+author: oompah
+created: 2026-07-31 23:12
+---
+Fixed dashboard vertical scrolling with dynamic alert panels; added regression coverage and verified focused/full test harnesses.
 ---
 <!-- COMMENTS:END -->
