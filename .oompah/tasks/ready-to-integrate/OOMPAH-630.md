@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-630
 type: task
-status: Open
+status: Ready to Integrate
 priority: null
 title: Fetch rollup targets before judging child landing evidence
 parent: OOMPAH-584
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T23:37:58.090708Z'
-updated_at: '2026-07-31T00:16:38.455947Z'
+updated_at: '2026-07-31T00:17:04.484083Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-630
 target_branch: null
 review_url: null
@@ -38,9 +38,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: epic-OOMPAH-584--task-OOMPAH-630
-  head_sha: 797d2c0de1322ec2610e714c59ccd4e69e055833
-  submitted_at: '2026-07-31T00:15:04.097008+00:00'
-  updated_at: '2026-07-31T00:15:04.097008+00:00'
+  head_sha: c03e52f66f4e5123576f4de3f21e4a763cc9c4b1
+  submitted_at: '2026-07-31T00:17:01.449875+00:00'
+  updated_at: '2026-07-31T00:17:01.449875+00:00'
 oompah.task_costs:
   total_input_tokens: 137
   total_output_tokens: 10429
@@ -230,5 +230,15 @@ author: oompah
 created: 2026-07-31 00:15
 ---
 Operator retaining ownership before another exact gate: the unchanged-head retry does not repair the scheduler-dependent concurrency test. I am adding the deterministic synchronization regression now; do not resubmit 797d2c0de unchanged.
+---
+author: oompah
+created: 2026-07-31 00:17
+---
+Repaired the gate flake at c03e52f66: the independent-project lock test now uses a bounded two-thread barrier instead of assuming the OS schedules both threads within 100ms. Verification: complete tests/test_project_locks.py 26 passed; deterministic concurrency case passed 30 consecutive runs; terminal mutation scan passed. Resubmitting this exact pushed head for the full combined-tree gate.
+---
+author: oompah
+created: 2026-07-31 00:17
+---
+Stale rollup refs, active-validation ownership, cross-event-loop transition locking, and deterministic concurrency-gate coverage are complete at c03e52f66.
 ---
 <!-- COMMENTS:END -->
