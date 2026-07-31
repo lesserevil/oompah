@@ -178,6 +178,49 @@ class TestTaskCliHandoff:
         assert request.call_args.args[2]["audit_override"] is True
         assert request.call_args.args[2]["override_reason"] == "Approved"
 
+    def test_spawned_comment_includes_required_scope_fields(self):
+        """The handoff endpoint requires the exact task identifier."""
+        from oompah import task_cli
+
+        args = task_cli.build_parser().parse_args(
+            [
+                "comment",
+                "TASK-1",
+                "--project",
+                "proj-a",
+                "--message",
+                "handoff",
+            ]
+        )
+        with patch.object(
+            task_cli, "_task_handoff_request", return_value={"ok": True}
+        ) as request:
+            task_cli._cmd_comment("http://server", args)
+
+        request.assert_called_once()
+        assert request.call_args.args[1] == "comment"
+        payload = request.call_args.args[2]
+        assert payload["identifier"] == "TASK-1"
+        assert payload["project_id"] == "proj-a"
+
+    def test_spawned_add_label_includes_required_scope_fields(self):
+        """Scoped label changes must be bound to their assigned task."""
+        from oompah import task_cli
+
+        args = task_cli.build_parser().parse_args(
+            ["add-label", "TASK-1", "needs:devops", "--project", "proj-a"]
+        )
+        with patch.object(
+            task_cli, "_task_handoff_request", return_value={"ok": True}
+        ) as request:
+            task_cli._cmd_add_label("http://server", args)
+
+        request.assert_called_once()
+        assert request.call_args.args[1] == "add-label"
+        payload = request.call_args.args[2]
+        assert payload["identifier"] == "TASK-1"
+        assert payload["project_id"] == "proj-a"
+
 
 class TestTaskScopeDirectPath:
     def test_direct_acp_command_allows_only_assigned_task_and_actions(self):

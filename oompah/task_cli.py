@@ -414,6 +414,7 @@ def _cmd_comment(base_url: str, args: argparse.Namespace) -> None:
     data: dict[str, Any] = {
         "text": args.message,
         "author": args.author,
+        "identifier": identifier,
         "issue_key": identifier,
     }
     _add_project_or_managed_repo(data, identifier, getattr(args, "project", None))
@@ -676,6 +677,7 @@ def _cmd_add_label(base_url: str, args: argparse.Namespace) -> None:
     identifier = args.identifier
     data: dict[str, Any] = {
         "label": args.label,
+        "identifier": identifier,
         "issue_key": identifier,
     }
     actor_arg = getattr(args, "actor", None)
