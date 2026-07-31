@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-669
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Same-head task resubmission must restore Ready to Integrate lifecycle
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T21:52:16.588312Z'
-updated_at: '2026-07-31T23:15:31.919899Z'
+updated_at: '2026-07-31T23:15:41.973650Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -64,6 +64,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-669
     source_sha: d96740a6ecdca353e40ef87e94a4ee91b8828df0
     completed_at: '2026-07-31T23:01:50.885987+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-669
+  head_sha: e8761afb6029bad39bf28e82b45a6cce92ad0768
+  submitted_at: '2026-07-31T23:15:38.976437+00:00'
+  updated_at: '2026-07-31T23:15:38.976437+00:00'
 ---
 ## Summary
 
@@ -143,5 +151,10 @@ Verification: focused test runs pass.
 - Directly affected neighboring suites: tests/test_integration_queue.py, test_integration_record.py, test_integration_conflict_repair.py, test_integration_executor.py, test_task_handoff.py, test_task_cli.py, test_submit_queue_concurrency.py — 315 passed, 0 failed.
 
 Commit e8761afb6 pushed to origin/OOMPAH-669. The complete branch gate (make test) will run once when this branch is ready for review.
+---
+author: oompah
+created: 2026-07-31 23:15
+---
+Fixed _persist_worker_submission to reconcile canonical lifecycle atomically on every accepted submit. Same-head resubmit from In Progress / Needs Human / Needs CI Fix now writes tracker.status=Ready to Integrate + fresh summary comment, restoring the durable Ready-to-Integrate invariant for the accepted generation. Duplicate submits already at Ready to Integrate stay fully idempotent (no writes, no queue reset). Removed 'integrated' from _submission_record's reuse-existing set so integrated → resubmit builds a fresh 'ready' record and keeps OOMPAH-628 queue rearm firing. New tests cover the three non-ready starting statuses, the fully-idempotent duplicate case, and cross-project isolation. Focused suites (worker_submission, integration_queue, integration_record, integration_conflict_repair, integration_executor, task_handoff, task_cli, submit_queue_concurrency) all pass — 315/315.
 ---
 <!-- COMMENTS:END -->
