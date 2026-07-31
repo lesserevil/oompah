@@ -1,25 +1,23 @@
 ---
 id: OOMPAH-660
 type: task
-status: Backlog
+status: Open
 priority: 0
 title: Rebase epic-OOMPAH-619 onto main
 parent: OOMPAH-619
 children: []
 blocked_by: []
 start_blocked_by: []
-labels:
-- focus-complete:duplicate_detector
-- needs:devops
+labels: []
 assignee: null
 created_at: '2026-07-31T12:53:39.335817Z'
-updated_at: '2026-07-31T12:58:51.022467Z'
+updated_at: '2026-07-31T12:59:43.317342Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-660
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
-oompah.agent_run_id: 46ad160a-87c3-44f0-b72d-82cc11d3c289
+oompah.agent_run_id: 5a7d53ec-0512-4a6e-979e-85915ab23dfe
 oompah.work_branch: epic-OOMPAH-619--task-OOMPAH-660
 oompah.integration:
   version: 2
@@ -28,7 +26,7 @@ oompah.integration:
   task_branch: epic-OOMPAH-619--task-OOMPAH-660
   base_branch: epic-OOMPAH-619
   base_sha: 3fcdf30caa62fb7709d0cd9e1553320dd11b3877
-  updated_at: '2026-07-31T12:56:50.028188+00:00'
+  updated_at: '2026-07-31T12:59:40.174781+00:00'
 oompah.task_costs:
   total_input_tokens: 40
   total_output_tokens: 7372
@@ -73,6 +71,20 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-619--task-OOMPAH-660
     source_sha: 3fcdf30caa62fb7709d0cd9e1553320dd11b3877
     completed_at: '2026-07-31T12:58:41.296983+00:00'
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 839381e8f2b34b7f278ce9a04bc365bb176dbaa1075b090656626c3a877c6b00
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: a8fd0a38-f4cd-43c7-8b6e-4c7ba45bbb90
+  claim_owner: b69cac5c-f04f-4fcf-915d-a91676c7ce36
+  claimed_at: '2026-07-31T12:59:31.652092+00:00'
+  claim_expires_at: '2026-07-31T13:29:31.652092+00:00'
+  retry_count: 0
+  retry_after: null
 ---
 ## Summary
 
@@ -159,5 +171,15 @@ author: oompah
 created: 2026-07-31 12:58
 ---
 Operator is stopping the second redundant duplicate-screening run. Both the task worktree and shared epic worktree are clean; the canonical no-duplicate handoff and needs:devops label are now persisted. This is a scheduling correction, not an implementation failure.
+---
+author: oompah
+created: 2026-07-31 12:59
+---
+Duplicate screening dispatched (profile: standard, task remains Open)
+---
+author: oompah
+created: 2026-07-31 12:59
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
