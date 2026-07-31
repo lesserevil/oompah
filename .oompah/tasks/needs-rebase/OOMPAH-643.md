@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-643
 type: task
-status: In Review
-priority: null
+status: Needs Rebase
+priority: 0
 title: Reconcile stale terminal-audit enforcement records and live queue metrics
 parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- merge-conflict
 assignee: null
 created_at: '2026-07-31T06:17:38.708513Z'
-updated_at: '2026-07-31T07:01:00.651022Z'
+updated_at: '2026-07-31T07:03:00.021375Z'
 work_branch: OOMPAH-643
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/610
@@ -211,5 +212,10 @@ author: oompah
 created: 2026-07-31 07:00
 ---
 Branch quality gate passed for `84521c288cae398c19b228002d553cb210768844` using `make test` in 276.6s. Review creation may proceed.
+---
+author: oompah
+created: 2026-07-31 07:02
+---
+YOLO: Merge conflict detected on MR #610. Rebase onto main and resolve conflicts.
 ---
 <!-- COMMENTS:END -->

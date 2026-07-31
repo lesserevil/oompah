@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:55:23.505409Z'
-updated_at: '2026-07-31T06:58:18.453176Z'
+updated_at: '2026-07-31T07:02:57.491680Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -123,5 +123,10 @@ author: oompah
 created: 2026-07-31 06:58
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-31 07:02
+---
+Additional live consequence: PR #610 for OOMPAH-643 was created from base d7027de514 while overlapping PR #609 remained open. When #609 merged as 50625abed, #610 immediately became DIRTY/CONFLICTING at head 84521c288. The capacity race therefore creates avoidable rebase work and delays the critical terminal-audit metrics fix; include this cross-sweep stale-base sequence in the deterministic regression.
 ---
 <!-- COMMENTS:END -->

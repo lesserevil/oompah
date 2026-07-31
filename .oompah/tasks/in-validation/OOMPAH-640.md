@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T05:59:47.260716Z'
-updated_at: '2026-07-31T06:55:39.052490Z'
+updated_at: '2026-07-31T07:02:56.080199Z'
 work_branch: OOMPAH-640
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/608
@@ -45,8 +45,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: d9e5fc7a-e989-4884-b0eb-1bee9070427d
 oompah.task_costs:
-  total_input_tokens: 1230775
-  total_output_tokens: 15994
+  total_input_tokens: 1230811
+  total_output_tokens: 16929
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -56,6 +56,10 @@ oompah.task_costs:
     sonnet:
       input_tokens: 36
       output_tokens: 10923
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 36
+      output_tokens: 935
       cost_usd: 0.0
   runs:
   - profile: default
@@ -76,6 +80,12 @@ oompah.task_costs:
     output_tokens: 10923
     cost_usd: 0.0
     recorded_at: '2026-07-31T06:35:41.452717+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 36
+    output_tokens: 935
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T07:02:44.533767+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-640__20260731T060457Z
@@ -126,7 +136,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-d7409ced47f5
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -136,13 +146,29 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T06:55:30.330656+00:00'
       branch_key: OOMPAH-640
+      ended_at: '2026-07-31T07:02:48.836259+00:00'
+      failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: attempt-75ef744c23ff
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 9fae4e3ab825e00cbc64ba02d9836dbc3c055e12b56f18d4c3c077dec93691ae
+      created_at: '2026-07-31T07:02:50.116719+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-07-31T07:02:50.116719+00:00'
+      branch_key: OOMPAH-640
+      candidate_rotation_count: 1
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-07-31T06:55:14.228060+00:00'
-    updated_at: '2026-07-31T06:55:30.330656+00:00'
+    updated_at: '2026-07-31T07:02:50.116719+00:00'
   - version: 1
     audit_id: audit-beb713efc129
     project_id: proj-14849f1b
@@ -164,7 +190,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-d7409ced47f5
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -174,6 +200,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-07-31T06:55:30.330656+00:00'
     branch_key: OOMPAH-640
+    ended_at: '2026-07-31T07:02:48.836259+00:00'
+    failure_reason: auditor session abandoned; no live worker owns the attempt
+  - version: 1
+    attempt_id: attempt-75ef744c23ff
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9fae4e3ab825e00cbc64ba02d9836dbc3c055e12b56f18d4c3c077dec93691ae
+    created_at: '2026-07-31T07:02:50.116719+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-07-31T07:02:50.116719+00:00'
+    branch_key: OOMPAH-640
+    candidate_rotation_count: 1
 ---
 ## Summary
 
@@ -497,6 +539,26 @@ Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
 ---
 author: oompah
 created: 2026-07-31 06:55
+---
+Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 07:02
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 20
+- Tokens: 36 in / 935 out [971 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 7m 12s
+- Log: OOMPAH-640__20260731T065542Z.jsonl
+---
+author: oompah
+created: 2026-07-31 07:02
+---
+Auditor dispatched (attempt #2, candidate: prov-651d553c/haiku)
+---
+author: oompah
+created: 2026-07-31 07:02
 ---
 Focus: Completion Auditor
 ---
