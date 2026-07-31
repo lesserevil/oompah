@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:07.401588Z'
-updated_at: '2026-07-31T21:43:40.509732Z'
+updated_at: '2026-07-31T21:44:53.022697Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -551,5 +551,10 @@ author: oompah
 created: 2026-07-31 21:43
 ---
 Understanding: This is a CI-fix pass on the existing OOMPAH-665 branch. The recorded gate failure is make test failing before tests because uv is unavailable. I will verify the branch and GitHub Actions evidence, reproduce the exact bootstrap failure, then apply the smallest targeted repair only if the repository—not the host—is responsible.
+---
+author: oompah
+created: 2026-07-31 21:44
+---
+Discovery: There is no GitHub PR/Actions run; the recorded failure is Oompah's sandboxed local quality gate. That gate deliberately strips /home/.local/bin from PATH but read-only mounts a trusted .venv. Makefile setup nevertheless invokes raw uv pip even when .venv already exists, causing the reported uv-not-found error. The minimal repair is to create a new venv with the configurable UV command only when absent, then install through .venv/bin/python -m pip so the gate reuses its trusted runtime.
 ---
 <!-- COMMENTS:END -->
