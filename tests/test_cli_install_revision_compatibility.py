@@ -19,6 +19,7 @@ import contextlib
 import json
 import os
 import secrets
+import shutil
 import signal
 import socket
 import subprocess
@@ -295,10 +296,66 @@ def test_installed_cli_from_exact_revision_reads_matching_authenticated_server(t
     cli_python = cli_env_dir / "bin" / "python"
     cli_binary = cli_env_dir / "bin" / "oompah"
 
-    source_ref = f"git+{REPO_ROOT.as_uri()}@{revision}"
+    # Give pip a one-revision remote instead of the full project repository.
+    # Pip clones a local VCS URL without depth limiting; on repositories with
+    # substantial history that can spend minutes copying objects unrelated to
+    # this compatibility check.  The shallow remote still contains the exact
+    # original commit and therefore preserves the PEP 610 VCS provenance that
+    # the assertions below verify.
+    pinned_repo = tmp_path / "pinned-source.git"
+    subprocess.run(
+        ["git", "init", "--bare", str(pinned_repo)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    subprocess.run(
+        [
+            "git",
+            "fetch",
+            "--quiet",
+            "--depth",
+            "1",
+            REPO_ROOT.as_uri(),
+            f"{revision}:refs/heads/pinned",
+        ],
+        cwd=pinned_repo,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    subprocess.run(
+        ["git", "symbolic-ref", "HEAD", "refs/heads/pinned"],
+        cwd=pinned_repo,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    source_ref = f"git+{pinned_repo.as_uri()}@{revision}"
     dependency_site = str(Path(httpx.__file__).resolve().parent.parent)
     install_env = os.environ.copy()
     install_env["PYTHONPATH"] = dependency_site
+    # Pip unconditionally requests a blobless partial clone from modern Git.
+    # Some Git combinations repeatedly lazy-fetch a shallow local remote
+    # instead of materializing its single commit.  Report an older version to
+    # pip for this bounded fixture so it performs a normal 4-MiB clone; every
+    # other Git operation still delegates to the real binary.
+    real_git = shutil.which("git")
+    assert real_git is not None
+    git_wrapper_dir = tmp_path / "git-wrapper"
+    git_wrapper_dir.mkdir()
+    git_wrapper = git_wrapper_dir / "git"
+    git_wrapper.write_text(
+        "#!/bin/sh\n"
+        'if [ "$1" = "version" ] || [ "$1" = "--version" ]; then\n'
+        '  echo "git version 2.16.0"\n'
+        "  exit 0\n"
+        "fi\n"
+        f'exec "{real_git}" "$@"\n',
+        encoding="utf-8",
+    )
+    git_wrapper.chmod(0o755)
+    install_env["PATH"] = str(git_wrapper_dir) + os.pathsep + install_env["PATH"]
     install = subprocess.run(
         [
             str(cli_python),
