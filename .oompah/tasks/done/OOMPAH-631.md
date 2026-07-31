@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-631
 type: bug
-status: In Validation
+status: Done
 priority: 1
 title: Restore validation ownership when terminal retries coalesce
 parent: OOMPAH-584
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:08:00.758352Z'
-updated_at: '2026-07-31T00:50:50.991887Z'
+updated_at: '2026-07-31T00:54:09.833208Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-631
 target_branch: null
 review_url: null
@@ -88,6 +88,8 @@ oompah.task_costs:
     recorded_at: '2026-07-31T00:50:41.982198+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-8940dbbdedb3: '2026-07-31T00:54:07.571118+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -95,7 +97,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-631
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -119,7 +121,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-8940dbbdedb3
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -130,13 +132,16 @@ oompah.terminal_audit:
       started_at: '2026-07-31T00:50:46.352516+00:00'
       branch_key: epic-OOMPAH-584--task-OOMPAH-631
       candidate_rotation_count: 1
+      verdict: pass
+      completed_at: '2026-07-31T00:54:07.570958+00:00'
+      ended_at: '2026-07-31T00:54:07.570958+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-31T00:42:18.787715+00:00'
-    updated_at: '2026-07-31T00:50:46.352516+00:00'
+    updated_at: '2026-07-31T00:54:07.570958+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-fff5850c2750
@@ -387,5 +392,24 @@ author: oompah
 created: 2026-07-31 00:50
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 00:54
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- head_sha: d62dd4cff702ae2b818418407d7d15b7a643213e
+- origin_sha: d62dd4cff702ae2b818418407d7d15b7a643213e
+- branch: epic-OOMPAH-584--task-OOMPAH-631
+- worktree_status: clean
+- test_terminal_transition_coordinator: 107 passed
+- test_terminal_status_interfaces: 12 passed
+- test_task_cli: 137 passed
+- test_state_branch_migration: 71 passed
+- test_task_handoff: 30 passed
+- prior_gate_failure_fixed: TestConcurrentWrite::test_shadow_write_tracker_serializes_writes now passes
 ---
 <!-- COMMENTS:END -->
