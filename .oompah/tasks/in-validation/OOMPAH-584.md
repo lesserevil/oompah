@@ -21,7 +21,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-30T14:13:01.872040Z'
-updated_at: '2026-07-31T05:47:21.564368Z'
+updated_at: '2026-07-31T05:47:35.304666Z'
 work_branch: epic-OOMPAH-584
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/603
@@ -102,18 +102,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-584
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 71e10d8536db1e5d0af0a58ac7f3677534e5d5765c38be5fc4ba0e4e0b0a8e99
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-67a46d7abb48
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 71e10d8536db1e5d0af0a58ac7f3677534e5d5765c38be5fc4ba0e4e0b0a8e99
+      created_at: '2026-07-31T05:47:30.790034+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-31T05:47:30.790034+00:00'
+      branch_key: epic-OOMPAH-584
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-07-31T05:47:11.717816+00:00'
+    updated_at: '2026-07-31T05:47:30.790034+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-4132c39c1619
@@ -140,6 +154,19 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: opus
     started_at: '2026-07-31T05:40:27.595345+00:00'
+    branch_key: epic-OOMPAH-584
+  - version: 1
+    attempt_id: attempt-67a46d7abb48
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 71e10d8536db1e5d0af0a58ac7f3677534e5d5765c38be5fc4ba0e4e0b0a8e99
+    created_at: '2026-07-31T05:47:30.790034+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-31T05:47:30.790034+00:00'
     branch_key: epic-OOMPAH-584
 oompah.task_costs:
   total_input_tokens: 477848
@@ -424,5 +451,15 @@ author: oompah
 created: 2026-07-31 05:47
 ---
 YOLO: merged PR #603.
+---
+author: oompah
+created: 2026-07-31 05:47
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-07-31 05:47
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
