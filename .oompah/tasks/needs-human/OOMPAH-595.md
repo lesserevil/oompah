@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-595
 type: feature
-status: In Progress
+status: Needs Human
 priority: 1
 title: Expose separate operator and worker task-auth health signals
 parent: OOMPAH-586
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:56.897824Z'
-updated_at: '2026-07-31T00:52:34.774961Z'
+updated_at: '2026-07-31T00:53:09.383724Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-595
 target_branch: null
 review_url: null
@@ -623,5 +623,10 @@ author: oompah
 created: 2026-07-31 00:52
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-07-31 00:53
+---
+The parent epic OOMPAH-586 merged from epic-OOMPAH-586, but this task was In Progress with work branch epic-OOMPAH-586--task-OOMPAH-595. Its work is not proven to be in the merged epic. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
 ---
 <!-- COMMENTS:END -->
