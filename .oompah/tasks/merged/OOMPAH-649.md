@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-649
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Preserve dirty task worktrees across worker termination and retry
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:19:33.053515Z'
-updated_at: '2026-07-31T09:39:46.231473Z'
+updated_at: '2026-07-31T09:44:36.275531Z'
 work_branch: OOMPAH-649
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/615
@@ -109,6 +109,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-2ae62c68e14f: '2026-07-31T09:16:02.914959+00:00'
+    attempt-10e9d1bb1126: '2026-07-31T09:44:33.134339+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -150,7 +151,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-649
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -159,7 +160,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-10e9d1bb1126
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -169,13 +170,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T09:39:42.952952+00:00'
       branch_key: OOMPAH-649
+      verdict: pass
+      completed_at: '2026-07-31T09:44:33.134148+00:00'
+      ended_at: '2026-07-31T09:44:33.134148+00:00'
     requested_by:
       version: 1
       identity: NVShawn
       source: forge
     previous_state: In Review
     created_at: '2026-07-31T09:09:10.429787+00:00'
-    updated_at: '2026-07-31T09:39:42.952952+00:00'
+    updated_at: '2026-07-31T09:44:33.134148+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-2ae62c68e14f
@@ -354,5 +358,25 @@ author: oompah
 created: 2026-07-31 09:39
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 09:44
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: 0957d99556f3200361fa225ba313a7b5db53daa6
+- merge_commit: 72ed26d3777a42adc53a6a740713c83ca555984a
+- pr: 615
+- merge_parents: 8fd133e26aa2823ab68cde2a42b446933142b614,0957d99556f3200361fa225ba313a7b5db53daa6
+- focused_tests_passed_projects: 100/100
+- focused_tests_passed_prompt_cost_integration: 95/95
+- focused_tests_passed_terminal_audit_scanner: 15/15
+- focused_tests_total: 210/210
+- recovery_ref_pattern: refs/oompah/recovery/{sanitized}-{sha256[:16]}
+- core_api_symbols: _worktree_recovery_ref, _preserve_dirty_worktree_locked, worktree_recovery_context, preserve_worktree_changes, _assert_terminal_worktree_safe_locked
+- diff_stat: 9 files changed, 1200 insertions(+), 9 deletions(-)
 ---
 <!-- COMMENTS:END -->
