@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-621
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Document and integration-test CLI credential precedence
 parent: OOMPAH-619
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:25:29.809048Z'
-updated_at: '2026-07-31T06:03:52.551812Z'
+updated_at: '2026-07-31T06:04:00.413448Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-621
 target_branch: null
 review_url: null
