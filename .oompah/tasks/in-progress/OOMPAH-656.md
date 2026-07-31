@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:41:57.043640Z'
-updated_at: '2026-07-31T10:56:40.513313Z'
+updated_at: '2026-07-31T10:57:10.544409Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -130,5 +130,10 @@ author: oompah
 created: 2026-07-31 10:56
 ---
 diagnostic comment from OOMPAH-656
+---
+author: oompah
+created: 2026-07-31 10:57
+---
+Completed topology-only rebase and verified published result. Observed expected old remote head 0dc7d0f7caeea06a6eceb55ea2e58cf16554f0a4; published new origin/epic-OOMPAH-619 head 3fcdf30caa62fb7709d0cd9e1553320dd11b3877. origin/main is 54dd2509c6cbc73aaadbda2a3fdc7cfbb14530eb and is an ancestor of the new head. git range-diff preserved all six accepted patches: OOMPAH-620, OOMPAH-624, and four OOMPAH-621 commits. origin/main..origin/epic-OOMPAH-619 contains exactly those six commits and no unrelated commits. The direct epic worktree is clean. No candidate/full gate run, per topology-only task instructions.
 ---
 <!-- COMMENTS:END -->

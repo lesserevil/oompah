@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T10:54:26.843862Z'
+updated_at: '2026-07-31T10:57:20.726649Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,13 +46,13 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 17dfa9f9-ae79-45ee-9a0d-4195b9e5821b
 oompah.task_costs:
-  total_input_tokens: 1396321
-  total_output_tokens: 13713
+  total_input_tokens: 16257952
+  total_output_tokens: 55674
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 675552
-      output_tokens: 9881
+      input_tokens: 15537183
+      output_tokens: 51842
       cost_usd: 0.0
     opus:
       input_tokens: 720769
@@ -89,6 +89,12 @@ oompah.task_costs:
     output_tokens: 3832
     cost_usd: 0.0
     recorded_at: '2026-07-31T10:37:40.207635+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 14861631
+    output_tokens: 41961
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T10:57:09.146041+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-653__20260731T090421Z
@@ -115,6 +121,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-653
     source_sha: 200e137052c016e40e2a28b2c43a5e0bd9e1f1c2
     completed_at: '2026-07-31T10:37:40.210996+00:00'
+  - run_id: OOMPAH-653__20260731T104048Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: general
+    source_branch: OOMPAH-653
+    source_sha: fb68d377ca652cd64fefea93156d6153c7357ceb
+    completed_at: '2026-07-31T10:57:09.155505+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -492,5 +506,25 @@ author: oompah
 created: 2026-07-31 10:54
 ---
 Second live pass-then-redispatch reproduction, now OOMPAH-654: audit-9bcc882d9599 completed PASS/Done at 10:53 (task comments 16-17), but task remained In Validation and Oompah immediately launched audit-6a58167a8f64 at 10:53 (comments 18-19). Before the first result finished, health also exposed pending=1 and running=1 for the single terminal transition. Use both OOMPAH-652 and 654 orderings to verify the CAS launch fence and result-intent recovery; one successful exact-head audit must advance status and consume every equivalent queued identity without a second provider launch.
+---
+author: oompah
+created: 2026-07-31 10:57
+---
+Agent completed successfully in 983s (14903592 tokens)
+---
+author: oompah
+created: 2026-07-31 10:57
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 142
+- Tokens: 14.9M in / 42.0K out [14.9M total]
+- Cost: $0.0000
+- Exit: normal, Duration: 16m 23s
+- Log: OOMPAH-653__20260731T104048Z.jsonl
+---
+author: oompah
+created: 2026-07-31 10:57
+---
+Agent completed without closing this issue (983s (14903592 tokens)). Escalating from 'default' to 'deep'. Retrying in 10s (1/3).
 ---
 <!-- COMMENTS:END -->
