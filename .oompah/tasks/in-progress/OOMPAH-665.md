@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:07.401588Z'
-updated_at: '2026-07-31T21:44:53.022697Z'
+updated_at: '2026-07-31T21:46:56.722420Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -556,5 +556,10 @@ author: oompah
 created: 2026-07-31 21:44
 ---
 Discovery: There is no GitHub PR/Actions run; the recorded failure is Oompah's sandboxed local quality gate. That gate deliberately strips /home/.local/bin from PATH but read-only mounts a trusted .venv. Makefile setup nevertheless invokes raw uv pip even when .venv already exists, causing the reported uv-not-found error. The minimal repair is to create a new venv with the configurable UV command only when absent, then install through .venv/bin/python -m pip so the gate reuses its trusted runtime.
+---
+author: oompah
+created: 2026-07-31 21:46
+---
+Implementation: Updated only Makefile's server/dev setup recipes and tests/test_makefile_setup.py. Normal environments still create and install with the configurable UV command. If UV cannot run but the gate-mounted .venv already provides the required server/test modules, setup validates that trusted runtime and proceeds; an incomplete venv still fails. This directly addresses the sandbox's uv-not-found bootstrap failure without changing the alert-retirement implementation.
 ---
 <!-- COMMENTS:END -->
