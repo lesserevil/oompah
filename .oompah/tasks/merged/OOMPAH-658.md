@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-658
 type: bug
-status: In Validation
+status: Merged
 priority: 2
 title: Deduplicate duplicate-preflight runs across deferred dispatch ticks
 parent: null
@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-07-31T14:01:53.178928Z'
+updated_at: '2026-07-31T14:06:40.251407Z'
 work_branch: OOMPAH-658
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/621
@@ -160,6 +160,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-8afffb09ac0d: '2026-07-31T14:01:10.101622+00:00'
+    attempt-ae659838a4e8: '2026-07-31T14:06:36.702009+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-658
@@ -170,6 +171,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-07-31T14:01:10.101633+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-658
+    target_state: Merged
+    evidence_fingerprint: 7b601a0c846d29144f10dd9b6c4410fb286457ab82f64927c5f527a1a9d28131
+    audit_ids:
+    - audit-851d2f008316
+    kind: result
+    applied: true
+    retired_at: '2026-07-31T14:06:36.702028+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-658
@@ -183,6 +193,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-07-31T14:01:10.101650+00:00'
     applied_at: '2026-07-31T14:01:13.827041+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-658
+    audit_id: audit-851d2f008316
+    attempt_id: attempt-ae659838a4e8
+    target_state: Merged
+    evidence_fingerprint: 7b601a0c846d29144f10dd9b6c4410fb286457ab82f64927c5f527a1a9d28131
+    status: Merged
+    audit_ids:
+    - audit-851d2f008316
+    applied: false
+    created_at: '2026-07-31T14:06:36.702050+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -224,7 +245,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-658
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -233,7 +254,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-ae659838a4e8
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -243,13 +264,16 @@ oompah.terminal_audit:
       model: sonnet
       started_at: '2026-07-31T14:01:48.953135+00:00'
       branch_key: OOMPAH-658
+      verdict: pass
+      completed_at: '2026-07-31T14:06:36.701817+00:00'
+      ended_at: '2026-07-31T14:06:36.701817+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-07-31T13:57:06.950079+00:00'
-    updated_at: '2026-07-31T14:01:48.953135+00:00'
+    updated_at: '2026-07-31T14:06:36.701817+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-8afffb09ac0d
@@ -987,5 +1011,23 @@ author: oompah
 created: 2026-07-31 14:01
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 14:06
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- head_sha: 6e27fb150b7bd711c98c7aa5c94e355200dfa325
+- merge_commit: ef2938146bf828ddc8d8d677501f4fad61d65a73
+- pr_number: 621
+- gate_result: passed make test in 379.0s
+- test_duplicate_screening: 9 passed
+- test_duplicate_preflight: 23 passed
+- test_neighboring_suites: 87 passed (candidate_preflight, orchestrator_duplicate_detection, server_duplicate_screening_sync, dashboard_duplicate_screening)
+- test_models_intake_tracker: 286 passed
+- changed_files: oompah/duplicate_screening.py, docs/duplicate-screening.md, tests/test_duplicate_preflight.py, tests/test_duplicate_screening.py
 ---
 <!-- COMMENTS:END -->
