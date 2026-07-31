@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:07.401588Z'
-updated_at: '2026-07-31T23:13:39.863841Z'
+updated_at: '2026-07-31T23:14:00.568615Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -642,5 +642,10 @@ author: oompah
 created: 2026-07-31 23:13
 ---
 Verification: All focused tests pass on the rebased branch. 29 tests pass for test_terminal_audit_observability.py + test_orchestrator_profile_reload.py. 60 tests pass for test_makefile_setup.py + test_quality_gate.py. Pushing clean rebased HEAD to origin/OOMPAH-665 now.
+---
+author: oompah
+created: 2026-07-31 23:14
+---
+Implementation summary: The CI failure was due to the branch being based on pre-OOMPAH-668 main with OOMPAH-668 commits cherry-picked in as a workaround. A previous worker had already rebased the core OOMPAH-665 implementation (oompah/orchestrator.py terminal-audit retirement logic + tests/test_terminal_audit_observability.py) cleanly onto the current main (post-OOMPAH-668 merge). The Makefile changes from the old branch were correctly dropped since OOMPAH-668 already deployed those gate contracts. Force-pushed the clean rebased HEAD (04d681f10) to origin/OOMPAH-665 to update CI. All 89 focused tests pass.
 ---
 <!-- COMMENTS:END -->
