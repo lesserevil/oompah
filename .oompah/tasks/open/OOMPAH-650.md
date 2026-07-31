@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T09:07:24.267453Z'
+updated_at: '2026-07-31T09:08:07.312287Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -74,5 +74,10 @@ author: oompah
 created: 2026-07-31 09:07
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-31 09:08
+---
+Additional live evidence: OOMPAH-645 completed focused verification on clean pushed head 6686290d5, but its post-worker task handoff failed at 08:58. After operator reconciliation and a server restart, a fresh standard worker repeated the same post-run handoff failure at 09:04 and the task returned to Needs Human again. The task is now intentionally held with finish-order dependencies on OOMPAH-650/OOMPAH-652 to stop redispatch churn. Cover both TTL expiry and restart/revocation/reissue paths; a newly launched post-restart worker must receive a valid server-owned capability through its final submit.
 ---
 <!-- COMMENTS:END -->
