@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-639
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: 0
 title: Rebase epic-OOMPAH-460 onto main
 parent: OOMPAH-460
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T03:11:53.982402Z'
-updated_at: '2026-07-31T03:19:57.345595Z'
+updated_at: '2026-07-31T03:24:33.433013Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-639
 target_branch: null
 review_url: null
@@ -21,12 +21,15 @@ oompah.agent_run_id: b050aaa9-a3be-448c-9815-81157a30eb39
 oompah.work_branch: epic-OOMPAH-460--task-OOMPAH-639
 oompah.integration:
   version: 1
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-460--task-OOMPAH-639
+  base_branch: epic-OOMPAH-460
+  base_sha: fd19b48db0293b02a267e7cf4f22cca5cf8073a1
   head_sha: fd19b48db0293b02a267e7cf4f22cca5cf8073a1
+  integrated_sha: fd19b48db0293b02a267e7cf4f22cca5cf8073a1
   submitted_at: '2026-07-31T03:19:41.745295+00:00'
-  updated_at: '2026-07-31T03:19:41.745295+00:00'
+  updated_at: '2026-07-31T03:24:29.721070+00:00'
 oompah.task_costs:
   total_input_tokens: 388507
   total_output_tokens: 11189
@@ -112,6 +115,28 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-8d9bdd0afbc6
+    project_id: proj-14849f1b
+    task_id: OOMPAH-639
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6058d30daf84aff5ce072e52aee6c13f39b2de09bb4a906a349a10ec747e6031
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-31T03:24:31.063087+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -236,5 +261,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 1m 48s
 - Log: OOMPAH-639__20260731T031817Z.jsonl
+---
+author: oompah
+created: 2026-07-31 03:24
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
