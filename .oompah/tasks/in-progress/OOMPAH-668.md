@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-668
 type: bug
-status: Ready to Integrate
+status: In Progress
 priority: 1
 title: Use the trusted test virtualenv without reinstalling inside quality-gate sandbox
 parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- ci-fix
 assignee: null
 created_at: '2026-07-31T21:35:20.853943Z'
-updated_at: '2026-07-31T21:45:42.609283Z'
+updated_at: '2026-07-31T21:46:42.514169Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -34,7 +35,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 03c8150f-ab5a-4de4-82f5-c45f850c8c13
+oompah.agent_run_id: 261a3168-9d13-403c-9b2b-4c82263ecd22
 oompah.task_costs:
   total_input_tokens: 634211
   total_output_tokens: 4078
@@ -250,5 +251,33 @@ author: oompah
 created: 2026-07-31 21:45
 ---
 Quality gates now use the trusted projected test runtime without reinstalling inside the read-only sandbox; regression and complete test gates pass.
+---
+author: oompah
+created: 2026-07-31 21:46
+---
+Branch quality gate blocked review creation.
+
+Branch: `OOMPAH-668`
+Target: `main`
+Head: `unknown`
+Command: `make test`
+Result: `error`
+
+Required: run the command in the task worktree, fix the failure, commit and push the repair, then leave the task in Done. Oompah will rerun the gate for the new head before creating the PR/MR.
+
+Output tail:
+```text
+No existing worktree matched the review branch tip. Recreate the task worktree before retrying.
+```
+---
+author: oompah
+created: 2026-07-31 21:46
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-31 21:46
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->

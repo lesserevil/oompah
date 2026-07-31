@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-664
 type: task
-status: Ready to Integrate
+status: In Progress
 priority: 0
 title: Make issue-list snapshots advance with canonical state-branch task changes
 parent: null
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:06.140108Z'
-updated_at: '2026-07-31T21:46:08.239649Z'
+updated_at: '2026-07-31T21:46:36.680569Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,7 +44,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: bbc523cb-8ed8-4e29-83a9-b1a4a13a14a3
+oompah.agent_run_id: 1037e413-d6b6-438f-8857-a9bfa9cca0ac
 oompah.task_costs:
   total_input_tokens: 3977276
   total_output_tokens: 30580
@@ -377,5 +377,36 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Claude
 - Cost: $0.0000
 - Exit: terminated, Duration: 11m 40s
 - Log: OOMPAH-664__20260731T213430Z.jsonl
+---
+author: oompah
+created: 2026-07-31 21:46
+---
+Branch quality gate blocked review creation.
+
+Branch: `OOMPAH-664`
+Target: `main`
+Head: `7fb6cb96dc2674d79c77aeb8763fbf1dc6dc5015`
+Command: `make test`
+Result: `failed`
+
+Required: run the command in the task worktree, fix the failure, commit and push the repair, then leave the task in Done. Oompah will rerun the gate for the new head before creating the PR/MR.
+
+Output tail:
+```text
+uv pip install -e '.[server]'
+
+make: uv: No such file or directory
+make: *** [Makefile:118: .venv/.uv-setup] Error 127
+```
+---
+author: oompah
+created: 2026-07-31 21:46
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-31 21:46
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
