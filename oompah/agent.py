@@ -102,6 +102,53 @@ def _linux_process_snapshot() -> dict[int, _ProcessRecord]:
     return snapshot
 
 
+def _linux_descendant_records(root_pid: int) -> dict[int, _ProcessRecord]:
+    """Return descendants of *root_pid* without scanning host-wide procfs.
+
+    Linux exposes each thread's direct children in procfs.  Walking those
+    files keeps lifecycle cleanup proportional to the owned process tree;
+    scanning every host PID can exceed bounded shutdown budgets on shared CI
+    runners and busy production hosts.
+    """
+
+    if os.name != "posix" or not os.path.isdir("/proc"):
+        return {}
+
+    descendants: dict[int, _ProcessRecord] = {}
+    frontier = {int(root_pid)}
+    while frontier:
+        next_frontier: set[int] = set()
+        for parent_pid in frontier:
+            task_root = Path(f"/proc/{parent_pid}/task")
+            try:
+                task_ids = [
+                    value for value in os.listdir(task_root) if value.isdigit()
+                ]
+            except OSError:
+                continue
+            child_pids: set[int] = set()
+            for task_id in task_ids:
+                try:
+                    raw_children = (task_root / task_id / "children").read_text(
+                        encoding="utf-8"
+                    )
+                except OSError:
+                    continue
+                for raw_pid in raw_children.split():
+                    if raw_pid.isdigit():
+                        child_pids.add(int(raw_pid))
+            for child_pid in child_pids:
+                if child_pid == root_pid or child_pid in descendants:
+                    continue
+                record = _linux_process_record(child_pid)
+                if record is None:
+                    continue
+                descendants[child_pid] = record
+                next_frontier.add(child_pid)
+        frontier = next_frontier
+    return descendants
+
+
 def capture_workspace_processes(
     workspace_path: str,
     *,
@@ -119,27 +166,16 @@ def capture_workspace_processes(
     cwd identities and is safe to pass to :func:`terminate_captured_processes`.
     """
 
-    snapshot = _linux_process_snapshot()
+    root_pid = os.getpid() if ancestor_pid is None else int(ancestor_pid)
+    snapshot = _linux_descendant_records(root_pid)
     if not snapshot:
         return {}
-    root_pid = os.getpid() if ancestor_pid is None else int(ancestor_pid)
     workspace = os.path.realpath(workspace_path)
     workspace_prefix = workspace + os.sep
 
-    descendants: set[int] = set()
-    frontier = {root_pid}
-    while frontier:
-        parents = frontier
-        frontier = {
-            pid
-            for pid, record in snapshot.items()
-            if record.ppid in parents and pid not in descendants
-        }
-        descendants.update(frontier)
-
     seeds = {
         pid
-        for pid in descendants
+        for pid in snapshot
         if (
             (snapshot[pid].identity.cwd == workspace)
             or bool(
@@ -175,11 +211,6 @@ def terminate_captured_processes(
     if not captured:
         return set()
 
-    # Include children created in the narrow interval between the orchestrator's
-    # capture and this termination worker beginning. They are accepted only
-    # when their ancestry reaches a PID whose start time was already captured.
-    current = _linux_process_snapshot()
-
     # Older callers may still provide only a start time.  Normalize those
     # entries while retaining full identity for every process discovered by
     # the ownership-aware path.
@@ -195,20 +226,18 @@ def terminate_captured_processes(
             return record.identity == expected
         return record.identity.starttime == int(expected)
 
-    frontier = {
-        pid
-        for pid, expected in captured.items()
-        if _matches(current, pid, expected)
-    }
-    while frontier:
-        parents = frontier
-        frontier = {
-            pid
-            for pid, record in current.items()
-            if record.ppid in parents and pid not in captured
-        }
-        for pid in frontier:
-            captured[pid] = current[pid].identity
+    # Include children created in the narrow interval between the orchestrator's
+    # capture and this termination worker beginning.  Validate each captured
+    # root before walking only its kernel-reported descendants, avoiding an
+    # unbounded scan of unrelated host processes.
+    matched_roots: set[int] = set()
+    for pid, expected in captured.items():
+        record = _linux_process_record(pid)
+        if record is not None and _matches({pid: record}, pid, expected):
+            matched_roots.add(pid)
+    for root_pid in matched_roots:
+        for pid, record in _linux_descendant_records(root_pid).items():
+            captured.setdefault(pid, record.identity)
 
     def _alive() -> set[int]:
         alive: set[int] = set()
@@ -340,7 +369,7 @@ class AgentSession:
         # stop must never trust the PID after the child has exited and the OS
         # has reused it for another service.
         if self._process.pid is not None:
-            record = _linux_process_snapshot().get(self._process.pid)
+            record = _linux_process_record(self._process.pid)
             if record is not None and record.identity.cwd == os.path.realpath(
                 self.workspace_path
             ):

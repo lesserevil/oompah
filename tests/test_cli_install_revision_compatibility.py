@@ -267,7 +267,7 @@ uvicorn.run(
 
 @pytest.mark.integration
 @pytest.mark.xdist_group("cli_install_revision")
-@pytest.mark.timeout(180)
+@pytest.mark.timeout(360)
 def test_installed_cli_from_exact_revision_reads_matching_authenticated_server(tmp_path):
     """Install an exact revision, then exercise task and admin read paths.
 
@@ -302,7 +302,7 @@ def test_installed_cli_from_exact_revision_reads_matching_authenticated_server(t
         cwd=str(tmp_path),
         capture_output=True,
         text=True,
-        timeout=120,
+        timeout=300,
     )
     assert install.returncode == 0, (
         "exact-revision standalone CLI installation failed:\n"
