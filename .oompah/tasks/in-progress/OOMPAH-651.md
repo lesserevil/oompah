@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-651
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Redact secrets from agent tool inputs, outputs, and JSONL event logs
 parent: null
@@ -17,7 +17,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T12:16:37.454960Z'
+updated_at: '2026-07-31T12:16:49.621756Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -59,7 +59,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: cd8b2da4-c573-4377-80fa-2e3eae4d697f
+oompah.agent_run_id: 2f1d6bc3-b9b9-4bb5-ad86-9a6a5e4dd01c
 oompah.task_costs:
   total_input_tokens: 16588309
   total_output_tokens: 104315
@@ -1002,5 +1002,15 @@ author: oompah
 created: 2026-07-31 12:16
 ---
 Code review accepts the embedded-short-secret repair at e4e36c44e. Temporarily parked this branch in Open behind hard-start dependencies on OOMPAH-650 and OOMPAH-657 to stop the current premature standalone-gate/watchdog loop. The accepted branch and submission metadata are preserved. After both dependency implementations merge/deploy, rebase, wire each live lease refresh/revoke into renew_secret/retire_secret, then submit once for the exact isolated full gate. Permanent dependency-aware standalone gating is OOMPAH-659.
+---
+author: oompah
+created: 2026-07-31 12:16
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-31 12:16
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
