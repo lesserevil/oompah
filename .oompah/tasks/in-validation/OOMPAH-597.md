@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-597
 type: task
-status: Needs Human
+status: In Validation
 priority: 1
 title: Recover and drain the OOMPAH-460 ordered integration chain
 parent: OOMPAH-587
@@ -13,7 +13,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:28.342383Z'
-updated_at: '2026-07-31T03:48:04.503972Z'
+updated_at: '2026-07-31T04:21:29.067927Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-597
 target_branch: null
 review_url: null
@@ -190,7 +190,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-597
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -220,6 +220,37 @@ oompah.terminal_audit:
     previous_state: Needs Human
     created_at: '2026-07-31T03:39:39.068911+00:00'
     updated_at: '2026-07-31T03:47:44.012760+00:00'
+  - version: 1
+    audit_id: audit-48aa8ecd4436
+    project_id: proj-14849f1b
+    task_id: OOMPAH-597
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 42484346a18e554720f9714d6fadb3a7bfa959e4601f59f2f47e70e87a87c595
+    attempts:
+    - version: 1
+      attempt_id: attempt-880b644ed7b6
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 42484346a18e554720f9714d6fadb3a7bfa959e4601f59f2f47e70e87a87c595
+      created_at: '2026-07-31T04:21:24.784226+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-31T04:21:24.784226+00:00'
+      branch_key: epic-OOMPAH-587--task-OOMPAH-597
+    requested_by:
+      version: 1
+      identity: api-client
+      source: api
+    previous_state: Needs Human
+    created_at: '2026-07-31T04:21:19.614434+00:00'
+    updated_at: '2026-07-31T04:21:24.784226+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-5af1aa0b5fd2
@@ -248,6 +279,19 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: opus
     started_at: '2026-07-31T03:39:53.008111+00:00'
+    branch_key: epic-OOMPAH-587--task-OOMPAH-597
+  - version: 1
+    attempt_id: attempt-880b644ed7b6
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 42484346a18e554720f9714d6fadb3a7bfa959e4601f59f2f47e70e87a87c595
+    created_at: '2026-07-31T04:21:24.784226+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-31T04:21:24.784226+00:00'
     branch_key: epic-OOMPAH-587--task-OOMPAH-597
 ---
 ## Summary
@@ -817,5 +861,20 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 8m 8s
 - Log: OOMPAH-597__20260731T034001Z.jsonl
+---
+author: oompah
+created: 2026-07-31 04:21
+---
+All OOMPAH-460 recovery children are now reconciled and verified; request a fresh independent audit of exact integrated head 44e5c5579.
+---
+author: oompah
+created: 2026-07-31 04:21
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-07-31 04:21
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
