@@ -17,7 +17,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T16:57:04.147861Z'
+updated_at: '2026-07-31T17:00:18.857682Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -1173,5 +1173,23 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 50m 10s
 - Log: OOMPAH-651__20260731T160702Z.jsonl
+---
+author: oompah
+created: 2026-07-31 17:00
+---
+Branch quality gate blocked review creation.
+
+Branch: `OOMPAH-651`
+Target: `main`
+Head: `b90d1e353e2dd5fd321c048ca84eb71eea9e20d4`
+Command: `make test`
+Result: `needs_rebase`
+
+Required: rebase this branch onto the current deployed base so it contains the lifecycle safety prerequisite and does not replace the protected gate entrypoints. Run the full command, commit and push the repair, then leave the task in Done; Oompah will rerun the gate for the new head before creating the PR/MR.
+
+Output tail:
+```text
+OS-enforced quality-gate sandbox is unavailable; refusing to execute candidate code: cannot prepare an immutable candidate snapshot: unsafe link in candidate archive: '.oompah-no-hooks/prepare-commit-msg' -> '/home/shedwards/src/oompah/oompah/git_hooks/prepare-commit-msg'
+```
 ---
 <!-- COMMENTS:END -->
