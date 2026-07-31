@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T10:48:27.200120Z'
+updated_at: '2026-07-31T10:49:34.932250Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -177,5 +177,10 @@ author: oompah
 created: 2026-07-31 10:48
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-07-31 10:49
+---
+Understanding: Previous attempt was rejected because environment variables alone don't enforce a security boundary. A same-UID candidate process can still read canonical .oompah.pid, connect to localhost:8090, or signal the live operator PID regardless of environment variables. Implementing fail-closed approach: (1) add preflight validation checking if candidate branch contains trusted isolation base from OOMPAH-652, (2) route to Needs Rebase if isolation contract is violated, (3) add hostile fixture tests with old/malicious Makefiles, (4) implement proper cleanup and ownership tracking. Starting discovery.
 ---
 <!-- COMMENTS:END -->
