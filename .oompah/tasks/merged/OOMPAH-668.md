@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-668
 type: bug
-status: In Validation
+status: Merged
 priority: 0
 title: Use the trusted test virtualenv without reinstalling inside quality-gate sandbox
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T21:35:20.853943Z'
-updated_at: '2026-07-31T22:50:49.281158Z'
+updated_at: '2026-07-31T22:51:48.166847Z'
 work_branch: OOMPAH-668
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/627
@@ -98,6 +98,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-59afcdbb0d80: '2026-07-31T22:50:22.543115+00:00'
+    attempt-81f625a02166: '2026-07-31T22:51:44.870768+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-668
@@ -108,6 +109,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-07-31T22:50:22.543128+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-668
+    target_state: Merged
+    evidence_fingerprint: 9f3301c525adc95680e4e8774ce438e8b40ee6740cbf5f991994b15079f93f47
+    audit_ids:
+    - audit-aef1db8fbd71
+    kind: result
+    applied: true
+    retired_at: '2026-07-31T22:51:44.870792+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-668
@@ -121,6 +131,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-07-31T22:50:22.543147+00:00'
     applied_at: '2026-07-31T22:50:26.166153+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-668
+    audit_id: audit-aef1db8fbd71
+    attempt_id: attempt-81f625a02166
+    target_state: Merged
+    evidence_fingerprint: 9f3301c525adc95680e4e8774ce438e8b40ee6740cbf5f991994b15079f93f47
+    status: Merged
+    audit_ids:
+    - audit-aef1db8fbd71
+    applied: false
+    created_at: '2026-07-31T22:51:44.870817+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -162,7 +183,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-668
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -171,7 +192,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-81f625a02166
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -181,13 +202,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T22:50:43.344601+00:00'
       branch_key: OOMPAH-668
+      verdict: pass
+      completed_at: '2026-07-31T22:51:44.870513+00:00'
+      ended_at: '2026-07-31T22:51:44.870513+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-07-31T22:48:08.031217+00:00'
-    updated_at: '2026-07-31T22:50:43.344601+00:00'
+    updated_at: '2026-07-31T22:51:44.870513+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-59afcdbb0d80
@@ -625,5 +649,27 @@ author: oompah
 created: 2026-07-31 22:50
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 22:51
+---
+Audit PASS — Merged
+
+OOMPAH-668 branch head 9e520df9a is the final commit reachable via PR #627 merge commit d96740a6e on origin/main. Diff scope matches prior evidence (5 files changed, 385/-2). Working tree is clean and git diff --check is clean. Prior branch quality gate passed (make test in 385.1s) and full-gate reported 14,542 passed / 7 skipped / 1 xfailed. Merged target is supported.
+
+Safe evidence:
+- branch: OOMPAH-668
+- head_sha: 9e520df9a3f292bd54f4c6791cb3e6591c28446d
+- merge_commit: d96740a6ecdca353e40ef87e94a4ee91b8828df0
+- merged_into: origin/main
+- pr: #627
+- changed_files: Makefile, oompah/quality_gate.py, tests/test_quality_gate.py, tests/test_makefile_setup.py, tests/test_cli_install_revision_compatibility.py
+- diff_summary: 5 files changed, 385 insertions(+), 2 deletions(-)
+- ancestry_path: 9e520df9a..origin/main = d96740a6e (single merge commit)
+- working_tree: clean
+- git_diff_check: clean
+- focused_tests_reported: 79 passed
+- full_gate_reported: 14,542 passed / 7 skipped / 1 xfailed in 400.25s
+- branch_quality_gate_reported: make test passed in 385.1s
 ---
 <!-- COMMENTS:END -->
