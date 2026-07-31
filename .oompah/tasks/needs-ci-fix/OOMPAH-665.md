@@ -1,8 +1,8 @@
 ---
 id: OOMPAH-665
 type: task
-status: In Progress
-priority: null
+status: Needs CI Fix
+priority: 0
 title: Retire legacy no-auditor alerts after terminal task completion
 parent: null
 children: []
@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:07.401588Z'
-updated_at: '2026-07-31T23:07:15.004857Z'
+updated_at: '2026-07-31T23:09:13.878543Z'
 work_branch: null
 target_branch: null
 review_url: null

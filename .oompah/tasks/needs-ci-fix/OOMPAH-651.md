@@ -1,8 +1,8 @@
 ---
 id: OOMPAH-651
 type: bug
-status: In Progress
-priority: 1
+status: Needs CI Fix
+priority: 0
 title: Redact secrets from agent tool inputs, outputs, and JSONL event logs
 parent: null
 children: []
@@ -19,7 +19,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T23:07:20.697691Z'
+updated_at: '2026-07-31T23:09:12.689156Z'
 work_branch: null
 target_branch: null
 review_url: null
