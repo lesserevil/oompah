@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T22:56:06.058439Z'
-updated_at: '2026-07-31T23:43:18.909661Z'
+updated_at: '2026-07-31T23:49:39.534437Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -305,5 +305,10 @@ author: oompah
 created: 2026-07-31 23:43
 ---
 Understanding: CI failure fixer role. The branch gate failed with 1 test failure: tests/test_orchestrator_handlers.py::TestMaintenanceLaneNonBlocking::test_tick_starts_maintenance_future. The previous frontend agent successfully implemented the dashboard auth changes. My job is to identify and fix this failing test with minimal changes, then push and submit.
+---
+author: oompah
+created: 2026-07-31 23:49
+---
+Discovery: test_tick_starts_maintenance_future fails under xdist parallel load because _recover_release_addendum_leases is not mocked. When _tick() awaits _recover_release_addendum_leases, it calls tracker.fetch_all_issues() which reads all 281 .oompah/tasks/*.md files sequentially. Under 4-worker xdist load this exceeds the 5s per-test pytest timeout. OOMPAH-664 (commit a79a28d01) identified and documented this exact pattern and fixed it for test_tick_applies_pending_at_quiescent_point. The fix is to add orch._recover_release_addendum_leases = MagicMock(return_value=0) to the failing test. Note: the test_tick_starts_maintenance_future test is in the main branch unchanged by OOMPAH-670 (only dashboard.html and test_dashboard_authenticated_mutations.py were added).
 ---
 <!-- COMMENTS:END -->
