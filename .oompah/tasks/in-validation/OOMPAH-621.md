@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-621
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Document and integration-test CLI credential precedence
 parent: OOMPAH-619
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:25:29.809048Z'
-updated_at: '2026-07-31T07:21:15.759447Z'
+updated_at: '2026-07-31T07:26:05.123135Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-621
 target_branch: null
 review_url: null
@@ -44,14 +44,15 @@ oompah.agent_run_id: b8b55e47-6b1f-4878-a9a9-85624430da71
 oompah.work_branch: epic-OOMPAH-619--task-OOMPAH-621
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-619--task-OOMPAH-621
-  base_branch: main
-  base_sha: d48b971c58b8622e9c63de4923db08b755b5434b
+  base_branch: epic-OOMPAH-619
+  base_sha: b2191c92f124fdb33e5f0383e3eb458c22ff030d
   head_sha: 0dc7d0f7caeea06a6eceb55ea2e58cf16554f0a4
+  integrated_sha: 0dc7d0f7caeea06a6eceb55ea2e58cf16554f0a4
   submitted_at: '2026-07-31T07:20:21.380928+00:00'
-  updated_at: '2026-07-31T07:21:11.888611+00:00'
+  updated_at: '2026-07-31T07:26:00.944160+00:00'
 oompah.task_costs:
   total_input_tokens: 5801742
   total_output_tokens: 62390
@@ -187,7 +188,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-621
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -217,6 +218,23 @@ oompah.terminal_audit:
     previous_state: Ready to Integrate
     created_at: '2026-07-31T06:21:52.455730+00:00'
     updated_at: '2026-07-31T06:25:23.085081+00:00'
+  - version: 1
+    audit_id: audit-9d2b8fdef6e6
+    project_id: proj-14849f1b
+    task_id: OOMPAH-621
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 519aef4cd511567ff9c272668f5a83dc0a67cbaff5723f2ce29c7d9ff500ba1d
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-31T07:26:03.489345+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-8a79c55ddcf1
