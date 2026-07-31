@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:09:07.190386Z'
-updated_at: '2026-07-31T07:02:32.752850Z'
+updated_at: '2026-07-31T07:09:08.514001Z'
 work_branch: OOMPAH-642
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/609
@@ -116,6 +116,8 @@ oompah.work_branch: OOMPAH-642
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-3755ea18f7aa: '2026-07-31T07:09:05.865527+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -123,7 +125,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-642
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -132,7 +134,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-3755ea18f7aa
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -142,13 +144,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T07:02:25.680912+00:00'
       branch_key: OOMPAH-642
+      verdict: pass
+      completed_at: '2026-07-31T07:09:05.865349+00:00'
+      ended_at: '2026-07-31T07:09:05.865349+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-07-31T07:02:07.397951+00:00'
-    updated_at: '2026-07-31T07:02:25.680912+00:00'
+    updated_at: '2026-07-31T07:09:05.865349+00:00'
   - version: 1
     audit_id: audit-734e9f76fb55
     project_id: proj-14849f1b
@@ -342,5 +347,20 @@ author: oompah
 created: 2026-07-31 07:02
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 07:09
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: af6e423391f3756f99900cf4263cbb6f4d3d07de
+- merge_commit: 50625abed5be36e106dbd281871a2e464c671303
+- pr_number: 609
+- focused_tests_pass: test_standalone_ready_to_integrate (17), test_quality_gate/test_terminal_transition_coordinator/test_authority_boundary/test_terminal_override (288 combined), test_delivery_plane_recovery (4), test_terminal_audit_* (121)
+- full_branch_gate: make test passed in 309.7s (per orchestrator record on af6e42339)
+- authority_infra: orchestrator.py: RLock + _standalone_delivery_authorities dict + claim/refresh/authorized/mutation/action/revoke/record-superseded helpers; terminal_transition_coordinator.py wires revoke_delivery_authority callback synchronously into Done/Merged/Archived transitions and terminal-owner override paths.
 ---
 <!-- COMMENTS:END -->
