@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-645
 type: task
-status: In Review
+status: In Validation
 priority: 0
 title: Clear recovered terminal-audit transport failures without contaminating later
   audits
@@ -16,7 +16,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T06:47:58.732088Z'
-updated_at: '2026-07-31T15:06:09.514404Z'
+updated_at: '2026-07-31T15:13:57.155819Z'
 work_branch: OOMPAH-645
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/623
@@ -173,6 +173,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/623
 oompah.review_number: '623'
 oompah.work_branch: OOMPAH-645
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-731255d60474
+    project_id: proj-14849f1b
+    task_id: OOMPAH-645
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 116e651c5b78d8c997dc2ee5480818b9f3f89f15a7e70320ed090774110723bf
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-31T15:13:51.660787+00:00'
+  - version: 1
+    audit_id: audit-80ef01a97408
+    project_id: proj-14849f1b
+    task_id: OOMPAH-645
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 116e651c5b78d8c997dc2ee5480818b9f3f89f15a7e70320ed090774110723bf
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-31T15:13:51.660787+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -676,5 +715,15 @@ author: oompah
 created: 2026-07-31 15:05
 ---
 Branch quality gate passed for `9e4a0c877707d946a4504d664dba74811c2e0aac` using `make test` in 378.7s. Review creation may proceed.
+---
+author: oompah
+created: 2026-07-31 15:13
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-07-31 15:13
+---
+YOLO: merged PR #623.
 ---
 <!-- COMMENTS:END -->
