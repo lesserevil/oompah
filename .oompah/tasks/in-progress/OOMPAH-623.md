@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:32:18.734139Z'
-updated_at: '2026-07-31T09:49:18.287093Z'
+updated_at: '2026-07-31T09:49:27.695501Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-623
 target_branch: null
 review_url: null
@@ -46,18 +46,16 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 9f41cb1b-6b7a-4f4e-9083-bc892fb81f21
+oompah.agent_run_id: a2dc30f3-6510-489d-9dcc-7b0e632769b9
 oompah.work_branch: epic-OOMPAH-619--task-OOMPAH-623
 oompah.integration:
   version: 2
-  state: ready
+  state: working
   attempts: 0
   task_branch: epic-OOMPAH-619--task-OOMPAH-623
-  base_branch: main
-  base_sha: 72ed26d3777a42adc53a6a740713c83ca555984a
-  head_sha: e7bd149b0d63c3e2876137d22c9c0597e6bcf298
-  submitted_at: '2026-07-31T09:47:39.370078+00:00'
-  updated_at: '2026-07-31T09:48:06.598658+00:00'
+  base_branch: epic-OOMPAH-619
+  base_sha: 0dc7d0f7caeea06a6eceb55ea2e58cf16554f0a4
+  updated_at: '2026-07-31T09:49:25.489183+00:00'
 oompah.task_costs:
   total_input_tokens: 2655148
   total_output_tokens: 16356
@@ -318,5 +316,15 @@ author: oompah
 created: 2026-07-31 09:49
 ---
 Second operator review rejects pushed head e7bd149b0 before integration. The repair still performs normal restart replacement first, then installs the CLI only after a new service instance is already healthy. If sync_canonical_cli.py fails, restart exits with the new server running and the old CLI restored: a live mismatched pair, violating the core acceptance invariant. The force-restart path likewise stops the known-good server before attempting an install that may fail. Implement a coordinated transactional cutover: drain/pause the old service without exec, stage and verify the candidate CLI without replacing the canonical launcher, atomically activate it at the server cutover, and restore/unpause the old pair on every pre-cutover failure; define and test rollback on post-cutover health failure. Add true live lifecycle tests for drain failure, staged install failure, activation failure, and successful equality. Also, exact diff-check is not clean (trailing whitespace in docs/authentication.md and tests/test_docs_authentication_contract.py), contrary to comment #28, and the branch carries thousands of lines of unrelated OOMPAH-621/624 changes relative to current main; rebase/retarget to the actual integration base or isolate this task's commits so the submitted review head contains only intended prerequisites and OOMPAH-623 scope.
+---
+author: oompah
+created: 2026-07-31 09:49
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-31 09:49
+---
+Focus: Maintenance Engineer
 ---
 <!-- COMMENTS:END -->
