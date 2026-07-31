@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-652
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Isolate the full Makefile test gate from a running Oompah service
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T08:57:15.160957Z'
-updated_at: '2026-07-31T10:26:02.818777Z'
+updated_at: '2026-07-31T10:27:09.651775Z'
 work_branch: OOMPAH-652
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/616
@@ -97,6 +97,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-4cd1d35c63d9: '2026-07-31T10:25:41.332572+00:00'
+    attempt-071c375a0208: '2026-07-31T10:27:06.473632+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -138,7 +139,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-652
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -147,7 +148,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-071c375a0208
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -157,13 +158,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T10:25:59.120274+00:00'
       branch_key: OOMPAH-652
+      verdict: pass
+      completed_at: '2026-07-31T10:27:06.473467+00:00'
+      ended_at: '2026-07-31T10:27:06.473467+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-07-31T10:20:25.813992+00:00'
-    updated_at: '2026-07-31T10:25:59.120274+00:00'
+    updated_at: '2026-07-31T10:27:06.473467+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-4cd1d35c63d9
@@ -527,5 +531,22 @@ author: oompah
 created: 2026-07-31 10:26
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 10:27
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- head: ccba12b3fe59f251d16746d164a8723edd6109fa
+- merge_commit_on_main: ec0ec7d89fb8804571fcf7e780558e6d979b73ea
+- pr_number: 616
+- branch_quality_gate_result: passed
+- branch_quality_gate_duration_s: 372.1
+- working_tree_status: clean
+- head_in_origin_main: true
+- prior_audit_verdict: pass
 ---
 <!-- COMMENTS:END -->
