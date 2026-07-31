@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-584
 type: epic
-status: In Progress
+status: Needs Human
 priority: 1
 title: Return the oompah delivery control plane to green
 parent: null
@@ -20,7 +20,7 @@ labels:
 - epic:stale
 assignee: null
 created_at: '2026-07-30T14:13:01.872040Z'
-updated_at: '2026-07-31T05:14:41.792934Z'
+updated_at: '2026-07-31T05:16:28.486032Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -75,13 +75,17 @@ oompah.terminal_audit:
     started_at: '2026-07-31T05:12:43.491182+00:00'
     branch_key: OOMPAH-584
 oompah.task_costs:
-  total_input_tokens: 33
-  total_output_tokens: 988
+  total_input_tokens: 477716
+  total_output_tokens: 4362
   total_cost_usd: 0.0
   by_model:
     unknown:
       input_tokens: 33
       output_tokens: 988
+      cost_usd: 0.0
+    opus:
+      input_tokens: 477683
+      output_tokens: 3374
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -90,7 +94,23 @@ oompah.task_costs:
     output_tokens: 988
     cost_usd: 0.0
     recorded_at: '2026-07-31T05:14:14.677987+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 477683
+    output_tokens: 3374
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T05:16:23.357022+00:00'
 oompah.agent_run_id: 75d2b45c-3d2c-4777-9bd9-578d0e0c0cb9
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-584__20260731T051445Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-sol
+    focus: epic_planner
+    source_branch: OOMPAH-584
+    source_sha: 24bd5d6c166af7f8c839e9d5c9e4f3f17d17508e
+    completed_at: '2026-07-31T05:16:23.361221+00:00'
 ---
 ## Summary
 
@@ -168,5 +188,20 @@ author: oompah
 created: 2026-07-31 05:14
 ---
 Focus: Epic Planner
+---
+author: oompah
+created: 2026-07-31 05:16
+---
+Run #2 [attempt=2, profile=deep, role=deep -> Codex/gpt-5.6-sol]
+- Turns: 1, Tool calls: 9
+- Tokens: 477.7K in / 3.4K out [481.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 45s
+- Log: OOMPAH-584__20260731T051445Z.jsonl
+---
+author: oompah
+created: 2026-07-31 05:16
+---
+Task handoff failed after the worker ran: the server-owned, task-scoped tracker capability could not update this task. The task is held in Needs Human and will not be redispatched automatically; verify the handoff service and reconcile the worker's branch before resuming it.
 ---
 <!-- COMMENTS:END -->
