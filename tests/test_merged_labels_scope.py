@@ -326,6 +326,9 @@ class TestMergedLabelsMaintenanceLaneScope:
         orch._refresh_landing_evidence_target_refs = MagicMock(
             return_value=(True, None)
         )
+        orch._refresh_landing_evidence_candidate_refs = MagicMock(
+            return_value=(True, None)
+        )
         orch._child_landing_evidence_block_reason = MagicMock(return_value=None)
         orch._open_review_branch_for_issue_in_cache = MagicMock(return_value="")
         orch._cleanup_landed_private_child_branch = MagicMock()

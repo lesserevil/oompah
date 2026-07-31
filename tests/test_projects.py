@@ -1577,7 +1577,7 @@ class TestEpicRepairWorkspaceCleanup:
         )
 
         # Simulate terminal epic cleanup with work_branch=epic-<id>
-        changed = store.cleanup_terminal_issue(
+        changed, skip_reason = store.cleanup_terminal_issue(
             project.id,
             "EPIC-1",
             branch_name=epic_branch,
@@ -1585,6 +1585,7 @@ class TestEpicRepairWorkspaceCleanup:
         )
 
         assert changed is True
+        assert skip_reason is None
 
         # Primary epic worktree and branch removed
         assert not os.path.exists(epic_wt)
@@ -1856,13 +1857,14 @@ class TestEpicRepairWorkspaceCleanup:
         )
 
         # Non-epic cleanup: removes the task worktree normally
-        changed = store.cleanup_terminal_issue(
+        changed, skip_reason = store.cleanup_terminal_issue(
             project.id,
             "TASK-NE",
             branch_name="TASK-NE",
             is_epic=False,
         )
         assert changed is True
+        assert skip_reason is None
         # Worktree was removed (normal path, not repair cleanup)
         assert not os.path.isdir(repair_wt)
 
