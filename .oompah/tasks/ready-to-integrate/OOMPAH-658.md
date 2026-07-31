@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-658
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 2
 title: Deduplicate duplicate-preflight runs across deferred dispatch ticks
 parent: null
@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-07-31T13:41:56.230899Z'
+updated_at: '2026-07-31T13:42:08.197694Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -122,11 +122,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-658
-  base_branch: main
-  base_sha: 54dd2509c6cbc73aaadbda2a3fdc7cfbb14530eb
-  head_sha: 1b49ab0f4732ca40bfb7355f726a8da6bacc234f
-  submitted_at: '2026-07-31T12:15:02.988090+00:00'
-  updated_at: '2026-07-31T12:15:15.409955+00:00'
+  head_sha: 6e27fb150b7bd711c98c7aa5c94e355200dfa325
+  submitted_at: '2026-07-31T13:42:05.125921+00:00'
+  updated_at: '2026-07-31T13:42:05.125921+00:00'
 oompah.start_blocked_by: *id001
 ---
 ## Summary
@@ -755,5 +753,10 @@ Verification at rebased head 6e27fb150 (rebased onto origin/main which now inclu
 - tests/test_intake_promotion.py + test_epic_proposal.py + test_duplicate_names.py: 45 passed (3.02s)
 
 Total 450 focused tests passing. Rebased branch force-pushed (1b49ab0f4 -> 6e27fb150). No source changes required from prior verified fix — same adapter-backed duplicate-preflight deduplication, now on top of the immutable exact-head lifecycle from OOMPAH-657. Ready for the server-owned single review-ready full gate.
+---
+author: oompah
+created: 2026-07-31 13:42
+---
+Adapter-backed duplicate-preflight deduplication rebased onto OOMPAH-657. Fingerprint composes (title, description with Triggered-by header, project, type, parent, intake.proposal_fingerprint); scheduling metadata (deps, labels, updated_at, last_validated_at) excluded. Native persisted regressions verify zero re-screens across ticks/fresh orchestrator on unchanged intake, exactly-one claim under concurrent ticks on mutated intake proposal_fingerprint, and continued retry for inconclusive verdicts. 450 focused tests pass at head 6e27fb150.
 ---
 <!-- COMMENTS:END -->
