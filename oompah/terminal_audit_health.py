@@ -313,24 +313,38 @@ def build_terminal_audit_health(
                 increment(observation.project_id, "stale_pending_count")
             oldest = min(oldest, ts) if oldest is not None else ts
 
-        # Failure classification — classify *without* returning the raw text
-        attempts_used = len(record.attempts)
-        if attempts_used >= max_attempts:
-            exhausted += 1
-            increment(observation.project_id, "retry_exhausted_count")
+        # Failure classification — only count unresolved failures.
+        #
+        # A record in RequestState.IN_PROGRESS has an active auditor attempt
+        # currently running; prior failures in that record are being recovered
+        # automatically and must NOT surface as actionable alerts.  This
+        # prevents stale transport/launch failures from appearing to describe
+        # a task that is already retrying (or a later, unrelated task).
+        #
+        # Once the active attempt ends (record returns to PENDING), any
+        # failures are counted again because operator attention may be needed.
+        #
+        # Retry exhaustion is also guarded: if the last attempt is still
+        # IN_PROGRESS it has not yet failed, so the retry budget is not yet
+        # consumed from an operator perspective.
+        if record.request_state == RequestState.PENDING:
+            attempts_used = len(record.attempts)
+            if attempts_used >= max_attempts:
+                exhausted += 1
+                increment(observation.project_id, "retry_exhausted_count")
 
-        for attempt in record.attempts:
-            if attempt.request_state != RequestState.PENDING:
-                continue
-            if not attempt.ended_at:
-                continue
-            kind = _failure_kind(attempt)
-            if kind == "launch":
-                launch_failures += 1
-                increment(observation.project_id, "launch_failure_count")
-            elif kind == "transport":
-                transport_failures += 1
-                increment(observation.project_id, "transport_failure_count")
+            for attempt in record.attempts:
+                if attempt.request_state != RequestState.PENDING:
+                    continue
+                if not attempt.ended_at:
+                    continue
+                kind = _failure_kind(attempt)
+                if kind == "launch":
+                    launch_failures += 1
+                    increment(observation.project_id, "launch_failure_count")
+                elif kind == "transport":
+                    transport_failures += 1
+                    increment(observation.project_id, "transport_failure_count")
 
     oldest_at: str | None = _timestamp(oldest) if oldest is not None else None
     oldest_age: int | None = (
