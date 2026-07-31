@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-30T18:17:13.371379Z'
-updated_at: '2026-07-31T06:26:10.729370Z'
+updated_at: '2026-07-31T06:26:23.695669Z'
 work_branch: OOMPAH-607
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/605
@@ -153,18 +153,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-607
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 6160b3dfb070244f9a80659b313af3703d96f06581279d3226b8167fa7dff5cd
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-3d919736a8a3
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 6160b3dfb070244f9a80659b313af3703d96f06581279d3226b8167fa7dff5cd
+      created_at: '2026-07-31T06:26:15.838669+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-31T06:26:15.838669+00:00'
+      branch_key: OOMPAH-607
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Progress
     created_at: '2026-07-31T06:25:49.441224+00:00'
+    updated_at: '2026-07-31T06:26:15.838669+00:00'
   - version: 1
     audit_id: audit-48d8fb52ec07
     project_id: proj-14849f1b
@@ -182,7 +196,20 @@ oompah.terminal_audit:
       source: forge
     previous_state: In Progress
     created_at: '2026-07-31T06:25:49.441224+00:00'
-  attempt_history: []
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-3d919736a8a3
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6160b3dfb070244f9a80659b313af3703d96f06581279d3226b8167fa7dff5cd
+    created_at: '2026-07-31T06:26:15.838669+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-31T06:26:15.838669+00:00'
+    branch_key: OOMPAH-607
 ---
 ## Summary
 
@@ -421,5 +448,15 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Codex/gpt-5.6-
 - Cost: $0.0000
 - Exit: terminated, Duration: 16m 10s
 - Log: OOMPAH-607__20260731T061006Z.jsonl
+---
+author: oompah
+created: 2026-07-31 06:26
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-07-31 06:26
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
