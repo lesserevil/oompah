@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-653
 type: bug
-status: Ready to Integrate
+status: Needs CI Fix
 priority: 1
 title: Make terminal-audit success and owner override retire every duplicate record
   and alert
@@ -11,10 +11,11 @@ blocked_by:
 - OOMPAH-652
 - OOMPAH-657
 start_blocked_by: []
-labels: []
+labels:
+- ci-fix
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T11:53:55.799631Z'
+updated_at: '2026-07-31T11:57:42.367200Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -742,5 +743,59 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 12m 19s
 - Log: OOMPAH-653__20260731T114140Z.jsonl
+---
+author: oompah
+created: 2026-07-31 11:57
+---
+Branch quality gate blocked review creation.
+
+Branch: `OOMPAH-653`
+Target: `main`
+Head: `93c47346cd7317113482326ee975c7eba7b2a636`
+Command: `make test`
+Result: `failed`
+
+Required: run the command in the task worktree, fix the failure, commit and push the repair, then leave the task in Done. Oompah will rerun the gate for the new head before creating the PR/MR.
+
+Output tail:
+```text
+rchive 
+tests/test_orchestrator_handlers.py::TestMaybeRunMergedLabels::test_calls_all_sweeps 
+[gw0] [ 48%] PASSED tests/test_orchestrator_handlers.py::TestAutoArchiveThrottle::test_does_not_archive_terminal_task_with_active_work[running] 
+tests/test_orchestrator_handlers.py::TestHandleYoloReview::test_does_not_call_label_merged_issues 
+[gw3] [ 48%] PASSED tests/test_orchestrator_handlers.py::TestHandleYoloReview::test_does_not_call_stale_in_review_reconciliation 
+tests/test_orchestrator_handlers.py::TestMaybeRunMergedLabels::test_uses_configured_runtime_budget 
+[gw2] [ 48%] PASSED tests/test_orchestrator_handlers.py::TestHandleYoloReview::test_returns_float_yolo_ms 
+tests/test_orchestrator_handlers.py::TestMaybeRunMergedLabels::test_do_merged_labels_stops_after_budget 
+[gw0] [ 48%] PASSED tests/test_orchestrator_handlers.py::TestHandleYoloReview::test_does_not_call_label_merged_issues 
+tests/test_orchestrator_handlers.py::TestHandleYoloReview::test_timing_value_is_non_negative 
+[gw3] [ 48%] PASSED tests/test_orchestrator_handlers.py::TestMaybeRunMergedLabels::test_uses_configured_runtime_budget 
+tests/test_orchestrator_handlers.py::TestMaybeRunMergedLabels::test_registered_as_maintenance_job 
+[gw1] [ 48%] PASSED tests/test_orchestrator_handlers.py::TestMaybeRunMergedLabels::test_calls_all_sweeps 
+tests/test_orchestrator_handlers.py::TestMaybeRunMergedLabels::test_throttled_on_second_call 
+[gw2] [ 48%] PASSED tests/test_orchestrator_handlers.py::TestMaybeRunMergedLabels::test_do_merged_labels_stops_after_budget 
+tests/test_orchestrator_handlers.py::TestMaybeRunMergedLabels::test_failure_captured_in_job_state 
+[gw0] [ 48%] PASSED tests/test_orchestrator_handlers.py::TestHandleYoloReview::test_timing_value_is_non_negative 
+tests/test_orchestrator_handlers.py::TestMaybeRunMergedLabels::test_runs_again_after_interval 
+[gw3] [ 48%] PASSED tests/test_orchestrator_handlers.py::TestMaybeRunMergedLabels::test_registered_as_maintenance_job 
+tests/test_orchestrator_handlers.py::TestMaybeOpenDeferredDoneReviews::test_not_starved_by_merged_labels_budget 
+[gw2] [ 48%] PASSED tests/test_orchestrator_handlers.py::TestMaybeRunMergedLabels::test_failure_captured_in_job_state 
+tests/test_orchestrator_handlers.py::TestRunStep5bMaintenanceExtended::test_calls_merged_labels 
+[gw0] [ 48%] PASSED tests/test_orchestrator_handlers.py::TestMaybeRunMergedLabels::test_runs_again_after_interval 
+tests/test_orchestrator_handlers.py::TestMaybeOpenDeferredDoneReviews::test_runs_as_own_maintenance_job 
+[gw3] [ 48%] PASSED tests/test_orchestrator_handlers.py::TestMaybeOpenDeferredDoneReviews::test_not_starved_by_merged_labels_budget 
+tests/test_orchestrator_handlers.py::TestRunStep5bMaintenanceExtended::test_all_six_jobs_run_in_order 
+[gw2] [ 48%] PASSED tests/test_orchestrator_handlers.py::TestRunStep5bMaintenanceExtended::test_calls_merged_labels 
+tests/test_orchestrator_handlers.py::TestRunStep5bMaintenanceExtended::test_archive_merged_labels_and_release_picks_in_snapshot 
+[gw0] [ 48%] PASSED tests/test_orchestrator_handlers.py::TestMaybeOpenDeferredDoneReviews::test_runs_as_own_maintenance_job 
+tests/test_orchestrator_handlers.py::TestRunStep5bMaintenanceExtended::test_calls_release_pick_reconciliation 
+[gw3] [ 48%] PASSED tests/test_orchestrator_handlers.py::TestRunStep5bMaintenanceExtended::test_all_six_jobs_run_in_order 
+tests/test_orchestrator_handlers.py::TestRunStep5cEpicMaintenance::test_tick_does_not_await_epic_maintenance 
+[gw1] [ 48%] PASSED tests/test_orchestrator_handlers.py::TestMaybeRunMergedLabels::test_throttled_on_second_call 
+tests/test_orchestrator_handlers.py::TestRunStep5bMaintenanceExtended::test_calls_auto_archive 
+[gw2] [ 48%] PASSED tests/test_orchestrator_handlers.py::TestRunStep5bMaintenanceExtended::test_archive_merged_labels_and_release_picks_in_snapshot 
+tests/test_orchestrator_handlers.py::TestRunStep5cEpicMaintenance::test_tick_skips_new_epic_maintenance_when_previous_still_running 
+make[1]: *** [Makefile:295: test] Terminated
+```
 ---
 <!-- COMMENTS:END -->
