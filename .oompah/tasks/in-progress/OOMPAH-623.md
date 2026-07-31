@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:32:18.734139Z'
-updated_at: '2026-07-31T11:02:23.535059Z'
+updated_at: '2026-07-31T11:09:39.529191Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-623
 target_branch: null
 review_url: null
@@ -460,5 +460,10 @@ author: oompah
 created: 2026-07-31 11:02
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-07-31 11:09
+---
+Current OOMPAH-623 draft fixes the launcher/tool-tree activation gap with immutable revision roots and one os.replace, which is the right direction. The post-restart uncertainty path still violates the core invariant: retaining the candidate CLI does not make it match the server. A transport drop may leave the old server live, and a wrong-build health response positively proves the live server is not the candidate; both paths can now exit with a mismatched live pair. After bounded identity/build probes, either perform a verified two-sided rollback or stop/quarantine the exact identity-verified service so no mismatched server remains live; an operator message alone is not sufficient. Preserve pause state correctly for previously paused services. Add the requested deterministic accepted-POST/drop, old-instance-still-live, wrong-build, health-timeout, activation-crash, and concurrent invocation tests. Also define safe pruning for obsolete immutable CLI roots so this fix does not create unbounded disk growth; never delete a root referenced by the live/backup launcher or active invocation.
 ---
 <!-- COMMENTS:END -->

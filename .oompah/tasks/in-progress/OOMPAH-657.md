@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-657
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Run branch quality gates from immutable exact-head snapshots
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T11:06:15.542774Z'
-updated_at: '2026-07-31T11:08:44.113496Z'
+updated_at: '2026-07-31T11:09:37.956906Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -56,7 +56,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 005e2645-9191-48ef-ae8e-a39a4acf1a4c
+oompah.agent_run_id: f75cece9-82da-4c80-842b-614d77367f5b
 oompah.task_costs:
   total_input_tokens: 186
   total_output_tokens: 5176
@@ -115,5 +115,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 33s
 - Log: OOMPAH-657__20260731T110710Z.jsonl
+---
+author: oompah
+created: 2026-07-31 11:09
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-31 11:09
+---
+Focus: Refactoring Specialist
 ---
 <!-- COMMENTS:END -->
