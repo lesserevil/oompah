@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-649
 type: task
-status: Needs Human
+status: Ready to Integrate
 priority: null
 title: Preserve dirty task worktrees across worker termination and retry
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:19:33.053515Z'
-updated_at: '2026-07-31T08:34:24.452129Z'
+updated_at: '2026-07-31T08:54:19.255701Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -83,6 +83,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-649
     source_sha: d48b971c58b8622e9c63de4923db08b755b5434b
     completed_at: '2026-07-31T07:22:29.525605+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-649
+  head_sha: 0957d99556f3200361fa225ba313a7b5db53daa6
+  submitted_at: '2026-07-31T08:54:15.875304+00:00'
+  updated_at: '2026-07-31T08:54:15.875304+00:00'
 ---
 ## Summary
 
@@ -165,5 +173,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 25s
 - Log: OOMPAH-649__20260731T083405Z.jsonl
+---
+author: oompah
+created: 2026-07-31 08:54
+---
+Operator recovery complete. Preserved the terminated worker's exact dirty tree, hardened it for durable task-scoped recovery refs/commits, rebased onto origin/main, and pushed commit 0957d99556f3200361fa225ba313a7b5db53daa6 to origin/OOMPAH-649. Verification on the exact head: terminal mutation scan 6/6; focused recovery/integration/prompt/telemetry tests 195/195; exact full Makefile gate 14,254 passed, 7 skipped, 1 xfailed. The temporary local operator recovery ref was removed only after the branch push. Returning this task to normal submission/audit flow.
+---
+author: oompah
+created: 2026-07-31 08:54
+---
+Preserved dirty task worktrees durably across termination, retry, restart, and base advance; added fail-closed cleanup guards, recovery context, cross-task isolation, and comprehensive regression coverage. Exact full gate: 14,254 passed. Branch origin/OOMPAH-649 at 0957d9955.
 ---
 <!-- COMMENTS:END -->
