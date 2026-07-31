@@ -20,7 +20,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-30T21:24:41.452666Z'
-updated_at: '2026-07-31T21:29:25.199819Z'
+updated_at: '2026-07-31T21:30:44.222560Z'
 work_branch: epic-OOMPAH-619
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/626
@@ -102,7 +102,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-f29c6915ad41
       target_state: Merged
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -112,13 +112,29 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T21:29:00.814614+00:00'
       branch_key: epic-OOMPAH-619
+      ended_at: '2026-07-31T21:30:38.582642+00:00'
+      failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: attempt-88d6cfdc81a5
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 1d9f9ae25f9f29d848983bc5d59fc7e1f851798edb3062d62564d7400934cad4
+      created_at: '2026-07-31T21:30:39.865869+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-07-31T21:30:39.865869+00:00'
+      branch_key: epic-OOMPAH-619
+      candidate_rotation_count: 1
     requested_by:
       version: 1
       identity: NVShawn
       source: forge
     previous_state: In Review
     created_at: '2026-07-31T21:27:50.017008+00:00'
-    updated_at: '2026-07-31T21:29:00.814614+00:00'
+    updated_at: '2026-07-31T21:30:39.865869+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-3a4b0536b50d
@@ -136,7 +152,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-f29c6915ad41
     target_state: Merged
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -146,6 +162,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-07-31T21:29:00.814614+00:00'
     branch_key: epic-OOMPAH-619
+    ended_at: '2026-07-31T21:30:38.582642+00:00'
+    failure_reason: auditor session abandoned; no live worker owns the attempt
+  - version: 1
+    attempt_id: attempt-88d6cfdc81a5
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 1d9f9ae25f9f29d848983bc5d59fc7e1f851798edb3062d62564d7400934cad4
+    created_at: '2026-07-31T21:30:39.865869+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-07-31T21:30:39.865869+00:00'
+    branch_key: epic-OOMPAH-619
+    candidate_rotation_count: 1
 oompah.task_costs:
   total_input_tokens: 95
   total_output_tokens: 24728
@@ -287,5 +319,15 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 22s
 - Log: OOMPAH-619__20260731T212906Z.jsonl
+---
+author: oompah
+created: 2026-07-31 21:30
+---
+Auditor dispatched (attempt #2, candidate: prov-651d553c/sonnet)
+---
+author: oompah
+created: 2026-07-31 21:30
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
