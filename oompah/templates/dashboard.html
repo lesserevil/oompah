@@ -1387,6 +1387,60 @@
       color: var(--text-muted);
       font-size: 0.8rem;
     }
+    .repo-hygiene-health-panel {
+      margin: 0.6rem 1.5rem 0;
+      padding: 0.75rem 0.85rem;
+      border: 1px solid rgba(63, 185, 80, 0.45);
+      border-radius: 6px;
+      background: rgba(63, 185, 80, 0.07);
+      color: var(--text);
+      font-size: 0.8rem;
+    }
+    .repo-hygiene-health-panel.degraded {
+      border-color: rgba(248, 81, 73, 0.55);
+      background: rgba(248, 81, 73, 0.08);
+    }
+    .repo-hygiene-health-panel[hidden] { display: none; }
+    .repo-hygiene-health-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.5rem;
+    }
+    .repo-hygiene-health-icon { flex-shrink: 0; font-size: 1rem; }
+    .repo-hygiene-health-body { flex: 1; min-width: 0; }
+    .repo-hygiene-health-title { font-weight: 700; margin-bottom: 0.15rem; }
+    .repo-hygiene-health-summary { color: var(--text-muted); overflow-wrap: anywhere; }
+    .repo-hygiene-inventory {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+      gap: 0.65rem;
+      margin-top: 0.75rem;
+    }
+    .repo-hygiene-inventory-section {
+      border: 1px solid var(--border, rgba(125, 133, 144, 0.3));
+      border-radius: 4px;
+      padding: 0.45rem 0.55rem;
+      background: rgba(125, 133, 144, 0.05);
+    }
+    .repo-hygiene-inventory-section h4,
+    .repo-hygiene-artifacts h4 {
+      margin: 0 0 0.35rem;
+      font-size: 0.72rem;
+      color: var(--text);
+    }
+    .repo-hygiene-counts {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.2rem 0.6rem;
+      margin: 0;
+    }
+    .repo-hygiene-count { display: flex; justify-content: space-between; gap: 0.35rem; }
+    .repo-hygiene-count dt { color: var(--text-muted); }
+    .repo-hygiene-count dd { margin: 0; font-variant-numeric: tabular-nums; }
+    .repo-hygiene-artifacts { margin-top: 0.75rem; }
+    .repo-hygiene-artifacts[hidden] { display: none; }
+    .repo-hygiene-artifacts ul { margin: 0; padding-left: 1.15rem; color: var(--text-muted); }
+    .repo-hygiene-artifacts li { margin: 0.2rem 0; overflow-wrap: anywhere; }
     /* Auth health panel — shows operator and worker auth plane status */
     .auth-health-banner {
       display: flex;
@@ -2333,6 +2387,25 @@
       <div class="tah-detail" id="terminal-audit-health-detail"></div>
     </div>
   </div>
+  <section class="repo-hygiene-health-panel" id="repo-hygiene-health" hidden
+           role="status" aria-live="polite" aria-label="Repository hygiene health">
+    <div class="repo-hygiene-health-header">
+      <span class="repo-hygiene-health-icon" id="repo-hygiene-health-icon" aria-hidden="true">&#10003;</span>
+      <div class="repo-hygiene-health-body">
+        <div class="repo-hygiene-health-title" id="repo-hygiene-health-title">Repository hygiene health</div>
+        <div class="repo-hygiene-health-summary" id="repo-hygiene-health-summary"></div>
+        <div class="repo-hygiene-inventory" id="repo-hygiene-inventory" aria-label="Repository hygiene inventory"></div>
+        <div class="repo-hygiene-artifacts" id="repo-hygiene-overdue" hidden>
+          <h4>Overdue safely-prunable artifacts</h4>
+          <ul id="repo-hygiene-overdue-list"></ul>
+        </div>
+        <div class="repo-hygiene-artifacts" id="repo-hygiene-errors" hidden>
+          <h4>Cleanup errors</h4>
+          <ul id="repo-hygiene-error-list"></ul>
+        </div>
+      </div>
+    </div>
+  </section>
   <div class="auth-health-banner" id="auth-health-banner" hidden
        role="status" aria-live="polite" aria-label="Authentication health">
     <span class="auth-health-icon" aria-hidden="true">&#128274;</span>
@@ -2760,6 +2833,73 @@ function renderTerminalAuditHealth(health) {
   }
 }
 
+function renderRepoHygieneHealth(health) {
+  var panel = document.getElementById('repo-hygiene-health');
+  var icon = document.getElementById('repo-hygiene-health-icon');
+  var title = document.getElementById('repo-hygiene-health-title');
+  var summary = document.getElementById('repo-hygiene-health-summary');
+  var inventory = document.getElementById('repo-hygiene-inventory');
+  var overdue = document.getElementById('repo-hygiene-overdue');
+  var overdueList = document.getElementById('repo-hygiene-overdue-list');
+  var errors = document.getElementById('repo-hygiene-errors');
+  var errorList = document.getElementById('repo-hygiene-error-list');
+  if (!panel || !icon || !title || !summary || !inventory || !overdue ||
+      !overdueList || !errors || !errorList) return;
+
+  if (!health || typeof health !== 'object') {
+    panel.hidden = true;
+    inventory.innerHTML = '';
+    overdueList.innerHTML = '';
+    errorList.innerHTML = '';
+    return;
+  }
+
+  var healthy = health.is_healthy !== false;
+  panel.classList.toggle('degraded', !healthy);
+  icon.textContent = healthy ? '\u2713' : '\u26a0';
+  title.textContent = healthy ? 'Repository hygiene healthy' : 'Repository hygiene needs attention';
+  summary.textContent = health.summary ||
+    (healthy ? 'Retained work is protected; no overdue cleanup debt.' : 'Review overdue artifacts or cleanup errors.');
+
+  var categoryKeys = [
+    ['active', 'Active'],
+    ['dirty', 'Dirty'],
+    ['unmerged', 'Unmerged'],
+    ['terminal_protected', 'Terminal-protected'],
+    ['shared_owner', 'Shared-owner'],
+    ['safely_prunable', 'Safely-prunable']
+  ];
+  function inventorySection(label, values) {
+    values = values || {};
+    return '<section class="repo-hygiene-inventory-section" aria-label="' + esc(label) + '">' +
+      '<h4>' + esc(label) + '</h4><dl class="repo-hygiene-counts">' +
+      categoryKeys.map(function(pair) {
+        return '<div class="repo-hygiene-count"><dt>' + esc(pair[1]) +
+          '</dt><dd>' + esc(String(values[pair[0]] || 0)) + '</dd></div>';
+      }).join('') + '</dl></section>';
+  }
+  inventory.innerHTML = inventorySection('Registered worktrees', health.worktrees) +
+    inventorySection('Local branches', health.branches_local) +
+    inventorySection('Remote branches', health.branches_remote);
+
+  var overdueItems = Array.isArray(health.overdue_artifacts) ? health.overdue_artifacts : [];
+  overdueList.innerHTML = overdueItems.map(function(artifact) {
+    var owner = [artifact.project_id, artifact.task_id].filter(Boolean).join(' / ');
+    var age = artifact.age_seconds == null ? '' :
+      ' (' + String(Math.round(Number(artifact.age_seconds) / 86400)) + ' days old)';
+    return '<li><code>' + esc(String(artifact.identifier || 'unknown artifact')) +
+      '</code>' + esc(age) + (owner ? ' — ' + esc(owner) : '') + '</li>';
+  }).join('');
+  overdue.hidden = overdueItems.length === 0;
+
+  var cleanupErrors = Array.isArray(health.cleanup_errors) ? health.cleanup_errors : [];
+  errorList.innerHTML = cleanupErrors.map(function(error) {
+    return '<li>' + esc(String(error)) + '</li>';
+  }).join('');
+  errors.hidden = cleanupErrors.length === 0;
+  panel.hidden = false;
+}
+
 /**
  * Render the auth-health banner from the `auth_health` field in the state
  * snapshot.  The banner shows two plane badges (operator / worker) and, when
@@ -2903,6 +3043,10 @@ function handleStateUpdate(state) {
     (state.health && state.health.terminal_audit) ||
     null
   );
+
+  var metrics = state.orchestrator_metrics || {};
+  var maintenance = metrics.maintenance || state.maintenance || {};
+  renderRepoHygieneHealth(maintenance.repo_hygiene_health || null);
 
   // Render credential-error banner above the board.
   const credBanner = document.getElementById('cred-error-banner');

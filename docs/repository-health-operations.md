@@ -40,6 +40,10 @@ A repository is considered **healthy** when:
 - Zero recent cleanup operation errors have accumulated
 - All retained artifacts (active, dirty, unmerged, protected) have clear operational justification
 
+Count thresholds are trend indicators only. They appear in the health summary
+so operators can plan capacity, but do not turn a healthy repository red while
+the safely-prunable artifacts remain within their age threshold.
+
 ## Configuration
 
 Repository hygiene thresholds are configured via `.env` variables. The defaults are conservative to avoid aggressive cleanup:
@@ -62,9 +66,9 @@ OOMPAH_REPO_HYGIENE_CLEANUP_ERROR_THRESHOLD=3
 
 - **Age Threshold**: Safely-prunable artifacts (completed work) older than this are flagged for cleanup. Increase this if temporary analysis worktrees should survive longer; decrease it for aggressive cleanup.
 
-- **Warning Threshold**: When total safely-prunable artifacts reach this count, an informational warning is raised so operators can plan cleanup batches. This does not block operations.
+- **Warning Threshold**: When total safely-prunable artifacts reach this count, the dashboard adds an informational trend note so operators can plan cleanup batches. It does not raise an alert or block operations while artifacts remain within the age threshold.
 
-- **Critical Threshold**: When total safely-prunable artifacts reach this count, a critical alert is raised indicating immediate cleanup may be needed to prevent resource exhaustion.
+- **Critical Threshold**: When total safely-prunable artifacts reach this count, the dashboard adds a critical trend note. A health alert still requires an overdue safely-prunable artifact or cleanup error.
 
 - **Error Threshold**: Tracks cleanup operation failures. If N consecutive cleanup runs fail, an alert is raised to indicate a systemic issue (disk full, permission problem, etc.).
 
@@ -131,18 +135,18 @@ Health status is exposed via the `/api/v1/snapshot` endpoint under `orchestrator
 ### Regular Monitoring
 
 1. **Check Dashboard Daily** — Review the health summary in the orchestrator metrics panel
-2. **Monitor Alerts** — Subscribe to oompah alerts when health crosses warning/critical thresholds
+2. **Monitor Alerts** — Subscribe to oompah alerts for overdue artifacts and cleanup errors
 3. **Review Overdue Artifacts** — Check the list of safely-prunable artifacts that have aged beyond the threshold
 
 ### Responding to Warnings
 
-**Warning Alert (safely-prunable count ≥ warning threshold):**
-- Safe to ignore for short periods (artifacts are not corrupted)
+**Warning Trend (safely-prunable count ≥ warning threshold):**
+- Safe to ignore for short periods when artifacts are not overdue
 - Plan a cleanup batch when convenient
 - Consider increasing the warning threshold if the rate of worktree creation outpaces cleanup
 
-**Critical Alert (safely-prunable count ≥ critical threshold):**
-- Cleanup should be performed promptly to avoid resource exhaustion
+**Critical Trend (safely-prunable count ≥ critical threshold):**
+- Plan cleanup promptly to avoid resource exhaustion, even though health remains green until artifacts are overdue
 - Check disk usage: `df -h` on the workspace root
 - Review system logs for cleanup failures: `journalctl -u oompah`
 
@@ -223,17 +227,17 @@ git fsck --full
 git gc --aggressive
 ```
 
-### False Positives (Healthy But Warning)
+### False Positives (Healthy But Trend Note)
 
-**Symptom:** Repository appears healthy (overdue_artifacts empty) but alerts are red.
+**Symptom:** Repository appears healthy (overdue_artifacts empty) but a trend note is shown.
 
 **Causes:**
 - Safely-prunable count above threshold but all artifacts are recent
-- Cleanup error threshold hit but subsequent cleanup succeeded
+- A cleanup error was followed by a successful cleanup run
 
 **Resolution:**
 - Increase warning/critical thresholds if the artifact generation rate is expected
-- Manually clear old cleanup errors by restarting the orchestrator or triggering a successful cleanup run
+- Trigger a successful cleanup run; the next health evaluation clears the error
 
 ## Best Practices
 

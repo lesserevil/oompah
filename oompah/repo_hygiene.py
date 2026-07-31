@@ -146,6 +146,11 @@ class RepoHygieneHealth:
     # Summary for alerts
     summary: str = ""
 
+    # Effective thresholds used for this evaluation.  Keeping these beside
+    # the derived counts makes the API payload self-describing for operators
+    # and lets a dashboard explain why an artifact is overdue.
+    thresholds: dict[str, int] = field(default_factory=dict)
+
     def to_dict(self) -> dict[str, Any]:
         """Return as dictionary, suitable for JSON serialization."""
         return {
@@ -157,6 +162,7 @@ class RepoHygieneHealth:
             "is_healthy": self.is_healthy,
             "last_evaluated_at": self.last_evaluated_at,
             "summary": self.summary,
+            "thresholds": dict(self.thresholds),
         }
 
 
@@ -205,22 +211,26 @@ class HealthThresholds:
             )
             issues.append(issue)
 
-        # Check safely-prunable counts
+        # Counts are trend signals, not health failures.  Operators asked for
+        # alerts only when cleanup debt is overdue (or cleanup itself errors),
+        # so retain the configured warning/critical thresholds as context in
+        # the summary without turning recent, safely-retained artifacts red.
         total_safely_prunable = (
-            health.worktrees.safely_prunable + health.branches_local.safely_prunable
+            health.worktrees.safely_prunable
+            + health.branches_local.safely_prunable
+            + health.branches_remote.safely_prunable
         )
+        count_note = ""
         if total_safely_prunable >= self.safely_prunable_count_critical:
-            issue = (
+            count_note = (
                 f"{total_safely_prunable} safely-prunable artifacts "
                 f"exceeds critical threshold ({self.safely_prunable_count_critical})"
             )
-            issues.append(issue)
         elif total_safely_prunable >= self.safely_prunable_count_warning:
-            issue = (
+            count_note = (
                 f"{total_safely_prunable} safely-prunable artifacts "
                 f"exceeds warning threshold ({self.safely_prunable_count_warning})"
             )
-            issues.append(issue)
 
         # Check for cleanup errors
         if health.cleanup_errors:
@@ -254,5 +264,8 @@ class HealthThresholds:
             )
         else:
             summary = "Repository hygiene healthy"
+
+        if count_note:
+            summary += f" ({count_note}; no artifact is overdue)"
 
         return True, summary
