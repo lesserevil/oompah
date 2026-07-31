@@ -45,6 +45,7 @@ from oompah.client_auth import (
     ClientCredentials,
     CredentialError,
     format_auth_error,
+    load_client_environment,
     resolve_client_credentials,
     sanitize_server_url,
 )
@@ -1296,6 +1297,12 @@ def main(argv: list[str] | None = None) -> None:
     """Entry point for the ``oompah task`` subcommand surface."""
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    # Operator invocations should use the current client settings from .env
+    # after an htpasswd rotation.  A spawned worker must not reload them: it
+    # receives only a scoped handoff capability, never reusable Basic auth.
+    if not _task_handoff_token():
+        load_client_environment()
 
     # A spawned worker may only use the four task-handoff operations routed
     # above.  Reject broader commands before any request is made; in

@@ -196,18 +196,33 @@ plaintext password is never stored in the server htpasswd file.
 
 ## Password Rotation
 
-When you change passwords or add/remove users:
-
-1. **Edit the htpasswd file** (for example, `htpasswd -B .htpasswd operator`)
-2. **Restart Oompah** to load the new credentials:
+Oompah reloads a changed htpasswd file during the next authenticated request;
+a normal credential rotation does **not** require a restart or an
+unauthenticated force restart. Create a complete replacement using your secret
+manager or a protected staging file, then atomically rename it over the
+configured regular file. Do not edit the live file in place.
 
 ```bash
-make restart
+# The staging file must be complete, mode 600, and on the same filesystem.
+# Populate it with your secret-management procedure, not a shell transcript.
+chmod 600 .htpasswd.next
+mv -f .htpasswd.next .htpasswd
+
+# First-party clients reread their client inputs from .env on each invocation.
+make status
 ```
 
-(The normal `make restart` drains active agents before reloading credentials.)
+The replacement is read through a non-symlink file descriptor and parsed in
+full before it becomes active. If it is missing, malformed, partial, a
+symlink, or races the read, Oompah keeps the last known-good credentials and
+continues requiring authentication. The protected `/api/v1/state` response
+contains a redacted `http_auth.reload` status with `state`, `generation`, and
+`retaining_last_known_good`; it never includes a path, usernames, hashes,
+passwords, or parse details.
 
-**Important:** Credential changes require a restart. Oompah does not reload the htpasswd file on a signal or API call — you must restart the server process.
+Restart only when changing whether authentication is configured at all (for
+example, disabling auth or changing `OOMPAH_HTPASSWD_FILE`). A normal
+`make restart` still drains active agents before restarting.
 
 ---
 
@@ -325,7 +340,7 @@ Authentication is **disabled**. All routes are accessible without credentials.
 
 **Server stores hashes:**
 - `OOMPAH_HTPASSWD_FILE` — Apache htpasswd file with password hashes (`bcrypt` or `APR1`)
-- Server validates credentials at startup and requires restart for changes
+- Server validates credentials at startup and safely reloads complete atomic replacements
 
 **Clients need plaintext passwords:**
 - `OOMPAH_SERVER_USERNAME` — client username (matches a name in htpasswd)
@@ -376,11 +391,17 @@ The CLI precedence is: `--username` over `OOMPAH_SERVER_USERNAME`, and
 `--password-file` over both environment password forms. Without the CLI file
 override, set exactly one of `OOMPAH_SERVER_PASSWORD_FILE` or
 `OOMPAH_SERVER_PASSWORD`; both is an error. There is deliberately no
-plaintext `--password` option.
+plaintext `--password` option. The first-party task and admin CLIs reread
+these client inputs from the current `.env` on each operator invocation, so
+update the client password-file reference before making the first request with
+a rotated password. Spawned workers do not receive or reload Basic credentials;
+they use only their scoped task-handoff capability.
 
 ### Makefile lifecycle commands
 
-Commands like `make status`, `make restart`, and `make graceful` automatically use client credentials from the environment:
+Commands like `make status`, `make restart`, and `make graceful` automatically
+refresh client credentials from the current `.env` and use them for protected
+lifecycle requests:
 
 ```bash
 export OOMPAH_SERVER_USERNAME=operator
@@ -745,6 +766,46 @@ secret-store's procedure; do not edit a live secret in a shell transcript.
 
 ---
 
+## Auth Health Dashboard Signals
+
+The Oompah dashboard exposes separate health indicators for the two
+authentication planes.  These appear as compact badges under a collapsible
+"Authentication health" banner whenever a plane is degraded.
+
+### Operator auth plane (HTTP Basic)
+
+| Badge | Meaning |
+|-------|---------|
+| **Operator auth: ✓** (green) | No recent 401 failures. Credentials are accepted. |
+| **Operator auth: ⚠ N** (amber) | N failed Basic-auth requests in the last 15 min. |
+
+**Recovery:** Update `.htpasswd` (regenerate with `htpasswd -B`) and run
+`make restart` to reload credentials.  The badge clears automatically once the
+15-minute window passes without new failures.
+
+### Worker token plane (task-handoff capability)
+
+| Badge | Meaning |
+|-------|---------|
+| **Worker token: —** (grey) | No token has been minted yet. No workers dispatched. |
+| **Worker token: ✓** (green) | Token minted and accepted; no recent failures. |
+| **Worker token: ⚠ N** (amber) | N missing-token or cross-scope failures in the last 15 min. |
+
+**Missing-token failures (401):** The worker did not receive or forward
+`OOMPAH_TASK_HANDOFF_TOKEN`.  Check that `agent_environment()` is applied to
+every spawned subprocess environment.
+
+**Cross-scope failures (403 scope):** The worker presented a token scoped to a
+different project or task identifier.  Verify `OOMPAH_TASK_HANDOFF_PROJECT_ID`
+matches the project of the dispatched task.
+
+**Intentional action denials (403 action):** The worker requested an action
+not included in the capability grant (e.g., a tracker operation not in the
+allowed-actions set).  These are expected least-privilege denials and are
+**never** surfaced as auth-health warnings.
+
+---
+
 ## Configuration Reference
 
 ### Environment variables
@@ -831,4 +892,7 @@ Use password files or secrets management (Kubernetes Secrets, Docker Secrets, Ha
 - `docs/operator-runbook.md` § Configuration — `.env` file reference
 - `docs/cli-install.md` § Basic authentication — CLI credential setup
 - `docs/project-bootstrap.md` — Project-specific authentication configuration
+- `docs/scoped-task-cli-authentication.md` — How service-launched agents
+  authenticate with a scoped, short-lived task capability instead of the
+  operator's Basic credentials
 - `.env.example` — Complete configuration template

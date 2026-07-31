@@ -36,6 +36,7 @@ import urllib.request
 from oompah.client_auth import (
     CredentialError,
     format_auth_error,
+    load_client_environment,
     resolve_client_credentials,
     sanitize_server_url,
 )
@@ -135,6 +136,12 @@ def main() -> None:
     method = sys.argv[1].upper()
     path = sys.argv[2]
     body_json = sys.argv[3] if len(sys.argv) > 3 else None
+
+    # Makefile lifecycle calls run from the project root.  Reload just the
+    # client auth inputs so a completed htpasswd/password-file rotation is
+    # used on the next status or restart request.  The helper intentionally
+    # does not replace OOMPAH_SERVER_URL: Makefile supplies its local endpoint.
+    load_client_environment(include_server_url=False)
 
     _make_request(method, path, body_json)
 

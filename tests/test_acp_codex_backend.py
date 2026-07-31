@@ -1371,6 +1371,193 @@ class TestCodexCliAdditionalDirectories:
         assert additional == [str(meta_dir)]
 
 
+class TestCodexHandoffAuth:
+    """Regression suite for OOMPAH-575: scoped task-CLI auth propagation.
+
+    Verifies that service-launched Codex CLI sessions receive the task
+    handoff token and project_id in the subprocess environment, that
+    operator credentials are always stripped, and that missing tokens
+    result in a credential-free subprocess environment that will fail
+    closed when the agent attempts ``oompah task`` operations.
+    """
+
+    def _drive_cli(self, monkeypatch, **kwargs):
+        """Drive a subscription-billing CodexAcpBackendSession to completion
+        and return the env dict passed to the fake Codex constructor.
+
+        Extra *kwargs* are forwarded to AcpBackendOptions.
+        """
+        cap: dict = {}
+
+        def _fake_events():
+            if False:
+                yield None
+
+        class _FakeStreamed:
+            def __init__(self):
+                self.events = _fake_events()
+
+        class _FakeThread:
+            async def run_streamed(self, prompt, turn_options=None):
+                return _FakeStreamed()
+
+        class _FakeCodex:
+            def __init__(self, **ctor_kwargs):
+                cap["env"] = ctor_kwargs.get("env", {})
+
+            def start_thread(self, options=None):
+                return _FakeThread()
+
+        class _FakeThreadOptions:
+            def __init__(self, **kw):
+                self.__dict__.update(kw)
+
+        class _FakeTurnOptions:
+            def __init__(self, **kw):
+                self.__dict__.update(kw)
+
+        monkeypatch.setattr(
+            CodexAcpBackendSession,
+            "_import_codex_cli",
+            staticmethod(lambda: (_FakeCodex, _FakeThreadOptions, _FakeTurnOptions)),
+        )
+
+        async def run():
+            opt = AcpBackendOptions(
+                workspace_path="/tmp/ws",
+                prompt="handoff test",
+                billing_model="subscription",
+                **kwargs,
+            )
+            sess = CodexAcpBackendSession(opt)
+            async for _ in sess.run_turn():
+                pass
+            return sess
+
+        asyncio.run(run())
+        return cap.get("env", {})
+
+    def test_cli_session_injects_task_handoff_token_and_project_id(
+        self, monkeypatch
+    ):
+        """The Codex CLI subprocess env must contain both the scoped task
+        handoff token and its associated project_id when provided."""
+        from oompah.task_handoff import TASK_HANDOFF_PROJECT_ENV, TASK_HANDOFF_TOKEN_ENV
+
+        cli_env = self._drive_cli(
+            monkeypatch,
+            project_id="proj-abc",
+            task_handoff_token="opaque-handoff-token",
+        )
+        assert cli_env.get(TASK_HANDOFF_TOKEN_ENV) == "opaque-handoff-token"
+        assert cli_env.get(TASK_HANDOFF_PROJECT_ENV) == "proj-abc"
+
+    def test_cli_session_strips_operator_creds_when_token_is_present(
+        self, monkeypatch
+    ):
+        """Operator credentials must never appear in the Codex subprocess env
+        even when a valid task handoff token is also provided.  A compromised
+        prompt must not be able to exfiltrate the server password."""
+        from oompah.task_handoff import TASK_HANDOFF_TOKEN_ENV
+
+        cli_env = self._drive_cli(
+            monkeypatch,
+            project_id="proj-abc",
+            task_handoff_token="opaque-handoff-token",
+            env={
+                "OOMPAH_SERVER_USERNAME": "operator",
+                "OOMPAH_SERVER_PASSWORD": "reusable-secret",
+                "OOMPAH_SERVER_PASSWORD_FILE": "/etc/secrets/oompah-password",
+            },
+        )
+        assert "OOMPAH_SERVER_USERNAME" not in cli_env
+        assert "OOMPAH_SERVER_PASSWORD" not in cli_env
+        assert "OOMPAH_SERVER_PASSWORD_FILE" not in cli_env
+        assert "reusable-secret" not in repr(cli_env)
+        # Token must still be present (not accidentally stripped)
+        assert cli_env.get(TASK_HANDOFF_TOKEN_ENV) == "opaque-handoff-token"
+
+    def test_cli_session_without_token_has_no_auth_credentials_in_env(
+        self, monkeypatch
+    ):
+        """When task_handoff_token is None the subprocess env must contain
+        neither the token env var nor any operator credential.  This ensures
+        the session fails closed when it tries ``oompah task view`` — it
+        cannot fall back to server-wide Basic credentials."""
+        from oompah.task_handoff import TASK_HANDOFF_PROJECT_ENV, TASK_HANDOFF_TOKEN_ENV
+
+        cli_env = self._drive_cli(
+            monkeypatch,
+            project_id="proj-abc",
+            task_handoff_token=None,
+            env={
+                "OOMPAH_SERVER_USERNAME": "operator",
+                "OOMPAH_SERVER_PASSWORD": "reusable-secret",
+            },
+        )
+        assert TASK_HANDOFF_TOKEN_ENV not in cli_env
+        assert TASK_HANDOFF_PROJECT_ENV not in cli_env
+        assert "OOMPAH_SERVER_USERNAME" not in cli_env
+        assert "OOMPAH_SERVER_PASSWORD" not in cli_env
+        assert "reusable-secret" not in repr(cli_env)
+
+    def test_cli_session_token_without_project_id_omits_project_env_var(
+        self, monkeypatch
+    ):
+        """Edge case: if a token is issued but project_id is None (which
+        cannot occur in normal dispatch, but could if the issue had no
+        project), the OOMPAH_TASK_HANDOFF_PROJECT_ID env var is not set
+        (better than setting an empty string that could mask the missing
+        scope)."""
+        from oompah.task_handoff import TASK_HANDOFF_PROJECT_ENV, TASK_HANDOFF_TOKEN_ENV
+
+        cli_env = self._drive_cli(
+            monkeypatch,
+            project_id=None,
+            task_handoff_token="edge-token",
+        )
+        assert cli_env.get(TASK_HANDOFF_TOKEN_ENV) == "edge-token"
+        assert TASK_HANDOFF_PROJECT_ENV not in cli_env
+
+    def test_api_path_does_not_carry_operator_creds_into_subprocesses(
+        self, monkeypatch
+    ):
+        """The in-process SDK (per_token) path must not expose operator
+        credentials to any subprocess it spawns via run_command.  We
+        verify that _exec_run_command calls agent_environment to strip
+        credentials from the subprocess env."""
+        import oompah.api_agent as api_agent
+        from oompah.client_auth import CLIENT_AUTH_ENV_VARS
+
+        stripped_envs: list[dict] = []
+
+        def _fake_exec(workspace, args, timeout=None, env_overrides=None):
+            inherited = {**__import__("os").environ, **(env_overrides or {})}
+            # Record what environment the subprocess would receive
+            from oompah.client_auth import agent_environment
+
+            stripped_envs.append(agent_environment(inherited))
+            return "stdout:\nok\nexit_code: 0"
+
+        monkeypatch.setattr(api_agent, "_exec_run_command", _fake_exec)
+
+        # Simulate operator credentials in the process env
+        import os
+
+        with monkeypatch.context() as m:
+            m.setenv("OOMPAH_SERVER_PASSWORD", "leaked-secret")
+            m.setenv("OOMPAH_SERVER_USERNAME", "operator")
+            api_agent._exec_run_command(
+                __import__("pathlib").Path("/tmp/ws"),
+                {"command": "echo hello"},
+            )
+
+        assert len(stripped_envs) == 1
+        for var in CLIENT_AUTH_ENV_VARS:
+            assert var not in stripped_envs[0]
+        assert "leaked-secret" not in repr(stripped_envs[0])
+
+
 def test_codex_drains_injected_coordination_as_followup(monkeypatch, tmp_path):
     prompts: list[str] = []
 

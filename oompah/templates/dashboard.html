@@ -1236,6 +1236,77 @@
       color: var(--text-muted);
       font-size: 0.8rem;
     }
+    /* Auth health panel — shows operator and worker auth plane status */
+    .auth-health-banner {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      padding: 0.5rem 1.5rem;
+      background: rgba(210, 153, 34, 0.10);
+      border-bottom: 1px solid rgba(210, 153, 34, 0.35);
+      flex-shrink: 0;
+    }
+    .auth-health-banner[hidden] { display: none; }
+    .auth-health-banner .auth-health-icon {
+      font-size: 0.95rem;
+      color: var(--yellow);
+      flex-shrink: 0;
+      line-height: 1.5;
+    }
+    .auth-health-banner .auth-health-body {
+      flex: 1;
+      min-width: 0;
+    }
+    .auth-health-banner .auth-health-title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--yellow);
+      margin-bottom: 0.3rem;
+    }
+    .auth-health-planes {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 0.3rem;
+    }
+    .auth-health-plane {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      font-size: 0.72rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+    .auth-health-plane.ok {
+      background: rgba(63, 185, 80, 0.12);
+      border: 1px solid rgba(63, 185, 80, 0.35);
+      color: var(--green);
+    }
+    .auth-health-plane.degraded {
+      background: rgba(210, 153, 34, 0.15);
+      border: 1px solid rgba(210, 153, 34, 0.4);
+      color: var(--yellow);
+    }
+    .auth-health-plane.never-minted {
+      background: rgba(125, 133, 144, 0.12);
+      border: 1px solid rgba(125, 133, 144, 0.3);
+      color: var(--text-muted);
+    }
+    .auth-health-details {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: 0.25rem;
+      font-size: 0.7rem;
+      color: var(--text);
+    }
+    .auth-health-details .ah-message { font-weight: 600; }
+    .auth-health-details .ah-action {
+      color: var(--text-muted);
+      overflow-wrap: anywhere;
+    }
     .board-error {
       margin: 0.6rem 1.5rem 0;
       padding: 0.65rem 0.8rem;
@@ -2108,6 +2179,15 @@
       <div class="tah-detail" id="terminal-audit-health-detail"></div>
     </div>
   </div>
+  <div class="auth-health-banner" id="auth-health-banner" hidden
+       role="status" aria-live="polite" aria-label="Authentication health">
+    <span class="auth-health-icon" aria-hidden="true">&#128274;</span>
+    <div class="auth-health-body">
+      <div class="auth-health-title">Authentication health</div>
+      <div class="auth-health-planes" id="auth-health-planes" aria-label="Auth plane status"></div>
+      <ul class="auth-health-details" id="auth-health-details" aria-label="Auth health details"></ul>
+    </div>
+  </div>
   <div class="task-state-stale-banner" id="task-state-stale-banner" hidden
        role="alert" aria-live="polite" aria-label="Task state data may be stale">
     <span class="stale-icon" aria-hidden="true">&#9888;</span>
@@ -2527,6 +2607,99 @@ function renderTerminalAuditHealth(health) {
   }
 }
 
+/**
+ * Render the auth-health banner from the `auth_health` field in the state
+ * snapshot.  The banner shows two plane badges (operator / worker) and, when
+ * any plane is degraded, expands to show the message and recovery action.
+ * When both planes are ok (or the field is absent), the banner stays hidden.
+ *
+ * Security: only non-sensitive count/status fields from auth_health are
+ * rendered.  Token values, credentials, and Authorization headers are
+ * never present in the snapshot payload.
+ */
+function renderAuthHealthBanner(authHealth) {
+  var banner = document.getElementById('auth-health-banner');
+  var planesEl = document.getElementById('auth-health-planes');
+  var detailsEl = document.getElementById('auth-health-details');
+  if (!banner || !planesEl || !detailsEl) return;
+
+  if (!authHealth) {
+    banner.hidden = true;
+    planesEl.innerHTML = '';
+    detailsEl.innerHTML = '';
+    return;
+  }
+
+  var op = authHealth.operator || {};
+  var wk = authHealth.worker || {};
+  var opStatus = op.status || 'ok';
+  var wkStatus = wk.status || 'ok';
+
+  // Only show the banner when at least one plane is not healthy.
+  if (opStatus === 'ok' && (wkStatus === 'ok' || wkStatus === 'never_minted')) {
+    banner.hidden = true;
+    planesEl.innerHTML = '';
+    detailsEl.innerHTML = '';
+    return;
+  }
+
+  // Build plane badge HTML.
+  function planeBadge(label, status, countHint) {
+    var cls = status === 'ok' ? 'ok' : status === 'never_minted' ? 'never-minted' : 'degraded';
+    var icon = status === 'ok' ? '&#10003;' : status === 'never_minted' ? '&#8212;' : '&#9888;';
+    var hint = (countHint && countHint > 0) ? ' (' + countHint + ')' : '';
+    return '<span class="auth-health-plane ' + cls + '" aria-label="' +
+      esc(label) + ': ' + esc(status) + '">' +
+      icon + ' ' + esc(label) + esc(hint) + '</span>';
+  }
+
+  var opCount = (op.recent_401_count || 0);
+  var wkFailCount = (wk.recent_401_count || 0) + (wk.recent_403_scope_count || 0);
+
+  planesEl.innerHTML =
+    planeBadge('Operator auth', opStatus, opCount) +
+    planeBadge('Worker token', wkStatus, wkFailCount > 0 ? wkFailCount : 0);
+
+  // Build detail items for degraded planes.
+  var items = [];
+  if (opStatus === 'degraded') {
+    var opCount401 = op.recent_401_count || 0;
+    var winMin = Math.round((op.window_seconds || 900) / 60);
+    items.push(
+      '<li>' +
+      '<div class="ah-message">' + esc('Operator HTTP Basic: ' + opCount401 +
+        ' failed request' + (opCount401 !== 1 ? 's' : '') +
+        ' in the last ' + winMin + ' min — credentials may be stale.') + '</div>' +
+      '<div class="ah-action">Update your .htpasswd file and run <code>make restart</code> to reload credentials.</div>' +
+      '</li>'
+    );
+  }
+  if (wkStatus === 'degraded') {
+    var wk401 = wk.recent_401_count || 0;
+    var wk403s = wk.recent_403_scope_count || 0;
+    var winMinWk = Math.round((wk.window_seconds || 900) / 60);
+    var parts = [];
+    if (wk401 > 0) parts.push(wk401 + ' token-missing/expired');
+    if (wk403s > 0) parts.push(wk403s + ' cross-scope');
+    var notAccepted = wk.token_ever_minted && !wk.token_ever_accepted
+      ? ' Token was minted but never accepted — worker may not be forwarding the capability header.' : '';
+    items.push(
+      '<li>' +
+      '<div class="ah-message">' + esc('Worker task-handoff: ' +
+        parts.join('; ') + ' failure' + (wk401 + wk403s !== 1 ? 's' : '') +
+        ' in the last ' + winMinWk + ' min.' + notAccepted) + '</div>' +
+      '<div class="ah-action">Verify <code>OOMPAH_TASK_HANDOFF_TOKEN</code> and ' +
+      '<code>OOMPAH_TASK_HANDOFF_PROJECT_ID</code> are forwarded to every spawned worker. ' +
+      'See <a href="#" onclick="return false;" title="docs/scoped-task-cli-authentication.md">' +
+      'scoped-task-cli-authentication.md</a> for the live probe procedure.</div>' +
+      '</li>'
+    );
+  }
+
+  detailsEl.innerHTML = items.join('');
+  banner.hidden = false;
+}
+
 function handleStateUpdate(state) {
   // Update pause state
   orchPaused = state.paused || false;
@@ -2542,12 +2715,16 @@ function handleStateUpdate(state) {
   // Render alerts inline in agent bar.
   const warningsEl = document.getElementById('agent-warnings');
   const alerts = state.alerts || [];
-  // Separate credential-error alerts (shown in dedicated banner) from others.
+  // Separate credential-error alerts (shown in dedicated banner) and
+  // auth-health alerts (shown in auth-health banner) from generic alerts.
   const credAlerts = alerts.filter(function(a) {
     return a.source && a.source.indexOf('cred_error:') === 0;
   });
   const otherAlerts = alerts.filter(function(a) {
-    return !a.source || a.source.indexOf('cred_error:') !== 0;
+    if (!a.source) return true;
+    if (a.source.indexOf('cred_error:') === 0) return false;
+    if (a.source.indexOf('auth_health:') === 0) return false;
+    return true;
   });
   if (otherAlerts.length > 0) {
     warningsEl.innerHTML = otherAlerts.map(function(a) {
@@ -2586,6 +2763,9 @@ function handleStateUpdate(state) {
     credBanner.hidden = true;
     credList.innerHTML = '';
   }
+
+  // Render auth-health banner (operator + worker planes).
+  renderAuthHealthBanner(state.auth_health || null);
 
   // Update agent stats
   const totals = state.agent_totals || {};
