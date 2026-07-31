@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-655
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Enforce full-gate service isolation outside candidate branch code
 parent: null
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T13:38:25.969460Z'
+updated_at: '2026-07-31T13:38:57.331419Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -57,7 +57,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 1
   retry_after: null
-oompah.agent_run_id: 13e83c2e-d718-45cc-84dc-344de317111d
+oompah.agent_run_id: 5f524e17-3b32-4578-b7d6-b2fd16dcb585
 oompah.task_costs:
   total_input_tokens: 7045048
   total_output_tokens: 48811
@@ -588,5 +588,15 @@ author: oompah
 created: 2026-07-31 12:19
 ---
 Temporary containment update: parked in Backlog rather than Open to prevent duplicate-preflight redispatch before OOMPAH-657. Pushed 9e4f9573c remains preserved; return to Open after 657 deploys for exact-snapshot rebase/refactor.
+---
+author: oompah
+created: 2026-07-31 13:38
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-31 13:38
+---
+Focus: Event Api Redaction Specialist
 ---
 <!-- COMMENTS:END -->

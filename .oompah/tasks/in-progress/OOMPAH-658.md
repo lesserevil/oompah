@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-658
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: Deduplicate duplicate-preflight runs across deferred dispatch ticks
 parent: null
@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-07-31T13:38:23.582540Z'
+updated_at: '2026-07-31T13:38:51.184827Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,7 +40,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: d04a41a5-30f7-4b46-a24b-06a6d02db04f
+oompah.agent_run_id: 8faade4e-a799-4a63-866b-4617d74ec8c7
 oompah.task_costs:
   total_input_tokens: 928429
   total_output_tokens: 17298
@@ -729,5 +729,15 @@ author: oompah
 created: 2026-07-31 12:19
 ---
 Temporary containment update: parked in Backlog to stop the deployed standalone-gate/watchdog and duplicate-preflight loops while OOMPAH-657 is unfinished. Pushed 1b49ab0f4 and its ready integration metadata remain preserved. Return to Open after 657 deploys, remove the temporary hard-start, rebase, and submit once.
+---
+author: oompah
+created: 2026-07-31 13:38
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-31 13:38
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
