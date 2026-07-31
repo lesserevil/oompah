@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-668
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Use the trusted test virtualenv without reinstalling inside quality-gate sandbox
 parent: null
@@ -11,12 +11,27 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T21:35:20.853943Z'
-updated_at: '2026-07-31T21:35:32.308503Z'
+updated_at: '2026-07-31T21:36:32.865803Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 8e4e3574b1f58ffe3b7c489be06bd9da31962659f65aef9ed6a6ca88664ecc25
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: f3d331f2-52a9-4fc3-b11f-8c0e6a4e1ce6
+  claim_owner: 25dc1d1d-9292-4ddb-9dce-007ca37e5395
+  claimed_at: '2026-07-31T21:36:26.684052+00:00'
+  claim_expires_at: '2026-07-31T22:06:26.684052+00:00'
+  retry_count: 0
+  retry_after: null
+oompah.agent_run_id: 4964095e-a27e-4656-9333-a6d3745467c2
 ---
 ## Summary
 
@@ -36,5 +51,15 @@ author: oompah
 created: 2026-07-31 21:35
 ---
 Claimed directly for operator recovery because OOMPAH-664 is otherwise deadlocked in Ready delivery. Reproduction is the production gate on head 9b0696866: make test enters .venv/.uv-setup and fails before pytest because uv is deliberately absent from the sandbox. I will separate gate-mode trusted-runtime validation from normal dependency installation, add regression coverage, run focused and full gates, and deploy before requeueing OOMPAH-664.
+---
+author: oompah
+created: 2026-07-31 21:36
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-07-31 21:36
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
