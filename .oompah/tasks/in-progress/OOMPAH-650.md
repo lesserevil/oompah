@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T12:17:46.802479Z'
+updated_at: '2026-07-31T12:26:26.660912Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -1041,5 +1041,10 @@ author: oompah
 created: 2026-07-31 12:17
 ---
 Stopped a premature full make test at 12:18 UTC (exact PGID 3333059). The branch is still dirty and its operation-admission/lease changes have not passed code review; use focused task-handoff/auth tests only until the exact pushed head is accepted.
+---
+author: oompah
+created: 2026-07-31 12:26
+---
+Operator stopped the repository-wide make test launched at 12:23 UTC because the branch is still dirty and under code review. This is not a CI failure. Keep to focused task-handoff tests until the exact clean pushed head is accepted; the server-owned complete gate should then run once.
 ---
 <!-- COMMENTS:END -->
