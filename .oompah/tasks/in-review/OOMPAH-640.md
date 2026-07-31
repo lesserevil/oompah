@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-640
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Complete combined stall-to-dispatch recovery regression coverage
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T05:59:47.260716Z'
-updated_at: '2026-07-31T06:35:48.955678Z'
+updated_at: '2026-07-31T06:45:22.621506Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -404,5 +404,10 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Claude
 - Cost: $0.0000
 - Exit: normal, Duration: 5m 23s
 - Log: OOMPAH-640__20260731T063026Z.jsonl
+---
+author: oompah
+created: 2026-07-31 06:45
+---
+Branch quality gate passed for `5a5f4867f2d5c640069b16fe6eaf45e09a54c963` using `make test` in 305.9s. Review creation may proceed.
 ---
 <!-- COMMENTS:END -->
