@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:15.160957Z'
-updated_at: '2026-07-31T09:12:49.851082Z'
+updated_at: '2026-07-31T09:13:00.819014Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -116,5 +116,10 @@ author: oompah
 created: 2026-07-31 09:12
 ---
 In-progress operator review finding: the current Makefile stop/status predicates run process_identity.py capture ... > , overwriting the identity recorded at startup before deciding whether to signal. That does not protect against PID reuse; a reused PID with a matching cwd would be blessed as new ownership. Preserve the startup meta atomically, add a compare/validate command that checks live pid/start_time/process_group/session/cwd against that exact stored record, and never rewrite it during stop/status. Tests should mutate each stored field and simulate a reused PID/current identity mismatch, asserting no signal and safe stale-file handling.
+---
+author: oompah
+created: 2026-07-31 09:13
+---
+Correction/clarification: the current Makefile stop/status predicates run process_identity.py capture and redirect into PID_META_FILE, overwriting the identity recorded at startup before deciding whether to signal. That does not protect against PID reuse; a reused PID with a matching cwd would be blessed as new ownership. Preserve the startup meta atomically, add a compare/validate command that checks live pid/start_time/process_group/session/cwd against that exact stored record, and never rewrite it during stop/status. Tests should mutate each stored field and simulate a reused PID/current identity mismatch, asserting no signal and safe stale-file handling.
 ---
 <!-- COMMENTS:END -->
