@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-646
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Serialize review capacity across reconciliation sweeps and webhook lag
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:55:23.505409Z'
-updated_at: '2026-07-31T08:11:35.676424Z'
+updated_at: '2026-07-31T08:19:06.465233Z'
 work_branch: OOMPAH-646
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/613
@@ -99,6 +99,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/613
 oompah.review_number: '613'
 oompah.work_branch: OOMPAH-646
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-179ca730d57d
+    project_id: proj-14849f1b
+    task_id: OOMPAH-646
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 4e48fb1840632749f46204f76957903b9651e77b6cd3ec64a9f92abe38fa76f4
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-31T08:19:02.154963+00:00'
+  - version: 1
+    audit_id: audit-6514bbb96a7e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-646
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 4e48fb1840632749f46204f76957903b9651e77b6cd3ec64a9f92abe38fa76f4
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-31T08:19:02.154963+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -171,5 +210,15 @@ author: oompah
 created: 2026-07-31 08:11
 ---
 Branch quality gate passed for `355258ef0d1b1600f09cd111511f2828946e4ec7` using `make test` in 410.1s. Review creation may proceed.
+---
+author: oompah
+created: 2026-07-31 08:19
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-07-31 08:19
+---
+YOLO: merged PR #613.
 ---
 <!-- COMMENTS:END -->
