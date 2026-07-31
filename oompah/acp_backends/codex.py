@@ -476,6 +476,7 @@ class CodexAcpBackendSession(AcpBackendSession):
 
         return build_codex_tool_catalog(
             self._options.workspace_path,
+            tool_liveness=self._options.tool_liveness,
             project_store=self._options.project_store,
             project_id=self._options.project_id,
             task_tracker=self._options.task_tracker,

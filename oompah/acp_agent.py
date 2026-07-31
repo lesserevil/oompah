@@ -113,6 +113,7 @@ class AcpAgentSession:
         task_handoff_token: str | None = None,
         terminal_transition_coordinator: Any = None,
         comment_queue: Any = None,
+        tool_liveness: Any = None,
         focus: Any = None,
         auditor: bool = False,
         audit_target: Any = None,
@@ -148,6 +149,9 @@ class AcpAgentSession:
         self.terminal_transition_coordinator = terminal_transition_coordinator
         # Mid-run comment injection queue (OOMPAH-211).
         self.comment_queue = comment_queue
+        # A per-session monitor lets reconciliation distinguish a live,
+        # bounded run_command child from silent model/prompt work.
+        self.tool_liveness = tool_liveness
 
         # Resolve the backend class at construction time so an
         # unregistered name fails fast rather than at dispatch time.
@@ -266,6 +270,7 @@ class AcpAgentSession:
             task_handoff_token=self.task_handoff_token,
             terminal_transition_coordinator=self.terminal_transition_coordinator,
             comment_queue=self.comment_queue,
+            tool_liveness=self.tool_liveness,
             focus=self.focus,
             auditor=self.auditor,
             audit_target=self.audit_target,

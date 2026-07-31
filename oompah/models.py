@@ -303,6 +303,9 @@ class LiveSession:
     # (or "no cost" for subscription/api/cli paths). See issue
     # oompah-zlz_2-ag7h.
     sdk_cost_usd: float | None = None
+    # Opaque per-session monitor for bounded ACP tool subprocesses. It is
+    # intentionally not part of dashboard serialization or persisted state.
+    tool_liveness: Any = None
 
 
 @dataclass
