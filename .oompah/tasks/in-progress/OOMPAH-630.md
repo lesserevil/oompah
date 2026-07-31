@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T23:37:58.090708Z'
-updated_at: '2026-07-31T00:09:21.548934Z'
+updated_at: '2026-07-31T00:10:46.830147Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-630
 target_branch: null
 review_url: null
@@ -186,5 +186,10 @@ author: oompah
 created: 2026-07-31 00:09
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-31 00:10
+---
+Exact gate result: 13,821 passed, 7 skipped; only test_project_locks.py::TestResetOrphanedInProgressUsesProjectLock::test_orphan_resets_for_different_projects_are_independent failed. The test passes 20/20 alone on exact head 797d2c0de. Diagnosis: its overlap assertion relies on the second OS thread being scheduled within a 100ms sleep, so simultaneous full gates can produce a false serialization failure. Please stabilize this regression using a bounded threading.Barrier/event handshake that fails deterministically if one project lock blocks the other, then rerun the focused lock/coordinator suites and submit the new exact head.
 ---
 <!-- COMMENTS:END -->
