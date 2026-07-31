@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-657
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Run branch quality gates from immutable exact-head snapshots
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:06:15.542774Z'
-updated_at: '2026-07-31T12:45:39.024170Z'
+updated_at: '2026-07-31T12:53:33.996307Z'
 work_branch: OOMPAH-657
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/618
@@ -134,6 +134,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/618
 oompah.review_number: '618'
 oompah.work_branch: OOMPAH-657
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-6e9bfb54bf88
+    project_id: proj-14849f1b
+    task_id: OOMPAH-657
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 53b6732a2cd3c6eb9f4bb5ae2944bc07c904490d22bafac41212ff62b29bc8ab
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-31T12:53:28.466476+00:00'
+  - version: 1
+    audit_id: audit-d890e34298d5
+    project_id: proj-14849f1b
+    task_id: OOMPAH-657
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 53b6732a2cd3c6eb9f4bb5ae2944bc07c904490d22bafac41212ff62b29bc8ab
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-31T12:53:28.466476+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -535,5 +574,15 @@ author: oompah
 created: 2026-07-31 12:45
 ---
 Branch quality gate passed for `0212dada64768ed8f89e7b27f461f121c4a42299` using `make test` in 370.5s. Review creation may proceed.
+---
+author: oompah
+created: 2026-07-31 12:53
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-07-31 12:53
+---
+YOLO: merged PR #618.
 ---
 <!-- COMMENTS:END -->
