@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-655
 type: task
-status: Open
+status: Needs Human
 priority: null
 title: Enforce full-gate service isolation outside candidate branch code
 parent: null
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T15:11:32.130523Z'
+updated_at: '2026-07-31T15:13:40.913590Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -32,9 +32,9 @@ oompah.duplicate_screening:
   claim_owner: null
   claimed_at: null
   claim_expires_at: null
-  retry_count: 2
-  retry_after: '2026-07-31T15:13:29.784210+00:00'
-oompah.agent_run_id: 749430a2-1180-4965-b476-b9aaed662e1d
+  retry_count: 3
+  retry_after: '2026-07-31T15:17:35.866947+00:00'
+oompah.agent_run_id: 5ccbdd09-8abd-48f6-8213-48a836d5e54a
 oompah.task_costs:
   total_input_tokens: 7047374
   total_output_tokens: 49395
@@ -977,5 +977,24 @@ Run #1 [attempt=1, profile=default, role=— -> Claude/haiku]
 - Tokens: 0 in / 0 out [0 total]
 - Cost: $0.0000
 - Exit: error, Duration: 2s
+---
+author: oompah
+created: 2026-07-31 15:13
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-07-31 15:13
+---
+Run #1 [attempt=1, profile=default, role=— -> Claude/haiku]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 1s
+---
+author: oompah
+created: 2026-07-31 15:13
+---
+Duplicate screening was inconclusive 3 times. Human action required: review the latest duplicate-screening comments, then either identify the active canonical duplicate or confirm that no active duplicate exists and move the task back to Open.
 ---
 <!-- COMMENTS:END -->
