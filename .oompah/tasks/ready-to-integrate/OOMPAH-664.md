@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-664
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 0
 title: Make issue-list snapshots advance with canonical state-branch task changes
 parent: null
@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:06.140108Z'
-updated_at: '2026-07-31T23:06:37.160194Z'
+updated_at: '2026-07-31T23:07:27.284651Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -147,11 +147,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-664
-  base_branch: main
-  base_sha: 16362384be835d1485d1121ce3c8329743391c79
-  head_sha: 2b7d97927d5f9d651ca663583a1396073c1e13ef
-  submitted_at: '2026-07-31T22:38:09.266143+00:00'
-  updated_at: '2026-07-31T22:38:38.227215+00:00'
+  head_sha: 34c5751b727880fc621df76cb50e17ae5f9321c4
+  submitted_at: '2026-07-31T23:07:25.332403+00:00'
+  updated_at: '2026-07-31T23:07:25.332403+00:00'
 oompah.start_blocked_by: *id001
 ---
 ## Summary
@@ -838,5 +836,10 @@ author: oompah
 created: 2026-07-31 23:06
 ---
 Implementation: Stubbed three additional I/O methods in test_tick_applies_pending_at_quiescent_point to prevent 5s timeout under parallel CI load: (1) _recover_release_addendum_leases - the only awaited real-I/O step in _tick() not previously stubbed; reads all 281 .oompah/tasks files via fetch_all_issues() on every tick, slow under 4-way parallel test load. (2) _run_step5b_maintenance - fire-and-forget step that avoids post-test background noise. (3) _run_step5c_epic_maintenance - same. All 11 tests in the file pass; all 70 focused tests pass.
+---
+author: oompah
+created: 2026-07-31 23:07
+---
+Verification: 5/5 runs of test_tick_applies_pending_at_quiescent_point pass in ~0.9s (vs. 5s timeout). All 11 tests in test_orchestrator_profile_reload.py pass. All 70 focused tests (test_orchestrator_profile_reload, test_oompah_md_tracker_state_branch, test_server_issue_snapshot) pass. 77 quality_gate+collapsed_epics+installed_cli_smoke tests pass with 5 skipped. Pushed 34c5751b7 to OOMPAH-664.
 ---
 <!-- COMMENTS:END -->

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-665
 type: task
-status: Needs Human
+status: In Progress
 priority: null
 title: Retire legacy no-auditor alerts after terminal task completion
 parent: null
@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:07.401588Z'
-updated_at: '2026-07-31T22:34:39.492835Z'
+updated_at: '2026-07-31T23:07:15.004857Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -617,5 +617,10 @@ author: oompah
 created: 2026-07-31 22:34
 ---
 Recovery ordering recorded: OOMPAH-665 now hard-start depends on OOMPAH-668. Its core terminal-audit retirement implementation remains preserved; after OOMPAH-668 merges, rebase onto main and drop the broader duplicate Makefile fallback in favor of the deployed gate-only contract before resubmission.
+---
+author: oompah
+created: 2026-07-31 23:07
+---
+Operator claim: the user directed the primary Codex session to take this task out of Needs Human and complete it directly. No human decision is outstanding. I am preserving the existing pushed branch and will reconcile it against the satisfied lifecycle prerequisites before resubmission.
 ---
 <!-- COMMENTS:END -->
