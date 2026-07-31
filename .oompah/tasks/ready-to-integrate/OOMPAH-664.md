@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-664
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 0
 title: Make issue-list snapshots advance with canonical state-branch task changes
 parent: null
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:06.140108Z'
-updated_at: '2026-07-31T21:52:22.147600Z'
+updated_at: '2026-07-31T21:52:32.487152Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -120,9 +120,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-664
-  head_sha: 7fb6cb96dc2674d79c77aeb8763fbf1dc6dc5015
-  submitted_at: '2026-07-31T21:45:46.764091+00:00'
-  updated_at: '2026-07-31T21:45:46.764091+00:00'
+  head_sha: 9b9fd151d2ce0e09d5e3fe387988435467008afd
+  submitted_at: '2026-07-31T21:52:29.296832+00:00'
+  updated_at: '2026-07-31T21:52:29.296832+00:00'
 ---
 ## Summary
 
@@ -424,5 +424,10 @@ Root cause clarification: The quality_gate.py sentinel overlay fix (7fb6cb96d) i
 Fix (Makefile, 1 file changed): wrapped 'setup' and 'test-setup' targets in ifneq/else/endif on _PYTEST_GATE. In gate mode, both targets become no-ops ('@:'). This prevents any uv invocation in the restricted-PATH sandbox. The bwrap sandbox already bind-mounts the operator's venv at .venv, so all required packages are present and pytest runs correctly.
 
 Verification: OOMPAH_PYTEST_GATE=1 make -n test shows only ':' (no-op), terminal-audit-scan, and run-tests.sh — no uv. Normal mode (no gate var) is unaffected. All 106 focused tests pass (test_server_issue_snapshot.py + test_oompah_md_tracker_state_branch.py + test_quality_gate.py).
+---
+author: oompah
+created: 2026-07-31 21:52
+---
+Fixed CI gate failure 'make: uv: No such file or directory' by making Makefile setup/test-setup targets no-ops when OOMPAH_PYTEST_GATE=1 (already set by the deployed gate sandbox). The gate sandbox restricts PATH to exclude uv, but its deployed quality_gate.py already sets OOMPAH_PYTEST_GATE=1 and bind-mounts the operator venv — the Makefile now respects that env var to skip uv invocations. Branch also contains the original issue fix: generation-bound issue-list snapshots (oompah/server.py, oompah/oompah_md_tracker.py) with 59 focused tests, plus the quality_gate.py sentinel overlay fix (47 tests) for post-merge robustness. All 106 focused tests pass.
 ---
 <!-- COMMENTS:END -->

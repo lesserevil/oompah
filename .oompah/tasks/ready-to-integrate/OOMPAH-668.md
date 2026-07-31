@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-668
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 0
 title: Use the trusted test virtualenv without reinstalling inside quality-gate sandbox
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T21:35:20.853943Z'
-updated_at: '2026-07-31T21:51:11.758134Z'
+updated_at: '2026-07-31T21:52:37.347575Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -77,9 +77,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-668
-  head_sha: 1fe2181a2c26b792fa3e6e15e16398f2dcddf34c
-  submitted_at: '2026-07-31T21:45:37.292015+00:00'
-  updated_at: '2026-07-31T21:45:37.292015+00:00'
+  head_sha: 6d9698be08f39910f2a8921ba668f569551b0c01
+  submitted_at: '2026-07-31T21:52:33.280281+00:00'
+  updated_at: '2026-07-31T21:52:33.280281+00:00'
 ---
 ## Summary
 
@@ -374,5 +374,20 @@ author: oompah
 created: 2026-07-31 21:51
 ---
 Discovery: the failing check was Oompah's pre-review exact-head gate, not GitHub Actions; no PR or branch workflow run exists yet. The earlier error ('No existing worktree matched the review branch tip', head unknown) was infrastructure resolution, and is now resolved: the managed worktree is registered, clean, and both local and origin/OOMPAH-668 point to tested commit 1fe2181a2. No code regression is indicated.
+---
+author: oompah
+created: 2026-07-31 21:52
+---
+Implementation: no additional code change was warranted. The existing minimal fix remains at 1fe2181a2; recovery registered this checkout and fast-forwarded its local branch to the same pushed head, addressing the exact-head lookup failure without manufacturing a speculative or empty repair commit.
+---
+author: oompah
+created: 2026-07-31 21:52
+---
+Verification: focused suites passed with the service runtime: python3 -m pytest -q tests/test_makefile_setup.py tests/test_quality_gate.py => 58 passed in 11.40s. git diff --check is clean. No GitHub Actions log exists because no PR has yet been created; gh reports no PR and no branch runs. A local make test-setup probe was blocked by this container's broken Snap uv launcher, unrelated to candidate code; the already-pushed exact head previously completed the full gate (14,540 passed, 7 skipped, 1 xfailed).
+---
+author: oompah
+created: 2026-07-31 21:52
+---
+Rearmed delivery at 6d9698be0 with an empty metadata-only commit; its tree is identical to fully tested 1fe2181a2. OOMPAH-669 tracks removal of this workaround.
 ---
 <!-- COMMENTS:END -->
