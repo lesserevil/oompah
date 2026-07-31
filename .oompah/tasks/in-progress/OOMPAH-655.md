@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T11:05:40.564252Z'
+updated_at: '2026-07-31T11:05:58.487797Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -248,5 +248,10 @@ author: oompah
 created: 2026-07-31 11:05
 ---
 Discovery: Replaced substring-matching preflight with proper git ancestry verification. Implementation: (1) Updated _verify_isolation_contract() to use 'git merge-base --is-ancestor' to verify candidate branch contains OOMPAH-652 safety head (ec0ec7d89), (2) Added OOMPAH_TEST_SAFETY_HEAD environment variable for testing, (3) Updated test helper _git_repo() to create synthetic safety head commit, (4) Updated tests to verify spoofed markers are still rejected without proper ancestry, (5) Tests verify hostile code never executes (checking sentinel side effects).
+---
+author: oompah
+created: 2026-07-31 11:05
+---
+Operator invalidated only full-gate PGID 1132630 after exact cwd/PGID validation; the implementation provider and dirty edits remain running. This gate was launched for previously submitted head 2713e14ea, but after rejection/reopen the same OOMPAH-655 worktree was handed back to an agent and modified while pytest was still reading it. Any eventual result would be mixed-state evidence, not an exact-head gate. Do not use that run as validation. A separate tracker bug is being filed for immutable exact-head gate execution/locking.
 ---
 <!-- COMMENTS:END -->
