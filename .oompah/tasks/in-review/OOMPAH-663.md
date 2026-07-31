@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-663
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Canonicalize integrated-task fingerprints for owner overrides
 parent: null
@@ -11,10 +11,10 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T13:52:05.961085Z'
-updated_at: '2026-07-31T14:20:58.428666Z'
+updated_at: '2026-07-31T14:21:07.912327Z'
 work_branch: null
 target_branch: null
-review_url: null
+review_url: https://github.com/lesserevil/oompah/pull/622
 review_number: null
 merged_at: null
 oompah.duplicate_screening:
@@ -78,6 +78,7 @@ oompah.integration:
   head_sha: 3bfc42ec9e14809441868bba108fe5dccec18ab7
   submitted_at: '2026-07-31T14:13:42.564664+00:00'
   updated_at: '2026-07-31T14:13:42.564664+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/622
 ---
 ## Summary
 
