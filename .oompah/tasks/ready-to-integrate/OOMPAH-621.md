@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-621
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Document and integration-test CLI credential precedence
 parent: OOMPAH-619
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:25:29.809048Z'
-updated_at: '2026-07-31T07:20:16.282649Z'
+updated_at: '2026-07-31T07:20:29.636753Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-621
 target_branch: null
 review_url: null
@@ -44,12 +44,12 @@ oompah.agent_run_id: b8b55e47-6b1f-4878-a9a9-85624430da71
 oompah.work_branch: epic-OOMPAH-619--task-OOMPAH-621
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-619--task-OOMPAH-621
-  base_branch: epic-OOMPAH-619
-  base_sha: b2191c92f124fdb33e5f0383e3eb458c22ff030d
-  updated_at: '2026-07-31T06:25:48.094484+00:00'
+  head_sha: 0dc7d0f7caeea06a6eceb55ea2e58cf16554f0a4
+  submitted_at: '2026-07-31T07:20:21.380928+00:00'
+  updated_at: '2026-07-31T07:20:21.380928+00:00'
 oompah.task_costs:
   total_input_tokens: 2243852
   total_output_tokens: 45793
@@ -610,5 +610,10 @@ author: oompah
 created: 2026-07-31 07:20
 ---
 Reviewed OOMPAH-640 and OOMPAH-642 overlap advisories: their merged changes are outside this branch delta (pyproject.toml and tests/test_cli_install_revision_compatibility.py). Focused compatibility and documentation checks pass (27 tests), including exact git-revision install, matching live bcrypt-authenticated server, task view, safe admin read, and credential redaction. The Makefile gate was attempted but blocked before pytest by the environment uv DBus transient-scope error; submitting the clean pushed head for the configured gate.
+---
+author: oompah
+created: 2026-07-31 07:20
+---
+Completed CLI credential precedence documentation and real exact-revision compatibility coverage; focused checks pass and clean head is pushed.
 ---
 <!-- COMMENTS:END -->
