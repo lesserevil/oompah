@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T10:36:26.557426Z'
+updated_at: '2026-07-31T10:36:31.766282Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -31,6 +31,7 @@ oompah.duplicate_screening:
   claim_expires_at: '2026-07-31T11:06:25.688036+00:00'
   retry_count: 0
   retry_after: null
+oompah.agent_run_id: 23e66880-628a-4786-9e29-2eb363e3d3e4
 ---
 ## Summary
 
@@ -42,3 +43,16 @@ Post-OOMPAH-652 deployment regression: the running server is isolated, but prese
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-31 10:36
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-07-31 10:36
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
