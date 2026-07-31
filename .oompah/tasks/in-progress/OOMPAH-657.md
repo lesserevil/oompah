@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T11:06:15.542774Z'
-updated_at: '2026-07-31T11:58:37.713839Z'
+updated_at: '2026-07-31T11:59:18.889381Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -239,5 +239,23 @@ author: oompah
 created: 2026-07-31 11:58
 ---
 Sixth live authority/alert reproduction: rejected OOMPAH-658 was moved Ready to Integrate -> Open and is now actively In Progress on a replacement worker, but state still exposes warning standalone_ready_delivery:proj-14849f1b:OOMPAH-658 saying the Ready task has no active delivery. A stale standalone authority/gate alert was not revoked or cleared by the tracker transition. Wire reconciliation of every non-Ready current status to revoke the exact authority/generation and clear its alert; add Ready->Open->replacement In Progress regression. This also confirms the terminal-coordinator callback alone cannot handle dashboard/task-status rejection.
+---
+author: oompah
+created: 2026-07-31 11:59
+---
+Implementation: Three fixes applied:
+
+1. **_retire_inactive_integration_rows (orchestrator.py)**: Changed logic from 'retire if status in inactive_states' to 'retire unless status == READY_TO_INTEGRATE'. This ensures tasks returned to Open (or any non-queue state) have their integration rows retired. Also added cancel_generation() call for each retired row to tombstone any running or pre-spawn gate.
+
+2. **Pre-spawn barriers 1 & 2 (quality_gate.py)**: Added _cancelled_generations class-level set as a durable tombstone. Added two deterministic checkpoints in run():
+   - Before _create_snapshot(): checks tombstone + is_current()
+   - After _create_snapshot(), before Popen: checks tombstone + is_current()
+   This closes the window where cancel_generation() arrives during the 60s worktree creation and finds nothing to cancel.
+
+3. **Popen-to-registration barrier (quality_gate.py)**: Under the same _processes_lock used to register the process, immediately checks if the generation was tombstoned between Popen and registration. If so, kills the just-spawned process and marks it interrupted.
+
+4. **Test fixes**: Updated test_executor_rechecks_authority_after_gate_before_epic_push to use a gate wrapper pattern rather than a fixed iterator, since the new barriers now call is_current() more times. Added 5 new barrier tests + 2 _retire tests in test_delivery_plane_recovery.py.
+
+All 42 focused tests pass.
 ---
 <!-- COMMENTS:END -->
