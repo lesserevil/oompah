@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:06.140108Z'
-updated_at: '2026-07-31T21:50:36.181327Z'
+updated_at: '2026-07-31T21:52:22.147600Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -413,5 +413,16 @@ author: oompah
 created: 2026-07-31 21:50
 ---
 Understanding: The CI gate is still failing with 'make: uv: No such file or directory' even after the quality_gate.py sentinel overlay fix was committed (7fb6cb96d). Root cause: the sentinel overlay fix is in the BRANCH code, but the gate that runs tests uses the DEPLOYED server's quality_gate.py (at 16362384b, which predates this branch). The deployed server sets OOMPAH_PYTEST_GATE=1 in the sandbox environment (visible in Makefile:4 as _PYTEST_GATE). The Makefile already uses _PYTEST_GATE for other behaviors. Fix: extend the Makefile to make 'setup' and 'test-setup' no-ops when _PYTEST_GATE is set, since the operator venv is already bind-mounted at .venv by the sandbox. This prevents any uv invocation in the restricted-PATH sandbox. The quality_gate.py sentinel overlay remains as defense-in-depth for future runs after merge.
+---
+author: oompah
+created: 2026-07-31 21:52
+---
+Implementation: Fixed gate failure by extending the Makefile's existing OOMPAH_PYTEST_GATE=1 guard to cover setup/test-setup targets.
+
+Root cause clarification: The quality_gate.py sentinel overlay fix (7fb6cb96d) is in the BRANCH code, not the deployed server (16362384b). The gate uses the deployed server to set up the bwrap sandbox, so the branch's quality_gate.py changes cannot take effect until after the branch is merged and the server is redeployed. The deployed server already sets OOMPAH_PYTEST_GATE=1 in the gate environment and the Makefile already checks _PYTEST_GATE for other behaviors.
+
+Fix (Makefile, 1 file changed): wrapped 'setup' and 'test-setup' targets in ifneq/else/endif on _PYTEST_GATE. In gate mode, both targets become no-ops ('@:'). This prevents any uv invocation in the restricted-PATH sandbox. The bwrap sandbox already bind-mounts the operator's venv at .venv, so all required packages are present and pytest runs correctly.
+
+Verification: OOMPAH_PYTEST_GATE=1 make -n test shows only ':' (no-op), terminal-audit-scan, and run-tests.sh — no uv. Normal mode (no gate var) is unaffected. All 106 focused tests pass (test_server_issue_snapshot.py + test_oompah_md_tracker_state_branch.py + test_quality_gate.py).
 ---
 <!-- COMMENTS:END -->
