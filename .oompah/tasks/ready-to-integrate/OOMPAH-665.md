@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-665
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Retire legacy no-auditor alerts after terminal task completion
 parent: null
@@ -12,7 +12,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-07-31T16:04:07.401588Z'
-updated_at: '2026-07-31T18:50:09.840450Z'
+updated_at: '2026-07-31T18:50:29.851445Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -99,9 +99,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-665
-  head_sha: fa09942201f5ec74481d56f786ddfb4621afd68b
-  submitted_at: '2026-07-31T18:44:51.525017+00:00'
-  updated_at: '2026-07-31T18:44:51.525017+00:00'
+  head_sha: 8aacda6516595119ec57e530abbb9dbae8365a22
+  submitted_at: '2026-07-31T18:50:27.033428+00:00'
+  updated_at: '2026-07-31T18:50:27.033428+00:00'
 ---
 ## Summary
 
@@ -238,5 +238,21 @@ author: oompah
 created: 2026-07-31 18:50
 ---
 Verification: 133 focused tests pass (17 terminal_audit_observability + 116 terminal_transition_coordinator). The symlink repair commit removes .oompah-no-hooks/prepare-commit-msg from version control and adds .oompah-no-hooks/ to .gitignore. Branch head 8aacda651 pushed to origin/OOMPAH-665.
+---
+author: oompah
+created: 2026-07-31 18:50
+---
+Completion: Two commits on branch OOMPAH-665 (head 8aacda651):
+
+1. fa0994220 — Core implementation: extended _reconcile_terminal_audit_observability_from_metadata in oompah/orchestrator.py to retire legacy no-auditor alerts via 4 paths (retirement rows, legacy override records, later PASS verdicts, canonical tracker terminal state). Fetch failures and quarantined metadata fail closed. 4 new deterministic tests added.
+
+2. 8aacda651 — Gate repair: removed .oompah-no-hooks/prepare-commit-msg symlink from version control and added .oompah-no-hooks/ to .gitignore so the OS-enforced quality-gate sandbox can create an immutable candidate snapshot.
+
+Acceptance criteria met: stale terminal_audit:no_independent_candidate alerts for OOMPAH-644 (audit-710535de2bba) and OOMPAH-648 (audit-db48e6cb6d3e) will be retired on next reconciliation. Real current Needs Human audit alerts are preserved. 133 focused tests pass.
+---
+author: oompah
+created: 2026-07-31 18:50
+---
+Retire legacy no-auditor alerts after terminal task completion. Extended _reconcile_terminal_audit_observability_from_metadata to check 4 retirement paths (retirement rows, legacy overrides, later PASS verdicts, canonical tracker state). Added .oompah-no-hooks/ to .gitignore to unblock the OS-enforced quality-gate sandbox. 133 focused tests pass. Branch head 8aacda651.
 ---
 <!-- COMMENTS:END -->
