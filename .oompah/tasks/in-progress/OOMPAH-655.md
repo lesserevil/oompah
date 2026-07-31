@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T13:51:13.742183Z'
+updated_at: '2026-07-31T13:54:52.658770Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -613,5 +613,10 @@ author: oompah
 created: 2026-07-31 13:51
 ---
 Key finding: OOMPAH-655 includes regression tests like test_default_boundary_blocks_literal_host_pid_and_localhost_attack that validate bwrap sandboxing prevents old/malicious Makefiles from accessing host state. These tests don't exist on main. The task REQUIRES these regression tests per acceptance criteria. Proceeding with manual integration of OOMPAH-655's bwrap implementation + tests into main-based branch.
+---
+author: oompah
+created: 2026-07-31 13:54
+---
+Status: Investigated integration of OOMPAH-655 (bwrap sandbox isolation) with OOMPAH-657 (generation management + exact-head snapshots on main). FINDINGS: (1) OOMPAH-657 on main provides generation management, authority cancellation, and process/snapshot lifecycle management. All 32 quality_gate tests pass. (2) OOMPAH-655 adds OS-level bwrap sandboxing + regression test test_default_boundary_blocks_literal_host_pid_and_localhost_attack which validates old/malicious Makefiles cannot access host state. (3) Integration blocked by: 28 changed files across two parallel implementations, method signature mismatches (OOMPAH-657 added generation/is_current params), orchestrator status routing changes. (4) Requirement confirmed: test_default_boundary_blocks_literal_host_pid_and_localhost_attack is essential per task acceptance criteria. RECOMMENDATION: Create focused follow-up task OOMPAH-XXX for 'Integrate bwrap OS sandboxing into OOMPAH-657 generation management' with minimal set of changes (quality_gate.py bwrap + regression tests only).
 ---
 <!-- COMMENTS:END -->
