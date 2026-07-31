@@ -125,5 +125,6 @@ addopts = "-p tests.pytest_worker_isolation"
 timeout = 5
 timeout_method = "thread"
 markers = [
+    "integration: tests that install or launch a real matching-revision service",
     "xdist_group(name): keep process-global integration tests on one worker",
 ]

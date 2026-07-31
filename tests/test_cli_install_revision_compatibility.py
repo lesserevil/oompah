@@ -14,10 +14,17 @@ Acceptance criteria:
 
 from __future__ import annotations
 
+import contextlib
+import json
 import os
+import secrets
+import signal
+import socket
 import subprocess
 import sys
 import tempfile
+import time
+import venv
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -29,6 +36,373 @@ from oompah.client_auth import (
     sanitize_server_url,
 )
 from oompah.task_cli import build_parser, main as task_main
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _free_loopback_port() -> int:
+    """Return an unused loopback TCP port for the child server."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        return int(sock.getsockname()[1])
+
+
+def _wait_for_server(
+    process: subprocess.Popen[str],
+    url: str,
+    *,
+    timeout: float = 15.0,
+) -> None:
+    """Wait for the child server's unauthenticated health endpoint."""
+    import urllib.error
+    import urllib.request
+
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if process.poll() is not None:
+            stdout, stderr = process.communicate()
+            raise AssertionError(
+                "matching-revision server exited before becoming ready:\n"
+                f"stdout: {stdout}\nstderr: {stderr}"
+            )
+        try:
+            with urllib.request.urlopen(f"{url}/healthz", timeout=1) as response:
+                if response.status == 200:
+                    return
+        except (OSError, urllib.error.URLError):
+            pass
+        time.sleep(0.1)
+    raise AssertionError(f"matching-revision server did not become ready: {url}")
+
+
+@contextlib.contextmanager
+def _running_matching_server(
+    *,
+    tmp_path: Path,
+    port: int,
+    task_id: str,
+    project_id: str,
+    repo_path: Path,
+    htpasswd_path: Path,
+    forbidden_output: tuple[str, ...] = (),
+) -> "object":
+    """Run the current checkout's server code with a real bcrypt auth file.
+
+    The installed CLI is tested separately below.  This process imports the
+    same git checkout at the revision installed into the venv, but uses a
+    small in-memory tracker fixture so the two CLI reads are deterministic and
+    do not mutate task state.
+    """
+    server_script = tmp_path / "matching_revision_server.py"
+    server_script.write_text(
+        """
+import os
+from types import SimpleNamespace
+
+import uvicorn
+
+import oompah.server as server
+from oompah.http_auth import load_credentials
+from oompah.models import Issue
+
+
+task = Issue(
+    id=os.environ["E2E_TASK_ID"],
+    identifier=os.environ["E2E_TASK_ID"],
+    title="Revision-compatible task",
+    description="A known read-only task used by the CLI compatibility check.",
+    state="Open",
+    issue_type="task",
+    tracker_kind="oompah_md",
+)
+
+project = SimpleNamespace(
+    id=os.environ["E2E_PROJECT_ID"],
+    name="revision-compatibility",
+    repo_path=os.environ["E2E_REPO_PATH"],
+    repo_url="file:///revision-compatibility",
+    default_branch="main",
+    state_branch_enabled=False,
+    state_branch_shadow_write=False,
+    state_branch_migration_stage="",
+    state_branch_name="oompah/state/" + os.environ["E2E_PROJECT_ID"],
+    status_actor_login=None,
+    tracker_owner=None,
+    status_label_authorized_logins=[],
+)
+
+
+class _Tracker:
+    state_branch_enabled = False
+
+    def fetch_issue_detail(self, identifier):
+        return task if identifier == task.identifier else None
+
+    def fetch_all_issues(self):
+        return [task]
+
+    def fetch_comments(self, identifier):
+        return []
+
+
+class _ProjectStore:
+    def list_all(self):
+        return [project]
+
+    def get(self, project_id):
+        return project if project_id == project.id else None
+
+
+class _Orchestrator:
+    def __init__(self):
+        self.project_store = _ProjectStore()
+        self.tracker = _Tracker()
+        self.config = SimpleNamespace(duplicate_preflight_max_agents=0)
+
+    def _tracker_for_project(self, project_id):
+        if project_id != project.id:
+            raise LookupError(project_id)
+        return self.tracker
+
+
+# This is intentionally the server module from the same checkout revision as
+# the package installed by the parent test.  Avoid the production lifespan so
+# the compatibility fixture does not start an orchestrator or touch operator
+# state; the HTTP middleware and both read handlers remain real.
+server._orchestrator = _Orchestrator()
+server.set_http_credentials(
+    load_credentials(os.environ["E2E_HTPASSWD_PATH"], os.environ["E2E_REPO_PATH"])
+)
+
+uvicorn.run(
+    server.app,
+    host="127.0.0.1",
+    port=int(os.environ["E2E_PORT"]),
+    log_level="warning",
+)
+""",
+        encoding="utf-8",
+    )
+
+    server_env = os.environ.copy()
+    # The server must only receive the htpasswd path; never inherit client
+    # plaintext credential variables into its process environment.
+    for name in (
+        "OOMPAH_SERVER_USERNAME",
+        "OOMPAH_SERVER_PASSWORD",
+        "OOMPAH_SERVER_PASSWORD_FILE",
+        "OOMPAH_EMBED_ORCHESTRATOR",
+    ):
+        server_env.pop(name, None)
+    server_env.update(
+        {
+            "E2E_TASK_ID": task_id,
+            "E2E_PROJECT_ID": project_id,
+            "E2E_REPO_PATH": str(repo_path),
+            "E2E_HTPASSWD_PATH": str(htpasswd_path),
+            "E2E_PORT": str(port),
+            "PYTHONPATH": os.pathsep.join(
+                part for part in (str(REPO_ROOT), server_env.get("PYTHONPATH", "")) if part
+            ),
+        }
+    )
+    process = subprocess.Popen(
+        [sys.executable, str(server_script)],
+        cwd=str(tmp_path),
+        env=server_env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    base_url = f"http://127.0.0.1:{port}"
+    try:
+        _wait_for_server(process, base_url)
+        yield base_url
+    finally:
+        if process.poll() is None:
+            process.send_signal(signal.SIGTERM)
+            try:
+                process.wait(timeout=8)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=3)
+        stdout, stderr = process.communicate()
+        for value in forbidden_output:
+            assert value not in stdout
+            assert value not in stderr
+
+
+@pytest.mark.integration
+@pytest.mark.xdist_group("cli_install_revision")
+@pytest.mark.timeout(180)
+def test_installed_cli_from_exact_revision_reads_matching_authenticated_server(tmp_path):
+    """Install an exact revision, then exercise task and admin read paths.
+
+    This intentionally crosses the packaging boundary: the client commands
+    run from a fresh venv, while the matching server is a separate process
+    importing the checkout at the same revision.  Both requests use the
+    environment username and mode-0600 password-file source.
+    """
+    bcrypt = pytest.importorskip("bcrypt")
+
+    revision = subprocess.check_output(
+        ["git", "rev-parse", "HEAD"],
+        cwd=REPO_ROOT,
+        text=True,
+    ).strip()
+    cli_env_dir = tmp_path / "cli-env"
+    venv.EnvBuilder(with_pip=True, clear=True).create(str(cli_env_dir))
+    cli_python = cli_env_dir / "bin" / "python"
+    cli_binary = cli_env_dir / "bin" / "oompah"
+
+    source_ref = f"git+{REPO_ROOT.as_uri()}@{revision}"
+    install = subprocess.run(
+        [
+            str(cli_python),
+            "-m",
+            "pip",
+            "install",
+            "--disable-pip-version-check",
+            "--no-input",
+            source_ref,
+        ],
+        cwd=str(tmp_path),
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert install.returncode == 0, (
+        "exact-revision standalone CLI installation failed:\n"
+        f"stdout: {install.stdout}\nstderr: {install.stderr}"
+    )
+    assert cli_binary.is_file()
+
+    version_probe = subprocess.run(
+        [
+            str(cli_python),
+            "-c",
+            (
+                "import importlib.metadata as metadata; "
+                "import json, oompah; "
+                "dist = metadata.distribution('oompah'); "
+                "print(dist.version); "
+                "print(oompah.__file__); "
+                "print(dist.read_text('direct_url.json') or '')"
+            ),
+        ],
+        cwd=str(tmp_path),
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    version_lines = version_probe.stdout.splitlines()
+    assert version_lines[0] == "0.1.0"
+    assert str(REPO_ROOT) not in version_lines[1]
+    direct_url = json.loads(version_lines[2])
+    assert direct_url["vcs_info"]["commit_id"] == revision
+
+    help_result = subprocess.run(
+        [str(cli_binary), "task", "--help"],
+        cwd=str(tmp_path),
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert "--password-file" in help_result.stdout
+
+    task_id = "TASK-621-E2E"
+    project_id = "proj-621-e2e"
+    username = "operator-" + secrets.token_hex(6)
+    password = secrets.token_urlsafe(24)
+    password_file = tmp_path / "client-password"
+    password_file.write_text(password + "\n", encoding="utf-8")
+    password_file.chmod(0o600)
+
+    htpasswd_file = tmp_path / "server.htpasswd"
+    password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=4)).decode()
+    htpasswd_file.write_text(f"{username}:{password_hash}\n", encoding="utf-8")
+    htpasswd_file.chmod(0o600)
+
+    repo_path = tmp_path / "managed-repo"
+    repo_path.mkdir()
+    subprocess.run(
+        ["git", "init", "--quiet", str(repo_path)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    client_env = os.environ.copy()
+    for name in (
+        "OOMPAH_SERVER_PASSWORD",
+        "OOMPAH_SERVER_PASSWORD_FILE",
+        "OOMPAH_SERVER_URL",
+    ):
+        client_env.pop(name, None)
+    client_env.update(
+        {
+            "OOMPAH_SERVER_USERNAME": username,
+            "OOMPAH_SERVER_PASSWORD_FILE": str(password_file),
+        }
+    )
+
+    port = _free_loopback_port()
+    with _running_matching_server(
+        tmp_path=tmp_path,
+        port=port,
+        task_id=task_id,
+        project_id=project_id,
+        repo_path=repo_path,
+        htpasswd_path=htpasswd_file,
+        forbidden_output=(username, password),
+    ) as base_url:
+        task_result = subprocess.run(
+            [
+                str(cli_binary),
+                "task",
+                "--server",
+                base_url,
+                "view",
+                task_id,
+            ],
+            cwd=str(tmp_path),
+            env=client_env,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert task_result.returncode == 0, (
+            "installed task view failed:\n"
+            f"stdout: {task_result.stdout}\nstderr: {task_result.stderr}"
+        )
+        assert task_id in task_result.stdout
+        assert "Revision-compatible task" in task_result.stdout
+
+        admin_env = dict(client_env)
+        admin_env["OOMPAH_SERVER_URL"] = base_url
+        admin_result = subprocess.run(
+            [str(cli_binary), "admin", "state-branch-status", project_id],
+            cwd=str(tmp_path),
+            env=admin_env,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert admin_result.returncode == 0, (
+            "installed admin read failed:\n"
+            f"stdout: {admin_result.stdout}\nstderr: {admin_result.stderr}"
+        )
+        assert "Project:" in admin_result.stdout
+
+        for output in (
+            task_result.stdout,
+            task_result.stderr,
+            admin_result.stdout,
+            admin_result.stderr,
+        ):
+            assert username not in output
+            assert password not in output
 
 
 class TestCredentialPrecedenceIntegration:
