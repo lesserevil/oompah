@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T12:07:16.035070Z'
+updated_at: '2026-07-31T12:07:30.915267Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -841,5 +841,15 @@ author: oompah
 created: 2026-07-31 12:07
 ---
 Exact-head review found that short registered configured literals still used alphanumeric boundary matching and could leak when concatenated into surrounding text. I am switching all registered literal replacement to unconditional longest-first replacement and adding embedded string/bytes regression coverage.
+---
+author: oompah
+created: 2026-07-31 12:07
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 96
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 13m 20s
+- Log: OOMPAH-651__20260731T115415Z.jsonl
 ---
 <!-- COMMENTS:END -->

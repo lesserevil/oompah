@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-658
 type: bug
-status: Needs CI Fix
+status: In Progress
 priority: 2
 title: Deduplicate duplicate-preflight runs across deferred dispatch ticks
 parent: null
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-07-31T12:07:19.144299Z'
+updated_at: '2026-07-31T12:07:38.904150Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,7 +39,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: b7590642-7937-466b-84e2-ed38592f9662
+oompah.agent_run_id: eac89fad-6ddc-453a-b594-4d70621ad4a1
 oompah.task_costs:
   total_input_tokens: 928363
   total_output_tokens: 9951
@@ -544,5 +544,15 @@ author: oompah
 created: 2026-07-31 12:07
 ---
 Stopped another premature full make test at 12:07 UTC (exact gate PGID 2991395). The branch remains under implementation/review; run focused regression tests only. Oompah will run the configured complete branch gate once for the accepted exact review-ready head.
+---
+author: oompah
+created: 2026-07-31 12:07
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-31 12:07
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
