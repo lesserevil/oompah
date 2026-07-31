@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:32:18.734139Z'
-updated_at: '2026-07-31T09:45:47.006798Z'
+updated_at: '2026-07-31T09:46:22.036058Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-623
 target_branch: null
 review_url: null
@@ -267,5 +267,10 @@ author: oompah
 created: 2026-07-31 09:45
 ---
 In-progress operator correction: the current repair only moves sync inside the start spawn path. The existing task commit still has restart: setup sync-cli, so normal restart upgrades the CLI before the API drain; force-restart also syncs before stop. Both still leave a mismatched old server/new CLI if drain, stop, or later cutover fails. A true safe point needs the running service drained/paused without executing yet, then sync, then restart; on sync failure the old pair must remain active and be unpaused. Remove all pre-drain sync prerequisites and add live-old-service tests that assert the actual CLI binary/revision remains unchanged through drain failure and install failure, plus equality after successful cutover.
+---
+author: oompah
+created: 2026-07-31 09:46
+---
+IMPLEMENTATION: Restructured Makefile to move CLI sync to safe points. Changes: (1) start target now syncs CLI only after confirming no old service and port is free, (2) restart target syncs CLI only after successful drain/instance replacement, (3) force-restart syncs CLI after stop but before start, (4) Removed unrelated task_cli identifier payload change, (5) Fixed blank-at-EOF in test_build_identity.py. All focused tests pass (8 identity/sync tests + 19 integration tests). Repository tests verify build_id equality after sync.
 ---
 <!-- COMMENTS:END -->
