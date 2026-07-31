@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-586
 type: epic
-status: In Review
+status: Needs Rebase
 priority: 0
 title: Restore least-privilege task and lifecycle access
 parent: OOMPAH-584
@@ -16,7 +16,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-30T14:13:33.901470Z'
-updated_at: '2026-07-31T00:35:04.082719Z'
+updated_at: '2026-07-31T00:35:18.435755Z'
 work_branch: epic-OOMPAH-586
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/597

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-631
 type: bug
-status: Needs CI Fix
+status: In Progress
 priority: 1
 title: Restore validation ownership when terminal retries coalesce
 parent: OOMPAH-584
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:08:00.758352Z'
-updated_at: '2026-07-31T00:34:58.522024Z'
+updated_at: '2026-07-31T00:35:21.265219Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-631
 target_branch: null
 review_url: null
@@ -31,56 +31,16 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: '2026-07-31T00:27:45.046849+00:00'
-oompah.agent_run_id: 7a8389ea-e98b-4684-a850-d63e707d978f
+oompah.agent_run_id: 09a8240d-a79e-456b-8c2a-126d6348b9cd
 oompah.work_branch: epic-OOMPAH-584--task-OOMPAH-631
 oompah.integration:
   version: 1
-  state: blocked
-  attempts: 1
+  state: working
+  attempts: 0
   task_branch: epic-OOMPAH-584--task-OOMPAH-631
   base_branch: epic-OOMPAH-584
   base_sha: c03e52f66f4e5123576f4de3f21e4a763cc9c4b1
-  head_sha: 0ae816c558a75f0461bd8d2910eab43f2fb70a33
-  submitted_at: '2026-07-31T00:30:12.966418+00:00'
-  updated_at: '2026-07-31T00:34:52.856161+00:00'
-  last_error: "Combined-tree quality gate failed: ine 104, in close\n      proto.pipe.close()\n\
-    \    File \"/home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 568, in close\n      self._close(None)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 592, in _close\n      self._loop.call_soon(self._call_connection_lost,\
-    \ exc)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 799, in call_soon\n      self._check_closed()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 545, in _check_closed\n      raise RuntimeError('Event loop is closed')\n\
-    \  RuntimeError: Event loop is closed\n  \n  Enable tracemalloc to get traceback\
-    \ where the object was allocated.\n  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
-    \ for more info.\n    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))\n\
-    \ntests/test_work_contributors.py::TestFireWorkContributorRecord::test_does_not_block\n\
-    \  /home/shedwards/.oompah/worktrees/oompah/OOMPAH-631/.venv/lib/python3.12/site-packages/_pytest/unraisableexception.py:67:\
-    \ PytestUnraisableExceptionWarning: Exception ignored in: <function BaseSubprocessTransport.__del__\
-    \ at 0x79cf432e3600>\n  \n  Traceback (most recent call last):\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/pathlib.py\"\
-    , line 441, in __str__\n      return self._str\n             ^^^^^^^^^\n  AttributeError:\
-    \ 'PosixPath' object has no attribute '_str'\n  \n  During handling of the above\
-    \ exception, another exception occurred:\n  \n  Traceback (most recent call last):\n\
-    \    File \"/home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/pathlib.py\"\
-    , line 555, in drive\n      return self._drv\n             ^^^^^^^^^\n  AttributeError:\
-    \ 'PosixPath' object has no attribute '_drv'\n  \n  During handling of the above\
-    \ exception, another exception occurred:\n  \n  Traceback (most recent call last):\n\
-    \    File \"/home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
-    , line 126, in __del__\n      self.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
-    , line 104, in close\n      proto.pipe.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 568, in close\n      self._close(None)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 592, in _close\n      self._loop.call_soon(self._call_connection_lost,\
-    \ exc)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 799, in call_soon\n      self._check_closed()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 545, in _check_closed\n      raise RuntimeError('Event loop is closed')\n\
-    \  RuntimeError: Event loop is closed\n  \n  Enable tracemalloc to get traceback\
-    \ where the object was allocated.\n  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
-    \ for more info.\n    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))\n\
-    \n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n===========================\
-    \ short test summary info ============================\nFAILED tests/test_state_branch_migration.py::TestConcurrentWrite::test_shadow_write_tracker_serializes_writes\n\
-    ===== 1 failed, 13826 passed, 7 skipped, 40 warnings in 248.85s (0:04:08) ======\n\
-    make[1]: Leaving directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-631'\n\
-    \nUninstalled 8 packages in 13ms\nInstalled 8 packages in 15ms\nmake[1]: *** [Makefile:225:\
-    \ test] Error 1\n"
+  updated_at: '2026-07-31T00:35:13.869937+00:00'
 oompah.task_costs:
   total_input_tokens: 1487463
   total_output_tokens: 12269
@@ -253,5 +213,15 @@ Installed 8 packages in 15ms
 make[1]: *** [Makefile:225: test] Error 1
 
 ```
+---
+author: oompah
+created: 2026-07-31 00:35
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-31 00:35
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
