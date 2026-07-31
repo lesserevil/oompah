@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:46:34.785511Z'
-updated_at: '2026-07-31T01:12:14.202558Z'
+updated_at: '2026-07-31T01:26:34.935499Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-632
 target_branch: null
 review_url: null
@@ -360,5 +360,10 @@ author: oompah
 created: 2026-07-31 01:12
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-31 01:26
+---
+Operator note: the worker-scoped comment CLI is returning its known 400 argument-binding error; do not spend further time on that optional progress comment. The 274 focused passes, 13,897 full-suite passes plus isolated harness pass are sufficient pre-submit evidence, and the integration executor will run the authoritative exact-head make test. Proceed with final diff review, canonical trailer, push, and task submit.
 ---
 <!-- COMMENTS:END -->
