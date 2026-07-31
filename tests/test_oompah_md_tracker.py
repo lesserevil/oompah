@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import subprocess
+import threading
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -34,6 +35,16 @@ from oompah.tracker import TrackerError
 def _tracker(tmp_path, *, git_sync: bool = False) -> OompahMarkdownTracker:
     root = tmp_path / "repo"
     root.mkdir()
+    return OompahMarkdownTracker(
+        active_states=[OPEN],
+        terminal_states=[DONE],
+        cwd=str(root),
+        default_branch="main",
+        git_sync=git_sync,
+    )
+
+
+def _tracker_for_root(root, *, git_sync: bool = False) -> OompahMarkdownTracker:
     return OompahMarkdownTracker(
         active_states=[OPEN],
         terminal_states=[DONE],
@@ -1392,6 +1403,261 @@ class TestAtomicWrite:
             assert not name.endswith(".md"), (
                 f"Temp file used .md suffix: {name!r} — would be picked up by */*.md glob"
             )
+
+
+# ---------------------------------------------------------------------------
+# Atomic read tests
+# ---------------------------------------------------------------------------
+
+
+class TestAtomicReadDuringStatusMoves:
+    """Native reads must not mistake a status-file move for corruption."""
+
+    @pytest.mark.parametrize(
+        ("start_status", "end_status", "start_dir", "end_dir"),
+        [
+            (OPEN, READY_TO_INTEGRATE, "open", "ready-to-integrate"),
+            (READY_TO_INTEGRATE, IN_PROGRESS, "ready-to-integrate", "in-progress"),
+        ],
+    )
+    def test_separate_tracker_reader_blocks_status_move_until_scan_completes(
+        self, tmp_path, start_status, end_status, start_dir, end_dir
+    ):
+        """A reader that has enumerated the old path returns its pre-move record.
+
+        This models separate tracker instances after a graceful reload.  The
+        barrier is immediately before the reader opens its enumerated old path;
+        the writer must not acquire the shared repository lock until the scan
+        completes.
+        """
+        root = tmp_path / "repo"
+        root.mkdir()
+        writer = _tracker_for_root(root)
+        reader = _tracker_for_root(root)
+        issue = writer.create_issue("Atomic status move", initial_status=start_status)
+        old_path = root / ".oompah" / "tasks" / start_dir / f"{issue.identifier}.md"
+        new_path = root / ".oompah" / "tasks" / end_dir / f"{issue.identifier}.md"
+        reader.invalidate_read_cache()
+
+        enumerated = threading.Event()
+        release_reader = threading.Event()
+        writer_started = threading.Event()
+        writer_acquired_lock = threading.Event()
+        reader_errors: list[Exception] = []
+        writer_errors: list[Exception] = []
+        reader_result = []
+        from oompah import oompah_md_tracker
+
+        original_read = oompah_md_tracker._read_markdown
+        original_uncached = writer._read_record_uncached
+
+        def pause_after_enumeration(path):
+            if path == old_path:
+                enumerated.set()
+                assert release_reader.wait(timeout=5), "reader was not released"
+            return original_read(path)
+
+        def observe_writer_lock(identifier):
+            writer_acquired_lock.set()
+            return original_uncached(identifier)
+
+        def read() -> None:
+            try:
+                reader_result.append(reader.fetch_issue_detail(issue.identifier))
+            except Exception as exc:  # pragma: no cover - asserted below
+                reader_errors.append(exc)
+
+        def move() -> None:
+            try:
+                writer_started.set()
+                writer.update_issue(issue.identifier, status=end_status)
+            except Exception as exc:  # pragma: no cover - asserted below
+                writer_errors.append(exc)
+
+        with patch(
+            "oompah.oompah_md_tracker._read_markdown", side_effect=pause_after_enumeration
+        ), patch.object(writer, "_read_record_uncached", side_effect=observe_writer_lock):
+            reader_thread = threading.Thread(target=read)
+            writer_thread = threading.Thread(target=move)
+            reader_thread.start()
+            assert enumerated.wait(timeout=2), "reader did not enumerate the old path"
+            writer_thread.start()
+            assert writer_started.wait(timeout=2), "writer did not start"
+            assert not writer_acquired_lock.wait(timeout=0.2), (
+                "writer acquired the repository lock while a read scan was in progress"
+            )
+            assert old_path.exists()
+            assert not new_path.exists()
+            release_reader.set()
+            reader_thread.join(timeout=2)
+            writer_thread.join(timeout=2)
+
+        assert not reader_thread.is_alive()
+        assert not writer_thread.is_alive()
+        assert not reader_errors
+        assert not writer_errors
+        assert reader_result[0] is not None
+        assert reader_result[0].state == start_status
+        assert writer_acquired_lock.is_set()
+        assert reader.list_corrupt_stubs() == []
+        assert writer.fetch_issue_detail(issue.identifier).state == end_status
+
+    def test_enoent_after_enumeration_retries_other_status_directory(self, tmp_path, caplog):
+        """An unmanaged atomic move is recovered before logging corruption."""
+        tracker = _tracker(tmp_path)
+        issue = tracker.create_issue("Refresh after move", initial_status=OPEN)
+        root = tmp_path / "repo"
+        old_path = root / ".oompah" / "tasks" / "open" / f"{issue.identifier}.md"
+        new_path = root / ".oompah" / "tasks" / "ready-to-integrate" / f"{issue.identifier}.md"
+        tracker.invalidate_read_cache()
+        from oompah import oompah_md_tracker
+
+        original_read = oompah_md_tracker._read_markdown
+        moved = False
+
+        def move_between_glob_and_open(path):
+            nonlocal moved
+            if path == old_path and not moved:
+                moved = True
+                meta, body = original_read(path)
+                meta["status"] = READY_TO_INTEGRATE
+                _write_markdown(new_path, meta, body)
+                path.unlink()
+            return original_read(path)
+
+        with caplog.at_level(logging.WARNING, logger="oompah.oompah_md_tracker"):
+            with patch(
+                "oompah.oompah_md_tracker._read_markdown",
+                side_effect=move_between_glob_and_open,
+            ):
+                found = tracker.fetch_issue_detail(issue.identifier)
+
+        assert moved
+        assert found is not None
+        assert found.state == READY_TO_INTEGRATE
+        assert tracker.list_corrupt_stubs() == []
+        assert not any("Corrupt native oompah task" in record.message for record in caplog.records)
+
+    def test_true_disappearance_after_enumeration_remains_corrupt(self, tmp_path, caplog):
+        """Retrying an ENOENT must not hide a genuinely deleted task file."""
+        tracker = _tracker(tmp_path)
+        issue = tracker.create_issue("Deleted during read", initial_status=OPEN)
+        path = tmp_path / "repo" / ".oompah" / "tasks" / "open" / f"{issue.identifier}.md"
+        tracker.invalidate_read_cache()
+        from oompah import oompah_md_tracker
+
+        original_read = oompah_md_tracker._read_markdown
+        deleted = False
+
+        def delete_between_glob_and_open(candidate):
+            nonlocal deleted
+            if candidate == path and not deleted:
+                deleted = True
+                candidate.unlink()
+            return original_read(candidate)
+
+        with caplog.at_level(logging.WARNING, logger="oompah.oompah_md_tracker"):
+            with patch(
+                "oompah.oompah_md_tracker._read_markdown",
+                side_effect=delete_between_glob_and_open,
+            ):
+                assert tracker.fetch_issue_detail(issue.identifier) is None
+
+        assert deleted
+        stubs = tracker.list_corrupt_stubs()
+        assert any(stub["stem"] == issue.identifier for stub in stubs)
+        assert any("Corrupt native oompah task" in record.message for record in caplog.records)
+
+    def test_concurrent_comment_and_status_update_preserve_both_mutations(self, tmp_path):
+        """A comment and status transition cannot overwrite one another's record."""
+        root = tmp_path / "repo"
+        root.mkdir()
+        status_tracker = _tracker_for_root(root)
+        comment_tracker = _tracker_for_root(root)
+        issue = status_tracker.create_issue("Concurrent comment", initial_status=OPEN)
+        barrier = threading.Barrier(3)
+        errors: list[Exception] = []
+
+        def update_status() -> None:
+            try:
+                barrier.wait(timeout=2)
+                status_tracker.update_issue(issue.identifier, status=READY_TO_INTEGRATE)
+            except Exception as exc:  # pragma: no cover - asserted below
+                errors.append(exc)
+
+        def add_comment() -> None:
+            try:
+                barrier.wait(timeout=2)
+                comment_tracker.add_comment(issue.identifier, "Kept during transition")
+            except Exception as exc:  # pragma: no cover - asserted below
+                errors.append(exc)
+
+        status_thread = threading.Thread(target=update_status)
+        comment_thread = threading.Thread(target=add_comment)
+        status_thread.start()
+        comment_thread.start()
+        barrier.wait(timeout=2)
+        status_thread.join(timeout=2)
+        comment_thread.join(timeout=2)
+
+        assert not status_thread.is_alive()
+        assert not comment_thread.is_alive()
+        assert not errors
+        found = status_tracker.fetch_issue_detail(issue.identifier)
+        assert found is not None
+        assert found.state == READY_TO_INTEGRATE
+        assert [comment["text"] for comment in status_tracker.fetch_comments(issue.identifier)] == [
+            "Kept during transition"
+        ]
+
+    def test_rapid_status_changes_invalidate_another_instance_cache(self, tmp_path):
+        """Every read returns a coherent status as another instance moves the file."""
+        root = tmp_path / "repo"
+        root.mkdir()
+        writer = _tracker_for_root(root)
+        reader = _tracker_for_root(root)
+        issue = writer.create_issue("Rapid transitions", initial_status=OPEN)
+        start = threading.Event()
+        writer_done = threading.Event()
+        errors: list[Exception] = []
+        observed_states: list[str] = []
+        transitions = [READY_TO_INTEGRATE, IN_PROGRESS, OPEN] * 10
+
+        def move_repeatedly() -> None:
+            try:
+                start.wait(timeout=2)
+                for status in transitions:
+                    writer.update_issue(issue.identifier, status=status)
+            except Exception as exc:  # pragma: no cover - asserted below
+                errors.append(exc)
+            finally:
+                writer_done.set()
+
+        def read_repeatedly() -> None:
+            try:
+                start.wait(timeout=2)
+                while not writer_done.is_set():
+                    found = reader.fetch_issue_detail(issue.identifier)
+                    if found is not None:
+                        observed_states.append(found.state)
+            except Exception as exc:  # pragma: no cover - asserted below
+                errors.append(exc)
+
+        writer_thread = threading.Thread(target=move_repeatedly)
+        reader_thread = threading.Thread(target=read_repeatedly)
+        writer_thread.start()
+        reader_thread.start()
+        start.set()
+        writer_thread.join(timeout=5)
+        reader_thread.join(timeout=5)
+
+        assert not writer_thread.is_alive()
+        assert not reader_thread.is_alive()
+        assert not errors
+        assert observed_states
+        assert set(observed_states) <= {OPEN, READY_TO_INTEGRATE, IN_PROGRESS}
+        assert reader.fetch_issue_detail(issue.identifier).state == transitions[-1]
+        assert reader.list_corrupt_stubs() == []
 
 
 # ---------------------------------------------------------------------------

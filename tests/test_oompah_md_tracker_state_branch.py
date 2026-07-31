@@ -31,7 +31,7 @@ import pytest
 import yaml
 
 from oompah.oompah_md_tracker import OompahMarkdownTracker
-from oompah.statuses import DONE, IN_PROGRESS, IN_REVIEW, OPEN
+from oompah.statuses import BACKLOG, DONE, IN_PROGRESS, IN_REVIEW, OPEN
 from oompah.tracker import TrackerError, TrackerStateBranchFetchError, TrackerStateBranchMissingError
 
 
@@ -234,6 +234,40 @@ class TestStateBranchTrackerIntegration:
         assert main_sha_after == main_sha_before, (
             "Status update must not change main branch HEAD"
         )
+
+    def test_state_branch_commit_invalidates_another_tracker_read_cache(
+        self, state_branch_repo: tuple[Path, str]
+    ) -> None:
+        """A state-branch generation change cannot leave a sibling cache stale."""
+        repo, state_branch = state_branch_repo
+        writer = _make_tracker(
+            repo,
+            state_branch_enabled=True,
+            state_branch_name=state_branch,
+            git_sync=True,
+        )
+        reader = _make_tracker(
+            repo,
+            state_branch_enabled=True,
+            state_branch_name=state_branch,
+            git_sync=True,
+        )
+        issue = writer.create_issue("Refresh state-branch cache")
+        writer.flush_checkpoint(reason="seed-reader-cache")
+
+        cached = reader.fetch_issue_detail(issue.identifier)
+        assert cached is not None
+        assert cached.state == BACKLOG
+        before = _commit_sha(repo, state_branch)
+
+        writer.update_issue(issue.identifier, status=IN_PROGRESS)
+        writer.flush_checkpoint(reason="commit-status-move")
+
+        assert _commit_sha(repo, state_branch) != before
+        refreshed = reader.fetch_issue_detail(issue.identifier)
+        assert refreshed is not None
+        assert refreshed.state == IN_PROGRESS
+        assert reader.list_corrupt_stubs() == []
 
     def test_add_comment_commits_only_to_state_branch(
         self, state_branch_repo: tuple[Path, str]
