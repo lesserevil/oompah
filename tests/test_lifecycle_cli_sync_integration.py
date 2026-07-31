@@ -20,11 +20,13 @@ from __future__ import annotations
 
 import json
 import subprocess
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
 
+import scripts.sync_canonical_cli as sync_cli
 from scripts.canonical_cli_cutover import (
     CutoverError,
     CutoverUncertainError,
@@ -34,10 +36,11 @@ from scripts.canonical_cli_cutover import (
     verify_pair,
 )
 from scripts.process_identity import read_identity
-from scripts.sync_canonical_cli import StagedCLI, SyncError
+from scripts.sync_canonical_cli import StagedCLI, SyncError, synchronize
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+_MATCHING_STATE_INSTANCE = object()
 
 
 @dataclass
@@ -64,6 +67,8 @@ class _LiveOldServer:
         restart_drops: bool = False,
         restart_drops_before_accept: bool = False,
         initially_paused: bool = False,
+        old_state_instance: object = _MATCHING_STATE_INSTANCE,
+        new_state_instance: object = _MATCHING_STATE_INSTANCE,
     ):
         self.old_revision = "a" * 40
         self.new_revision = "b" * 40
@@ -75,6 +80,8 @@ class _LiveOldServer:
         self.restart_drops = restart_drops
         self.restart_drops_before_accept = restart_drops_before_accept
         self.paused = initially_paused
+        self.old_state_instance = old_state_instance
+        self.new_state_instance = new_state_instance
         self.committed = False
         self.resumed = False
         self.stopped = False
@@ -104,10 +111,15 @@ class _LiveOldServer:
             revision = (
                 self.reported_new_revision if self.committed else self.old_revision
             )
+            state_instance = (
+                self.new_state_instance if self.committed else self.old_state_instance
+            )
+            if state_instance is _MATCHING_STATE_INSTANCE:
+                state_instance = instance
             return {
                 "paused": self.paused,
                 "counts": {"running": self.running},
-                "service_instance_id": instance,
+                "service_instance_id": state_instance,
                 "build_id": {"revision": revision},
                 "restart": {"in_progress": False},
             }
@@ -224,6 +236,100 @@ def test_restart_activates_only_after_drain_before_restart(tmp_path):
     assert server.calls[-1] == ("POST", "/api/v1/orchestrator/resume")
 
 
+def test_cutover_and_install_cli_share_one_transaction_lock(tmp_path, monkeypatch):
+    server = _LiveOldServer()
+    canonical = _canonical(tmp_path, server.old_revision)
+    tool_dir = tmp_path / "home" / ".local" / "share" / "uv" / "tools"
+    env = {"PATH": str(canonical.parent), "HOME": str(tmp_path / "home")}
+    cutover_in_stage = threading.Event()
+    release_cutover = threading.Event()
+    install_thread_started = threading.Event()
+    install_selected = threading.Event()
+    errors: list[BaseException] = []
+    results: dict[str, object] = {}
+    install_revision = server.new_revision
+    activation = _FakeActivation()
+
+    def blocking_cutover_stage(**kwargs):
+        cutover_in_stage.set()
+        if not release_cutover.wait(timeout=5):
+            raise TimeoutError("test did not release the cutover")
+        return _stager(tmp_path, server.new_revision)(**kwargs)
+
+    def selected_revision(_repo):
+        install_selected.set()
+        return install_revision
+
+    def install_stage(**kwargs):  # pragma: no cover - a post-lock no-op is required
+        raise AssertionError("the serialized install must observe the completed cutover")
+
+    def activate_cutover(staged, **kwargs):
+        replacement = canonical.parent / ".cutover-launcher"
+        replacement.write_bytes(staged.launcher.read_bytes())
+        replacement.chmod(staged.launcher.stat().st_mode & 0o777)
+        replacement.replace(canonical)
+        return activation
+
+    monkeypatch.setattr(sync_cli, "selected_revision", selected_revision)
+    monkeypatch.setattr(sync_cli, "stage_candidate", install_stage)
+
+    def run_cutover():
+        try:
+            results["cutover"] = graceful_cutover(
+                repo=REPO_ROOT,
+                canonical=canonical,
+                url="http://127.0.0.1:8090",
+                environ=env,
+                request=server,
+                stage=blocking_cutover_stage,
+                activate=activate_cutover,
+                timeout=1,
+                health_timeout=1,
+                sleep=lambda _: None,
+                quarantine=server.quarantine,
+            )
+        except BaseException as exc:  # pragma: no cover - assertion reports it
+            errors.append(exc)
+
+    def run_install():
+        install_thread_started.set()
+        try:
+            results["install"] = synchronize(
+                repo=REPO_ROOT,
+                canonical=canonical,
+                tool_dir=tool_dir,
+                bin_dir=canonical.parent,
+                environ=env,
+            )
+        except BaseException as exc:  # pragma: no cover - assertion reports it
+            errors.append(exc)
+
+    cutover_thread = threading.Thread(target=run_cutover)
+    install_thread = threading.Thread(target=run_install)
+    cutover_thread.start()
+    assert cutover_in_stage.wait(timeout=5)
+    install_thread.start()
+    assert install_thread_started.wait(timeout=5)
+    try:
+        assert not install_selected.wait(timeout=0.2)
+        assert install_thread.is_alive(), "install-cli must wait for restart resolution"
+    finally:
+        release_cutover.set()
+        cutover_thread.join(timeout=5)
+        install_thread.join(timeout=5)
+
+    assert not cutover_thread.is_alive()
+    assert not install_thread.is_alive()
+    assert errors == []
+    assert results == {"cutover": server.new_revision, "install": False}
+    assert activation.commit_count == 1
+    assert activation.rollback_count == 0
+    assert install_revision in subprocess.check_output(
+        [str(canonical), "--version"], text=True
+    )
+    assert not list(canonical.parent.glob(".oompah-cli-activation-*"))
+
+
 def test_restart_with_drain_failure_refuses_cli_sync(tmp_path):
     """Verify CLI is not synced if drain/restart fails.
 
@@ -285,6 +391,51 @@ def test_cli_server_build_id_equality_after_start(tmp_path):
         request=server,
     )
     assert revision == server.new_revision
+
+
+@pytest.mark.parametrize("state_instance", [None, "different-instance"])
+def test_verify_pair_requires_matching_non_null_service_instances(
+    tmp_path, state_instance
+):
+    server = _LiveOldServer(new_state_instance=state_instance)
+    server.committed = True
+    canonical = _canonical(tmp_path, server.new_revision)
+
+    with pytest.raises(CutoverError, match="same non-null service instance"):
+        verify_pair(
+            repo=REPO_ROOT,
+            canonical=canonical,
+            url="http://127.0.0.1:8090",
+            environ={"PATH": str(canonical.parent), "HOME": str(tmp_path / "home")},
+            request=server,
+        )
+
+
+def test_cutover_refuses_unpaired_initial_identity_before_pause(tmp_path):
+    server = _LiveOldServer(old_state_instance=None)
+
+    with pytest.raises(CutoverError, match="same non-null service instance"):
+        _run_cutover(tmp_path, server)
+
+    assert ("POST", "/api/v1/orchestrator/pause") not in server.calls
+
+
+@pytest.mark.parametrize("state_instance", [None, "different-instance"])
+def test_candidate_equality_requires_matching_state_instance(tmp_path, state_instance):
+    server = _LiveOldServer(new_state_instance=state_instance)
+    activation = _FakeActivation()
+
+    with pytest.raises(CutoverUncertainError, match="stopped.*candidate CLI"):
+        _run_cutover(
+            tmp_path,
+            server,
+            activate=lambda *args, **kwargs: activation,
+            health_timeout=0.001,
+        )
+
+    assert server.stopped is True
+    assert activation.rollback_count == 0
+    assert activation.commit_count == 1
 
 
 def test_cli_server_build_id_equality_after_restart(tmp_path):

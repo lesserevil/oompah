@@ -33,6 +33,7 @@ try:  # Works both as ``python -m`` and as a Makefile script path.
         StagedCLI,
         SyncError,
         activate_candidate,
+        serialized_cli_lifecycle,
         stage_candidate,
     )
 except ModuleNotFoundError:  # pragma: no cover - exercised by script startup
@@ -42,6 +43,7 @@ except ModuleNotFoundError:  # pragma: no cover - exercised by script startup
         StagedCLI,
         SyncError,
         activate_candidate,
+        serialized_cli_lifecycle,
         stage_candidate,
     )
 
@@ -307,7 +309,7 @@ def _is_candidate_pair(
         and instance != old_instance
         and observation.health_revision == revision.lower()
         and observation.state_revision == revision.lower()
-        and (state_instance is None or state_instance == instance)
+        and state_instance == instance
     )
 
 
@@ -323,7 +325,7 @@ def _is_verified_old_pair(
         and observation.health_instance == old_instance
         and observation.health_revision == old_revision.lower()
         and observation.state_revision == old_revision.lower()
-        and observation.state_instance in (None, old_instance)
+        and observation.state_instance == old_instance
         # The synchronous restart endpoint sets this before returning.  Only
         # an explicit false proves that a dropped request did not schedule an
         # exec which could occur after a one-sided launcher rollback.
@@ -419,6 +421,18 @@ def verify_pair(
     state = request("GET", "/api/v1/state", None)
     health_revision = _revision_from_identity(health)
     state_revision = _revision_from_identity(state)
+    health_instance = health.get("instance_id")
+    state_instance = state.get("service_instance_id")
+    if not (
+        health.get("status") == "ok"
+        and isinstance(health_instance, str)
+        and health_instance
+        and state_instance == health_instance
+    ):
+        raise CutoverError(
+            "health and authenticated state must report the same non-null "
+            "service instance"
+        )
     resolved = shutil.which("oompah", path=env.get("PATH"))
     if resolved is None or os.path.abspath(resolved) != os.path.abspath(canonical):
         raise CutoverError(
@@ -446,6 +460,7 @@ def verify_pair(
     return cli_revision
 
 
+@serialized_cli_lifecycle(error_type=CutoverError)
 def graceful_cutover(
     *,
     repo: Path,
@@ -486,12 +501,23 @@ def graceful_cutover(
 
     old_health = request("GET", "/healthz", None)
     old_state = request("GET", "/api/v1/state", None)
-    old_instance = old_health.get("instance_id")
-    old_revision = _revision_from_identity(old_state) or _revision_from_identity(old_health)
-    if old_revision is None:
+    old_observation = ServiceObservation(old_health, old_state, ())
+    old_instance = old_observation.health_instance
+    old_health_revision = old_observation.health_revision
+    old_state_revision = old_observation.state_revision
+    if not (
+        old_health.get("status") == "ok"
+        and old_instance
+        and old_observation.state_instance == old_instance
+        and old_health_revision
+        and old_state_revision == old_health_revision
+    ):
         raise CutoverError(
-            "running service has no build identity; refusing to risk a CLI/server mismatch"
+            "running health and authenticated state do not report the same "
+            "non-null service instance and exact revision; refusing to risk "
+            "a CLI/server mismatch"
         )
+    old_revision = old_health_revision
     current = subprocess.run(
         [str(canonical), "--version"],
         env=env,

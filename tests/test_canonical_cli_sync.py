@@ -4,14 +4,19 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 import threading
+import time
 from pathlib import Path
 
 import pytest
 
+import scripts.sync_canonical_cli as sync_cli
 from scripts.sync_canonical_cli import (
     SyncError,
     activate_candidate,
+    canonical_cli_lifecycle_lock,
+    lifecycle_lock_path,
     prune_revision_roots,
     stage_candidate,
     synchronize,
@@ -145,6 +150,120 @@ def test_already_current_is_a_noop(tmp_path):
     assert synchronize(**kwargs) is True
     env["FAKE_UV_FAILURE"] = "1"
     assert synchronize(**kwargs) is False
+
+
+def test_lifecycle_lock_is_stable_and_reentrant(tmp_path):
+    _, canonical, _, _ = _paths(tmp_path)
+    expected = canonical.parent / ".oompah-cli-lifecycle.lock"
+
+    with canonical_cli_lifecycle_lock(canonical) as outer:
+        with canonical_cli_lifecycle_lock(canonical) as inner:
+            assert outer == expected
+            assert inner == expected
+            assert lifecycle_lock_path(canonical) == expected
+
+    assert expected.is_file()
+    assert expected.stat().st_mode & 0o777 == 0o600
+
+
+def test_lifecycle_lock_serializes_separate_processes(tmp_path):
+    _, canonical, _, _ = _paths(tmp_path)
+    attempted = tmp_path / "child-attempted"
+    acquired = tmp_path / "child-acquired"
+    child_code = "\n".join(
+        (
+            "import sys",
+            "from pathlib import Path",
+            "from scripts.sync_canonical_cli import canonical_cli_lifecycle_lock",
+            "canonical, attempted, acquired = map(Path, sys.argv[1:])",
+            "attempted.write_text('ready', encoding='utf-8')",
+            "with canonical_cli_lifecycle_lock(canonical):",
+            "    acquired.write_text('acquired', encoding='utf-8')",
+        )
+    )
+
+    with canonical_cli_lifecycle_lock(canonical):
+        child = subprocess.Popen(
+            [
+                sys.executable,
+                "-c",
+                child_code,
+                str(canonical),
+                str(attempted),
+                str(acquired),
+            ],
+            cwd=Path(__file__).resolve().parents[1],
+        )
+        deadline = time.monotonic() + 5
+        while not attempted.exists() and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert attempted.exists()
+        assert not acquired.exists(), "the child process must block on flock"
+
+    child.wait(timeout=5)
+    assert child.returncode == 0
+    assert acquired.read_text(encoding="utf-8") == "acquired"
+
+
+def test_concurrent_synchronizations_serialize_the_full_transaction(
+    tmp_path, monkeypatch
+):
+    repo = _repo(tmp_path)
+    uv = _fake_uv(tmp_path)
+    _, canonical, tool_dir, env = _paths(tmp_path)
+    revision = _git(repo, "rev-parse", "HEAD")
+    env["FAKE_CLI_REVISION"] = revision
+    kwargs = _kwargs(repo, canonical, uv, tool_dir, env)
+    first_staging = threading.Event()
+    release_first = threading.Event()
+    unexpected_second_stage = threading.Event()
+    stage_calls = 0
+    stage_calls_guard = threading.Lock()
+    results: list[bool] = []
+    errors: list[BaseException] = []
+    real_stage = sync_cli.stage_candidate
+
+    def blocking_stage(**stage_kwargs):
+        nonlocal stage_calls
+        with stage_calls_guard:
+            stage_calls += 1
+            call_number = stage_calls
+        if call_number == 1:
+            first_staging.set()
+            if not release_first.wait(timeout=5):
+                raise TimeoutError("test did not release the first synchronization")
+        else:
+            unexpected_second_stage.set()
+        return real_stage(**stage_kwargs)
+
+    monkeypatch.setattr(sync_cli, "stage_candidate", blocking_stage)
+
+    def run_sync():
+        try:
+            results.append(synchronize(**kwargs))
+        except BaseException as exc:  # pragma: no cover - assertion reports it
+            errors.append(exc)
+
+    first = threading.Thread(target=run_sync)
+    second = threading.Thread(target=run_sync)
+    first.start()
+    assert first_staging.wait(timeout=5)
+    second.start()
+    try:
+        assert not unexpected_second_stage.wait(timeout=0.2)
+        assert second.is_alive(), "the second transaction must wait on the host lock"
+    finally:
+        release_first.set()
+        first.join(timeout=5)
+        second.join(timeout=5)
+
+    assert not first.is_alive()
+    assert not second.is_alive()
+    assert errors == []
+    assert sorted(results) == [False, True]
+    assert stage_calls == 1
+    assert revision in subprocess.check_output([str(canonical), "--version"], text=True)
+    assert not list(canonical.parent.glob(".oompah-cli-activation-*"))
 
 
 @pytest.mark.parametrize("failure_mode", ["install", "mismatch"])
@@ -418,6 +537,107 @@ def test_pruning_protects_live_backup_and_active_invocation_roots(tmp_path):
         assert roots[0].is_dir(), "active invocation root must be retained"
         assert removed
         assert all(not root.exists() for root in removed)
+    finally:
+        process.terminate()
+        process.wait(timeout=2)
+
+
+def test_pruning_tolerates_launcher_replacement_and_ignores_partial_roots(
+    tmp_path, monkeypatch
+):
+    revisions_dir = tmp_path / "tools" / ".oompah-revisions"
+    revisions_dir.mkdir(parents=True)
+    roots = []
+    for index in range(6):
+        root = revisions_dir / f"{index:040x}-{index:032x}"
+        root.mkdir()
+        os.utime(root, (index + 1, index + 1))
+        roots.append(root)
+
+    incomplete = revisions_dir / f".{7:040x}-{7:032x}.publishing"
+    incomplete.mkdir()
+    symlink_target = tmp_path / "external-root"
+    symlink_target.mkdir()
+    symlink_root = revisions_dir / f"{8:040x}-{8:032x}"
+    symlink_root.symlink_to(symlink_target, target_is_directory=True)
+
+    canonical = tmp_path / "bin" / "oompah"
+    canonical.parent.mkdir()
+    canonical.write_text(f"#!/bin/sh\n# {roots[0]}\n", encoding="utf-8")
+    replacement = canonical.parent / ".replacement"
+    replacement.write_text(f"#!/bin/sh\n# {roots[5]}\n", encoding="utf-8")
+    real_read_bytes = Path.read_bytes
+    replacement_done = False
+
+    def read_during_replacement(path):
+        nonlocal replacement_done
+        payload = real_read_bytes(path)
+        if path == canonical and not replacement_done:
+            replacement_done = True
+            os.replace(replacement, canonical)
+        return payload
+
+    monkeypatch.setattr(Path, "read_bytes", read_during_replacement)
+    removed = prune_revision_roots(
+        revisions_dir,
+        canonical=canonical,
+        max_roots=1,
+        proc_root=tmp_path / "no-proc",
+    )
+
+    assert replacement_done
+    assert roots[0].is_dir(), "the launcher observed before replacement stays protected"
+    assert roots[5].is_dir(), "the newest replacement root stays protected"
+    assert incomplete.is_dir(), "incomplete publications are never pruning candidates"
+    assert symlink_root.is_symlink(), "symlink roots are never treated as publications"
+    assert removed
+
+
+def test_pruning_protects_an_invocation_that_crossed_launcher_activation(tmp_path):
+    revisions_dir = tmp_path / "tools" / ".oompah-revisions"
+    revisions_dir.mkdir(parents=True)
+    roots = []
+    for index in range(6):
+        root = revisions_dir / f"{index:040x}-{index:032x}"
+        root.mkdir()
+        os.utime(root, (index + 1, index + 1))
+        roots.append(root)
+
+    ready = tmp_path / "invocation-ready"
+    active_script = roots[0] / "active.py"
+    active_script.write_text(
+        "#!/usr/bin/python3\n"
+        "from pathlib import Path\n"
+        "import time\n"
+        f"Path({str(ready)!r}).write_text('ready', encoding='utf-8')\n"
+        "time.sleep(60)\n",
+        encoding="utf-8",
+    )
+    active_script.chmod(0o755)
+    canonical = tmp_path / "bin" / "oompah"
+    canonical.parent.mkdir()
+    canonical.write_text(f"#!/bin/sh\nexec '{active_script}'\n", encoding="utf-8")
+    canonical.chmod(0o755)
+    process = subprocess.Popen([str(canonical)])
+    try:
+        deadline = time.monotonic() + 5
+        while not ready.exists() and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert ready.exists()
+
+        replacement = canonical.parent / ".candidate"
+        replacement.write_text(f"#!/bin/sh\n# {roots[5]}\n", encoding="utf-8")
+        replacement.chmod(0o755)
+        os.replace(replacement, canonical)
+        removed = prune_revision_roots(
+            revisions_dir,
+            canonical=canonical,
+            max_roots=1,
+        )
+
+        assert roots[0].is_dir(), "the already-running old invocation must finish"
+        assert roots[5].is_dir(), "the activated launcher root must remain"
+        assert removed
     finally:
         process.terminate()
         process.wait(timeout=2)

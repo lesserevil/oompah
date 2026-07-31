@@ -3125,6 +3125,7 @@ async def api_state():
                 )
             snapshot = dict(snapshot)
             snapshot["build_id"] = dict(_BUILD_ID)
+            snapshot["service_instance_id"] = _INSTANCE_ID
             duration_ms = (time.monotonic() - t_start) * 1000
             _record_api_latency("/api/v1/state", duration_ms)
             snapshot["api_metrics"] = _api_metrics_snapshot()
@@ -3135,6 +3136,7 @@ async def api_state():
         # during maintenance / tick bursts.
         snapshot = _cached_state_snapshot_or_unavailable()
         snapshot["build_id"] = dict(_BUILD_ID)
+        snapshot["service_instance_id"] = _INSTANCE_ID
         duration_ms = (time.monotonic() - t_start) * 1000
         _record_api_latency("/api/v1/state", duration_ms)
         snapshot["api_metrics"] = _api_metrics_snapshot()

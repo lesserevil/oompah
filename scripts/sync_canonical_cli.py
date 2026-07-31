@@ -10,26 +10,139 @@ so concurrent invocations always see a complete old or new environment.
 from __future__ import annotations
 
 import argparse
+import fcntl
+import functools
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
+import threading
 import uuid
 from collections.abc import Iterable
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, Callable, ParamSpec, TypeVar
 
 
 DEFAULT_SOURCE_URL = "https://github.com/lesserevil/oompah"
 _REVISION_RE = re.compile(r"revision\s+([0-9a-fA-F]{7,64})\b")
 _PUBLISHED_ROOT_RE = re.compile(r"[0-9a-f]{7,64}-[0-9a-f]{32}")
 DEFAULT_RETAINED_REVISION_ROOTS = 4
+_LIFECYCLE_LOCK_NAME = ".oompah-cli-lifecycle.lock"
+
+_P = ParamSpec("_P")
+_R = TypeVar("_R")
 
 
 class SyncError(RuntimeError):
     """Raised when canonical CLI synchronization cannot be completed safely."""
+
+
+@dataclass
+class _LifecycleLockState:
+    """In-process half of the host-wide lifecycle serialization lock."""
+
+    mutex: Any
+    depth: int = 0
+    fd: int | None = None
+
+
+_LIFECYCLE_LOCK_STATES: dict[Path, _LifecycleLockState] = {}
+_LIFECYCLE_LOCK_STATES_GUARD = threading.Lock()
+
+
+def lifecycle_lock_path(canonical: Path) -> Path:
+    """Return the stable host-scoped lock used by every CLI cutover path."""
+    parent = canonical.expanduser().parent.resolve(strict=False)
+    return parent / _LIFECYCLE_LOCK_NAME
+
+
+def _lifecycle_lock_state(lock_path: Path) -> _LifecycleLockState:
+    with _LIFECYCLE_LOCK_STATES_GUARD:
+        state = _LIFECYCLE_LOCK_STATES.get(lock_path)
+        if state is None:
+            state = _LifecycleLockState(mutex=threading.RLock())
+            _LIFECYCLE_LOCK_STATES[lock_path] = state
+        return state
+
+
+@contextmanager
+def canonical_cli_lifecycle_lock(canonical: Path):
+    """Serialize selection, activation, rollback, and pruning across the host.
+
+    ``flock`` protects separate lifecycle processes.  The per-path ``RLock``
+    both serializes threads in one process and makes nested helpers reentrant,
+    avoiding a self-deadlock when a cutover calls another protected helper.
+    The persistent lock file is outside revision and rollback roots, so neither
+    activation nor pruning can replace or delete it.
+    """
+    lock_path = lifecycle_lock_path(canonical)
+    state = _lifecycle_lock_state(lock_path)
+    state.mutex.acquire()
+    try:
+        if state.depth == 0:
+            lock_path.parent.mkdir(parents=True, exist_ok=True)
+            flags = os.O_CREAT | os.O_RDWR
+            flags |= getattr(os, "O_CLOEXEC", 0)
+            flags |= getattr(os, "O_NOFOLLOW", 0)
+            fd: int | None = None
+            try:
+                fd = os.open(lock_path, flags, 0o600)
+                metadata = os.fstat(fd)
+                if not stat.S_ISREG(metadata.st_mode):
+                    raise OSError("lifecycle lock is not a regular file")
+                os.fchmod(fd, 0o600)
+                fcntl.flock(fd, fcntl.LOCK_EX)
+            except OSError as exc:
+                if fd is not None:
+                    os.close(fd)
+                raise SyncError(
+                    f"cannot acquire canonical CLI lifecycle lock {lock_path}: {exc}"
+                ) from exc
+            state.fd = fd
+        state.depth += 1
+        try:
+            yield lock_path
+        finally:
+            state.depth -= 1
+            if state.depth == 0:
+                fd = state.fd
+                state.fd = None
+                if fd is not None:
+                    try:
+                        fcntl.flock(fd, fcntl.LOCK_UN)
+                    finally:
+                        os.close(fd)
+    finally:
+        state.mutex.release()
+
+
+def serialized_cli_lifecycle(
+    *, error_type: type[Exception] = SyncError
+) -> Callable[[Callable[_P, _R]], Callable[_P, _R]]:
+    """Decorate a keyword-only lifecycle entry point with the shared lock."""
+
+    def decorate(function: Callable[_P, _R]) -> Callable[_P, _R]:
+        @functools.wraps(function)
+        def wrapped(*args: _P.args, **kwargs: _P.kwargs) -> _R:
+            canonical = kwargs.get("canonical")
+            if canonical is None:
+                raise TypeError("serialized lifecycle call requires canonical=")
+            try:
+                with canonical_cli_lifecycle_lock(Path(canonical)):
+                    return function(*args, **kwargs)
+            except SyncError as exc:
+                if error_type is SyncError:
+                    raise
+                raise error_type(str(exc)) from exc
+
+        return wrapped
+
+    return decorate
 
 
 @dataclass
@@ -189,7 +302,9 @@ def _published_revision_roots(revisions_dir: Path) -> list[Path]:
     roots = [
         path
         for path in revisions_dir.iterdir()
-        if path.is_dir() and _PUBLISHED_ROOT_RE.fullmatch(path.name)
+        if path.is_dir()
+        and not path.is_symlink()
+        and _PUBLISHED_ROOT_RE.fullmatch(path.name)
     ]
     return sorted(
         roots,
@@ -508,6 +623,7 @@ def activate_candidate(
     return activation
 
 
+@serialized_cli_lifecycle()
 def synchronize(
     *,
     repo: Path,
