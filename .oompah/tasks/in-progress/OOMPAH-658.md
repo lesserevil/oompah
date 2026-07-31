@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-07-31T11:55:30.077994Z'
+updated_at: '2026-07-31T12:02:33.583449Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -419,5 +419,19 @@ author: oompah
 created: 2026-07-31 11:55
 ---
 Understanding: The previous rejection at head 1fc7b264 is specific — the fingerprint direction (finish-order metadata excluded, intake/source revision included) is correct, but the newly added Issue.source/source_revision fields are not populated by any oompah_md/GitHub/GitLab adapter, so replace()-based direct dataclass tests can pass while production intake changes cannot invalidate a completed screen. Also, the full make test gate was terminated by the operator (finish-order authority on OOMPAH-657), not a real test failure. Plan: (1) drop the dead Issue.source/source_revision fields and derive both fingerprint inputs from already-normalized production data — 'Triggered by:' header parsed from description (server writes this for follow-ups) and intake.proposal_fingerprint from the shared IntakeReadiness schema (populated by all adapters via oompah.intake). (2) Replace the direct-replace tests with a native oompah_md_tracker-backed regression: persist a checked task on disk, add only finish-order deps/transient scheduler labels, spin up a fresh orchestrator, and confirm zero re-screens; then mutate the persisted intake.proposal_fingerprint and confirm exactly one new screening claim under two concurrent ticks; and confirm inconclusive result remains retryable. (3) Focused suites only until OOMPAH-657 lands.
+---
+author: oompah
+created: 2026-07-31 12:02
+---
+Discovery + Implementation: Confirmed the operator concern — every tracker adapter (oompah_md, github, gitlab) already normalizes the follow-up 'Triggered by: <id>' header into issue.description via _section/summary extraction, and the intake.proposal_fingerprint is written by intake_promotion.py + epic_proposal.py through the IntakeReadiness schema common to every backend. The dead Issue.source/source_revision fields were doing zero production work.
+
+Changes:
+1) oompah/models.py — dropped the never-populated source/source_revision fields.
+2) oompah/duplicate_screening.py — replaced dual _source_input/_revision_input with a single _intake_revision that reads intake.proposal_fingerprint (the only stable, non-scheduler intake field). Description already carries the Triggered-by header for every adapter, so no separate source input is needed.
+3) tests/test_duplicate_screening.py — updated fingerprint tests to cover 'Triggered by' description mutation, intake proposal_fingerprint invalidation, and confirmed last_validated_at rewrites do NOT stale a checked verdict.
+4) tests/test_duplicate_preflight.py — replaced the direct-replace test with three adapter-backed regressions using OompahMarkdownTracker on tmp_path:
+   - persisted checked verdict + on-disk finish-order dependency, start dep, and transient scheduler labels + fresh orchestrator/tracker instance => two ticks both skipped_checked, zero screens.
+   - concurrent-tick race on the same persisted candidate after mutating intake.proposal_fingerprint on disk => exactly one winner.
+   - persisted inconclusive result with fresh orchestrator => selection admits it, matching retry policy.
 ---
 <!-- COMMENTS:END -->
