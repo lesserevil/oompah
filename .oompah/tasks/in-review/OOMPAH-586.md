@@ -15,7 +15,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-30T14:13:33.901470Z'
-updated_at: '2026-07-31T01:12:08.226149Z'
+updated_at: '2026-07-31T01:15:18.263010Z'
 work_branch: epic-OOMPAH-586
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/597
@@ -268,5 +268,10 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: normal, Duration: 3m 5s
 - Log: OOMPAH-586__20260731T003705Z.jsonl
+---
+author: oompah
+created: 2026-07-31 01:15
+---
+Operator re-armed the merged-epic terminal audit after the pre-OOMPAH-631 runtime coalesced the scheduler request without restoring validation ownership. PR #597 is merged and OOMPAH-593/594/595 are Done.
 ---
 <!-- COMMENTS:END -->
