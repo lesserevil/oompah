@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-599
 type: task
-status: In Validation
+status: Done
 priority: 1
 title: Verify zero stranded delivery states and close recovery epics
 parent: OOMPAH-587
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:31.072278Z'
-updated_at: '2026-07-31T05:20:32.760656Z'
+updated_at: '2026-07-31T05:20:36.531010Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-599
 target_branch: null
 review_url: null
@@ -500,5 +500,26 @@ author: oompah
 created: 2026-07-31 05:12
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 05:20
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- branch: epic-OOMPAH-587--task-OOMPAH-599
+- local_head_sha: 88adebe114c187b8fdc33f935e2fe4d61f1df3d1
+- remote_task_head_sha: c1b23d67ef00f07af9fd31b968070c4533341173
+- remote_task_head_commit_title: OOMPAH-599: fence stale integration ownership
+- patch_equivalence: identical diff payload between 88adebe11 and c1b23d67e; only base index hashes differ (rebase artifact)
+- files_touched: oompah/integration_executor.py, oompah/integration_queue.py, oompah/orchestrator.py, tests/test_delivery_plane_recovery.py (new, 220 lines, 4 invariant tests), tests/test_integration_executor.py, tests/test_integration_queue.py
+- epic_parent_branch: origin/epic-OOMPAH-584 contains c1b23d67e
+- epic_parent_merge_commit: 145b6b67e Merge pull request #601 from lesserevil/epic-OOMPAH-587
+- commits_outside_epic_from_task_head: 0 (c1b23d67e is direct parent of merge commit 145b6b67e)
+- prior_audit_result: PASS Done at 04:45 with full gate 14,104 passed / 7 skipped / 1 xfailed at content-identical head 88adebe11
+- regression_root_cause: old runtime compared pre-rebase task ref to rebased parent (per operator repair comment); refreshed remote task ref via exact-lease owner override to patch-equivalent rebased head
+- test_file_present: tests/test_delivery_plane_recovery.py (listed in tests/)
 ---
 <!-- COMMENTS:END -->
