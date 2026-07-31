@@ -11,12 +11,27 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T11:06:15.542774Z'
-updated_at: '2026-07-31T11:06:57.247258Z'
+updated_at: '2026-07-31T11:07:08.770628Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 156eeba91c00cafe17da43dbf88f58a7e3e04e766e328754b828313bb3033357
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 61d07321-b383-4fc9-958b-fa1dd54e52cf
+  claim_owner: f6d86559-4e9d-42bf-ac66-416781dbb14f
+  claimed_at: '2026-07-31T11:07:04.417669+00:00'
+  claim_expires_at: '2026-07-31T11:37:04.417669+00:00'
+  retry_count: 0
+  retry_after: null
+oompah.agent_run_id: 005e2645-9191-48ef-ae8e-a39a4acf1a4c
 ---
 ## Summary
 
@@ -28,3 +43,16 @@ Live race reproduced on OOMPAH-655 at 2026-07-31 11:03-11:06 UTC: a full gate la
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-31 11:07
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-07-31 11:07
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
