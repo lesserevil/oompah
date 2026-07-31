@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:29:49.323393Z'
-updated_at: '2026-07-31T10:50:53.333966Z'
+updated_at: '2026-07-31T10:53:23.893841Z'
 work_branch: OOMPAH-654
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/617
@@ -81,6 +81,8 @@ oompah.work_branch: OOMPAH-654
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-333fc6401a16: '2026-07-31T10:53:20.639142+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -88,7 +90,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-654
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -97,7 +99,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-333fc6401a16
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -107,13 +109,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T10:50:49.653252+00:00'
       branch_key: OOMPAH-654
+      verdict: pass
+      completed_at: '2026-07-31T10:53:20.638996+00:00'
+      ended_at: '2026-07-31T10:53:20.638996+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-07-31T10:50:36.583869+00:00'
-    updated_at: '2026-07-31T10:50:49.653252+00:00'
+    updated_at: '2026-07-31T10:53:20.638996+00:00'
   - version: 1
     audit_id: audit-6a58167a8f64
     project_id: proj-14849f1b
@@ -242,5 +247,23 @@ author: oompah
 created: 2026-07-31 10:50
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 10:53
+---
+Audit PASS — Done
+
+Verified: .gitignore adds targeted patterns *.pid.meta and *.pid.meta.tmp.* (specific, not broad), new tests/test_pid_meta_gitignore.py provides 6 regression cases (including proof that unrelated *.meta files stay visible), merged to main via PR #617 (commit 54dd2509c). Focused suite passes 54/54 (6 gitignore + 41 makefile-restart-wait + 7 makefile-setup). git diff --check clean; working tree clean. Acceptance criteria satisfied.
+
+Safe evidence:
+- branch_head: b64cbc85adca310a10f767692302e004343f14cd
+- merge_commit: 54dd2509c
+- pr_number: 617
+- gitignore_patterns_added: *.pid.meta and *.pid.meta.tmp.*
+- test_file_added: tests/test_pid_meta_gitignore.py (6 cases)
+- focused_tests_result: 54 passed in 14.83s
+- focused_suites: test_pid_meta_gitignore.py, test_makefile_restart_wait.py, test_makefile_setup.py
+- working_tree_status: clean
+- unrelated_meta_visibility_test: test_pid_meta_ignored_but_unrelated_meta_visible passed
 ---
 <!-- COMMENTS:END -->
