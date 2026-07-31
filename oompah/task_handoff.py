@@ -213,6 +213,18 @@ class TaskHandoffGrantStore:
         with self._lock:
             self._purge_locked(now)
             self._grants[grant.token_digest] = grant
+        # The capability is intentionally returned to the subprocess, but
+        # any parent-side event, exception, or telemetry text containing it
+        # must be redacted even without a token-shaped label around it.
+        from oompah.secrets import register_secret
+
+        register_secret(
+            token,
+            # Keep a bounded grace period after grant expiry for delayed
+            # worker shutdown/error events without retaining every historical
+            # handoff capability forever.
+            expires_in=ttl + 60 * 60,
+        )
         return token
 
     def validate(

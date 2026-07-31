@@ -33,6 +33,17 @@ reaches the terminal fallback in `redact_sensitive_data` is rendered
 via `repr()`/`str()` and scanned for secrets *before* being returned.
 Downstream `json.dumps(..., default=str)` cannot bypass the scrub.
 
+At startup, the service also registers configured plaintext values from the
+explicit credential environment sources (including `OOMPAH_SERVER_PASSWORD`
+and `OOMPAH_SERVER_PASSWORD_FILE`). Provider/project credentials and scoped
+task-handoff capabilities are registered when loaded or issued. Literal
+replacement is longest-first. Long-lived configured values remain registered
+for the process lifetime, while minted task-handoff capabilities expire after
+their grant lifetime plus a bounded one-hour grace period. This protects both
+the new value and delayed shutdown/retry messages containing the old value
+without retaining every historical worker token forever. Values are never
+written to logs, state, or task comments by the registry.
+
 ## Auditing existing logs for exposure
 
 Before rotating a credential, confirm whether it made it to disk.

@@ -21,6 +21,8 @@ from typing import Any, NotRequired, TypedDict
 
 import httpx
 
+from oompah.secrets import register_secret
+
 logger = logging.getLogger(__name__)
 
 
@@ -468,6 +470,7 @@ def _resolve_gh_token() -> str | None:
     """Resolve GitHub token from environment or gh CLI config."""
     token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
     if token:
+        register_secret(token)
         return token
     try:
         r = subprocess.run(
@@ -475,7 +478,9 @@ def _resolve_gh_token() -> str | None:
             capture_output=True, text=True, timeout=5,
         )
         if r.returncode == 0 and r.stdout.strip():
-            return r.stdout.strip()
+            token = r.stdout.strip()
+            register_secret(token)
+            return token
     except (FileNotFoundError, subprocess.TimeoutExpired):
         pass
     return None
@@ -485,6 +490,7 @@ def _resolve_gitlab_token(hostname: str = "gitlab.com") -> str | None:
     """Resolve GitLab token from environment or glab CLI config."""
     token = os.environ.get("GITLAB_TOKEN") or os.environ.get("GITLAB_API_TOKEN")
     if token:
+        register_secret(token)
         return token
     try:
         r = subprocess.run(
@@ -492,7 +498,9 @@ def _resolve_gitlab_token(hostname: str = "gitlab.com") -> str | None:
             capture_output=True, text=True, timeout=5,
         )
         if r.returncode == 0 and r.stdout.strip():
-            return r.stdout.strip()
+            token = r.stdout.strip()
+            register_secret(token)
+            return token
     except (FileNotFoundError, subprocess.TimeoutExpired):
         pass
     return None
@@ -597,6 +605,7 @@ class GitHubProvider(SCMProvider):
         # When an explicit token is provided (e.g. from project config), skip
         # the env/CLI fallback so per-project auth wins over the global default.
         self._token: str | None = access_token
+        register_secret(access_token)
         self._token_resolved = bool(access_token)
         # Capacity acquisition needs to distinguish a confirmed empty forge
         # listing from the provider's historical empty-on-error fallback.
@@ -1998,6 +2007,7 @@ class GitLabProvider(SCMProvider):
         # When an explicit token is provided (e.g. from project config), skip
         # the env/CLI fallback so per-project auth wins over the global default.
         self._token: str | None = access_token
+        register_secret(access_token)
         self._token_resolved = bool(access_token)
         self.last_open_reviews_fetch_ok = True
 

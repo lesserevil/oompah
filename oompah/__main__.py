@@ -271,7 +271,13 @@ def main() -> None:
     # so accidental logger.warning("...: %s", credential_url) style calls
     # cannot leak plaintext secrets to service logs.
     try:
-        from oompah.secrets import install_secret_redaction_filter
+        from oompah.secrets import (
+            install_secret_redaction_filter,
+            register_configured_secrets,
+        )
+        # Load known configured values before any worker/event can emit a
+        # diagnostic.  This function intentionally never logs the values.
+        register_configured_secrets()
         install_secret_redaction_filter("oompah")
     except Exception:
         # Never let a broken filter installation break server startup.

@@ -142,6 +142,24 @@ class AcpAgentSession:
         self.task_identifier = task_identifier
         self.action_policy = action_policy
         self.task_handoff_token = task_handoff_token
+        # These values are intentionally passed to selected backend
+        # environments.  Register them before the backend can emit a startup
+        # event so an opaque token cannot leak through an innocuous payload.
+        from oompah.secrets import register_secret, register_secret_values
+
+        register_secret(task_handoff_token, expires_in=60 * 60)
+        register_secret_values(
+            value
+            for key, value in self.env.items()
+            if isinstance(key, str)
+            and key.upper() != "OOMPAH_TASK_HANDOFF_TOKEN"
+            and (
+                "password" in key.lower()
+                or "token" in key.lower()
+                or "secret" in key.lower()
+                or "api_key" in key.lower()
+            )
+        )
         self.focus = focus
         self.auditor = auditor
         self.audit_target = audit_target

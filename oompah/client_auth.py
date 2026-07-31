@@ -769,6 +769,13 @@ def resolve_client_credentials(
             )
 
     assert resolved_password is not None  # guarded by checks above
+
+    # Keep the resolved plaintext password behind the process-local redaction
+    # boundary.  This is additive so a password rotation cannot make a late
+    # CLI/server diagnostic expose the previous value.
+    from oompah.secrets import register_secret
+
+    register_secret(resolved_password)
     return ClientCredentials(username=username, password=resolved_password)
 
 

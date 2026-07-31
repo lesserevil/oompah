@@ -27,7 +27,7 @@ from typing import Any, Callable
 from oompah.prompt import RenderedPrompt
 from oompah.client_auth import agent_environment
 from oompah.authority_boundary import AgentActionPolicy, check_shell_command
-from oompah.secrets import redact_sensitive_data
+from oompah.secrets import redact_sensitive_data, register_secret
 from oompah.auditor import (
     AUDITOR_ALLOWED_TOOLS,
     AUDITOR_RESULT_TOOL_NAME,
@@ -1165,6 +1165,10 @@ class ApiAgentSession:
         self.base_url = base_url.strip().rstrip("/") if isinstance(base_url, str) else base_url
         self._url = openai_chat_completions_url(self.base_url)
         self._api_key = api_key
+        # Provider credentials can appear later in an otherwise innocuous
+        # response/detail string.  Register the value at session creation so
+        # every API-agent sink is protected by literal replacement too.
+        register_secret(api_key)
         self.model = model
         self.workspace = Path(workspace_path).resolve()
         self.max_turns = max_turns

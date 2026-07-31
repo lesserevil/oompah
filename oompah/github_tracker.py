@@ -56,6 +56,7 @@ import httpx
 
 from oompah.integration import parse_integration_record
 from oompah.models import BlockerRef, Issue
+from oompah.secrets import register_secret
 from oompah.statuses import (
     ARCHIVED,
     CANONICAL_STATUSES,
@@ -460,6 +461,8 @@ class GitHubAuth:
         )
         self._app_private_key: str | None = self._load_private_key(app_private_key)
         self._pat: str | None = pat or self._resolve_pat()
+        register_secret(self._app_private_key)
+        register_secret(self._pat)
 
         # Cached installation token for GitHub App auth.
         self._installation_token: _InstallationToken | None = None
@@ -524,6 +527,7 @@ class GitHubAuth:
     def _fetch_installation_token(self) -> str:
         """Exchange the App JWT for a short-lived installation token."""
         jwt_token = _generate_app_jwt(self._app_id, self._app_private_key)  # type: ignore[arg-type]
+        register_secret(jwt_token, expires_in=2 * 60 * 60)
         url = (
             f"{_GH_API_BASE}/app/installations"
             f"/{self._app_installation_id}/access_tokens"
@@ -582,6 +586,10 @@ class GitHubAuth:
             except Exception:
                 pass  # fall back to 1 hour default
 
+        register_secret(
+            token,
+            expires_in=max(expires_at_mono - time.monotonic(), 0) + 3600,
+        )
         return token, expires_at_mono
 
     # ------------------------------------------------------------------
@@ -625,6 +633,7 @@ class GitHubAuth:
         with self._lock:
             if self._pat is None:
                 self._pat = self._resolve_gh_cli_token()
+                register_secret(self._pat)
         return self._pat
 
     def headers(self) -> dict[str, str]:

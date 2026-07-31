@@ -8,6 +8,7 @@ import os
 import uuid
 
 from oompah.models import ModelProvider
+from oompah.secrets import register_secret
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,7 @@ class ProviderStore:
                 p = ModelProvider.from_dict(entry)
                 if p.id:
                     self._providers[p.id] = p
+                    register_secret(p.api_key)
         except (json.JSONDecodeError, OSError) as exc:
             logger.warning("Failed to load providers from %s: %s", self.path, exc)
             self._providers = {}
@@ -128,6 +130,7 @@ class ProviderStore:
             billing_model=billing_model,
         )
         self._providers[provider_id] = provider
+        register_secret(provider.api_key)
         self._save()
         return provider
 
@@ -138,6 +141,8 @@ class ProviderStore:
         for key, value in fields.items():
             if hasattr(provider, key) and key != "id":
                 setattr(provider, key, value)
+        if "api_key" in fields:
+            register_secret(provider.api_key)
         if "base_url" in fields:
             provider.base_url = provider.base_url.rstrip("/")
         # Normalize ``mode`` after assignment so a bad value can't

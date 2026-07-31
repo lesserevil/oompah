@@ -1186,6 +1186,32 @@ class TestSecretRedactionLoggingFilter:
         for f in log.filters:
             assert f.filter(rec) is True
 
+    def test_filter_redacts_exception_traceback(self):
+        import logging
+        from oompah.secrets import install_secret_redaction_filter
+
+        install_secret_redaction_filter("oompah.test-logger-exc")
+        log = logging.getLogger("oompah.test-logger-exc")
+        try:
+            raise RuntimeError(
+                f"downstream failed with bearer {SENTINEL_BEARER_TOKEN}"
+            )
+        except RuntimeError:
+            rec = logging.LogRecord(
+                name=log.name,
+                level=logging.ERROR,
+                pathname=__file__,
+                lineno=0,
+                msg="request failed",
+                args=(),
+                exc_info=__import__("sys").exc_info(),
+            )
+
+        for f in log.filters:
+            f.filter(rec)
+        assert rec.exc_info is None
+        assert SENTINEL_BEARER_TOKEN not in (rec.exc_text or "")
+
 
 class TestCodexBackendPayloadRedactionThroughOrchestrator:
     """Verify Codex-flavored ACP payloads are redacted at the orchestrator
@@ -1353,3 +1379,179 @@ class TestStateSnapshotRedaction:
         text = str(redacted_payload.get("text", ""))
         summary = text[:200]
         _assert_no_sentinels(summary)
+
+
+class TestConfiguredSecretRegistry:
+    """Configured opaque values are redacted without a secret-shaped label."""
+
+    def test_registered_opaque_value_is_redacted_in_innocuous_text(self):
+        from oompah.secrets import register_secret
+
+        sentinel = "opaque-configured-value-Q9x7"
+        register_secret(sentinel)
+
+        result = redact_sensitive_data({"detail": f"provider replied {sentinel}"})
+
+        assert result["detail"] == "provider replied [REDACTED]"
+        assert sentinel not in str(result)
+
+    def test_registered_values_replace_longest_first(self):
+        from oompah.secrets import register_secret
+
+        short = "opaque-rotation"
+        long = "opaque-rotation-new-value"
+        register_secret(short)
+        register_secret(long)
+
+        result = redact_sensitive_data(long)
+
+        assert result == "[REDACTED]"
+
+    def test_registered_literal_redacts_decoded_bytes(self):
+        from oompah.secrets import register_secret
+
+        sentinel = "opaque-byte-configured-value-4L"
+        register_secret(sentinel)
+
+        result = redact_sensitive_data(f"chunk:{sentinel}".encode("utf-8"))
+
+        assert isinstance(result, bytes)
+        assert sentinel.encode("utf-8") not in result
+        assert b"[REDACTED]" in result
+
+    def test_configured_environment_and_password_file_are_loaded_without_logging(
+        self, tmp_path, caplog
+    ):
+        from oompah.secrets import register_configured_secrets
+
+        env_secret = "opaque-env-configured-value-8P"
+        file_secret = "opaque-file-configured-value-2R"
+        password_file = tmp_path / "password"
+        password_file.write_text(file_secret, encoding="utf-8")
+
+        register_configured_secrets(
+            {
+                "OOMPAH_SERVER_PASSWORD": env_secret,
+                "OOMPAH_SERVER_PASSWORD_FILE": str(password_file),
+            }
+        )
+
+        rendered = str(redact_sensitive_data({"detail": f"{env_secret} {file_secret}"}))
+        assert env_secret not in rendered
+        assert file_secret not in rendered
+        assert env_secret not in caplog.text
+        assert file_secret not in caplog.text
+
+    def test_rotation_keeps_old_and_new_values_redacted(self):
+        from oompah.secrets import register_secret_values
+
+        old = "opaque-old-rotated-value-1A"
+        new = "opaque-new-rotated-value-1B"
+        register_secret_values((old, new))
+
+        result = redact_sensitive_data({"detail": f"old={old} new={new}"})
+
+        assert old not in str(result)
+        assert new not in str(result)
+
+    def test_api_session_registers_provider_key_for_opaque_output(self, tmp_path):
+        from oompah.api_agent import ApiAgentSession
+
+        sentinel = "opaque-api-session-key-6N"
+        ApiAgentSession(
+            base_url="https://api.example.com",
+            api_key=sentinel,
+            model="test-model",
+            workspace_path=str(tmp_path),
+        )
+
+        result = redact_sensitive_data({"detail": f"downstream echoed {sentinel}"})
+        assert sentinel not in str(result)
+
+    def test_provider_store_registers_loaded_and_rotated_api_keys(self, tmp_path):
+        from oompah.providers import ProviderStore
+
+        first = "opaque-provider-key-9X"
+        second = "opaque-provider-key-0Y"
+        store = ProviderStore(path=str(tmp_path / "providers.json"))
+        provider = store.create(name="fixture", api_key=first)
+        store.update(provider.id, api_key=second)
+
+        assert redact_sensitive_data(first) == "[REDACTED]"
+        assert redact_sensitive_data(second) == "[REDACTED]"
+
+    def test_project_store_registers_loaded_and_rotated_credentials(self, tmp_path):
+        import json
+        from oompah.models import Project
+        from oompah.projects import ProjectStore
+
+        first = "opaque-project-access-1Z"
+        webhook = "opaque-project-webhook-2A"
+        second = "opaque-project-access-3B"
+        project = Project(
+            id="proj-fixture",
+            name="fixture",
+            repo_url="https://github.com/example/fixture.git",
+            repo_path=str(tmp_path / "repo"),
+            access_token=first,
+            webhook_secret=webhook,
+        )
+        path = tmp_path / "projects.json"
+        path.write_text(json.dumps([project.to_dict()]), encoding="utf-8")
+        store = ProjectStore(
+            path=str(path),
+            repos_root=str(tmp_path / "repos"),
+            worktree_root=str(tmp_path / "worktrees"),
+        )
+        store.update(project.id, access_token=second)
+
+        assert redact_sensitive_data(first) == "[REDACTED]"
+        assert redact_sensitive_data(webhook) == "[REDACTED]"
+        assert redact_sensitive_data(second) == "[REDACTED]"
+
+    def test_github_auth_registers_pat_and_private_key(self):
+        from oompah.github_tracker import GitHubAuth
+
+        pat = "opaque-github-pat-4C"
+        private_key = "opaque-private-key-content-5D"
+        GitHubAuth(pat=pat, app_private_key=private_key)
+
+        assert redact_sensitive_data(pat) == "[REDACTED]"
+        assert redact_sensitive_data(private_key) == "[REDACTED]"
+
+    def test_task_handoff_registration_has_bounded_retention(self):
+        from oompah.secrets import (
+            clear_registered_secrets,
+            registered_secret_count,
+            register_secret,
+        )
+
+        clear_registered_secrets()
+        try:
+            active = "opaque-active-capability-7V"
+            register_secret(active, expires_in=3600)
+            assert redact_sensitive_data(active) == "[REDACTED]"
+
+            from oompah.task_handoff import TaskHandoffGrantStore
+
+            handoff = TaskHandoffGrantStore()
+            token = handoff.issue(
+                project_id="proj-test",
+                task_identifier="task-test",
+                allowed_actions={"comment"},
+                ttl_seconds=60,
+            )
+            assert redact_sensitive_data(token) == "[REDACTED]"
+
+            expiring = "opaque-expiring-capability-8W"
+            register_secret(expiring, expires_in=0)
+            assert redact_sensitive_data(expiring) == expiring
+
+            values = [f"opaque-growth-value-{index:05d}" for index in range(4200)]
+            for value in values:
+                register_secret(value, expires_in=3600)
+            # The exact-match registry remains bounded even when many dynamic
+            # worker values are issued over time.
+            assert registered_secret_count() <= 4096
+        finally:
+            clear_registered_secrets()

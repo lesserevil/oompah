@@ -48,13 +48,300 @@ from __future__ import annotations
 
 import dataclasses
 import logging
+import os
 import re
+import threading
+import time
+import traceback
+from collections.abc import Iterable, Mapping
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
 # Marker used in place of actual secrets
 _REDACTED = "[REDACTED]"
+
+# Configured values are deliberately kept in a process-local registry.  A
+# secret must be redacted even when it appears in an innocuous field such as
+# ``detail`` and therefore has no useful key or textual marker around it.
+# Values are never exposed by this module and registry updates never log the
+# values.  The lock makes updates safe while agent workers and log handlers
+# redact concurrently.
+_KNOWN_SECRET_LOCK = threading.RLock()
+_KNOWN_SECRET_STRINGS: dict[str, float | None] = {}
+_KNOWN_SECRET_BYTES: dict[bytes, float | None] = {}
+# The registry is process-local and bounded.  Expiring values (such as task
+# handoff capabilities) are removed on each snapshot; the cap is a final
+# guard against an operator repeatedly rotating configured credentials.
+_MAX_REGISTERED_SECRET_VALUES = 4096
+_DEFAULT_DYNAMIC_SECRET_RETENTION_SECONDS = 60 * 60
+# Literal registration is for opaque values in arbitrary text.  Very short
+# values (common in unit-test provider fixtures and not useful as bearer/API
+# credentials) would redact ordinary prose everywhere; credential-shaped
+# fields remain protected by SECRET_KEYS regardless of this threshold.
+_MIN_REGISTERED_SECRET_LENGTH = 8
+
+# Environment sources which can contain plaintext credentials in a running
+# oompah process.  Keep this allow-list explicit: registering every process
+# environment value would cause unrelated configuration values to disappear
+# from diagnostics and could turn a user-controlled value into a redaction
+# denial of service.
+_CONFIGURED_SECRET_ENV_NAMES = frozenset(
+    {
+        "OOMPAH_SERVER_PASSWORD",
+        "OOMPAH_TASK_HANDOFF_TOKEN",
+        "OOMPAH_GITHUB_TOKEN",
+        "OOMPAH_GITLAB_TOKEN",
+        "OOMPAH_GITLAB_SELF_MANAGED_TOKEN",
+        "GH_TOKEN",
+        "GITHUB_TOKEN",
+        "GITLAB_TOKEN",
+        "GITLAB_API_TOKEN",
+        "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "AWS_ACCESS_KEY_ID",
+        "AWS_SECRET_ACCESS_KEY",
+        "AZURE_CLIENT_SECRET",
+        "GOOGLE_APPLICATION_CREDENTIALS_JSON",
+        "OOMPAH_CODEX_API_KEY",
+        "OOMPAH_OPENCODE_API_KEY",
+    }
+)
+_CONFIGURED_SECRET_FILE_ENV_NAMES = frozenset(
+    {
+        "OOMPAH_SERVER_PASSWORD_FILE",
+        "OOMPAH_TASK_HANDOFF_TOKEN_FILE",
+        "OOMPAH_GITHUB_TOKEN_FILE",
+        "OOMPAH_GITLAB_TOKEN_FILE",
+        "GITHUB_TOKEN_FILE",
+        "GITLAB_TOKEN_FILE",
+        "OPENAI_API_KEY_FILE",
+        "ANTHROPIC_API_KEY_FILE",
+        "OOMPAH_GITHUB_APP_PRIVATE_KEY_PATH",
+    }
+)
+_CONFIGURED_SECRET_ENV_PATTERN = re.compile(
+    r"(?:PASSWORD|PASSWD|TOKEN|SECRET|API[_-]?KEY|PRIVATE[_-]?KEY|ACCESS[_-]?KEY)(?:_|$)",
+    re.IGNORECASE,
+)
+
+
+def _normalise_registered_secret(value: Any) -> tuple[str | None, bytes | None]:
+    """Return a safe registry representation without logging *value*.
+
+    Secret values are expected to be text, but accepting bytes covers callers
+    that read a credential file in binary mode.  Empty and whitespace-only
+    values are ignored because registering them would redact every string.
+    """
+    if isinstance(value, bytes):
+        if len(value) < _MIN_REGISTERED_SECRET_LENGTH or not value.strip():
+            return None, None
+        try:
+            decoded = value.decode("utf-8")
+        except UnicodeDecodeError:
+            return None, value
+        if len(decoded) < _MIN_REGISTERED_SECRET_LENGTH or not decoded.strip():
+            return None, None
+        return decoded, value
+    if isinstance(value, str):
+        if len(value) < _MIN_REGISTERED_SECRET_LENGTH or not value.strip():
+            return None, None
+        return value, None
+    return None, None
+
+
+def _store_registered_secret_locked(
+    registry: dict[Any, float | None],
+    value: Any,
+    expires_at: float | None,
+) -> None:
+    """Store one value and evict the oldest expiring values if over the cap."""
+    if value not in registry:
+        registry[value] = expires_at
+    else:
+        current_expiry = registry[value]
+        # A permanent registration must never be downgraded by a later
+        # short-lived registration of the same value.
+        if current_expiry is not None and (
+            expires_at is None or expires_at > current_expiry
+        ):
+            registry[value] = expires_at
+
+    total = len(_KNOWN_SECRET_STRINGS) + len(_KNOWN_SECRET_BYTES)
+    while total > _MAX_REGISTERED_SECRET_VALUES:
+        # Prefer evicting a retired/expiring value.  Permanent configured
+        # values are retained unless the bounded cap is exhausted entirely by
+        # permanent rotations.
+        expiring = [
+            (expiry, key)
+            for key, expiry in _KNOWN_SECRET_STRINGS.items()
+            if expiry is not None
+        ] + [
+            (expiry, key)
+            for key, expiry in _KNOWN_SECRET_BYTES.items()
+            if expiry is not None
+        ]
+        if expiring:
+            _, evict_key = min(expiring, key=lambda item: item[0])
+            if evict_key in _KNOWN_SECRET_STRINGS:
+                _KNOWN_SECRET_STRINGS.pop(evict_key, None)
+            else:
+                _KNOWN_SECRET_BYTES.pop(evict_key, None)
+        elif _KNOWN_SECRET_STRINGS:
+            _KNOWN_SECRET_STRINGS.pop(next(iter(_KNOWN_SECRET_STRINGS)))
+        elif _KNOWN_SECRET_BYTES:
+            _KNOWN_SECRET_BYTES.pop(next(iter(_KNOWN_SECRET_BYTES)))
+        total = len(_KNOWN_SECRET_STRINGS) + len(_KNOWN_SECRET_BYTES)
+
+
+def _prune_registered_secrets_locked(now: float) -> None:
+    """Remove expired dynamic values without exposing their contents."""
+    for registry in (_KNOWN_SECRET_STRINGS, _KNOWN_SECRET_BYTES):
+        expired = [
+            value for value, expires_at in registry.items()
+            if expires_at is not None and expires_at <= now
+        ]
+        for value in expired:
+            registry.pop(value, None)
+
+
+def register_secret(
+    value: str | bytes | None,
+    *,
+    expires_in: float | None = None,
+) -> None:
+    """Register one configured secret for literal redaction.
+
+    Registration is additive. Permanent configured values are retained for
+    the process lifetime; short-lived values may supply ``expires_in`` so a
+    bounded grace period protects delayed workers, retries, and shutdown
+    paths without retaining every historical capability forever. The
+    function never logs or returns the value.
+    """
+    text_value, bytes_value = _normalise_registered_secret(value)
+    if text_value is None and bytes_value is None:
+        return
+    expires_at = (
+        None
+        if expires_in is None
+        else time.monotonic() + max(float(expires_in), 0.0)
+    )
+    with _KNOWN_SECRET_LOCK:
+        _prune_registered_secrets_locked(time.monotonic())
+        if text_value is not None:
+            _store_registered_secret_locked(
+                _KNOWN_SECRET_STRINGS, text_value, expires_at
+            )
+        if bytes_value is not None:
+            _store_registered_secret_locked(
+                _KNOWN_SECRET_BYTES, bytes_value, expires_at
+            )
+
+
+def register_secret_values(
+    values: Iterable[str | bytes | None],
+    *,
+    expires_in: float | None = None,
+) -> None:
+    """Atomically register a batch of configured secret values.
+
+    The values are consumed without producing diagnostics.  Individual
+    registration is lock-safe; taking one lock for the batch also prevents a
+    redaction call from observing a partially applied startup/rotation set.
+    """
+    normalised = [_normalise_registered_secret(value) for value in values]
+    expires_at = (
+        None
+        if expires_in is None
+        else time.monotonic() + max(float(expires_in), 0.0)
+    )
+    with _KNOWN_SECRET_LOCK:
+        _prune_registered_secrets_locked(time.monotonic())
+        for text_value, bytes_value in normalised:
+            if text_value is not None:
+                _store_registered_secret_locked(
+                    _KNOWN_SECRET_STRINGS, text_value, expires_at
+                )
+            if bytes_value is not None:
+                _store_registered_secret_locked(
+                    _KNOWN_SECRET_BYTES, bytes_value, expires_at
+                )
+
+
+def clear_registered_secrets() -> None:
+    """Clear the process-local registry.
+
+    This is primarily useful for isolated test processes.  Production code
+    should use additive registration so a rotation cannot make an old value
+    visible to a late log/event writer.
+    """
+    with _KNOWN_SECRET_LOCK:
+        _KNOWN_SECRET_STRINGS.clear()
+        _KNOWN_SECRET_BYTES.clear()
+
+
+def registered_secret_count() -> int:
+    """Return registry size without exposing any registered value."""
+    with _KNOWN_SECRET_LOCK:
+        _prune_registered_secrets_locked(time.monotonic())
+        return len(_KNOWN_SECRET_STRINGS) + len(_KNOWN_SECRET_BYTES)
+
+
+def _registered_secret_snapshot() -> tuple[tuple[str, ...], tuple[bytes, ...]]:
+    """Return longest-first literal replacement values under the lock."""
+    with _KNOWN_SECRET_LOCK:
+        _prune_registered_secrets_locked(time.monotonic())
+        strings = tuple(sorted(_KNOWN_SECRET_STRINGS, key=len, reverse=True))
+        byte_values = tuple(sorted(_KNOWN_SECRET_BYTES, key=len, reverse=True))
+    return strings, byte_values
+
+
+def register_configured_secrets(
+    environment: Mapping[str, str] | None = None,
+) -> None:
+    """Register plaintext credentials from configured env/file sources.
+
+    This startup hook intentionally reads only the explicit credential source
+    names above.  Missing/unreadable files are ignored without logging their
+    paths or contents; the authoritative credential loader remains responsible
+    for reporting configuration errors.  A file path itself is never
+    registered as a secret.
+    """
+    env = os.environ if environment is None else environment
+    values: list[str] = []
+    dynamic_values: list[str] = []
+    for name, raw_value in env.items():
+        upper_name = str(name).upper()
+        if upper_name in _CONFIGURED_SECRET_FILE_ENV_NAMES or (
+            upper_name.endswith("_FILE")
+            and _CONFIGURED_SECRET_ENV_PATTERN.search(upper_name[:-5])
+        ):
+            path = raw_value
+            if not path:
+                continue
+            try:
+                with open(path, "r", encoding="utf-8") as handle:
+                    value = handle.read().strip()
+            except (OSError, UnicodeError, TypeError, ValueError):
+                continue
+            if value:
+                if upper_name == "OOMPAH_TASK_HANDOFF_TOKEN_FILE":
+                    dynamic_values.append(value)
+                else:
+                    values.append(value)
+        elif upper_name in _CONFIGURED_SECRET_ENV_NAMES or (
+            _CONFIGURED_SECRET_ENV_PATTERN.search(upper_name) is not None
+        ):
+            if raw_value:
+                if upper_name == "OOMPAH_TASK_HANDOFF_TOKEN":
+                    dynamic_values.append(raw_value)
+                else:
+                    values.append(raw_value)
+    register_secret_values(values)
+    register_secret_values(
+        dynamic_values,
+        expires_in=_DEFAULT_DYNAMIC_SECRET_RETENTION_SECONDS,
+    )
 
 # Keys that likely contain secrets (case-insensitive)
 SECRET_KEYS = frozenset({
@@ -173,9 +460,19 @@ def _redact_string(value: str) -> str:
     if not isinstance(value, str) or len(value) == 0:
         return value
 
+    # Literal replacement runs before the heuristic fast path.  Configured
+    # credentials are often opaque strings with no ``password=``/``Bearer``
+    # marker, and must still be removed from innocuous fields.  Longest-first
+    # ordering avoids exposing the remainder when one credential is a prefix
+    # of another during a rotation.
+    registered_strings, _ = _registered_secret_snapshot()
+    result = value
+    for secret in registered_strings:
+        result = result.replace(secret, _REDACTED)
+
     # Detect if string looks like it contains secrets before applying patterns
     # This avoids unnecessary regex work on normal strings
-    value_lower = value.lower()
+    value_lower = result.lower()
     # Include patterns that suggest secrets (URLs with userinfo, headers, assignments)
     secret_indicators = (
         "password", "token", "bearer", "api_key", "secret",
@@ -187,9 +484,8 @@ def _redact_string(value: str) -> str:
     )
     if not any(indicator in value_lower for indicator in secret_indicators):
         # No obvious secret indicators; skip regex processing
-        return value
+        return result
 
-    result = value
     for pattern_info in SECRET_PATTERNS:
         if len(pattern_info) == 2:
             pattern, replacement = pattern_info
@@ -256,15 +552,23 @@ def redact_sensitive_data(
 
     # Bytes: attempt to decode and redact
     if isinstance(value, bytes):
+        _, registered_bytes = _registered_secret_snapshot()
+        byte_result = value
+        for secret in registered_bytes:
+            byte_result = byte_result.replace(secret, _REDACTED.encode("utf-8"))
         try:
-            decoded = value.decode("utf-8", errors="replace")
+            decoded = byte_result.decode("utf-8", errors="replace")
             redacted = _redact_string(decoded)
+            encoded = redacted.encode("utf-8", errors="replace")
             if redacted != decoded:
-                # String was modified; return as-is since we can't safely
-                # encode back to bytes (encoding might vary)
-                return redacted.encode("utf-8", errors="replace")
-        except Exception:
-            pass
+                return encoded
+            if byte_result != value:
+                return byte_result
+        except (UnicodeError, TypeError, ValueError):
+            # If the bytes are not valid text, preserve the existing bytes
+            # contract unless a registered literal was replaced above.
+            if byte_result != value:
+                return byte_result
         return value
 
     # Dicts: redact values for secret keys
@@ -321,12 +625,12 @@ def redact_sensitive_data(
         # Reconstruct the dataclass with redacted fields
         try:
             return type(value)(**redacted_fields)
-        except (TypeError, ValueError) as exc:
+        except (TypeError, ValueError):
             # If reconstruction fails, fail-closed: return a safe marker
             # rather than the original unredacted dataclass.
             logger.debug(
-                "Failed to reconstruct dataclass %s: %s; returning marker",
-                type(value).__name__, exc,
+                "Failed to reconstruct dataclass %s; returning marker",
+                type(value).__name__,
             )
             # Fail-closed: return a marker indicating redaction occurred
             return f"{type(value).__name__}([REDACTED])"
@@ -380,11 +684,11 @@ def redact_sensitive_data(
     except Exception:
         try:
             rendered = str(value)
-        except Exception as exc:
+        except Exception:
             logger.debug(
-                "redact_sensitive_data: str/repr of %s raised %s; "
+                "redact_sensitive_data: str/repr of %s failed; "
                 "returning safe marker",
-                type_name, exc,
+                type_name,
             )
             return f"{type_name}([REDACTED])"
 
@@ -413,15 +717,12 @@ class SecretRedactionFilter(logging.Filter):
       Python's logging machinery formats it. Container args (dicts, lists,
       tuples) are scanned recursively.
     * Never raises. If any part of the redaction blows up, the record is
-      passed through unchanged rather than dropped — a broken filter must
-      not hide a real log line.
+      replaced with a safe marker rather than passed through unchanged.
 
-    We intentionally do NOT try to rewrite ``record.exc_info`` (traceback
-    formatting) because that requires re-serializing the frame chain and
-    would materially change stack traces. Callers who catch and log
-    exceptions with secret-bearing arguments should stringify + redact
-    themselves; the filter still protects the exception ``msg`` and
-    ``args`` above.
+    Tracebacks are rendered once through the same redaction boundary and the
+    raw ``exc_info`` tuple is removed from the record. This may omit traceback
+    frames for a malformed exception, but it prevents a formatter from
+    re-introducing a credential after ``msg`` and ``args`` were scrubbed.
     """
 
     def filter(self, record: logging.LogRecord) -> bool:  # noqa: D401
@@ -442,9 +743,30 @@ class SecretRedactionFilter(logging.Filter):
             else:
                 # Some callers pass a single non-tuple arg for %s formatting.
                 record.args = redact_sensitive_data(args)
+            if record.exc_info:
+                # ``Formatter`` normally renders exc_info after logger
+                # filters have run.  Pre-render it through the same boundary
+                # and remove the raw exception tuple so a traceback cannot
+                # reintroduce a credential that was absent from msg/args.
+                try:
+                    rendered_exception = "".join(
+                        traceback.format_exception(*record.exc_info)
+                    )
+                    record.exc_text = _redact_string(rendered_exception)
+                    record.exc_info = None
+                except Exception:
+                    # Fail closed if a hostile/broken exception object cannot
+                    # be rendered safely.  Losing a traceback is preferable
+                    # to writing an unsanitized one.
+                    record.exc_text = _REDACTED
+                    record.exc_info = None
         except Exception:
-            # A broken filter must not hide log lines. Fall through.
-            pass
+            # A broken filter must never pass the original record through: a
+            # formatter would otherwise be able to serialize its raw args.
+            record.msg = _REDACTED
+            record.args = ()
+            record.exc_info = None
+            record.exc_text = _REDACTED
         return True
 
 
@@ -456,16 +778,32 @@ def install_secret_redaction_filter(logger_name: str = "oompah") -> SecretRedact
     both server startup and test fixtures).
     """
     target = logging.getLogger(logger_name)
-    for f in target.filters:
-        if isinstance(f, SecretRedactionFilter):
-            return f
-    flt = SecretRedactionFilter()
-    target.addFilter(flt)
+    flt = next(
+        (f for f in target.filters if isinstance(f, SecretRedactionFilter)),
+        None,
+    )
+    if flt is None:
+        flt = SecretRedactionFilter()
+        target.addFilter(flt)
+
+    # Logger filters do not run on records propagated from child loggers
+    # (e.g. ``oompah.api_agent`` → ``oompah``).  Install the same filter on
+    # current root handlers as well so every service log sink gets the
+    # boundary.  The handler check keeps repeated startup/reload calls
+    # idempotent.
+    for handler in logging.getLogger().handlers:
+        if not any(isinstance(f, SecretRedactionFilter) for f in handler.filters):
+            handler.addFilter(flt)
     return flt
 
 
 __all__ = [
     "redact_sensitive_data",
+    "register_secret",
+    "register_secret_values",
+    "register_configured_secrets",
+    "clear_registered_secrets",
+    "registered_secret_count",
     "SECRET_KEYS",
     "SECRET_PATTERNS",
     "SecretRedactionFilter",
