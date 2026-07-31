@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-651
 type: bug
-status: Ready to Integrate
+status: Needs CI Fix
 priority: 1
 title: Redact secrets from agent tool inputs, outputs, and JSONL event logs
 parent: null
@@ -11,10 +11,11 @@ blocked_by:
 - OOMPAH-657
 - OOMPAH-650
 start_blocked_by: []
-labels: []
+labels:
+- ci-fix
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T12:07:30.915267Z'
+updated_at: '2026-07-31T12:08:02.909893Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -851,5 +852,32 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 13m 20s
 - Log: OOMPAH-651__20260731T115415Z.jsonl
+---
+author: oompah
+created: 2026-07-31 12:08
+---
+Branch quality gate blocked review creation.
+
+Branch: `OOMPAH-651`
+Target: `main`
+Head: `823e960521fd041574c6901c375431568570d1b3`
+Command: `make test`
+Result: `failed`
+
+Required: run the command in the task worktree, fix the failure, commit and push the repair, then leave the task in Done. Oompah will rerun the gate for the new head before creating the PR/MR.
+
+Output tail:
+```text
+make[1]: Entering directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-651'
+Terminal mutation scan passed: 6 identified, 6 explicitly allowlisted.
+Running pytest with 4 isolated workers under /home/shedwards/.oompah/tmp/pytest/run.nyePas
+
+make[1]: *** [Makefile:295: test] Terminated
+```
+---
+author: oompah
+created: 2026-07-31 12:08
+---
+Stopped a premature full make test at 12:09 UTC (exact gate PGID 3037783). OOMPAH-651 still has a finish-order dependency on OOMPAH-650, whose lease/auth semantics are actively changing, so this is not an accepted exact review-ready head. Run focused redaction and renewal regressions only; Oompah will run the configured complete gate after the dependency is integrated and the branch is rebased.
 ---
 <!-- COMMENTS:END -->

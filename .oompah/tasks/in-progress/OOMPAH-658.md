@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-07-31T12:07:38.904150Z'
+updated_at: '2026-07-31T12:08:04.411352Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -554,5 +554,10 @@ author: oompah
 created: 2026-07-31 12:07
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-31 12:08
+---
+Understanding: Reviewing state at head 1b49ab0f4. Previous two 'Branch quality gate failed' notices were operator-terminated full make test runs (PGID 2487891 at 11:53 and PGID 2991395 at 12:07), not real test failures. Operator has explicitly and repeatedly instructed: 'run focused regression tests only. Oompah will run the configured complete branch gate once for the accepted exact review-ready head.' Full gate authority remains finish-order blocked on OOMPAH-657. Plan: verify focused suites (duplicate_screening, duplicate_preflight, candidate_preflight, orchestrator_duplicate_detection, server_duplicate_screening_sync, dashboard_duplicate_screening, models, intake_schema, intake_approval, oompah_md_tracker) still pass at current head, then submit. No code changes needed — implementation already delivered per 12:05 completion note.
 ---
 <!-- COMMENTS:END -->
