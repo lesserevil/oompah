@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T09:07:02.787043Z'
+updated_at: '2026-07-31T09:15:53.734716Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -146,5 +146,30 @@ Issue: Secrets (passwords, tokens, bearer credentials, URLs with userinfo) are b
 8. Verify with: make check-secrets, make test, terminal mutation scan
 
 **Next Steps:** Explore secret detection patterns and implement centralized redaction module.
+---
+author: oompah
+created: 2026-07-31 09:15
+---
+DISCOVERY & IMPLEMENTATION
+
+**Implemented centralized redaction module (oompah/secrets.py):**
+- Recursive redaction of dicts, lists, strings, dataclasses, and bytestrings
+- Key-name heuristics: PASSWORD, TOKEN, API_KEY, BEARER, SECRET, AUTH, etc.
+- Pattern-based redaction for: HTTP Basic Auth URLs, Bearer tokens, API keys in query strings, Authorization headers, command-line arguments
+- Handles nested structures to arbitrary depth with cycle protection
+
+**Integrated redaction into logging pipeline:**
+1. acp_backends/claude.py: Updated _truncate_for_log() to call redact_sensitive_data
+2. console_format.py: ConsoleEvent.to_dict() redacts before JSONL persistence
+3. All tool inputs/outputs, exceptions, and structured data flow through one boundary
+
+**Test coverage (38 comprehensive tests):**
+- Simple values (dicts, dataclass fields)
+- Pattern matching (URLs, headers, query strings, command args)
+- Nested structures (lists, dicts, dataclass composition)
+- Edge cases (circular refs, deep nesting, bytes, unknown types)
+- Integration with console event serialization
+
+All tests passing - ready for integration testing.
 ---
 <!-- COMMENTS:END -->
