@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:09:07.190386Z'
-updated_at: '2026-07-31T07:09:08.514001Z'
+updated_at: '2026-07-31T07:09:33.213224Z'
 work_branch: OOMPAH-642
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/609
@@ -47,8 +47,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: c803da15-5b02-4845-97cc-81c04b4c2e1e
 oompah.task_costs:
-  total_input_tokens: 7891149
-  total_output_tokens: 48297
+  total_input_tokens: 7891155
+  total_output_tokens: 48690
   total_cost_usd: 0.0
   by_model:
     sonnet:
@@ -58,6 +58,10 @@ oompah.task_costs:
     opus:
       input_tokens: 77
       output_tokens: 1966
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 6
+      output_tokens: 393
       cost_usd: 0.0
   runs:
   - profile: standard
@@ -84,6 +88,12 @@ oompah.task_costs:
     output_tokens: 1966
     cost_usd: 0.0
     recorded_at: '2026-07-31T06:48:31.892652+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 6
+    output_tokens: 393
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T07:09:29.115446+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-642__20260731T060949Z
@@ -362,5 +372,15 @@ Safe evidence:
 - focused_tests_pass: test_standalone_ready_to_integrate (17), test_quality_gate/test_terminal_transition_coordinator/test_authority_boundary/test_terminal_override (288 combined), test_delivery_plane_recovery (4), test_terminal_audit_* (121)
 - full_branch_gate: make test passed in 309.7s (per orchestrator record on af6e42339)
 - authority_infra: orchestrator.py: RLock + _standalone_delivery_authorities dict + claim/refresh/authorized/mutation/action/revoke/record-superseded helpers; terminal_transition_coordinator.py wires revoke_delivery_authority callback synchronously into Done/Merged/Archived transitions and terminal-owner override paths.
+---
+author: oompah
+created: 2026-07-31 07:09
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 69, Tool calls: 58
+- Tokens: 6 in / 393 out [399 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 7m 2s
+- Log: OOMPAH-642__20260731T070233Z.jsonl
 ---
 <!-- COMMENTS:END -->
