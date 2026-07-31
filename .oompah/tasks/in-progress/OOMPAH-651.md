@@ -9,11 +9,12 @@ children: []
 blocked_by:
 - OOMPAH-652
 - OOMPAH-657
+- OOMPAH-650
 start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T11:33:21.673592Z'
+updated_at: '2026-07-31T11:46:37.147996Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -670,5 +671,10 @@ author: oompah
 created: 2026-07-31 11:33
 ---
 Post-commit check of f92c35a: GitHub App/PAT/SCM registration is now present, but the other blocking items from comment 51 remain unchanged. _MIN_REGISTERED_SECRET_LENGTH still silently ignores every configured value under 8 characters; register_configured_secrets still applies the broad name regex beyond its explicit allow-list; ACP still registers any env name ending in _KEY; and handler protection still covers only root handlers that already exist at install time. Fix those exact paths and tests before submit. Also reconcile handoff-token registration with the renewal/revoke lifecycle OOMPAH-650 is actively changing rather than expiring redaction on the original TTL.
+---
+author: oompah
+created: 2026-07-31 11:46
+---
+Current dirty work addresses the earlier blockers: authoritative allow-list only, real short configured secrets, non-string LogRecords, tracebacks, and late handlers via the record factory. One lifecycle blocker remains and now has an explicit finish-order dependency on OOMPAH-650: handoff secret registration currently expires at original TTL plus one hour in task_handoff.issue and one hour in AcpAgentSession, while OOMPAH-650 will renew a live worker grant beyond that bound. Coordinate the final 650 grant/lease implementation so every server-owned lease refresh also extends register_secret(token, expires_in=current grant TTL plus bounded delayed-event grace), and termination/revocation retains only the bounded grace. Add a deterministic clock test proving a token remains redacted after several lease renewals past its initial registry expiry, then expires from the registry only after revocation/grace. Do not log or expose the token in the test.
 ---
 <!-- COMMENTS:END -->
