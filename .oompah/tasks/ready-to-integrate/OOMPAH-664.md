@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:06.140108Z'
-updated_at: '2026-07-31T21:45:49.592556Z'
+updated_at: '2026-07-31T21:45:52.264049Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -356,5 +356,10 @@ Fix: after mounting the operator venv read-only in the bwrap sandbox, create wri
 Test added: test_sandbox_command_overlays_writable_uv_sentinels_over_ro_venv verifies that both sentinels are created in run_root and bound at the correct venv paths.
 
 Results: 47/47 quality gate tests pass, 59/59 original focused tests pass.
+---
+author: oompah
+created: 2026-07-31 21:45
+---
+Fixed CI gate failure: overlay writable uv sentinels in sandbox. Git archive stamps snapshot files with commit timestamp, making .uv-test-setup sentinel appear stale. Sandbox had no uv in restricted PATH. Fix: in _sandbox_command, create fresh sentinels in run_root and --bind them over the ro-mounted venv sentinels so Make skips uv invocations. Added test_sandbox_command_overlays_writable_uv_sentinels_over_ro_venv. All 47 quality gate tests + 59 original focused tests pass.
 ---
 <!-- COMMENTS:END -->
