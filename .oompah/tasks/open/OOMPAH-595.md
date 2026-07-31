@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-595
 type: feature
-status: Needs Human
+status: Open
 priority: 1
 title: Expose separate operator and worker task-auth health signals
 parent: OOMPAH-586
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:56.897824Z'
-updated_at: '2026-07-31T00:53:23.456098Z'
+updated_at: '2026-07-31T00:57:56.700509Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-595
 target_branch: null
 review_url: null
@@ -638,5 +638,17 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 55s
 - Log: OOMPAH-595__20260731T005235Z.jsonl
+---
+author: oompah
+created: 2026-07-31 00:57
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #9)
+
+**State audited:** `Needs Human`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** Last agent comment signals completion without a human question; the Needs Human transition appears accidental.
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
 ---
 <!-- COMMENTS:END -->
