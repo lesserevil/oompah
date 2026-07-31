@@ -16,7 +16,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:13:38.093049Z'
-updated_at: '2026-07-30T20:52:01.345629Z'
+updated_at: '2026-07-31T01:00:15.310889Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -49,5 +49,10 @@ author: oompah
 created: 2026-07-30 14:18
 ---
 Project-owner-approved green recovery work; dispatch under recorded dependencies and acceptance criteria.
+---
+author: oompah
+created: 2026-07-31 01:00
+---
+Operator recovery for the live nested-epic queue deadlock: rebased origin/epic-OOMPAH-587 from a678afc20 onto current parent origin/epic-OOMPAH-584 d62dd4cff and force-pushed with an exact lease at 8a875b1c3. Resolved the OOMPAH-576 overlap with later OOMPAH-629 by preserving the refined expected-branch validation, wrong-worktree no-reset fence, and ProjectStore pre-reset branch identity check. Focused conflict-repair/integration/project/task-handoff/worker/parallel queue verification: 181 passed; terminal mutation scan passed.
 ---
 <!-- COMMENTS:END -->
