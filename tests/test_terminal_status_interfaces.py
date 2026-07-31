@@ -48,6 +48,7 @@ class _Coordinator:
             success=True,
             audit_id="audit-request-1",
             queued_targets=[kwargs["requested_target"]],
+            status_staged=True,
         )
 
     async def override_transition(self, **kwargs):
@@ -137,6 +138,41 @@ def test_patch_terminal_status_rolls_back_dispatch_fence_when_staging_fails(clie
     # A retry may have observed the temporary fence. Wake ordinary dispatch
     # after rollback so a failed staging request cannot strand the task.
     orch.request_refresh.assert_called_once_with()
+
+
+def test_patch_terminal_status_reports_unrepaired_current_state(client):
+    issue = Issue(
+        "task-stage-pending",
+        "task-stage-pending",
+        "Task",
+        description="work",
+        state="Needs Human",
+    )
+    orch, tracker, coordinator = _orchestrator(issue)
+    coordinator.request_transition = AsyncMock(
+        return_value=TransitionResult(
+            success=True,
+            audit_id="audit-pending-1",
+            queued_targets=[TargetState.DONE],
+            coalesced=True,
+            status_staged=False,
+        )
+    )
+    with (
+        patch.object(server_module, "_get_orchestrator", return_value=orch),
+        patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+    ):
+        response = client.patch(
+            "/api/v1/issues/task-stage-pending",
+            json={"project_id": "proj-1", "status": "Done"},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "Needs Human"
+    assert response.json()["status_staged"] is False
+    assert response.json()["status_repaired"] is False
+    assert response.json()["audit_id"] == "audit-pending-1"
+    assert tracker.status_updates == []
 
 
 def test_patch_nonterminal_status_keeps_direct_behavior(client):
@@ -274,6 +310,42 @@ async def test_acp_terminal_router_stages_and_supports_override():
     assert coordinator.requests[0]["requested_target"] is TargetState.MERGED
     assert coordinator.overrides[0]["requested_target"] is TargetState.ARCHIVED
     assert tracker.status_updates == []
+
+
+@pytest.mark.asyncio
+async def test_acp_terminal_router_reports_unrepaired_current_state():
+    from oompah.acp_tools import _exec_oompah_task_command_async
+
+    issue = Issue(
+        "task-acp-pending",
+        "task-acp-pending",
+        "Task",
+        description="work",
+        state="Needs Human",
+    )
+    tracker = _Tracker(issue)
+    coordinator = _Coordinator()
+    coordinator.request_transition = AsyncMock(
+        return_value=TransitionResult(
+            success=True,
+            audit_id="audit-acp-pending",
+            queued_targets=[TargetState.DONE],
+            coalesced=True,
+            status_staged=False,
+        )
+    )
+
+    result = await _exec_oompah_task_command_async(
+        "oompah task set-status task-acp-pending Done",
+        tracker,
+        "proj-1",
+        project_store=MagicMock(),
+        terminal_transition_coordinator=coordinator,
+    )
+
+    assert "Terminal transition recorded: Done" in result
+    assert "status remains: Needs Human" in result
+    assert "audit-acp-pending" in result
 
 
 @pytest.mark.asyncio

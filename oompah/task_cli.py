@@ -549,6 +549,13 @@ def _print_status_result(result: dict[str, Any], requested_status: str) -> None:
             f"Terminal transition queued: {result['requested_target']} "
             f"(status: In Validation, audit ID: {audit_id})"
         )
+    elif result.get("requested_target"):
+        audit_id = result.get("audit_id") or "pending"
+        current_status = result.get("status") or "unchanged"
+        print(
+            f"Terminal transition recorded: {result['requested_target']} "
+            f"(status remains: {current_status}, audit ID: {audit_id})"
+        )
     elif result.get("audit_override"):
         print(
             f"Status set by owner override: "

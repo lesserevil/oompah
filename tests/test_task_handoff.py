@@ -467,6 +467,7 @@ class TestTaskHandoffEndpoint:
                 success=True,
                 audit_id="audit-handoff-1",
                 queued_targets=[TargetState.DONE],
+                status_staged=True,
             )
         )
         token = issue_task_handoff_token(
