@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T05:59:47.260716Z'
-updated_at: '2026-07-31T06:30:22.860595Z'
+updated_at: '2026-07-31T06:30:44.122274Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -305,5 +305,14 @@ author: oompah
 created: 2026-07-31 06:30
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-31 06:30
+---
+UNDERSTANDING: CI Failure Fixer dispatched. The branch gate failed with 2 test failures:
+1. tests/test_client_auth.py::TestCurrentClientEnvironment::test_current_dotenv_replaces_stale_client_inputs
+2. tests/test_intake_promotion.py::test_approval_comment_auto_promotes_when_project_allows_it
+
+These failures are pre-existing (not caused by this branch's new test file). My job is to investigate the root cause of each failure and make the minimal fix. I will read the failing tests, reproduce locally, and fix.
 ---
 <!-- COMMENTS:END -->
