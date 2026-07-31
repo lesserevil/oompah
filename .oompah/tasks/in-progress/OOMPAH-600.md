@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:58.634342Z'
-updated_at: '2026-07-31T03:07:33.561539Z'
+updated_at: '2026-07-31T03:08:19.943856Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-600
 target_branch: null
 review_url: null
@@ -172,5 +172,10 @@ author: oompah
 created: 2026-07-31 03:07
 ---
 Mid-run operator boundary: OOMPAH-581 is merged on origin/main, but do not restart/stop the live service while OOMPAH-597 exact integration and the outer OOMPAH-584 graph are active. The operator owns the final drained make restart after the complete recovery reaches main. You may verify merged evidence and perform only proven-safe cleanup/pruning now; preserve every active, dirty, default-unreachable, TASK-472/TASK-473/TASK-495-ci, release-delivery, and operator recovery worktree. Record deployment restart as pending final outer landing rather than interrupting agents.
+---
+author: oompah
+created: 2026-07-31 03:08
+---
+Discovery: OOMPAH-581 implementation found at commit 741a7d88b in OOMPAH-587 branch. Integrated into current branch via cherry-pick. Implementation adds _cleanup_epic_repair_workspace_locked() to ProjectStore with 4 guards: (1) exact managed worktree path, (2) same-identifier branch checked out, (3) clean worktree, (4) branch ancestor of origin/default_branch. Test results: All 7 TestEpicRepairWorkspaceCleanup tests PASS. All 94 test_projects.py tests PASS. No regressions detected.
 ---
 <!-- COMMENTS:END -->
