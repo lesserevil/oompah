@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-650
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Keep scoped task handoff credentials valid for the full worker lifetime
 parent: OOMPAH-619
@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T13:38:34.730726Z'
+updated_at: '2026-07-31T13:45:03.886196Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -50,12 +50,12 @@ oompah.agent_run_id: 28ca9f8d-df70-4010-8f8d-b76c2a58b03e
 oompah.work_branch: epic-OOMPAH-619--task-OOMPAH-650
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-619--task-OOMPAH-650
-  base_branch: epic-OOMPAH-619
-  base_sha: 17658b95e32641e8cf2dbfff06f780c0f6b57916
-  updated_at: '2026-07-31T13:38:30.366004+00:00'
+  head_sha: 3e1fba180c2c8b9f89bfea5951550c8e9764d13d
+  submitted_at: '2026-07-31T13:45:00.694624+00:00'
+  updated_at: '2026-07-31T13:45:00.694624+00:00'
 oompah.task_costs:
   total_input_tokens: 9427172
   total_output_tokens: 39533
@@ -1122,5 +1122,10 @@ author: oompah
 created: 2026-07-31 13:38
 ---
 Focus: Event Api Redaction Specialist
+---
+author: oompah
+created: 2026-07-31 13:45
+---
+Verified accepted head 3e1fba180: server-owned lease lifetime renewal with exact worker ownership, linearized mutation admission and revocation, explicit expired/revoked diagnostics, scoped task/project/action enforcement, no Basic-auth fallback, and bounded redaction lifecycle hooks. Focused handoff/auth tests and terminal mutation scan pass; branch is clean and up to date.
 ---
 <!-- COMMENTS:END -->
