@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T13:38:57.331419Z'
+updated_at: '2026-07-31T13:41:36.779002Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -598,5 +598,10 @@ author: oompah
 created: 2026-07-31 13:38
 ---
 Focus: Event Api Redaction Specialist
+---
+author: oompah
+created: 2026-07-31 13:41
+---
+Understanding: OOMPAH-657 (snapshot/generation management) has now been merged to main. This OOMPAH-655 branch has 6 commits implementing full-gate service isolation via bwrap sandboxing (later commits) and environment isolation (earlier commits). Rebasing onto main now to integrate OOMPAH-657's work and resolve conflicts. Goal: use OOMPAH-657's exact-head snapshot foundation with OOMPAH-655's service isolation enforcement.
 ---
 <!-- COMMENTS:END -->
