@@ -11,12 +11,27 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T16:04:07.401588Z'
-updated_at: '2026-07-31T18:13:28.710434Z'
+updated_at: '2026-07-31T18:16:47.175275Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: a693eaf278504dc2d35cff16c985f00831ff37d57e34abdc6fd8b491a20c1ccc
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: a5411225-b756-412c-aaaa-590f9d1f5e12
+  claim_owner: 5a45ba37-2907-4778-ab15-29d9f2087774
+  claimed_at: '2026-07-31T18:16:42.237810+00:00'
+  claim_expires_at: '2026-07-31T18:46:42.237810+00:00'
+  retry_count: 0
+  retry_after: null
+oompah.agent_run_id: f7c24a87-351c-4edb-917f-4258a546c7b3
 ---
 ## Summary
 
@@ -28,3 +43,16 @@ Live reproduction on 2026-07-31 after OOMPAH-653 merged: OOMPAH-644 and OOMPAH-6
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-31 18:16
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-07-31 18:16
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
