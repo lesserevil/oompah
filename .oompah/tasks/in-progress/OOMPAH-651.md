@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T09:55:27.706107Z'
+updated_at: '2026-07-31T09:56:54.716724Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -328,5 +328,10 @@ author: oompah
 created: 2026-07-31 09:55
 ---
 Temporary gate safety constraint: this worktree does not yet contain OOMPAH-652's isolated test lifecycle. Run focused tests and git diff --check, but do not run make test locally before OOMPAH-652 is integrated/deployed and the branch is rebased onto that safe base. Oompah's exact post-submit full gate will provide the complete gate once the finish-order dependency is satisfied.
+---
+author: oompah
+created: 2026-07-31 09:56
+---
+In-progress review of the current dirty diff: the shared ACP/Console fan-out placement is improved, but fail-closed coverage is not complete yet. secrets.py still returns every unknown object unchanged when its type/module name is not credential-like; the orchestrator then json.dumps(..., default=str), so an innocuously named object whose __str__/__repr__ contains an Authorization header/token still leaks. At an external persistence/state boundary, unknown non-primitive objects must become a safe type marker or have a fully sanitized representation regardless of class name. ConsoleEvent attachments are also fanned out unredacted. Ensure the redacted usage result is type-checked rather than blindly dict(...) if fail-closed returns a marker. Finally, current changes cover ACP and Console, but acceptance still requires sentinel end-to-end tests through Codex, OpenCode, API-agent, and legacy paths plus JSONL, session.last_message/state snapshot, websocket/telemetry, alerts/comments/log sinks. Do not rely on unit-only secrets.py tests.
 ---
 <!-- COMMENTS:END -->
