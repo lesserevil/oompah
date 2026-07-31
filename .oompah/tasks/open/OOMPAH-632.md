@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-632
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Refresh candidate refs before child landing reconciliation
 parent: OOMPAH-584
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:46:34.785511Z'
-updated_at: '2026-07-31T00:46:47.894245Z'
+updated_at: '2026-07-31T00:47:14.326699Z'
 work_branch: null
 target_branch: null
 review_url: null
