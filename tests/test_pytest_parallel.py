@@ -47,6 +47,8 @@ def test_runner_keeps_pytest_and_bytecode_caches_in_disposable_tree():
     assert 'export PYTHONPYCACHEPREFIX="${test_run_root}/pycache"' in text
     assert '"cache_dir=${test_run_root}/pytest-cache"' in text
     assert '--basetemp "${test_run_root}/basetemp"' in text
+    assert 'python -m pytest "${pytest_args[@]}"' in text
+    assert "uv run pytest" not in text
 
 
 def test_dotenv_documents_conservative_default():
@@ -59,9 +61,9 @@ def test_dotenv_documents_conservative_default():
 def test_runner_expands_tilde_temp_root_under_home(tmp_path: Path):
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
-    fake_uv = fake_bin / "uv"
-    fake_uv.write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
-    fake_uv.chmod(0o755)
+    fake_python = fake_bin / "python"
+    fake_python.write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
+    fake_python.chmod(0o755)
     fake_home = tmp_path / "home"
     fake_home.mkdir()
     env = os.environ.copy()
