@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-603
 type: feature
-status: Ready to Integrate
+status: In Validation
 priority: 2
 title: Define and enforce repository hygiene health thresholds
 parent: OOMPAH-588
@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:03.538398Z'
-updated_at: '2026-07-31T04:53:10.812878Z'
+updated_at: '2026-07-31T04:56:44.764229Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-603
 target_branch: null
 review_url: null
@@ -42,12 +42,19 @@ oompah.agent_run_id: 8302221e-3ef9-4bbe-afdd-75b49ef381e4
 oompah.work_branch: epic-OOMPAH-588--task-OOMPAH-603
 oompah.integration:
   version: 1
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-588--task-OOMPAH-603
+  base_branch: epic-OOMPAH-588
+  base_sha: 3a1c79ed8150d7d754fcd5d26b0139c8affbc01f
   head_sha: 869005b387d5bcf2ad76eac66a608ece7f235fd9
+  integrated_sha: 869005b387d5bcf2ad76eac66a608ece7f235fd9
   submitted_at: '2026-07-31T04:52:01.123499+00:00'
-  updated_at: '2026-07-31T04:52:01.123499+00:00'
+  updated_at: '2026-07-31T04:56:33.278458+00:00'
+  dependency_heads:
+    OOMPAH-601: 787385c6aad4f27d38edccec4ef98a598604dcb7
+    OOMPAH-602: 89dfc18811454bb05e0fd027702d9aafb2edc40c
+    OOMPAH-600: 67c67ffa6f932ca2a41ff1cd214ed33c9655becc
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-603__20260730T160448Z
@@ -131,7 +138,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-603
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -161,6 +168,37 @@ oompah.terminal_audit:
     previous_state: Ready to Integrate
     created_at: '2026-07-31T04:06:53.081994+00:00'
     updated_at: '2026-07-31T04:11:19.915990+00:00'
+  - version: 1
+    audit_id: audit-32dfaa289bac
+    project_id: proj-14849f1b
+    task_id: OOMPAH-603
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: df964e750e0bd59ee93123beeb881d17c15dcbc78b42b319c5a4517f0e31926e
+    attempts:
+    - version: 1
+      attempt_id: attempt-34a8bb89257f
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: df964e750e0bd59ee93123beeb881d17c15dcbc78b42b319c5a4517f0e31926e
+      created_at: '2026-07-31T04:56:39.115152+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-31T04:56:39.115152+00:00'
+      branch_key: epic-OOMPAH-588--task-OOMPAH-603
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-07-31T04:56:34.415309+00:00'
+    updated_at: '2026-07-31T04:56:39.115152+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-8da7556bb1d0
@@ -174,6 +212,19 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: opus
     started_at: '2026-07-31T04:06:58.472347+00:00'
+    branch_key: epic-OOMPAH-588--task-OOMPAH-603
+  - version: 1
+    attempt_id: attempt-34a8bb89257f
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: df964e750e0bd59ee93123beeb881d17c15dcbc78b42b319c5a4517f0e31926e
+    created_at: '2026-07-31T04:56:39.115152+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-31T04:56:39.115152+00:00'
     branch_key: epic-OOMPAH-588--task-OOMPAH-603
 ---
 ## Summary
@@ -542,5 +593,15 @@ author: oompah
 created: 2026-07-31 04:53
 ---
 Operator verification on exact pushed head 869005b387d5bcf2ad76eac66a608ece7f235fd9: authoritative make test passed — 13,947 passed, 7 skipped, 52 warnings in 251.99s; terminal mutation scan passed. Focused hygiene/dashboard/orchestrator suite previously passed 32 tests. Branch is ready for integration and independent audit.
+---
+author: oompah
+created: 2026-07-31 04:56
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-07-31 04:56
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
