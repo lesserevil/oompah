@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T21:32:57.017227Z'
-updated_at: '2026-07-31T23:01:29.769295Z'
+updated_at: '2026-07-31T23:05:47.717701Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -138,5 +138,10 @@ author: oompah
 created: 2026-07-31 23:01
 ---
 Discovery: Makefile line 3 prepends .venv/bin globally, and restart's recursive make would otherwise re-capture that polluted PATH. The safe design is to capture OOMPAH_OPERATOR_PATH before export, export it for recursive targets, and pass --operator-path to sync/start/restart/force-restart. sync_canonical_cli and canonical_cli_cutover will keep internal PATH for UV/Python while using the explicit operator path for strict launcher resolution and CLI verification.
+---
+author: oompah
+created: 2026-07-31 23:05
+---
+Implementation: captured the pre-virtualenv PATH as OOMPAH_OPERATOR_PATH in Makefile (including recursive make), passed it via --operator-path through sync-cli/start/restart/force-restart, and added explicit operator-path handling to both lifecycle scripts. Internal UV/Python staging remains on the exported venv PATH; canonical resolution/version checks use the preserved operator PATH. Added shadowing/no-op/refusal and CLI/server equality regressions plus updated cli-install documentation.
 ---
 <!-- COMMENTS:END -->
