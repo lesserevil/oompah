@@ -27,12 +27,10 @@ children:
 - OOMPAH-639
 blocked_by:
 - OOMPAH-459
-labels:
-- rebase-requested
-- epic:rebasing
+labels: []
 assignee: null
 created_at: '2026-07-28T13:03:47.776498Z'
-updated_at: '2026-07-31T04:23:46.768316Z'
+updated_at: '2026-07-31T04:24:13.891358Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -74,5 +72,10 @@ author: oompah
 created: 2026-07-28 18:10
 ---
 Queued for execution. Every child explicitly depends on OOMPAH-459, so no epic-OOMPAH-460 branch/worktree will be created until OOMPAH-459 has landed. Its first dispatch will therefore branch from the then-latest main.
+---
+author: oompah
+created: 2026-07-31 04:24
+---
+Recovery reconciliation: origin/main is an ancestor of current origin/epic-OOMPAH-460 (0 behind, 6 ahead at 0d7c3578f); OOMPAH-634 is Done and duplicate OOMPAH-636 Archived. Cleared stale rebase-requested/epic:rebasing labels so normal epic rollup and PR maintenance can resume.
 ---
 <!-- COMMENTS:END -->
