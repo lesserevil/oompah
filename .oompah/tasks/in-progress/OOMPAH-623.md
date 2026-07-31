@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:32:18.734139Z'
-updated_at: '2026-07-31T14:24:27.905032Z'
+updated_at: '2026-07-31T14:28:05.233769Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-623
 target_branch: null
 review_url: null
@@ -629,5 +629,10 @@ author: oompah
 created: 2026-07-31 14:24
 ---
 UNDERSTANDING: Continuing from previous work. Prior clean pushed head c8bb0b809 was provisionally accepted (comment #63). Since then, commit 329d189e0 added the requested scoped CLI comment-compatibility coverage from comment #69, and local commit 5d683ec20 exports .venv/bin on PATH from the Makefile for isolation. Current local HEAD is 5d683ec20; the branch has been rebased onto the latest origin/epic-OOMPAH-619 (61546199b). Will verify focused suites (build identity, canonical CLI sync, lifecycle integration, CLI install revision compatibility) still pass on this rebased head, ensure git diff --check is clean, push the branch, and submit — the finish-order dependency on OOMPAH-657 for the full-gate authority is now satisfied per this dispatch.
+---
+author: oompah
+created: 2026-07-31 14:28
+---
+VERIFICATION: focused suites all pass on rebased head 5d683ec20 (on top of current origin/epic-OOMPAH-619 = 61546199b): tests/test_build_identity.py (2), tests/test_canonical_cli_sync.py (16), tests/test_ci_sync_race.py (6), tests/test_lifecycle_cli_sync_integration.py (25), tests/test_cli_install_revision_compatibility.py (19), tests/test_task_handoff.py (32), tests/test_task_cli_actor.py (11) — 111 tests total. git diff --check clean across the full delta from epic base. scripts/check-secrets.sh clean. Branch pushed to origin/epic-OOMPAH-619--task-OOMPAH-623 at 5d683ec20.
 ---
 <!-- COMMENTS:END -->
