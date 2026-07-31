@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-645
 type: task
-status: Needs Human
+status: In Progress
 priority: 0
 title: Clear recovered terminal-audit transport failures without contaminating later
   audits
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T06:47:58.732088Z'
-updated_at: '2026-07-31T08:58:18.322151Z'
+updated_at: '2026-07-31T08:59:01.697540Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -554,5 +554,10 @@ author: oompah
 created: 2026-07-31 08:58
 ---
 Task handoff failed after the worker ran: the server-owned, task-scoped tracker capability could not update this task. The task is held in Needs Human and will not be redispatched automatically; verify the handoff service and reconcile the worker's branch before resuming it.
+---
+author: oompah
+created: 2026-07-31 08:58
+---
+Post-handoff reconciliation: the worker's task-scoped capability expired/failed after work, but no branch data was lost. origin/OOMPAH-645 is clean and exactly matches local head 6686290d51cfff9d63270ee27da19d2aafd0fd87, containing the terminal-audit health fix plus the isolated client-environment regression repair. Focused parallel tests were reported passing. Reopening and resubmitting the exact pushed head for the configured complete branch gate; the credential-lifetime defect is tracked separately as OOMPAH-650.
 ---
 <!-- COMMENTS:END -->
