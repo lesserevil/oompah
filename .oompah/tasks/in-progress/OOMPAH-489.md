@@ -16,7 +16,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:28.198709Z'
-updated_at: '2026-07-31T04:03:31.817206Z'
+updated_at: '2026-07-31T04:05:58.581416Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-489
 target_branch: null
 review_url: null
@@ -433,5 +433,16 @@ author: oompah
 created: 2026-07-31 04:03
 ---
 Understanding: Tests are almost complete from a prior agent run. The file tests/test_epic_terminal_audit_contract.py has 21 tests covering nested epic auditing, repair planning, races, and cross-tracker behavior across native Markdown, GitHub, and GitLab adapters. 19 tests pass, 1 is xfail (repair-planner lifecycle blocked by OOMPAH-482), and 1 fails due to a ModelProvider constructor mismatch — test creates ModelProvider without required base_url argument. Fixing now.
+---
+author: oompah
+created: 2026-07-31 04:05
+---
+Implementation: Fixed 2 constructor mismatches in tests/test_epic_terminal_audit_contract.py:
+1. ModelProvider lacked required base_url field — added base_url=f'https://api.{name}.example/v1'
+2. WorkContributor lacked required focus, source_branch, source_sha fields — added all three
+
+Verification: All 21 tests now green (20 pass + 1 expected xfail for repair-planner lifecycle blocked on OOMPAH-482). 412 tests across neighboring suites also pass.
+
+Committed: 0d7c3578f, pushed to origin.
 ---
 <!-- COMMENTS:END -->
