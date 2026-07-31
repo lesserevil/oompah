@@ -17,7 +17,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T16:14:16.957795Z'
+updated_at: '2026-07-31T16:20:54.194544Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -1122,5 +1122,10 @@ author: oompah
 created: 2026-07-31 16:14
 ---
 Understanding: Reviewed current state. The OOMPAH-651 branch already contains a comprehensive redaction implementation (9 commits, ~2.8k lines in oompah/secrets.py + tests + docs) that covers: (1) recursive redaction of dicts/lists/dataclasses/repr forms via redact_sensitive_data, (2) SecretRedactionFilter installed at both logger and LogRecordFactory boundaries, (3) fail-closed handling of unknown/credential-like objects, (4) a process-local registered-secret registry with register/renew/retire lifecycle for dynamic tokens, (5) applied at fan-out boundaries in console.py, console_legacy.py, console_format.py, orchestrator.py, api_agent.py, acp_backends/claude.py, and task_handoff.py issue/revoke, (6) operator runbook in docs/secret-redaction-and-rotation.md. Rebased onto latest origin/main (35 commits ahead) - clean rebase, no conflicts. Focused tests pass: test_secrets.py (101), test_task_handoff.py (33), test_console*.py (93). make check-secrets passes. Continuing verification and looking for any gaps in current backend coverage.
+---
+author: oompah
+created: 2026-07-31 16:20
+---
+Discovery: Found two gaps in the last_message redaction path (state-visible field exposed via HTML + state API). Both are on legacy/API agent paths — the ACP path already redacts via _redact_console_event and the payload-derived summary loop in orchestrator._on_event. Gaps: (1) oompah/agent.py::AgentSession._classify_message packaged raw subprocess message text into AgentEvent.payload without redaction; (2) oompah/orchestrator.py _handle_agent_event and the ApiAgentResult handler wrote raw last_message strings to sess.last_message. Both are now redacted at the boundary via redact_sensitive_data.
 ---
 <!-- COMMENTS:END -->
