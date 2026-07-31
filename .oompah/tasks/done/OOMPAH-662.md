@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T13:49:37.853904Z'
-updated_at: '2026-07-31T14:09:21.830091Z'
+updated_at: '2026-07-31T14:09:24.483851Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-662
 target_branch: null
 review_url: null
@@ -74,7 +74,7 @@ oompah.terminal_audit:
     evidence_fingerprint: c64e79f4807e9af5dfdb9d7db78dac2a509792baa3d326243d34b00569983a56
     audit_ids:
     - audit-f0f4f01732f7
-    kind: result
+    kind: override
     applied: true
     retired_at: '2026-07-31T14:04:11.055015+00:00'
   oompah.terminal_audit_result_intents:
@@ -90,6 +90,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-07-31T14:04:11.055026+00:00'
     applied_at: '2026-07-31T14:04:13.986250+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-4bb7f09ddc26
@@ -106,7 +107,7 @@ oompah.terminal_audit:
       source: api
     reason: '[REDACTED]'
     created_at: '2026-07-31T14:09:18.327842+00:00'
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
