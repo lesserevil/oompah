@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-24T15:59:50.769146Z'
-updated_at: '2026-07-31T16:49:11.855546Z'
+updated_at: '2026-07-31T16:49:25.938205Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -94,6 +94,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-07-31T16:44:52.346558+00:00'
     branch_key: OOMPAH-439
+oompah.task_costs:
+  total_input_tokens: 60
+  total_output_tokens: 2300
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 60
+      output_tokens: 2300
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 60
+    output_tokens: 2300
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T16:49:23.774947+00:00'
 ---
 ## Summary
 
@@ -163,5 +179,15 @@ Safe evidence:
 - guard_location: oompah/focus.py lines 762-772 within score_focus()
 - feature_focus_state: BUILTIN_FOCI entry name='feature' role='Feature Developer' status defaults to 'active'
 - working_tree: clean; branch up to date with origin/main
+---
+author: oompah
+created: 2026-07-31 16:49
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 42
+- Tokens: 60 in / 2.3K out [2.4K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 4m 30s
+- Log: OOMPAH-439__20260731T164457Z.jsonl
 ---
 <!-- COMMENTS:END -->
