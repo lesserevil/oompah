@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T11:11:44.503723Z'
+updated_at: '2026-07-31T11:11:59.330481Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,8 +46,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 4bf6216b-a7cc-4d75-8a33-9293a654ade7
 oompah.task_costs:
-  total_input_tokens: 16257952
-  total_output_tokens: 55674
+  total_input_tokens: 16258103
+  total_output_tokens: 60424
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -55,8 +55,8 @@ oompah.task_costs:
       output_tokens: 51842
       cost_usd: 0.0
     opus:
-      input_tokens: 720769
-      output_tokens: 3832
+      input_tokens: 720920
+      output_tokens: 8582
       cost_usd: 0.0
   runs:
   - profile: default
@@ -95,6 +95,12 @@ oompah.task_costs:
     output_tokens: 41961
     cost_usd: 0.0
     recorded_at: '2026-07-31T10:57:09.146041+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 151
+    output_tokens: 4750
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T11:11:57.386162+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-653__20260731T090421Z
@@ -566,5 +572,15 @@ author: oompah
 created: 2026-07-31 11:11
 ---
 Enforced canonical live audit identity per fingerprint with atomic PASS/override retirement, durable result-intent protocol with restart recovery, CAS launch fence to prevent stale dispatch resurrection, and comprehensive deterministic barrier tests. Fixes OOMPAH-648 duplicate audits after PASS, OOMPAH-644 stale alerts after override, and OOMPAH-654 pass-then-redispatch. 153 focused terminal-audit tests pass.
+---
+author: oompah
+created: 2026-07-31 11:11
+---
+Run #2 [attempt=2, profile=deep, role=deep -> Claude/opus]
+- Turns: 0, Tool calls: 104
+- Tokens: 151 in / 4.8K out [4.9K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 14m 14s
+- Log: OOMPAH-653__20260731T105746Z.jsonl
 ---
 <!-- COMMENTS:END -->
