@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T11:14:04.430114Z'
+updated_at: '2026-07-31T11:15:01.497143Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -543,5 +543,10 @@ Bugs fixed on top of the prior work:
 Test file additions cover: worker-outlives-TTL via endpoint refresh, endpoint returns handoff_expired/handoff_revoked with the right codes, endpoint aborts mutation when refresh races termination, owner-mismatch denies renewal, lease revokes on generation change, forced termination revokes even when the entry has been replaced, no Basic-auth env leak into worker.
 
 Running focused tests next.
+---
+author: oompah
+created: 2026-07-31 11:15
+---
+Current OOMPAH-650 draft still contains the previously rejected lifetime and authorization races. Do not change DEFAULT_TTL_SECONDS from 15 minutes to 24 hours; the lease should preserve the existing/custom bound while renewing only for the exact live generation. Remove request-driven sliding refresh as the continuity mechanism: test_worker_survives_beyond_initial_ttl_via_endpoint_refresh makes a midpoint request and therefore does not reproduce the required zero-handoff interval, and any bearer holder can keep itself alive by traffic even after owner heartbeat loss. Add the exact live lease test: very short initial TTL, zero handoff requests until after it, exact generation still live, then view/comment/submit succeeds. Most importantly validate then refresh then mutate is still not atomic with revoke: revocation can win after refresh and before tracker.add_comment/set_status/submit. Introduce a per-grant generation/operation authorization that linearizes the mutation with revocation (or an equivalent atomic server-owned commit fence) and a deterministic barrier test where termination races after validation but before tracker mutation. The current mock returning refresh=False covers only the earlier window. Also add deterministic launch-failure/owner-disappearance/service-restart invalidation and replacement-generation barriers; sleep(0) is not proof the terminator captured the old entry.
 ---
 <!-- COMMENTS:END -->
