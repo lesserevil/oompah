@@ -80,6 +80,33 @@ class TestTaskHandoffGrantStore:
             action="comment",
         )[0] is False
 
+    def test_revoke_retires_redaction_registration_to_bounded_grace(
+        self, monkeypatch
+    ):
+        from oompah import secrets as secrets_module
+        from oompah.secrets import clear_registered_secrets, redact_sensitive_data
+
+        clock = [300.0]
+        monkeypatch.setattr(secrets_module.time, "monotonic", lambda: clock[0])
+        monkeypatch.setattr(secrets_module, "SECRET_REDACTION_GRACE_SECONDS", 5)
+        clear_registered_secrets()
+        try:
+            store = TaskHandoffGrantStore(now=lambda: clock[0])
+            token = store.issue(
+                project_id="proj-a",
+                task_identifier="TASK-1",
+                allowed_actions={"comment"},
+                ttl_seconds=600,
+            )
+            store.revoke(token)
+
+            clock[0] = 304.0
+            assert redact_sensitive_data(token) == "[REDACTED]"
+            clock[0] = 306.0
+            assert redact_sensitive_data(token) == token
+        finally:
+            clear_registered_secrets()
+
 
 class TestTaskCliHandoff:
     def test_capability_route_has_no_basic_auth_and_uses_project_scope(

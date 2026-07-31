@@ -1529,6 +1529,58 @@ class TestConfiguredSecretRegistry:
         assert old not in str(result)
         assert new not in str(result)
 
+    def test_dynamic_secret_renewal_keeps_token_redacted_past_initial_expiry(
+        self, monkeypatch
+    ):
+        from oompah import secrets as secrets_module
+        from oompah.secrets import (
+            clear_registered_secrets,
+            register_secret,
+            renew_secret,
+        )
+
+        value = "opaque-renewed-capability-6M"
+        clock = [100.0]
+        monkeypatch.setattr(secrets_module.time, "monotonic", lambda: clock[0])
+        clear_registered_secrets()
+        try:
+            register_secret(value, expires_in=10)
+            clock[0] = 109.0
+            renew_secret(value, expires_in=10)
+
+            # The renewal at t=109 extends redaction through t=119, even
+            # though the initial registration would have expired at t=110.
+            clock[0] = 115.0
+            assert redact_sensitive_data(value) == "[REDACTED]"
+            clock[0] = 120.0
+            assert redact_sensitive_data(value) == value
+        finally:
+            clear_registered_secrets()
+
+    def test_retired_dynamic_secret_keeps_bounded_delayed_writer_grace(
+        self, monkeypatch
+    ):
+        from oompah import secrets as secrets_module
+        from oompah.secrets import (
+            clear_registered_secrets,
+            register_secret,
+            retire_secret,
+        )
+
+        value = "opaque-retired-capability-8N"
+        clock = [200.0]
+        monkeypatch.setattr(secrets_module.time, "monotonic", lambda: clock[0])
+        clear_registered_secrets()
+        try:
+            register_secret(value, expires_in=1)
+            retire_secret(value, grace_seconds=5)
+            clock[0] = 204.0
+            assert redact_sensitive_data(value) == "[REDACTED]"
+            clock[0] = 206.0
+            assert redact_sensitive_data(value) == value
+        finally:
+            clear_registered_secrets()
+
     def test_api_session_registers_provider_key_for_opaque_output(self, tmp_path):
         from oompah.api_agent import ApiAgentSession
 

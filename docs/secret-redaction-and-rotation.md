@@ -38,11 +38,12 @@ explicit credential environment sources (including `OOMPAH_SERVER_PASSWORD`
 and `OOMPAH_SERVER_PASSWORD_FILE`). Provider/project credentials and scoped
 task-handoff capabilities are registered when loaded or issued. Literal
 replacement is longest-first. Long-lived configured values remain registered
-for the process lifetime, while minted task-handoff capabilities expire after
-their grant lifetime plus a bounded one-hour grace period. This protects both
-the new value and delayed shutdown/retry messages containing the old value
-without retaining every historical worker token forever. Values are never
-written to logs, state, or task comments by the registry.
+for the process lifetime. Server-owned task-handoff leases extend their
+exact-match registration on every renewal using the current grant TTL plus a
+bounded one-hour grace period; revocation shortens the registration to that
+grace period immediately. This protects delayed shutdown/retry messages
+without retaining every historical worker token for its original lifetime.
+Values are never written to logs, state, or task comments by the registry.
 
 ## Auditing existing logs for exposure
 

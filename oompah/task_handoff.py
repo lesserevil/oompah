@@ -216,14 +216,17 @@ class TaskHandoffGrantStore:
         # The capability is intentionally returned to the subprocess, but
         # any parent-side event, exception, or telemetry text containing it
         # must be redacted even without a token-shaped label around it.
-        from oompah.secrets import register_secret
+        from oompah.secrets import (
+            SECRET_REDACTION_GRACE_SECONDS,
+            register_secret,
+        )
 
         register_secret(
             token,
             # Keep a bounded grace period after grant expiry for delayed
             # worker shutdown/error events without retaining every historical
             # handoff capability forever.
-            expires_in=ttl + 60 * 60,
+            expires_in=ttl + SECRET_REDACTION_GRACE_SECONDS,
         )
         return token
 
@@ -327,6 +330,11 @@ class TaskHandoffGrantStore:
         # revoked bearer for the original grant lifetime.  The redaction
         # registry consumes the value only to register its digest-independent
         # literal; this path never logs or returns the token.
+        from oompah.secrets import (
+            SECRET_REDACTION_GRACE_SECONDS,
+            retire_secret,
+        )
+
         retire_secret(
             token,
             grace_seconds=SECRET_REDACTION_GRACE_SECONDS,

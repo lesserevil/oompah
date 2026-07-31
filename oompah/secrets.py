@@ -74,7 +74,8 @@ _KNOWN_SECRET_BYTES: dict[bytes, float | None] = {}
 # handoff capabilities) are removed on each snapshot; the cap is a final
 # guard against an operator repeatedly rotating configured credentials.
 _MAX_REGISTERED_SECRET_VALUES = 4096
-_DEFAULT_DYNAMIC_SECRET_RETENTION_SECONDS = 60 * 60
+SECRET_REDACTION_GRACE_SECONDS = 60 * 60
+_DEFAULT_DYNAMIC_SECRET_RETENTION_SECONDS = SECRET_REDACTION_GRACE_SECONDS
 
 # Environment sources which can contain plaintext credentials in a running
 # oompah process.  Keep this allow-list explicit: registering every process
@@ -226,6 +227,55 @@ def register_secret(
             _store_registered_secret_locked(
                 _KNOWN_SECRET_BYTES, bytes_value, expires_at
             )
+
+
+def renew_secret(
+    value: str | bytes | None,
+    *,
+    expires_in: float,
+) -> None:
+    """Extend the redaction lifetime of an active dynamic secret.
+
+    Server-owned leases should call this on every renewal using the current
+    grant TTL plus the bounded delayed-event grace period. It is deliberately
+    separate from :func:`register_secret` so lease code documents that the
+    value is already known and is being extended, not newly exposed or
+    returned. An expired/evicted value is safely re-added; permanent
+    configured values remain permanent because registration never downgrades a
+    permanent entry.
+    """
+    if expires_in <= 0:
+        return
+    register_secret(value, expires_in=expires_in)
+
+
+def retire_secret(
+    value: str | bytes | None,
+    *,
+    grace_seconds: float = SECRET_REDACTION_GRACE_SECONDS,
+) -> None:
+    """Retain a dynamic secret only for delayed-writer grace after revocation.
+
+    Registration is additive so credential rotation cannot expose an old
+    value. Revocation is the one lifecycle event allowed to shorten an
+    expiring entry: late shutdown/error writers remain protected for the
+    bounded grace interval, after which the exact literal is pruned. A
+    permanent configured value is never shortened by this function.
+    """
+    text_value, bytes_value = _normalise_registered_secret(value)
+    if text_value is None and bytes_value is None:
+        return
+    expires_at = time.monotonic() + max(float(grace_seconds), 0.0)
+    with _KNOWN_SECRET_LOCK:
+        _prune_registered_secrets_locked(time.monotonic())
+        if text_value is not None and text_value in _KNOWN_SECRET_STRINGS:
+            current = _KNOWN_SECRET_STRINGS[text_value]
+            if current is not None:
+                _KNOWN_SECRET_STRINGS[text_value] = expires_at
+        if bytes_value is not None and bytes_value in _KNOWN_SECRET_BYTES:
+            current = _KNOWN_SECRET_BYTES[bytes_value]
+            if current is not None:
+                _KNOWN_SECRET_BYTES[bytes_value] = expires_at
 
 
 def register_secret_values(
@@ -853,9 +903,12 @@ __all__ = [
     "redact_sensitive_data",
     "register_secret",
     "register_secret_values",
+    "renew_secret",
+    "retire_secret",
     "register_configured_secrets",
     "clear_registered_secrets",
     "registered_secret_count",
+    "SECRET_REDACTION_GRACE_SECONDS",
     "SECRET_KEYS",
     "SECRET_PATTERNS",
     "SecretRedactionFilter",
