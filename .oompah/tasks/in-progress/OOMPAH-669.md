@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-669
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Same-head task resubmission must restore Ready to Integrate lifecycle
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T21:52:16.588312Z'
-updated_at: '2026-07-31T23:01:55.345496Z'
+updated_at: '2026-07-31T23:02:18.174104Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,7 +37,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: ccc4ab87-4d9a-4c27-a4c8-b4e5cc51b684
+oompah.agent_run_id: de234723-7746-4658-8f43-8a3a9bbf3db5
 oompah.task_costs:
   total_input_tokens: 834061
   total_output_tokens: 5102
@@ -98,5 +98,15 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Codex/gpt-5.6-
 - Cost: $0.0000
 - Exit: normal, Duration: 2m 37s
 - Log: OOMPAH-669__20260731T225919Z.jsonl
+---
+author: oompah
+created: 2026-07-31 23:02
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-31 23:02
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
