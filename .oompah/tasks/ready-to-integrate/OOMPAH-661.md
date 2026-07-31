@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T13:12:19.387161Z'
-updated_at: '2026-07-31T15:27:27.907907Z'
+updated_at: '2026-07-31T15:27:49.782542Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -56,8 +56,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 2d812e35-e62d-4ad6-9cfd-c149c4a34214
 oompah.task_costs:
-  total_input_tokens: 484277
-  total_output_tokens: 21234
+  total_input_tokens: 484317
+  total_output_tokens: 33143
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -65,8 +65,8 @@ oompah.task_costs:
       output_tokens: 3957
       cost_usd: 0.0
     sonnet:
-      input_tokens: 484058
-      output_tokens: 7072
+      input_tokens: 484098
+      output_tokens: 18981
       cost_usd: 0.0
     opus:
       input_tokens: 65
@@ -91,6 +91,12 @@ oompah.task_costs:
     output_tokens: 10205
     cost_usd: 0.0
     recorded_at: '2026-07-31T15:03:13.156301+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 40
+    output_tokens: 11909
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T15:27:42.069803+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-661__20260731T135529Z
@@ -117,14 +123,24 @@ oompah.work_contributors:
     source_branch: OOMPAH-661
     source_sha: 76619929b63527d539c81f9dbdadf8c38047c461
     completed_at: '2026-07-31T15:03:13.160086+00:00'
+  - run_id: OOMPAH-661__20260731T152148Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: sonnet
+    focus: ci_fix
+    source_branch: OOMPAH-661
+    source_sha: e1c6e394e6136ec8057fb41684049d9b97b4ca2e
+    completed_at: '2026-07-31T15:27:42.077904+00:00'
 oompah.integration:
   version: 2
   state: ready
   attempts: 0
   task_branch: OOMPAH-661
+  base_branch: main
+  base_sha: 54be36f5dca92972dfb039c6f1eba6f4990235d3
   head_sha: e1c6e394e6136ec8057fb41684049d9b97b4ca2e
   submitted_at: '2026-07-31T15:27:25.202544+00:00'
-  updated_at: '2026-07-31T15:27:25.202544+00:00'
+  updated_at: '2026-07-31T15:27:48.836733+00:00'
 ---
 ## Summary
 
@@ -425,5 +441,20 @@ author: oompah
 created: 2026-07-31 15:27
 ---
 Fixed 3 CI-failing tests in tests/test_duplicate_preflight.py. The _orch() test helper constructs Orchestrator via __new__, bypassing __init__. The OOMPAH-661 implementation added _retry_authority_lock, _retry_dispatching, and _persisted_retry_entries in __init__ but these were not present in the helper, causing AttributeError in test_dispatch_preflight_does_not_move_task_in_progress, test_reconcile_terminates_stale_preflight_without_implementation_retry, and test_reconcile_preserves_open_worker_with_current_preflight_claim. Fix: 5-line addition to the helper initializing the three missing attributes.
+---
+author: oompah
+created: 2026-07-31 15:27
+---
+Agent completed successfully in 357s (11949 tokens)
+---
+author: oompah
+created: 2026-07-31 15:27
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 67, Tool calls: 38
+- Tokens: 40 in / 11.9K out [11.9K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 5m 57s
+- Log: OOMPAH-661__20260731T152148Z.jsonl
 ---
 <!-- COMMENTS:END -->
