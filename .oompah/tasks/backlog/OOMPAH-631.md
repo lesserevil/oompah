@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-631
 type: bug
-status: Open
+status: Backlog
 priority: 1
 title: Restore validation ownership when terminal retries coalesce
 parent: OOMPAH-584
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:08:00.758352Z'
-updated_at: '2026-07-31T00:17:28.963730Z'
+updated_at: '2026-07-31T00:20:12.229466Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-631
 target_branch: null
 review_url: null
@@ -73,5 +73,10 @@ author: oompah
 created: 2026-07-31 00:17
 ---
 Duplicate screening scope only: no local server startup is needed. Search found no existing task for this exact coalesced-audit status repair; OOMPAH-630 is prerequisite context, not a duplicate. Please record the no-duplicate result and hand off to implementation now. The implementation branch should later integrate on top of OOMPAH-630's c03e52f66 exact head through the parent queue.
+---
+author: oompah
+created: 2026-07-31 00:20
+---
+Operator takeover: duplicate screening has remained active for over ten minutes, attempted to start a second server from a read-only sandbox, and did not post a screening result or handoff. No duplicate exists; OOMPAH-630 is prerequisite context. Releasing the stale screening claim and implementing directly per the epic's fallback rule.
 ---
 <!-- COMMENTS:END -->
