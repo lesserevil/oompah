@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-417
 type: task
-status: In Validation
+status: Archived
 priority: null
 title: 'Regression tests: stall-to-recovery path and orphan-reset dispatch integration'
 parent: OOMPAH-414
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-23T19:34:44.997439Z'
-updated_at: '2026-07-31T06:00:26.275243Z'
+updated_at: '2026-07-31T06:01:23.286528Z'
 work_branch: epic-OOMPAH-414
 target_branch: null
 review_url: null
@@ -22,6 +22,23 @@ oompah.agent_run_id: cfdf3167-0a32-448c-a1a5-ea7807fc0d0a
 oompah.work_branch: epic-OOMPAH-414
 oompah.terminal_audit:
   queued_comment_posted: true
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-4008da069b0b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-417
+    target_state: Archived
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: fa604df0422e6722c6a0cbc33114f01f40a0c858f3c46268ab822f66f3c6d23b
+    authorized_by:
+      version: 1
+      identity: lesserevil
+      source: api
+    reason: Archive stale child of merged epic as superseded; undelivered combined
+      regression is preserved in actionable top-level OOMPAH-640.
+    created_at: '2026-07-31T06:01:20.101422+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -46,19 +63,46 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-417
     target_state: Archived
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: fa604df0422e6722c6a0cbc33114f01f40a0c858f3c46268ab822f66f3c6d23b
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-06574e7cafd9
+      target_state: Archived
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: fa604df0422e6722c6a0cbc33114f01f40a0c858f3c46268ab822f66f3c6d23b
+      created_at: '2026-07-31T06:01:17.955642+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-31T06:01:17.955642+00:00'
+      branch_key: epic-OOMPAH-414
     requested_by:
       version: 1
       identity: api-client
       source: api
     previous_state: Needs Human
     created_at: '2026-07-31T06:00:23.935672+00:00'
-  attempt_history: []
+    updated_at: '2026-07-31T06:01:17.955642+00:00'
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-06574e7cafd9
+    target_state: Archived
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: fa604df0422e6722c6a0cbc33114f01f40a0c858f3c46268ab822f66f3c6d23b
+    created_at: '2026-07-31T06:01:17.955642+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-31T06:01:17.955642+00:00'
+    branch_key: epic-OOMPAH-414
 ---
 ## Summary
 
@@ -146,5 +190,17 @@ author: oompah
 created: 2026-07-31 06:00
 ---
 Post-restart re-evaluation: the threshold and reset-wake portions landed with parent OOMPAH-414, but the combined two-task dispatch regression was not delivered. Remaining accepted work is now tracked actionably in top-level OOMPAH-640 because this child belongs to an already-merged epic. Archiving this stale child as superseded, not as fully completed.
+---
+author: oompah
+created: 2026-07-31 06:01
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-07-31 06:01
+---
+Override by lesserevil: terminal transition to Archived applied by project owner.
+
+Reason: Archive stale child of merged epic as superseded; undelivered combined regression is preserved in actionable top-level OOMPAH-640.
 ---
 <!-- COMMENTS:END -->
