@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T10:57:45.530597Z'
+updated_at: '2026-07-31T11:03:33.221995Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -536,5 +536,10 @@ author: oompah
 created: 2026-07-31 10:57
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-07-31 11:03
+---
+Understanding: Reviewed continuation state. Prior commit fb68d377c already implements: (1) result-intent protocol with restart recovery for the PASS→status crash window, (2) CAS check on _audit_update_record to fence stale dispatch snapshots, (3) fix to _recover_terminal_override to derive ledger from current document (not stale outer list), (4) override-vs-result intent priority so an override supersedes an unacknowledged PASS. Tests in place: test_restart_replays_unacknowledged_result_status_and_is_idempotent, test_override_recovery_preserves_concurrent_ledger_append, test_dispatch_cas_does_not_resurrect_completed_audit. All 147 focused tests pass. Gaps I still need to close per operator feedback: (a) PASS-persist-vs-reconcile/no-candidate barrier against production alert registry, (b) override-vs-no-candidate barrier, (c) repeated-callbacks scenario, (d) project-isolation assertions against production alert registry, (e) explicit OOMPAH-654 test — one PASS retires every equivalent queued identity without a second provider launch. Adding these tests now.
 ---
 <!-- COMMENTS:END -->
