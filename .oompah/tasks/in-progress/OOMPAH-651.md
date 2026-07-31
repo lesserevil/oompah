@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-651
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Redact secrets from agent tool inputs, outputs, and JSONL event logs
 parent: null
@@ -17,7 +17,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T13:38:19.245512Z'
+updated_at: '2026-07-31T14:39:54.508687Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -59,7 +59,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 2f1d6bc3-b9b9-4bb5-ad86-9a6a5e4dd01c
+oompah.agent_run_id: ffa989ed-6d16-4a5f-811d-2a20c9797896
 oompah.task_costs:
   total_input_tokens: 16588339
   total_output_tokens: 105080
@@ -1038,5 +1038,15 @@ author: oompah
 created: 2026-07-31 12:18
 ---
 Temporary containment update: parked in Backlog rather than Open to prevent duplicate-preflight/CI-watchdog redispatch under the currently deployed scheduler. Pushed e4e36c44e remains preserved and accepted pending OOMPAH-650/657. Return to Open after both deploy, rebase, and wire the redaction lease lifecycle.
+---
+author: oompah
+created: 2026-07-31 14:39
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-31 14:39
+---
+Focus: Event Api Redaction Specialist
 ---
 <!-- COMMENTS:END -->
