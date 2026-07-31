@@ -16,7 +16,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T13:23:57.264478Z'
+updated_at: '2026-07-31T13:24:10.351623Z'
 work_branch: OOMPAH-653
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/619
@@ -207,18 +207,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-653
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 38b2aa4b2fe75d8d6c077a45b5ed91473b4d3690166c6a85146f4d29f3ca2b5a
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-cc7eaef92086
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 38b2aa4b2fe75d8d6c077a45b5ed91473b4d3690166c6a85146f4d29f3ca2b5a
+      created_at: '2026-07-31T13:24:06.405263+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-31T13:24:06.405263+00:00'
+      branch_key: OOMPAH-653
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-07-31T13:23:52.407384+00:00'
+    updated_at: '2026-07-31T13:24:06.405263+00:00'
   - version: 1
     audit_id: audit-2f9b77f8e8e1
     project_id: proj-14849f1b
@@ -236,7 +250,20 @@ oompah.terminal_audit:
       source: forge
     previous_state: In Review
     created_at: '2026-07-31T13:23:52.407384+00:00'
-  attempt_history: []
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-cc7eaef92086
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 38b2aa4b2fe75d8d6c077a45b5ed91473b4d3690166c6a85146f4d29f3ca2b5a
+    created_at: '2026-07-31T13:24:06.405263+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-31T13:24:06.405263+00:00'
+    branch_key: OOMPAH-653
 ---
 ## Summary
 
@@ -1011,5 +1038,15 @@ author: oompah
 created: 2026-07-31 13:23
 ---
 YOLO: merged PR #619.
+---
+author: oompah
+created: 2026-07-31 13:24
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-07-31 13:24
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
