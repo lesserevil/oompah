@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-667
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Keep Makefile virtualenv PATH from defeating canonical CLI cutover
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T21:32:57.017227Z'
-updated_at: '2026-07-31T22:58:57.235292Z'
+updated_at: '2026-07-31T22:59:10.486784Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -57,7 +57,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 3914909b-b264-483f-bb1b-1f08dd49c0a6
+oompah.agent_run_id: a5c1ccde-9a95-4ff1-ab7f-1ad7b0150519
 oompah.task_costs:
   total_input_tokens: 186
   total_output_tokens: 4766
@@ -118,5 +118,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 39s
 - Log: OOMPAH-667__20260731T225718Z.jsonl
+---
+author: oompah
+created: 2026-07-31 22:59
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-31 22:59
+---
+Focus: Event Api Redaction Specialist
 ---
 <!-- COMMENTS:END -->
