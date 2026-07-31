@@ -3,9 +3,9 @@
 
 The old service is paused and drained before a candidate is staged.  Staging
 uses an isolated UV tool root; activation is the only operation that changes
-the canonical launcher.  The activation journal is retained until the new
-service reports the expected build identity, so every failure before that
-point can restore the old CLI and resume the old service.
+the canonical launcher.  Failures before a restart attempt restore and resume
+the old pair.  Once restart acceptance is unknowable, the candidate launcher
+is retained: rolling back only the CLI could mismatch a new server.
 """
 
 from __future__ import annotations
@@ -43,6 +43,10 @@ except ModuleNotFoundError:  # pragma: no cover - exercised by script startup
 
 class CutoverError(RuntimeError):
     """Raised when a service/CLI cutover cannot safely complete."""
+
+
+class CutoverUncertainError(CutoverError):
+    """The restart may have crossed its exec boundary; keep the candidate CLI."""
 
 
 Request = Callable[[str, str, dict[str, Any] | None], dict[str, Any]]
@@ -162,14 +166,15 @@ def verify_pair(
     """Verify command resolution and equality for an already-running service."""
     env = dict(os.environ if environ is None else environ)
     if request is None:
-        request = lambda method, path, body: _http_request(
-            repo=repo,
-            python=sys.executable,
-            url=url,
-            method=method,
-            path=path,
-            body=body,
-        )
+        def request(method, path, body):
+            return _http_request(
+                repo=repo,
+                python=sys.executable,
+                url=url,
+                method=method,
+                path=path,
+                body=body,
+            )
     health = request("GET", "/healthz", None)
     state = request("GET", "/api/v1/state", None)
     health_revision = _revision_from_identity(health)
@@ -225,14 +230,15 @@ def graceful_cutover(
     tool_dir = tool_dir or Path(env.get("UV_TOOL_DIR", home / ".local/share/uv/tools"))
     bin_dir = bin_dir or Path(env.get("UV_TOOL_BIN_DIR", canonical.parent))
     if request is None:
-        request = lambda method, path, body: _http_request(
-            repo=repo,
-            python=sys.executable,
-            url=url,
-            method=method,
-            path=path,
-            body=body,
-        )
+        def request(method, path, body):
+            return _http_request(
+                repo=repo,
+                python=sys.executable,
+                url=url,
+                method=method,
+                path=path,
+                body=body,
+            )
 
     old_health = request("GET", "/healthz", None)
     old_state = request("GET", "/api/v1/state", None)
@@ -259,7 +265,7 @@ def graceful_cutover(
 
     was_paused = bool(old_state.get("paused"))
     paused = False
-    committed = False
+    restart_attempted = False
     staged: StagedCLI | None = None
     activation: Activation | None = None
     try:
@@ -289,8 +295,11 @@ def graceful_cutover(
 
         # This request is the cutover point: the old process has drained, and
         # the candidate launcher is already active with a rollback journal.
+        # Mark uncertainty before making the request.  A transport error can
+        # mean the old process accepted the restart and dropped the connection
+        # while executing the new revision.
+        restart_attempted = True
         request("POST", "/api/v1/orchestrator/restart", {"drain_timeout_s": 0})
-        committed = True
         _wait_for_new_health(
             request,
             old_instance,
@@ -311,34 +320,33 @@ def graceful_cutover(
             request("POST", "/api/v1/orchestrator/resume", {})
         return staged.revision
     except Exception as exc:
+        if restart_attempted:
+            # The server may already be the candidate revision even when the
+            # POST or subsequent probes fail.  Close the rollback journal but
+            # retain the candidate launcher and immutable tool root.  Restoring
+            # only the old CLI here would recreate the mismatch this lifecycle
+            # transaction is designed to prevent.
+            if activation is not None:
+                activation.commit()
+            detail = str(exc) or exc.__class__.__name__
+            raise CutoverUncertainError(
+                f"{detail}; restart acceptance or server revision is uncertain. "
+                "The candidate CLI was retained and the service was left paused "
+                "where possible. Inspect make status and make logs, restore or "
+                "complete the server deployment, then rerun make restart; do not "
+                "roll back only the CLI."
+            ) from exc
+
         if activation is not None:
-            # Roll back both pre-cutover failures and a post-cutover health
-            # failure.  The latter leaves an explicit operator alert below;
-            # restoring the launcher makes the next recovery command safe.
             activation.rollback()
-        if paused:
-            # A restart request is asynchronous.  If health still identifies
-            # the old instance, the process never crossed the cutover and it
-            # is safe—and necessary—to unpause it.  Once a new instance is
-            # visible, leave the explicit post-cutover failure alert intact;
-            # blindly resuming would target the wrong process.
-            should_resume = not committed
-            if committed:
-                try:
-                    should_resume = (
-                        request("GET", "/healthz", None).get("instance_id")
-                        == old_instance
-                    )
-                except Exception:
-                    should_resume = False
-            if should_resume:
-                try:
-                    request("POST", "/api/v1/orchestrator/resume", {})
-                except Exception as resume_exc:  # pragma: no cover - defensive alert
-                    raise CutoverError(
-                        f"{exc}; additionally could not resume the old service: "
-                        f"{resume_exc}"
-                    ) from exc
+        if paused and not was_paused:
+            try:
+                request("POST", "/api/v1/orchestrator/resume", {})
+            except Exception as resume_exc:  # pragma: no cover - defensive alert
+                raise CutoverError(
+                    f"{exc}; additionally could not resume the old service: "
+                    f"{resume_exc}"
+                ) from exc
         if isinstance(exc, CutoverError):
             raise
         if isinstance(exc, SyncError):
@@ -395,6 +403,15 @@ def main(argv: list[str] | None = None) -> int:
                 health_timeout=args.health_timeout,
                 force=args.force,
             )
+    except CutoverUncertainError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        print(
+            "Recovery: the candidate CLI remains canonical because the server "
+            "may have restarted. Inspect 'make status' and 'make logs', repair "
+            "or complete the server deployment, then rerun 'make restart'.",
+            file=sys.stderr,
+        )
+        return 1
     except CutoverError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         print(

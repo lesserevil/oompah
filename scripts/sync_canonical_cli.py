@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Install the exact source revision into the canonical user CLI location.
 
-This helper deliberately performs all validation before changing the UV tool
-installation.  If UV fails or the installed command reports an unexpected
-revision, the previous launcher and tool environment are restored.
+This helper deliberately performs all validation before changing the canonical
+launcher.  Each verified tool environment is published under a new immutable,
+revision-addressed directory.  Activation is one atomic launcher replacement,
+so concurrent invocations always see a complete old or new environment.
 """
 
 from __future__ import annotations
@@ -49,18 +50,22 @@ class Activation:
     """Rollback journal for an activated canonical CLI."""
 
     canonical: Path
-    tool_path: Path
     backup_root: Path
     launcher_backup: Path | None
-    tool_backup: Path | None
+    published_tool: Path
     _closed: bool = False
 
     def rollback(self) -> None:
-        """Restore the exact launcher and UV environment from before activation."""
+        """Atomically restore the launcher from before activation.
+
+        Published tool roots are immutable and deliberately retained.  A CLI
+        process that crossed the activation point may still be using either
+        root, so deleting one here would reintroduce the invocation race this
+        journal exists to prevent.
+        """
         if self._closed:
             return
-        _restore(self.canonical, self.launcher_backup)
-        _restore(self.tool_path, self.tool_backup)
+        _restore_launcher_atomically(self.canonical, self.launcher_backup)
         shutil.rmtree(self.backup_root, ignore_errors=True)
         self._closed = True
 
@@ -132,16 +137,14 @@ def _command_resolves_to(canonical: Path, *, path: str | None = None) -> bool:
     return resolved is not None and os.path.abspath(resolved) == os.path.abspath(canonical)
 
 
-def _snapshot(path: Path, root: Path) -> Path | None:
-    """Copy one exact file, symlink, or directory into a rollback directory."""
+def _snapshot_launcher(path: Path, root: Path) -> Path | None:
+    """Copy the exact canonical launcher into a rollback directory."""
     if not os.path.lexists(path):
         return None
     root.mkdir(parents=True, exist_ok=True)
     backup = root / path.name
     if path.is_symlink():
         backup.symlink_to(os.readlink(path))
-    elif path.is_dir():
-        shutil.copytree(path, backup, symlinks=True)
     else:
         shutil.copy2(path, backup)
     return backup
@@ -154,19 +157,21 @@ def _remove_path(path: Path) -> None:
         shutil.rmtree(path)
 
 
-def _restore(path: Path, backup: Path | None) -> None:
-    _remove_path(path)
+def _restore_launcher_atomically(path: Path, backup: Path | None) -> None:
+    """Restore *backup* with one same-directory launcher replacement."""
     if backup is None:
+        _remove_path(path)
         return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    replacement = path.parent / f".{path.name}.rollback-{uuid.uuid4().hex}"
     if backup.is_symlink():
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.symlink_to(os.readlink(backup))
-    elif backup.is_dir():
-        path.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copytree(backup, path, symlinks=True)
+        replacement.symlink_to(os.readlink(backup))
     else:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(backup, path)
+        shutil.copy2(backup, replacement)
+    try:
+        os.replace(replacement, path)
+    finally:
+        _remove_path(replacement)
 
 
 def _verify(
@@ -260,19 +265,26 @@ def stage_candidate(
     )
 
 
-def _relocate_launcher(launcher: Path, old_tool_dir: Path, new_tool_dir: Path) -> Path:
-    """Make a staged UV launcher refer to its final tool directory.
+def _relocate_launcher(
+    launcher: Path,
+    old_tool: Path,
+    new_tool: Path,
+    *,
+    destination_dir: Path,
+) -> Path:
+    """Make a staged UV launcher refer to its immutable published tool root.
 
     UV launchers normally contain an absolute interpreter path.  Staging in a
     temporary UV root is therefore not enough by itself: copy the launcher to
-    a temporary destination and rewrite the staged root before activation.
+    the canonical launcher's filesystem and rewrite the staged tool path before
+    activation.
     """
     data = launcher.read_bytes()
-    old = str(old_tool_dir).encode()
-    new = str(new_tool_dir).encode()
+    old = str(old_tool).encode()
+    new = str(new_tool).encode()
     if old in data:
         data = data.replace(old, new)
-    relocated = launcher.parent / f".oompah-relocated-{uuid.uuid4().hex}"
+    relocated = destination_dir / f".oompah-candidate-{uuid.uuid4().hex}"
     relocated.write_bytes(data)
     relocated.chmod(launcher.stat().st_mode & 0o777)
     return relocated
@@ -288,39 +300,46 @@ def activate_candidate(
 ) -> Activation:
     """Atomically publish a staged CLI and return a rollback journal.
 
-    The old launcher remains in place while the candidate tool tree is copied
-    and verified.  Only after that preparation succeeds is the launcher
-    replaced.  Callers must retain the returned journal until the paired
-    server cutover has passed its health/build-id check.
+    The old launcher and its tool root remain untouched while the candidate is
+    copied to a new revision-addressed root.  Only one ``os.replace`` of the
+    launcher activates the candidate.  Callers must retain the returned journal
+    until the paired server cutover has passed its health/build-id check.
     """
     env = dict(os.environ if environ is None else environ)
     canonical = canonical.expanduser()
     tool_dir = tool_dir.expanduser()
     bin_dir = bin_dir.expanduser()
-    tool_path = tool_dir / "oompah"
-    backup_root = Path(tempfile.mkdtemp(prefix="oompah-cli-activation-"))
-    launcher_backup = _snapshot(canonical, backup_root / "launcher")
-    tool_backup = _snapshot(tool_path, backup_root / "tool")
-    candidate_tool = tool_dir / f".oompah-candidate-{uuid.uuid4().hex}"
+    canonical.parent.mkdir(parents=True, exist_ok=True)
+    backup_root = Path(
+        tempfile.mkdtemp(prefix=".oompah-cli-activation-", dir=canonical.parent)
+    )
+    launcher_backup = _snapshot_launcher(canonical, backup_root / "launcher")
+    revisions_dir = tool_dir / ".oompah-revisions"
+    published_tool = revisions_dir / f"{staged.revision.lower()}-{uuid.uuid4().hex}"
+    candidate_tool = revisions_dir / f".{published_tool.name}.publishing"
     candidate_launcher = None
     activation = Activation(
         canonical=canonical,
-        tool_path=tool_path,
         backup_root=backup_root,
         launcher_backup=launcher_backup,
-        tool_backup=tool_backup,
+        published_tool=published_tool,
     )
     try:
-        canonical.parent.mkdir(parents=True, exist_ok=True)
         tool_dir.mkdir(parents=True, exist_ok=True)
+        revisions_dir.mkdir(parents=True, exist_ok=True)
         bin_dir.mkdir(parents=True, exist_ok=True)
         shutil.copytree(staged.tool, candidate_tool, symlinks=True)
+        # Publication cannot affect the live launcher.  The path is unique and
+        # never mutated after this rename, so old and new processes can safely
+        # overlap for any duration.
+        os.replace(candidate_tool, published_tool)
         candidate_launcher = _relocate_launcher(
-            staged.launcher, staged.tool_dir, tool_dir
+            staged.launcher,
+            staged.tool,
+            published_tool,
+            destination_dir=canonical.parent,
         )
-        # The candidate tree is complete before the old tree is replaced.
-        _remove_path(tool_path)
-        os.replace(candidate_tool, tool_path)
+        # This is the only activation point visible to concurrent invocations.
         os.replace(candidate_launcher, canonical)
         candidate_launcher = None
         # Verify the operator's real PATH, not a synthetic path that happens

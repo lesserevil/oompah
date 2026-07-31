@@ -83,15 +83,25 @@ make graceful
 For a running service, the lifecycle helper pauses dispatch and waits for the
 old service to drain without executing a restart. It then stages the exact
 clean, pushed `HEAD` revision in isolated UV directories, verifies the staged
-launcher, activates it with a rollback journal, requests the server cutover,
-and commits the activation only after the new health and state surfaces report
-the same revision. A dirty, unpushed, diverged, failed, or wrong-PATH install
-leaves the old executable and old service running; the command prints the
-reason and resumes the old service. A post-cutover health failure restores the
-old launcher and emits a recovery alert rather than silently accepting a
-mismatched pair.
+launcher, and publishes its tool environment under an immutable
+revision-addressed directory. One atomic replacement of
+`$HOME/.local/bin/oompah` is the activation point; the previous tool root is
+retained so an invocation already in progress cannot lose its interpreter.
+The helper then requests the server cutover and commits the activation only
+after the new health and state surfaces report the same revision.
 
-After pushing the intended server revision, recover with:
+A dirty, unpushed, diverged, failed, or wrong-PATH install before the restart
+attempt leaves the old executable and old service running; the command prints
+the reason and resumes the old service. After a restart request is attempted,
+a timeout, connection drop, or wrong server build makes the cutover result
+uncertain. In that case the helper retains the candidate CLI and leaves the
+service paused where possible, because restoring only the old CLI could put it
+beside an already-running new server. Inspect `make status` and `make logs`,
+repair or complete the server deployment, then rerun `make restart`; do not
+roll back only the CLI.
+
+For a failed pre-cutover install, after pushing the intended server revision,
+recover with:
 
 ```bash
 make install-cli
