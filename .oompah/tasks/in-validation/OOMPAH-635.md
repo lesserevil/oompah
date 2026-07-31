@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T02:37:49.386713Z'
-updated_at: '2026-07-31T02:49:51.335654Z'
+updated_at: '2026-07-31T02:50:04.752952Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-635
 target_branch: null
 review_url: null
@@ -36,19 +36,46 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-635
     target_state: Archived
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 1f3153e589dec87b5c778f11972886f5800e0abb13f7090b9dddfe2143157467
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-db7d2a0923f0
+      target_state: Archived
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 1f3153e589dec87b5c778f11972886f5800e0abb13f7090b9dddfe2143157467
+      created_at: '2026-07-31T02:49:59.429034+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-31T02:49:59.429034+00:00'
+      branch_key: epic-OOMPAH-460--task-OOMPAH-635
     requested_by:
       version: 1
       identity: api-client
       source: api
     previous_state: In Progress
     created_at: '2026-07-31T02:49:48.785255+00:00'
-  attempt_history: []
+    updated_at: '2026-07-31T02:49:59.429034+00:00'
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-db7d2a0923f0
+    target_state: Archived
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 1f3153e589dec87b5c778f11972886f5800e0abb13f7090b9dddfe2143157467
+    created_at: '2026-07-31T02:49:59.429034+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-31T02:49:59.429034+00:00'
+    branch_key: epic-OOMPAH-460--task-OOMPAH-635
 ---
 ## Summary
 
@@ -178,5 +205,25 @@ author: oompah
 created: 2026-07-31 02:49
 ---
 Queued for terminal transition to Archived. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-07-31 02:49
+---
+Run #6 [attempt=6, profile=standard, role=standard -> Codex/gpt-5.6-terra]
+- Turns: 0, Tool calls: 4
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 47s
+- Log: OOMPAH-635__20260731T024918Z.jsonl
+---
+author: oompah
+created: 2026-07-31 02:50
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-07-31 02:50
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
