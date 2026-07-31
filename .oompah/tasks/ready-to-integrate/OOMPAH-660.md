@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-660
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 0
 title: Rebase epic-OOMPAH-619 onto main
 parent: OOMPAH-619
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T12:53:39.335817Z'
-updated_at: '2026-07-31T13:33:51.416846Z'
+updated_at: '2026-07-31T13:34:00.663442Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-660
 target_branch: null
 review_url: null
@@ -21,12 +21,12 @@ oompah.agent_run_id: 3cf063d3-d17d-4af1-9ff8-32955c601387
 oompah.work_branch: epic-OOMPAH-619--task-OOMPAH-660
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-619--task-OOMPAH-660
-  base_branch: epic-OOMPAH-619
-  base_sha: 17658b95e32641e8cf2dbfff06f780c0f6b57916
-  updated_at: '2026-07-31T13:22:54.882966+00:00'
+  head_sha: 793bcc7969d39634dab560ed0a10b9dcad7a9716
+  submitted_at: '2026-07-31T13:33:58.150340+00:00'
+  updated_at: '2026-07-31T13:33:58.150340+00:00'
 oompah.task_costs:
   total_input_tokens: 247073
   total_output_tokens: 16020
@@ -578,5 +578,10 @@ What was delivered:
 - tests/test_orchestrator_full_sync.py: Added OOMPAH_FULL_SYNC_INTERVAL_MS isolation for from_workflow tests so YAML-value coercion tests aren't overridden by the server's env var
 
 No implementation code changes were needed — the production code was correct. The tests were missing environment isolation that already existed as a pattern in test_event_driven_loop.py.
+---
+author: oompah
+created: 2026-07-31 13:34
+---
+Fixed 2 quality gate test failures: (1) test_lifecycle_helper_refreshes_current_dotenv_client_inputs now clears OOMPAH_DISABLE_CLIENT_AUTH so load_client_environment() reads the .env fixture; (2) test_from_workflow_string_value and test_from_workflow_custom now clear OOMPAH_FULL_SYNC_INTERVAL_MS so YAML-coercion tests are not overridden by server env vars. All 24 tests in affected files pass.
 ---
 <!-- COMMENTS:END -->
