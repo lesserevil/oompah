@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-643
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 0
 title: Reconcile stale terminal-audit enforcement records and live queue metrics
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:17:38.708513Z'
-updated_at: '2026-07-31T07:10:15.674078Z'
+updated_at: '2026-07-31T07:10:24.911201Z'
 work_branch: OOMPAH-643
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/610
@@ -98,9 +98,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-643
-  head_sha: 84521c288cae398c19b228002d553cb210768844
-  submitted_at: '2026-07-31T06:45:28.235699+00:00'
-  updated_at: '2026-07-31T06:45:28.235699+00:00'
+  head_sha: 2b3a967c8d86a285cd3327aec58d52a5b0e64411
+  submitted_at: '2026-07-31T07:10:21.061524+00:00'
+  updated_at: '2026-07-31T07:10:21.061524+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/610
 oompah.review_number: '610'
 oompah.work_branch: OOMPAH-643
@@ -241,5 +241,10 @@ author: oompah
 created: 2026-07-31 07:10
 ---
 Verification: Focused test suite passed after rebase. test_terminal_audit_enforcement.py + test_terminal_audit_observability.py + test_terminal_transition_coordinator.py: 139/139 passed. Neighboring suites (test_quality_gate.py, test_standalone_ready_to_integrate.py, test_stall_to_dispatch_recovery.py): 49/49 passed. Force-pushed rebased branch 2b3a967c8 onto origin/main (50625abed).
+---
+author: oompah
+created: 2026-07-31 07:10
+---
+Rebased OOMPAH-643 onto origin/main, resolved one conflict in terminal_transition_coordinator.py by preserving both the _revoke_delivery_for_terminal_transition() call from OOMPAH-641/642 and the overridden_audit_ids capture from OOMPAH-643. All 139 focused tests and 49 neighboring-suite tests pass. Force-pushed 2b3a967c8.
 ---
 <!-- COMMENTS:END -->
