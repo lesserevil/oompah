@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-597
 type: task
-status: In Validation
+status: Needs Human
 priority: 1
 title: Recover and drain the OOMPAH-460 ordered integration chain
 parent: OOMPAH-587
@@ -13,7 +13,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:28.342383Z'
-updated_at: '2026-07-31T03:34:36.602426Z'
+updated_at: '2026-07-31T03:39:26.067214Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-597
 target_branch: null
 review_url: null
@@ -54,8 +54,8 @@ oompah.integration:
   dependency_heads:
     OOMPAH-596: da86acf64b292122653b68f7bfaa71775111f237
 oompah.task_costs:
-  total_input_tokens: 1271487
-  total_output_tokens: 24947
+  total_input_tokens: 1271538
+  total_output_tokens: 26785
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -65,6 +65,10 @@ oompah.task_costs:
     sonnet:
       input_tokens: 32
       output_tokens: 12655
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 51
+      output_tokens: 1838
       cost_usd: 0.0
   runs:
   - profile: default
@@ -91,6 +95,12 @@ oompah.task_costs:
     output_tokens: 12655
     cost_usd: 0.0
     recorded_at: '2026-07-31T03:21:27.558273+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 51
+    output_tokens: 1838
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T03:39:19.372937+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-597__20260730T153246Z
@@ -119,6 +129,8 @@ oompah.work_contributors:
     completed_at: '2026-07-31T03:21:27.562899+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    no-auditor-audit-2b477b2e0afe-1: '2026-07-31T03:39:23.618045+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -126,7 +138,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-597
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -135,7 +147,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-5af1aa0b5fd2
       target_state: Done
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -145,18 +157,32 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T03:29:54.746515+00:00'
       branch_key: epic-OOMPAH-587--task-OOMPAH-597
+      ended_at: '2026-07-31T03:39:22.497364+00:00'
+      failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: no-auditor-audit-2b477b2e0afe-1
+      target_state: Done
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 839935963be0ced1dce90447909e3b199150a9595cacc19e991112ae77e531bf
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-07-31T03:39:23.617881+00:00'
+      completed_at: '2026-07-31T03:39:23.617881+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-31T03:29:45.058158+00:00'
-    updated_at: '2026-07-31T03:29:54.746515+00:00'
+    updated_at: '2026-07-31T03:39:23.617881+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-5af1aa0b5fd2
     target_state: Done
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -166,6 +192,8 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-07-31T03:29:54.746515+00:00'
     branch_key: epic-OOMPAH-587--task-OOMPAH-597
+    ended_at: '2026-07-31T03:39:22.497364+00:00'
+    failure_reason: auditor session abandoned; no live worker owns the attempt
 ---
 ## Summary
 
@@ -670,5 +698,22 @@ author: oompah
 created: 2026-07-31 03:29
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 03:39
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 33
+- Tokens: 51 in / 1.8K out [1.9K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 9m 23s
+- Log: OOMPAH-597__20260731T033001Z.jsonl
+---
+author: oompah
+created: 2026-07-31 03:39
+---
+Needs Human — Done audit requires operator input.
+
+No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then move the task back to Open to retry.
 ---
 <!-- COMMENTS:END -->
