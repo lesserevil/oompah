@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-651
 type: bug
-status: Ready to Integrate
+status: Open
 priority: 1
 title: Redact secrets from agent tool inputs, outputs, and JSONL event logs
 parent: null
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T09:19:39.782484Z'
+updated_at: '2026-07-31T09:20:52.320435Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -231,5 +231,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 16m 36s
 - Log: OOMPAH-651__20260731T090308Z.jsonl
+---
+author: oompah
+created: 2026-07-31 09:20
+---
+Operator review rejects Ready head 1bea7c39d. The previously reported raw paths remain unchanged: orchestrator _run_acp_worker writes ev.payload directly to per-agent JSONL and derives AgentActivity/session.last_message/state from it; Codex/OpenCode/API/legacy event emitters remain raw; ConsoleSession fans out the original event after redacting only the store serialization. The new tests do not exercise those required backends or state snapshots. secrets.py also returns the original unredacted value at max depth, failed dataclass reconstruction, and unknown credential-like fallbacks. Repair the central fan-out boundary and add end-to-end sentinel tests for each required path before resubmitting.
 ---
 <!-- COMMENTS:END -->

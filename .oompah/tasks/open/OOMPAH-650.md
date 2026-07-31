@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-650
 type: bug
-status: Ready to Integrate
+status: Open
 priority: 1
 title: Keep scoped task handoff credentials valid for the full worker lifetime
 parent: OOMPAH-619
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T09:19:50.268486Z'
+updated_at: '2026-07-31T09:20:48.961636Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -205,5 +205,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 9m 8s
 - Log: OOMPAH-650__20260731T091050Z.jsonl
+---
+author: oompah
+created: 2026-07-31 09:20
+---
+Operator review rejects Ready head 3748c216e: task_cli.py calls refresh_task_handoff_token() inside the spawned CLI process, but task_handoff._default_store is process-local memory owned by that new CLI, not the running server store that minted the token. The refresh therefore cannot extend the server grant; in production it returns false against an empty store and is ignored. The only effective change is an arbitrary fixed 24-hour TTL, so a silent tool lasting past it still fails at final submit and the acceptance criterion remains unmet. Implement renewal on the server-owned store tied to observed live session/tool heartbeats or a scoped refresh endpoint that validates current ownership/scope; add a true subprocess+live-server test with a short TTL proving the server grant expiry advances, plus post-restart/final-submit coverage.
 ---
 <!-- COMMENTS:END -->
