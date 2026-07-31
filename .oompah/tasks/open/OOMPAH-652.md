@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:15.160957Z'
-updated_at: '2026-07-31T09:38:24.178370Z'
+updated_at: '2026-07-31T09:38:35.029018Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,13 +39,13 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: a941a406-c0cf-451a-a9bc-37f56adab7fd
 oompah.task_costs:
-  total_input_tokens: 393798
-  total_output_tokens: 3390
+  total_input_tokens: 20730993
+  total_output_tokens: 60215
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 393798
-      output_tokens: 3390
+      input_tokens: 20730993
+      output_tokens: 60215
       cost_usd: 0.0
   runs:
   - profile: default
@@ -54,6 +54,12 @@ oompah.task_costs:
     output_tokens: 3390
     cost_usd: 0.0
     recorded_at: '2026-07-31T09:04:05.309783+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 20337195
+    output_tokens: 56825
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T09:38:33.332830+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-652__20260731T090248Z
@@ -131,5 +137,15 @@ author: oompah
 created: 2026-07-31 09:30
 ---
 Operator takeover: the full gate completed and the pre-existing service remained healthy, but the provider process then exited without committing, pushing, submitting, or releasing the In Progress lease. This leaves a dirty tested worktree and blocks the graceful restart. Per the direct-recovery fallback, I am reviewing and packaging this exact worktree; no changes will be integrated without source review and focused verification.
+---
+author: oompah
+created: 2026-07-31 09:38
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 167
+- Tokens: 20.3M in / 56.8K out [20.4M total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 34m 1s
+- Log: OOMPAH-652__20260731T090435Z.jsonl
 ---
 <!-- COMMENTS:END -->
