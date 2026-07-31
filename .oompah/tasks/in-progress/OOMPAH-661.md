@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T13:12:19.387161Z'
-updated_at: '2026-07-31T15:22:16.641884Z'
+updated_at: '2026-07-31T15:25:49.910112Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -412,5 +412,10 @@ author: oompah
 created: 2026-07-31 15:22
 ---
 Understanding: CI gate failed on 3 tests in tests/test_duplicate_preflight.py. The prior commit (76619929b) implemented retry authority generation fencing. These tests exercise preflight dispatch and reconcile paths. Investigating the specific errors now.
+---
+author: oompah
+created: 2026-07-31 15:25
+---
+Discovery: The 3 failing tests in test_duplicate_preflight.py all use the _orch() helper that creates an Orchestrator via __new__ (bypassing __init__). The OOMPAH-661 implementation added _retry_authority_lock, _retry_dispatching, and _persisted_retry_entries in __init__, but _orch() doesn't initialize them. The fix is minimal: add these 3 attributes to the _orch() helper.
 ---
 <!-- COMMENTS:END -->
