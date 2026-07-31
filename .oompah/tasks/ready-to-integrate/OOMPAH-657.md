@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-657
 type: task
-status: Backlog
+status: Ready to Integrate
 priority: null
 title: Run branch quality gates from immutable exact-head snapshots
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:06:15.542774Z'
-updated_at: '2026-07-31T12:35:42.474225Z'
+updated_at: '2026-07-31T12:39:11.381844Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -127,11 +127,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-657
-  base_branch: main
-  base_sha: 54dd2509c6cbc73aaadbda2a3fdc7cfbb14530eb
-  head_sha: 0593430f81bb3f3b9c19a7064dded7e878685e27
-  submitted_at: '2026-07-31T12:00:18.068623+00:00'
-  updated_at: '2026-07-31T12:01:30.814481+00:00'
+  head_sha: 0212dada64768ed8f89e7b27f461f121c4a42299
+  submitted_at: '2026-07-31T12:39:08.343778+00:00'
+  updated_at: '2026-07-31T12:39:08.343778+00:00'
 ---
 ## Summary
 
@@ -518,5 +516,15 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Codex/
 - Cost: $0.0000
 - Exit: terminated, Duration: 32m 27s
 - Log: OOMPAH-657__20260731T120318Z.jsonl
+---
+author: oompah
+created: 2026-07-31 12:39
+---
+Operator takeover completed on clean pushed head 0212dada6. The durable queue predicate now validates exact project/task/branch/head/owner plus a finite unexpired lease deadline sampled under the queue lock; expiry withdraws authority before recovery/reclaim, and a replacement generation is the only executor allowed to integrate. Verification on the frozen head: 83 focused integration-queue/delivery/executor/quality-gate/standalone tests passed; make terminal-audit-scan passed; make check-secrets passed with only its existing null-byte command-substitution warning; git diff --check clean.
+---
+author: oompah
+created: 2026-07-31 12:39
+---
+Run quality gates from immutable exact-head snapshots; fence cancelled, stale, reopened, and expired/reclaimed generations; retire inactive delivery authority and alerts; preserve only exact durable queue ownership. Focused regression family: 83 passed.
 ---
 <!-- COMMENTS:END -->
