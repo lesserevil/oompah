@@ -32,6 +32,36 @@ from dataclasses import dataclass
 from typing import Callable, FrozenSet
 
 
+# OOMPAH-651 supplies the process-wide dynamic-secret registry.  Keep this
+# boundary import-compatible with the pre-651 branch so the lease lifecycle
+# can be tested and integrated independently; once the secrets module is
+# present these are the real retention hooks, never bearer logging.
+try:
+    from oompah.secrets import (
+        SECRET_REDACTION_GRACE_SECONDS,
+        renew_secret,
+        retire_secret,
+    )
+except ModuleNotFoundError as exc:  # pragma: no cover - removed when 651 lands
+    if exc.name != "oompah.secrets":
+        raise
+    SECRET_REDACTION_GRACE_SECONDS = 60 * 60
+
+    def renew_secret(
+        _value: str | bytes | None,
+        *,
+        expires_in: float,
+    ) -> None:
+        """Compatibility no-op until the centralized secret registry exists."""
+
+    def retire_secret(
+        _value: str | bytes | None,
+        *,
+        grace_seconds: float = SECRET_REDACTION_GRACE_SECONDS,
+    ) -> None:
+        """Compatibility no-op until the centralized secret registry exists."""
+
+
 TASK_HANDOFF_TOKEN_ENV = "OOMPAH_TASK_HANDOFF_TOKEN"
 TASK_HANDOFF_PROJECT_ENV = "OOMPAH_TASK_HANDOFF_PROJECT_ID"
 TASK_HANDOFF_HEADER = "x-oompah-task-capability"
@@ -281,6 +311,14 @@ class TaskHandoffGrantStore:
             self._failures.pop(digest, None)
         if lease is not None:
             lease.stop()
+        # Keep delayed shutdown/error events safe without retaining every
+        # revoked bearer for the original grant lifetime.  The redaction
+        # registry consumes the value only to register its digest-independent
+        # literal; this path never logs or returns the token.
+        retire_secret(
+            token,
+            grace_seconds=SECRET_REDACTION_GRACE_SECONDS,
+        )
 
     def record_failure(self, token: str | None, reason: str) -> None:
         """Remember a failed operation without retaining the bearer token."""
@@ -326,6 +364,27 @@ class TaskHandoffGrantStore:
             state.active = max(0, state.active - 1)
             if state.active == 0 and token_digest not in self._grants:
                 self._operations.pop(token_digest, None)
+
+    def current_grant_ttl(self, token: str | None) -> float | None:
+        """Return the active grant's bounded renewal TTL without exposing it.
+
+        The server-owned lease uses the original minted TTL for both grant
+        renewal and secret-redaction retention.  A missing, revoked, or
+        expired grant has no TTL to retain.
+        """
+        if not token:
+            return None
+        digest = self._digest(token)
+        now = float(self._now())
+        with self._lock:
+            grant = self._grants.get(digest)
+            if (
+                grant is None
+                or grant.revoked_at is not None
+                or grant.expires_at <= now
+            ):
+                return None
+            return float(grant.original_ttl_seconds)
     
     def acquire_permit(
         self,
@@ -537,7 +596,16 @@ class TaskHandoffLease:
 
     def heartbeat(self) -> bool:
         """Renew once; useful for deterministic tests and diagnostics."""
-        return self._store.refresh(self._token, owner_id=self._owner_id)
+        current_grant_ttl = self._store.current_grant_ttl(self._token)
+        if current_grant_ttl is None:
+            return False
+        if not self._store.refresh(self._token, owner_id=self._owner_id):
+            return False
+        renew_secret(
+            self._token,
+            expires_in=current_grant_ttl + SECRET_REDACTION_GRACE_SECONDS,
+        )
+        return True
 
     def stop(self) -> None:
         """Stop renewal promptly without extending the grant."""

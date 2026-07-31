@@ -1598,6 +1598,61 @@ class TestOOMPAH650WorkerLifetimeCredentials:
         finally:
             lease.stop()
 
+    def test_lease_heartbeat_renews_secret_redaction_for_grant_ttl_and_grace(
+        self, monkeypatch
+    ):
+        """A live server lease must retain its bearer through delayed events."""
+        import oompah.task_handoff as task_handoff_module
+
+        now = [1000.0]
+        store = TaskHandoffGrantStore(now=lambda: now[0])
+        token = store.issue(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"comment"},
+            ttl_seconds=60.0,
+            owner_id="worker-A",
+        )
+        renew = MagicMock()
+        monkeypatch.setattr(task_handoff_module, "renew_secret", renew)
+        lease = store.start_lease(
+            token,
+            owner_id="worker-A",
+            heartbeat_interval_seconds=60.0,
+        )
+        assert lease is not None
+        try:
+            assert lease.heartbeat() is True
+        finally:
+            lease.stop()
+
+        renew.assert_called_once_with(
+            token,
+            expires_in=60.0
+            + task_handoff_module.SECRET_REDACTION_GRACE_SECONDS,
+        )
+
+    def test_revoke_retires_secret_with_bounded_grace(self, monkeypatch):
+        """Revocation keeps late shutdown/error events redactable."""
+        import oompah.task_handoff as task_handoff_module
+
+        store = TaskHandoffGrantStore()
+        token = store.issue(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"comment"},
+            owner_id="worker-A",
+        )
+        retire = MagicMock()
+        monkeypatch.setattr(task_handoff_module, "retire_secret", retire)
+
+        store.revoke(token)
+
+        retire.assert_called_once_with(
+            token,
+            grace_seconds=task_handoff_module.SECRET_REDACTION_GRACE_SECONDS,
+        )
+
     def test_worker_survives_beyond_initial_ttl_via_server_owned_lease(self):
         """A worker whose grant has reached its wall-clock TTL still
         completes its tracker mutation, because the server-owned lease renews
