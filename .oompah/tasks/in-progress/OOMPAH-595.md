@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-595
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Expose separate operator and worker task-auth health signals
 parent: OOMPAH-586
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:56.897824Z'
-updated_at: '2026-07-31T00:57:56.700509Z'
+updated_at: '2026-07-31T00:58:16.076089Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-595
 target_branch: null
 review_url: null
@@ -48,7 +48,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 1
   retry_after: null
-oompah.agent_run_id: 7d8ff8e3-b5ab-487b-b224-32118c2b058a
+oompah.agent_run_id: 25b1ffc0-8faf-4551-993b-8dac6b67658b
 oompah.work_branch: epic-OOMPAH-586--task-OOMPAH-595
 oompah.integration:
   version: 1
@@ -57,7 +57,7 @@ oompah.integration:
   task_branch: epic-OOMPAH-586--task-OOMPAH-595
   base_branch: epic-OOMPAH-586
   base_sha: ca49d0c25b30d149cb59f0af0bac57276c1f8120
-  updated_at: '2026-07-31T00:52:31.767901+00:00'
+  updated_at: '2026-07-31T00:58:12.939501+00:00'
 oompah.task_costs:
   total_input_tokens: 47236
   total_output_tokens: 61392
@@ -650,5 +650,15 @@ created: 2026-07-31 00:57
 **Evidence:** Last agent comment signals completion without a human question; the Needs Human transition appears accidental.
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-07-31 00:58
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-31 00:58
+---
+Focus: Frontend Developer
 ---
 <!-- COMMENTS:END -->
