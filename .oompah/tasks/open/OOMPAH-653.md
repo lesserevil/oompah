@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T09:10:49.303490Z'
+updated_at: '2026-07-31T09:12:30.906591Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,13 +35,13 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 6160c2d4-52a0-466b-a51c-3f935f07d260
 oompah.task_costs:
-  total_input_tokens: 186
-  total_output_tokens: 5534
+  total_input_tokens: 673204
+  total_output_tokens: 9250
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 186
-      output_tokens: 5534
+      input_tokens: 673204
+      output_tokens: 9250
       cost_usd: 0.0
   runs:
   - profile: default
@@ -50,6 +50,12 @@ oompah.task_costs:
     output_tokens: 5534
     cost_usd: 0.0
     recorded_at: '2026-07-31T09:06:39.814175+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 673018
+    output_tokens: 3716
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T09:12:25.796555+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-653__20260731T090421Z
@@ -107,5 +113,15 @@ author: oompah
 created: 2026-07-31 09:10
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-31 09:12
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 11
+- Tokens: 673.0K in / 3.7K out [676.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 40s
+- Log: OOMPAH-653__20260731T091050Z.jsonl
 ---
 <!-- COMMENTS:END -->
