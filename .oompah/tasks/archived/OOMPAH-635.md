@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-635
 type: task
-status: In Validation
+status: Archived
 priority: 0
 title: Rebase epic-OOMPAH-460 onto main
 parent: OOMPAH-460
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T02:37:49.386713Z'
-updated_at: '2026-07-31T02:50:04.752952Z'
+updated_at: '2026-07-31T02:52:05.716088Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-635
 target_branch: null
 review_url: null
@@ -29,6 +29,8 @@ oompah.integration:
   updated_at: '2026-07-31T02:49:13.590678+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-db7d2a0923f0: '2026-07-31T02:52:02.236467+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -36,7 +38,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-635
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -45,7 +47,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-db7d2a0923f0
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -55,13 +57,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T02:49:59.429034+00:00'
       branch_key: epic-OOMPAH-460--task-OOMPAH-635
+      verdict: pass
+      completed_at: '2026-07-31T02:52:02.236345+00:00'
+      ended_at: '2026-07-31T02:52:02.236345+00:00'
     requested_by:
       version: 1
       identity: api-client
       source: api
     previous_state: In Progress
     created_at: '2026-07-31T02:49:48.785255+00:00'
-    updated_at: '2026-07-31T02:49:59.429034+00:00'
+    updated_at: '2026-07-31T02:52:02.236345+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-db7d2a0923f0
@@ -225,5 +230,26 @@ author: oompah
 created: 2026-07-31 02:50
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 02:52
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- head_of_task_branch: 113e75ac87eca903188e3197754670f92371f805
+- origin_epic_head: 113e75ac87eca903188e3197754670f92371f805
+- sibling_task_head_634_local: 113e75ac87eca903188e3197754670f92371f805
+- sibling_task_head_634_origin: 113e75ac87eca903188e3197754670f92371f805
+- origin_main_head: 24bd5d6c166af7f8c839e9d5c9e4f3f17d17508e
+- unique_commits_635_over_634: 0
+- unique_commits_634_over_635: 0
+- commits_epic_ahead_of_main: 4 (OOMPAH-486 series a2070c5f9, 941304321, f0dda362d, 113e75ac8)
+- commits_main_ahead_of_epic: 2 (OOMPAH-581: 741a7d88b, 24bd5d6c1) - fresh staleness, out of scope for this task
+- agent_run_pattern: 5 attempts, all Exit: error, Duration 1-2s, Tool calls: 0, blocked by divergence guard
+- duplicate_investigator_verdict: duplicate; archive to prevent second-writer clobber
+- working_tree: clean; branch tracks origin/epic-OOMPAH-460
 ---
 <!-- COMMENTS:END -->
