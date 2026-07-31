@@ -589,6 +589,77 @@ class TerminalAuditEnforcement:
                 current.append((str(project_id), tracker, issue, fingerprint))
         return current, complete
 
+    @staticmethod
+    def _authoritative_recovery_fingerprint(
+        issue: Issue,
+        tracker: TrackerProtocol,
+        *,
+        project_id: str,
+    ) -> EvidenceFingerprint | None:
+        """Return current revision evidence only when the tracker persists it.
+
+        Some adapters can reconstruct the complete terminal evidence from the
+        freshly read issue, while older adapters expose only descriptive task
+        fields.  Recomputing a digest from that incomplete projection would
+        make every richer persisted audit look stale after restart.  Prefer an
+        explicit adapter fingerprint; otherwise derive one only when an
+        immutable source revision is present (including native Markdown's
+        persisted integration head).
+        """
+
+        values: list[Any] = [
+            getattr(issue, "evidence_fingerprint", None),
+            getattr(issue, "current_evidence_fingerprint", None),
+        ]
+        try:
+            metadata = tracker.get_metadata(issue.identifier) or {}
+        except Exception:
+            metadata = {}
+        if isinstance(metadata, Mapping):
+            values.extend(
+                metadata.get(key)
+                for key in ("oompah.evidence_fingerprint", "evidence_fingerprint")
+            )
+        for value in values:
+            if isinstance(value, EvidenceFingerprint):
+                return value
+            if isinstance(value, Mapping):
+                digest = value.get("digest", value.get("sha256"))
+                if isinstance(digest, str) and len(digest) == 64:
+                    try:
+                        return _as_fingerprint(value)
+                    except (TypeError, ValueError):
+                        continue
+            if (
+                isinstance(value, str)
+                and len(value) == 64
+                and all(character in "0123456789abcdef" for character in value)
+            ):
+                return EvidenceFingerprint(value)
+
+        integration = getattr(issue, "integration", None)
+        source_revision = (
+            getattr(issue, "source_sha", None)
+            or getattr(integration, "head_sha", None)
+        )
+        if isinstance(source_revision, str) and source_revision.strip():
+            return compute_issue_evidence_fingerprint(issue, project_id)
+
+        source_branch = (
+            getattr(issue, "source_branch", None)
+            or getattr(issue, "work_branch", None)
+            or getattr(integration, "task_branch", None)
+            or getattr(issue, "branch_name", None)
+        )
+        if isinstance(source_branch, str) and source_branch.strip():
+            # A branch without its immutable revision proves that this issue
+            # projection cannot reproduce the persisted terminal evidence.
+            # Retain the durable request rather than manufacturing a mismatch.
+            return None
+        # Branchless trackers can still provide a complete task-content-only
+        # fingerprint, so description revisions remain authoritative there.
+        return compute_issue_evidence_fingerprint(issue, project_id)
+
     def _is_terminal(self, state: str) -> bool:
         wanted = {status_key(value) for value in self.terminal_states}
         return status_key(state) in wanted
@@ -743,9 +814,10 @@ class TerminalAuditEnforcement:
                     )
                     self._recover_terminal_result(store, tracker, issue, str(project_id))
             for issue in issues:
-                current_fingerprint = compute_issue_evidence_fingerprint(
+                current_fingerprint = self._authoritative_recovery_fingerprint(
                     issue,
-                    str(project_id),
+                    tracker,
+                    project_id=str(project_id),
                 )
                 try:
                     document = store.read(str(issue.identifier))
@@ -787,7 +859,10 @@ class TerminalAuditEnforcement:
                         self._recovery_scan_complete = False
                         self._recovery_scan_error_count += 1
                         continue
-                    if record.evidence_fingerprint != current_fingerprint:
+                    if (
+                        current_fingerprint is not None
+                        and record.evidence_fingerprint != current_fingerprint
+                    ):
                         # The current native revision supersedes this request
                         # even if a crashed writer did not mark it SUPERSEDED.
                         continue
