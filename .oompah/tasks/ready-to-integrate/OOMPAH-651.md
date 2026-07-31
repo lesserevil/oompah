@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-651
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Redact secrets from agent tool inputs, outputs, and JSONL event logs
 parent: null
@@ -17,7 +17,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T16:56:31.180212Z'
+updated_at: '2026-07-31T16:56:48.620202Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -202,9 +202,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-651
-  head_sha: e4e36c44ecceb87ea28b5f1871d8c3e256588ec2
-  submitted_at: '2026-07-31T12:14:41.051361+00:00'
-  updated_at: '2026-07-31T12:14:41.051361+00:00'
+  head_sha: b90d1e353e2dd5fd321c048ca84eb71eea9e20d4
+  submitted_at: '2026-07-31T16:56:45.923689+00:00'
+  updated_at: '2026-07-31T16:56:45.923689+00:00'
 oompah.start_blocked_by: *id001
 ---
 ## Summary
@@ -1152,5 +1152,10 @@ author: oompah
 created: 2026-07-31 16:56
 ---
 Completion: Branch head b90d1e353 rebased onto origin/main (79a27ae54). Delivered: (1) centralized redact_sensitive_data + SecretRedactionFilter at logger/factory boundaries; (2) recursive coverage of dicts/lists/dataclasses/repr forms with fail-closed unknown-object policy; (3) applied at fan-out sinks in console.py/_legacy/_format, orchestrator.py ACP+legacy paths, api_agent.py JSONL + activity, acp_backends/claude|codex|opencode _truncate helpers, task_handoff issue/revoke; (4) process-local registered-secret registry with register/renew/retire lifecycle (renew/retire APIs ready for OOMPAH-650 lease wiring when it merges); (5) redaction on last_message state fields (state API + HTML); (6) autouse test isolation for the registry; (7) operator runbook in docs/secret-redaction-and-rotation.md. Focused suites all green (test_secrets 112, test_agent 7, test_task_handoff 33, test_console* 93, test_client_auth 62, test_api_agent_budget 34, test_acp_agent + backends 190, test_projects/github_tracker/providers/scm 815 - combined 1414 pass). make check-secrets and terminal-mutation scan clean.
+---
+author: oompah
+created: 2026-07-31 16:56
+---
+Centralized recursive secret redaction across all agent tool inputs, outputs, exceptions, last_message, telemetry payloads and JSONL events for Claude, Codex, OpenCode, API-agent and legacy agent paths. Adds registered-secret registry with register/renew/retire lifecycle for dynamic bearer tokens, SecretRedactionFilter at logger + LogRecordFactory boundaries, fail-closed handling of credential-like objects, redaction of last_message on state paths, defense-in-depth redaction in Codex/OpenCode _truncate helpers, per-test registry isolation, operator rotation/cleanup runbook. Focused pytest suites 1414 pass; make check-secrets and terminal-mutation scan clean.
 ---
 <!-- COMMENTS:END -->
