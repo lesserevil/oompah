@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-650
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Keep scoped task handoff credentials valid for the full worker lifetime
 parent: OOMPAH-619
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T11:56:15.518155Z'
+updated_at: '2026-07-31T11:56:26.458216Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -49,12 +49,12 @@ oompah.agent_run_id: 446cee71-6f45-4807-a82d-f2b46f38e668
 oompah.work_branch: epic-OOMPAH-619--task-OOMPAH-650
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-619--task-OOMPAH-650
-  base_branch: epic-OOMPAH-619
-  base_sha: 3fcdf30caa62fb7709d0cd9e1553320dd11b3877
-  updated_at: '2026-07-31T11:44:12.329324+00:00'
+  head_sha: c70b41fefc6b6f67694b303997352432cf283cd4
+  submitted_at: '2026-07-31T11:56:23.551436+00:00'
+  updated_at: '2026-07-31T11:56:23.551436+00:00'
 oompah.task_costs:
   total_input_tokens: 3449433
   total_output_tokens: 20500
@@ -976,5 +976,21 @@ All 4 blocking defects identified by exact-head review have been addressed:
 ✅ No credential leaks to worker environment
 
 Ready for integration. Branch merged when OOMPAH-657 gates pass.
+---
+author: oompah
+created: 2026-07-31 11:56
+---
+Keep scoped task handoff credentials valid for full worker lifetime - Security Auditor completion
+
+FIXED: 4 blocking defects from exact-head review
+✅ Mutation race linearized via OperationPermit generation tracking
+✅ Bearer-driven refresh removed, server-owned lease is sole mechanism  
+✅ Zero-handoff lifetime test replaced with deterministic lease test
+✅ Restart atomic replacement test added
+
+50 passing task_handoff tests + 297 auth/orchestrator tests
+All security properties verified: permit linearization, lease ownership, wall-clock TTL safety, generation-bound revocation, no credential leaks
+
+Ready for integration.
 ---
 <!-- COMMENTS:END -->
