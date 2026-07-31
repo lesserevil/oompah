@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-656
 type: task
-status: In Validation
+status: Done
 priority: null
 title: Rebase epic-OOMPAH-619 onto main
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:41:57.043640Z'
-updated_at: '2026-07-31T11:01:12.453761Z'
+updated_at: '2026-07-31T11:02:48.319102Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -107,6 +107,8 @@ oompah.integration:
   updated_at: '2026-07-31T10:57:57.200897+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-69a000478301: '2026-07-31T11:02:45.443023+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -114,7 +116,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-656
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -123,7 +125,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-69a000478301
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -133,13 +135,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T11:01:09.140202+00:00'
       branch_key: OOMPAH-656
+      verdict: pass
+      completed_at: '2026-07-31T11:02:45.442919+00:00'
+      ended_at: '2026-07-31T11:02:45.442919+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: api
     previous_state: Needs Human
     created_at: '2026-07-31T11:00:51.088757+00:00'
-    updated_at: '2026-07-31T11:01:09.140202+00:00'
+    updated_at: '2026-07-31T11:02:45.442919+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-69a000478301
@@ -380,5 +385,23 @@ author: oompah
 created: 2026-07-31 11:01
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 11:02
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- origin_main_head: 54dd2509c6cbc73aaadbda2a3fdc7cfbb14530eb
+- origin_epic_head_new: 3fcdf30caa62fb7709d0cd9e1553320dd11b3877
+- origin_epic_head_old_expected: 0dc7d0f7caeea06a6eceb55ea2e58cf16554f0a4
+- epic_only_commit_count: 6
+- epic_only_commits: 3fcdf30ca OOMPAH-621; 4aba7409a OOMPAH-621; a53ebd62b OOMPAH-621; 3334c2076 OOMPAH-621; d927053a8 OOMPAH-624; 10692f5fd OOMPAH-620
+- main_ancestor_position: epic~6 == 54dd2509c (origin/main)
+- oompah_652_on_main: ccba12b3f, 6ef786631, 3a3dd9382 present on origin/main
+- oompah_654_on_main: b64cbc85a present on origin/main
+- worktree_clean: true
 ---
 <!-- COMMENTS:END -->
