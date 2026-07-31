@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T12:10:13.605397Z'
+updated_at: '2026-07-31T12:12:01.164961Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -58,13 +58,17 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: f4212463-5290-4792-8516-69ba3c70b7c7
 oompah.task_costs:
-  total_input_tokens: 5729550
-  total_output_tokens: 33129
+  total_input_tokens: 5996787
+  total_output_tokens: 39745
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 5729550
       output_tokens: 33129
+      cost_usd: 0.0
+    sonnet:
+      input_tokens: 267237
+      output_tokens: 6616
       cost_usd: 0.0
   runs:
   - profile: default
@@ -109,6 +113,12 @@ oompah.task_costs:
     output_tokens: 12054
     cost_usd: 0.0
     recorded_at: '2026-07-31T11:43:38.815076+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 267237
+    output_tokens: 6616
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T12:11:55.192171+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-655__20260731T103632Z
@@ -143,6 +153,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-655
     source_sha: c0b3eebec358c3bfcbf939bae61522c08c960681
     completed_at: '2026-07-31T11:43:38.826495+00:00'
+  - run_id: OOMPAH-655__20260731T114407Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-terra
+    focus: chore
+    source_branch: OOMPAH-655
+    source_sha: 9e4f9573c0ebf13f9f429967b35d5a5eb6d9d9da
+    completed_at: '2026-07-31T12:11:55.196265+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -498,5 +516,25 @@ author: oompah
 created: 2026-07-31 12:10
 ---
 Review of pushed 9e4f9573c: the empty-root bwrap boundary, private PID/network namespaces, read-only trusted runtime, and real host PID/localhost attack regression are materially good. Final acceptance remains blocked on OOMPAH-657 and must not use this branch's mutable git archive HEAD as independent gate authority. run() records head_sha, then _snapshot_candidate_worktree later archives symbolic HEAD without proving it stayed the same; a concurrent commit/ref update can execute different bytes and cache the pass under the old SHA. After OOMPAH-657 lands, rebase and consume its immutable expected-head snapshot/generation contract (or archive the captured full SHA and revalidate authority before persisting). Avoid two competing snapshot/cancellation mechanisms. Then run an actual current Makefile smoke inside the empty-root sandbox to validate the trusted venv/base-prefix mounts; focused tests only until that rebase/review.
+---
+author: oompah
+created: 2026-07-31 12:11
+---
+Agent completed successfully in 1672s (273853 tokens)
+---
+author: oompah
+created: 2026-07-31 12:11
+---
+Run #2 [attempt=2, profile=standard, role=standard -> Codex/gpt-5.6-terra]
+- Turns: 4, Tool calls: 134
+- Tokens: 267.2K in / 6.6K out [273.9K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 27m 52s
+- Log: OOMPAH-655__20260731T114407Z.jsonl
+---
+author: oompah
+created: 2026-07-31 12:12
+---
+Agent completed without closing this issue (1672s (273853 tokens)). Escalating from 'standard' to 'deep'. Retrying in 20s (2/3).
 ---
 <!-- COMMENTS:END -->
