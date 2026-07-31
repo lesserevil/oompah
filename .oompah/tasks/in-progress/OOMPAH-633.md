@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-633
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Repair stale integration queues in nested epics
 parent: OOMPAH-584
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:54:49.391955Z'
-updated_at: '2026-07-31T01:21:18.232670Z'
+updated_at: '2026-07-31T01:21:33.828516Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-633
 target_branch: null
 review_url: null
@@ -43,19 +43,16 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: e2428db0-e77f-4d48-b59c-862bb86666e2
+oompah.agent_run_id: eb3ab5fa-47fb-4f9b-836f-bab3f5f80f5b
 oompah.work_branch: epic-OOMPAH-584--task-OOMPAH-633
 oompah.integration:
   version: 1
-  state: integrated
-  attempts: 1
+  state: working
+  attempts: 0
   task_branch: epic-OOMPAH-584--task-OOMPAH-633
   base_branch: epic-OOMPAH-584
-  base_sha: 144970e31f6879394c2adfa95b780100c5d3aebd
-  head_sha: 63f8d043c4ffa718a0b26858d701e54fc3c9bc88
-  integrated_sha: 63f8d043c4ffa718a0b26858d701e54fc3c9bc88
-  submitted_at: '2026-07-31T01:11:08.465874+00:00'
-  updated_at: '2026-07-31T01:16:06.088631+00:00'
+  base_sha: 63f8d043c4ffa718a0b26858d701e54fc3c9bc88
+  updated_at: '2026-07-31T01:21:31.729805+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-633__20260731T010158Z
@@ -340,5 +337,15 @@ author: oompah
 created: 2026-07-31 01:21
 ---
 Reopened after operator review: the unrelated-parent test is a false positive and the required no-rebase/claim-next acceptance paths are not covered. See the pre-audit review comment for exact corrections.
+---
+author: oompah
+created: 2026-07-31 01:21
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-31 01:21
+---
+Focus: Maintenance Engineer
 ---
 <!-- COMMENTS:END -->
