@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-667
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Keep Makefile virtualenv PATH from defeating canonical CLI cutover
 parent: null
@@ -12,10 +12,10 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T21:32:57.017227Z'
-updated_at: '2026-07-31T23:49:59.099861Z'
+updated_at: '2026-07-31T23:50:08.655214Z'
 work_branch: null
 target_branch: null
-review_url: null
+review_url: https://github.com/lesserevil/oompah/pull/629
 review_number: null
 merged_at: null
 oompah.duplicate_screening:
@@ -127,6 +127,7 @@ oompah.integration:
   head_sha: 669094c81f4b2d52431134b99f084878223785dc
   submitted_at: '2026-07-31T23:35:16.004331+00:00'
   updated_at: '2026-07-31T23:35:46.499887+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/629
 ---
 ## Summary
 
