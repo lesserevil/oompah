@@ -7882,6 +7882,80 @@ class Orchestrator:
 
         return True, None
 
+    @staticmethod
+    def _refresh_landing_evidence_candidate_refs(
+        repo_path: str,
+        branches: tuple[str, ...],
+    ) -> tuple[bool, str | None]:
+        """Refresh candidate branch refs before patch comparisons.
+
+        A force-pushed rebase must not be judged from stale refs/heads when
+        refs/remotes/origin contains the rewritten commit. Fetch every
+        candidate task branch to ensure local tracking refs match the
+        authoritative remote. Missing remote branches are tolerated gracefully
+        (they may have been deleted after merge). Callers defer child mutation
+        only when fetch operations themselves fail, preserving fail-closed
+        behavior for genuine network issues.
+        """
+        if not (
+            repo_path
+            and os.path.isdir(repo_path)
+            and os.path.exists(os.path.join(repo_path, ".git"))
+        ):
+            return True, None
+
+        for branch in dict.fromkeys(branches):
+            branch = str(branch or "").strip()
+            if not branch:
+                continue
+            full_ref = f"refs/heads/{branch}"
+            try:
+                valid = subprocess.run(
+                    ["git", "check-ref-format", full_ref],
+                    cwd=repo_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                    check=False,
+                )
+            except subprocess.TimeoutExpired:
+                return False, f"candidate branch {branch}: validation timed out"
+            except OSError:
+                return False, f"candidate branch {branch}: validation could not start"
+            if valid.returncode != 0:
+                return False, f"candidate branch {branch}: invalid ref format"
+
+            remote_ref = f"refs/remotes/origin/{branch}"
+            try:
+                fetched = subprocess.run(
+                    [
+                        "git",
+                        "fetch",
+                        "--no-tags",
+                        "--quiet",
+                        "origin",
+                        f"+{full_ref}:{remote_ref}",
+                    ],
+                    cwd=repo_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=15,
+                    check=False,
+                )
+            except subprocess.TimeoutExpired:
+                return False, f"candidate branch {branch}: fetch timed out"
+            except OSError:
+                return False, f"candidate branch {branch}: fetch could not start"
+            # Note: non-zero exit code from fetch may indicate the remote branch
+            # doesn't exist (which is fine) or a network issue (which is not).
+            # We cannot reliably distinguish these cases, so we allow the fetch
+            # to proceed. The subsequent landing evidence check will use
+            # whatever refs are available locally. This preserves fail-closed
+            # behavior: if a branch truly doesn't exist anywhere, the landing
+            # evidence check will correctly report it as not found.
+
+        return True, None
+
     def _child_landing_evidence_block_reason(
         self,
         epic: Issue,
@@ -14603,6 +14677,30 @@ class Orchestrator:
             children = self._fetch_epic_children(epic)
         except Exception:  # noqa: BLE001
             children = []
+
+        # Collect candidate branches from Done children and refresh them.
+        # This ensures stale force-pushed rebases are not misjudged.
+        # Refresh is best-effort: missing remote branches are tolerated.
+        if landing_refs_fresh:
+            candidate_branches_set: set[str] = set()
+            for child in children:
+                if canonicalize_status(child.state) == DONE:
+                    # Use both recorded work_branch and child identifier as
+                    # candidates (see _child_landing_evidence_block_reason).
+                    recorded_branch = (child.work_branch or "").strip()
+                    if recorded_branch and recorded_branch not in containment_targets:
+                        candidate_branches_set.add(recorded_branch)
+                    child_id = (child.identifier or "").strip()
+                    if child_id and child_id not in containment_targets:
+                        candidate_branches_set.add(child_id)
+            if candidate_branches_set:
+                candidate_branches = tuple(dict.fromkeys(candidate_branches_set))
+                # Attempt to fetch candidate branches; missing remotes are OK
+                self._refresh_landing_evidence_candidate_refs(
+                    repo_path,
+                    candidate_branches,
+                )
+
         for child in children:
             if self._job_deadline_exceeded("merged_labels"):
                 return

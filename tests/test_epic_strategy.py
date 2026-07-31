@@ -4913,6 +4913,62 @@ class TestLabelMergedEpics:
             orch._label_merged_epics()
         fetch.assert_called_once()
 
+    def test_refreshes_candidate_branch_refs_before_landing_check(self, tmp_path):
+        """Candidate branch refs are fetched before landing evidence checks.
+
+        Verifies that _refresh_landing_evidence_candidate_refs is called
+        for all candidate branches (recorded work_branch and identifier)
+        when checking landing evidence for Done children.
+        """
+
+        managed = _make_landing_evidence_repo(tmp_path, land_child=True)
+        proj = _make_project_record(epic_strategy="shared")
+        proj.repo_path = str(managed)
+        orch = _make_orch(tmp_path, projects=[proj])
+
+        epic = _make_issue(
+            identifier="OOMPAH-585",
+            issue_type="epic",
+            state=MERGED,
+            project_id=proj.id,
+        )
+        child = _make_issue(
+            identifier="OOMPAH-590",
+            state=DONE,
+            parent_id=epic.identifier,
+            project_id=proj.id,
+            work_branch="child-work",
+        )
+
+        tracker = MagicMock()
+
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(
+                orch,
+                "_resolve_epic_target_branch",
+                return_value="epic-parent",
+            ),
+            patch.object(
+                orch,
+                "_refresh_landing_evidence_candidate_refs",
+                return_value=(True, None),
+            ) as mock_refresh_candidate,
+        ):
+            orch._mark_epic_merged(epic, epic_branch="epic-OOMPAH-585")
+
+        # Verify that candidate branch refresh was called with candidate branches
+        mock_refresh_candidate.assert_called_once()
+        called_branches = mock_refresh_candidate.call_args[0][1]
+        # Should include both the recorded work_branch and child identifier
+        assert "child-work" in called_branches
+        # Coordinator should be called for epic and child
+        assert (
+            orch.terminal_transition_coordinator.request_transition.call_count
+            >= 2
+        )
+
 
 class TestNestedEpicMergeChain:
     """Multi-level epic merge chain: B→A's branch, A→main in shared mode."""
