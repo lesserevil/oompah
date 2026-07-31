@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T14:34:13.382770Z'
+updated_at: '2026-07-31T14:39:20.990417Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -57,7 +57,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 1
   retry_after: null
-oompah.agent_run_id: 1d93c743-0238-4a1f-8caa-78ad42592482
+oompah.agent_run_id: 82a804cb-f582-4d25-9bd2-f6fa302ef247
 oompah.task_costs:
   total_input_tokens: 7047374
   total_output_tokens: 49395
@@ -858,5 +858,24 @@ Run #12 [attempt=12, profile=standard, role=— -> Claude/sonnet]
 - Tokens: 0 in / 0 out [0 total]
 - Cost: $0.0000
 - Exit: error, Duration: 3s
+---
+author: oompah
+created: 2026-07-31 14:39
+---
+Retrying (attempt #12, agent: standard)
+---
+author: oompah
+created: 2026-07-31 14:39
+---
+Agent failed: Task worktree /home/shedwards/.oompah/worktrees/oompah/OOMPAH-655 is on OOMPAH-655-final, not expected branch OOMPAH-655; refusing to reset it. Retrying in 300s (attempt #13)
+---
+author: oompah
+created: 2026-07-31 14:39
+---
+Run #13 [attempt=13, profile=standard, role=— -> Claude/sonnet]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 2s
 ---
 <!-- COMMENTS:END -->
