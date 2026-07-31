@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-650
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Keep scoped task handoff credentials valid for the full worker lifetime
 parent: OOMPAH-619
@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T13:59:31.984371Z'
+updated_at: '2026-07-31T13:59:57.992404Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -46,7 +46,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 28ca9f8d-df70-4010-8f8d-b76c2a58b03e
+oompah.agent_run_id: b1aacfd6-df7f-469f-b35e-fcc4129af450
 oompah.work_branch: epic-OOMPAH-619--task-OOMPAH-650
 oompah.integration:
   version: 2
@@ -1149,5 +1149,24 @@ created: 2026-07-31 13:59
 Integration could not verify `epic-OOMPAH-619--task-OOMPAH-650`: epic worktree head 793bcc7969d39634dab560ed0a10b9dcad7a9716 differs from the published epic head 61546199b2334fd861f2d0cd844ec631e8b8d0e4; refusing to reset a preserved recovery snapshot
 
 Fetch the private branch, preserve its commits, push a clean current head, and submit it again.
+---
+author: oompah
+created: 2026-07-31 13:59
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-31 13:59
+---
+Agent failed: Epic branch epic-OOMPAH-619 diverged from origin/epic-OOMPAH-619; reconcile both heads before dispatching more children. Retrying in 10s (attempt #1)
+---
+author: oompah
+created: 2026-07-31 13:59
+---
+Run #1 [attempt=1, profile=default, role=— -> Claude/haiku]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 3s
 ---
 <!-- COMMENTS:END -->
