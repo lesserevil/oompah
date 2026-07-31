@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T11:06:15.542774Z'
-updated_at: '2026-07-31T11:16:27.206778Z'
+updated_at: '2026-07-31T11:20:02.326212Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -145,5 +145,10 @@ author: oompah
 created: 2026-07-31 11:16
 ---
 Root-cause pointer from the live reproductions: _retire_inactive_integration_rows only treats terminal/In Validation/Needs Human as inactive, so Ready to Integrate to Open leaves ready/integrating rows alive. Cancel whenever the current task no longer exactly matches Ready to Integrate plus the queued IntegrationRecord branch/head/generation, and cancel the matching gate generation. In execute_integration, commit_allowed is checked before preparation and after the gate, so authority withdrawal during snapshot creation/Popen cannot stop the expensive gate; add a cancellation token/tombstone checked before and immediately after spawn and driven by the tracker transition. There is currently a Popen-before-_active_generations registration window where cancel_generation can miss the process, and cancellation during git worktree creation can still launch afterward. Standalone _review_quality_gate_passes likewise runs from a stale Issue object; bind expected head/state to StandaloneDeliveryAuthority and recheck before spawn and before consuming pass. Add barriers for cancellation during snapshot creation and between Popen and registration, not only after the process is in the map.
+---
+author: oompah
+created: 2026-07-31 11:20
+---
+Current OOMPAH-657 tests cover snapshot input isolation and cancellation only after the process is already registered, but they do not cover the three live failure windows. Add deterministic barriers for (1) task authority revoked during git worktree creation before Popen, (2) revocation after Popen but before _active_generations registration, and (3) Ready to Integrate to Open cancelling/retiring the exact integration row and preventing any stale pass from changing status or creating review/integration. _retire_inactive_integration_rows still excludes Open, so the reproduced root cause is currently unchanged. cancel_generation also needs a durable/tombstoned cancellation state checked before and immediately after spawn; a map lookup cannot close those windows. Verify detached worktree registration/path cleanup, prune _key_locks or bound it with evidence retention, and use the current tracker IntegrationRecord branch/head/generation—not only a stale Issue/ref—to authorize both launch and pass consumption.
 ---
 <!-- COMMENTS:END -->
