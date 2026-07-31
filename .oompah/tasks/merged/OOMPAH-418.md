@@ -15,7 +15,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-23T19:41:39.116461Z'
-updated_at: '2026-07-31T02:25:55.161313Z'
+updated_at: '2026-07-31T02:26:07.416144Z'
 work_branch: epic-OOMPAH-418
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/542
@@ -176,13 +176,13 @@ oompah.terminal_audit:
     started_at: '2026-07-31T02:22:16.584113+00:00'
     branch_key: epic-OOMPAH-418
 oompah.task_costs:
-  total_input_tokens: 104
-  total_output_tokens: 21166
+  total_input_tokens: 152
+  total_output_tokens: 28398
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 104
-      output_tokens: 21166
+      input_tokens: 152
+      output_tokens: 28398
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -197,6 +197,12 @@ oompah.task_costs:
     output_tokens: 11589
     cost_usd: 0.0
     recorded_at: '2026-07-31T02:22:07.199940+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 48
+    output_tokens: 7232
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T02:26:04.907569+00:00'
 ---
 ## Summary
 
@@ -342,5 +348,15 @@ Safe evidence:
 - docs: plans/mcp-openapi-exposure-policy.md present
 - labels: epic:stale, ci-fix
 - prior_audit_results: Prior Archived audit (2026-07-31 02:13) and Done audit (2026-07-31 02:21) both PASS on the same evidence
+---
+author: oompah
+created: 2026-07-31 02:26
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 53, Tool calls: 42
+- Tokens: 48 in / 7.2K out [7.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 3m 46s
+- Log: OOMPAH-418__20260731T022227Z.jsonl
 ---
 <!-- COMMENTS:END -->
