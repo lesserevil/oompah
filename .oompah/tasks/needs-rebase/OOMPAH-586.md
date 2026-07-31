@@ -1,8 +1,8 @@
 ---
 id: OOMPAH-586
 type: epic
-status: In Review
-priority: 1
+status: Needs Rebase
+priority: 0
 title: Restore least-privilege task and lifecycle access
 parent: OOMPAH-584
 children:
@@ -11,15 +11,20 @@ children:
 - OOMPAH-595
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- merge-conflict
 assignee: null
 created_at: '2026-07-30T14:13:33.901470Z'
-updated_at: '2026-07-31T00:26:00.632363Z'
-work_branch: null
-target_branch: null
-review_url: null
-review_number: null
+updated_at: '2026-07-31T00:26:15.908609Z'
+work_branch: epic-OOMPAH-586
+target_branch: epic-OOMPAH-584
+review_url: https://github.com/lesserevil/oompah/pull/597
+review_number: '597'
 merged_at: null
+oompah.review_url: https://github.com/lesserevil/oompah/pull/597
+oompah.review_number: '597'
+oompah.work_branch: epic-OOMPAH-586
+oompah.target_branch: epic-OOMPAH-584
 ---
 ## Summary
 
