@@ -13,7 +13,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:28.342383Z'
-updated_at: '2026-07-31T03:29:59.614909Z'
+updated_at: '2026-07-31T03:34:36.602426Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-597
 target_branch: null
 review_url: null
@@ -46,11 +46,11 @@ oompah.integration:
   attempts: 1
   task_branch: epic-OOMPAH-587--task-OOMPAH-597
   base_branch: epic-OOMPAH-587
-  base_sha: 33b773bd2f8fd82605e44165c362e0f6071d9d66
-  head_sha: 54ebca942a9f40c156b0b4e5218e132a09ba841c
-  integrated_sha: 54ebca942a9f40c156b0b4e5218e132a09ba841c
-  submitted_at: '2026-07-31T03:21:17.901268+00:00'
-  updated_at: '2026-07-31T03:29:43.830487+00:00'
+  base_sha: 54ebca942a9f40c156b0b4e5218e132a09ba841c
+  head_sha: 44e5c5579d2d56ecc0ddc801d77e28d74dd734ce
+  integrated_sha: 44e5c5579d2d56ecc0ddc801d77e28d74dd734ce
+  submitted_at: '2026-07-31T03:26:08.556541+00:00'
+  updated_at: '2026-07-31T03:34:35.900919+00:00'
   dependency_heads:
     OOMPAH-596: da86acf64b292122653b68f7bfaa71775111f237
 oompah.task_costs:
