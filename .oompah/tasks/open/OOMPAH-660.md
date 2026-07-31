@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-660
 type: task
-status: In Progress
+status: Open
 priority: 0
 title: Rebase epic-OOMPAH-619 onto main
 parent: OOMPAH-619
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T12:53:39.335817Z'
-updated_at: '2026-07-31T13:03:30.178609Z'
+updated_at: '2026-07-31T13:04:09.729699Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-660
 target_branch: null
 review_url: null
@@ -21,15 +21,20 @@ oompah.agent_run_id: afbcfd3d-b0bc-4208-bdac-0baf4ab03c38
 oompah.work_branch: epic-OOMPAH-619--task-OOMPAH-660
 oompah.integration:
   version: 2
-  state: working
-  attempts: 0
+  state: blocked
+  attempts: 1
   task_branch: epic-OOMPAH-619--task-OOMPAH-660
   base_branch: epic-OOMPAH-619
-  base_sha: 3fcdf30caa62fb7709d0cd9e1553320dd11b3877
-  updated_at: '2026-07-31T13:01:35.448819+00:00'
+  base_sha: 17658b95e32641e8cf2dbfff06f780c0f6b57916
+  head_sha: 17658b95e32641e8cf2dbfff06f780c0f6b57916
+  submitted_at: '2026-07-31T13:03:46.388362+00:00'
+  updated_at: '2026-07-31T13:03:58.360022+00:00'
+  last_error: epic worktree head 3fcdf30caa62fb7709d0cd9e1553320dd11b3877 differs
+    from the published epic head 17658b95e32641e8cf2dbfff06f780c0f6b57916; refusing
+    to reset a preserved recovery snapshot
 oompah.task_costs:
-  total_input_tokens: 246871
-  total_output_tokens: 10835
+  total_input_tokens: 247073
+  total_output_tokens: 16020
   total_cost_usd: 0.0
   by_model:
     sonnet:
@@ -39,6 +44,10 @@ oompah.task_costs:
     opus:
       input_tokens: 28
       output_tokens: 4373
+      cost_usd: 0.0
+    haiku:
+      input_tokens: 202
+      output_tokens: 5185
       cost_usd: 0.0
   runs:
   - profile: standard
@@ -59,6 +68,12 @@ oompah.task_costs:
     output_tokens: 3463
     cost_usd: 0.0
     recorded_at: '2026-07-31T13:01:13.036271+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 202
+    output_tokens: 5185
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T13:04:01.282006+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-660__20260731T125457Z
@@ -85,6 +100,14 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-619--task-OOMPAH-660
     source_sha: 3fcdf30caa62fb7709d0cd9e1553320dd11b3877
     completed_at: '2026-07-31T13:01:13.046499+00:00'
+  - run_id: OOMPAH-660__20260731T130140Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: general
+    source_branch: epic-OOMPAH-619--task-OOMPAH-660
+    source_sha: 17658b95e32641e8cf2dbfff06f780c0f6b57916
+    completed_at: '2026-07-31T13:04:01.285879+00:00'
 oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 839381e8f2b34b7f278ce9a04bc365bb176dbaa1075b090656626c3a877c6b00
@@ -237,5 +260,37 @@ author: oompah
 created: 2026-07-31 13:03
 ---
 Discovery and Implementation: Rebased epic-OOMPAH-619 onto origin/main successfully. The rebase applied 6 commits from the epic (OOMPAH-620, OOMPAH-624, OOMPAH-621 variants) on top of the latest main (commit 3316ec409). No conflicts encountered. Force-pushed to origin/epic-OOMPAH-619 with --force-with-lease (commit range 3fcdf30ca...17658b95e). The task branch epic-OOMPAH-619--task-OOMPAH-660 is now up to date with the rebased remote branch.
+---
+author: oompah
+created: 2026-07-31 13:03
+---
+Successfully rebased epic-OOMPAH-619 onto origin/main and force-pushed. All 6 commits from the epic have been cleanly rebased on top of main without conflicts. The branch is ready for integration.
+---
+author: oompah
+created: 2026-07-31 13:04
+---
+Integration could not verify `epic-OOMPAH-619--task-OOMPAH-660`: epic worktree head 3fcdf30caa62fb7709d0cd9e1553320dd11b3877 differs from the published epic head 17658b95e32641e8cf2dbfff06f780c0f6b57916; refusing to reset a preserved recovery snapshot
+
+Fetch the private branch, preserve its commits, push a clean current head, and submit it again.
+---
+author: oompah
+created: 2026-07-31 13:04
+---
+Agent completed successfully in 152s (5387 tokens)
+---
+author: oompah
+created: 2026-07-31 13:04
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 51, Tool calls: 24
+- Tokens: 202 in / 5.2K out [5.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 32s
+- Log: OOMPAH-660__20260731T130140Z.jsonl
+---
+author: oompah
+created: 2026-07-31 13:04
+---
+Agent completed without closing this issue (152s (5387 tokens)). Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
 ---
 <!-- COMMENTS:END -->

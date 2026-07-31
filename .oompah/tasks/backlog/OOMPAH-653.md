@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-653
 type: bug
-status: Needs Human
+status: Backlog
 priority: 1
 title: Make terminal-audit success and owner override retire every duplicate record
   and alert
@@ -16,7 +16,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T13:02:54.983486Z'
+updated_at: '2026-07-31T13:03:54.329388Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -938,5 +938,10 @@ author: oompah
 created: 2026-07-31 13:02
 ---
 Operator recorded the active worker's understanding because its scoped task-comment path is returning the known handoff-interceptor 400 tracked by OOMPAH-650. Authorized scope: rebase accepted head 69fff643e onto current main after OOMPAH-657; resolve terminal-audit overlap; cover PASS/owner-override sibling retirement including enforcement pending metrics; run focused tests and terminal scan; push and submit. The worker may continue implementation; operator will provide tracker comments until OOMPAH-650 lands.
+---
+author: oompah
+created: 2026-07-31 13:03
+---
+Server worker stopped without changes because its scoped comment endpoint returned 400 despite explicit project/task fields. Operator takeover is authorized under the project handoff rule; parking prevents an automatic retry from racing the same branch. This is not a code or CI failure.
 ---
 <!-- COMMENTS:END -->
