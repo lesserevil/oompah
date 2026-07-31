@@ -19,7 +19,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:27.238658Z'
-updated_at: '2026-07-31T04:20:35.266785Z'
+updated_at: '2026-07-31T04:20:39.617110Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-488
 target_branch: null
 review_url: null
@@ -531,5 +531,10 @@ created: 2026-07-31 04:20
 Override by lesserevil: terminal transition to Done applied by project owner.
 
 Reason: Linearized recovery supersedes the stale private-row gate: OOMPAH-488 content is preserved in OOMPAH-597 head 44e5c5579, which passed the complete 14,098-test branch gate and an independent 376-test audit. The old blocked row must not replay duplicate commits.
+---
+author: oompah
+created: 2026-07-31 04:20
+---
+Owner reconciliation after stale queue replay; verified implementation is preserved in OOMPAH-597.
 ---
 <!-- COMMENTS:END -->
