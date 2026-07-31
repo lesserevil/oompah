@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-595
 type: feature
-status: Done
+status: Needs Human
 priority: 1
 title: Expose separate operator and worker task-auth health signals
 parent: OOMPAH-586
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:56.897824Z'
-updated_at: '2026-07-31T00:18:54.619867Z'
+updated_at: '2026-07-31T00:37:17.577274Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-595
 target_branch: null
 review_url: null
@@ -378,5 +378,15 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 4m 50s
 - Log: OOMPAH-595__20260731T001413Z.jsonl
+---
+author: oompah
+created: 2026-07-31 00:37
+---
+The parent epic OOMPAH-586 merged from epic-OOMPAH-586, but this task was Done with work branch epic-OOMPAH-586--task-OOMPAH-595. Its work is not proven to be in the merged epic. Git evidence: OOMPAH-595 branch epic-OOMPAH-586--task-OOMPAH-595 has 1 unlanded commit(s), including ca49d0c25b30. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
+---
+author: oompah
+created: 2026-07-31 00:37
+---
+The parent epic OOMPAH-586 merged from epic-OOMPAH-586, but this task was Needs Human with work branch epic-OOMPAH-586--task-OOMPAH-595. Its work is not proven to be in the merged epic. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
 ---
 <!-- COMMENTS:END -->
