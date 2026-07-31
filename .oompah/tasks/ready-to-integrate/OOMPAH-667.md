@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T21:32:57.017227Z'
-updated_at: '2026-07-31T23:35:17.807580Z'
+updated_at: '2026-07-31T23:35:20.519063Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -291,5 +291,10 @@ author: oompah
 created: 2026-07-31 23:35
 ---
 Verification: TestTickDelegation now 7/7 passes on repeated runs; whole tests/test_orchestrator_handlers.py file (277 tests) passes under xdist -n 8 --dist loadgroup. Pushed 669094c81 to origin/OOMPAH-667. Ready for the gate rerun.
+---
+author: oompah
+created: 2026-07-31 23:35
+---
+Preserved operator CLI PATH in Make lifecycle and stabilized the tick observer-notification tests. The lifecycle work (6ee3e0213) captures OOMPAH_OPERATOR_PATH before the Makefile prepends .venv/bin/, passes --operator-path through sync-cli/start/restart/force-restart, and separates internal UV/Python tooling PATH from operator canonical CLI validation so unqualified make sync-cli and make restart work from a standard shell without weakening shadow detection. The gate fix (669094c81) mocks the fire-and-forget maintenance methods (_maybe_run_watchdog, _run_step5b_maintenance, _run_step5c_epic_maintenance, _recover_release_addendum_leases) on both TestTickDelegation notify tests so assert_called_once is deterministic under xdist CPU contention. Focused suites (canonical_cli_sync, lifecycle_cli_sync_integration, makefile_setup, makefile_restart_wait, orchestrator_handlers full file) pass locally.
 ---
 <!-- COMMENTS:END -->

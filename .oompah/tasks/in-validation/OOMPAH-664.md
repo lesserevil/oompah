@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:06.140108Z'
-updated_at: '2026-07-31T23:35:11.344744Z'
+updated_at: '2026-07-31T23:35:32.058564Z'
 work_branch: OOMPAH-664
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/628
@@ -184,18 +184,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-664
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: c8c93da308a6dac77c8b00e8cc3fdce32ee0cec85808541fa261c5a23f933e2b
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-0387de50d11a
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: c8c93da308a6dac77c8b00e8cc3fdce32ee0cec85808541fa261c5a23f933e2b
+      created_at: '2026-07-31T23:35:31.200163+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-31T23:35:31.200163+00:00'
+      branch_key: OOMPAH-664
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Progress
     created_at: '2026-07-31T23:35:05.212351+00:00'
+    updated_at: '2026-07-31T23:35:31.200163+00:00'
   - version: 1
     audit_id: audit-e84f78d77f57
     project_id: proj-14849f1b
@@ -213,7 +227,20 @@ oompah.terminal_audit:
       source: forge
     previous_state: In Progress
     created_at: '2026-07-31T23:35:05.212351+00:00'
-  attempt_history: []
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-0387de50d11a
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c8c93da308a6dac77c8b00e8cc3fdce32ee0cec85808541fa261c5a23f933e2b
+    created_at: '2026-07-31T23:35:31.200163+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-31T23:35:31.200163+00:00'
+    branch_key: OOMPAH-664
 ---
 ## Summary
 
@@ -989,5 +1016,25 @@ author: oompah
 created: 2026-07-31 23:35
 ---
 YOLO: merged PR #628.
+---
+author: oompah
+created: 2026-07-31 23:35
+---
+Implementation: No additional code change was needed in this continuation. The prior conflict-resolution run rebased all seven OOMPAH-664 commits onto OOMPAH-668/main and force-pushed a79a28d01; changing the already-green exact head would have been speculative. I preserved that resolution and confirmed the worktree is byte-clean against origin/OOMPAH-664.
+---
+author: oompah
+created: 2026-07-31 23:35
+---
+Verification: On rebased head a79a28d01, 168 focused tests passed with 5 expected skips across snapshot/state-branch, collapsed-epic serialization, profile reload, quality-gate, revision compatibility, and installed-CLI smoke suites. GitHub Actions run 30672935422 then passed all three jobs: Python 3.11 (7m12s), 3.12 (6m59s), and 3.13 (5m57s). MR #628 reports MERGEABLE.
+---
+author: oompah
+created: 2026-07-31 23:35
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Codex/gpt-5.6-sol]
+- Turns: 0, Tool calls: 35
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 6m 47s
+- Log: OOMPAH-664__20260731T232851Z.jsonl
 ---
 <!-- COMMENTS:END -->
