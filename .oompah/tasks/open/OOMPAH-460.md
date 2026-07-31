@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-460
 type: epic
-status: In Progress
+status: Open
 priority: 1
 title: Expose terminal audits in the UI, observability, migration, and end-to-end
   tests
@@ -32,7 +32,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-28T13:03:47.776498Z'
-updated_at: '2026-07-31T03:11:54.358408Z'
+updated_at: '2026-07-31T04:23:46.768316Z'
 work_branch: null
 target_branch: null
 review_url: null
