@@ -275,6 +275,18 @@ def _command_resolves_to(canonical: Path, *, path: str | None = None) -> bool:
     return resolved is not None and os.path.abspath(resolved) == os.path.abspath(canonical)
 
 
+def _operator_path(environ: dict[str, str], operator_path: str | None) -> str:
+    """Return the caller's PATH used for canonical CLI validation.
+
+    Lifecycle recipes intentionally prepend their virtualenv to the process
+    PATH so internal Python and UV commands are available.  That path is not
+    the operator's command-resolution contract, however: a local virtualenv
+    launcher must not hide the canonical user launcher.  Direct Python callers
+    retain the historical behavior by falling back to their supplied PATH.
+    """
+    return environ.get("PATH", "") if operator_path is None else operator_path
+
+
 def _snapshot_launcher(path: Path, root: Path) -> Path | None:
     """Copy the exact canonical launcher into a rollback directory."""
     if not os.path.lexists(path):
@@ -468,6 +480,7 @@ def stage_candidate(
     uv: str = "uv",
     stage_dir: Path | None = None,
     environ: dict[str, str] | None = None,
+    operator_path: str | None = None,
 ) -> StagedCLI:
     """Build and verify a CLI in an isolated tree without touching the live CLI.
 
@@ -477,6 +490,7 @@ def stage_candidate(
     canonical launcher or its tool environment.
     """
     env = dict(os.environ if environ is None else environ)
+    validation_path = _operator_path(env, operator_path)
     revision = selected_revision(repo)
     root = Path(stage_dir) if stage_dir is not None else Path(
         tempfile.mkdtemp(prefix="oompah-cli-stage-")
@@ -508,7 +522,7 @@ def stage_candidate(
 
     launcher = bin_dir / "oompah"
     tool = tool_dir / "oompah"
-    path = os.pathsep.join(part for part in (str(bin_dir), env.get("PATH", "")) if part)
+    path = os.pathsep.join(part for part in (str(bin_dir), validation_path) if part)
     try:
         _verify(launcher, revision, path=path, environ=env)
     except SyncError:
@@ -556,6 +570,7 @@ def activate_candidate(
     tool_dir: Path,
     bin_dir: Path,
     environ: dict[str, str] | None = None,
+    operator_path: str | None = None,
 ) -> Activation:
     """Atomically publish a staged CLI and return a rollback journal.
 
@@ -565,6 +580,7 @@ def activate_candidate(
     until the paired server cutover has passed its health/build-id check.
     """
     env = dict(os.environ if environ is None else environ)
+    validation_path = _operator_path(env, operator_path)
     canonical = canonical.expanduser()
     tool_dir = tool_dir.expanduser()
     bin_dir = bin_dir.expanduser()
@@ -605,7 +621,7 @@ def activate_candidate(
         # Verify the operator's real PATH, not a synthetic path that happens
         # to include the destination.  This catches a project virtualenv or
         # another stale executable winning command resolution.
-        _verify(canonical, staged.revision, path=env.get("PATH", ""), environ=env)
+        _verify(canonical, staged.revision, path=validation_path, environ=env)
     except Exception as exc:
         if candidate_launcher is not None:
             _remove_path(candidate_launcher)
@@ -633,9 +649,11 @@ def synchronize(
     tool_dir: Path | None = None,
     bin_dir: Path | None = None,
     environ: dict[str, str] | None = None,
+    operator_path: str | None = None,
 ) -> bool:
     """Synchronize the canonical CLI and return whether an install occurred."""
     env = dict(os.environ if environ is None else environ)
+    validation_path = _operator_path(env, operator_path)
     home = Path(env.get("HOME", str(Path.home())))
     tool_dir = tool_dir or Path(env.get("UV_TOOL_DIR", home / ".local/share/uv/tools"))
     bin_dir = bin_dir or Path(env.get("UV_TOOL_BIN_DIR", canonical.parent))
@@ -645,15 +663,20 @@ def synchronize(
     # Validate PATH even for a no-op. A stale local virtualenv must never win
     # command resolution after deployment.
     if os.path.lexists(canonical) and not _command_resolves_to(
-        canonical, path=env.get("PATH")
+        canonical, path=validation_path
     ):
-        actual = shutil.which("oompah", path=env.get("PATH")) or "not found"
+        actual = shutil.which("oompah", path=validation_path) or "not found"
         raise SyncError(
             f"refusing CLI synchronization: command -v oompah resolves to {actual!r}; "
             f"expected {str(canonical)!r}"
         )
-    if os.path.lexists(canonical) and _command_resolves_to(canonical, path=env.get("PATH")):
-        current = _run([str(canonical), "--version"], env=env)
+    if os.path.lexists(canonical) and _command_resolves_to(
+        canonical, path=validation_path
+    ):
+        current = _run(
+            [str(canonical), "--version"],
+            env={**env, "PATH": validation_path},
+        )
         if (
             current.returncode == 0
             and _version_revision(current.stdout + current.stderr) == revision.lower()
@@ -676,6 +699,7 @@ def synchronize(
         source_url=source_url,
         uv=uv,
         environ=env,
+        operator_path=operator_path,
     )
     try:
         activation = activate_candidate(
@@ -684,6 +708,7 @@ def synchronize(
             tool_dir=tool_dir,
             bin_dir=bin_dir,
             environ=env,
+            operator_path=operator_path,
         )
         activation.commit()
     finally:
@@ -701,6 +726,10 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--uv", default="uv")
     parser.add_argument("--tool-dir", type=Path)
     parser.add_argument("--bin-dir", type=Path)
+    parser.add_argument(
+        "--operator-path",
+        help="PATH from the operator shell for canonical CLI validation",
+    )
     return parser
 
 
@@ -714,6 +743,7 @@ def main(argv: list[str] | None = None) -> int:
             uv=args.uv,
             tool_dir=args.tool_dir,
             bin_dir=args.bin_dir,
+            operator_path=args.operator_path,
         )
     except SyncError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)

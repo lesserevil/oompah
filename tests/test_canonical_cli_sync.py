@@ -152,6 +152,57 @@ def test_already_current_is_a_noop(tmp_path):
     assert synchronize(**kwargs) is False
 
 
+def test_operator_path_ignores_internal_virtualenv_launcher(tmp_path):
+    """Make's internal venv tools must not shadow the canonical CLI check."""
+    repo = _repo(tmp_path)
+    uv = _fake_uv(tmp_path)
+    _, canonical, tool_dir, env = _paths(tmp_path)
+    operator_path = env["PATH"]
+    venv_bin = tmp_path / "project" / ".venv" / "bin"
+    venv_bin.mkdir(parents=True)
+    shadow = venv_bin / "oompah"
+    shadow.write_text("#!/bin/sh\necho 'oompah shadow'\n", encoding="utf-8")
+    shadow.chmod(0o755)
+    env["PATH"] = os.pathsep.join((str(venv_bin), operator_path))
+    revision = _git(repo, "rev-parse", "HEAD")
+    env["FAKE_CLI_REVISION"] = revision
+    kwargs = _kwargs(repo, canonical, uv, tool_dir, env)
+    kwargs["operator_path"] = operator_path
+
+    assert synchronize(**kwargs) is True
+    assert revision in subprocess.check_output([str(canonical), "--version"], text=True)
+
+    env["FAKE_UV_FAILURE"] = "1"
+    assert synchronize(**kwargs) is False
+
+
+def test_wrong_operator_path_still_refuses_shadowing_launcher(tmp_path):
+    """An actually shadowing operator PATH remains a hard synchronization error."""
+    repo = _repo(tmp_path)
+    uv = _fake_uv(tmp_path)
+    _, canonical, tool_dir, env = _paths(tmp_path)
+    revision = _git(repo, "rev-parse", "HEAD")
+    env["FAKE_CLI_REVISION"] = revision
+    kwargs = _kwargs(repo, canonical, uv, tool_dir, env)
+    assert synchronize(**kwargs) is True
+    old_launcher = canonical.read_bytes()
+
+    shadow_dir = tmp_path / "shadow" / "bin"
+    shadow_dir.mkdir(parents=True)
+    shadow = shadow_dir / "oompah"
+    shadow.write_text("#!/bin/sh\necho 'oompah shadow'\n", encoding="utf-8")
+    shadow.chmod(0o755)
+    new_revision = _push_change(repo, "two\n")
+    env["FAKE_CLI_REVISION"] = new_revision
+    wrong_path = os.pathsep.join((str(shadow_dir), str(canonical.parent)))
+    env["PATH"] = wrong_path
+    kwargs["operator_path"] = wrong_path
+
+    with pytest.raises(SyncError, match="command -v"):
+        synchronize(**kwargs)
+    assert canonical.read_bytes() == old_launcher
+
+
 def test_lifecycle_lock_is_stable_and_reentrant(tmp_path):
     _, canonical, _, _ = _paths(tmp_path)
     expected = canonical.parent / ".oompah-cli-lifecycle.lock"

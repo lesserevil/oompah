@@ -383,11 +383,22 @@ def test_cli_server_build_id_equality_after_start(tmp_path):
     server = _LiveOldServer()
     server.committed = True
     canonical = _canonical(tmp_path, server.new_revision)
+    operator_path = str(canonical.parent)
+    shadow_dir = tmp_path / "project" / ".venv" / "bin"
+    shadow_dir.mkdir(parents=True)
+    shadow = shadow_dir / "oompah"
+    shadow.write_text("#!/bin/sh\necho 'oompah shadow'\n", encoding="utf-8")
+    shadow.chmod(0o755)
+    environ = {
+        "PATH": f"{shadow_dir}:{operator_path}",
+        "HOME": str(tmp_path / "home"),
+    }
     revision = verify_pair(
         repo=REPO_ROOT,
         canonical=canonical,
         url="http://127.0.0.1:8090",
-        environ={"PATH": str(canonical.parent), "HOME": str(tmp_path / "home")},
+        environ=environ,
+        operator_path=operator_path,
         request=server,
     )
     assert revision == server.new_revision
