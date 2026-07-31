@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-635
 type: task
-status: In Progress
+status: In Validation
 priority: 0
 title: Rebase epic-OOMPAH-460 onto main
 parent: OOMPAH-460
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T02:37:49.386713Z'
-updated_at: '2026-07-31T02:49:16.616294Z'
+updated_at: '2026-07-31T02:49:51.335654Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-635
 target_branch: null
 review_url: null
@@ -27,6 +27,28 @@ oompah.integration:
   base_branch: epic-OOMPAH-460
   base_sha: 113e75ac87eca903188e3197754670f92371f805
   updated_at: '2026-07-31T02:49:13.590678+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-bf7a8c0c4b51
+    project_id: proj-14849f1b
+    task_id: OOMPAH-635
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 1f3153e589dec87b5c778f11972886f5800e0abb13f7090b9dddfe2143157467
+    attempts: []
+    requested_by:
+      version: 1
+      identity: api-client
+      source: api
+    previous_state: In Progress
+    created_at: '2026-07-31T02:49:48.785255+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -146,5 +168,15 @@ author: oompah
 created: 2026-07-31 02:49
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-31 02:49
+---
+Duplicate rebase task. OOMPAH-634 already rebased and force-pushed epic-OOMPAH-460 to verified remote head 113e75ac8; OOMPAH-635 was filed concurrently against the same branch and its retries initially failed on that ownership/divergence. Archiving this duplicate prevents a second writer from rewriting the completed branch. No source work belongs to OOMPAH-635.
+---
+author: oompah
+created: 2026-07-31 02:49
+---
+Queued for terminal transition to Archived. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
