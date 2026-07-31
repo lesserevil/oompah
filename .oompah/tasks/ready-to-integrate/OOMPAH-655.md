@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T11:06:43.269974Z'
+updated_at: '2026-07-31T11:07:24.895068Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -290,5 +290,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 6m 4s
 - Log: OOMPAH-655__20260731T110041Z.jsonl
+---
+author: oompah
+created: 2026-07-31 11:07
+---
+Review of the current dirty third draft: ancestry alone is necessary but still not the non-spoofable contract requested in comments 19/24. Any descendant of ec0ec7d89 can revert or replace Makefile/scripts/run-tests.sh after that ancestor and still pass merge-base; the draft even says regardless of what the Makefile says. At minimum, bind acceptance to the deployed server build as trusted base and reject any candidate diff that touches lifecycle-critical runner files unless that boundary has been separately approved/deployed. Use the full safety SHA, not an abbreviated default. The test-only safety head must be dependency-injected/monkeypatched without writing process-global os.environ from helpers; current tests/test_integration_executor.py leaks OOMPAH_TEST_SAFETY_HEAD into unrelated tests and creates ordering/race failures. Also map needs_rebase to the actual task transition. Do not claim protection from deliberately hostile same-UID test code without an OS-enforced boundary; ancestry cannot prevent a new descendant test from reading proc/canonical paths or signaling the live service. OOMPAH-657 now tracks the separate mutable-worktree/exact-head gate race and is a finish-order dependency.
 ---
 <!-- COMMENTS:END -->
