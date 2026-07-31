@@ -36,6 +36,8 @@ build/
 
 *.log
 *.pid
+*.pid.meta
+*.pid.meta.tmp.*
 
 # Historical: beads/Dolt credential key from the old task tracker.
 .beads-credential-key
