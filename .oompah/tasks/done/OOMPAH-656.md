@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:41:57.043640Z'
-updated_at: '2026-07-31T11:02:57.462575Z'
+updated_at: '2026-07-31T11:03:58.581905Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -155,6 +155,23 @@ oompah.terminal_audit:
     previous_state: Needs Human
     created_at: '2026-07-31T11:00:51.088757+00:00'
     updated_at: '2026-07-31T11:02:45.442919+00:00'
+  - version: 1
+    audit_id: audit-5ef883a8dd16
+    project_id: proj-14849f1b
+    task_id: OOMPAH-656
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 453a5cb2a792da4a772cf5a33e5eecebb0aba43cc617966fbfd3ea52ebff2dff
+    attempts: []
+    requested_by:
+      version: 1
+      identity: done-review-reconciliation
+      source: oompah
+    previous_state: Done
+    created_at: '2026-07-31T11:03:57.651386+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-69a000478301
