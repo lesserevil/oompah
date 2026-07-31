@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T21:32:57.017227Z'
-updated_at: '2026-07-31T23:35:20.519063Z'
+updated_at: '2026-07-31T23:35:47.470860Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -60,13 +60,17 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 762bc01a-3a84-401c-b4b5-295694dde00a
 oompah.task_costs:
-  total_input_tokens: 3515907
-  total_output_tokens: 25472
+  total_input_tokens: 3515913
+  total_output_tokens: 25951
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 3515907
       output_tokens: 25472
+      cost_usd: 0.0
+    opus:
+      input_tokens: 6
+      output_tokens: 479
       cost_usd: 0.0
   runs:
   - profile: default
@@ -81,6 +85,12 @@ oompah.task_costs:
     output_tokens: 20706
     cost_usd: 0.0
     recorded_at: '2026-07-31T23:06:53.976253+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 6
+    output_tokens: 479
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T23:35:41.518291+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-667__20260731T225718Z
@@ -99,14 +109,24 @@ oompah.work_contributors:
     source_branch: OOMPAH-667
     source_sha: 6ee3e02133d9f8668597285110e480069d92c6af
     completed_at: '2026-07-31T23:06:53.984426+00:00'
+  - run_id: OOMPAH-667__20260731T231532Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: opus
+    focus: ci_fix
+    source_branch: OOMPAH-667
+    source_sha: 669094c81f4b2d52431134b99f084878223785dc
+    completed_at: '2026-07-31T23:35:41.521212+00:00'
 oompah.integration:
   version: 2
   state: ready
   attempts: 0
   task_branch: OOMPAH-667
+  base_branch: main
+  base_sha: 9fc14256e7912023844663ddfee2a9940c71e05f
   head_sha: 669094c81f4b2d52431134b99f084878223785dc
   submitted_at: '2026-07-31T23:35:16.004331+00:00'
-  updated_at: '2026-07-31T23:35:16.004331+00:00'
+  updated_at: '2026-07-31T23:35:46.499887+00:00'
 ---
 ## Summary
 
@@ -296,5 +316,20 @@ author: oompah
 created: 2026-07-31 23:35
 ---
 Preserved operator CLI PATH in Make lifecycle and stabilized the tick observer-notification tests. The lifecycle work (6ee3e0213) captures OOMPAH_OPERATOR_PATH before the Makefile prepends .venv/bin/, passes --operator-path through sync-cli/start/restart/force-restart, and separates internal UV/Python tooling PATH from operator canonical CLI validation so unqualified make sync-cli and make restart work from a standard shell without weakening shadow detection. The gate fix (669094c81) mocks the fire-and-forget maintenance methods (_maybe_run_watchdog, _run_step5b_maintenance, _run_step5c_epic_maintenance, _recover_release_addendum_leases) on both TestTickDelegation notify tests so assert_called_once is deterministic under xdist CPU contention. Focused suites (canonical_cli_sync, lifecycle_cli_sync_integration, makefile_setup, makefile_restart_wait, orchestrator_handlers full file) pass locally.
+---
+author: oompah
+created: 2026-07-31 23:35
+---
+Agent completed successfully in 1214s (485 tokens)
+---
+author: oompah
+created: 2026-07-31 23:35
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Claude/opus]
+- Turns: 153, Tool calls: 108
+- Tokens: 6 in / 479 out [485 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 20m 14s
+- Log: OOMPAH-667__20260731T231532Z.jsonl
 ---
 <!-- COMMENTS:END -->
