@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-31T12:15:02.565914Z'
-updated_at: '2026-07-31T13:45:00.287797Z'
+updated_at: '2026-07-31T13:45:15.127292Z'
 work_branch: OOMPAH-659
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/620
@@ -59,8 +59,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: c07feddf-478e-4f4c-b40a-33529654f7b1
 oompah.task_costs:
-  total_input_tokens: 7599240
-  total_output_tokens: 49595
+  total_input_tokens: 7599257
+  total_output_tokens: 51940
   total_cost_usd: 0.0
   by_model:
     sonnet:
@@ -68,8 +68,8 @@ oompah.task_costs:
       output_tokens: 45356
       cost_usd: 0.0
     unknown:
-      input_tokens: 22
-      output_tokens: 4239
+      input_tokens: 39
+      output_tokens: 6584
       cost_usd: 0.0
   runs:
   - profile: standard
@@ -90,6 +90,12 @@ oompah.task_costs:
     output_tokens: 4239
     cost_usd: 0.0
     recorded_at: '2026-07-31T13:43:20.737174+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 17
+    output_tokens: 2345
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T13:45:13.158444+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-659__20260731T130144Z
@@ -411,5 +417,15 @@ Safe evidence:
 - full_gate_prior: make test passed on cbbc1a5a1 in 375.1s (tracker record)
 - merge_on_main: yes (origin/main contains 507534cf2)
 - files_changed: oompah/orchestrator.py, tests/test_standalone_ready_to_integrate.py
+---
+author: oompah
+created: 2026-07-31 13:45
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 15, Tool calls: 11
+- Tokens: 17 in / 2.3K out [2.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 43s
+- Log: OOMPAH-659__20260731T134333Z.jsonl
 ---
 <!-- COMMENTS:END -->
