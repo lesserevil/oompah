@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-653
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Make terminal-audit success and owner override retire every duplicate record
   and alert
@@ -15,7 +15,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T11:57:52.288448Z'
+updated_at: '2026-07-31T11:58:03.922456Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,7 +39,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: c208c994-70d2-4dd2-871f-a8df3ac1b3aa
+oompah.agent_run_id: 6e4fc30c-e2d6-451b-90ae-92df711cf9ec
 oompah.task_costs:
   total_input_tokens: 17051566
   total_output_tokens: 70441
@@ -802,5 +802,15 @@ author: oompah
 created: 2026-07-31 11:57
 ---
 Operator rejects submitted head 93c47346c. Its own completion comment confirms it uses list order as the equal/malformed timestamp tiebreaker, exactly the nondeterminism rejected in comment 74. The code also leaves older same-evidence valid overrides unapplied (stale_keys contains evidence mismatches only), so the next scan can apply an older override after the newest; the claimed native test is still an in-memory _Tracker description mutation, not a persisted native adapter/source-head restart case. I terminated only its exact premature full-gate PGID 2578505; this is not a test failure, and final gate authority remains finish-order blocked on OOMPAH-657. Implement every item in comment 74 rather than resubmitting the same list-order design.
+---
+author: oompah
+created: 2026-07-31 11:58
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-31 11:58
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->

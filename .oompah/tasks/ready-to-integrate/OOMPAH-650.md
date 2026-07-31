@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T11:56:47.527201Z'
+updated_at: '2026-07-31T11:58:14.447899Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -1023,5 +1023,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 12m 34s
 - Log: OOMPAH-650__20260731T114420Z.jsonl
+---
+author: oompah
+created: 2026-07-31 11:58
+---
+Operator rejects submitted head c70b41fef. It does not fix comment 72: OperationPermit.is_valid still releases the store lock before every awaited mutation, so revoke can occur after the check and the stale tracker call still starts. The new mid-operation test explicitly revokes inside add_comment after the mutation begins and permits it, with no assertion that the endpoint prevented the write. The so-called restart atomic replacement test is a store-level issue/revoke sequence, not orchestrator graceful restart/recovery or a live old-token/new-token worker path. Implement a real per-grant operation linearization protocol and the exact lifecycle tests in comment 72. The branch also fails git diff --check with extensive trailing whitespace and carries unused permit scaffolding. Full gate remains finish-order blocked on OOMPAH-657.
 ---
 <!-- COMMENTS:END -->

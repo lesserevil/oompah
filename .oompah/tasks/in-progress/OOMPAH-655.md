@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T11:54:23.862065Z'
+updated_at: '2026-07-31T11:58:08.839247Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -483,5 +483,10 @@ author: oompah
 created: 2026-07-31 11:54
 ---
 Understanding: I am enforcing the full quality gate boundary outside candidate branch code. The gate will verify a deployed base for recovered branches, execute only an immutable snapshot behind a server-owned OS sandbox, and fail closed before candidate execution if namespaces are unavailable.
+---
+author: oompah
+created: 2026-07-31 11:58
+---
+Implementation: The quality gate now archives tracked HEAD into a disposable workspace, mounts an empty-root bubblewrap environment with only trusted runtime paths and private gate state, initializes namespace-local loopback, and maps all lifecycle variables to /oompah-gate. Candidate Makefile changes are no longer self-approved or permanently rejected; recovered branches still require the configured deployed-base ancestry.
 ---
 <!-- COMMENTS:END -->
