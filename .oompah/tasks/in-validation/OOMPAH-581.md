@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-581
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Prune merged epic repair workspaces with task-style branch paths
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T04:35:07.041991Z'
-updated_at: '2026-07-31T02:35:28.293569Z'
+updated_at: '2026-07-31T02:43:09.226722Z'
 work_branch: OOMPAH-581
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/600
@@ -119,6 +119,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/600
 oompah.review_number: '600'
 oompah.work_branch: OOMPAH-581
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-76320220fb0e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-581
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ba8ba423e19dc1713b9d55bf94570852dcbd2d508a09499fbfde0fa8f0df9d3a
+    attempts: []
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-31T02:43:05.702270+00:00'
+  - version: 1
+    audit_id: audit-263be5fb2c13
+    project_id: proj-14849f1b
+    task_id: OOMPAH-581
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ba8ba423e19dc1713b9d55bf94570852dcbd2d508a09499fbfde0fa8f0df9d3a
+    attempts: []
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-31T02:43:05.702270+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -236,5 +275,15 @@ Run #2 [attempt=2, profile=standard, role=standard -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: terminated, Duration: 9m 6s
 - Log: OOMPAH-581__20260730T043854Z.jsonl
+---
+author: oompah
+created: 2026-07-31 02:43
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-07-31 02:43
+---
+YOLO: merged PR #600.
 ---
 <!-- COMMENTS:END -->
