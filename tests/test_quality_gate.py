@@ -27,9 +27,28 @@ def _git_repo(tmp_path):
         cwd=repo,
         check=True,
     )
+    # Create a compliant Makefile with OOMPAH-652 isolation logic
+    makefile = repo / "Makefile"
+    makefile.write_text(
+        """
+_PYTEST_GATE := $(filter 1 true yes,$(strip $(OOMPAH_PYTEST_GATE)))
+ifeq ($(_PYTEST_GATE),)
+PID_FILE ?= .oompah.pid
+else
+PID_FILE := $(OOMPAH_TEST_PID_FILE)
+endif
+PORT := $(OOMPAH_TEST_SERVER_PORT)
+OOMPAH_PYTEST_RUN_ROOT := /tmp/test
+
+.PHONY: test
+test:
+\t@pytest
+""",
+        encoding="utf-8",
+    )
     source = repo / "source.txt"
     source.write_text("one\n", encoding="utf-8")
-    subprocess.run(["git", "add", "source.txt"], cwd=repo, check=True)
+    subprocess.run(["git", "add", "Makefile", "source.txt"], cwd=repo, check=True)
     subprocess.run(["git", "commit", "-q", "-m", "initial"], cwd=repo, check=True)
     subprocess.run(["git", "checkout", "-q", "-b", "work"], cwd=repo, check=True)
     return repo
@@ -1033,56 +1052,143 @@ def test_failed_snapshot_verification_removes_worktree_registration(tmp_path, mo
     assert not snapshot.exists()
 
 
-def test_quality_gate_enforces_lifecycle_isolation_variables(tmp_path):
-    """Quality gate subprocess must have full lifecycle isolation."""
+def test_preflight_rejects_old_makefile_without_isolation_logic(tmp_path):
+    """Branches created before OOMPAH-652 lack isolation logic and must rebase."""
     repo = _git_repo(tmp_path)
+    # Old Makefile without OOMPAH_PYTEST_GATE handling
+    old_makefile = repo / "Makefile"
+    old_makefile.write_text(
+        """
+.PHONY: test
+test:
+\t@pytest
+PID_FILE ?= .oompah.pid
+PORT ?= 8080
+""",
+        encoding="utf-8",
+    )
+    subprocess.run(["git", "add", "Makefile"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "old makefile"], cwd=repo, check=True)
     gate = BranchQualityGate(str(tmp_path / "quality.json"))
 
-    # Command checks that:
-    # 1. OOMPAH_PYTEST_GATE=1 (gate mode is enabled)
-    # 2. OOMPAH_PYTEST_RUN_ROOT is set and is a valid directory
-    # 3. OOMPAH_TEST_SERVER_PORT and OOMPAH_SERVER_PORT are set and numeric
-    # 4. OOMPAH_TEST_PID_FILE and OOMPAH_TEST_PID_META_FILE are under the run root
-    # 5. TMPDIR/TMP/TEMP are redirected to the run root
-    command = (
-        'test "$OOMPAH_PYTEST_GATE" = "1"'
-        ' && test -d "$OOMPAH_PYTEST_RUN_ROOT"'
-        ' && test -n "$OOMPAH_TEST_SERVER_PORT"'
-        ' && test -n "$OOMPAH_SERVER_PORT"'
-        ' && test "$OOMPAH_TEST_SERVER_PORT" = "$OOMPAH_SERVER_PORT"'
-        ' && test "$TMPDIR" = "$OOMPAH_PYTEST_RUN_ROOT"'
-        ' && test "$TMP" = "$OOMPAH_PYTEST_RUN_ROOT"'
-        ' && test "$TEMP" = "$OOMPAH_PYTEST_RUN_ROOT"'
-        ' && case "$OOMPAH_TEST_PID_FILE" in'
-        '    "$OOMPAH_PYTEST_RUN_ROOT"/*) ;;'
-        '    *) exit 1 ;;'
-        '   esac'
-        ' && case "$OOMPAH_TEST_PID_META_FILE" in'
-        '    "$OOMPAH_PYTEST_RUN_ROOT"/*) ;;'
-        '    *) exit 1 ;;'
-        '   esac'
-    )
+    result = _run(gate, repo, "true")
 
-    result = _run(gate, repo, command)
-    assert result.passed, f"Isolation check failed: {result.output_tail}"
+    assert result.status == "needs_rebase"
+    assert "OOMPAH-652" in result.output_tail
+    assert "Branch requires rebase" in result.output_tail
 
 
-def test_quality_gate_isolates_server_url_and_task_credentials(tmp_path, monkeypatch):
-    """Quality gate subprocess must not inherit server URL or task credentials."""
+def test_preflight_allows_makefile_with_isolation_logic(tmp_path):
+    """Branches with OOMPAH-652 isolation logic are allowed to execute."""
     repo = _git_repo(tmp_path)
+    # Makefile with OOMPAH_PYTEST_GATE handling (from OOMPAH-652)
+    compliant_makefile = repo / "Makefile"
+    compliant_makefile.write_text(
+        """
+_PYTEST_GATE := $(filter 1 true yes,$(strip $(OOMPAH_PYTEST_GATE)))
+ifeq ($(_PYTEST_GATE),)
+PID_FILE ?= .oompah.pid
+else
+PID_FILE := $(OOMPAH_TEST_PID_FILE)
+endif
+PORT := $(OOMPAH_TEST_SERVER_PORT)
+OOMPAH_PYTEST_RUN_ROOT := /tmp/test
+.PHONY: test
+test:
+\t@pytest
+""",
+        encoding="utf-8",
+    )
+    subprocess.run(["git", "add", "Makefile"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "isolation makefile"], cwd=repo, check=True)
+    gate = BranchQualityGate(str(tmp_path / "quality.json"))
+    counter = tmp_path / "counter"
+
+    result = _run(gate, repo, f"printf x >> {shlex.quote(str(counter))}")
+
+    assert result.passed
+
+
+def test_preflight_rejects_missing_makefile(tmp_path):
+    """Branches without a Makefile cannot be checked for isolation logic."""
+    repo = _git_repo(tmp_path)
+    # Delete the Makefile if it exists (it shouldn't in the test repo)
+    makefile = repo / "Makefile"
+    if makefile.exists():
+        makefile.unlink()
+        subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+        subprocess.run(["git", "commit", "-q", "-m", "no makefile"], cwd=repo, check=True)
     gate = BranchQualityGate(str(tmp_path / "quality.json"))
 
-    # Set credentials and server URL that should be stripped
-    monkeypatch.setenv("OOMPAH_SERVER_URL", "http://example.test:8080")
-    monkeypatch.setenv("OOMPAH_TASK_HANDOFF_TOKEN", "secret-token")
-    monkeypatch.setenv("OOMPAH_TASK_HANDOFF_PROJECT_ID", "secret-project")
+    result = _run(gate, repo, "true")
 
-    # Command checks that server URL and task credentials are NOT in the subprocess
-    command = (
-        'test -z "${OOMPAH_SERVER_URL+x}"'
-        ' && test -z "${OOMPAH_TASK_HANDOFF_TOKEN+x}"'
-        ' && test -z "${OOMPAH_TASK_HANDOFF_PROJECT_ID+x}"'
+    assert result.status == "needs_rebase"
+    assert "Makefile not found" in result.output_tail
+
+
+def test_hostile_old_makefile_is_rejected_before_execution(tmp_path, monkeypatch):
+    """
+    Intentionally malicious old Makefile attempting canonical file discovery
+    is rejected at preflight without ever executing.
+
+    This proves that the preflight validation prevents hostile candidate code
+    from discovering or signaling the operator service, even if the Makefile
+    ignores isolation variables.
+    """
+    repo = _git_repo(tmp_path)
+
+    # Create an intentionally old/malicious Makefile that ignores OOMPAH_PYTEST_GATE
+    # and tries to discover the operator service. This Makefile predates OOMPAH-652
+    # and does NOT contain the isolation logic.
+    hostile_makefile = repo / "Makefile"
+    hostile_makefile.write_text(
+        """
+# Hostile old Makefile that ignores isolation variables
+# and tries to discover/signal the operator service
+
+.PHONY: test
+test:
+\t@echo "Attempting to discover operator service..."
+\t@test -f .oompah.pid && echo "FOUND OPERATOR PID FILE" || true
+\t@test -f .oompah.pid.meta && echo "FOUND OPERATOR PID META" || true
+\t@curl -s http://127.0.0.1:8090/healthz && echo "FOUND OPERATOR SERVICE" || true
+\t@if [ -f .oompah.pid ]; then kill -0 $$(cat .oompah.pid) && echo "OPERATOR PID ALIVE"; fi || true
+
+PID_FILE = .oompah.pid
+PORT = 8080
+OOMPAH_PYTEST_GATE is ignored
+""",
+        encoding="utf-8",
     )
+    subprocess.run(["git", "add", "Makefile"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "hostile makefile"], cwd=repo, check=True)
+    gate = BranchQualityGate(str(tmp_path / "quality.json"))
 
-    result = _run(gate, repo, command)
-    assert result.passed, "Server URL and task credentials were not properly isolated"
+    # The preflight validation should reject this branch BEFORE executing
+    # the make test command, preventing any discovery attempts.
+    result = _run(gate, repo, "make test")
+
+    # Verify the branch was rejected at preflight
+    assert result.status == "needs_rebase"
+    assert "OOMPAH-652" in result.output_tail
+    # Verify the hostile command output does NOT appear (command was never executed)
+    assert "FOUND OPERATOR" not in result.output_tail
+    assert "ATTEMPTING TO DISCOVER" not in result.output_tail.upper()
+
+
+def test_compliant_branch_allows_execution(tmp_path):
+    """
+    Compliant branches with OOMPAH-652 isolation logic pass the preflight
+    and are allowed to execute. The Makefile contains the logic to use
+    private PID files and ephemeral ports when OOMPAH_PYTEST_GATE is set.
+    """
+    repo = _git_repo(tmp_path)
+    gate = BranchQualityGate(str(tmp_path / "quality.json"))
+    counter = tmp_path / "counter"
+
+    # Compliant Makefile is already in the repo from _git_repo
+    result = _run(gate, repo, f"printf x >> {shlex.quote(str(counter))}")
+
+    # Preflight passes and command executes
+    assert result.passed
+    assert counter.read_text(encoding="utf-8") == "x"

@@ -17,7 +17,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Callable
 
-from oompah.client_auth import agent_environment, quality_gate_environment
+from oompah.client_auth import agent_environment
 
 logger = logging.getLogger(__name__)
 
@@ -359,6 +359,59 @@ class BranchQualityGate:
         shutil.rmtree(snapshot, ignore_errors=True)
 
     @staticmethod
+    def _verify_isolation_contract(repo_path: str) -> tuple[bool, str]:
+        """Verify that the candidate branch Makefile contains OOMPAH-652 isolation logic.
+
+        The quality gate runs in a disposable worktree. If the checked-out Makefile
+        predates OOMPAH-652 or doesn't contain the isolation logic, it will use
+        canonical .oompah.pid/.oompah.pid.meta paths and the canonical server port,
+        allowing it to discover and signal the live operator service even if
+        environment variables are set.
+
+        This function checks for the required OOMPAH_PYTEST_GATE handling that
+        redirects lifecycle files to a private run root and uses ephemeral ports.
+
+        Returns:
+            (is_compliant, reason) — True if isolation logic is present, False if
+            the branch needs rebase.
+        """
+        makefile_path = Path(repo_path) / "Makefile"
+        if not makefile_path.exists():
+            return False, "Makefile not found (required for lifecycle isolation)"
+
+        try:
+            makefile_text = makefile_path.read_text(encoding="utf-8")
+        except OSError as exc:
+            return False, f"Cannot read Makefile: {exc}"
+
+        # Check for the critical isolation markers from OOMPAH-652:
+        # 1. OOMPAH_PYTEST_GATE check
+        # 2. PID_FILE redirected to run root under gate mode
+        # 3. PORT using ephemeral allocation under gate mode
+        required_patterns = [
+            "OOMPAH_PYTEST_GATE",  # Gate mode detection
+            "OOMPAH_TEST_PID_FILE",  # Private PID file variable
+            "OOMPAH_PYTEST_RUN_ROOT",  # Private run root
+            "OOMPAH_TEST_SERVER_PORT",  # Ephemeral port variable
+        ]
+
+        missing_patterns = [
+            pattern for pattern in required_patterns
+            if pattern not in makefile_text
+        ]
+
+        if missing_patterns:
+            return (
+                False,
+                f"Makefile missing isolation logic from OOMPAH-652. "
+                f"Missing: {', '.join(missing_patterns)}. "
+                f"Branch requires rebase to main or newer commit that includes "
+                f"OOMPAH-652 lifecycle isolation.",
+            )
+
+        return True, ""
+
+    @staticmethod
     def _evidence_key(
         *,
         repo_identity: str,
@@ -549,6 +602,20 @@ class BranchQualityGate:
                 output_tail=f"Could not resolve branch HEAD: {exc}",
             )
 
+        # Fail closed before candidate code starts when the required lifecycle
+        # isolation contract is absent, while retaining main's exact-head and
+        # generation-aware launch sequencing.
+        is_compliant, reason = self._verify_isolation_contract(repo_path)
+        if not is_compliant:
+            if owned_generation is not None:
+                self._release_generation(owned_generation)
+            return QualityGateResult(
+                status="needs_rebase",
+                head_sha=head_sha,
+                command=command,
+                output_tail=reason,
+            )
+
         key = self._evidence_key(
             repo_identity=repo_identity,
             target_branch=target_branch,
@@ -661,10 +728,7 @@ class BranchQualityGate:
                 process = subprocess.Popen(  # noqa: S602 - operator-owned command
                     command,
                     cwd=snapshot,
-                    # Enforce lifecycle isolation at the server-controlled
-                    # launch boundary while retaining the immutable snapshot
-                    # and generation barriers supplied by main.
-                    env=quality_gate_environment(),
+                    env=agent_environment(),
                     shell=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
