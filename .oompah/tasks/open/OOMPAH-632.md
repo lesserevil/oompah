@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-632
 type: bug
-status: In Validation
+status: Open
 priority: 1
 title: Refresh candidate refs before child landing reconciliation
 parent: OOMPAH-584
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:46:34.785511Z'
-updated_at: '2026-07-31T01:11:36.806804Z'
+updated_at: '2026-07-31T01:11:39.722117Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-632
 target_branch: null
 review_url: null
@@ -319,5 +319,19 @@ author: oompah
 created: 2026-07-31 01:08
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 01:11
+---
+Audit FAIL — incomplete. Routing task to Open.
+
+[REDACTED]
+
+Instructions:
+- In _refresh_landing_evidence_candidate_refs, return (False, reason) when fetch subprocess exits non-zero, matching the sibling target helper's behavior; distinguishing 'missing branch' from transport failure can be handled by a follow-up ls-remote probe if desired.
+- In _mark_epic_merged, capture the (ok, reason) tuple from _refresh_landing_evidence_candidate_refs and, on failure, log and skip Done-child reconciliation for this pass just as landing_refs_fresh does for the container helper.
+- Change _resolve_git_branch_refs (or introduce a landing-evidence variant) so that when refs/remotes/origin/<branch> is present it is used and the stale refs/heads/<branch> is not additionally consulted; alternatively, prefer origin-only refs in the child landing evidence path.
+- Replace the mocked-only test with three real-repo tests: (a) local=pre-rebase SHA, origin=rewritten SHA contained in target -> Done retained, no escalation; (b) candidate fetch failure (e.g. broken origin) -> Done unchanged, escalation deferred; (c) rewritten SHA on both local and origin but genuinely not in target -> still escalates.
+- Verify by running the focused epic-strategy tests plus the full 'make test' branch gate after the corrections.
 ---
 <!-- COMMENTS:END -->
