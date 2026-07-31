@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T11:04:56.392945Z'
+updated_at: '2026-07-31T11:08:57.329749Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -644,5 +644,10 @@ author: oompah
 created: 2026-07-31 11:04
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-07-31 11:08
+---
+Registry draft direction is good, but environment-only initialization is not the actual configured-secret set in this service. Plaintext credentials also live in loaded Project.access_token and Project.webhook_secret, ProviderConfig.api_key, GitHub App private-key/token state, and dynamically minted task-handoff grants; provider/project API updates and credential rotation can add values after startup. Register those values at their authoritative load/mint/update boundaries (without logging), retain retired values for delayed writers, and test live reload/update plus dynamic handoff token redaction. A startup call that scans only selected env/file names leaves innocuously placed configured project/provider values unchanged. Keep the current longest-first str/bytes behavior, and add tests using the model/config paths rather than only calling register_secret directly.
 ---
 <!-- COMMENTS:END -->
