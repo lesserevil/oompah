@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:06.140108Z'
-updated_at: '2026-07-31T22:56:32.345532Z'
+updated_at: '2026-07-31T23:05:27.360545Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -828,5 +828,10 @@ author: oompah
 created: 2026-07-31 22:56
 ---
 Understanding: Taking the CI-fix pass on OOMPAH-664 branch. The latest gate run at head 2b7d97927 has exactly 1 failing test: tests/test_orchestrator_profile_reload.py::TestStoreOrchestratorIntegration::test_tick_applies_pending_at_quiescent_point. I will read the test and relevant code, reproduce locally, make the minimal fix, and push.
+---
+author: oompah
+created: 2026-07-31 23:05
+---
+Discovery: test_tick_applies_pending_at_quiescent_point is flaky under parallel CI load. The test stubs _handle_reconcile, _handle_review_check, _handle_dispatch_needed, _handle_yolo_review, _handle_auto_update, and _maybe_run_watchdog, but does NOT stub _recover_release_addendum_leases, which is the ONLY remaining awaited I/O operation in _tick(). _recover_release_addendum_leases calls tracker.fetch_all_issues() -> _read_records(), which sequentially reads 281 .oompah/tasks/*.md files. With 4 parallel test workers competing for I/O, this can exceed the 5s per-test timeout. Fix: add orch._recover_release_addendum_leases = lambda: 0 to the test's stub block, consistent with existing approach.
 ---
 <!-- COMMENTS:END -->
