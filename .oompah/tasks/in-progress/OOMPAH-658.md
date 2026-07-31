@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-07-31T12:13:33.698294Z'
+updated_at: '2026-07-31T12:14:49.661559Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -665,5 +665,16 @@ author: oompah
 created: 2026-07-31 12:13
 ---
 Understanding: Head 1b49ab0f4 is the completed and verified fix. Prior 'Branch quality gate failed' notices at 11:53 (PGID 2487891) and 12:07 (PGID 2991395) were operator-terminated premature full make test runs — the terminal 'make[1]: *** [Makefile:295: test] Terminated' line is SIGTERM, not an assertion. Operator repeatedly instructed (comments 23/28/38): 'run focused regression tests only. Oompah will run the configured complete branch gate once for the accepted exact review-ready head.' Full gate authority remains finish-order blocked on OOMPAH-657. Plan: re-verify focused suites at HEAD in this dispatch's worktree, confirm branch is up to date with origin, then submit — no source changes required.
+---
+author: oompah
+created: 2026-07-31 12:14
+---
+Verification: All focused suites green at head 1b49ab0f4 (re-run in this dispatch's worktree).
+- tests/test_duplicate_screening.py + tests/test_duplicate_preflight.py: 32 passed (0.74s)
+- tests/test_candidate_preflight.py + test_orchestrator_duplicate_detection.py + test_server_duplicate_screening_sync.py + test_dashboard_duplicate_screening.py: 87 passed (26.6s)
+- tests/test_models.py + test_intake_schema.py + test_intake_approval.py + test_oompah_md_tracker.py: 286 passed (5.5s)
+- tests/test_intake_promotion.py + test_epic_proposal.py + test_duplicate_names.py: 45 passed (3.0s)
+
+Total 450 focused tests passing across the duplicate-screening/intake surface. No source changes required at this dispatch. Per operator guidance (comments 23/28/38), skipping the repository-wide 'make test' — the server owns the single review-ready full gate for the exact head once OOMPAH-657 lands exact-head enforcement.
 ---
 <!-- COMMENTS:END -->
