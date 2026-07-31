@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-603
 type: feature
-status: In Validation
+status: Done
 priority: 2
 title: Define and enforce repository hygiene health thresholds
 parent: OOMPAH-588
@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:03.538398Z'
-updated_at: '2026-07-31T04:56:44.764229Z'
+updated_at: '2026-07-31T05:01:33.222003Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-603
 target_branch: null
 review_url: null
@@ -131,6 +131,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-8da7556bb1d0: '2026-07-31T04:11:19.916133+00:00'
+    attempt-34a8bb89257f: '2026-07-31T05:01:29.951742+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -173,7 +174,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-603
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -182,7 +183,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-34a8bb89257f
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -192,13 +193,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T04:56:39.115152+00:00'
       branch_key: epic-OOMPAH-588--task-OOMPAH-603
+      verdict: pass
+      completed_at: '2026-07-31T05:01:29.951584+00:00'
+      ended_at: '2026-07-31T05:01:29.951584+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-31T04:56:34.415309+00:00'
-    updated_at: '2026-07-31T04:56:39.115152+00:00'
+    updated_at: '2026-07-31T05:01:29.951584+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-8da7556bb1d0
@@ -603,5 +607,20 @@ author: oompah
 created: 2026-07-31 04:56
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 05:01
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- focused_tests: 32 passed in 0.92s across focused hygiene suites
+- neighboring_tests: 415 passed in 57.04s across neighboring config and audit suites
+- config: Four hygiene threshold env vars documented in env example and validated in ServiceConfig
+- snapshot_schema: orchestrator maintenance repo hygiene health payload verified by dedicated snapshot test
+- dashboard_accessibility: hygiene panel has role status, aria live, aria label, hidden fallback, escaped identifiers
+- docs: repository health operations doc defines operator verification, thresholds, and troubleshooting
 ---
 <!-- COMMENTS:END -->
