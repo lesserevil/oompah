@@ -32,6 +32,7 @@ from oompah.agent import (
 )
 from oompah.agent_profile_store import AgentProfileStore
 from oompah.api_agent import AgentActivity, ApiAgentSession
+from oompah.secrets import redact_sensitive_data
 from oompah.tool_liveness import ToolLivenessMonitor
 from oompah.authority_boundary import (
     AgentActionPolicy,
@@ -25548,7 +25549,11 @@ class Orchestrator:
                 when the agent was actively working — the JSONL log was
                 being written but the live state wasn't.
                 """
-                # 1. Persist the raw event to per-agent JSONL.
+                # SECURITY: Redact all payloads before JSONL/state use.
+                # This is the central fan-out boundary for ACP events.
+                redacted_payload = redact_sensitive_data(ev.payload or {})
+
+                # 1. Persist the redacted event to per-agent JSONL.
                 try:
                     log_fp.write(
                         json.dumps(
@@ -25558,8 +25563,8 @@ class Orchestrator:
                                     timezone.utc,
                                 ).isoformat(),
                                 "kind": ev.event,
-                                "usage": ev.usage,
-                                "payload": ev.payload,
+                                "usage": redact_sensitive_data(ev.usage) if ev.usage else None,
+                                "payload": redacted_payload,
                             },
                             default=str,
                         )
@@ -25572,7 +25577,7 @@ class Orchestrator:
                 # 2. Map ACP event kinds onto the AgentActivity vocabulary
                 #    the UI already renders for api_agent runs. Keeping
                 #    the same kinds means no template changes needed.
-                payload = ev.payload or {}
+                payload = redacted_payload
                 # Only `acp_text` (actual model speech) maps to 'message'.
                 # Session start/result events are metadata-shaped (JSON-ish
                 # blobs in the detail field) and should NOT be hidden by
@@ -25658,7 +25663,7 @@ class Orchestrator:
                         summary=summary,
                         detail=detail,
                         timestamp=ev.timestamp,
-                        usage=dict(ev.usage) if ev.usage else None,
+                        usage=dict(redact_sensitive_data(ev.usage)) if ev.usage else None,
                     )
                     entry.activity_log.append(activity)
 

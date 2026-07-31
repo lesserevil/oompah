@@ -505,3 +505,300 @@ class TestIntegrationWithConsoleEvents:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+# ===========================================================================
+# End-to-end secret redaction tests
+# ===========================================================================
+
+
+class TestOrchestratorEventRedaction:
+    """Verify that secrets are redacted at the orchestrator._on_event boundary."""
+
+    def test_acp_event_payload_redacted_before_jsonl(self, tmp_path):
+        """Sentinel secret should not appear in JSONL representation."""
+        from oompah.secrets import redact_sensitive_data
+        import json
+
+        # Simulate an ACP SDK event with sentinel secrets
+        event_payload = {
+            "text": "Deployment successful",
+            "password": "super_secret_token_12345",
+            "api_key": "sk-abc123xyz789",
+            "nested": {
+                "database_url": "postgresql://user:deadly_secret@db.example.com:5432/mydb"
+            }
+        }
+
+        # This is what happens in orchestrator._on_event
+        redacted = redact_sensitive_data(event_payload)
+        jsonl_line = json.dumps({
+            "payload": redacted,
+            "kind": "acp_tool_result"
+        })
+
+        # Verify no sentinels appear in JSONL
+        assert "super_secret_token_12345" not in jsonl_line
+        assert "sk-abc123xyz789" not in jsonl_line
+        assert "deadly_secret" not in jsonl_line
+        assert "[REDACTED]" in jsonl_line
+
+    def test_acp_event_usage_redacted_before_state(self):
+        """Usage metrics should not leak credentials even if present."""
+        from oompah.secrets import redact_sensitive_data
+
+        usage_with_secret = {
+            "input_tokens": 100,
+            "output_tokens": 50,
+            "cache_read_tokens": 0,
+            "cache_creation_tokens": 0,
+            "api_key": "secret_key_here"  # shouldn't be here but be defensive
+        }
+
+        redacted = redact_sensitive_data(usage_with_secret)
+        assert redacted["input_tokens"] == 100
+        assert "secret_key_here" not in str(redacted)
+        assert redacted.get("api_key") == "[REDACTED]"
+
+    def test_session_last_message_inherits_redaction(self):
+        """The last_message field should be redacted via summary field."""
+        from oompah.secrets import redact_sensitive_data
+
+        # Simulate payload with secrets that becomes summary/detail
+        payload = {
+            "text": "Error: DB password is password123ABC"
+        }
+        redacted_payload = redact_sensitive_data(payload)
+        summary = str(redacted_payload.get("text", ""))[:200]
+
+        # summary should have redacted the password
+        assert "password123ABC" not in summary
+        assert "[REDACTED]" in summary
+
+
+class TestConsoleEventFanout:
+    """Verify that ConsoleEvent fields are redacted before on_event callback fan-out."""
+
+    def test_console_event_text_redacted_before_callback(self):
+        """Text field containing secrets should be redacted before callback."""
+        from oompah.console_format import ConsoleEvent
+        from oompah.console import _redact_console_event
+
+        # Create event with secret in text
+        event = ConsoleEvent(
+            ts="2024-01-01T00:00:00Z",
+            kind="agent_text",
+            text="Connected to database using password=super_secret_123"
+        )
+
+        redacted = _redact_console_event(event)
+        
+        assert "super_secret_123" not in redacted.text
+        assert "[REDACTED]" in redacted.text
+
+    def test_console_event_args_redacted_before_callback(self):
+        """Tool args containing secrets should be redacted before callback."""
+        from oompah.console_format import ConsoleEvent
+        from oompah.console import _redact_console_event
+
+        event = ConsoleEvent(
+            ts="2024-01-01T00:00:00Z",
+            kind="tool_call",
+            tool="read_file",
+            args={
+                "path": "/etc/passwd",
+                "bearer_token": "bearer_token_secret_xyz"
+            }
+        )
+
+        redacted = _redact_console_event(event)
+        
+        assert "bearer_token_secret_xyz" not in str(redacted.args)
+        assert redacted.args["bearer_token"] == "[REDACTED]"
+
+    def test_console_event_result_redacted_before_callback(self):
+        """Tool result containing secrets should be redacted before callback."""
+        from oompah.console_format import ConsoleEvent
+        from oompah.console import _redact_console_event
+
+        event = ConsoleEvent(
+            ts="2024-01-01T00:00:00Z",
+            kind="tool_result",
+            result={
+                "stdout": "Database connection established",
+                "connection_string": "postgresql://admin:hidden_password@db:5432/prod"
+            }
+        )
+
+        redacted = _redact_console_event(event)
+        
+        assert "hidden_password" not in str(redacted.result)
+        assert "[REDACTED]" in str(redacted.result)
+
+    def test_console_event_usage_redacted_before_callback(self):
+        """Usage stats should be redacted even if they contain secrets."""
+        from oompah.console_format import ConsoleEvent
+        from oompah.console import _redact_console_event
+
+        event = ConsoleEvent(
+            ts="2024-01-01T00:00:00Z",
+            kind="session_meta",
+            usage={
+                "input_tokens": 100,
+                "api_secret": "should_not_appear"
+            }
+        )
+
+        redacted = _redact_console_event(event)
+        
+        assert "should_not_appear" not in str(redacted.usage)
+        assert redacted.usage["api_secret"] == "[REDACTED]"
+
+    def test_console_event_callback_receives_redacted(self):
+        """The on_event callback should receive redacted events."""
+        from oompah.console_format import ConsoleEvent
+        from oompah.console import ConsoleSession
+        from oompah.console_store import ConsoleStore
+        from unittest.mock import MagicMock, patch
+
+        callback_received = []
+
+        def mock_callback(event):
+            callback_received.append(event)
+
+        # Create a session with mock callback
+        mock_store = MagicMock(spec=ConsoleStore)
+        mock_provider_store = MagicMock()
+        mock_role_store = MagicMock()
+        
+        session = ConsoleSession(
+            project_id="test-proj",
+            store=mock_store,
+            provider_store=mock_provider_store,
+            role_store=mock_role_store,
+            on_event=mock_callback
+        )
+
+        event = ConsoleEvent(
+            ts="2024-01-01T00:00:00Z",
+            kind="agent_text",
+            text="DB password: secret_pass_999"
+        )
+
+        session._persist_and_emit(event)
+
+        # Verify callback received redacted event
+        assert len(callback_received) == 1
+        received_event = callback_received[0]
+        assert "secret_pass_999" not in received_event.text
+        assert "[REDACTED]" in received_event.text
+
+
+class TestSecretsFailClosed:
+    """Verify that edge cases fail-closed (return redaction marker, not original value)."""
+
+    def test_max_depth_returns_marker_not_original(self):
+        """At max recursion depth, should return marker not original value."""
+        from oompah.secrets import redact_sensitive_data
+
+        # Create deeply nested structure that will hit max depth
+        deep = {"level": 1}
+        current = deep
+        for i in range(150):  # Exceed default max_depth of 100
+            current["next"] = {"level": i + 2}
+            current = current["next"]
+        
+        # Add secret at deep level
+        current["password"] = "very_deep_secret"
+
+        redacted = redact_sensitive_data(deep, _max_depth=100)
+        
+        # Should not have the original secret anywhere
+        assert "very_deep_secret" not in str(redacted)
+
+    def test_failed_dataclass_reconstruction_returns_marker(self):
+        """If dataclass reconstruction fails, should return marker not original."""
+        from dataclasses import dataclass
+        from oompah.secrets import redact_sensitive_data
+
+        @dataclass
+        class Credentials:
+            username: str
+            password: str
+
+            def __init__(self, username, password, required_param=None):
+                # Constructor requires a param that redaction can't satisfy
+                if required_param is None:
+                    raise TypeError("required_param is mandatory")
+                self.username = username
+                self.password = password
+
+        cred = Credentials.__new__(Credentials)
+        cred.username = "admin"
+        cred.password = "secret_pass_789"
+
+        redacted = redact_sensitive_data(cred)
+        
+        # Should not have original password
+        assert "secret_pass_789" not in str(redacted)
+        # Should have a marker indicating redaction
+        assert "[REDACTED]" in str(redacted)
+
+    def test_credential_like_unknown_type_returns_marker(self):
+        """Unknown credential-like types should return marker not original."""
+        from oompah.secrets import redact_sensitive_data
+
+        # Create a credential-like object that can't be redacted by repr
+        class ClientCredential:
+            def __init__(self, secret):
+                self.secret = secret
+
+            def __repr__(self):
+                return f"ClientCredential(secret='{self.secret}')"
+
+        obj = ClientCredential("leaked_secret_xyz")
+        redacted = redact_sensitive_data(obj)
+        
+        # Should not have original secret
+        assert "leaked_secret_xyz" not in str(redacted)
+        # Should have marker
+        assert "[REDACTED]" in str(redacted)
+
+
+class TestMultiBackendRedaction:
+    """Verify secrets are redacted across different backend paths."""
+
+    def test_acp_backend_event_redaction(self):
+        """ACP backend events should redact payloads."""
+        from oompah.secrets import redact_sensitive_data
+
+        # Simulate ACP backend event with tool use
+        acp_event = {
+            "event": "acp_tool_use",
+            "timestamp": 1234567890.0,
+            "payload": {
+                "tool": "run_command",
+                "input": {
+                    "command": "mysql -u admin -p secret_password_123 mydb"
+                }
+            }
+        }
+
+        redacted_payload = redact_sensitive_data(acp_event["payload"])
+        
+        assert "secret_password_123" not in str(redacted_payload)
+        assert "[REDACTED]" in str(redacted_payload)
+
+    def test_state_api_activity_redaction(self):
+        """Activity logged to state should be redacted."""
+        from oompah.secrets import redact_sensitive_data
+        from oompah.api_agent import AgentActivity
+
+        # Simulate activity with sensitive data
+        activity_detail = "Tool executed: curl -H 'Authorization: Bearer secret_token_abc'"
+        
+        redacted_detail = redact_sensitive_data(activity_detail)
+        
+        assert "secret_token_abc" not in redacted_detail
+        assert "[REDACTED]" in redacted_detail
+

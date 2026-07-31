@@ -67,6 +67,7 @@ from typing import TYPE_CHECKING, Any, Awaitable, Callable
 from oompah.console_format import ConsoleEvent, make_error, make_operator_input
 from oompah.console_store import ConsoleStore
 from oompah.console_translators import get_translator, known_backends
+from oompah.secrets import redact_sensitive_data
 
 if TYPE_CHECKING:
     from oompah.providers import ProviderStore
@@ -182,6 +183,40 @@ class _PendingSend:
     # errors). Lets callers ``await session.send(...)`` and know the
     # turn has finished.
     done: asyncio.Future[None] | None = None
+
+
+# ---------------------------------------------------------------------------
+# Secret redaction helper
+# ---------------------------------------------------------------------------
+
+
+def _redact_console_event(event: ConsoleEvent) -> ConsoleEvent:
+    """Create a copy of the ConsoleEvent with all sensitive fields redacted.
+
+    This is the central redaction boundary for ConsoleEvent fan-out.
+    All fields that might contain secrets (text, args, result, usage) are
+    redacted before the event is persisted or fanned out to callbacks.
+
+    Args:
+        event: The original ConsoleEvent (may contain secrets)
+
+    Returns:
+        A new ConsoleEvent with sensitive fields redacted
+    """
+    return ConsoleEvent(
+        ts=event.ts,
+        kind=event.kind,
+        backend=event.backend,
+        model=event.model,
+        text=redact_sensitive_data(event.text) if event.text else None,
+        tool=event.tool,  # tool names are not secrets
+        args=redact_sensitive_data(event.args) if event.args else None,
+        result=redact_sensitive_data(event.result) if event.result else None,
+        is_error=event.is_error,
+        usage=redact_sensitive_data(event.usage) if event.usage else None,
+        raw_event_kind=event.raw_event_kind,
+        attachments=event.attachments,  # file paths are not typically secrets
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -680,9 +715,16 @@ class ConsoleSession:
 
         Both operations are best-effort — we don't want a buggy on_event
         consumer to corrupt the transcript or vice-versa.
+
+        SECURITY: The event is redacted before JSONL storage and before
+        fanning out to on_event callbacks to prevent secrets from leaking
+        into state/activity/telemetry.
         """
+        # Redact sensitive fields in the event before any exposure
+        redacted_event = _redact_console_event(event)
+
         try:
-            self.store.append(self.project_id, event.to_dict())
+            self.store.append(self.project_id, redacted_event.to_dict())
         except Exception as exc:
             logger.warning(
                 "ConsoleSession[%s] store.append failed: %s",
@@ -690,7 +732,7 @@ class ConsoleSession:
             )
         if self.on_event is not None:
             try:
-                self.on_event(event)
+                self.on_event(redacted_event)
             except Exception as exc:
                 logger.debug(
                     "ConsoleSession[%s] on_event callback raised: %s",

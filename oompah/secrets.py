@@ -113,9 +113,9 @@ SECRET_KEYS = frozenset({
 # Regex patterns that identify secrets in text
 # Each tuple is (pattern, replacement)
 SECRET_PATTERNS = [
-    # HTTP Basic Auth in URLs: http://user:pass@host or https://admin:12345@db.com
+    # URLs with embedded userinfo (any scheme): http://user:pass@host, postgresql://user:pass@host, etc.
     # Redact everything between :// and @ to handle both user and password
-    (r"(https?://)([^@\s/]+)(?::([^@\s/]+))?(@)", r"\1[REDACTED]\4"),
+    (r"([a-zA-Z][a-zA-Z0-9+.-]*://)([^@\s/]+(?::[^@\s/]+)?)(@)", r"\1[REDACTED]\3"),
     # Bearer tokens: Bearer xxxxx (with optional padding)
     (r"(Bearer\s+)([A-Za-z0-9\-._~+/]+=*)", r"\1[REDACTED]"),
     # API keys: with = or : as separator (both query strings and config files)
@@ -223,10 +223,14 @@ def redact_sensitive_data(
     # Depth guard: prevent infinite loops on circular structures
     if _depth >= _max_depth:
         logger.debug(
-            "redact_sensitive_data: max recursion depth %d reached",
+            "redact_sensitive_data: max recursion depth %d reached; "
+            "returning marker for safety",
             _max_depth,
         )
-        return value
+        # Fail-closed: at max depth, we can't recursively inspect nested
+        # structures, so return a marker rather than the potentially
+        # secret-containing value.
+        return _REDACTED
 
     # None and bool are immutable and never secret
     if value is None or isinstance(value, bool):
@@ -308,13 +312,14 @@ def redact_sensitive_data(
         try:
             return type(value)(**redacted_fields)
         except (TypeError, ValueError) as exc:
-            # If reconstruction fails, return a safe string representation (defensive)
+            # If reconstruction fails, fail-closed: return a safe marker
+            # rather than the original unredacted dataclass.
             logger.debug(
-                "Failed to reconstruct dataclass %s: %s",
+                "Failed to reconstruct dataclass %s: %s; returning marker",
                 type(value).__name__, exc,
             )
-            # Return the original value unchanged rather than converting to string
-            return value
+            # Fail-closed: return a marker indicating redaction occurred
+            return f"{type(value).__name__}([REDACTED])"
 
     # For unknown types, attempt to handle repr() forms (for credential objects)
     # Only do this if the type name or module suggests it might contain credentials
@@ -340,10 +345,25 @@ def redact_sensitive_data(
                 )
                 # Return a safe string representation
                 return f"{type(value).__name__}([REDACTED])"
-        except Exception:
-            pass
+            else:
+                # Repr didn't contain obvious secrets patterns
+                # but credential-like types should still be treated conservatively
+                logger.debug(
+                    "redact_sensitive_data: credential-like object %s "
+                    "with no obvious patterns; returning marker for safety",
+                    type(value).__name__,
+                )
+                return f"{type(value).__name__}([REDACTED])"
+        except Exception as exc:
+            # If repr() fails on a credential-like object, definitely redact
+            logger.debug(
+                "redact_sensitive_data: repr of credential-like %s "
+                "raised exception (%s); returning marker",
+                type(value).__name__, exc,
+            )
+            return f"{type(value).__name__}([REDACTED])"
 
-    # Return value unchanged if we don't know how to redact it
+    # For non-credential-like unknown types, return unchanged
     return value
 
 
