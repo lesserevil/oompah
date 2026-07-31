@@ -6867,35 +6867,55 @@ class Orchestrator:
         issues: list[Issue],
         queue_items: list[IntegrationQueueItem],
     ) -> int:
-        """Cancel stale delivery rows whose tracker task left the queue lane."""
+        """Cancel stale delivery rows whose tracker task left the queue lane.
+
+        A row is retired whenever the task's tracker status is anything other
+        than READY_TO_INTEGRATE.  The previous guard (only terminal states plus
+        IN_VALIDATION/NEEDS_HUMAN) left rows alive when a task was moved back
+        to Open, which caused the gate to continue running or re-launch after
+        operator rejection — the live race reproduced repeatedly on OOMPAH-655,
+        OOMPAH-653, and OOMPAH-658.
+
+        We also cancel the gate generation for each retired row.  The row
+        retirement stops the queue item from being picked up again, while the
+        generation cancellation terminates (or tombstones, for pre-spawn cases)
+        any currently running or about-to-spawn gate.
+        """
 
         by_alias: dict[str, Issue] = {}
         for issue in issues:
             for alias in (issue.id, issue.identifier):
                 if str(alias or "").strip():
                     by_alias[str(alias).strip()] = issue
-        inactive_states = set(TERMINAL_STATUSES) | {
-            IN_VALIDATION,
-            NEEDS_HUMAN,
-        }
         retired = 0
         for item in queue_items:
             if item.state not in {"ready", "integrating", "blocked"}:
                 continue
             issue = by_alias.get(item.task_id)
             status = canonicalize_status(getattr(issue, "state", ""))
-            if issue is None or status not in inactive_states:
+            # Retire the row unless the tracker still authorises delivery.
+            # Any status other than READY_TO_INTEGRATE means the task has left
+            # the queue lane (rejected back to Open, terminal, reassigned, etc.).
+            if issue is not None and status == READY_TO_INTEGRATE:
                 continue
             if self.integration_queue.cancel(
                 project_id,
                 item.task_id,
-                reason=f"tracker state is {status}",
+                reason=f"tracker state is {status if issue is not None else 'unknown'}",
             ):
                 retired += 1
                 self._clear_integration_delivery_alert(
                     project_id,
                     item.task_id,
                 )
+            # Cancel the running or pre-spawn gate for this exact item so the
+            # process group is terminated even if the queue cancel arrived just
+            # before the gate loop claimed the item.
+            gate_generation = (
+                f"integration:{item.project_id}:{item.task_id}:"
+                f"{item.head_sha}:{item.lease_owner or ''}"
+            )
+            self._branch_quality_gate.cancel_generation(gate_generation)
         return retired
 
     def _execute_integration_item(

@@ -631,3 +631,222 @@ def test_explicit_retry_can_recover_from_transient_failure(tmp_path):
     # Third run: forced retry bypasses cache, re-executes, and passes
     retry = _run(gate, repo, f"test -f {shlex.quote(str(trigger))} && exit 1 || true", retry_forced=True)
     assert retry.status == "passed" and not retry.cached
+
+
+# ---------------------------------------------------------------------------
+# Deterministic pre-spawn barrier tests
+# These cover the three live failure windows identified in OOMPAH-657.
+# ---------------------------------------------------------------------------
+
+
+def test_tombstone_set_before_run_stops_gate_at_first_barrier(tmp_path):
+    """cancel_generation before run() prevents any snapshot or spawn.
+
+    Barrier 1: The tombstone is checked before _create_snapshot().  A gate
+    cancelled by the tracker transition to Open/rejected before it even
+    starts must not create a snapshot or run the command.
+    """
+    repo = _git_repo(tmp_path)
+    marker = tmp_path / "must-not-run"
+    gate = BranchQualityGate(str(tmp_path / "quality.json"))
+    head = BranchQualityGate._head_sha(str(repo))
+
+    # Tombstone the generation before run() is called.  This simulates
+    # _retire_inactive_integration_rows cancelling the generation when the
+    # tracker moves a task from Ready to Integrate to Open before the gate
+    # loop has a chance to spawn the process.
+    BranchQualityGate.cancel_generation("pre-spawn-gen")
+    try:
+        result = _run(
+            gate,
+            repo,
+            f"touch {shlex.quote(str(marker))}",
+            expected_head_sha=head,
+            generation="pre-spawn-gen",
+        )
+
+        assert result.status == "interrupted"
+        assert not marker.exists()
+        # The tombstone must be cleaned up after the gate exits.
+        with BranchQualityGate._processes_lock:
+            assert "pre-spawn-gen" not in BranchQualityGate._cancelled_generations
+    finally:
+        BranchQualityGate.cleanup_active_processes()
+        with BranchQualityGate._processes_lock:
+            BranchQualityGate._cancelled_generations.discard("pre-spawn-gen")
+
+
+def test_is_current_false_before_snapshot_stops_gate_at_barrier_one(tmp_path):
+    """is_current() returning False before snapshot creation stops the gate.
+
+    Barrier 1: authority is checked before _create_snapshot() so that the
+    expensive git worktree add is never called when the task is no longer
+    authorised.
+    """
+    repo = _git_repo(tmp_path)
+    marker = tmp_path / "must-not-run"
+    gate = BranchQualityGate(str(tmp_path / "quality.json"))
+    head = BranchQualityGate._head_sha(str(repo))
+
+    result = _run(
+        gate,
+        repo,
+        f"touch {shlex.quote(str(marker))}",
+        expected_head_sha=head,
+        generation="barrier1-gen",
+        # Authority already withdrawn — simulates a Ready-to-Open transition
+        # that completes before the gate even acquires the key lock.
+        is_current=lambda: False,
+    )
+
+    assert result.status == "interrupted"
+    assert not marker.exists()
+    # No snapshot should have been created.
+    with BranchQualityGate._processes_lock:
+        assert not BranchQualityGate._active_snapshots
+
+
+def test_is_current_false_after_snapshot_stops_gate_before_spawn(tmp_path):
+    """is_current() returning False after snapshot but before Popen stops gate.
+
+    Barrier 2: authority is rechecked after _create_snapshot() completes
+    (which can take up to 60 s) and before subprocess.Popen() is called,
+    closing the window where cancel_generation() arrived during worktree
+    creation but found no registered process to kill.
+    """
+    repo = _git_repo(tmp_path)
+    marker = tmp_path / "must-not-run"
+    gate = BranchQualityGate(str(tmp_path / "quality.json"))
+    head = BranchQualityGate._head_sha(str(repo))
+    original_create = BranchQualityGate._create_snapshot
+
+    # Simulate authority being withdrawn mid-snapshot by patching
+    # _create_snapshot to flip the authority flag after it returns.
+    authority = threading.Event()
+    authority.set()
+
+    def _create_and_revoke(repo_path: str, head_sha: str):
+        snap = original_create(repo_path, head_sha)
+        # Revoke authority to simulate the Ready-to-Open transition arriving
+        # while the worktree was being created.
+        authority.clear()
+        return snap
+
+    gate._create_snapshot = staticmethod(_create_and_revoke)
+    try:
+        result = _run(
+            gate,
+            repo,
+            f"touch {shlex.quote(str(marker))}",
+            expected_head_sha=head,
+            generation="barrier2-gen",
+            is_current=authority.is_set,
+        )
+
+        assert result.status == "interrupted"
+        assert not marker.exists()
+    finally:
+        BranchQualityGate.cleanup_active_processes()
+
+
+def test_tombstone_during_snapshot_stops_gate_at_barrier_two(tmp_path):
+    """cancel_generation() during _create_snapshot() stops gate before spawn.
+
+    This covers the same Barrier 2 window as the is_current variant but
+    uses the tombstone path: cancel_generation() is called on a thread
+    that blocks inside the (mocked) snapshot creation and the gate must
+    not proceed to Popen even though it was not yet registered.
+    """
+    repo = _git_repo(tmp_path)
+    marker = tmp_path / "must-not-run"
+    gate = BranchQualityGate(str(tmp_path / "quality.json"))
+    head = BranchQualityGate._head_sha(str(repo))
+    original_create = BranchQualityGate._create_snapshot
+
+    snapshot_started = threading.Event()
+
+    def _slow_create(repo_path: str, head_sha: str):
+        snapshot_started.set()
+        # Block until the test thread has set the tombstone.
+        while "tombstone-during-snap" not in BranchQualityGate._cancelled_generations:
+            time.sleep(0.01)
+        return original_create(repo_path, head_sha)
+
+    gate._create_snapshot = staticmethod(_slow_create)
+    try:
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(
+                _run,
+                gate,
+                repo,
+                f"touch {shlex.quote(str(marker))}",
+                expected_head_sha=head,
+                generation="tombstone-during-snap",
+            )
+            # Wait until the gate is inside the (slow) snapshot creation,
+            # then tombstone it to simulate a Ready-to-Open row retirement
+            # arriving while the worktree is being materialised.
+            assert snapshot_started.wait(timeout=5), "snapshot hook not reached"
+            BranchQualityGate.cancel_generation("tombstone-during-snap")
+            result = future.result(timeout=10)
+
+        assert result.status == "interrupted"
+        assert not marker.exists()
+        # Tombstone must be cleaned up.
+        with BranchQualityGate._processes_lock:
+            assert "tombstone-during-snap" not in BranchQualityGate._cancelled_generations
+    finally:
+        BranchQualityGate.cleanup_active_processes()
+        with BranchQualityGate._processes_lock:
+            BranchQualityGate._cancelled_generations.discard("tombstone-during-snap")
+
+
+def test_tombstone_set_between_popen_and_registration_stops_gate(tmp_path):
+    """cancel_generation() between Popen and registration terminates the process.
+
+    Barrier 3: the gate checks the tombstone under _processes_lock immediately
+    after registering the process (the same lock cancel_generation uses), so a
+    cancel that races Popen will kill the just-spawned process and return
+    interrupted rather than letting the command run to completion.
+    """
+    repo = _git_repo(tmp_path)
+    marker = tmp_path / "must-not-run"
+    gate = BranchQualityGate(str(tmp_path / "quality.json"))
+    head = BranchQualityGate._head_sha(str(repo))
+    original_create = BranchQualityGate._create_snapshot
+
+    snapshot_done = threading.Event()
+
+    def _create_and_signal(repo_path: str, head_sha: str):
+        snap = original_create(repo_path, head_sha)
+        # Signal that the snapshot is ready; the test thread will tombstone
+        # the generation while Popen is being called.  The gate must still
+        # detect the cancel via barrier 3 (post-registration check).
+        snapshot_done.set()
+        return snap
+
+    gate._create_snapshot = staticmethod(_create_and_signal)
+    try:
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(
+                _run,
+                gate,
+                repo,
+                f"sleep 30 && touch {shlex.quote(str(marker))}",
+                expected_head_sha=head,
+                generation="popen-to-reg-gen",
+            )
+            # Wait until after snapshot creation, then tombstone to simulate
+            # the Popen-to-registration window cancellation.
+            assert snapshot_done.wait(timeout=5), "snapshot hook not reached"
+            BranchQualityGate.cancel_generation("popen-to-reg-gen")
+            result = future.result(timeout=10)
+
+        assert result.status == "interrupted"
+        assert not marker.exists()
+        with BranchQualityGate._processes_lock:
+            assert "popen-to-reg-gen" not in BranchQualityGate._cancelled_generations
+    finally:
+        BranchQualityGate.cleanup_active_processes()
+        with BranchQualityGate._processes_lock:
+            BranchQualityGate._cancelled_generations.discard("popen-to-reg-gen")

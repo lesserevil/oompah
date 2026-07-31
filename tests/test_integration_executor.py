@@ -141,7 +141,30 @@ def test_executor_preserves_retryable_quality_gate_interruption(tmp_path):
 def test_executor_rechecks_authority_after_gate_before_epic_push(tmp_path):
     remote, epic, task, task_head = _repo(tmp_path)
     original_epic_head = _git(epic, "rev-parse", "origin/epic-E-1")
-    checks = iter((True, False))
+
+    # The gate's run() now calls is_current() at two pre-spawn barriers
+    # (before and after snapshot creation) in addition to the monitor thread
+    # poll during execution.  Using a fixed iterator like iter((True, False))
+    # is therefore fragile.  Instead we use a state flag that stays True until
+    # the gate has returned its result, then flips to False, so the
+    # authority check in execute_integration (before epic commit) fails.
+    gate_completed = [False]
+
+    def commit_allowed() -> bool:
+        return not gate_completed[0]
+
+    inner_gate = BranchQualityGate(str(tmp_path / "quality.json"))
+
+    class _GateWrapper:
+        """Flip the flag after the gate returns so post-gate check fails."""
+
+        def run(self, **kwargs):
+            result = inner_gate.run(**kwargs)
+            # Signal that the gate has completed: all subsequent
+            # commit_allowed() calls (the post-gate authority check in
+            # execute_integration) should now return False.
+            gate_completed[0] = True
+            return result
 
     result = execute_integration(
         project_lock=nullcontext(),
@@ -150,10 +173,10 @@ def test_executor_rechecks_authority_after_gate_before_epic_push(tmp_path):
         epic_branch="epic-E-1",
         task_branch="epic-E-1--task-T-1",
         submitted_head_sha=task_head,
-        quality_gate=BranchQualityGate(str(tmp_path / "quality.json")),
+        quality_gate=_GateWrapper(),
         quality_command="true",
         repo_identity=str(remote),
-        commit_allowed=lambda: next(checks),
+        commit_allowed=commit_allowed,
     )
 
     assert result.status == "cancelled"

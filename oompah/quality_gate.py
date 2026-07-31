@@ -57,6 +57,12 @@ class BranchQualityGate:
     # scoping ensures cancellation cannot terminate a replacement gate.
     _active_generations: dict[int, str | None] = {}
     _active_snapshots: dict[int, Path] = {}
+    # Durable tombstones for cancelled generations: set before the gate
+    # spawns so that pre-spawn authority withdrawals (during snapshot
+    # creation or between Popen and registration) are guaranteed to stop
+    # the gate even if the process is not yet in _active_generations.
+    # Protected by _processes_lock; cleaned up in the gate's finally block.
+    _cancelled_generations: set[str] = set()
     _processes_lock = threading.Lock()
 
     def __init__(
@@ -80,6 +86,11 @@ class BranchQualityGate:
     ) -> int:
         """Terminate active process groups owned by *generation*.
 
+        When *generation* is given, the generation is also added to
+        _cancelled_generations so that gates not yet spawned (during snapshot
+        creation or between Popen and registration) also see the cancellation
+        on their next barrier check.
+
         Keeping this operation centralized makes shutdown and task-specific
         cancellation use the same process-group and snapshot cleanup rules.
         """
@@ -94,6 +105,11 @@ class BranchQualityGate:
                 # The run thread uses this marker to return a non-cached
                 # interruption instead of recording a false CI failure.
                 setattr(process, "_oompah_interrupted", True)
+            # Record a durable tombstone so that gates currently between
+            # pre-spawn barrier checks (snapshot creation, Popen-to-
+            # registration window) also stop on their next check.
+            if generation is not None:
+                cls._cancelled_generations.add(generation)
 
         terminated_count = 0
         for pid, process in processes:
@@ -151,8 +167,25 @@ class BranchQualityGate:
 
     @classmethod
     def cancel_generation(cls, generation: str) -> int:
-        """Cancel only gates belonging to one exact task generation."""
+        """Cancel only gates belonging to one exact task generation.
+
+        Sets a durable tombstone so that gates currently between pre-spawn
+        barrier checks (during snapshot creation or between Popen and
+        registration) also stop when they next reach a check point.
+        """
         return cls._terminate_active_processes(generation=str(generation))
+
+    @classmethod
+    def _generation_is_cancelled(cls, generation: str) -> bool:
+        """Return True when *generation* has been tombstoned by cancel_generation."""
+        with cls._processes_lock:
+            return generation in cls._cancelled_generations
+
+    @classmethod
+    def _clear_generation_tombstone(cls, generation: str) -> None:
+        """Remove *generation* from the cancelled set after the gate exits."""
+        with cls._processes_lock:
+            cls._cancelled_generations.discard(generation)
 
     @staticmethod
     def _head_sha(repo_path: str) -> str:
@@ -370,9 +403,21 @@ class BranchQualityGate:
         is_current: Callable[[], bool] | None = None,
     ) -> QualityGateResult:
         """Return passing evidence or execute the configured full check.
-        
+
         When retry_forced=True, bypasses cache for failed/timed_out/error
         results and re-executes. Passed results remain cached and reusable.
+
+        Pre-spawn barriers
+        ------------------
+        Two deterministic checkpoints prevent stale gate spawns:
+
+        1. Before snapshot creation: checks tombstone + is_current.
+        2. After snapshot creation, before Popen: checks tombstone + is_current.
+
+        A third barrier closes the Popen-to-registration window: after
+        registering the process, the code re-checks the tombstone under the
+        same lock and immediately kills+marks-interrupted any process that
+        was cancelled between Popen and registration.
         """
         command = str(command or "").strip()
         if not command:
@@ -410,6 +455,7 @@ class BranchQualityGate:
                 output_tail=f"Could not resolve branch HEAD: {exc}",
             )
 
+        owned_generation = str(generation) if generation is not None else None
         key = self._evidence_key(
             repo_identity=repo_identity,
             target_branch=target_branch,
@@ -447,6 +493,37 @@ class BranchQualityGate:
             monitor_stop = threading.Event()
             monitor: threading.Thread | None = None
             try:
+                # --- Barrier 1: before snapshot creation ---
+                # Check authority before the expensive git worktree add.
+                # cancel_generation() may have been called while we were
+                # waiting in the key lock or the evidence load above.
+                if owned_generation is not None and self._generation_is_cancelled(
+                    owned_generation
+                ):
+                    return QualityGateResult(
+                        status="interrupted",
+                        head_sha=head_sha,
+                        command=command,
+                        duration_seconds=time.monotonic() - started,
+                        output_tail="Gate cancelled before snapshot creation.",
+                    )
+                if is_current is not None:
+                    try:
+                        authority_ok = bool(is_current())
+                    except Exception as exc:  # noqa: BLE001
+                        authority_ok = False
+                        logger.warning(
+                            "Quality gate pre-spawn authority check failed: %s", exc
+                        )
+                    if not authority_ok:
+                        return QualityGateResult(
+                            status="interrupted",
+                            head_sha=head_sha,
+                            command=command,
+                            duration_seconds=time.monotonic() - started,
+                            output_tail="Gate authority withdrawn before snapshot creation.",
+                        )
+
                 snapshot = self._create_snapshot(repo_path, head_sha)
                 if self._head_sha(str(snapshot)) != head_sha:
                     return QualityGateResult(
@@ -455,6 +532,37 @@ class BranchQualityGate:
                         command=command,
                         output_tail="Quality gate snapshot changed before spawn.",
                     )
+
+                # --- Barrier 2: after snapshot, before Popen ---
+                # cancel_generation() may have arrived during the up-to-60s
+                # worktree creation above.  Check again before spawning.
+                if owned_generation is not None and self._generation_is_cancelled(
+                    owned_generation
+                ):
+                    return QualityGateResult(
+                        status="interrupted",
+                        head_sha=head_sha,
+                        command=command,
+                        duration_seconds=time.monotonic() - started,
+                        output_tail="Gate cancelled after snapshot creation, before spawn.",
+                    )
+                if is_current is not None:
+                    try:
+                        authority_ok = bool(is_current())
+                    except Exception as exc:  # noqa: BLE001
+                        authority_ok = False
+                        logger.warning(
+                            "Quality gate pre-spawn authority check failed: %s", exc
+                        )
+                    if not authority_ok:
+                        return QualityGateResult(
+                            status="interrupted",
+                            head_sha=head_sha,
+                            command=command,
+                            duration_seconds=time.monotonic() - started,
+                            output_tail="Gate authority withdrawn after snapshot, before spawn.",
+                        )
+
                 process = subprocess.Popen(  # noqa: S602 - operator-owned command
                     command,
                     cwd=snapshot,
@@ -465,16 +573,33 @@ class BranchQualityGate:
                     text=True,
                     start_new_session=True,
                 )
-                # Track process group for graceful shutdown cleanup
+                # Track process group for graceful shutdown cleanup.
+                # --- Barrier 3: Popen-to-registration window ---
+                # Re-check the tombstone under the lock immediately after
+                # registration so that cancel_generation() calls that arrived
+                # between Popen and here are caught and the just-spawned
+                # process is killed before the monitor thread starts.
                 with self._processes_lock:
-                    owned_generation = (
-                        str(generation)
-                        if generation is not None
-                        else f"pid:{process.pid}"
-                    )
+                    if owned_generation is None:
+                        owned_generation = f"pid:{process.pid}"
                     self._active_processes[process.pid] = process
                     self._active_generations[process.pid] = owned_generation
                     self._active_snapshots[process.pid] = snapshot
+                    # Check tombstone under the same lock that cancel_generation
+                    # uses to add to _cancelled_generations and mark _interrupted.
+                    post_spawn_cancelled = (
+                        owned_generation in self._cancelled_generations
+                    )
+                    if post_spawn_cancelled:
+                        setattr(process, "_oompah_interrupted", True)
+
+                if post_spawn_cancelled:
+                    # Kill the just-spawned process; the normal flow will
+                    # see _oompah_interrupted=True and return interrupted.
+                    try:
+                        os.killpg(process.pid, signal.SIGTERM)
+                    except (ProcessLookupError, OSError):
+                        pass
 
                 if is_current is not None:
                     def _monitor_gate_authority() -> None:
@@ -608,6 +733,10 @@ class BranchQualityGate:
                         self._active_snapshots.pop(process.pid, None)
                 if snapshot is not None:
                     self._remove_snapshot(repo_path, snapshot)
+                # Remove the tombstone once the gate exits so that the set
+                # does not grow unboundedly over the lifetime of the server.
+                if owned_generation is not None:
+                    self._clear_generation_tombstone(owned_generation)
 
             result = QualityGateResult(
                 status="passed",

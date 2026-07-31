@@ -8,7 +8,8 @@ from oompah.config import ServiceConfig
 from oompah.integration import IntegrationRecord
 from oompah.models import Issue, Project
 from oompah.orchestrator import Orchestrator
-from oompah.statuses import DONE, NEEDS_REBASE, READY_TO_INTEGRATE
+from oompah.quality_gate import BranchQualityGate
+from oompah.statuses import DONE, NEEDS_REBASE, OPEN, READY_TO_INTEGRATE
 
 
 def _issue(
@@ -187,6 +188,99 @@ def test_terminal_task_retires_active_row_and_invalidates_lease(tmp_path):
             issue.identifier,
             lease_owner="stale-worker",
             error="late conflict",
+        )
+    finally:
+        _close(orchestrator)
+
+
+def test_retire_inactive_rows_retires_open_tasks_and_cancels_gate_generation(tmp_path):
+    """Tasks returned to Open must have their integration row retired and gate cancelled.
+
+    Root cause of OOMPAH-657: _retire_inactive_integration_rows excluded Open
+    from its inactive_states set, so a task moved from Ready to Integrate back
+    to Open kept its row alive and the gate continued running or re-launched.
+
+    This test also verifies that cancel_generation is called for each retired
+    row, tombstoning the generation so a pre-spawn gate (in snapshot creation
+    or between Popen and registration) also stops.
+    """
+    issue = _issue(state=OPEN, integration_state="ready")
+    orchestrator, project, _tracker = _make_harness(tmp_path, issue)
+    try:
+        orchestrator.integration_queue.enqueue(
+            project_id=project.id,
+            epic_id="EPIC-1",
+            task_id=issue.identifier,
+            task_branch=issue.integration.task_branch,
+            head_sha=issue.integration.head_sha,
+        )
+        # Claim the item so it transitions to "integrating" state (mimics the
+        # live scenario where the row was claimed just before the Open transition).
+        claimed = orchestrator.integration_queue.claim_next(
+            project_id=project.id,
+            epic_id="EPIC-1",
+            lease_owner="stale-worker",
+            dependency_map={issue.identifier: ()},
+            satisfied=set(),
+        )
+        assert claimed is not None
+
+        # Compute the expected generation string (same formula as
+        # _execute_integration_item).
+        expected_gen = (
+            f"integration:{claimed.project_id}:{claimed.task_id}:"
+            f"{claimed.head_sha}:{claimed.lease_owner or ''}"
+        )
+
+        # Ensure the tombstone set is clean before the call.
+        with BranchQualityGate._processes_lock:
+            BranchQualityGate._cancelled_generations.discard(expected_gen)
+
+        retired = orchestrator._retire_inactive_integration_rows(
+            project.id,
+            [issue],
+            [claimed],
+        )
+
+        assert retired == 1
+        row = orchestrator.integration_queue.items(project_id=project.id)[0]
+        assert row.state == "cancelled"
+
+        # The generation tombstone must have been set so that any running or
+        # pre-spawn gate for this exact item also stops.
+        with BranchQualityGate._processes_lock:
+            assert expected_gen in BranchQualityGate._cancelled_generations
+    finally:
+        # Clean up tombstone to avoid polluting other tests.
+        with BranchQualityGate._processes_lock:
+            BranchQualityGate._cancelled_generations.clear()
+        _close(orchestrator)
+
+
+def test_retire_inactive_rows_does_not_retire_ready_to_integrate_tasks(tmp_path):
+    """A task still in Ready to Integrate must keep its integration row alive."""
+    issue = _issue(state=READY_TO_INTEGRATE, integration_state="ready")
+    orchestrator, project, _tracker = _make_harness(tmp_path, issue)
+    try:
+        orchestrator.integration_queue.enqueue(
+            project_id=project.id,
+            epic_id="EPIC-1",
+            task_id=issue.identifier,
+            task_branch=issue.integration.task_branch,
+            head_sha=issue.integration.head_sha,
+        )
+        item = orchestrator.integration_queue.items(project_id=project.id)[0]
+
+        retired = orchestrator._retire_inactive_integration_rows(
+            project.id,
+            [issue],
+            [item],
+        )
+
+        assert retired == 0
+        assert (
+            orchestrator.integration_queue.items(project_id=project.id)[0].state
+            == "ready"
         )
     finally:
         _close(orchestrator)
