@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-653
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Make terminal-audit success and owner override retire every duplicate record
   and alert
@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T11:53:31.817654Z'
+updated_at: '2026-07-31T11:53:42.384228Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -148,9 +148,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-653
-  head_sha: 44742bb1f7db1a1b1c1d62dea822a549e15499c3
-  submitted_at: '2026-07-31T11:27:19.397701+00:00'
-  updated_at: '2026-07-31T11:27:19.397701+00:00'
+  head_sha: 93c47346cd7317113482326ee975c7eba7b2a636
+  submitted_at: '2026-07-31T11:53:39.868841+00:00'
+  updated_at: '2026-07-31T11:53:39.868841+00:00'
 ---
 ## Summary
 
@@ -721,5 +721,10 @@ Recovery authority validation is now in place:
 ✓ All existing terminal-audit and transition tests pass
 
 The implementation closes the specific defects identified in code review (comments 62-64) regarding recovery authority selection and evidence validation. Full integration gate remains blocked on OOMPAH-657 as documented.
+---
+author: oompah
+created: 2026-07-31 11:53
+---
+Implemented terminal-audit recovery authority validation: override evidence fingerprint matching, created_at-based selection for overrides and results, and stale override retirement. All 143 terminal-audit and transition coordinator tests pass. Implementation closed defects identified in code review (comments 62-64) regarding recovery authority selection and evidence validation. Full integration gate remains blocked on OOMPAH-657 dependency.
 ---
 <!-- COMMENTS:END -->
