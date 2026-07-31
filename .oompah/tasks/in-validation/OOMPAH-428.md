@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-428
 type: task
-status: Needs Human
+status: In Validation
 priority: null
 title: Harden PR creation gate and work_branch reconciliation for shared-epic child
   tasks
@@ -13,7 +13,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-23T21:34:08.303204Z'
-updated_at: '2026-07-31T06:00:14.504029Z'
+updated_at: '2026-07-31T06:00:37.922044Z'
 work_branch: epic-OOMPAH-426
 target_branch: null
 review_url: null
@@ -58,7 +58,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-428
     target_state: Archived
-    request_state: in_progress
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -84,6 +84,37 @@ oompah.terminal_audit:
     previous_state: Merged
     created_at: '2026-07-30T22:31:38.986991+00:00'
     updated_at: '2026-07-30T22:36:12.130565+00:00'
+  - version: 1
+    audit_id: audit-d12b80ae98f4
+    project_id: proj-14849f1b
+    task_id: OOMPAH-428
+    target_state: Archived
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 89cbcc5cb0097a365dee51f5ccddc8046f4c794b9ec1eaf04b672d18a970fb23
+    attempts:
+    - version: 1
+      attempt_id: attempt-c5bc0c9126c3
+      target_state: Archived
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 89cbcc5cb0097a365dee51f5ccddc8046f4c794b9ec1eaf04b672d18a970fb23
+      created_at: '2026-07-31T06:00:37.048713+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-31T06:00:37.048713+00:00'
+      branch_key: epic-OOMPAH-426
+    requested_by:
+      version: 1
+      identity: api-client
+      source: api
+    previous_state: Needs Human
+    created_at: '2026-07-31T06:00:29.719227+00:00'
+    updated_at: '2026-07-31T06:00:37.048713+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-e6b946c713cc
@@ -97,6 +128,19 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: opus
     started_at: '2026-07-30T22:36:12.130565+00:00'
+    branch_key: epic-OOMPAH-426
+  - version: 1
+    attempt_id: attempt-c5bc0c9126c3
+    target_state: Archived
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 89cbcc5cb0097a365dee51f5ccddc8046f4c794b9ec1eaf04b672d18a970fb23
+    created_at: '2026-07-31T06:00:37.048713+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-31T06:00:37.048713+00:00'
     branch_key: epic-OOMPAH-426
 ---
 ## Summary
