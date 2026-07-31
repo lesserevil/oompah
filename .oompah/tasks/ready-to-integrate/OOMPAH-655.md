@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T11:06:30.718896Z'
+updated_at: '2026-07-31T11:06:43.269974Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,13 +37,13 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 4c85ec71-426b-4a1f-baa3-2647460cfc01
 oompah.task_costs:
-  total_input_tokens: 2699648
-  total_output_tokens: 8171
+  total_input_tokens: 2700398
+  total_output_tokens: 8343
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 2699648
-      output_tokens: 8171
+      input_tokens: 2700398
+      output_tokens: 8343
       cost_usd: 0.0
   runs:
   - profile: default
@@ -64,6 +64,12 @@ oompah.task_costs:
     output_tokens: 289
     cost_usd: 0.0
     recorded_at: '2026-07-31T10:59:20.698995+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 750
+    output_tokens: 172
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T11:06:41.591231+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-655__20260731T103632Z
@@ -274,5 +280,15 @@ author: oompah
 created: 2026-07-31 11:06
 ---
 Enforce full-gate service isolation via git ancestry verification. Replaced substring-matching preflight with non-spoofable git ancestry check. Candidate branches must contain OOMPAH-652 safety head (ec0ec7d89) in git history or fail closed with needs_rebase. Tests prove hostile Makefiles with spoofed markers are rejected without executing (verified by sentinel side effects). All 93 tests pass.
+---
+author: oompah
+created: 2026-07-31 11:06
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 40
+- Tokens: 750 in / 172 out [922 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 6m 4s
+- Log: OOMPAH-655__20260731T110041Z.jsonl
 ---
 <!-- COMMENTS:END -->
