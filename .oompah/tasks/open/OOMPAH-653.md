@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-653
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Make terminal-audit success and owner override retire every duplicate record
   and alert
@@ -16,7 +16,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T12:28:33.647492Z'
+updated_at: '2026-07-31T13:01:18.878258Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -889,5 +889,10 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 2m 28s
 - Log: OOMPAH-653__20260731T122607Z.jsonl
+---
+author: oompah
+created: 2026-07-31 13:01
+---
+Fresh production reproduction after OOMPAH-657: audit audit-6e9bfb54bf88 returned PASS and was accepted, yet OOMPAH-657 remained In Validation with sibling audit-d890e34298d5 queued until owner override override-58de5613106a. The override moved the task but the sibling remains in terminal_audit_enforcement pending metrics. Rebase the clean pushed implementation head 69fff643e onto current main, ensure this exact PASS/override race is covered, and submit through the immutable gate path.
 ---
 <!-- COMMENTS:END -->
