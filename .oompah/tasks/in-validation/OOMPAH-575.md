@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-575
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: 0
 title: Propagate scoped task CLI auth to Codex agent sessions
 parent: null
@@ -12,7 +12,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-07-30T02:15:25.255613Z'
-updated_at: '2026-07-31T06:00:13.070943Z'
+updated_at: '2026-07-31T06:06:29.191691Z'
 work_branch: OOMPAH-575
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/604
@@ -114,6 +114,72 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/604
 oompah.review_number: '604'
 oompah.work_branch: OOMPAH-575
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-0596d209fc36
+    project_id: proj-14849f1b
+    task_id: OOMPAH-575
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 2317e9c9e9acc6a60103dbb44d5a82f52f7e9dc38fdfd1e215e51aa9e5c0d2cd
+    attempts:
+    - version: 1
+      attempt_id: attempt-f2dbc8673586
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 2317e9c9e9acc6a60103dbb44d5a82f52f7e9dc38fdfd1e215e51aa9e5c0d2cd
+      created_at: '2026-07-31T06:06:21.534804+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-31T06:06:21.534804+00:00'
+      branch_key: OOMPAH-575
+    requested_by:
+      version: 1
+      identity: api-client
+      source: api
+    previous_state: Ready to Integrate
+    created_at: '2026-07-31T06:06:07.644926+00:00'
+    updated_at: '2026-07-31T06:06:21.534804+00:00'
+  - version: 1
+    audit_id: audit-3f0f5b312547
+    project_id: proj-14849f1b
+    task_id: OOMPAH-575
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 2317e9c9e9acc6a60103dbb44d5a82f52f7e9dc38fdfd1e215e51aa9e5c0d2cd
+    attempts: []
+    requested_by:
+      version: 1
+      identity: api-client
+      source: api
+    previous_state: Ready to Integrate
+    created_at: '2026-07-31T06:06:07.644926+00:00'
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-f2dbc8673586
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 2317e9c9e9acc6a60103dbb44d5a82f52f7e9dc38fdfd1e215e51aa9e5c0d2cd
+    created_at: '2026-07-31T06:06:21.534804+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-31T06:06:21.534804+00:00'
+    branch_key: OOMPAH-575
 ---
 ## Summary
 
@@ -367,5 +433,25 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Claude
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 37s
 - Log: OOMPAH-575__20260731T055832Z.jsonl
+---
+author: oompah
+created: 2026-07-31 06:06
+---
+Post-restart delivery reconciliation: PR #604 is correctly closed with zero diff because the feature commit was already integrated through the recovery epic and is present in merged main; origin/OOMPAH-575 now equals main bb0fd760c3. Marking this delivered task Merged instead of leaving a permanently empty Ready row.
+---
+author: oompah
+created: 2026-07-31 06:06
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-07-31 06:06
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-07-31 06:06
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->

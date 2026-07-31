@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-615
 type: bug
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Fence implementation retries when terminal audits take ownership
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T20:22:18.934506Z'
-updated_at: '2026-07-30T20:47:57.128278Z'
+updated_at: '2026-07-31T06:06:19.170267Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -91,6 +91,28 @@ oompah.integration:
   head_sha: ce8a124fc76e1c97e666714503cdb599deb5e6b7
   submitted_at: '2026-07-30T20:45:26.045620+00:00'
   updated_at: '2026-07-30T20:45:26.045620+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-93adc6105c0b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-615
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b7e6173482539d849db77203ce8877caf5081f827ed98979628e401dd671dfb2
+    attempts: []
+    requested_by:
+      version: 1
+      identity: api-client
+      source: api
+    previous_state: Ready to Integrate
+    created_at: '2026-07-31T06:06:16.514388+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -165,5 +187,15 @@ author: oompah
 created: 2026-07-30 20:47
 ---
 This parentless Ready-to-Integrate record cannot enter the project's require-epic-parent delivery path. OOMPAH-616 is the canonical OOMPAH-585 child carrying commit ce8a124fc through integration; keep this record as provenance and do not redispatch it.
+---
+author: oompah
+created: 2026-07-31 06:06
+---
+Post-restart reconciliation: this parentless record is provenance superseded by canonical shared-epic child OOMPAH-616, which carried the terminal-audit fencing work through the merged recovery epic to main. Archiving the duplicate Ready row as previously instructed; do not redispatch it.
+---
+author: oompah
+created: 2026-07-31 06:06
+---
+Queued for terminal transition to Archived. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
