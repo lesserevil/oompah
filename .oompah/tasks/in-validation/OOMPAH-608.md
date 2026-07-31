@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T18:28:42.855708Z'
-updated_at: '2026-07-31T06:27:52.445680Z'
+updated_at: '2026-07-31T06:28:10.794211Z'
 work_branch: OOMPAH-608
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/606
@@ -44,13 +44,17 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: c9137319-e474-4adb-b050-5bf7f3fbf150
 oompah.task_costs:
-  total_input_tokens: 369191
-  total_output_tokens: 2591
+  total_input_tokens: 369228
+  total_output_tokens: 12124
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 369191
       output_tokens: 2591
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 37
+      output_tokens: 9533
       cost_usd: 0.0
   runs:
   - profile: default
@@ -65,6 +69,12 @@ oompah.task_costs:
     output_tokens: 261
     cost_usd: 0.0
     recorded_at: '2026-07-30T18:39:57.447553+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 37
+    output_tokens: 9533
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T06:28:08.117886+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-608__20260730T183314Z
@@ -389,5 +399,15 @@ Safe evidence:
 - idempotency: Deterministic regex substitution; triple-submission test covers this
 - size_limits: Enforced on redacted output for message, evidence values, and list items
 - files_changed: oompah/auditor.py (+138/-24), tests/test_auditor_result_api.py (+156/-45)
+---
+author: oompah
+created: 2026-07-31 06:28
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 44, Tool calls: 31
+- Tokens: 37 in / 9.5K out [9.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 9m 12s
+- Log: OOMPAH-608__20260731T061859Z.jsonl
 ---
 <!-- COMMENTS:END -->
