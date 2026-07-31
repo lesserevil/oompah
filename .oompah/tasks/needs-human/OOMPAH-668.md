@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-668
 type: bug
-status: Ready to Integrate
+status: Needs Human
 priority: 0
 title: Use the trusted test virtualenv without reinstalling inside quality-gate sandbox
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T21:35:20.853943Z'
-updated_at: '2026-07-31T21:53:00.285541Z'
+updated_at: '2026-07-31T22:01:55.055335Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -404,5 +404,15 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Codex/gpt-5.6-
 - Cost: $0.0000
 - Exit: terminated, Duration: 2m 37s
 - Log: OOMPAH-668__20260731T215026Z.jsonl
+---
+author: oompah
+created: 2026-07-31 22:01
+---
+The immediately preceding OOMPAH-664 production gate proved that skipping dependency installs is necessary but not sufficient: projected venv CLI launchers retain host-checkout shebang/editable paths, and the nested sandbox regression interprets the outer gate's /oompah-gate mount as a host leak. Cancelling this now-redundant full run before it repeats those known failures. I am extending OOMPAH-668 with fail-closed projected-runtime launcher isolation and an outer-gate-aware nested-boundary assertion, with regressions; OOMPAH-664 retains its three task-specific collapsed-epic test repairs.
+---
+author: oompah
+created: 2026-07-31 22:01
+---
+Moved to Needs Human from the dashboard/API. Human action required: inspect OOMPAH-668 (Use the trusted test virtualenv without reinstalling inside quality-gate sandbox), add the specific decision, missing information, or manual fix needed, then move the task back to Open when it is ready for agents again.
 ---
 <!-- COMMENTS:END -->
