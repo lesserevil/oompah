@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T12:30:22.687901Z'
+updated_at: '2026-07-31T12:30:30.084134Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -1097,5 +1097,15 @@ author: oompah
 created: 2026-07-31 12:30
 ---
 Operator security/code review accepted clean pushed head 3e1fba180 at the task level. Exact-entry lease ownership, predecessor revocation-before-publication, natural/forced exit revocation, revoke-first/admit-first mutation ordering, zero-traffic heartbeat renewal, explicit expired/revoked diagnostics, cross-scope denial, and no Basic fallback are implemented. The new lease heartbeat/revoke hooks intentionally remain import-compatible until OOMPAH-651 rebases and supplies immediate issuance registration plus the real bounded secret registry. Parking in Backlog with a hard-start dependency on OOMPAH-657 to stop redundant re-review and avoid an untrustworthy premature full gate. Operator will run the focused handoff suite on this frozen head; after OOMPAH-657 deploys, return Open/rebase and submit once through immutable exact-head integration.
+---
+author: oompah
+created: 2026-07-31 12:30
+---
+Run #2 [attempt=2, profile=deep, role=deep -> Codex/gpt-5.6-sol]
+- Turns: 0, Tool calls: 12
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 1m 38s
+- Log: OOMPAH-650__20260731T122859Z.jsonl
 ---
 <!-- COMMENTS:END -->
