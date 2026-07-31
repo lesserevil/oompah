@@ -12,7 +12,7 @@ from unittest import mock
 import pytest
 
 from oompah.config import ServiceConfig
-from oompah.models import Issue, Project
+from oompah.models import BlockerRef, Issue, Project
 from oompah.orchestrator import Orchestrator
 from oompah.providers import ProviderStore
 from oompah.scm import ReviewRequest, SCMProvider
@@ -92,6 +92,9 @@ class _MemoryTracker:
     def fetch_issues_by_states(self, states: list[str]) -> list[Issue]:
         return [self.issue] if self.issue.state in states else []
 
+    def fetch_all_issues(self) -> list[Issue]:
+        return [self.issue]
+
     def fetch_issue_detail(self, identifier: str) -> Issue | None:
         assert identifier == self.issue.identifier
         return self.issue
@@ -156,6 +159,9 @@ def harness(tmp_path, monkeypatch):
     )
     tracker = mock.MagicMock()
     tracker.fetch_issues_by_states.return_value = []
+    tracker.fetch_all_issues.side_effect = lambda: list(
+        tracker.fetch_issues_by_states.return_value
+    )
     tracker.fetch_issue_detail.side_effect = lambda identifier: next(
         (
             issue
@@ -189,6 +195,13 @@ def _delivery_alerts(orch: Orchestrator) -> list[dict[str, str]]:
         for alert in orch._alerts
         if str(alert.get("source", "")).startswith("standalone_ready_delivery:")
     ]
+
+
+def _set_all_issues(tracker: mock.MagicMock, issues: list[Issue]) -> None:
+    """Replace the harness's Ready-derived graph with an explicit snapshot."""
+
+    tracker.fetch_all_issues.side_effect = None
+    tracker.fetch_all_issues.return_value = issues
 
 
 def test_ready_to_open_reconciliation_revokes_delivery_and_clears_alert(harness):
@@ -261,6 +274,235 @@ def test_real_orchestrator_provider_store_and_project_create_review(harness):
     )
     tracker.update_issue.assert_called_once_with("TASK-1", status=IN_REVIEW)
     assert not _delivery_alerts(orch)
+
+
+def test_unfinished_finish_dependency_defers_gate_and_review_idempotently(harness):
+    """A direct Ready task waits without consuming a gate or CI-fix retry."""
+
+    orch, project, tracker, provider, detect, gate = harness
+    task = _issue("TASK-WAIT")
+    blocker = _issue("TASK-UPSTREAM")
+    blocker.state = OPEN
+    task.blocked_by = [BlockerRef(id=blocker.id, identifier=blocker.identifier)]
+    tracker.fetch_issues_by_states.return_value = [task]
+    _set_all_issues(tracker, [task, blocker])
+
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+
+    detect.assert_not_called()
+    provider.get_branch_head_sha.assert_not_called()
+    provider.create_review.assert_not_called()
+    gate.assert_not_called()
+    tracker.update_issue.assert_not_called()
+    assert task.state == READY_TO_INTEGRATE
+    alerts = _delivery_alerts(orch)
+    assert len(alerts) == 1
+    assert alerts[0]["level"] == "info"
+    assert blocker.identifier in alerts[0]["message"]
+
+
+def test_unfinished_finish_dependency_stays_deferred_after_restart(
+    tmp_path,
+    monkeypatch,
+):
+    """Restart recovery preserves a dependency wait instead of spending a gate."""
+
+    project = Project(
+        id="proj-wait-restart",
+        name="Restart Wait",
+        repo_url="https://github.com/org/repo.git",
+        repo_path=str(tmp_path / "repo"),
+        default_branch="trunk",
+    )
+    task = _issue("TASK-WAIT-RESTART")
+    blocker = _issue("TASK-WAIT-UPSTREAM")
+    blocker.state = OPEN
+    task.blocked_by = [BlockerRef(id=blocker.id, identifier=blocker.identifier)]
+    tracker = mock.MagicMock()
+    tracker.fetch_issues_by_states.return_value = [task]
+    tracker.fetch_all_issues.return_value = [task, blocker]
+    tracker.fetch_issue_detail.side_effect = lambda identifier: next(
+        (
+            issue
+            for issue in (task, blocker)
+            if identifier in {issue.id, issue.identifier}
+        ),
+        None,
+    )
+    provider = mock.MagicMock(spec=SCMProvider)
+    provider.get_branch_head_sha.return_value = "wait-head"
+    detect = mock.MagicMock(return_value=provider)
+    monkeypatch.setattr("oompah.orchestrator.detect_provider", detect)
+
+    orch_one = _make_orchestrator(
+        tmp_path,
+        project=project,
+        tracker=tracker,
+        provider_store=ProviderStore(str(tmp_path / "providers-one.json")),
+        state_name="state-one.json",
+    )
+    orch_two = _make_orchestrator(
+        tmp_path,
+        project=project,
+        tracker=tracker,
+        provider_store=ProviderStore(str(tmp_path / "providers-two.json")),
+        state_name="state-two.json",
+    )
+    gate_one = mock.MagicMock(return_value=True)
+    gate_two = mock.MagicMock(return_value=True)
+    monkeypatch.setattr(orch_one, "_review_quality_gate_passes", gate_one)
+    monkeypatch.setattr(orch_two, "_review_quality_gate_passes", gate_two)
+
+    try:
+        orch_one._reconcile_standalone_ready_to_integrate_tasks()
+        orch_two._reconcile_standalone_ready_to_integrate_tasks()
+
+        detect.assert_not_called()
+        provider.create_review.assert_not_called()
+        gate_one.assert_not_called()
+        gate_two.assert_not_called()
+        assert len(_delivery_alerts(orch_one)) == 1
+        assert len(_delivery_alerts(orch_two)) == 1
+    finally:
+        _close_orchestrator(orch_one)
+        _close_orchestrator(orch_two)
+
+
+def test_terminal_audit_satisfied_dependency_releases_one_gate(harness):
+    """A terminal dependency resumes the submitted head through normal delivery."""
+
+    orch, project, tracker, provider, _detect, gate = harness
+    task = _issue("TASK-RELEASE")
+    blocker = _issue("TASK-AUDITED")
+    blocker.state = MERGED
+    task.blocked_by = [BlockerRef(id=blocker.id, identifier=blocker.identifier)]
+    tracker.fetch_issues_by_states.return_value = [task]
+    _set_all_issues(tracker, [task, blocker])
+    provider.create_review.return_value = _review("TASK-RELEASE", review_id="906")
+
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+
+    gate.assert_called_once_with(project, task, "TASK-RELEASE", "trunk")
+    provider.create_review.assert_called_once()
+    tracker.update_issue.assert_called_once_with("TASK-RELEASE", status=IN_REVIEW)
+    assert not _delivery_alerts(orch)
+
+
+def test_inherited_finish_dependency_defers_then_releases_delivery(harness):
+    """A non-epic parent contributes the same finish-order barrier."""
+
+    orch, project, tracker, provider, _detect, gate = harness
+    task = _issue("TASK-INHERITED", parent_id="PARENT")
+    parent = _issue("PARENT", issue_type="task")
+    parent.state = OPEN
+    blocker = _issue("TASK-PARENT-UPSTREAM")
+    blocker.state = OPEN
+    parent.blocked_by = [BlockerRef(id=blocker.id, identifier=blocker.identifier)]
+    tracker.fetch_issues_by_states.return_value = [task]
+    _set_all_issues(tracker, [task, parent, blocker])
+    provider.create_review.return_value = _review("TASK-INHERITED", review_id="907")
+
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+
+    gate.assert_not_called()
+    provider.create_review.assert_not_called()
+    assert blocker.identifier in _delivery_alerts(orch)[0]["message"]
+
+    blocker.state = MERGED
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+
+    gate.assert_called_once_with(project, task, "TASK-INHERITED", "trunk")
+    provider.create_review.assert_called_once()
+
+
+def test_dependency_regression_fences_stale_delivery_before_review(harness):
+    """A dependency reopening cannot let a previously-authorized gate create a PR."""
+
+    orch, _project, tracker, provider, _detect, gate = harness
+    task = _issue("TASK-REGRESSION")
+    blocker = _issue("TASK-REGRESSION-UPSTREAM")
+    blocker.state = MERGED
+    task.blocked_by = [BlockerRef(id=blocker.id, identifier=blocker.identifier)]
+    tracker.fetch_issues_by_states.return_value = [task]
+    _set_all_issues(tracker, [task, blocker])
+
+    def regress_dependency(*_args):
+        blocker.state = OPEN
+        return True
+
+    gate.side_effect = regress_dependency
+    with mock.patch.object(
+        orch._branch_quality_gate,
+        "cancel_generation",
+    ) as cancel_generation:
+        orch._reconcile_standalone_ready_to_integrate_tasks()
+
+        provider.create_review.assert_not_called()
+        tracker.update_issue.assert_not_called()
+        cancel_generation.assert_called_once()
+
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+    gate.assert_called_once()
+    assert len(_delivery_alerts(orch)) == 1
+    assert _delivery_alerts(orch)[0]["level"] == "info"
+
+
+def test_finish_dependency_resolution_is_isolated_per_project(harness):
+    """Same-named dependencies in another project cannot release this task."""
+
+    orch, project_one, tracker_one, provider, _detect, gate = harness
+    project_two = Project(
+        id="proj-2",
+        name="Other Project",
+        repo_url="https://github.com/org/other.git",
+        repo_path=project_one.repo_path,
+        default_branch="trunk",
+    )
+    task_one = _issue("TASK-PROJECT-ONE")
+    blocker_one = _issue("SHARED-UPSTREAM")
+    blocker_one.state = OPEN
+    task_one.blocked_by = [
+        BlockerRef(id=blocker_one.id, identifier=blocker_one.identifier)
+    ]
+    tracker_one.fetch_issues_by_states.return_value = [task_one]
+    _set_all_issues(tracker_one, [task_one, blocker_one])
+
+    task_two = _issue("TASK-PROJECT-TWO")
+    blocker_two = _issue("SHARED-UPSTREAM")
+    blocker_two.state = MERGED
+    task_two.blocked_by = [
+        BlockerRef(id=blocker_two.id, identifier=blocker_two.identifier)
+    ]
+    tracker_two = mock.MagicMock()
+    tracker_two.fetch_issues_by_states.return_value = [task_two]
+    tracker_two.fetch_all_issues.return_value = [task_two, blocker_two]
+    tracker_two.fetch_issue_detail.side_effect = lambda identifier: next(
+        (
+            issue
+            for issue in (task_two, blocker_two)
+            if identifier in {issue.id, issue.identifier}
+        ),
+        None,
+    )
+    orch.project_store.list_all.return_value = [project_one, project_two]
+    orch.project_store.get.side_effect = (
+        lambda project_id: {
+            project_one.id: project_one,
+            project_two.id: project_two,
+        }.get(str(project_id))
+    )
+    orch._project_trackers[project_two.id] = tracker_two
+    provider.create_review.return_value = _review("TASK-PROJECT-TWO", review_id="908")
+
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+
+    gate.assert_called_once_with(project_two, task_two, "TASK-PROJECT-TWO", "trunk")
+    provider.create_review.assert_called_once()
+    tracker_one.update_issue.assert_not_called()
+    assert len(_delivery_alerts(orch)) == 1
+    assert task_one.identifier in _delivery_alerts(orch)[0]["message"]
 
 
 def test_missing_remote_branch_raises_actionable_alert(harness):

@@ -687,12 +687,30 @@ class StandaloneDeliveryAuthority:
     branch: str
     target_branch: str
     evidence_revision: tuple[str, ...]
+    # Effective finish dependencies are tracker state outside the submitted
+    # task's own revision.  Retain their observed revision so a dependency
+    # regression can fence an in-flight gate just like a force-push does.
+    dependency_revision: tuple[str, ...]
+    # A non-epic hierarchy may use a parent solely to inherit finish-order
+    # constraints.  Such work still delivers directly; real epic children
+    # continue through the integration queue.
+    allows_parent: bool
     # A fresh identity for each claim lets an operator reopen/reassign a task
     # without cancelling or accepting a replacement gate by accident.
     generation: str
     head_sha: str | None = None
     head_resolver: Any | None = None
+    dependency_checked_monotonic: float = 0.0
     revoked: bool = False
+
+
+@dataclass(frozen=True)
+class StandaloneFinishDependencyState:
+    """Effective finish-order state observed for a direct delivery task."""
+
+    dependencies: tuple[str, ...]
+    unsatisfied: tuple[str, ...]
+    revision: tuple[str, ...]
 
 
 # ---------------------------------------------------------------------------
@@ -5844,11 +5862,29 @@ class Orchestrator:
                 )
                 continue
 
+            # Finish-order dependencies can be inherited from a non-epic
+            # parent and must be checked against current terminal-audit
+            # evidence.  Read the complete project graph once per sweep so
+            # every Ready task gets the same scoped snapshot before any gate
+            # or forge call is considered.
+            try:
+                project_issues = list(tracker.fetch_all_issues())
+            except Exception as exc:  # noqa: BLE001 - delivery must fail closed
+                logger.warning(
+                    "Could not resolve finish dependencies for Ready submissions "
+                    "in %s: %s",
+                    project.name,
+                    exc,
+                )
+                continue
+            dependency_index = issue_index([*project_issues, *ready])
             standalone = [
                 issue
                 for issue in ready
-                if not str(issue.parent_id or "").strip()
-                and not _is_epic_issue(issue)
+                if self._is_standalone_ready_delivery_issue(
+                    issue,
+                    dependency_index,
+                )
             ]
             if not standalone:
                 continue
@@ -5873,14 +5909,48 @@ class Orchestrator:
             pending_review: list[tuple[Issue, StandaloneDeliveryAuthority]] = []
             for issue in standalone:
                 task_id = issue.identifier
+                dependency_state = self._standalone_finish_dependency_state(
+                    issue,
+                    project_issues,
+                )
+                # The task was selected from this exact graph, so an absent
+                # state means an inconsistent tracker snapshot.  Treat it as
+                # unavailable delivery authority rather than guessing.
+                if dependency_state is None:
+                    logger.warning(
+                        "Could not establish direct delivery dependency state for %s",
+                        task_id,
+                    )
+                    continue
                 authority = self._claim_standalone_delivery_authority(
                     project,
                     issue,
+                    dependency_revision=dependency_state.revision,
+                    allows_parent=bool(str(issue.parent_id or "").strip()),
                 )
                 if authority is None:
                     continue
+                if dependency_state.unsatisfied:
+                    self._arm_standalone_dependency_wait(
+                        project_id,
+                        task_id,
+                        dependency_state.unsatisfied,
+                        authority=authority,
+                    )
+                    logger.info(
+                        "Deferred standalone Ready task %s: waiting for finish "
+                        "dependencies %s",
+                        task_id,
+                        ", ".join(dependency_state.unsatisfied),
+                    )
+                    continue
                 queue_item = queued_by_task.get(task_id)
                 if queue_item is None:
+                    self._clear_standalone_delivery_alert(
+                        project_id,
+                        task_id,
+                        authority=authority,
+                    )
                     pending_review.append((issue, authority))
                     continue
                 self._clear_standalone_delivery_alert(
@@ -6412,6 +6482,41 @@ class Orchestrator:
             )
             return True
 
+    def _arm_standalone_dependency_wait(
+        self,
+        project_id: str,
+        task_id: str,
+        dependencies: tuple[str, ...],
+        *,
+        authority: StandaloneDeliveryAuthority | None = None,
+    ) -> bool:
+        """Publish one non-actionable, retry-safe dependency wait reason."""
+
+        with self._standalone_delivery_authority_lock:
+            if authority is not None and not self._standalone_delivery_authorized(
+                authority
+            ):
+                self._record_superseded_standalone_delivery(
+                    authority,
+                    "delivery authority was revoked before dependency wait",
+                )
+                return False
+            source = f"standalone_ready_delivery:{project_id}:{task_id}"
+            self._alerts = [
+                alert for alert in self._alerts if alert.get("source") != source
+            ]
+            self._alerts.append(
+                {
+                    "level": "info",
+                    "source": source,
+                    "message": (
+                        f"Standalone Ready task {task_id} is waiting for finish-order "
+                        f"dependencies: {', '.join(dependencies)}."
+                    ),
+                }
+            )
+            return True
+
     def _clear_standalone_delivery_alert(
         self,
         project_id: str,
@@ -6458,12 +6563,107 @@ class Orchestrator:
             str(getattr(integration, "head_sha", "") or ""),
         )
 
+    @staticmethod
+    def _is_standalone_ready_delivery_issue(
+        issue: Issue,
+        issues_by_id: dict[str, Issue],
+    ) -> bool:
+        """Whether a Ready task uses direct review delivery rather than an epic.
+
+        Most direct tasks have no parent.  A non-epic hierarchy is also direct
+        delivery, however: its parent is meaningful only because
+        :func:`effective_dependencies` inherits finish-order constraints from
+        it.  A task with private integration metadata, an epic ancestor, or
+        an unresolved parent remains outside this path and cannot accidentally
+        bypass ordered integration.
+        """
+
+        if _is_epic_issue(issue):
+            return False
+        parent_id = str(issue.parent_id or "").strip()
+        if not parent_id:
+            return True
+        if getattr(issue, "integration", None) is not None:
+            return False
+
+        seen_ancestors: set[str] = set()
+        current = issue
+        while parent_id:
+            if parent_id in seen_ancestors:
+                return False
+            seen_ancestors.add(parent_id)
+            parent = issues_by_id.get(parent_id)
+            if parent is None or _is_epic_issue(parent):
+                return False
+            current = parent
+            parent_id = str(current.parent_id or "").strip()
+        return True
+
+    def _standalone_finish_dependency_state(
+        self,
+        issue: Issue,
+        issues: list[Issue],
+    ) -> StandaloneFinishDependencyState | None:
+        """Return direct-delivery finish dependencies and their audit state.
+
+        This deliberately delegates terminal-state interpretation to the
+        ordered integration helper.  In the direct-delivery case (no epic
+        context) a dependency is satisfied only once its terminal audit has
+        placed it in Done, Merged, or Archived.
+        """
+
+        current_issues = [*issues, issue]
+        index = issue_index(current_issues)
+        if not self._is_standalone_ready_delivery_issue(issue, index):
+            return None
+        dependencies = effective_dependencies(issue, index)
+        satisfied = self._integration_satisfied_dependencies(
+            current_issues,
+            [],
+        )
+        unsatisfied = tuple(
+            dependency
+            for dependency in dependencies
+            if dependency not in satisfied
+        )
+        revision = tuple(
+            f"{dependency}:{canonicalize_status(index[dependency].state)}"
+            if dependency in index
+            else f"{dependency}:<missing>"
+            for dependency in dependencies
+        )
+        return StandaloneFinishDependencyState(
+            dependencies=dependencies,
+            unsatisfied=unsatisfied,
+            revision=revision,
+        )
+
+    def _current_standalone_finish_dependency_state(
+        self,
+        issue: Issue,
+        tracker: TrackerProtocol,
+    ) -> StandaloneFinishDependencyState | None:
+        """Refresh dependency state for a delivery-authority barrier."""
+
+        try:
+            issues = list(tracker.fetch_all_issues())
+        except Exception as exc:  # noqa: BLE001 - authority must fail closed
+            logger.warning(
+                "Could not refresh standalone finish dependencies for %s: %s",
+                issue.identifier,
+                exc,
+            )
+            return None
+        return self._standalone_finish_dependency_state(issue, issues)
+
     def _claim_standalone_delivery_authority(
         self,
         project: Project,
         issue: Issue,
         *,
         expected_state: str = READY_TO_INTEGRATE,
+        dependency_revision: tuple[str, ...] = (),
+        allows_parent: bool = False,
     ) -> StandaloneDeliveryAuthority | None:
         """Claim the current standalone task revision for delivery work."""
 
@@ -6477,7 +6677,10 @@ class Orchestrator:
             or not project_id
             or not branch
             or canonicalize_status(issue.state) != expected_state
-            or str(issue.parent_id or "").strip()
+            or (
+                str(issue.parent_id or "").strip()
+                and not allows_parent
+            )
             or _is_epic_issue(issue)
         ):
             return None
@@ -6494,6 +6697,8 @@ class Orchestrator:
                 and existing.branch == branch
                 and existing.target_branch == target_branch
                 and existing.evidence_revision == revision
+                and existing.dependency_revision == dependency_revision
+                and existing.allows_parent == allows_parent
             ):
                 return existing
             if existing is not None:
@@ -6507,6 +6712,8 @@ class Orchestrator:
                 branch=branch,
                 target_branch=target_branch,
                 evidence_revision=revision,
+                dependency_revision=dependency_revision,
+                allows_parent=allows_parent,
                 generation=uuid.uuid4().hex,
             )
             self._standalone_delivery_authorities[key] = authority
@@ -6561,6 +6768,8 @@ class Orchestrator:
         self,
         authority: StandaloneDeliveryAuthority,
         tracker: TrackerProtocol | None = None,
+        *,
+        refresh_dependencies: bool = True,
     ) -> bool:
         """Compare the current task evidence with a delivery authority claim."""
 
@@ -6571,17 +6780,46 @@ class Orchestrator:
                 or self._standalone_delivery_authorities.get(key) is not authority
             ):
                 return False
+            if tracker is None:
+                try:
+                    tracker = self._tracker_for_project(authority.project_id)
+                except Exception:  # noqa: BLE001 - authority must fail closed
+                    return False
             current = self._fresh_standalone_delivery_issue(authority, tracker)
             if current is None:
                 return False
             if (
                 canonicalize_status(current.state) != authority.expected_state
-                or str(current.parent_id or "").strip()
+                or (
+                    str(current.parent_id or "").strip()
+                    and not authority.allows_parent
+                )
                 or _is_epic_issue(current)
                 or self._standalone_delivery_evidence_revision(current)
                 != authority.evidence_revision
             ):
                 return False
+            if (
+                refresh_dependencies
+                or time.monotonic() - authority.dependency_checked_monotonic >= 0.5
+            ):
+                dependency_state = self._current_standalone_finish_dependency_state(
+                    current,
+                    tracker,
+                )
+                authority.dependency_checked_monotonic = time.monotonic()
+                if (
+                    dependency_state is None
+                    or dependency_state.revision != authority.dependency_revision
+                ):
+                    # A dependency status or inherited edge changed while this
+                    # task owned a gate.  Fence its exact generation immediately;
+                    # the next Ready reconciliation will claim the new evidence.
+                    self._revoke_standalone_delivery_authority(
+                        authority.project_id,
+                        authority.task_id,
+                    )
+                    return False
             project = self.project_store.get(authority.project_id)
             if project is None:
                 return False
@@ -6711,12 +6949,21 @@ class Orchestrator:
                 # callback.  Do not erase a valid alert without knowing the
                 # authoritative tracker state.
                 continue
+            dependency_state = self._current_standalone_finish_dependency_state(
+                current,
+                tracker,
+            )
             if (
                 canonicalize_status(current.state) != READY_TO_INTEGRATE
-                or str(current.parent_id or "").strip()
+                or (
+                    str(current.parent_id or "").strip()
+                    and not authority.allows_parent
+                )
                 or _is_epic_issue(current)
                 or self._standalone_delivery_evidence_revision(current)
                 != authority.evidence_revision
+                or dependency_state is None
+                or dependency_state.revision != authority.dependency_revision
             ):
                 self._revoke_standalone_delivery_authority(
                     authority.project_id,
@@ -10100,15 +10347,41 @@ class Orchestrator:
         )
         if (
             authority is None
-            and not str(issue.parent_id or "").strip()
             and not _is_epic_issue(issue)
             and canonicalize_status(issue.state) in {DONE, READY_TO_INTEGRATE}
         ):
+            try:
+                tracker = self._tracker_for_project(project_id)
+            except Exception as exc:  # noqa: BLE001 - gate must fail closed
+                logger.warning(
+                    "Could not resolve standalone finish dependencies for %s: %s",
+                    issue.identifier,
+                    exc,
+                )
+                return False
+            dependency_state = self._current_standalone_finish_dependency_state(
+                issue,
+                tracker,
+            )
+            if dependency_state is None:
+                return False
             authority = self._claim_standalone_delivery_authority(
                 project,
                 issue,
                 expected_state=canonicalize_status(issue.state),
+                dependency_revision=dependency_state.revision,
+                allows_parent=bool(str(issue.parent_id or "").strip()),
             )
+            if authority is None:
+                return False
+            if dependency_state.unsatisfied:
+                self._arm_standalone_dependency_wait(
+                    project_id,
+                    issue.identifier,
+                    dependency_state.unsatisfied,
+                    authority=authority,
+                )
+                return False
         command = self._quality_gate_command(project)
         if not command:
             logger.debug(
@@ -10154,7 +10427,12 @@ class Orchestrator:
                 # command execution.  A Ready-to-Open rejection must stop a
                 # standalone gate before its result can create a review.
                 is_current=(
-                    (lambda: self._standalone_delivery_authorized(authority))
+                    (
+                        lambda: self._standalone_delivery_authorized(
+                            authority,
+                            refresh_dependencies=False,
+                        )
+                    )
                     if authority is not None
                     else None
                 ),
