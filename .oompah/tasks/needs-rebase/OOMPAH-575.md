@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-575
 type: task
-status: Needs Human
+status: Needs Rebase
 priority: 0
 title: Propagate scoped task CLI auth to Codex agent sessions
 parent: null
@@ -12,7 +12,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-07-30T02:15:25.255613Z'
-updated_at: '2026-07-31T05:57:14.552470Z'
+updated_at: '2026-07-31T05:57:24.264045Z'
 work_branch: OOMPAH-575
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/604
@@ -301,5 +301,15 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Codex/
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 18s
 - Log: OOMPAH-575__20260731T055557Z.jsonl
+---
+author: oompah
+created: 2026-07-31 05:57
+---
+Task handoff failed after the worker ran: the server-owned, task-scoped tracker capability could not update this task. The task is held in Needs Human and will not be redispatched automatically; verify the handoff service and reconcile the worker's branch before resuming it.
+---
+author: oompah
+created: 2026-07-31 05:57
+---
+YOLO: Merge conflict detected on MR #604. Rebase onto main and resolve conflicts.
 ---
 <!-- COMMENTS:END -->
