@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:46:34.785511Z'
-updated_at: '2026-07-31T00:53:39.676888Z'
+updated_at: '2026-07-31T01:01:58.211051Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-632
 target_branch: null
 review_url: null
@@ -155,5 +155,33 @@ author: oompah
 created: 2026-07-31 00:53
 ---
 The server successfully dispatched its own implementation worker after duplicate screening, so the operator is yielding the canonical task branch to that worker as requested. Reproduction confirmed: refs/heads/epic-OOMPAH-586--task-OOMPAH-595 remained ca49d0c while refs/remotes/origin/... was 04d072a and 04d072a is contained by merged parent cd08185c. A local backup fix (not pushed) passes 597 focused epic/transition tests by refreshing existing candidate refs, preferring origin over stale local refs, and deferring on candidate-fetch failure.
+---
+author: oompah
+created: 2026-07-31 01:01
+---
+**Implementation:** Implemented candidate ref refresh for landing reconciliation.
+
+**Changes:**
+1. Added _refresh_landing_evidence_candidate_refs() static method that fetches candidate task branch refs from origin before patch comparison
+2. Modified _mark_epic_merged() to:
+   - Collect all candidate branches from Done children (both recorded work_branch and identifier)
+   - Call refresh function for candidate branches before checking landing evidence
+   - Use best-effort approach: missing remote branches (deleted after merge) don't defer reconciliation
+   - Network failures on target refs still defer reconciliation (fail-closed)
+3. Added test_refreshes_candidate_branch_refs_before_landing_check() to verify refresh is called
+
+**Key behaviors:**
+- Force-pushed rebases are now judged against fresh remote refs, not stale local refs
+- Auditor PASS cannot be overwritten by stale local source evidence
+- Fail-closed: if container target refs can't be refreshed, reconciliation is deferred
+
+**Files changed:**
+- oompah/orchestrator.py (2 functions added/modified, ~120 lines)
+- tests/test_epic_strategy.py (1 new test added)
+
+**Test results:**
+- All 17 tests in TestLabelMergedEpics pass (including new test)
+- All 213 tests in test_epic_strategy.py pass
+- All 25 tests in test_epic_auto_close.py pass
 ---
 <!-- COMMENTS:END -->
