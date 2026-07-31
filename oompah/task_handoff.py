@@ -12,10 +12,13 @@ not a replacement for Basic authentication on the general API; it is accepted
 only by the dedicated task-handoff endpoint, which performs the scope check
 again before touching the tracker.
 
-Each dispatched worker also owns a server-side lease. The lease refreshes the
-grant without requiring tracker traffic, so a worker can spend longer than the
-initial TTL inside a tool call. The orchestrator stops the lease and revokes
-the grant when the worker's process tree has actually terminated.
+Grants have a short wall-clock TTL (15 minutes) as a safety mechanism: if the
+grant is leaked or reused after termination, it expires naturally. A
+server-side lease renews the grant while the worker is live, keeping it active
+through long tool calls and restart recovery. When the worker terminates, the
+orchestrator stops the lease and revokes the grant, immediately blocking
+further access. If the lease thread crashes or the server restarts unexpectedly,
+the grant still expires at the wall-clock boundary instead of remaining live.
 """
 
 from __future__ import annotations
@@ -37,7 +40,7 @@ TASK_HANDOFF_HEADER = "x-oompah-task-capability"
 # allowing safe execution of long tool calls and restart recovery.
 # TTL is reset on each heartbeat; expiry should only occur if worker is
 # truly dead or the grant is explicitly revoked.
-DEFAULT_TTL_SECONDS = 24 * 60 * 60  # 24 hours — covers session lifetime
+DEFAULT_TTL_SECONDS = 15 * 60  # 15 minutes — short wall-clock safety bound
 _MAX_HEARTBEAT_INTERVAL_SECONDS = 60.0
 _MIN_HEARTBEAT_INTERVAL_SECONDS = 0.01
 
@@ -46,9 +49,10 @@ _MIN_HEARTBEAT_INTERVAL_SECONDS = 0.01
 class TaskHandoffGrant:
     """Server-owned authorization for one spawned worker session.
 
-    Grants are bound to the owning worker's lifetime, not wall-clock time.
-    Expiry should occur only if the worker is truly dead or the grant is
-    explicitly revoked to prevent reuse after termination.
+    Grants have a short wall-clock TTL (15 minutes) as a safety mechanism. The
+    server-owned lease keeps the grant renewed while the worker is live; if the
+    lease dies or the server restarts, the grant expires naturally. Expiry or
+    explicit revocation both prevent reuse after termination.
 
     ``original_ttl_seconds`` is the TTL the grant was minted with. Heartbeat
     renewal (either from the server-side lease or the endpoint refresh) uses

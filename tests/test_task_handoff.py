@@ -1431,7 +1431,7 @@ class TestOOMPAH650WorkerLifetimeCredentials:
                     break
                 time.sleep(0.005)
             grant = store._grants[store._digest(token)]
-            # Heartbeat renewed with ORIGINAL 60 s TTL, not the 24 h default.
+            # Heartbeat renewed with ORIGINAL 60 s TTL, not the 15 min default.
             assert grant.expires_at <= 1060.0
             assert grant.expires_at > baseline - 0.001  # actually renewed
             assert grant.original_ttl_seconds == pytest.approx(60.0)
@@ -1845,6 +1845,84 @@ class TestOOMPAH650WorkerLifetimeCredentials:
             # Clean up the replacement grant.
             from oompah.task_handoff import revoke_task_handoff_token
             revoke_task_handoff_token(new_token)
+
+    def test_worker_lifetime_grant_survives_zero_handoff_requests(self):
+        """Critical acceptance: a grant minted with a short TTL stays valid
+        for its entire worker lifetime via server-owned lease renewal, even
+        when no tracker handoff requests are made for longer than the initial
+        TTL. This ensures workers are never dropped due to TTL expiry while
+        they are running, only due to explicit termination or lease failure.
+        """
+        now = [1000.0]
+        store = TaskHandoffGrantStore(now=lambda: now[0])
+        
+        # Mint with a very short TTL (1 second).
+        token = store.issue(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"comment", "view"},
+            ttl_seconds=1.0,
+            owner_id="worker-gen-1",
+        )
+        
+        # Verify it's initially valid.
+        valid, _ = store.validate(
+            token,
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            action="comment",
+        )
+        assert valid is True
+        
+        # Start a lease with a short heartbeat interval.
+        lease = store.start_lease(
+            token,
+            owner_id="worker-gen-1",
+            heartbeat_interval_seconds=0.01,
+        )
+        assert lease is not None
+        
+        try:
+            # Advance time PAST the initial TTL (now >= 1002.0) without making
+            # any requests. The lease should keep renewing it.
+            now[0] = 1002.0  # 2+ seconds past initial TTL
+            
+            # Wait briefly for lease to fire at least once.
+            deadline = time.monotonic() + 0.5
+            while time.monotonic() < deadline:
+                grant = store._grants.get(store._digest(token))
+                if grant is not None and grant.expires_at > 1002.0:
+                    break
+                time.sleep(0.001)
+            
+            # Grant should still be valid and alive despite no requests.
+            grant = store._grants.get(store._digest(token))
+            assert grant is not None
+            assert grant.expires_at > 1002.0, (
+                f"Lease did not renew; expires_at={grant.expires_at}, now={now[0]}"
+            )
+            
+            # The tracker handoff should still succeed.
+            valid, reason = store.validate(
+                token,
+                project_id="proj-a",
+                task_identifier="TASK-1",
+                action="comment",
+            )
+            assert valid is True, f"Expected valid token; reason: {reason}"
+            assert reason == ""
+            
+            # A different action (view) should also work.
+            valid, reason = store.validate(
+                token,
+                project_id="proj-a",
+                task_identifier="TASK-1",
+                action="view",
+            )
+            assert valid is True, f"Expected valid token for view; reason: {reason}"
+            
+        finally:
+            lease.stop()
 
     def test_no_basic_auth_environment_leaks_into_worker(self):
         """Worker environments must never receive reusable operator Basic
