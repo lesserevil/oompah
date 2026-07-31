@@ -360,56 +360,56 @@ class BranchQualityGate:
 
     @staticmethod
     def _verify_isolation_contract(repo_path: str) -> tuple[bool, str]:
-        """Verify that the candidate branch Makefile contains OOMPAH-652 isolation logic.
+        """Verify that the candidate branch contains the OOMPAH-652 safety head in git ancestry.
 
-        The quality gate runs in a disposable worktree. If the checked-out Makefile
-        predates OOMPAH-652 or doesn't contain the isolation logic, it will use
-        canonical .oompah.pid/.oompah.pid.meta paths and the canonical server port,
-        allowing it to discover and signal the live operator service even if
-        environment variables are set.
+        The quality gate runs in a disposable worktree. Candidate code cannot be trusted
+        to implement its own containment boundary. A same-UID process with access to the
+        source tree can read absolute canonical paths, connect to localhost:8090, or
+        signal the operator service regardless of environment variables or marker strings.
 
-        This function checks for the required OOMPAH_PYTEST_GATE handling that
-        redirects lifecycle files to a private run root and uses ephemeral ports.
+        This function verifies that the checked-out branch is descended from the exact
+        OOMPAH-652 safety head commit (ec0ec7d89), which introduced the isolation contract.
+        Branches that predate this commit or have been spoofed with fake markers are
+        rejected at the preflight stage before any candidate command executes.
 
         Returns:
-            (is_compliant, reason) — True if isolation logic is present, False if
-            the branch needs rebase.
+            (is_compliant, reason) — True if the branch contains OOMPAH-652 safety head
+            in its ancestry, False if the branch needs rebase.
         """
-        makefile_path = Path(repo_path) / "Makefile"
-        if not makefile_path.exists():
-            return False, "Makefile not found (required for lifecycle isolation)"
+        # The OOMPAH-652 safety head: exact commit introducing lifecycle isolation.
+        # All candidate branches must be descended from this commit.
+        # Can be overridden for testing via OOMPAH_TEST_SAFETY_HEAD environment variable.
+        safety_head = os.environ.get("OOMPAH_TEST_SAFETY_HEAD", "ec0ec7d89")
+
+        # Verify git repository exists and is valid
+        repo_path_obj = Path(repo_path)
+        if not (repo_path_obj / ".git").exists():
+            return False, "Not a git repository (required for ancestry verification)"
 
         try:
-            makefile_text = makefile_path.read_text(encoding="utf-8")
-        except OSError as exc:
-            return False, f"Cannot read Makefile: {exc}"
-
-        # Check for the critical isolation markers from OOMPAH-652:
-        # 1. OOMPAH_PYTEST_GATE check
-        # 2. PID_FILE redirected to run root under gate mode
-        # 3. PORT using ephemeral allocation under gate mode
-        required_patterns = [
-            "OOMPAH_PYTEST_GATE",  # Gate mode detection
-            "OOMPAH_TEST_PID_FILE",  # Private PID file variable
-            "OOMPAH_PYTEST_RUN_ROOT",  # Private run root
-            "OOMPAH_TEST_SERVER_PORT",  # Ephemeral port variable
-        ]
-
-        missing_patterns = [
-            pattern for pattern in required_patterns
-            if pattern not in makefile_text
-        ]
-
-        if missing_patterns:
-            return (
-                False,
-                f"Makefile missing isolation logic from OOMPAH-652. "
-                f"Missing: {', '.join(missing_patterns)}. "
-                f"Branch requires rebase to main or newer commit that includes "
-                f"OOMPAH-652 lifecycle isolation.",
+            # Check if the safety head commit is an ancestor of HEAD in this repository.
+            # This uses git merge-base --is-ancestor which is efficient and non-spoofable.
+            result = subprocess.run(
+                ["git", "merge-base", "--is-ancestor", safety_head, "HEAD"],
+                cwd=repo_path,
+                capture_output=True,
+                timeout=5,
             )
-
-        return True, ""
+            # merge-base --is-ancestor exits 0 if ancestor exists, non-zero otherwise
+            if result.returncode == 0:
+                return True, ""
+            else:
+                return (
+                    False,
+                    f"Branch does not contain OOMPAH-652 isolation contract (commit {safety_head}). "
+                    f"This branch was likely created before the safety prerequisite was merged. "
+                    f"Rebase to main or a newer commit that includes OOMPAH-652. "
+                    f"See OOMPAH-652 and OOMPAH-655 for details on lifecycle isolation enforcement.",
+                )
+        except subprocess.TimeoutExpired:
+            return False, "Git ancestry check timed out (git repository may be corrupted)"
+        except OSError as exc:
+            return False, f"Cannot verify git ancestry: {exc}"
 
     @staticmethod
     def _evidence_key(

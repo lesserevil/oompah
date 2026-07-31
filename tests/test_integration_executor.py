@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import nullcontext
+import os
 import subprocess
 import time
 from unittest import mock
@@ -30,6 +31,15 @@ def _repo(tmp_path):
     subprocess.run(["git", "clone", str(remote), str(seed)], check=True)
     _git(seed, "config", "user.name", "Test")
     _git(seed, "config", "user.email", "test@example.com")
+    
+    # Create synthetic OOMPAH-652 safety head commit for testing
+    (seed / "safety.txt").write_text("OOMPAH-652 safety head\n")
+    _git(seed, "add", "safety.txt")
+    _git(seed, "commit", "-m", "OOMPAH-652: lifecycle isolation")
+    safety_head = _git(seed, "rev-parse", "HEAD")
+    # Configure test environment to use this safety head
+    os.environ["OOMPAH_TEST_SAFETY_HEAD"] = safety_head
+    
     (seed / "base.txt").write_text("base\n")
     _git(seed, "add", "base.txt")
     _git(seed, "commit", "-m", "base")

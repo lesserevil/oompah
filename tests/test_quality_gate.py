@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shlex
 import subprocess
 import threading
@@ -17,7 +18,29 @@ from oompah.quality_gate import BranchQualityGate, QualityGateResult
 from oompah.statuses import OPEN, READY_TO_INTEGRATE
 
 
-def _git_repo(tmp_path):
+def _create_safety_head(repo_path):
+    """Create a synthetic OOMPAH-652 safety head commit for testing.
+    
+    Returns the commit SHA that can be used with OOMPAH_TEST_SAFETY_HEAD.
+    """
+    result = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo_path,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return result.stdout.strip()
+
+
+@pytest.fixture(autouse=True)
+def _setup_test_safety_head(tmp_path, monkeypatch):
+    """Auto-fixture: configure tests to use a synthetic safety head."""
+    # Will be set up in _git_repo when needed
+    yield
+
+
+def _git_repo(tmp_path, monkeypatch=None):
     repo = tmp_path / "repo"
     repo.mkdir()
     subprocess.run(["git", "init", "-q", "-b", "main"], cwd=repo, check=True)
@@ -27,6 +50,33 @@ def _git_repo(tmp_path):
         cwd=repo,
         check=True,
     )
+    
+    # Create initial "safety head" commit (simulating OOMPAH-652)
+    initial = repo / "initial.txt"
+    initial.write_text("safety head\n", encoding="utf-8")
+    subprocess.run(["git", "add", "initial.txt"], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "commit", "-q", "-m", "OOMPAH-652: lifecycle isolation"],
+        cwd=repo,
+        check=True,
+    )
+    
+    # Get this safety head's SHA for testing
+    safety_head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    
+    # Set environment variable so tests use this synthetic safety head
+    # (We'll use monkeypatch if provided, otherwise os.environ)
+    if monkeypatch:
+        monkeypatch.setenv("OOMPAH_TEST_SAFETY_HEAD", safety_head)
+    else:
+        os.environ["OOMPAH_TEST_SAFETY_HEAD"] = safety_head
+    
     # Create a compliant Makefile with OOMPAH-652 isolation logic
     makefile = repo / "Makefile"
     makefile.write_text(
@@ -51,6 +101,7 @@ test:
     subprocess.run(["git", "add", "Makefile", "source.txt"], cwd=repo, check=True)
     subprocess.run(["git", "commit", "-q", "-m", "initial"], cwd=repo, check=True)
     subprocess.run(["git", "checkout", "-q", "-b", "work"], cwd=repo, check=True)
+    
     return repo
 
 
@@ -1052,10 +1103,23 @@ def test_failed_snapshot_verification_removes_worktree_registration(tmp_path, mo
     assert not snapshot.exists()
 
 
-def test_preflight_rejects_old_makefile_without_isolation_logic(tmp_path):
-    """Branches created before OOMPAH-652 lack isolation logic and must rebase."""
-    repo = _git_repo(tmp_path)
-    # Old Makefile without OOMPAH_PYTEST_GATE handling
+def test_preflight_rejects_old_branch_without_oompah652_ancestor(tmp_path):
+    """Branches created before OOMPAH-652 commit lack the safety head in ancestry and must rebase."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.name", "oompah"], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "lesserevil@users.noreply.github.com"],
+        cwd=repo,
+        check=True,
+    )
+    
+    # Create an orphan branch that does not contain OOMPAH-652 commit in ancestry.
+    # This simulates an old preserved branch from before the safety commit.
+    subprocess.run(["git", "checkout", "--orphan", "old-branch"], cwd=repo, check=True)
+    
+    # Create a Makefile without OOMPAH-652 safety head in ancestry
     old_makefile = repo / "Makefile"
     old_makefile.write_text(
         """
@@ -1074,121 +1138,142 @@ PORT ?= 8080
     result = _run(gate, repo, "true")
 
     assert result.status == "needs_rebase"
-    assert "OOMPAH-652" in result.output_tail
-    assert "Branch requires rebase" in result.output_tail
+    assert "OOMPAH-652" in result.output_tail or "isolation contract" in result.output_tail
 
 
-def test_preflight_allows_makefile_with_isolation_logic(tmp_path):
-    """Branches with OOMPAH-652 isolation logic are allowed to execute."""
+def test_preflight_allows_branch_with_oompah652_ancestor(tmp_path):
+    """Branches descended from OOMPAH-652 safety head are allowed to execute."""
     repo = _git_repo(tmp_path)
-    # Makefile with OOMPAH_PYTEST_GATE handling (from OOMPAH-652)
-    compliant_makefile = repo / "Makefile"
-    compliant_makefile.write_text(
-        """
-_PYTEST_GATE := $(filter 1 true yes,$(strip $(OOMPAH_PYTEST_GATE)))
-ifeq ($(_PYTEST_GATE),)
-PID_FILE ?= .oompah.pid
-else
-PID_FILE := $(OOMPAH_TEST_PID_FILE)
-endif
-PORT := $(OOMPAH_TEST_SERVER_PORT)
-OOMPAH_PYTEST_RUN_ROOT := /tmp/test
-.PHONY: test
-test:
-\t@pytest
-""",
-        encoding="utf-8",
-    )
-    subprocess.run(["git", "add", "Makefile"], cwd=repo, check=True)
-    subprocess.run(["git", "commit", "-q", "-m", "isolation makefile"], cwd=repo, check=True)
+    # _git_repo() already creates the repo as a descendant of OOMPAH-652
+    # (by checking out main before creating the work branch)
     gate = BranchQualityGate(str(tmp_path / "quality.json"))
     counter = tmp_path / "counter"
 
     result = _run(gate, repo, f"printf x >> {shlex.quote(str(counter))}")
 
     assert result.passed
+    assert counter.read_text(encoding="utf-8") == "x"
 
 
-def test_preflight_rejects_missing_makefile(tmp_path):
-    """Branches without a Makefile cannot be checked for isolation logic."""
-    repo = _git_repo(tmp_path)
-    # Delete the Makefile if it exists (it shouldn't in the test repo)
-    makefile = repo / "Makefile"
-    if makefile.exists():
-        makefile.unlink()
-        subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
-        subprocess.run(["git", "commit", "-q", "-m", "no makefile"], cwd=repo, check=True)
+def test_preflight_git_ancestry_check_is_primary(tmp_path):
+    """
+    Git ancestry verification is the primary enforcement mechanism.
+    A branch without OOMPAH-652 ancestor is rejected regardless of Makefile state.
+    """
+    # Create a repo without OOMPAH-652 in ancestry
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.name", "oompah"], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "lesserevil@users.noreply.github.com"],
+        cwd=repo,
+        check=True,
+    )
+    
+    subprocess.run(["git", "checkout", "--orphan", "orphan-branch"], cwd=repo, check=True)
+    
+    # No Makefile at all - just create a minimal commit
+    source = repo / "source.txt"
+    source.write_text("content\n", encoding="utf-8")
+    subprocess.run(["git", "add", "source.txt"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "first"], cwd=repo, check=True)
+    
     gate = BranchQualityGate(str(tmp_path / "quality.json"))
-
     result = _run(gate, repo, "true")
 
+    # Should fail on ancestry check, not Makefile check
     assert result.status == "needs_rebase"
-    assert "Makefile not found" in result.output_tail
+    assert "OOMPAH-652" in result.output_tail or "isolation contract" in result.output_tail
 
 
-def test_hostile_old_makefile_is_rejected_before_execution(tmp_path, monkeypatch):
+def test_spoofed_markers_without_oompah652_ancestor_is_rejected(tmp_path):
     """
-    Intentionally malicious old Makefile attempting canonical file discovery
-    is rejected at preflight without ever executing.
+    A Makefile containing spoofed OOMPAH-652 marker strings but lacking proper
+    git ancestry is rejected at preflight before execution. This proves that
+    git ancestry verification (not substring matching) is the enforcement boundary.
 
-    This proves that the preflight validation prevents hostile candidate code
-    from discovering or signaling the operator service, even if the Makefile
-    ignores isolation variables.
+    The hostile code never executes—we verify this by checking for sentinel
+    side effects that would only occur if the command ran.
     """
-    repo = _git_repo(tmp_path)
-
-    # Create an intentionally old/malicious Makefile that ignores OOMPAH_PYTEST_GATE
-    # and tries to discover the operator service. This Makefile predates OOMPAH-652
-    # and does NOT contain the isolation logic.
+    # Create a repo WITHOUT OOMPAH-652 in ancestry (orphan branch)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.name", "oompah"], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "lesserevil@users.noreply.github.com"],
+        cwd=repo,
+        check=True,
+    )
+    
+    # Create orphan branch simulating an old preserved branch from before OOMPAH-652
+    subprocess.run(["git", "checkout", "--orphan", "old-branch"], cwd=repo, check=True)
+    # In an orphan branch, the working directory may already be empty or have content.
+    # We just need to ensure the branch doesn't descend from safety_head.
+    
+    # Create a Makefile with spoofed markers to prove substring matching would fail
+    # but WITH hostile code that tries to discover the operator service.
+    # If preflight is bypassed, this command WILL create a sentinel file.
+    sentinel = tmp_path / "hostile_executed"
     hostile_makefile = repo / "Makefile"
     hostile_makefile.write_text(
-        """
-# Hostile old Makefile that ignores isolation variables
-# and tries to discover/signal the operator service
+        f"""
+# Spoofed markers (substring matching would pass)
+# OOMPAH_PYTEST_GATE reference in comments
+# OOMPAH_TEST_PID_FILE in variable name
+# OOMPAH_PYTEST_RUN_ROOT somewhere
+# OOMPAH_TEST_SERVER_PORT here
 
 .PHONY: test
 test:
+\t@touch {shlex.quote(str(sentinel))}
 \t@echo "Attempting to discover operator service..."
 \t@test -f .oompah.pid && echo "FOUND OPERATOR PID FILE" || true
-\t@test -f .oompah.pid.meta && echo "FOUND OPERATOR PID META" || true
 \t@curl -s http://127.0.0.1:8090/healthz && echo "FOUND OPERATOR SERVICE" || true
-\t@if [ -f .oompah.pid ]; then kill -0 $$(cat .oompah.pid) && echo "OPERATOR PID ALIVE"; fi || true
+\t@if [ -f .oompah.pid ]; then kill -0 $$(cat .oompah.pid) 2>/dev/null && echo "OPERATOR PID ALIVE"; fi || true
 
 PID_FILE = .oompah.pid
 PORT = 8080
-OOMPAH_PYTEST_GATE is ignored
 """,
         encoding="utf-8",
     )
     subprocess.run(["git", "add", "Makefile"], cwd=repo, check=True)
-    subprocess.run(["git", "commit", "-q", "-m", "hostile makefile"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "spoofed makefile"], cwd=repo, check=True)
+    
     gate = BranchQualityGate(str(tmp_path / "quality.json"))
-
-    # The preflight validation should reject this branch BEFORE executing
-    # the make test command, preventing any discovery attempts.
+    
+    # Try to run the hostile command
     result = _run(gate, repo, "make test")
-
-    # Verify the branch was rejected at preflight
+    
+    # Verify branch was rejected at preflight (ancestry check failed)
     assert result.status == "needs_rebase"
-    assert "OOMPAH-652" in result.output_tail
-    # Verify the hostile command output does NOT appear (command was never executed)
+    assert "OOMPAH-652" in result.output_tail or "isolation contract" in result.output_tail
+    
+    # CRITICAL: Verify the hostile code was NEVER executed
+    # The sentinel file should NOT exist because the command was rejected before running
+    assert not sentinel.exists(), (
+        "Hostile code executed! Preflight did not prevent command execution. "
+        "This means git ancestry verification is broken."
+    )
+    # Also verify hostile discovery output doesn't appear
     assert "FOUND OPERATOR" not in result.output_tail
     assert "ATTEMPTING TO DISCOVER" not in result.output_tail.upper()
 
 
-def test_compliant_branch_allows_execution(tmp_path):
+def test_branch_with_oompah652_ancestor_allows_execution(tmp_path):
     """
-    Compliant branches with OOMPAH-652 isolation logic pass the preflight
-    and are allowed to execute. The Makefile contains the logic to use
-    private PID files and ephemeral ports when OOMPAH_PYTEST_GATE is set.
+    Branches descended from OOMPAH-652 safety head pass the preflight ancestry check
+    and are allowed to execute. The git history requirement ensures they contain
+    the isolation contract, regardless of what the Makefile says.
     """
     repo = _git_repo(tmp_path)
     gate = BranchQualityGate(str(tmp_path / "quality.json"))
-    counter = tmp_path / "counter"
+    sentinel = tmp_path / "executed"
 
-    # Compliant Makefile is already in the repo from _git_repo
-    result = _run(gate, repo, f"printf x >> {shlex.quote(str(counter))}")
+    # Branch is descended from OOMPAH-652 (created via _git_repo which checks out main)
+    # Preflight passes ancestry check and command executes
+    result = _run(gate, repo, f"touch {shlex.quote(str(sentinel))}")
 
-    # Preflight passes and command executes
     assert result.passed
-    assert counter.read_text(encoding="utf-8") == "x"
+    assert sentinel.exists(), "Command should have executed for OOMPAH-652 descendant"
