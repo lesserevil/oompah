@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:32:18.734139Z'
-updated_at: '2026-07-31T14:48:50.482644Z'
+updated_at: '2026-07-31T14:48:53.349562Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-623
 target_branch: null
 review_url: null
@@ -202,8 +202,9 @@ oompah.terminal_audit:
     status: Done
     audit_ids:
     - audit-365a9b73d7a0
-    applied: false
+    applied: true
     created_at: '2026-07-31T14:48:47.174077+00:00'
+    applied_at: '2026-07-31T14:48:52.511535+00:00'
   version: 1
   pending_chain:
   - version: 1
