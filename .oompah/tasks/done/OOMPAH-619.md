@@ -20,7 +20,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-30T21:24:41.452666Z'
-updated_at: '2026-07-31T15:00:18.930033Z'
+updated_at: '2026-07-31T15:00:33.164851Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -102,6 +102,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-07-31T14:49:46.247336+00:00'
     branch_key: OOMPAH-619
+oompah.task_costs:
+  total_input_tokens: 83
+  total_output_tokens: 24712
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 83
+      output_tokens: 24712
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 83
+    output_tokens: 24712
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T15:00:29.229888+00:00'
 ---
 ## Summary
 
@@ -162,5 +178,15 @@ Safe evidence:
 - workflow_definition_of_done: Per docs/task-epic-workflow.md: Done = 'Work is complete, but may still be awaiting an epic rollup'; Done -> Merged transition is a separate phase
 - task_labels_present: rebase-requested, epic:rebasing (retained; not gating Done per workflow but should be reconciled at Merged)
 - note_on_operator_reinstall: Task description's 'operator will reinstall...after epic reaches main' is a Merged-phase verification, not a Done-phase gate
+---
+author: oompah
+created: 2026-07-31 15:00
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 100, Tool calls: 77
+- Tokens: 83 in / 24.7K out [24.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 10m 42s
+- Log: OOMPAH-619__20260731T144953Z.jsonl
 ---
 <!-- COMMENTS:END -->
