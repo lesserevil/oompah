@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-648
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Keep live long-running tool calls from triggering agent stall termination
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:15:42.851609Z'
-updated_at: '2026-07-31T07:46:00.080832Z'
+updated_at: '2026-07-31T08:04:13.852931Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -56,7 +56,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: d0e26ace-664b-4774-b711-e1c120ca1d69
+oompah.agent_run_id: 308582af-d7cf-4a5c-a2ee-cddd09db635e
 oompah.task_costs:
   total_input_tokens: 26033133
   total_output_tokens: 45052
@@ -159,5 +159,10 @@ author: oompah
 created: 2026-07-31 07:43
 ---
 Agent completed without closing this issue (1514s (26073867 tokens)). Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
+---
+author: oompah
+created: 2026-07-31 08:04
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-645
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Clear recovered terminal-audit transport failures without contaminating later
   audits
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T06:47:58.732088Z'
-updated_at: '2026-07-31T07:50:09.742856Z'
+updated_at: '2026-07-31T08:04:08.877465Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -100,7 +100,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 8d982144-3fab-4d82-abc0-26d163554ed1
+oompah.agent_run_id: 1568e000-c052-42b4-a074-41cc35c67aff
 oompah.task_costs:
   total_input_tokens: 198
   total_output_tokens: 44655
@@ -441,5 +441,15 @@ created: 2026-07-31 07:50
 **Evidence:** Recent comment indicates CI is now passing or PR has been merged; safe to reopen for dispatch.
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-07-31 08:04
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-07-31 08:04
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->

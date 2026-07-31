@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:25:29.809048Z'
-updated_at: '2026-07-31T07:26:05.123135Z'
+updated_at: '2026-07-31T08:03:57.061985Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-621
 target_branch: null
 review_url: null
@@ -223,18 +223,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-621
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 519aef4cd511567ff9c272668f5a83dc0a67cbaff5723f2ce29c7d9ff500ba1d
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-8302129935eb
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 519aef4cd511567ff9c272668f5a83dc0a67cbaff5723f2ce29c7d9ff500ba1d
+      created_at: '2026-07-31T08:03:50.042269+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-07-31T08:03:50.042269+00:00'
+      branch_key: epic-OOMPAH-619--task-OOMPAH-621
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-31T07:26:03.489345+00:00'
+    updated_at: '2026-07-31T08:03:50.042269+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-8a79c55ddcf1
@@ -261,6 +275,19 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: opus
     started_at: '2026-07-31T06:22:19.195657+00:00'
+    branch_key: epic-OOMPAH-619--task-OOMPAH-621
+  - version: 1
+    attempt_id: attempt-8302129935eb
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 519aef4cd511567ff9c272668f5a83dc0a67cbaff5723f2ce29c7d9ff500ba1d
+    created_at: '2026-07-31T08:03:50.042269+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-07-31T08:03:50.042269+00:00'
     branch_key: epic-OOMPAH-619--task-OOMPAH-621
 ---
 ## Summary
@@ -664,5 +691,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 55m 24s
 - Log: OOMPAH-621__20260731T062550Z.jsonl
+---
+author: oompah
+created: 2026-07-31 08:03
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-07-31 08:03
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
