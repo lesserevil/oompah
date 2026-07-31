@@ -20,7 +20,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-30T21:24:41.452666Z'
-updated_at: '2026-07-31T20:15:51.378085Z'
+updated_at: '2026-07-31T20:36:35.093078Z'
 work_branch: epic-OOMPAH-619
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/626
@@ -202,5 +202,10 @@ author: oompah
 created: 2026-07-31 20:15
 ---
 Hosted CI exposed two environment-budget regressions after the rebase: identity-safe Granian cleanup scanned host-wide procfs under a 5-second test timeout, and the isolated exact-revision pip install had a 120-second subprocess limit. Fixed at 34a612911 by walking only kernel-reported owned descendants, restoring direct child identity capture, adding a no-global-scan regression, and using a hosted-runner-safe install budget. Verification: 56 focused tests passed; full make test passed with 14,534 passed, 7 skipped, 1 xfailed.
+---
+author: oompah
+created: 2026-07-31 20:36
+---
+A second hosted CI pass exposed two more boundedness bugs: the exact-revision test re-resolved dependencies for five minutes, and the free-port macro ran lsof after ss had already reported no listener. Fixed at 755797119 by installing only the pinned package against the already-installed dependency directory and making ss authoritative with lsof used only when ss is absent. Verification: 7 focused regressions passed; full make test passed with 14,535 passed, 7 skipped, 1 xfailed.
 ---
 <!-- COMMENTS:END -->
