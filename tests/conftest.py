@@ -201,3 +201,23 @@ def _isolate_agent_profile_store(tmp_path, monkeypatch):
     yield
 
     aps.reset_warning_state()
+
+
+@pytest.fixture(autouse=True)
+def _isolate_registered_secrets():
+    """Reset the process-local registered-secret registry between tests.
+
+    Several unit tests exercise :func:`oompah.secrets.register_secret`
+    (directly or via credential resolvers that register at load time).
+    The registry is process-local by design, so an unrelated test that
+    registers a short value like ``"p"`` would otherwise cause any log
+    assertion in a later test to redact substrings of ordinary words
+    (``permissions``/``group``/``oompah``). Clearing on entry AND exit
+    keeps every test's registry state deterministic without requiring
+    each test to remember cleanup.
+    """
+    from oompah.secrets import clear_registered_secrets
+
+    clear_registered_secrets()
+    yield
+    clear_registered_secrets()
