@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T09:02:45.242871Z'
+updated_at: '2026-07-31T09:03:36.673128Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ Two live regressions remained after OOMPAH-643 merged. First, OOMPAH-648 audit a
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-31 09:03
+---
+Post-override state proof: terminal_audit health reports pending=0, in_progress=0, failure_count=0, degraded=false, yet state alerts still emits terminal_audit:no_independent_candidate for both superseded OOMPAH-644 and OOMPAH-648 audits across ticks/restart. Alert invalidation is therefore diverging from the canonical health/audit record lifecycle.
+---
+<!-- COMMENTS:END -->

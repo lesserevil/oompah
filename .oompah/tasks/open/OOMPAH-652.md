@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:15.160957Z'
-updated_at: '2026-07-31T09:02:48.599839Z'
+updated_at: '2026-07-31T09:03:35.133336Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -54,5 +54,10 @@ author: oompah
 created: 2026-07-31 09:02
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-31 09:03
+---
+Second deterministic live reproduction: OOMPAH-649 quality gate ran python -m pytest tests/ under /home/shedwards/.oompah/worktrees/oompah/OOMPAH-649 (run.d4XOQV) while canonical service PID 3243032 was healthy in its own setsid session. Gate reached completion at about 09:00:19; immediately afterward make status reported not running, PID 3243032 was gone, no graceful shutdown lines were written, and the server could not persist the green gate callback/PR. Direct PR #615 was required to break the pass->kill->lost-callback->rerun deadlock. This strongly indicates a hard signal/cleanup escape at full-suite teardown, not ordinary application shutdown.
 ---
 <!-- COMMENTS:END -->
