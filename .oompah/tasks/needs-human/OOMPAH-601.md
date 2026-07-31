@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-601
 type: bug
-status: Done
+status: Needs Human
 priority: 1
 title: Aggregate branch-ownership cleanup skips without warning floods
 parent: OOMPAH-588
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:00.331568Z'
-updated_at: '2026-07-31T05:26:20.904450Z'
+updated_at: '2026-07-31T05:27:29.513127Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-601
 target_branch: null
 review_url: null

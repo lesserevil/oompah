@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-602
 type: bug
-status: In Validation
+status: Needs Human
 priority: 1
 title: Repair project scope propagation in merged-label maintenance
 parent: OOMPAH-588
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:01.749200Z'
-updated_at: '2026-07-31T05:27:04.599227Z'
+updated_at: '2026-07-31T05:27:22.977021Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-602
 target_branch: null
 review_url: null
@@ -174,6 +174,7 @@ oompah.terminal_audit:
     attempt-a66782c834a3: '2026-07-30T16:42:16.986663+00:00'
     no-auditor-audit-34aa65be3c6d-1: '2026-07-30T19:34:20.535346+00:00'
     attempt-ff192778bf18: '2026-07-30T23:19:45.719183+00:00'
+    no-auditor-audit-195bfc8d9059-2: '2026-07-31T05:27:20.590733+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -313,7 +314,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-602
     target_state: Done
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -356,13 +357,25 @@ oompah.terminal_audit:
       failure_reason: Epic branch epic-OOMPAH-588 diverged from origin/epic-OOMPAH-588;
         reconcile both heads before dispatching more children
       next_retry_at: '2026-07-31T05:27:19.263046+00:00'
+    - version: 1
+      attempt_id: no-auditor-audit-195bfc8d9059-2
+      target_state: Done
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: f25570c702ab2da7b8197df2a2a19be2422c8a53e13a1303a1bec2d175f64f72
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-07-31T05:27:20.590568+00:00'
+      completed_at: '2026-07-31T05:27:20.590568+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Needs Human
     created_at: '2026-07-31T05:26:28.066517+00:00'
-    updated_at: '2026-07-31T05:26:59.263076+00:00'
+    updated_at: '2026-07-31T05:27:20.590568+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-a66782c834a3
@@ -833,5 +846,12 @@ author: oompah
 created: 2026-07-31 05:27
 ---
 Auditor attempt ended: Epic branch epic-OOMPAH-588 diverged from origin/epic-OOMPAH-588; reconcile both heads before dispatching more children. A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-07-31 05:27
+---
+Needs Human — Done audit requires operator input.
+
+No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then move the task back to Open to retry.
 ---
 <!-- COMMENTS:END -->
