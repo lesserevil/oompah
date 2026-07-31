@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T10:49:34.932250Z'
+updated_at: '2026-07-31T10:52:16.027798Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -182,5 +182,10 @@ author: oompah
 created: 2026-07-31 10:49
 ---
 Understanding: Previous attempt was rejected because environment variables alone don't enforce a security boundary. A same-UID candidate process can still read canonical .oompah.pid, connect to localhost:8090, or signal the live operator PID regardless of environment variables. Implementing fail-closed approach: (1) add preflight validation checking if candidate branch contains trusted isolation base from OOMPAH-652, (2) route to Needs Rebase if isolation contract is violated, (3) add hostile fixture tests with old/malicious Makefiles, (4) implement proper cleanup and ownership tracking. Starting discovery.
+---
+author: oompah
+created: 2026-07-31 10:52
+---
+Discovery: Implemented fail-closed preflight validation. Before executing any candidate command, quality_gate.py now verifies that the Makefile contains OOMPAH-652 isolation logic (OOMPAH_PYTEST_GATE, OOMPAH_TEST_PID_FILE, OOMPAH_PYTEST_RUN_ROOT, OOMPAH_TEST_SERVER_PORT variables). Branches without these variables route to 'needs_rebase' status instead of executing. Added 3 regression tests: rejects old Makefile without isolation, allows compliant Makefile, rejects missing Makefile. All 20 quality_gate tests pass.
 ---
 <!-- COMMENTS:END -->
