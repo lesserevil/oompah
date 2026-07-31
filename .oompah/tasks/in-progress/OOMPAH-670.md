@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T22:56:06.058439Z'
-updated_at: '2026-07-31T23:06:06.764430Z'
+updated_at: '2026-07-31T23:08:44.223710Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -125,5 +125,28 @@ Current flow: Dashboard always sends client-supplied actor_login even when auth 
 Solution: Add global httpAuthEnabled flag, update handleStateUpdate() to consume state.http_auth.enabled, and conditionally omit actor fields in authenticated mode. Server will use authenticated principal instead.
 
 Server already has the logic in place (_resolve_authorization_actor in server.py).
+---
+author: oompah
+created: 2026-07-31 23:08
+---
+Implementation complete: Modified dashboard.html to conditionally omit actor fields in authenticated requests.
+
+Changes made:
+1. Added global httpAuthEnabled flag to track auth state (defaults to false for backward compatibility)
+2. Updated handleStateUpdate() to capture state.http_auth.enabled and update the flag
+3. Modified updateIssue() to only set actor_login when httpAuthEnabled is false
+4. Modified performIntakeAction() to only collect/send actor when httpAuthEnabled is false  
+5. Modified openDetailPanel() to only send actor query param when httpAuthEnabled is false
+
+When httpAuthEnabled=true (auth enabled): Server derives principal from HTTP auth credentials, actor fields omitted
+When httpAuthEnabled=false (auth disabled): Client supplies actor for backward compatibility
+
+Created 13 regression tests verifying:
+- httpAuthEnabled is declared and defaults to false
+- handleStateUpdate captures http_auth.enabled
+- All three mutation paths conditionally check auth before using actor
+- Actor collection/inclusion only happens when auth is disabled
+- Code has explanatory comments
+All tests pass ✓
 ---
 <!-- COMMENTS:END -->
