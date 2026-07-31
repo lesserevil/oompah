@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-655
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Enforce full-gate service isolation outside candidate branch code
 parent: null
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T16:09:28.885577Z'
+updated_at: '2026-07-31T16:09:43.297011Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,7 +37,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 3
   retry_after: null
-oompah.agent_run_id: e06451b9-2318-4433-8e0f-8e061e0b8448
+oompah.agent_run_id: f2a944f3-352e-48df-b26d-2f03f710928c
 oompah.task_costs:
   total_input_tokens: 8338629
   total_output_tokens: 55543
@@ -1038,5 +1038,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 2m 23s
 - Log: OOMPAH-655__20260731T160705Z.jsonl
+---
+author: oompah
+created: 2026-07-31 16:09
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-31 16:09
+---
+Focus: Event Api Redaction Specialist
 ---
 <!-- COMMENTS:END -->
