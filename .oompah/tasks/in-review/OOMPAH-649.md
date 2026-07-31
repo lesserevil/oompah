@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-649
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Preserve dirty task worktrees across worker termination and retry
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:19:33.053515Z'
-updated_at: '2026-07-31T08:54:19.255701Z'
+updated_at: '2026-07-31T09:01:36.957781Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -183,5 +183,10 @@ author: oompah
 created: 2026-07-31 08:54
 ---
 Preserved dirty task worktrees durably across termination, retry, restart, and base advance; added fail-closed cleanup guards, recovery context, cross-task isolation, and comprehensive regression coverage. Exact full gate: 14,254 passed. Branch origin/OOMPAH-649 at 0957d9955.
+---
+author: oompah
+created: 2026-07-31 09:01
+---
+Deadlock recovery: the server reran the exact full gate successfully, but OOMPAH-652 terminated the live service at gate completion before the success callback/PR creation could persist. Since exact head 0957d9955 already has two complete green gates, the operator created the PR directly to resume at the normal review/merge stage; no quality requirement was bypassed.
 ---
 <!-- COMMENTS:END -->

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-648
 type: task
-status: In Validation
+status: Needs Human
 priority: null
 title: Keep live long-running tool calls from triggering agent stall termination
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:15:42.851609Z'
-updated_at: '2026-07-31T08:54:44.496575Z'
+updated_at: '2026-07-31T09:01:25.766133Z'
 work_branch: OOMPAH-648
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/614
@@ -129,6 +129,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-7d1427097e93: '2026-07-31T08:37:54.213561+00:00'
+    no-auditor-audit-db48e6cb6d3e-2: '2026-07-31T09:01:23.248842+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -170,7 +171,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-648
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -194,7 +195,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-6b1680cac785
       target_state: Merged
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -205,13 +206,27 @@ oompah.terminal_audit:
       started_at: '2026-07-31T08:54:41.285755+00:00'
       branch_key: OOMPAH-648
       candidate_rotation_count: 1
+      ended_at: '2026-07-31T09:01:22.107199+00:00'
+      failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: no-auditor-audit-db48e6cb6d3e-2
+      target_state: Merged
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: f94d808fab5ea8a54de74df6958de5dd299e0535df6df6303d3b4670f9700d25
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-07-31T09:01:23.248744+00:00'
+      completed_at: '2026-07-31T09:01:23.248744+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-07-31T08:24:09.754329+00:00'
-    updated_at: '2026-07-31T08:54:41.285755+00:00'
+    updated_at: '2026-07-31T09:01:23.248744+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-7d1427097e93
@@ -244,7 +259,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-6b1680cac785
     target_state: Merged
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -255,6 +270,8 @@ oompah.terminal_audit:
     started_at: '2026-07-31T08:54:41.285755+00:00'
     branch_key: OOMPAH-648
     candidate_rotation_count: 1
+    ended_at: '2026-07-31T09:01:22.107199+00:00'
+    failure_reason: auditor session abandoned; no live worker owns the attempt
 ---
 ## Summary
 
@@ -481,5 +498,12 @@ author: oompah
 created: 2026-07-31 08:54
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 09:01
+---
+Needs Human — Merged audit requires operator input.
+
+No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then move the task back to Open to retry.
 ---
 <!-- COMMENTS:END -->
