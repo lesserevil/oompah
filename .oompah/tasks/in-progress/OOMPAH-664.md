@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:06.140108Z'
-updated_at: '2026-07-31T22:25:15.592519Z'
+updated_at: '2026-07-31T22:25:44.897305Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -552,5 +552,10 @@ Implementation: Fixed all 13 CI failures.
 4. test_gate_subprocess_isolates_operator_and_tool_state (1 test): Added @pytest.mark.skipif(Path('/oompah-gate/home').is_dir(), ...) - the test asserts /oompah-gate/home does not exist after cleanup, but when running inside the outer bwrap gate, /oompah-gate/home is the outer gate's run_root and persists throughout. OOMPAH-668 handles a permanent fix; this skip prevents the false failure.
 
 All 154 focused tests pass, 6 skipped.
+---
+author: oompah
+created: 2026-07-31 22:25
+---
+Verification: All 154 focused tests pass, 6 skipped. Tests run: test_quality_gate.py (48+1 new), test_server_issue_snapshot.py, test_oompah_md_tracker_state_branch.py, test_collapsed_epics.py, test_installed_cli_smoke.py, test_cli_install_revision_compatibility.py. Changes pushed at 2bbe670c6.
 ---
 <!-- COMMENTS:END -->
