@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T11:45:46.141988Z'
+updated_at: '2026-07-31T11:49:03.782180Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -860,5 +860,33 @@ Exact-head review (7d9b597a1) rejected for 4 critical defects:
 4. Add graceful restart and termination tests
 
 Will implement fixes in this order, run focused tests, verify all security properties are maintained.
+---
+author: oompah
+created: 2026-07-31 11:49
+---
+**IMPLEMENTATION: Operation Permit Mechanism (Defect 1 & 2)**
+
+Added linearizable per-grant operation authorization/permit system:
+
+**Mechanism**:
+- OperationPermit class holds generation number at acquisition time
+- OperationPermit.is_valid() checks if generation matches current grant (detects mid-operation revocation)
+- TaskHandoffGrant.operation_permit_generation incremented when revoked
+- acquire_task_handoff_permit() called after validate() succeeds
+- Endpoint checks permit.is_valid() before EVERY tracker mutation
+
+**Fixes Defect #1** (Mutation Race): Concurrent revoke() increments generation, making any in-flight permits invalid. Tracker mutations abort with 401 handoff_revoked if permit becomes invalid.
+
+**Fixes Defect #2** (Bearer-Driven Refresh): Removed endpoint call to refresh_task_handoff_token(). Server-owned lease is now sole TTL extension mechanism. Endpoint acquires permit but doesn't extend grant.
+
+**Permit Checks Added**:
+- comment action: before tracker.add_comment()
+- submit action: before _persist_worker_submission()
+- set-status action: before transition operations
+- coordination-send: before orch.coordination_send()
+- coordination-checkpoint: before orch.coordination_checkpoint()
+- add-label/remove-label: before tracker label operations
+
+Next: Add tests for permit mechanism, lease-based lifetime, and restart preservation.
 ---
 <!-- COMMENTS:END -->

@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T11:46:37.147996Z'
+updated_at: '2026-07-31T11:49:01.867209Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,13 +40,13 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 16005eb1-3510-47a7-a6ee-589a06efd44f
 oompah.task_costs:
-  total_input_tokens: 3889288
-  total_output_tokens: 61233
+  total_input_tokens: 14929976
+  total_output_tokens: 97398
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 3889184
-      output_tokens: 17428
+      input_tokens: 14929872
+      output_tokens: 53593
       cost_usd: 0.0
     opus:
       input_tokens: 104
@@ -83,6 +83,12 @@ oompah.task_costs:
     output_tokens: 43805
     cost_usd: 0.0
     recorded_at: '2026-07-31T11:01:05.352264+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 11040688
+    output_tokens: 36165
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T11:48:56.086352+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-651__20260731T090132Z
@@ -109,6 +115,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-651
     source_sha: 627592f96b2c4152b81fad825202a75035448b29
     completed_at: '2026-07-31T10:06:18.564942+00:00'
+  - run_id: OOMPAH-651__20260731T110457Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: security
+    source_branch: OOMPAH-651
+    source_sha: 6cfb486668c6b24b6cb5bac5c463966946b4bc85
+    completed_at: '2026-07-31T11:48:56.090265+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -676,5 +690,25 @@ author: oompah
 created: 2026-07-31 11:46
 ---
 Current dirty work addresses the earlier blockers: authoritative allow-list only, real short configured secrets, non-string LogRecords, tracebacks, and late handlers via the record factory. One lifecycle blocker remains and now has an explicit finish-order dependency on OOMPAH-650: handoff secret registration currently expires at original TTL plus one hour in task_handoff.issue and one hour in AcpAgentSession, while OOMPAH-650 will renew a live worker grant beyond that bound. Coordinate the final 650 grant/lease implementation so every server-owned lease refresh also extends register_secret(token, expires_in=current grant TTL plus bounded delayed-event grace), and termination/revocation retains only the bounded grace. Add a deterministic clock test proving a token remains redacted after several lease renewals past its initial registry expiry, then expires from the registry only after revocation/grace. Do not log or expose the token in the test.
+---
+author: oompah
+created: 2026-07-31 11:48
+---
+Agent completed successfully in 2643s (11076853 tokens)
+---
+author: oompah
+created: 2026-07-31 11:48
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 3, Tool calls: 286
+- Tokens: 11.0M in / 36.2K out [11.1M total]
+- Cost: $0.0000
+- Exit: normal, Duration: 44m 3s
+- Log: OOMPAH-651__20260731T110457Z.jsonl
+---
+author: oompah
+created: 2026-07-31 11:49
+---
+Agent completed without closing this issue (2643s (11076853 tokens)). Escalating from 'default' to 'deep'. Retrying in 10s (1/3).
 ---
 <!-- COMMENTS:END -->
