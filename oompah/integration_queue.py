@@ -31,6 +31,7 @@ class IntegrationQueueItem:
     lease_expires_at: float | None
     updated_at: str
     last_error: str | None = None
+    retry_forced: bool = False
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -59,6 +60,7 @@ CREATE TABLE IF NOT EXISTS integration_queue (
     lease_expires_at REAL,
     updated_at TEXT NOT NULL,
     last_error TEXT,
+    retry_forced INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY(project_id, task_id)
 );
 CREATE INDEX IF NOT EXISTS integration_epic_ready_idx
@@ -87,6 +89,13 @@ class IntegrationQueueStore:
             self._conn.execute("PRAGMA busy_timeout=10000")
             self._conn.execute("PRAGMA journal_mode=WAL")
             self._conn.executescript(_SCHEMA)
+            # Migrate retry_forced column if it doesn't exist
+            try:
+                self._conn.execute("SELECT retry_forced FROM integration_queue LIMIT 0")
+            except sqlite3.OperationalError:
+                self._conn.execute(
+                    "ALTER TABLE integration_queue ADD COLUMN retry_forced INTEGER NOT NULL DEFAULT 0"
+                )
             self._conn.execute(
                 "INSERT OR REPLACE INTO schema_meta(key, value) VALUES(?, ?)",
                 ("version", str(INTEGRATION_QUEUE_SCHEMA_VERSION)),
@@ -99,6 +108,12 @@ class IntegrationQueueStore:
 
     @staticmethod
     def _from_row(row: sqlite3.Row) -> IntegrationQueueItem:
+        # Handle retry_forced column which may not exist in older databases
+        try:
+            retry_forced_val = int(row["retry_forced"] or 0)
+        except (IndexError, TypeError):
+            retry_forced_val = 0
+        
         return IntegrationQueueItem(
             project_id=row["project_id"],
             epic_id=row["epic_id"],
@@ -114,6 +129,7 @@ class IntegrationQueueStore:
             lease_expires_at=row["lease_expires_at"],
             updated_at=row["updated_at"],
             last_error=row["last_error"],
+            retry_forced=bool(retry_forced_val),
         )
 
     def enqueue(
@@ -167,13 +183,16 @@ class IntegrationQueueStore:
             )
             if identical and not retry_blocked:
                 return self._from_row(existing)
+            # Set retry_forced=1 only when explicit_retry resets a blocked row
+            retry_forced_val = 1 if retry_blocked else 0
             self._conn.execute(
                 """
                 INSERT INTO integration_queue(
                     project_id, epic_id, task_id, task_branch, head_sha,
                     base_sha, priority, submitted_at, state, attempts,
-                    lease_owner, lease_expires_at, updated_at, last_error
-                ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, 'ready', 0, NULL, NULL, ?, NULL)
+                    lease_owner, lease_expires_at, updated_at, last_error,
+                    retry_forced
+                ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, 'ready', 0, NULL, NULL, ?, NULL, ?)
                 ON CONFLICT(project_id, task_id) DO UPDATE SET
                     epic_id = excluded.epic_id,
                     task_branch = excluded.task_branch,
@@ -186,7 +205,8 @@ class IntegrationQueueStore:
                     lease_owner = NULL,
                     lease_expires_at = NULL,
                     updated_at = excluded.updated_at,
-                    last_error = NULL
+                    last_error = NULL,
+                    retry_forced = ?
                 """,
                 (
                     values["project_id"],
@@ -198,6 +218,8 @@ class IntegrationQueueStore:
                     int(priority if priority is not None else 999),
                     submitted_at or now,
                     now,
+                    retry_forced_val,
+                    retry_forced_val,
                 ),
             )
             self._conn.commit()
@@ -302,7 +324,7 @@ class IntegrationQueueStore:
                     UPDATE integration_queue
                     SET state = 'integrating', lease_owner = ?,
                         lease_expires_at = ?, attempts = attempts + 1,
-                        updated_at = ?
+                        updated_at = ?, retry_forced = 0
                     WHERE project_id = ? AND task_id = ? AND state = 'ready'
                     """,
                     (

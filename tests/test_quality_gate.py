@@ -322,3 +322,112 @@ def test_quality_gate_cleans_up_on_timeout(tmp_path):
     assert result.status == "timed_out"
     with BranchQualityGate._processes_lock:
         assert BranchQualityGate._active_processes == {}
+
+
+def test_explicit_retry_re_executes_failed_result(tmp_path):
+    """Forced retry should bypass cache for failed results and re-execute."""
+    repo = _git_repo(tmp_path)
+    counter = tmp_path / "counter"
+    state = tmp_path / "quality.json"
+    gate = BranchQualityGate(str(state))
+
+    # First run: fails and is cached
+    (repo / "work.txt").write_text("fail\n", encoding="utf-8")
+    subprocess.run(["git", "add", "work.txt"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "fail"], cwd=repo, check=True)
+    failed = _run(gate, repo, f"echo fail; exit 1")
+    assert failed.status == "failed" and not failed.cached
+
+    # Second run: same head, cache hit for failure
+    cached_fail = _run(gate, repo, f"echo fail; exit 1")
+    assert cached_fail.status == "failed" and cached_fail.cached
+
+    # Third run: forced retry should re-execute (not use cache)
+    retry = _run(gate, repo, f"echo fail; exit 1", retry_forced=True)
+    assert retry.status == "failed" and not retry.cached
+
+
+def test_explicit_retry_re_executes_timeout_result(tmp_path):
+    """Forced retry should bypass cache for timed_out results and re-execute."""
+    repo = _git_repo(tmp_path)
+    state = tmp_path / "quality.json"
+    gate = BranchQualityGate(str(state), timeout_seconds=1)
+
+    # First run: times out
+    timed_out = _run(gate, repo, "sleep 2")
+    assert timed_out.status == "timed_out" and not timed_out.cached
+
+    # Second run: same head, cache hit for timeout
+    cached_timeout = _run(gate, repo, "sleep 2")
+    assert cached_timeout.status == "timed_out" and cached_timeout.cached
+
+    # Third run: forced retry should re-execute (not use cache)
+    retry = _run(gate, repo, "sleep 2", retry_forced=True)
+    assert retry.status == "timed_out" and not retry.cached
+
+
+def test_explicit_retry_re_executes_failed_with_non_zero_exit(tmp_path):
+    """Forced retry should bypass cache for failed results (non-zero exit) and re-execute."""
+    repo = _git_repo(tmp_path)
+    state = tmp_path / "quality.json"
+    gate = BranchQualityGate(str(state))
+
+    # First run: fails with non-zero exit code
+    failed = _run(gate, repo, "sh -c 'echo error; exit 42'")
+    assert failed.status == "failed" and not failed.cached
+
+    # Second run: same head, cache hit for failure
+    cached_failed = _run(gate, repo, "sh -c 'echo error; exit 42'")
+    assert cached_failed.status == "failed" and cached_failed.cached
+
+    # Third run: forced retry should re-execute (not use cache)
+    retry = _run(gate, repo, "sh -c 'echo error; exit 42'", retry_forced=True)
+    assert retry.status == "failed" and not retry.cached
+
+
+def test_explicit_retry_preserves_passed_cache(tmp_path):
+    """Forced retry should NOT bypass cache for passed results."""
+    repo = _git_repo(tmp_path)
+    counter = tmp_path / "counter"
+    command = f"printf x >> {shlex.quote(str(counter))}"
+    state = tmp_path / "quality.json"
+    gate = BranchQualityGate(str(state))
+
+    # First run: passes and is cached
+    first = _run(gate, repo, command)
+    assert first.passed and not first.cached
+
+    # Second run: same head, cache hit for pass
+    second = _run(gate, repo, command)
+    assert second.passed and second.cached
+    assert counter.read_text(encoding="utf-8") == "x"
+
+    # Third run: forced retry should still use cache for passed result
+    retry = _run(gate, repo, command, retry_forced=True)
+    assert retry.passed and retry.cached
+    # Counter should not increment (command was not re-executed)
+    assert counter.read_text(encoding="utf-8") == "x"
+
+
+def test_explicit_retry_can_recover_from_transient_failure(tmp_path):
+    """When a transient failure is retried with retry_forced, it can pass."""
+    repo = _git_repo(tmp_path)
+    trigger = tmp_path / "trigger"
+    state = tmp_path / "quality.json"
+    gate = BranchQualityGate(str(state))
+    trigger.write_text("fail\n", encoding="utf-8")
+
+    # First run: fails (trigger file exists)
+    failed = _run(gate, repo, f"test -f {shlex.quote(str(trigger))} && exit 1 || true")
+    assert failed.status == "failed"
+
+    # Second run: same head, cache hit
+    cached = _run(gate, repo, f"test -f {shlex.quote(str(trigger))} && exit 1 || true")
+    assert cached.cached
+
+    # Remove the failure trigger
+    trigger.unlink()
+
+    # Third run: forced retry bypasses cache, re-executes, and passes
+    retry = _run(gate, repo, f"test -f {shlex.quote(str(trigger))} && exit 1 || true", retry_forced=True)
+    assert retry.status == "passed" and not retry.cached
