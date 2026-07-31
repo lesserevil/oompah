@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-664
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 0
 title: Make issue-list snapshots advance with canonical state-branch task changes
 parent: null
@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:06.140108Z'
-updated_at: '2026-07-31T22:37:44.179413Z'
+updated_at: '2026-07-31T22:38:12.626249Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -133,9 +133,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-664
-  head_sha: 2bbe670c66058884869ad53b235b2f0a3f19c355
-  submitted_at: '2026-07-31T22:25:51.397485+00:00'
-  updated_at: '2026-07-31T22:25:51.397485+00:00'
+  head_sha: 2b7d97927d5f9d651ca663583a1396073c1e13ef
+  submitted_at: '2026-07-31T22:38:09.266143+00:00'
+  updated_at: '2026-07-31T22:38:09.266143+00:00'
 oompah.start_blocked_by: *id001
 ---
 ## Summary
@@ -702,5 +702,15 @@ OOMPAH_PYTEST_WORKERS="4" \
 	OOMPAH_PYTEST_TEMP_ROOT="~/.oompah/tmp" \
 	scripts/run-tests.sh parallel
 make[1]: Leaving directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-664' shows no uv invocation. The current container cannot start a nested bwrap namespace, so direct in-sandbox reproduction is unavailable; the new regression inspects the exact mount command used by the gate.
+---
+author: oompah
+created: 2026-07-31 22:38
+---
+Completion: Pushed 2b7d97927 to the existing OOMPAH-664 branch. The repair confines editable CLI imports to the candidate snapshot, addressing the internal gate's eight CLI-smoke failures and associated tick failure. There is no GitHub PR or Actions run for this branch; Oompah's internal quality gate will rerun for this exact pushed head.
+---
+author: oompah
+created: 2026-07-31 22:38
+---
+Fixed internal gate editable-runtime imports at 2b7d97927; 68 focused tests pass.
 ---
 <!-- COMMENTS:END -->
