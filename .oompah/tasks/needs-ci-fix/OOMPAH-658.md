@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-658
 type: bug
-status: Ready to Integrate
+status: Needs CI Fix
 priority: 2
 title: Deduplicate duplicate-preflight runs across deferred dispatch ticks
 parent: null
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-07-31T12:12:27.920118Z'
+updated_at: '2026-07-31T12:12:48.878988Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,8 +41,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 0a177c31-b61e-414e-bb59-6cb43faae632
 oompah.task_costs:
-  total_input_tokens: 928381
-  total_output_tokens: 13992
+  total_input_tokens: 928411
+  total_output_tokens: 14630
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -50,8 +50,8 @@ oompah.task_costs:
       output_tokens: 5456
       cost_usd: 0.0
     opus:
-      input_tokens: 173
-      output_tokens: 8536
+      input_tokens: 203
+      output_tokens: 9174
       cost_usd: 0.0
   runs:
   - profile: default
@@ -78,6 +78,12 @@ oompah.task_costs:
     output_tokens: 4041
     cost_usd: 0.0
     recorded_at: '2026-07-31T12:10:00.631120+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 30
+    output_tokens: 638
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T12:12:42.325664+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-658__20260731T111938Z
@@ -634,5 +640,15 @@ author: oompah
 created: 2026-07-31 12:12
 ---
 Adapter-backed duplicate-preflight deduplication at head 1b49ab0f4. Fingerprint composes (title, description with Triggered-by header, project, type, parent, intake.proposal_fingerprint); scheduling metadata (deps, labels, updated_at, last_validated_at) excluded. 450 focused tests green. Previous 'Branch quality gate failed' notices were operator-terminated (SIGTERM) premature full make test runs, not real failures. Server owns the single review-ready full gate once OOMPAH-657 lands exact-head enforcement.
+---
+author: oompah
+created: 2026-07-31 12:12
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Claude/opus]
+- Turns: 0, Tool calls: 14
+- Tokens: 30 in / 638 out [668 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 2m 24s
+- Log: OOMPAH-658__20260731T121022Z.jsonl
 ---
 <!-- COMMENTS:END -->
