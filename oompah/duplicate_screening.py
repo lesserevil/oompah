@@ -19,7 +19,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from enum import Enum
-from typing import Any, Iterable
+from typing import Any
 
 from oompah.models import Issue
 from oompah.statuses import OPEN, canonicalize_status
@@ -30,7 +30,6 @@ DETECTOR_VERSION = "duplicate-detector-v1"
 DEFAULT_CLAIM_TTL_SECONDS = 30 * 60
 
 _SPACE_RE = re.compile(r"\s+")
-_SOURCE_HEADER_RE = re.compile(r"(?im)^\s*triggered by\s*:\s*(\S+)\s*$")
 
 
 class ScreeningState(str, Enum):
@@ -55,35 +54,30 @@ def _normalize_text(value: object) -> str:
     return _SPACE_RE.sub(" ", text).strip().casefold()
 
 
-def _source_input(issue: Issue) -> str:
-    """Return the stable source identity associated with *issue*, if any."""
+def _intake_revision(issue: Issue) -> str:
+    """Return the stable intake revision associated with *issue*, if any.
 
-    explicit = getattr(issue, "source", None)
-    if explicit:
-        return _normalize_text(explicit)
-    match = _SOURCE_HEADER_RE.search(str(issue.description or ""))
-    return _normalize_text(match.group(1)) if match else ""
+    Reads ``proposal_fingerprint`` from the ``oompah.intake`` metadata block
+    normalized by every tracker adapter (see :class:`IntakeReadiness`).  This
+    is the only intake field considered a duplicate-screening input.
+    Scheduling writes (state transitions, dependency edits, transient labels,
+    generic ``updated_at`` timestamps, ``last_validated_at`` refreshes)
+    intentionally do NOT influence this input, so a checked ``no_duplicate``
+    verdict survives finish-order coordination and label churn.
 
-
-def _revision_input(issue: Issue) -> str:
-    """Return stable intake/source revision data without scheduler metadata."""
-
-    for name in ("source_revision", "revision"):
-        value = getattr(issue, name, None)
-        if value:
-            return _normalize_text(value)
+    The task title, description (which already contains any ``Triggered by:
+    <id>`` header the server prepends for follow-up tasks), project, issue
+    type, and parent are already part of the fingerprint payload — the intake
+    revision only adds signal when a body section outside the summary changes
+    materially enough for the intake normalizer to record a new proposal
+    fingerprint.
+    """
 
     intake = getattr(issue, "intake", None)
     if isinstance(intake, dict):
-        for key in (
-            "source_revision",
-            "evidence_revision",
-            "revision",
-            "proposal_fingerprint",
-        ):
-            value = intake.get(key)
-            if value:
-                return _normalize_text(value)
+        value = intake.get("proposal_fingerprint")
+        if value:
+            return _normalize_text(value)
     return ""
 
 
@@ -92,9 +86,10 @@ def compute_task_fingerprint(issue: Issue) -> str:
 
     Tracker state, priority, timestamps, comments, labels, and scheduling
     dependencies are intentionally excluded. Writing screening metadata or
-    agent telemetry therefore cannot make its own result stale. Stable source
-    identity and intake/evidence revision fields are included when supplied by
-    a tracker adapter.
+    agent telemetry therefore cannot make its own result stale. The stable
+    intake proposal fingerprint from ``oompah.intake`` is included when
+    supplied by a tracker adapter — the only intake field that changes
+    materially with issue content and not with scheduler-driven rewrites.
     """
 
     payload = {
@@ -103,8 +98,7 @@ def compute_task_fingerprint(issue: Issue) -> str:
         "project_id": _normalize_text(issue.project_id),
         "issue_type": _normalize_text(issue.issue_type),
         "parent_id": _normalize_text(issue.parent_id),
-        "source": _source_input(issue),
-        "source_revision": _revision_input(issue),
+        "intake_revision": _intake_revision(issue),
     }
     canonical = json.dumps(
         payload,

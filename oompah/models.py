@@ -250,11 +250,6 @@ class Issue:
     # any view unless this field is non-null (or the tracker explicitly records a
     # terminal Merged status via other means such as GitHub PR metadata).
     merged_at: str | None = None
-    # Optional stable source identity and revision supplied by tracker adapters.
-    # These are duplicate-screening inputs; scheduler metadata such as
-    # finish-order dependencies and labels is intentionally not.
-    source: str | None = None
-    source_revision: str | None = None
 
 
 @dataclass

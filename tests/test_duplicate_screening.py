@@ -85,15 +85,38 @@ def test_relevant_task_inputs_invalidate_fingerprint():
     changes = [
         replace(issue, title="A different title"),
         replace(issue, description="A different description"),
+        replace(
+            issue,
+            description="Triggered by: OOMPAH-999\n\n" + (issue.description or ""),
+        ),
         replace(issue, project_id="project-2"),
         replace(issue, issue_type="bug"),
         replace(issue, parent_id="EPIC-2"),
-        replace(issue, source="SOURCE-2"),
-        replace(issue, source_revision="revision-2"),
         replace(issue, intake={"proposal_fingerprint": "proposal-2"}),
     ]
 
     assert all(compute_task_fingerprint(changed) != original for changed in changes)
+
+
+def test_intake_scheduler_writes_do_not_invalidate_fingerprint():
+    """Only the stable proposal fingerprint is a duplicate-screening input.
+
+    ``last_validated_at`` and similar scheduler telemetry rewrites of the
+    ``oompah.intake`` metadata block must not stale a completed screen.
+    """
+    intake_base = {
+        "proposal_fingerprint": "proposal-1",
+        "last_validated_at": "2026-01-01T00:00:00+00:00",
+        "requestor_approved_at": "2026-01-01T00:00:00+00:00",
+    }
+    intake_after = dict(intake_base)
+    intake_after["last_validated_at"] = "2026-01-02T00:00:00+00:00"
+    intake_after["requestor_approved_at"] = "2026-01-02T00:00:00+00:00"
+
+    issue = _issue(intake=intake_base)
+    after = replace(issue, intake=intake_after)
+
+    assert compute_task_fingerprint(issue) == compute_task_fingerprint(after)
 
 
 def test_scheduler_metadata_does_not_invalidate_fingerprint():

@@ -71,10 +71,13 @@ the task card to `In Progress`.
 
 ## Result Validity
 
-Oompah fingerprints the normalized task title, description, type, project,
-parent, and stable source/intake revision inputs. Comments, timestamps,
-priority, tracker state, labels, and scheduling dependencies are excluded, so
-finish-order changes do not stale an otherwise valid screening result.
+Oompah fingerprints the normalized task title, description (which carries
+any `Triggered by: <id>` follow-up header for every tracker adapter), type,
+project, parent, and the stable `oompah.intake.proposal_fingerprint`.
+Comments, timestamps, priority, tracker state, labels, scheduling
+dependencies, and scheduler-driven intake rewrites such as
+`last_validated_at` are excluded, so finish-order changes do not stale an
+otherwise valid screening result.
 
 Editing a fingerprinted field invalidates the previous pass automatically.
 The implementation dispatcher accepts only a current `no_duplicate` result.
