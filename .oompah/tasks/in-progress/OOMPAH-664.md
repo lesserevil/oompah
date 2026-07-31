@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T16:04:06.140108Z'
-updated_at: '2026-07-31T18:37:30.593581Z'
+updated_at: '2026-07-31T18:37:44.530449Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -141,5 +141,10 @@ author: oompah
 created: 2026-07-31 18:37
 ---
 Discovery: Root cause analysis confirmed: the _issues_snapshot was keyed only by TTL and checkpoint timestamp, not by the exact source generation. A mutation via a separate tracker instance advanced the state-branch generation without touching the snapshot's staleness indicator, causing the cached board to serve pre-mutation data as authoritative. Key files changed: oompah/oompah_md_tracker.py (get_state_branch_generation, add_read_change_callback, _notify_read_change), oompah/server.py (_tracker_source_generation, _wire_tracker_issue_cache_invalidation, _invalidate_issue_caches, _detail_cache_get/_set helpers, source_generations in _issues_snapshot, _fetch_all_issues extended to return generations).
+---
+author: oompah
+created: 2026-07-31 18:37
+---
+Implementation: Changes made in recovery commit a1cdabc0f: (1) oompah/oompah_md_tracker.py: added get_state_branch_generation() returning 'commit_sha:read_epoch' string; added add_read_change_callback() and _notify_read_change() called from both _do_checkpoint_flush and _invalidate_local_read_cache so both durable commits and direct writes fire cache invalidation. (2) oompah/server.py: _tracker_source_generation() reads generation from state-branch trackers only; _wire_tracker_issue_cache_invalidation() registers per-project callbacks; _invalidate_issue_caches() clears list + project detail caches synchronously; _issues_snapshot now records source_generations + invalidated flag; _issues_snapshot_payload() rejects snapshots where source generation has advanced; _issues_snapshot_headers() X-Oompah-Issues-Stale reflects source_stale; generation-aware _detail_cache_get/_detail_cache_set replace raw _api_cache calls for issue detail endpoint; _fetch_all_issues extended with include_source_generations=True path.
 ---
 <!-- COMMENTS:END -->
