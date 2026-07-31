@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-07-31T12:05:04.932257Z'
+updated_at: '2026-07-31T12:05:16.255051Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -447,5 +447,20 @@ Verification: Focused suites all green.
 Skipping the repository-wide make test gate as instructed until OOMPAH-657 lands exact-head enforcement; server owns the one review-ready full gate.
 
 Head: 1b49ab0f4 pushed to origin/OOMPAH-658.
+---
+author: oompah
+created: 2026-07-31 12:05
+---
+Completion: Adapter-backed duplicate-preflight deduplication.
+
+What was delivered:
+- Removed dead Issue.source/source_revision dataclass fields that no adapter populated.
+- Fingerprint now composes (title, description with 'Triggered by' header, project, type, parent, intake.proposal_fingerprint). Scheduling metadata — dependencies, labels, updated_at, last_validated_at — is excluded.
+- Persisted native regression: (a) checked verdict + finish-order + labels on disk => zero re-screens across ticks + fresh orchestrator/tracker; (b) mutated persisted intake.proposal_fingerprint => exactly one winner under concurrent claim race; (c) persisted inconclusive verdict remains re-screenable.
+- Docs updated to describe the new fingerprint inputs.
+
+Files: oompah/duplicate_screening.py, oompah/models.py, docs/duplicate-screening.md, tests/test_duplicate_screening.py, tests/test_duplicate_preflight.py.
+
+Ready for review at 1b49ab0f4.
 ---
 <!-- COMMENTS:END -->
