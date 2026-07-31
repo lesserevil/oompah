@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-645
 type: task
-status: In Progress
+status: Needs Human
 priority: 0
 title: Clear recovered terminal-audit transport failures without contaminating later
   audits
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T06:47:58.732088Z'
-updated_at: '2026-07-31T09:01:58.182414Z'
+updated_at: '2026-07-31T09:04:14.962714Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -102,8 +102,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: aa3a6a51-405f-4be1-9308-b7b8dab72a67
 oompah.task_costs:
-  total_input_tokens: 2223999
-  total_output_tokens: 58992
+  total_input_tokens: 2740130
+  total_output_tokens: 64309
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -111,8 +111,8 @@ oompah.task_costs:
       output_tokens: 6782
       cost_usd: 0.0
     sonnet:
-      input_tokens: 2223845
-      output_tokens: 52210
+      input_tokens: 2739976
+      output_tokens: 57527
       cost_usd: 0.0
   runs:
   - profile: default
@@ -139,6 +139,12 @@ oompah.task_costs:
     output_tokens: 6605
     cost_usd: 0.0
     recorded_at: '2026-07-31T08:58:12.308723+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 516131
+    output_tokens: 5317
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T09:04:08.821828+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-645__20260731T064937Z
@@ -173,6 +179,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-645
     source_sha: 6686290d51cfff9d63270ee27da19d2aafd0fd87
     completed_at: '2026-07-31T08:58:12.312425+00:00'
+  - run_id: OOMPAH-645__20260731T090159Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-terra
+    focus: ci_fix
+    source_branch: OOMPAH-645
+    source_sha: 6686290d51cfff9d63270ee27da19d2aafd0fd87
+    completed_at: '2026-07-31T09:04:08.832421+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -584,5 +598,20 @@ author: oompah
 created: 2026-07-31 09:01
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-31 09:04
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Codex/gpt-5.6-terra]
+- Turns: 1, Tool calls: 14
+- Tokens: 516.1K in / 5.3K out [521.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 14s
+- Log: OOMPAH-645__20260731T090159Z.jsonl
+---
+author: oompah
+created: 2026-07-31 09:04
+---
+Task handoff failed after the worker ran: the server-owned, task-scoped tracker capability could not update this task. The task is held in Needs Human and will not be redispatched automatically; verify the handoff service and reconcile the worker's branch before resuming it.
 ---
 <!-- COMMENTS:END -->
