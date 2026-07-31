@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:08:00.758352Z'
-updated_at: '2026-07-31T00:36:23.885370Z'
+updated_at: '2026-07-31T00:36:34.883264Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-631
 target_branch: null
 review_url: null
@@ -42,13 +42,17 @@ oompah.integration:
   base_sha: c03e52f66f4e5123576f4de3f21e4a763cc9c4b1
   updated_at: '2026-07-31T00:35:13.869937+00:00'
 oompah.task_costs:
-  total_input_tokens: 1487463
-  total_output_tokens: 12269
+  total_input_tokens: 1487488
+  total_output_tokens: 12834
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 1487463
       output_tokens: 12269
+      cost_usd: 0.0
+    opus:
+      input_tokens: 25
+      output_tokens: 565
       cost_usd: 0.0
   runs:
   - profile: default
@@ -63,6 +67,12 @@ oompah.task_costs:
     output_tokens: 57
     cost_usd: 0.0
     recorded_at: '2026-07-31T00:27:44.603524+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 25
+    output_tokens: 565
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T00:36:33.313579+00:00'
 ---
 ## Summary
 
@@ -228,5 +238,15 @@ author: oompah
 created: 2026-07-31 00:36
 ---
 Exact gate: 13,826 passed, 7 skipped; only TestConcurrentWrite::test_shadow_write_tracker_serializes_writes failed under load. It passes 30/30 alone. Root cause in the regression itself: global 5s pytest timeout conflicts with two 10s joins, and the test reads tracker state without asserting either worker ended. Operator is stabilizing it with an explicit bounded concurrency budget and liveness assertions before resubmission.
+---
+author: oompah
+created: 2026-07-31 00:36
+---
+Run #1 [attempt=1, profile=deep, role=deep -> Claude/opus]
+- Turns: 0, Tool calls: 12
+- Tokens: 25 in / 565 out [590 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 1m 22s
+- Log: OOMPAH-631__20260731T003526Z.jsonl
 ---
 <!-- COMMENTS:END -->
