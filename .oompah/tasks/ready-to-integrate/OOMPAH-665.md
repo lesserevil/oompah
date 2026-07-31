@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-665
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Retire legacy no-auditor alerts after terminal task completion
 parent: null
@@ -12,7 +12,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-07-31T16:04:07.401588Z'
-updated_at: '2026-07-31T18:56:56.373185Z'
+updated_at: '2026-07-31T18:57:00.698294Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -308,5 +308,10 @@ author: oompah
 created: 2026-07-31 18:56
 ---
 Completion: delivered and pushed 2027d0fd4. The branch retains the legacy no-auditor retirement implementation plus a fail-closed identity guard and regression coverage. It is based on current origin/main; focused tests passed (177). Full make test could not start because the host uv launcher cannot create its transient system scope.
+---
+author: oompah
+created: 2026-07-31 18:57
+---
+Retired legacy no-auditor alerts with fail-closed identity validation; 177 focused tests pass.
 ---
 <!-- COMMENTS:END -->
