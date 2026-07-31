@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-656
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Rebase epic-OOMPAH-619 onto main
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:41:57.043640Z'
-updated_at: '2026-07-31T10:57:10.544409Z'
+updated_at: '2026-07-31T10:57:59.601185Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -83,6 +83,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-656
     source_sha: ec0ec7d89fb8804571fcf7e780558e6d979b73ea
     completed_at: '2026-07-31T10:43:52.684946+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-656
+  head_sha: 54dd2509c6cbc73aaadbda2a3fdc7cfbb14530eb
+  submitted_at: '2026-07-31T10:57:57.200897+00:00'
+  updated_at: '2026-07-31T10:57:57.200897+00:00'
 ---
 ## Summary
 
@@ -135,5 +143,10 @@ author: oompah
 created: 2026-07-31 10:57
 ---
 Completed topology-only rebase and verified published result. Observed expected old remote head 0dc7d0f7caeea06a6eceb55ea2e58cf16554f0a4; published new origin/epic-OOMPAH-619 head 3fcdf30caa62fb7709d0cd9e1553320dd11b3877. origin/main is 54dd2509c6cbc73aaadbda2a3fdc7cfbb14530eb and is an ancestor of the new head. git range-diff preserved all six accepted patches: OOMPAH-620, OOMPAH-624, and four OOMPAH-621 commits. origin/main..origin/epic-OOMPAH-619 contains exactly those six commits and no unrelated commits. The direct epic worktree is clean. No candidate/full gate run, per topology-only task instructions.
+---
+author: oompah
+created: 2026-07-31 10:57
+---
+Rebased epic-OOMPAH-619 from 0dc7d0f7caeea06a6eceb55ea2e58cf16554f0a4 onto origin/main 54dd2509c6cbc73aaadbda2a3fdc7cfbb14530eb and published 3fcdf30caa62fb7709d0cd9e1553320dd11b3877 with all six accepted OOMPAH-620/621/624 patches preserved; origin/main is an ancestor, no unrelated commits were added, and the direct epic worktree is clean.
 ---
 <!-- COMMENTS:END -->
