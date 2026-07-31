@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T11:06:15.542774Z'
-updated_at: '2026-07-31T11:31:26.858158Z'
+updated_at: '2026-07-31T11:32:15.093412Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -160,5 +160,10 @@ author: oompah
 created: 2026-07-31 11:31
 ---
 Fourth live stale-generation reproduction: after clean OOMPAH-653 head 44742bb1f exited and the task was explicitly returned to Open for blocking review defects, the old integration row launched server-owned make test PGID 1747920 in the OOMPAH-653 worktree. Operator verified exact Open status/cwd/head/PGID and terminated only that gate group. The current OOMPAH-657 head still leaves _retire_inactive_integration_rows excluding Open and only polls is_current after Popen registration, so the reproduced root cause remains.
+---
+author: oompah
+created: 2026-07-31 11:32
+---
+Fifth live reproduction against the current candidate head: exact-head review moved rejected OOMPAH-658 head 7e4375e6f from Ready to Integrate to Open, and the stale row immediately launched server-owned make test PGID 1882247 in that worktree. Operator revalidated Open status/cwd/head/PGID and terminated only that gate group. This is the exact deterministic Ready-to-Open case still absent from 08bc7ebfe; polling is_current after process registration does not retire the row or close pre-spawn races.
 ---
 <!-- COMMENTS:END -->
