@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-647
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Make merge-conflict rebase continuation noninteractive and deadlock-safe
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T07:09:27.752943Z'
-updated_at: '2026-07-31T07:25:36.448968Z'
+updated_at: '2026-07-31T07:47:41.925687Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -181,5 +181,10 @@ Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: normal, Duration: 14m 26s
 - Log: OOMPAH-647__20260731T071117Z.jsonl
+---
+author: oompah
+created: 2026-07-31 07:47
+---
+Branch quality gate passed for `79fbad71a4c5e735916e16db6fd546d455da3022` using `make test` in 270.4s. Review creation may proceed.
 ---
 <!-- COMMENTS:END -->
