@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:46:11.947079Z'
-updated_at: '2026-07-31T18:16:56.352466Z'
+updated_at: '2026-07-31T18:17:28.717721Z'
 work_branch: OOMPAH-644
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/611
@@ -128,6 +128,25 @@ oompah.terminal_audit:
       and exhausted. Operator reviewed the recorded evidence and is clearing the infeasible
       audit deadlock.'
     created_at: '2026-07-31T08:55:16.942016+00:00'
+  - version: 1
+    override_id: override-0a4d0cb316f1
+    project_id: proj-14849f1b
+    task_id: OOMPAH-644
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a81c4c36325d4f4720adcfab95e9468745bbc8a9b18d42ba39a23726310c0601
+    authorized_by:
+      version: 1
+      identity: lesserevil
+      source: api
+    reason: PR 611 merged exact head ab4cab20c0697076098bd429d529fd3d8d3434e9 as fa26c40007ce128012cf76d93334cba51181709f.
+      This owner restage preserves the existing Merged lifecycle outcome while binding
+      it to current evidence and retiring the obsolete pre-fix no-independent-candidate
+      alert audit-710535de2bba.
+    created_at: '2026-07-31T18:17:24.314056+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -397,5 +416,12 @@ created: 2026-07-31 08:55
 Override by lesserevil: terminal transition to Merged applied by project owner.
 
 Reason: PR #611 is merged; exact branch quality gate passed on ab4cab20c0697076098bd429d529fd3d8d3434e9; both configured independent auditor candidates (opus and sonnet) were attempted and exhausted. Operator reviewed the recorded evidence and is clearing the infeasible audit deadlock.
+---
+author: oompah
+created: 2026-07-31 18:17
+---
+Override by lesserevil: terminal transition to Merged applied by project owner.
+
+Reason: PR 611 merged exact head ab4cab20c0697076098bd429d529fd3d8d3434e9 as fa26c40007ce128012cf76d93334cba51181709f. This owner restage preserves the existing Merged lifecycle outcome while binding it to current evidence and retiring the obsolete pre-fix no-independent-candidate alert audit-710535de2bba.
 ---
 <!-- COMMENTS:END -->
