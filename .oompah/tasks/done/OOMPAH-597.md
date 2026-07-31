@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-597
 type: task
-status: In Validation
+status: Done
 priority: 1
 title: Recover and drain the OOMPAH-460 ordered integration chain
 parent: OOMPAH-587
@@ -13,7 +13,7 @@ start_blocked_by: &id001 []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:28.342383Z'
-updated_at: '2026-07-31T04:21:29.067927Z'
+updated_at: '2026-07-31T04:26:36.051524Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-597
 target_branch: null
 review_url: null
@@ -138,6 +138,7 @@ oompah.terminal_audit:
   applied_result_attempts:
     no-auditor-audit-2b477b2e0afe-1: '2026-07-31T03:39:23.618045+00:00'
     attempt-77ab0745d9d4: '2026-07-31T03:47:44.012900+00:00'
+    attempt-880b644ed7b6: '2026-07-31T04:26:33.485214+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -225,7 +226,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-597
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -234,7 +235,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-880b644ed7b6
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -244,13 +245,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T04:21:24.784226+00:00'
       branch_key: epic-OOMPAH-587--task-OOMPAH-597
+      verdict: pass
+      completed_at: '2026-07-31T04:26:33.484974+00:00'
+      ended_at: '2026-07-31T04:26:33.484974+00:00'
     requested_by:
       version: 1
       identity: api-client
       source: api
     previous_state: Needs Human
     created_at: '2026-07-31T04:21:19.614434+00:00'
-    updated_at: '2026-07-31T04:21:24.784226+00:00'
+    updated_at: '2026-07-31T04:26:33.484974+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-5af1aa0b5fd2
@@ -876,5 +880,31 @@ author: oompah
 created: 2026-07-31 04:21
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 04:26
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: 44e5c5579d2d56ecc0ddc801d77e28d74dd734ce
+- task_state: In Validation
+- target_state: Done
+- child_state_OOMPAH-484: Done (owner override, evidence 658cc73b4d3965d3)
+- child_state_OOMPAH-485: Done (2 owner overrides, evidence 431a4147fe9037)
+- child_state_OOMPAH-487: Done (owner override, evidence e19fe4e053bfc5)
+- child_state_OOMPAH-488: Done (2 owner overrides, evidence ef70d3db523ec8)
+- child_state_OOMPAH-489: Done (override + independent audit PASS by prov-651d553c/opus)
+- child_state_OOMPAH-489_integrated_sha: 0d7c3578f56f2939e4d9d3b73b5a92cad10d203a
+- aux_state_OOMPAH-580: Archived (owner override via terminal-audit path)
+- epic_state_OOMPAH-460: In Progress, 4 commits ahead of main
+- epic_labels: rebase-requested, epic:rebasing
+- ready_to_integrate_rows: OOMPAH-575,599,607,608,615 (none are OOMPAH-460 children)
+- override_authorizer: lesserevil (project owner)
+- override_source: api
+- override_mechanism: terminal-audit path (terminal_override_records)
+- operator_recovery_head: 5d88239c9 (net-delta squash atop 33b773bd2) then 54ebca942 (test fixture isolation fix) then 44e5c5579 (rearm)
 ---
 <!-- COMMENTS:END -->
