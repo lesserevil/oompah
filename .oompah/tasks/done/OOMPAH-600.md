@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-600
 type: task
-status: In Validation
+status: Done
 priority: 1
 title: Integrate OOMPAH-581 and prune current safe terminal workspaces
 parent: OOMPAH-588
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:58.634342Z'
-updated_at: '2026-07-31T03:41:54.139784Z'
+updated_at: '2026-07-31T03:42:38.776381Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-600
 target_branch: null
 review_url: null
@@ -115,6 +115,8 @@ oompah.work_contributors:
     completed_at: '2026-07-30T15:52:40.479596+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-62ab5d8ea002: '2026-07-31T03:42:36.343084+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -122,7 +124,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-600
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -131,7 +133,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-62ab5d8ea002
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -141,13 +143,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T03:39:26.349286+00:00'
       branch_key: epic-OOMPAH-588--task-OOMPAH-600
+      verdict: pass
+      completed_at: '2026-07-31T03:42:36.342944+00:00'
+      ended_at: '2026-07-31T03:42:36.342944+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-07-31T03:39:04.782110+00:00'
-    updated_at: '2026-07-31T03:39:26.349286+00:00'
+    updated_at: '2026-07-31T03:42:36.342944+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-62ab5d8ea002
@@ -492,5 +497,26 @@ author: oompah
 created: 2026-07-31 03:41
 ---
 Auditor evidence: the configured integration gate ran on exact candidate head 67c67ffa6 and passed: 13,914 passed, 7 skipped. Focused runner/Makefile checks: 21 passed; scoped handoff/CLI checks: 169 passed. Review the recorded exact-head result rather than starting a duplicate serial full-suite run.
+---
+author: oompah
+created: 2026-07-31 03:42
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: 67c67ffa6f932ca2a41ff1cd214ed33c9655becc
+- branch_upstream: origin/epic-OOMPAH-588--task-OOMPAH-600 (in sync, clean tree)
+- oompah_581_commit: 741a7d88b (OOMPAH-581: Prune merged epic repair workspaces with task-style branch paths)
+- oompah_581_merge_on_main: 24bd5d6c1 (Merge pull request #600 from lesserevil/OOMPAH-581)
+- task_scope_commits: 6b8310896 (test runner via prepared venv, +tests) and 67c67ffa6 (task_cli identifier scoping, +tests) — both narrowly tested per operator scope confirmation
+- duplicate_delivery_status: blocked; cherry-pick 4dd6bd24e stopped and ref restored to b4959703e
+- cleanup_before_counts: 40 registered worktrees / 158 local branches / 109 remote-tracking refs
+- cleanup_after_counts: 38 registered worktrees / 156 local branches / 109 remote-tracking refs
+- cleanup_removed: OOMPAH-418, OOMPAH-426 (clean, main-ancestor terminal residues)
+- cleanup_preserved: TASK-472, TASK-473, TASK-495-ci, release-delivery, operator-recovery, dirty, default-unreachable heads
+- full_gate_result: make test 13,914 passed / 7 skipped on 67c67ffa6
+- focused_tests: 21 runner/Makefile + 169 task CLI/handoff tests passed
 ---
 <!-- COMMENTS:END -->
