@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:07.401588Z'
-updated_at: '2026-07-31T23:14:10.486010Z'
+updated_at: '2026-07-31T23:15:17.809145Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -61,8 +61,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 57004dc6-4e48-4c28-9024-8679bbe3dd1c
 oompah.task_costs:
-  total_input_tokens: 2590496
-  total_output_tokens: 25179
+  total_input_tokens: 2590540
+  total_output_tokens: 34450
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -70,8 +70,8 @@ oompah.task_costs:
       output_tokens: 4135
       cost_usd: 0.0
     sonnet:
-      input_tokens: 2590326
-      output_tokens: 21044
+      input_tokens: 2590370
+      output_tokens: 30315
       cost_usd: 0.0
   runs:
   - profile: default
@@ -110,6 +110,12 @@ oompah.task_costs:
     output_tokens: 6554
     cost_usd: 0.0
     recorded_at: '2026-07-31T21:59:17.591431+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 44
+    output_tokens: 9271
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T23:15:16.032539+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-665__20260731T181648Z
@@ -652,5 +658,15 @@ author: oompah
 created: 2026-07-31 23:14
 ---
 Rebased clean implementation of terminal-audit no-auditor alert retirement onto current main (post-OOMPAH-668). Dropped duplicate Makefile fallback that was already covered by OOMPAH-668. Force-pushed clean 2-commit history to origin/OOMPAH-665. All focused tests pass (89 tests across terminal_audit_observability, orchestrator_profile_reload, makefile_setup, quality_gate suites).
+---
+author: oompah
+created: 2026-07-31 23:15
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 0, Tool calls: 51
+- Tokens: 44 in / 9.3K out [9.3K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 5m 40s
+- Log: OOMPAH-665__20260731T230941Z.jsonl
 ---
 <!-- COMMENTS:END -->
