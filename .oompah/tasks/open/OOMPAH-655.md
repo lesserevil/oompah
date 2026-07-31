@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-655
 type: task
-status: Ready to Integrate
+status: Open
 priority: null
 title: Enforce full-gate service isolation outside candidate branch code
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T10:47:24.480496Z'
+updated_at: '2026-07-31T10:48:15.553574Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -162,5 +162,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 7m 44s
 - Log: OOMPAH-655__20260731T103941Z.jsonl
+---
+author: oompah
+created: 2026-07-31 10:48
+---
+Operator rejects submitted head dd520b1adc45b7010451e3b4dfadde05fbedf0f3 before integration. Its tests only assert environment variables are passed; they do not execute the task's required old/non-cooperating fixture or literal canonical PID/localhost attack. The implementation itself states HOME is not isolated, releases the supposedly reserved port before use, never cleans its mkdtemp run root, and offers no pre-Popen ancestry/contract rejection or Needs Rebase routing. An old Makefile that ignores OOMPAH_TEST_PID_FILE still reads its own/canonical literal path, and same-UID code can signal the live PID. Environment hints are useful defense-in-depth but not an enforcement boundary. Implement the fail-closed preflight/repair path or a real OS boundary, plus required hostile-fixture and cleanup tests; do not resubmit this exact design.
 ---
 <!-- COMMENTS:END -->
