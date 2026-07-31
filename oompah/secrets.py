@@ -337,23 +337,17 @@ def _registered_secret_snapshot() -> tuple[tuple[str, ...], tuple[bytes, ...]]:
 
 
 def _replace_registered_literals(value: str, secrets: tuple[str, ...]) -> str:
-    """Replace registered values without corrupting surrounding identifiers.
+    """Replace every registered value literally, longest-first.
 
     Explicitly configured values may be short (for example, a deliberately
-    tiny development password). Longest-first literal replacement is required
-    for opaque credentials, but replacing a short value inside an identifier
-    such as ``PASSWORD_FILE`` would damage otherwise useful diagnostics. Short
-    values therefore require non-alphanumeric boundaries; longer credentials
-    retain substring replacement so values embedded in URLs, JSON, or command
-    output are still removed.
+    tiny development password) and may be concatenated into URLs, identifiers,
+    or tool output. Once a value is registered as a credential, preserving
+    surrounding diagnostic text cannot take precedence over removing every
+    occurrence of that value.
     """
     result = value
     for secret in secrets:
-        if len(secret) < 8:
-            pattern = rf"(?<![A-Za-z0-9]){re.escape(secret)}(?![A-Za-z0-9])"
-            result = re.sub(pattern, _REDACTED, result)
-        else:
-            result = result.replace(secret, _REDACTED)
+        result = result.replace(secret, _REDACTED)
     return result
 
 
@@ -619,11 +613,7 @@ def redact_sensitive_data(
         _, registered_bytes = _registered_secret_snapshot()
         byte_result = value
         for secret in registered_bytes:
-            if len(secret) < 8:
-                pattern = rb"(?<![A-Za-z0-9])" + re.escape(secret) + rb"(?![A-Za-z0-9])"
-                byte_result = re.sub(pattern, _REDACTED.encode("utf-8"), byte_result)
-            else:
-                byte_result = byte_result.replace(secret, _REDACTED.encode("utf-8"))
+            byte_result = byte_result.replace(secret, _REDACTED.encode("utf-8"))
         try:
             decoded = byte_result.decode("utf-8", errors="replace")
             redacted = _redact_string(decoded)

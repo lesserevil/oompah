@@ -900,6 +900,26 @@ class TestApiAgentJSONLRedaction:
         contents = open(log_path).read()
         _assert_no_sentinels(contents)
 
+    def test_log_event_redacts_embedded_short_registered_secret(self, tmp_path):
+        from oompah.secrets import register_secret, retire_secret
+
+        short_secret = "q7Z"
+        embedded_secret = f"prefix{short_secret}suffix"
+        register_secret(short_secret, expires_in=60)
+        try:
+            session, log_path = self._make_session(tmp_path)
+            session._log_event(
+                "response",
+                body={"content": embedded_secret, "status": "diagnostic-safe"},
+            )
+
+            contents = open(log_path).read()
+            assert embedded_secret not in contents
+            assert "prefix[REDACTED]suffix" in contents
+            assert "diagnostic-safe" in contents
+        finally:
+            retire_secret(short_secret, grace_seconds=0)
+
     def test_log_event_preserves_nonsecret_fields(self, tmp_path):
         session, log_path = self._make_session(tmp_path)
         session._log_event(
@@ -1140,6 +1160,37 @@ class TestSecretRedactionLoggingFilter:
         rendered = stream.getvalue()
         _assert_no_sentinels(rendered)
         assert "[REDACTED]" in rendered
+
+    def test_late_handler_redacts_embedded_short_registered_secret(self):
+        import io
+        import logging
+
+        from oompah.secrets import (
+            install_secret_redaction_filter,
+            register_secret,
+            retire_secret,
+        )
+
+        short_secret = "v8W"
+        embedded_secret = f"prefix{short_secret}suffix"
+        register_secret(short_secret, expires_in=60)
+        install_secret_redaction_filter("oompah")
+        log = logging.getLogger("oompah.test-short-registered-secret")
+        log.propagate = False
+        stream = io.StringIO()
+        handler = logging.StreamHandler(stream)
+        log.addHandler(handler)
+        try:
+            log.warning("backend output: %s diagnostic-safe", embedded_secret)
+        finally:
+            log.removeHandler(handler)
+            handler.close()
+            retire_secret(short_secret, grace_seconds=0)
+
+        rendered = stream.getvalue()
+        assert embedded_secret not in rendered
+        assert "prefix[REDACTED]suffix" in rendered
+        assert "diagnostic-safe" in rendered
 
     def test_filter_redacts_args_tuple(self):
         import logging
@@ -1487,13 +1538,31 @@ class TestConfiguredSecretRegistry:
         assert unrelated_value in result["detail"]
         assert "1" in result["detail"]
 
+    def test_registered_short_string_is_redacted_inside_alphanumeric_text(self):
+        from oompah.secrets import register_secret, retire_secret
+
+        short_secret = "j6K"
+        register_secret(short_secret, expires_in=60)
+        try:
+            result = redact_sensitive_data(
+                {"detail": f"prefix{short_secret}suffix diagnostic-safe"}
+            )
+
+            assert result["detail"] == "prefix[REDACTED]suffix diagnostic-safe"
+        finally:
+            retire_secret(short_secret, grace_seconds=0)
+
     def test_registered_short_bytes_are_redacted(self):
-        from oompah.secrets import register_secret
+        from oompah.secrets import register_secret, retire_secret
 
-        register_secret(b"b7")
-        result = redact_sensitive_data(b"chunk:b7")
+        short_secret = b"b7"
+        register_secret(short_secret, expires_in=60)
+        try:
+            result = redact_sensitive_data(b"prefixb7suffix diagnostic-safe")
 
-        assert result == b"chunk:[REDACTED]"
+            assert result == b"prefix[REDACTED]suffix diagnostic-safe"
+        finally:
+            retire_secret(short_secret, grace_seconds=0)
 
     def test_acp_environment_uses_the_authoritative_allow_list(self, tmp_path):
         from oompah.acp_agent import AcpAgentSession
