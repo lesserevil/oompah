@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-658
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 2
 title: Deduplicate duplicate-preflight runs across deferred dispatch ticks
 parent: null
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-07-31T12:05:16.255051Z'
+updated_at: '2026-07-31T12:05:25.135797Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -85,9 +85,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-658
-  head_sha: 1fc7b264210d129e9492b9251af5072f9a45fc0a
-  submitted_at: '2026-07-31T11:47:17.196992+00:00'
-  updated_at: '2026-07-31T11:47:17.196992+00:00'
+  head_sha: 1b49ab0f4732ca40bfb7355f726a8da6bacc234f
+  submitted_at: '2026-07-31T12:05:22.629962+00:00'
+  updated_at: '2026-07-31T12:05:22.629962+00:00'
 ---
 ## Summary
 
@@ -462,5 +462,10 @@ What was delivered:
 Files: oompah/duplicate_screening.py, oompah/models.py, docs/duplicate-screening.md, tests/test_duplicate_screening.py, tests/test_duplicate_preflight.py.
 
 Ready for review at 1b49ab0f4.
+---
+author: oompah
+created: 2026-07-31 12:05
+---
+Duplicate-preflight fingerprint uses production intake fields; scheduling metadata excluded. Native adapter-backed regressions prove zero re-screens on unchanged intake, exactly-one claim on mutated intake proposal_fingerprint, and continued retry for inconclusive verdicts.
 ---
 <!-- COMMENTS:END -->
