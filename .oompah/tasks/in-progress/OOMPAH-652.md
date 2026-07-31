@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:15.160957Z'
-updated_at: '2026-07-31T09:23:10.293402Z'
+updated_at: '2026-07-31T09:30:55.311539Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -126,5 +126,10 @@ author: oompah
 created: 2026-07-31 09:23
 ---
 Additional live process-ownership evidence during the drain: OOMPAH-651 worker exited and the task left running state, but its full make test process group 3603400 (leader sh -c make test, bash run-tests, pytest controller, four workers; exact cwd OOMPAH-651) remained alive as a child group of the service. Because that rejected branch lacked gate isolation, the operator terminated only PGID 3603400 before teardown could stop the service. Include the invariant that worker completion/termination reaps every captured test/tool process group, even when the provider returns before the command, while never touching sibling service/group identities.
+---
+author: oompah
+created: 2026-07-31 09:30
+---
+Operator takeover: the full gate completed and the pre-existing service remained healthy, but the provider process then exited without committing, pushing, submitting, or releasing the In Progress lease. This leaves a dirty tested worktree and blocks the graceful restart. Per the direct-recovery fallback, I am reviewing and packaging this exact worktree; no changes will be integrated without source review and focused verification.
 ---
 <!-- COMMENTS:END -->
