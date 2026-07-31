@@ -48,6 +48,7 @@ import re
 import subprocess
 from typing import TYPE_CHECKING, Any
 
+from oompah.git_noninteractive import NONINTERACTIVE_GIT_ENV
 from oompah.release_pick_schema import BackportEntry, ReleasePick
 from oompah.statuses import IN_REVIEW, NEEDS_REBASE
 
@@ -61,6 +62,13 @@ logger = logging.getLogger(__name__)
 
 #: Timeout in seconds for individual git operations.
 _GIT_TIMEOUT = 120
+
+
+def _git_env() -> dict[str, str]:
+    """Return subprocess env with noninteractive git overrides applied."""
+    env = dict(os.environ)
+    env.update(NONINTERACTIVE_GIT_ENV)
+    return env
 
 
 # ---------------------------------------------------------------------------
@@ -130,6 +138,7 @@ def _has_new_commits(wt_path: str, base_branch: str) -> bool:
             capture_output=True,
             text=True,
             timeout=30,
+            env=_git_env(),
         )
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
         return False
@@ -169,6 +178,7 @@ def _has_cherry_pick_in_progress(wt_path: str) -> bool:
             capture_output=True,
             text=True,
             timeout=10,
+            env=_git_env(),
         )
         if result.returncode != 0:
             return False
@@ -246,6 +256,7 @@ def apply_cherry_pick(wt_path: str, commits: list[str]) -> None:
             capture_output=True,
             text=True,
             timeout=10,
+            env=_git_env(),
         )
         upstream = upstream_result.stdout.strip()  # e.g. "origin/release/1.0"
         if upstream.startswith("origin/"):
@@ -270,6 +281,7 @@ def apply_cherry_pick(wt_path: str, commits: list[str]) -> None:
         capture_output=True,
         text=True,
         timeout=_GIT_TIMEOUT,
+        env=_git_env(),
     )
 
     if result.returncode == 0:
@@ -315,6 +327,7 @@ def apply_cherry_pick(wt_path: str, commits: list[str]) -> None:
         capture_output=True,
         text=True,
         timeout=30,
+        env=_git_env(),
     )
     raise CherryPickError(
         f"cherry-pick of {commits!r} in {wt_path!r} failed "
@@ -343,6 +356,7 @@ def push_branch(wt_path: str, branch_name: str) -> None:
         text=True,
         check=True,
         timeout=_GIT_TIMEOUT,
+        env=_git_env(),
     )
     logger.info(
         "push_branch: pushed %s from %s to origin",

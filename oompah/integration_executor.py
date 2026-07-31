@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 import subprocess
 from typing import Callable, ContextManager
 
+from oompah.git_noninteractive import NONINTERACTIVE_GIT_ENV
 from oompah.quality_gate import BranchQualityGate, QualityGateResult
 
 
@@ -23,6 +25,17 @@ class IntegrationExecutionResult:
         return self.status == "integrated"
 
 
+def _make_git_env() -> dict[str, str]:
+    """Return a subprocess environment with noninteractive overrides applied.
+
+    Merges NONINTERACTIVE_GIT_ENV into the current process environment so
+    that no interactive editor or terminal prompt can block a git subprocess.
+    """
+    env = dict(os.environ)
+    env.update(NONINTERACTIVE_GIT_ENV)
+    return env
+
+
 def _git(
     repo_path: str,
     *args: str,
@@ -34,6 +47,7 @@ def _git(
         capture_output=True,
         text=True,
         timeout=timeout,
+        env=_make_git_env(),
     )
 
 
