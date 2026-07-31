@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-643
 type: task
-status: Ready to Integrate
+status: Needs Human
 priority: null
 title: Reconcile stale terminal-audit enforcement records and live queue metrics
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:17:38.708513Z'
-updated_at: '2026-07-31T06:45:39.857469Z'
+updated_at: '2026-07-31T06:46:03.445975Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,13 +44,17 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: c8fbc288-7c20-42a9-a664-d87b0aa3352e
 oompah.task_costs:
-  total_input_tokens: 250668
-  total_output_tokens: 1978
+  total_input_tokens: 9848237
+  total_output_tokens: 41002
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 250668
       output_tokens: 1978
+      cost_usd: 0.0
+    sonnet:
+      input_tokens: 9597569
+      output_tokens: 39024
       cost_usd: 0.0
   runs:
   - profile: default
@@ -65,6 +69,12 @@ oompah.task_costs:
     output_tokens: 137
     cost_usd: 0.0
     recorded_at: '2026-07-31T06:30:10.305654+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 9597569
+    output_tokens: 39024
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T06:45:57.559088+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-643__20260731T061819Z
@@ -75,6 +85,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-643
     source_sha: bb0fd760c3b2938d15ec2026ef5bfc2fd34b0682
     completed_at: '2026-07-31T06:19:18.499560+00:00'
+  - run_id: OOMPAH-643__20260731T063042Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-terra
+    focus: general
+    source_branch: OOMPAH-643
+    source_sha: 84521c288cae398c19b228002d553cb210768844
+    completed_at: '2026-07-31T06:45:57.572219+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -164,5 +182,20 @@ author: oompah
 created: 2026-07-31 06:45
 ---
 Reconciled terminal-audit recovery state, queue metrics, health, and owner overrides.
+---
+author: oompah
+created: 2026-07-31 06:46
+---
+Run #2 [attempt=2, profile=standard, role=standard -> Codex/gpt-5.6-terra]
+- Turns: 1, Tool calls: 127
+- Tokens: 9.6M in / 39.0K out [9.6M total]
+- Cost: $0.0000
+- Exit: normal, Duration: 15m 20s
+- Log: OOMPAH-643__20260731T063042Z.jsonl
+---
+author: oompah
+created: 2026-07-31 06:46
+---
+Task handoff failed after the worker ran: the server-owned, task-scoped tracker capability could not update this task. The task is held in Needs Human and will not be redispatched automatically; verify the handoff service and reconcile the worker's branch before resuming it.
 ---
 <!-- COMMENTS:END -->
