@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T09:10:48.468731Z'
+updated_at: '2026-07-31T09:11:09.922346Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -129,5 +129,10 @@ author: oompah
 created: 2026-07-31 09:10
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-07-31 09:11
+---
+**UNDERSTANDING**: This issue requires binding task handoff credential lifetime to the active worker session, not a fixed TTL. Current problem: when OOMPAH_TASK_HANDOFF_TOKEN expires mid-worker-run, task views fail with 401 and fallback to reusable Basic creds (security risk). Solution scope: (1) Extend grant TTL or refresh based on worker heartbeat, (2) Revoke grants on worker termination, (3) Provide explicit diagnostics on expiry vs transport failure, (4) Ensure restart recovery reissues valid creds, (5) No fallback to Basic auth in worker env. Security focus: verify no credential leakage, no privilege escalation paths, cross-task/project isolation preserved. Relevant files: oompah/task_handoff.py, orchestrator worker lifecycle, task_cli.py, ACP environment injection.
 ---
 <!-- COMMENTS:END -->
