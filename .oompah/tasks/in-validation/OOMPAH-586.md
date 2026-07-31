@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-586
 type: epic
-status: In Review
+status: In Validation
 priority: 0
 title: Restore least-privilege task and lifecycle access
 parent: OOMPAH-584
@@ -15,7 +15,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-30T14:13:33.901470Z'
-updated_at: '2026-07-31T00:36:17.752111Z'
+updated_at: '2026-07-31T00:36:44.721181Z'
 work_branch: epic-OOMPAH-586
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/597
@@ -52,6 +52,45 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-586
     source_sha: ca49d0c25b30d149cb59f0af0bac57276c1f8120
     completed_at: '2026-07-31T00:27:37.421183+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-1e875d4c8631
+    project_id: proj-14849f1b
+    task_id: OOMPAH-586
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7ec996cebca2945e2652e98dc89274cd1af9d7bdde38cc50c6952e38fcdafa3d
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-31T00:36:41.194797+00:00'
+  - version: 1
+    audit_id: audit-0ed1029671bd
+    project_id: proj-14849f1b
+    task_id: OOMPAH-586
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7ec996cebca2945e2652e98dc89274cd1af9d7bdde38cc50c6952e38fcdafa3d
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-31T00:36:41.194797+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -144,5 +183,15 @@ Run #1 [attempt=1, profile=deep, role=deep -> Codex/gpt-5.6-sol]
 - Cost: $0.0000
 - Exit: terminated, Duration: 44s
 - Log: OOMPAH-586__20260731T003536Z.jsonl
+---
+author: oompah
+created: 2026-07-31 00:36
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-07-31 00:36
+---
+YOLO: merged PR #597.
 ---
 <!-- COMMENTS:END -->
