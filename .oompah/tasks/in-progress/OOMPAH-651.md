@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T10:30:47.895661Z'
+updated_at: '2026-07-31T10:30:54.761601Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -500,5 +500,10 @@ author: oompah
 created: 2026-07-31 10:30
 ---
 Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-31 10:30
+---
+Focus: Security Auditor
 ---
 <!-- COMMENTS:END -->

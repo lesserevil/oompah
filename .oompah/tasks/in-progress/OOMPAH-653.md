@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-653
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Make terminal-audit success and owner override retire every duplicate record
   and alert
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T10:30:27.055540Z'
+updated_at: '2026-07-31T10:30:59.510273Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,7 +44,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: f1c3e11f-b349-43b5-b28f-5dc6b3fe0608
+oompah.agent_run_id: b6998281-8b9b-474f-9090-83517dd20a11
 oompah.task_costs:
   total_input_tokens: 675258
   total_output_tokens: 9809
@@ -337,5 +337,15 @@ author: oompah
 created: 2026-07-31 10:30
 ---
 OOMPAH-652 is merged and deployed. Resume the preserved dirty worktree under isolated test lifecycle. In addition to the prior intent/applied recovery and concurrent-override fixes, cover the live OOMPAH-652 pass-then-immediate-redispatch ordering recorded in the latest comment.
+---
+author: oompah
+created: 2026-07-31 10:30
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-31 10:30
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
