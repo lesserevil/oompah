@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-661
 type: task
-status: Needs Human
+status: Merged
 priority: null
 title: Cancel stale implementation retries when task authority changes
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T13:12:19.387161Z'
-updated_at: '2026-07-31T15:43:41.742256Z'
+updated_at: '2026-07-31T15:59:31.945239Z'
 work_branch: OOMPAH-661
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/624
@@ -172,6 +172,28 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-07-31T15:43:38.196347+00:00'
     applied_at: '2026-07-31T15:43:41.029231+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-1cb26d61af6f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-661
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 14b0fff947c955531a8c8d60ffe3d0bb1ff97cdf73430f4b709cecfddd63f421
+    authorized_by:
+      version: 1
+      identity: lesserevil
+      source: api
+    reason: Exact task head e1c6e394e6136ec8057fb41684049d9b97b4ca2e passed the configured
+      full make test branch gate in 377.3 seconds and GitHub PR 624 merged that exact
+      head into main as merge commit 79a27ae548ad5bc75934bc732f9572245ab61075. The
+      Done audit failed only because every configured independent auditor candidate
+      had contributed; the already-queued Merged transition is owner-verified and
+      should retire the obsolete Done audit and alert.
+    created_at: '2026-07-31T15:59:28.977761+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -559,5 +581,12 @@ created: 2026-07-31 15:43
 Needs Human — Done audit requires operator input.
 
 No independent auditor candidate is available for this audit (All candidates are used by contributors.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then move the task back to Open to retry.
+---
+author: oompah
+created: 2026-07-31 15:59
+---
+Override by lesserevil: terminal transition to Merged applied by project owner.
+
+Reason: Exact task head e1c6e394e6136ec8057fb41684049d9b97b4ca2e passed the configured full make test branch gate in 377.3 seconds and GitHub PR 624 merged that exact head into main as merge commit 79a27ae548ad5bc75934bc732f9572245ab61075. The Done audit failed only because every configured independent auditor candidate had contributed; the already-queued Merged transition is owner-verified and should retire the obsolete Done audit and alert.
 ---
 <!-- COMMENTS:END -->
