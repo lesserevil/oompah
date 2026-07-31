@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T21:52:16.588312Z'
-updated_at: '2026-07-31T23:09:21.844691Z'
+updated_at: '2026-07-31T23:13:21.957729Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -117,5 +117,21 @@ Understanding: The bug is in _persist_worker_submission (oompah/server.py). When
 Plan: swap the identity-based idempotency guard for a lifecycle-based one. Fully idempotent only when (a) the durable record is truly unchanged AND (b) the canonical tracker status is already Ready to Integrate. Any other observed status must trigger tracker.update_issue(Ready to Integrate) + fresh summary comment. Metadata is rewritten only for a genuinely new record. This keeps duplicate submits at Ready/queued/integrating idempotent while making same-head recovery from other statuses correct. Queue rearm behavior from OOMPAH-628 stays as-is.
 
 Tests to add in tests/test_worker_submission.py: same-head resubmit from In Progress / Needs Human / Needs CI Fix atomically writes status+comment; duplicate same-head submit already at Ready to Integrate is fully idempotent; queue rearm still fires; unrelated projects stay isolated.
+---
+author: oompah
+created: 2026-07-31 23:13
+---
+Implementation: fixed _persist_worker_submission in oompah/server.py.
+
+- Replaced the identity guard 'record is existing' with a lifecycle-aware guard: fully idempotent only when the durable record is unchanged AND canonical_status == READY_TO_INTEGRATE. Any other observed canonical status (In Progress, Needs Human, Needs CI Fix, ...) triggers tracker.update_issue(Ready to Integrate) + fresh summary comment so the 201 response is truthful.
+- Metadata rewrite is now skipped only when reuses_existing_record=True (same head/branch + reused IntegrationRecord). This avoids identical rewrites while still reconciling lifecycle. Fresh-generation submits (new head, or first-time submit) still write metadata.
+- Removed 'integrated' from _submission_record's reuse-existing set so an explicit integrated → resubmit rebuilds a fresh 'ready' record; that in turn keeps _enqueue_worker_submission's rearm_integrated=True (OOMPAH-628) firing correctly.
+
+Added tests/test_worker_submission.py covering:
+- Same-head resubmit from In Progress / Needs Human / Needs CI Fix reconciles lifecycle atomically, records the fresh summary, and rearms exactly one queue delivery (no spurious metadata write).
+- Duplicate same-head submit already at Ready to Integrate is fully idempotent — zero tracker/queue writes.
+- Cross-project isolation: reconciling one task does not mutate an unrelated project's queue row.
+
+All 10 tests in test_worker_submission.py pass. Neighboring suites (integration_queue, integration_executor, task_handoff, submit_queue_concurrency, task_cli) all green.
 ---
 <!-- COMMENTS:END -->
