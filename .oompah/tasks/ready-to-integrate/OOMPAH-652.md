@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-652
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Isolate the full Makefile test gate from a running Oompah service
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T08:57:15.160957Z'
-updated_at: '2026-07-31T09:56:27.538081Z'
+updated_at: '2026-07-31T10:05:26.236784Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -76,9 +76,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-652
-  head_sha: 6ef786631ee8b52c1b3138596a3dbbe04349868a
-  submitted_at: '2026-07-31T09:44:05.059912+00:00'
-  updated_at: '2026-07-31T09:44:05.059912+00:00'
+  head_sha: ccba12b3fe59f251d16746d164a8723edd6109fa
+  submitted_at: '2026-07-31T10:05:08.206027+00:00'
+  updated_at: '2026-07-31T10:05:08.206027+00:00'
 ---
 ## Summary
 
@@ -337,5 +337,20 @@ author: oompah
 created: 2026-07-31 09:56
 ---
 CI-fix diagnostic: the failure summary's event-loop-closed subprocess transport is likely attributed to the later epic-maintenance test but leaked by the new tests/test_agent.py::test_stop_refuses_reused_or_reassigned_process_identity. AgentSession.start() creates _drain_stderr with untracked asyncio.create_task(); the test intentionally makes stop refuse ownership, then finally does only process.kill()/await process.wait(), so the stderr drain task and pipe transport can outlive asyncio.run/pytest's loop and surface as PytestUnraisableExceptionWarning in the next test. Your current paired -W error reproduction is the right sequence. Fix production lifecycle by retaining/awaiting the drain task and closing/reaping subprocess streams on all exit/refusal paths (with regression proving zero pending task/transport warning), rather than merely suppressing the warning or changing test order.
+---
+author: oompah
+created: 2026-07-31 10:05
+---
+Fixed the flaky full gate by reaping owned asyncio child transports and joining stderr drains without signaling mismatched identities; isolated fire-and-forget epic maintenance tests from sibling executor work. Focused 374-test lifecycle/orchestrator suite, live sentinel regression, terminal audit scan, compile checks, and diff checks pass on pushed head ccba12b3f.
+---
+author: oompah
+created: 2026-07-31 10:05
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Codex/gpt-5.6-sol]
+- Turns: 0, Tool calls: 80
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 13m 49s
+- Log: OOMPAH-652__20260731T095141Z.jsonl
 ---
 <!-- COMMENTS:END -->

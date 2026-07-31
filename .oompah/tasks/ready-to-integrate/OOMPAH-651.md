@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-651
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Redact secrets from agent tool inputs, outputs, and JSONL event logs
 parent: null
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T10:04:51.592963Z'
+updated_at: '2026-07-31T10:05:22.235420Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -88,9 +88,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-651
-  head_sha: 1bea7c39dd0a64593284c59209f55a8e84f41fca
-  submitted_at: '2026-07-31T09:19:23.550789+00:00'
-  updated_at: '2026-07-31T09:19:23.550789+00:00'
+  head_sha: 627592f96b2c4152b81fad825202a75035448b29
+  submitted_at: '2026-07-31T10:05:19.653520+00:00'
+  updated_at: '2026-07-31T10:05:19.653520+00:00'
 ---
 ## Summary
 
@@ -371,5 +371,42 @@ IMPLEMENTATION: Centralized event redaction at fan-out boundaries
 - 93 core redaction+console tests pass
 
 **Committed:** 627592f96
+---
+author: oompah
+created: 2026-07-31 10:05
+---
+VERIFICATION: All acceptance criteria met
+
+**Operator Review Findings (Fixed):**
+
+✅ Central event fan-out boundary redaction:
+  - orchestrator._on_event now redacts ev.payload before JSONL/state/activity
+  - ConsoleSession._persist_and_emit redacts all fields before callbacks
+  - No raw payloads ever reach JSONL, state API, or on_event callbacks
+
+✅ Edge cases fail-closed (no fallback to unredacted):
+  - Max depth guard: returns [REDACTED] marker not original
+  - Failed dataclass reconstruction: returns marker string
+  - Credential-like unknown types: always return marker
+
+✅ End-to-end sentinel tests for all paths:
+  - ACP backend event redaction (JSONL/state/activity)
+  - ConsoleEvent field redaction (text/args/result/usage)
+  - Fail-closed edge case verification
+  - Multi-backend coverage (ACP, activity, state)
+
+**Test Results:**
+- 467 tests pass (51 secrets + 367 console + 49 ACP)
+- No injected sentinel secrets in JSONL logs
+- No unredacted values in state/activity/callbacks
+- All existing redaction contracts maintained
+
+**Branch:** OOMPAH-651 (commit 627592f96)
+**Ready for:** Integration review and merge
+---
+author: oompah
+created: 2026-07-31 10:05
+---
+Implemented centralized secret redaction at all event fan-out boundaries. Fixed edge case fallbacks to fail-closed. Added 13 end-to-end tests covering ACP/Console paths. All 467 core tests pass.
 ---
 <!-- COMMENTS:END -->
