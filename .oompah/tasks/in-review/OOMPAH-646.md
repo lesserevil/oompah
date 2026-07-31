@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-646
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Serialize review capacity across reconciliation sweeps and webhook lag
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:55:23.505409Z'
-updated_at: '2026-07-31T08:11:27.222165Z'
+updated_at: '2026-07-31T08:11:30.368382Z'
 work_branch: null
 target_branch: null
 review_url: https://github.com/lesserevil/oompah/pull/613
