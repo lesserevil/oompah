@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-670
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Dashboard authenticated mutations must omit client-supplied actor identities
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T22:56:06.058439Z'
-updated_at: '2026-07-31T23:53:30.927345Z'
+updated_at: '2026-07-31T23:53:40.261476Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -79,9 +79,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-670
-  head_sha: 67026d0685754ad20beabc267934bc96bdf84456
-  submitted_at: '2026-07-31T23:09:31.166027+00:00'
-  updated_at: '2026-07-31T23:09:31.166027+00:00'
+  head_sha: ace5b944ec513acce4dab1c289c3b891fc4cfc4e
+  submitted_at: '2026-07-31T23:53:37.341178+00:00'
+  updated_at: '2026-07-31T23:53:37.341178+00:00'
 ---
 ## Summary
 
@@ -320,5 +320,10 @@ author: oompah
 created: 2026-07-31 23:53
 ---
 Verification: All tests pass. test_tick_starts_maintenance_future: PASSED (1.07s). Full TestMaintenanceLaneNonBlocking class: 4/4 passed. Focused suite (test_dashboard_authenticated_mutations + test_orchestrator_handlers): 290/290 passed in 168s. Pushed commit ace5b944e to OOMPAH-670 branch.
+---
+author: oompah
+created: 2026-07-31 23:53
+---
+Fixed CI failure: test_tick_starts_maintenance_future was timing out under 4-worker xdist parallel load because _recover_release_addendum_leases (awaited inside _tick()) reads all .oompah/tasks/*.md files without being mocked. Added stubs for _recover_release_addendum_leases, _run_step5b_maintenance, and _run_step5c_epic_maintenance in the failing test, following the pattern from OOMPAH-664. The dashboard auth changes from the frontend agent remain intact. Branch head: ace5b944e.
 ---
 <!-- COMMENTS:END -->
