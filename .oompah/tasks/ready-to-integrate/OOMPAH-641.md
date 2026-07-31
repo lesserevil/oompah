@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T05:59:48.550048Z'
-updated_at: '2026-07-31T06:20:10.814958Z'
+updated_at: '2026-07-31T06:20:18.720143Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -181,5 +181,34 @@ author: oompah
 created: 2026-07-31 06:20
 ---
 Implemented defense-in-depth hardening for shared-epic children: fail-closed parent resolution in _ensure_review_exists and _close_invalid_epic_policy_review, in-memory work_branch correction, and 4 new regression tests. All 538 related tests pass.
+---
+author: oompah
+created: 2026-07-31 06:20
+---
+COMPLETION: Finished OOMPAH-641 shared-epic pre-PR and reconciliation hardening.
+
+Delivered:
+1. Enhanced _ensure_review_exists (oompah/orchestrator.py:13461-13510):
+   - Fails closed when parent is resolvable without parent_id
+   - Corrects stale work_branch in-memory before routing
+   - Persists correction best-effort; memory correction always succeeds
+   
+2. Enhanced _close_invalid_epic_policy_review (oompah/orchestrator.py:18071-18107):
+   - Always attempts parent resolution for all issues
+   - Closes child PRs with missing parent_id but resolvable parent
+   - Prevents bypass through stale work_branch or missing metadata
+
+3. Added 4 regression tests (tests/test_epic_strategy.py):
+   - Stale work_branch with parent_id
+   - Missing parent_id with resolvable parent (review block)
+   - Persistence failure handling (memory correction succeeds)
+   - Independently merged child detection (reconciliation close)
+
+Test results: 538 tests pass (epic_strategy, parallel, orchestrator, pr_body, github_workspace)
+
+Code committed: OOMPAH-641 branch (da31ef4be)
+Branch status: up to date with origin/OOMPAH-641
+
+Ready for integration and terminal audit.
 ---
 <!-- COMMENTS:END -->
