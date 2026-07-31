@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T11:54:47.490272Z'
+updated_at: '2026-07-31T11:55:08.229187Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -921,5 +921,10 @@ All 49 task_handoff tests pass. Focused neighboring tests pass.
 **Outstanding**: Restart preservation/atomic replacement tests (Defect #4) remain, dependent on OOMPAH-657. These test graceful restart with grant preservation and atomic replacement on orchestrator recovery.
 
 Next: Run full focused test gate. Branch ready for handoff to next specialist.
+---
+author: oompah
+created: 2026-07-31 11:55
+---
+Exact review of current head fd72ed5d4: OperationPermit is still a check-then-act token, not a linearizable permit. Every endpoint calls permit.is_valid(), releases the store lock, and only then awaits tracker I/O; revoke can win immediately after that check and the stale mutation still executes. Define one per-grant operation linearization primitive used around the mutation itself: either mutation acquires first and revoke waits for/observes its completion, or revoke acquires first and mutation never starts. Do not block the event loop with a threading lock across await; use a safe active-operation/refcount/closing protocol or async-aware equivalent. Add a deterministic latch after authorization but before the real adapter call, race actual store.revoke(), and assert the defined ordering against the real endpoint. The new test_endpoint_rejects_mutation_if_permit_revoked_mid_operation currently revokes inside add_comment after mutation has already started, permits it, and has no outcome/assertions; it proves the bug rather than the fix. Also cover every mutating action through one shared helper instead of six duplicated prechecks, remove request-driven refresh wording/paths, prove an actual TaskHandoffLease with zero request traffic advances expiry, and add orchestrator launch-failure/replacement/owner-disappearance/graceful-restart old-token/new-token tests. Current diff-check also reports extensive trailing whitespace and unused contextmanager/Generator/OperationPermitDenied/_is_permit_valid code.
 ---
 <!-- COMMENTS:END -->
