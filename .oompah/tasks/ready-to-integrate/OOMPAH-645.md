@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-645
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 0
 title: Clear recovered terminal-audit transport failures without contaminating later
   audits
@@ -16,7 +16,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T06:47:58.732088Z'
-updated_at: '2026-07-31T14:58:53.040396Z'
+updated_at: '2026-07-31T14:59:05.285962Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -149,9 +149,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-645
-  head_sha: 6686290d51cfff9d63270ee27da19d2aafd0fd87
-  submitted_at: '2026-07-31T08:57:53.486261+00:00'
-  updated_at: '2026-07-31T08:57:53.486261+00:00'
+  head_sha: 9e4a0c877707d946a4504d664dba74811c2e0aac
+  submitted_at: '2026-07-31T14:59:02.674308+00:00'
+  updated_at: '2026-07-31T14:59:02.674308+00:00'
 oompah.start_blocked_by: *id001
 ---
 ## Summary
@@ -631,5 +631,10 @@ author: oompah
 created: 2026-07-31 14:58
 ---
 Verification: All 43 terminal_audit_health tests pass. All 63 client_auth + oompah_http tests pass (106 total). The pre-existing test_orchestrator_full_sync.py::TestFullSyncIntervalConfig failures (2) are present on origin/main too — not introduced by this branch. Branch is up to date with origin/OOMPAH-645 at 9e4a0c877.
+---
+author: oompah
+created: 2026-07-31 14:59
+---
+Rebased OOMPAH-645 onto current origin/main. The implementation (transport failure classification guarded by PENDING-only check) was already correct; only a rebase was needed. Resolved one trivial comment/code conflict in tests/test_client_auth.py. Force-pushed 9e4a0c877. All 106 focused tests pass (43 terminal_audit_health + 63 client_auth/http). Per-audit failure isolation prevents stale OOMPAH-607-style alerts from contaminating later audits like OOMPAH-641.
 ---
 <!-- COMMENTS:END -->
