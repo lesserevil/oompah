@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T16:04:06.140108Z'
-updated_at: '2026-07-31T18:37:44.530449Z'
+updated_at: '2026-07-31T18:38:01.913867Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -146,5 +146,10 @@ author: oompah
 created: 2026-07-31 18:37
 ---
 Implementation: Changes made in recovery commit a1cdabc0f: (1) oompah/oompah_md_tracker.py: added get_state_branch_generation() returning 'commit_sha:read_epoch' string; added add_read_change_callback() and _notify_read_change() called from both _do_checkpoint_flush and _invalidate_local_read_cache so both durable commits and direct writes fire cache invalidation. (2) oompah/server.py: _tracker_source_generation() reads generation from state-branch trackers only; _wire_tracker_issue_cache_invalidation() registers per-project callbacks; _invalidate_issue_caches() clears list + project detail caches synchronously; _issues_snapshot now records source_generations + invalidated flag; _issues_snapshot_payload() rejects snapshots where source generation has advanced; _issues_snapshot_headers() X-Oompah-Issues-Stale reflects source_stale; generation-aware _detail_cache_get/_detail_cache_set replace raw _api_cache calls for issue detail endpoint; _fetch_all_issues extended with include_source_generations=True path.
+---
+author: oompah
+created: 2026-07-31 18:38
+---
+Verification: All 59 focused tests pass (test_server_issue_snapshot.py + test_oompah_md_tracker_state_branch.py). 660 broader related tests pass. No regressions detected. New tests cover: (1) generation-bound snapshot rejects newer project state (OOMPAH-651/655 scenario), (2) unavailable generation preserves stale snapshot instead of empty fresh lane, (3) detail cache rejected when project generation advances, (4) tracker callback invalidates only matching detail project (cross-project isolation), (5) generation tracks direct mutation + checkpoint + restart in integration test, (6) read-change callback fires for both direct writes and checkpoint commits.
 ---
 <!-- COMMENTS:END -->
