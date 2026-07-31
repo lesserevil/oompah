@@ -245,6 +245,7 @@ def _approval_payload(
 def test_approval_comment_auto_promotes_when_project_allows_it():
     import oompah.server as server
 
+    promotion_finished = threading.Event()
     issue = Issue(
         id="org/repo#11",
         identifier="org/repo#11",
@@ -253,6 +254,9 @@ def test_approval_comment_auto_promotes_when_project_allows_it():
         description="Ready proposal",
     )
     tracker = _WebhookTracker(_valid_unapproved_readiness(), issue)
+    tracker.add_comment.side_effect = (
+        lambda *_args, **_kwargs: promotion_finished.set()
+    )
     project = Project(
         id="proj",
         name="proj",
@@ -281,10 +285,9 @@ def test_approval_comment_auto_promotes_when_project_allows_it():
         )
 
     assert response.status_code == 200
-    for _ in range(50):
-        if tracker.update_issue.called:
-            break
-        time.sleep(0.02)
+    assert promotion_finished.wait(timeout=3), (
+        "intake approval worker did not finish promotion"
+    )
 
     tracker.update_issue.assert_called_once_with("org/repo#11", status=BACKLOG)
     tracker.add_comment.assert_called_once()

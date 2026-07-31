@@ -770,6 +770,9 @@ class TestCurrentClientEnvironment:
         monkeypatch.delenv("OOMPAH_SERVER_PASSWORD_FILE", raising=False)
         monkeypatch.setenv("OOMPAH_SERVER_URL", "http://127.0.0.1:8080")
         monkeypatch.delenv("UNRELATED_SETTING", raising=False)
+        # Clear the worker-process marker that agent environments set; this test
+        # exercises the client (non-worker) code path where reloading is allowed.
+        monkeypatch.delenv(CLIENT_AUTH_DISABLED_ENV, raising=False)
 
         assert load_client_environment() == 3
         assert os.environ["OOMPAH_SERVER_USERNAME"] == "rotated-user"
