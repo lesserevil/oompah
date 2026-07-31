@@ -1159,8 +1159,10 @@ def test_task_handoff_set_status_with_unknown_project_alias_fails_closed(client)
             },
         )
 
-    # Should fail with 400 because project alias cannot be resolved
-    assert response.status_code == 400
-    assert "project_id" in response.json()["error"]["message"].lower()
+    # Preserve capability-scope rejection precedence without revealing
+    # whether the caller supplied an unknown alias or another project.
+    assert response.status_code == 403
+    assert "another project" in response.json()["error"]["message"].lower()
+    assert "unknown-project" not in response.text
     assert coordinator.overrides == []
     assert tracker.status_updates == []

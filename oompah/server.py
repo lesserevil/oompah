@@ -3492,27 +3492,30 @@ async def api_task_handoff(request: Request):
             status_code=400,
         )
 
-    # Canonicalize project aliases before validation and tracker resolution.
-    # This ensures that handoff tokens created with canonical project IDs work
-    # correctly when callers use project name aliases.
-    orch = _get_orchestrator()
-    try:
-        canonical_project_id = _canonical_managed_project_id(orch, project_id)
-    except ProjectError:
-        # Unknown project: use fail-closed behavior
-        record_task_handoff_failure(token, "task handoff project resolution failed")
-        return JSONResponse(
-            {"error": {"code": "validation", "message": "project_id and identifier are required"}},
-            status_code=400,
-        )
-    project_id = canonical_project_id
-
     allowed, reason = validate_task_handoff_token(
         token,
         project_id=project_id,
         task_identifier=identifier,
         action=action,
     )
+    orch = None
+    if not allowed and reason == "task handoff capability is scoped to another project":
+        # A canonical-ID capability may legitimately be presented with the
+        # managed project's name alias.  Retry only project-scope failures
+        # after alias resolution so invalid capabilities still fail before
+        # project lookup and unknown/cross-project scopes retain their 403.
+        try:
+            orch = _get_orchestrator()
+            project_id = _canonical_managed_project_id(orch, project_id)
+        except (ProjectError, RuntimeError):
+            pass
+        else:
+            allowed, reason = validate_task_handoff_token(
+                token,
+                project_id=project_id,
+                task_identifier=identifier,
+                action=action,
+            )
     if not allowed:
         # Do not expose whether a token exists for another task/project.
         record_task_handoff_failure(token, "task handoff scope validation failed")
@@ -3528,6 +3531,17 @@ async def api_task_handoff(request: Request):
         )
     # Token presented and scope validated — record acceptance before dispatch.
     record_worker_token_accepted()
+
+    if orch is None:
+        orch = _get_orchestrator()
+    try:
+        project_id = _canonical_managed_project_id(orch, project_id)
+    except ProjectError:
+        record_task_handoff_failure(token, "task handoff project resolution failed")
+        return JSONResponse(
+            {"error": {"code": "validation", "message": "project_id and identifier are required"}},
+            status_code=400,
+        )
 
     try:
         tracker = _get_tracker(orch, project_id)
