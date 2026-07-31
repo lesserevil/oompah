@@ -592,7 +592,7 @@ class TestConsoleEventFanout:
         )
 
         redacted = _redact_console_event(event)
-        
+
         assert "super_secret_123" not in redacted.text
         assert "[REDACTED]" in redacted.text
 
@@ -612,7 +612,7 @@ class TestConsoleEventFanout:
         )
 
         redacted = _redact_console_event(event)
-        
+
         assert "bearer_token_secret_xyz" not in str(redacted.args)
         assert redacted.args["bearer_token"] == "[REDACTED]"
 
@@ -631,7 +631,7 @@ class TestConsoleEventFanout:
         )
 
         redacted = _redact_console_event(event)
-        
+
         assert "hidden_password" not in str(redacted.result)
         assert "[REDACTED]" in str(redacted.result)
 
@@ -650,7 +650,7 @@ class TestConsoleEventFanout:
         )
 
         redacted = _redact_console_event(event)
-        
+
         assert "should_not_appear" not in str(redacted.usage)
         assert redacted.usage["api_secret"] == "[REDACTED]"
 
@@ -670,7 +670,7 @@ class TestConsoleEventFanout:
         mock_store = MagicMock(spec=ConsoleStore)
         mock_provider_store = MagicMock()
         mock_role_store = MagicMock()
-        
+
         session = ConsoleSession(
             project_id="test-proj",
             store=mock_store,
@@ -707,12 +707,12 @@ class TestSecretsFailClosed:
         for i in range(150):  # Exceed default max_depth of 100
             current["next"] = {"level": i + 2}
             current = current["next"]
-        
+
         # Add secret at deep level
         current["password"] = "very_deep_secret"
 
         redacted = redact_sensitive_data(deep, _max_depth=100)
-        
+
         # Should not have the original secret anywhere
         assert "very_deep_secret" not in str(redacted)
 
@@ -738,7 +738,7 @@ class TestSecretsFailClosed:
         cred.password = "secret_pass_789"
 
         redacted = redact_sensitive_data(cred)
-        
+
         # Should not have original password
         assert "secret_pass_789" not in str(redacted)
         # Should have a marker indicating redaction
@@ -758,7 +758,7 @@ class TestSecretsFailClosed:
 
         obj = ClientCredential("leaked_secret_xyz")
         redacted = redact_sensitive_data(obj)
-        
+
         # Should not have original secret
         assert "leaked_secret_xyz" not in str(redacted)
         # Should have marker
@@ -785,7 +785,7 @@ class TestMultiBackendRedaction:
         }
 
         redacted_payload = redact_sensitive_data(acp_event["payload"])
-        
+
         assert "secret_password_123" not in str(redacted_payload)
         assert "[REDACTED]" in str(redacted_payload)
 
@@ -796,9 +796,9 @@ class TestMultiBackendRedaction:
 
         # Simulate activity with sensitive data
         activity_detail = "Tool executed: curl -H 'Authorization: Bearer secret_token_abc'"
-        
+
         redacted_detail = redact_sensitive_data(activity_detail)
-        
+
         assert "secret_token_abc" not in redacted_detail
         assert "[REDACTED]" in redacted_detail
 

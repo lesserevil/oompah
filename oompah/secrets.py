@@ -488,7 +488,7 @@ SECRET_PATTERNS = [
 
 def _is_secret_key(key: Any) -> bool:
     """Check if a key name suggests the value is a secret.
-    
+
     Uses exact match, plus selective substring matches for patterns that are
     unlikely to match innocent keys (e.g., "password_reset" yes, "input_tokens" no).
     """
