@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-623
 type: bug
-status: Needs Human
+status: In Progress
 priority: 1
 title: Keep the canonical user CLI synchronized with the running server
 parent: OOMPAH-619
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:32:18.734139Z'
-updated_at: '2026-07-31T10:14:25.957945Z'
+updated_at: '2026-07-31T10:30:37.863436Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-623
 target_branch: null
 review_url: null
@@ -46,7 +46,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: a2dc30f3-6510-489d-9dcc-7b0e632769b9
+oompah.agent_run_id: ce487f60-0815-4a32-ba31-503d857c3347
 oompah.work_branch: epic-OOMPAH-619--task-OOMPAH-623
 oompah.integration:
   version: 2
@@ -55,7 +55,7 @@ oompah.integration:
   task_branch: epic-OOMPAH-619--task-OOMPAH-623
   base_branch: epic-OOMPAH-619
   base_sha: 0dc7d0f7caeea06a6eceb55ea2e58cf16554f0a4
-  updated_at: '2026-07-31T09:49:25.489183+00:00'
+  updated_at: '2026-07-31T10:30:35.011303+00:00'
 oompah.task_costs:
   total_input_tokens: 21767466
   total_output_tokens: 78584
@@ -377,5 +377,20 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 25m 2s
 - Log: OOMPAH-623__20260731T094928Z.jsonl
+---
+author: oompah
+created: 2026-07-31 10:30
+---
+OOMPAH-652 is merged and deployed on healthy instance f6d86559-4e9d-42bf-ac66-416781dbb14f. Full-gate lifecycle isolation is now available. Resume from clean pushed head eaa58a2b7 and implement the two exact transactional-cutover corrections from comment #40 before submitting.
+---
+author: oompah
+created: 2026-07-31 10:30
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-31 10:30
+---
+Focus: Maintenance Engineer
 ---
 <!-- COMMENTS:END -->

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-654
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Keep service lifecycle identity metadata out of git worktree status
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:29:49.323393Z'
-updated_at: '2026-07-31T10:29:49.323393Z'
+updated_at: '2026-07-31T10:30:46.629435Z'
 work_branch: null
 target_branch: null
 review_url: null

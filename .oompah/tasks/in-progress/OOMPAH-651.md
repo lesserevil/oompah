@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-651
 type: bug
-status: Needs Human
+status: In Progress
 priority: 1
 title: Redact secrets from agent tool inputs, outputs, and JSONL event logs
 parent: null
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T10:06:27.437529Z'
+updated_at: '2026-07-31T10:30:47.895661Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,7 +36,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 7ca073e7-5cdf-40f4-8df2-7fe9ae6687ef
+oompah.agent_run_id: 36018bb7-e1c7-4741-8d6a-876d937c0cf9
 oompah.task_costs:
   total_input_tokens: 3889184
   total_output_tokens: 17428
@@ -490,5 +490,15 @@ author: oompah
 created: 2026-07-31 10:06
 ---
 Moved to Needs Human from the dashboard/API. Human action required: inspect OOMPAH-651 (Redact secrets from agent tool inputs, outputs, and JSONL event logs), add the specific decision, missing information, or manual fix needed, then move the task back to Open when it is ready for agents again.
+---
+author: oompah
+created: 2026-07-31 10:30
+---
+OOMPAH-652 is merged and deployed. Resume the preserved dirty worktree under isolated test lifecycle. Complete fail-closed recursive redaction for unknown object reprs and attachments, make usage redaction type-safe, and add end-to-end coverage across agent backends and every persisted/streamed/logged sink before submitting.
+---
+author: oompah
+created: 2026-07-31 10:30
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->

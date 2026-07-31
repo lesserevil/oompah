@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-653
 type: bug
-status: Needs Human
+status: Open
 priority: 1
 title: Make terminal-audit success and owner override retire every duplicate record
   and alert
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T10:26:47.965633Z'
+updated_at: '2026-07-31T10:30:27.055540Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -332,5 +332,10 @@ author: oompah
 created: 2026-07-31 10:26
 ---
 Live duplicate-audit reproduction on OOMPAH-652: terminal audit audit-21d2ede50738 completed PASS at 10:25:44Z (task comment #29; provider exited normally #30), incrementing passed and last_successful_audit_at, but the task remained In Validation. At 10:26:00Z Oompah dispatched a second Opus auditor for persisted audit-b1d3969a2c62 / attempt-071c375a0208 on the same exact terminal transition. State simultaneously showed terminal passed=19, stale_discarded=1152, queued=0, running=1. Recovery/reconciliation must consume a successful equivalent exact-head audit once, advance the tracker transition atomically, and fence any duplicate launch; add this exact pass-then-immediate-redispatch ordering as a deterministic regression.
+---
+author: oompah
+created: 2026-07-31 10:30
+---
+OOMPAH-652 is merged and deployed. Resume the preserved dirty worktree under isolated test lifecycle. In addition to the prior intent/applied recovery and concurrent-override fixes, cover the live OOMPAH-652 pass-then-immediate-redispatch ordering recorded in the latest comment.
 ---
 <!-- COMMENTS:END -->
