@@ -13458,24 +13458,71 @@ class Orchestrator:
             return False
 
         # Resolve parent epic for issues that have one.
+        # Always attempt resolution, even if parent_id is empty, to fail
+        # closed when parent is authoritatively resolvable (OOMPAH-641).
         parent_epic: Issue | None = None
-        if entry.issue and entry.issue.parent_id:
+        if entry.issue:
             parent_epic = self._resolve_parent_epic(entry.issue)
 
         # A child must never receive a standalone PR.  Parent resolution can
-        # fail transiently, so parent_id is the authoritative fail-closed
-        # signal here; the epic rollup remains the only review path.
-        if (
-            entry.issue is not None
-            and (entry.issue.parent_id or "").strip()
-        ):
-            logger.debug(
-                "Skip per-child review for %s: child has parent %s (epic=%s)",
-                entry.identifier,
-                entry.issue.parent_id,
-                parent_epic.identifier if parent_epic else "unresolved",
-            )
-            return True
+        # fail transiently, so we use both parent_id and resolvable parent as
+        # fail-closed signals; the epic rollup remains the only review path.
+        if entry.issue is not None:
+            parent_id = (entry.issue.parent_id or "").strip()
+            
+            # Fail closed if parent_id is present OR if parent is resolvable.
+            # This prevents bypass when parent_id is missing but parent epic
+            # exists authoritatively (OOMPAH-641).
+            if parent_id or parent_epic:
+                # For children with resolvable parent epic, verify work_branch
+                # matches expected epic branch.  Correct stale work_branch
+                # before routing to prevent per-child PR creation even when
+                # work_branch doesn't match the child identifier (OOMPAH-641).
+                if parent_epic:
+                    expected_epic_branch = self._epic_branch_for_issue(parent_epic)
+                elif parent_id:
+                    # Parent not resolved; use canonical epic branch name
+                    expected_epic_branch = self.project_store.epic_branch_name(parent_id)
+                else:
+                    expected_epic_branch = None
+                
+                # Check and correct stale work_branch in-memory.
+                # Persistence is best-effort; in-memory correction is mandatory.
+                if expected_epic_branch:
+                    current_branch = (
+                        getattr(entry.issue, "work_branch", None) or ""
+                    ).strip()
+                    if current_branch and current_branch != expected_epic_branch:
+                        logger.debug(
+                            "Correcting stale work_branch for child %s: %s -> %s",
+                            entry.identifier,
+                            current_branch,
+                            expected_epic_branch,
+                        )
+                        entry.issue.work_branch = expected_epic_branch
+                        entry.issue.branch_name = expected_epic_branch
+                        # Persist the correction best-effort
+                        try:
+                            tracker = self._tracker_for_issue(entry.issue)
+                            tracker.set_metadata_field(
+                                entry.identifier,
+                                "oompah.work_branch",
+                                expected_epic_branch,
+                            )
+                        except Exception as exc:
+                            logger.debug(
+                                "Failed to persist work_branch correction for %s: %s",
+                                entry.identifier,
+                                exc,
+                            )
+                
+                logger.debug(
+                    "Skip per-child review for %s: child has parent %s (epic=%s)",
+                    entry.identifier,
+                    parent_id or "(resolvable)",
+                    parent_epic.identifier if parent_epic else "unresolved",
+                )
+                return True
 
         branch = self._work_branch_for_review(entry, project)
         # Honor Issue.target_branch when set (e.g. release branches),
@@ -18023,12 +18070,18 @@ class Orchestrator:
                 " The task was moved to Needs Human so it can be attached "
                 "to an epic or intentionally exempted."
             )
-        elif (
-            issue is not None
-            and (issue.parent_id or "").strip()
-        ):
-            parent_epic = self._resolve_parent_epic(issue)
-            if parent_epic is None:
+        else:
+            # Attempt to resolve parent even if parent_id is absent, to fail
+            # closed when parent is authoritatively resolvable (OOMPAH-641).
+            parent_epic = None
+            if issue is not None:
+                parent_epic = self._resolve_parent_epic(issue)
+            
+            if (
+                issue is not None
+                and (issue.parent_id or "").strip()
+                and parent_epic is None
+            ):
                 # The merge gate blocks this PR until the parent is reachable.
                 # Do not close it: a transient tracker failure must not
                 # destructively close a potentially valid child PR.
@@ -18039,24 +18092,26 @@ class Orchestrator:
                     issue.parent_id,
                 )
                 return False
-            parent_epic_branch = self._epic_branch_for_issue(parent_epic)
-            if source_branch != parent_epic_branch:
-                close_comment = (
-                    "Closing stale child task PR. This project uses shared "
-                    "epic branches, so child task work must land through "
-                    f"the parent epic rollup PR from {parent_epic_branch} "
-                    "instead of a direct task PR.\n\n"
-                    f"{reason}"
-                )
-                task_comment_prefix = (
-                    "Closed stale child PR #{review_id} because this "
-                    "project uses shared epic branches. "
-                )
-                needs_human_tail = (
-                    " The task was moved to Needs Human so the work can "
-                    "be moved to the shared epic branch or the stale PR "
-                    "can be inspected."
-                )
+            
+            if parent_epic is not None:
+                parent_epic_branch = self._epic_branch_for_issue(parent_epic)
+                if source_branch != parent_epic_branch:
+                    close_comment = (
+                        "Closing stale child task PR. This project uses shared "
+                        "epic branches, so child task work must land through "
+                        f"the parent epic rollup PR from {parent_epic_branch} "
+                        "instead of a direct task PR.\n\n"
+                        f"{reason}"
+                    )
+                    task_comment_prefix = (
+                        "Closed stale child PR #{review_id} because this "
+                        "project uses shared epic branches. "
+                    )
+                    needs_human_tail = (
+                        " The task was moved to Needs Human so the work can "
+                        "be moved to the shared epic branch or the stale PR "
+                        "can be inspected."
+                    )
 
         if not close_comment:
             return False

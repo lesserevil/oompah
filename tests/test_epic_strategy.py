@@ -2029,6 +2029,158 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
         assert kwargs.get("target_branch") == "release/2.3"
         assert kwargs.get("target_branch") != "main"
 
+    def test_blocks_child_pr_with_stale_work_branch_and_parent_id_oompah641(
+        self, tmp_path
+    ):
+        """OOMPAH-641: child PR must be blocked even when work_branch is stale
+        to the child identifier, not the epic branch.
+
+        After agent runs, work_branch should be corrected to the epic branch
+        before routing to ensure review handoff. If stale, the in-memory correction
+        must still block the PR and return True.
+        """
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch._reviews_cache = {"proj-1": []}
+        orch.project_store.epic_branch_name.side_effect = lambda eid: f"epic-{eid}"
+
+        tracker = MagicMock()
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+
+        parent_epic = _make_issue(
+            identifier="EPIC-1",
+            issue_type="epic",
+            project_id="proj-1",
+        )
+        child = _make_issue(
+            identifier="TASK-50",
+            parent_id="EPIC-1",
+            project_id="proj-1",
+            work_branch="TASK-50",  # stale — should be epic-EPIC-1
+        )
+        entry = RunningEntry(
+            worker_task=MagicMock(),
+            identifier="TASK-50",
+            issue=child,
+            session=None,
+            retry_attempt=0,
+            started_at=MagicMock(),
+            agent_profile_name="default",
+        )
+
+        with patch.object(orch, "_resolve_parent_epic", return_value=parent_epic):
+            result = orch._ensure_review_exists(entry, "proj-1")
+
+        assert result is True, (
+            "Must skip per-child PR creation for child with parent_id and stale "
+            "work_branch, and correct the in-memory work_branch"
+        )
+        # Verify in-memory correction happened
+        assert child.work_branch == "epic-EPIC-1"
+        assert child.branch_name == "epic-EPIC-1"
+        # Verify persistence was attempted (even though this is a mock, the real
+        # code would have called set_metadata_field)
+        tracker.set_metadata_field.assert_called()
+
+    def test_blocks_child_pr_with_missing_parent_id_but_resolvable_parent_oompah641(
+        self, tmp_path
+    ):
+        """OOMPAH-641: child PR must be blocked when parent_id is absent but
+        parent epic is authoritatively resolvable (fail-closed).
+
+        The fail-closed signal should be: parent_id is present OR parent_epic is
+        resolvable. This test verifies that missing parent_id doesn't bypass the
+        check when the parent can be resolved.
+        """
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch._reviews_cache = {"proj-1": []}
+        orch.project_store.epic_branch_name.side_effect = lambda eid: f"epic-{eid}"
+
+        tracker = MagicMock()
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+
+        parent_epic = _make_issue(
+            identifier="EPIC-2",
+            issue_type="epic",
+            project_id="proj-1",
+        )
+        # Child with NO parent_id, but parent can be resolved
+        child = _make_issue(
+            identifier="TASK-51",
+            parent_id=None,  # Missing parent_id
+            project_id="proj-1",
+            work_branch="epic-EPIC-2",
+        )
+        entry = RunningEntry(
+            worker_task=MagicMock(),
+            identifier="TASK-51",
+            issue=child,
+            session=None,
+            retry_attempt=0,
+            started_at=MagicMock(),
+            agent_profile_name="default",
+        )
+
+        with patch.object(orch, "_resolve_parent_epic", return_value=parent_epic):
+            result = orch._ensure_review_exists(entry, "proj-1")
+
+        assert result is True, (
+            "Must skip per-child PR creation when parent_epic is resolvable "
+            "even if parent_id is absent (fail-closed behavior)"
+        )
+
+    def test_corrects_stale_work_branch_despite_persistence_failure_oompah641(
+        self, tmp_path
+    ):
+        """OOMPAH-641: in-memory work_branch correction must succeed even if
+        metadata persistence fails.
+
+        The persistence attempt is best-effort, but the in-memory values must
+        always be corrected before routing. This test verifies that persistence
+        failure doesn't prevent the in-memory correction.
+        """
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch._reviews_cache = {"proj-1": []}
+        orch.project_store.epic_branch_name.side_effect = lambda eid: f"epic-{eid}"
+
+        tracker = MagicMock()
+        # Make set_metadata_field raise an exception
+        tracker.set_metadata_field.side_effect = RuntimeError("tracker unavailable")
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+
+        parent_epic = _make_issue(
+            identifier="EPIC-3",
+            issue_type="epic",
+            project_id="proj-1",
+        )
+        child = _make_issue(
+            identifier="TASK-52",
+            parent_id="EPIC-3",
+            project_id="proj-1",
+            work_branch="TASK-52",  # stale
+        )
+        entry = RunningEntry(
+            worker_task=MagicMock(),
+            identifier="TASK-52",
+            issue=child,
+            session=None,
+            retry_attempt=0,
+            started_at=MagicMock(),
+            agent_profile_name="default",
+        )
+
+        with patch.object(orch, "_resolve_parent_epic", return_value=parent_epic):
+            result = orch._ensure_review_exists(entry, "proj-1")
+
+        assert result is True, (
+            "Must skip per-child PR creation even if persistence fails"
+        )
+        # Verify in-memory correction succeeded despite persistence failure
+        assert child.work_branch == "epic-EPIC-3"
+        assert child.branch_name == "epic-EPIC-3"
+
 
 # --------------------------------------------------- epic completion + PR open
 
@@ -6126,3 +6278,58 @@ class TestCloseInvalidEpicPolicyReview:
             "that is the legitimate epic rollup PR"
         )
         provider.close_review.assert_not_called()
+
+    def test_closes_child_pr_with_missing_parent_id_but_resolvable_parent_oompah641(
+        self, tmp_path
+    ):
+        """OOMPAH-641: child PR must be closed even when parent_id is absent but
+        parent epic is authoritatively resolvable.
+
+        Fail-closed behavior: if parent can be resolved through _resolve_parent_epic,
+        treat it as a child and close any per-child PR, even if parent_id metadata
+        is missing or stale.
+        """
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch.project_store.epic_branch_name.side_effect = lambda eid: f"epic-{eid}"
+
+        parent_epic = _make_issue(
+            identifier="EPIC-1",
+            issue_type="epic",
+            project_id="proj-1",
+        )
+        # Child with NO parent_id set, but parent_epic resolves through other means
+        child = _make_issue(
+            identifier="TASK-42",
+            parent_id=None,  # Missing parent_id
+            project_id="proj-1",
+            work_branch="epic-EPIC-1",
+        )
+        tracker = MagicMock()
+        provider = self._make_provider(close_success=True)
+        review = _make_review(source_branch="TASK-42", target_branch="main")
+        
+        with (
+            patch.object(orch, "_resolve_task_for_branch", return_value=child),
+            patch.object(orch, "_resolve_parent_epic", return_value=parent_epic),
+        ):
+            result = orch._close_invalid_epic_policy_review(
+                proj,
+                provider,
+                "org/repo",
+                tracker,
+                review,
+                "shared epic workflow: child task TASK-42 must land via epic-EPIC-1",
+                tick=1,
+            )
+        assert result is True, (
+            "Must close the stale child PR even when parent_id is absent but "
+            "parent epic is resolvable (fail-closed behavior)"
+        )
+        provider.close_review.assert_called_once()
+        close_call = provider.close_review.call_args
+        comment = close_call.kwargs.get(
+            "comment",
+            close_call.args[2] if len(close_call.args) > 2 else "",
+        )
+        assert "shared epic" in comment.lower() or "stale child" in comment.lower()
