@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-653
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Make terminal-audit success and owner override retire every duplicate record
   and alert
@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T11:25:56.232684Z'
+updated_at: '2026-07-31T11:27:22.101327Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -141,9 +141,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-653
-  head_sha: 59436e50aa0122224ad01746c6b7b8380a52241b
-  submitted_at: '2026-07-31T11:11:40.562805+00:00'
-  updated_at: '2026-07-31T11:11:40.562805+00:00'
+  head_sha: 44742bb1f7db1a1b1c1d62dea822a549e15499c3
+  submitted_at: '2026-07-31T11:27:19.397701+00:00'
+  updated_at: '2026-07-31T11:27:19.397701+00:00'
 ---
 ## Summary
 
@@ -613,5 +613,10 @@ author: oompah
 created: 2026-07-31 11:25
 ---
 Operator stopped only the exact in-branch make test process group 1596775 while the production diff still has blocking recovery-authority defects and is being edited. This was not a test failure and is not final gate evidence. Continue focused Makefile-backed checks for changed terminal-audit paths; the one canonical exact-head full gate remains finish-order blocked on OOMPAH-657.
+---
+author: oompah
+created: 2026-07-31 11:27
+---
+Recovered interrupted owner overrides while In Validation, fenced duplicate queue recovery, and retired stale/competing result intents after current-evidence validation. Focused terminal suites pass; branch pushed at 44742bb1f.
 ---
 <!-- COMMENTS:END -->
