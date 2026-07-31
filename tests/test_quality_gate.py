@@ -646,6 +646,50 @@ def test_default_sandbox_runs_a_normal_make_target_or_fails_before_start(tmp_pat
         assert marker in result.output_tail
 
 
+def test_default_sandbox_uses_project_style_trusted_test_setup(tmp_path):
+    """A stale candidate manifest cannot trigger uv inside the gate sandbox."""
+    repo = _git_repo(tmp_path)
+    marker = "trusted-test-runtime-ran"
+    (repo / "Makefile").write_text(
+        "VENV := .venv\n"
+        "PYTHON := $(VENV)/bin/python\n"
+        "_PYTEST_GATE := $(filter 1 true yes,$(strip $(OOMPAH_PYTEST_GATE)))\n"
+        "ifeq ($(_PYTEST_GATE),)\n"
+        "test-setup:\n"
+        "\t@uv pip install -e '.[dev]'\n"
+        "else\n"
+        "test-setup:\n"
+        "\t@test -x $(PYTHON)\n"
+        "\t@$(PYTHON) -c 'import pytest, xdist'\n"
+        "endif\n"
+        ".PHONY: test test-setup\n"
+        "test: test-setup\n"
+        f"\t@printf '{marker}\\n'\n",
+        encoding="utf-8",
+    )
+    subprocess.run(["git", "add", "Makefile"], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "commit", "-q", "-m", "use trusted gate runtime"],
+        cwd=repo,
+        check=True,
+    )
+
+    result = _run(
+        BranchQualityGate(
+            str(tmp_path / "quality.json"), safety_head=_safety_head(repo)
+        ),
+        repo,
+        "make test",
+    )
+
+    if result.status == "needs_rebase":
+        assert "OS-enforced quality-gate sandbox" in result.output_tail
+    else:
+        assert result.status == "passed"
+        assert marker in result.output_tail
+        assert "uv" not in result.output_tail
+
+
 def test_default_sandbox_reaps_owned_descendants_or_fails_before_start(tmp_path):
     """A timeout cannot leave a candidate child outside the wrapper's ownership."""
     repo = _git_repo(tmp_path)

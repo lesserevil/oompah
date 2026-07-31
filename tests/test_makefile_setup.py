@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
+import subprocess
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -38,6 +40,104 @@ def test_test_targets_install_complete_dev_dependencies():
     assert "test: test-setup" in text
     assert "test-serial: test-setup" in text
     assert "@touch $@" in text
+
+
+def test_quality_gate_uses_trusted_runtime_without_uv(tmp_path):
+    """Gate mode validates the projected venv without trying to mutate it."""
+    venv = tmp_path / "read-only-venv"
+    python = venv / "bin" / "python"
+    python.parent.mkdir(parents=True)
+    python.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    python.chmod(0o555)
+    venv.chmod(0o555)
+    try:
+        environment = os.environ.copy()
+        environment["PATH"] = "/usr/bin:/bin"
+        result = subprocess.run(
+            [
+                "/usr/bin/make",
+                "--no-print-directory",
+                "OOMPAH_PYTEST_GATE=1",
+                f"VENV={venv}",
+                "test-setup",
+            ],
+            cwd=ROOT,
+            env=environment,
+            capture_output=True,
+            text=True,
+        )
+    finally:
+        venv.chmod(0o755)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "uv" not in result.stdout + result.stderr
+
+
+def test_quality_gate_fails_closed_without_trusted_python(tmp_path):
+    """A missing projected runtime fails before the candidate test command."""
+    missing_venv = tmp_path / "missing-venv"
+    result = subprocess.run(
+        [
+            "/usr/bin/make",
+            "--no-print-directory",
+            "OOMPAH_PYTEST_GATE=1",
+            f"VENV={missing_venv}",
+            "test-setup",
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode != 0
+    assert "trusted quality-gate Python is unavailable" in result.stderr
+    assert not missing_venv.exists()
+
+
+def test_quality_gate_fails_closed_with_incomplete_trusted_runtime(tmp_path):
+    """A projected Python without the test modules is rejected explicitly."""
+    venv = tmp_path / "incomplete-venv"
+    python = venv / "bin" / "python"
+    python.parent.mkdir(parents=True)
+    python.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+    python.chmod(0o755)
+
+    result = subprocess.run(
+        [
+            "/usr/bin/make",
+            "--no-print-directory",
+            "OOMPAH_PYTEST_GATE=1",
+            f"VENV={venv}",
+            "test-setup",
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode != 0
+    assert "trusted quality-gate test runtime is incomplete" in result.stderr
+
+
+def test_non_gate_test_setup_still_installs_declared_dependencies():
+    """Normal test setup retains the uv-managed dependency installation."""
+    result = subprocess.run(
+        [
+            "/usr/bin/make",
+            "--no-print-directory",
+            "--always-make",
+            "--dry-run",
+            "OOMPAH_PYTEST_GATE=0",
+            "test-setup",
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    assert "uv pip install -e '.[server]'" in result.stdout
+    assert "uv pip install -e '.[dev]'" in result.stdout
 
 
 def test_setup_does_not_install_external_tracker_cli():

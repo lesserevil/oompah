@@ -128,12 +128,30 @@ sync-cli: setup
 
 install-cli: sync-cli
 
+ifeq ($(_PYTEST_GATE),)
 test-setup: $(VENV)/.uv-test-setup
 
 $(VENV)/.uv-test-setup: pyproject.toml $(VENV)/.uv-setup
 	uv pip install -e '.[dev]'
 	@touch $@
 	@echo "Test dependencies installed."
+else
+# The OS-enforced branch gate mounts the service-owned, fully provisioned test
+# virtualenv read-only.  Candidate archive timestamps must not trigger a
+# dependency reinstall into that trusted runtime, and host package managers are
+# intentionally absent from the sandbox.  Fail closed if the projected runtime
+# is incomplete; normal developer/operator test setup remains above.
+test-setup:
+	@if [ ! -x "$(PYTHON)" ]; then \
+		echo "ERROR: trusted quality-gate Python is unavailable at $(PYTHON)" >&2; \
+		exit 1; \
+	fi
+	@$(PYTHON) -c 'import pytest, pytest_asyncio, pytest_timeout, xdist' \
+		>/dev/null 2>&1 || { \
+		echo "ERROR: trusted quality-gate test runtime is incomplete" >&2; \
+		exit 1; \
+	}
+endif
 
 start: setup
 	@mkdir -p "$$(dirname "$(PID_FILE)")" "$$(dirname "$(PID_META_FILE)")"; \
