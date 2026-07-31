@@ -1,5 +1,6 @@
 VENV := .venv
 PYTHON := $(VENV)/bin/python
+export PATH := $(abspath $(VENV)/bin):$(PATH)
 _PYTEST_GATE := $(filter 1 true yes,$(strip $(OOMPAH_PYTEST_GATE)))
 ifeq ($(_PYTEST_GATE),)
 PID_FILE ?= .oompah.pid
