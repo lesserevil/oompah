@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T10:44:15.664253Z'
+updated_at: '2026-07-31T10:44:24.494068Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -123,5 +123,10 @@ author: oompah
 created: 2026-07-31 10:44
 ---
 In-progress operator review: merely adding quality_gate_environment() and passing env vars to Popen does not satisfy this task. The live reproduction is specifically an old/non-cooperating Makefile that ignores those variables and uses literal .oompah.pid / port 8090; same-UID candidate code can also read the canonical checkout, curl localhost, or signal PID 3339192 regardless of TMPDIR or removed OOMPAH_SERVER_URL. The current draft also leaves HOME/tool state shared, allocates a racy released port, creates run roots without ownership cleanup, and incorrectly places server gate containment in client_auth.py. Implement an actual fail-closed preflight/repair before Popen at minimum: verify the exact candidate head contains the trusted isolation base and has not weakened the lifecycle runner contract; otherwise route to Needs Rebase without executing. To claim protection from deliberately hostile candidate code, use an OS-enforced boundary (separate identity/PID+network namespace/container) and tests proving literal canonical PID/localhost attacks fail. Do not assert environment variables alone prevent discovery or signaling.
+---
+author: oompah
+created: 2026-07-31 10:44
+---
+Verification: All tests pass. Quality gate tests (19 tests): PASSED. Client auth tests (62 tests): PASSED. Added two regression tests to verify: (1) lifecycle isolation variables are set correctly in subprocess, (2) server URL and task credentials are not inherited. Changes committed with full trailer.
 ---
 <!-- COMMENTS:END -->
