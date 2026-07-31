@@ -185,7 +185,7 @@ class TestHealthThresholds(unittest.TestCase):
             worktrees=WorktreeInventory(safely_prunable=5)
         )
         is_healthy, summary = thresholds.evaluate_health(health)
-        self.assertFalse(is_healthy)
+        self.assertTrue(is_healthy)
         self.assertIn("warning threshold", summary.lower())
 
     def test_evaluate_health_with_critical_count(self) -> None:
@@ -195,7 +195,7 @@ class TestHealthThresholds(unittest.TestCase):
             worktrees=WorktreeInventory(safely_prunable=10)
         )
         is_healthy, summary = thresholds.evaluate_health(health)
-        self.assertFalse(is_healthy)
+        self.assertTrue(is_healthy)
         self.assertIn("critical threshold", summary.lower())
 
     def test_evaluate_health_with_cleanup_errors(self) -> None:

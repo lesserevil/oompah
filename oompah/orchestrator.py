@@ -15,6 +15,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
+from fnmatch import fnmatchcase
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from enum import Enum
@@ -131,6 +132,7 @@ from oompah.storage_cleanup import (
 )
 from oompah.repo_hygiene import (
     HealthThresholds,
+    OverdueArtifact,
     RepoHygieneHealth,
 )
 from oompah.terminal_audit import (
@@ -937,6 +939,12 @@ class Orchestrator:
         )
         self._maintenance_status: dict[str, Any] = {}
         self.terminal_transition_coordinator.set_metrics(self._terminal_audit_metrics)
+        # Repository hygiene is a derived view, but retain the last complete
+        # evaluation so a restart does not briefly hide known hygiene debt
+        # while the first Git/tracker scan is running.
+        persisted_hygiene = state_data.get("repo_hygiene_health")
+        if isinstance(persisted_hygiene, dict):
+            self._maintenance_status["repo_hygiene_health"] = persisted_hygiene
         self._last_tick_metrics: dict[str, Any] = {}
         self._last_dispatch_metrics: dict[str, Any] = {}
         self._dispatch_pending_event_keys: set[str] = set()
@@ -3727,6 +3735,307 @@ class Orchestrator:
                 self._cleanup_error_last = str(exc)
                 logger.warning("Terminal worktree cleanup failed during maintenance: %s", exc)
 
+    @staticmethod
+    def _repo_hygiene_timestamp(value: Any) -> float | None:
+        """Convert tracker timestamps and epoch values into UTC seconds."""
+        if isinstance(value, datetime):
+            stamp = value
+            if stamp.tzinfo is None:
+                stamp = stamp.replace(tzinfo=timezone.utc)
+            return stamp.timestamp()
+        if isinstance(value, (int, float)) and value > 0:
+            return float(value)
+        if isinstance(value, str) and value.strip():
+            try:
+                stamp = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+            except ValueError:
+                return None
+            if stamp.tzinfo is None:
+                stamp = stamp.replace(tzinfo=timezone.utc)
+            return stamp.timestamp()
+        return None
+
+    @staticmethod
+    def _repo_hygiene_git_worktrees(repo_path: str) -> list[dict[str, Any]]:
+        """Return registered worktrees and their checked-out branches."""
+        result = subprocess.run(
+            ["git", "worktree", "list", "--porcelain"],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"git worktree list failed: {result.stderr.strip()[:500]}"
+            )
+
+        records: list[dict[str, Any]] = []
+        current: dict[str, Any] | None = None
+
+        def flush() -> None:
+            nonlocal current
+            if current is None or not current.get("path"):
+                current = None
+                return
+            path = os.path.realpath(str(current["path"]))
+            status = subprocess.run(
+                ["git", "status", "--porcelain", "--untracked-files=all"],
+                cwd=path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=30,
+            )
+            current["path"] = path
+            current["dirty"] = status.returncode != 0 or bool(
+                (status.stdout or "").strip()
+            )
+            records.append(current)
+            current = None
+
+        for line in (result.stdout or "").splitlines():
+            if line.startswith("worktree "):
+                flush()
+                current = {"path": line[len("worktree ") :].strip()}
+            elif current is not None and line.startswith("branch refs/heads/"):
+                current["branch"] = line[len("branch refs/heads/") :].strip()
+            elif current is not None and line == "detached":
+                current["detached"] = True
+        flush()
+        return records
+
+    @staticmethod
+    def _repo_hygiene_git_refs(repo_path: str) -> list[dict[str, Any]]:
+        """Return local and origin refs with their latest commit timestamp."""
+        result = subprocess.run(
+            [
+                "git",
+                "for-each-ref",
+                "--format=%(refname)\t%(refname:short)\t%(committerdate:unix)",
+                "refs/heads",
+                "refs/remotes/origin",
+            ],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"git branch listing failed: {result.stderr.strip()[:500]}"
+            )
+        refs: list[dict[str, Any]] = []
+        for line in (result.stdout or "").splitlines():
+            fields = line.split("\t", 2)
+            if len(fields) != 3:
+                continue
+            raw_ref, short_ref, raw_timestamp = fields
+            # A symbolic origin/HEAD is not a branch artifact and would make
+            # every repository look as though it had one extra shared branch.
+            if short_ref.endswith("/HEAD"):
+                continue
+            try:
+                commit_timestamp = float(raw_timestamp or 0)
+            except ValueError:
+                commit_timestamp = 0.0
+            refs.append(
+                {
+                    "ref": raw_ref,
+                    "name": short_ref,
+                    "remote": raw_ref.startswith("refs/remotes/"),
+                    "commit_timestamp": commit_timestamp,
+                }
+            )
+        return refs
+
+    @staticmethod
+    def _repo_hygiene_branch_merged(
+        repo_path: str,
+        ref: str,
+        default_branch: str,
+    ) -> bool:
+        """Return whether *ref* is an ancestor of the project's default ref."""
+        default_ref = f"refs/remotes/origin/{default_branch}"
+        remote_default = subprocess.run(
+            ["git", "show-ref", "--verify", "--quiet", default_ref],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+        if remote_default.returncode != 0:
+            default_ref = f"refs/heads/{default_branch}"
+        result = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", ref, default_ref],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+        return result.returncode == 0
+
+    def _repo_hygiene_inventory_for_project(
+        self,
+        project: Project,
+        health: RepoHygieneHealth,
+        now: float,
+    ) -> None:
+        """Populate one project's live worktree and branch inventory."""
+        tracker = self._tracker_for_project(project.id)
+        issues = tracker.fetch_all_issues()
+        issue_by_branch: dict[str, Issue] = {}
+        issue_by_identifier: dict[str, Issue] = {}
+        for issue in issues:
+            issue_by_identifier[str(issue.identifier)] = issue
+            for branch in (
+                getattr(issue, "work_branch", None),
+                getattr(issue, "branch_name", None),
+            ):
+                if branch:
+                    issue_by_branch[str(branch)] = issue
+
+        worktrees = self._repo_hygiene_git_worktrees(project.repo_path)
+        dirty_branches = {
+            str(record.get("branch"))
+            for record in worktrees
+            if record.get("dirty") and record.get("branch")
+        }
+        for record in worktrees:
+            path = str(record["path"])
+            branch = str(record.get("branch") or "")
+            issue = issue_by_branch.get(branch)
+            if issue is None:
+                issue = issue_by_identifier.get(os.path.basename(path))
+            if record.get("dirty"):
+                health.worktrees.dirty += 1
+            elif issue is None:
+                health.worktrees.shared_owner += 1
+            elif not is_terminal_status(issue.state):
+                health.worktrees.active += 1
+            else:
+                merged = self._repo_hygiene_branch_merged(
+                    project.repo_path,
+                    f"refs/heads/{branch}" if branch else "HEAD",
+                    project.default_branch,
+                )
+                if not merged:
+                    health.worktrees.unmerged += 1
+                elif canonicalize_status(issue.state) == DONE:
+                    health.worktrees.terminal_protected += 1
+                else:
+                    health.worktrees.safely_prunable += 1
+
+            if issue is not None and is_terminal_status(issue.state):
+                terminal_timestamp = self._repo_hygiene_timestamp(
+                    getattr(issue, "closed_at", None)
+                    or getattr(issue, "merged_at", None)
+                    or getattr(issue, "updated_at", None)
+                )
+                if terminal_timestamp is None:
+                    try:
+                        terminal_timestamp = os.path.getmtime(path)
+                    except OSError:
+                        terminal_timestamp = now
+                if (
+                    not record.get("dirty")
+                    and canonicalize_status(issue.state) in {MERGED, ARCHIVED}
+                    and self._repo_hygiene_branch_merged(
+                        project.repo_path,
+                        f"refs/heads/{branch}" if branch else "HEAD",
+                        project.default_branch,
+                    )
+                    and now - terminal_timestamp
+                    >= self._repo_hygiene_thresholds.safely_prunable_age_seconds
+                ):
+                    health.overdue_artifacts.append(
+                        OverdueArtifact(
+                            artifact_type="worktree",
+                            identifier=path,
+                            category="safely_prunable",
+                            age_seconds=max(0, int(now - terminal_timestamp)),
+                            threshold_seconds=(
+                                self._repo_hygiene_thresholds.safely_prunable_age_seconds
+                            ),
+                            project_id=project.id,
+                            task_id=issue.identifier,
+                        )
+                    )
+
+        protected_branches = {
+            str(value).strip()
+            for value in (
+                project.default_branch,
+                project.branch,
+                project.state_branch_name,
+                *(project.supported_release_branches or []),
+            )
+            if str(value or "").strip()
+        }
+        for ref in self._repo_hygiene_git_refs(project.repo_path):
+            name = str(ref["name"])
+            branch = name.removeprefix("origin/")
+            issue = issue_by_branch.get(branch)
+            checked_out = (
+                not ref["remote"]
+                and branch in {
+                    str(record.get("branch"))
+                    for record in worktrees
+                    if record.get("branch")
+                }
+            )
+            configured_owner = any(
+                pattern and fnmatchcase(branch, str(pattern).strip())
+                for pattern in (project.branches or [])
+            )
+            if not ref["remote"] and branch in dirty_branches:
+                category = "dirty"
+            elif branch in protected_branches or configured_owner or issue is None:
+                category = "shared_owner"
+            elif not is_terminal_status(issue.state):
+                category = "active"
+            elif not self._repo_hygiene_branch_merged(
+                project.repo_path, str(ref["ref"]), project.default_branch
+            ):
+                category = "unmerged"
+            elif canonicalize_status(issue.state) == DONE or checked_out:
+                category = "terminal_protected"
+            else:
+                category = "safely_prunable"
+
+            inventory = health.branches_remote if ref["remote"] else health.branches_local
+            setattr(inventory, category, getattr(inventory, category) + 1)
+
+            if category == "safely_prunable":
+                terminal_timestamp = (
+                    self._repo_hygiene_timestamp(
+                        getattr(issue, "closed_at", None)
+                        or getattr(issue, "merged_at", None)
+                        or getattr(issue, "updated_at", None)
+                    )
+                    if issue is not None
+                    else None
+                )
+                age_start = terminal_timestamp or float(ref["commit_timestamp"] or 0)
+                if age_start and now - age_start >= self._repo_hygiene_thresholds.safely_prunable_age_seconds:
+                    health.overdue_artifacts.append(
+                        OverdueArtifact(
+                            artifact_type="branch",
+                            identifier=name,
+                            category=category,
+                            age_seconds=max(0, int(now - age_start)),
+                            threshold_seconds=(
+                                self._repo_hygiene_thresholds.safely_prunable_age_seconds
+                            ),
+                            project_id=project.id,
+                            task_id=issue.identifier if issue is not None else None,
+                        )
+                    )
+
     def _evaluate_repo_hygiene_health(self) -> RepoHygieneHealth:
         """Evaluate repository hygiene health status (OOMPAH-603).
 
@@ -3739,6 +4048,30 @@ class Orchestrator:
         """
         health = RepoHygieneHealth()
 
+        now = time.time()
+        health.thresholds = {
+            "safely_prunable_age_seconds": (
+                self._repo_hygiene_thresholds.safely_prunable_age_seconds
+            ),
+            "safely_prunable_count_warning": (
+                self._repo_hygiene_thresholds.safely_prunable_count_warning
+            ),
+            "safely_prunable_count_critical": (
+                self._repo_hygiene_thresholds.safely_prunable_count_critical
+            ),
+            "cleanup_error_threshold": (
+                self._repo_hygiene_thresholds.cleanup_error_threshold
+            ),
+        }
+
+        for project in self.project_store.list_all():
+            try:
+                self._repo_hygiene_inventory_for_project(project, health, now)
+            except Exception as exc:  # noqa: BLE001 - keep other projects visible
+                message = f"project {project.id}: {type(exc).__name__}: {exc}"
+                health.cleanup_errors.append(message)
+                logger.warning("Repository hygiene inventory failed: %s", message)
+
         # Track most recent cleanup error if present
         if self._cleanup_error_last:
             health.cleanup_errors.append(self._cleanup_error_last)
@@ -3747,7 +4080,7 @@ class Orchestrator:
         is_healthy, summary = self._repo_hygiene_thresholds.evaluate_health(health)
         health.is_healthy = is_healthy
         health.summary = summary
-        health.last_evaluated_at = time.time()
+        health.last_evaluated_at = now
 
         return health
 
@@ -3759,7 +4092,25 @@ class Orchestrator:
         """
         try:
             health = self._evaluate_repo_hygiene_health()
-            self._maintenance_status["repo_hygiene_health"] = health.to_dict()
+            payload = health.to_dict()
+            self._maintenance_status["repo_hygiene_health"] = payload
+            self._save_state(repo_hygiene_health=payload)
+            # Replace only this feature's derived alert.  Recent but
+            # safely-prunable artifacts remain green; an alert exists only
+            # for overdue debt or a cleanup/inventory error.
+            self._alerts = [
+                alert
+                for alert in self._alerts
+                if alert.get("source") != "repo_hygiene_health"
+            ]
+            if not health.is_healthy:
+                self._alerts.append(
+                    {
+                        "level": "warning",
+                        "source": "repo_hygiene_health",
+                        "message": health.summary,
+                    }
+                )
         except Exception as exc:  # noqa: BLE001
             logger.warning("Failed to evaluate repository hygiene health: %s", exc)
             # Maintain previous state rather than failing the entire maintenance sweep
@@ -27301,6 +27652,16 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 "last_cleanup_at": self._last_cleanup_at if self._last_cleanup_at != 0.0 else None,
                 "cleanup_count": self._cleanup_count_last,
                 "cleanup_error": self._cleanup_error_last,
+                # Keep the derived hygiene payload alongside the legacy
+                # maintenance summary as well as under orchestrator_metrics.
+                # This gives API consumers one stable maintenance location
+                # while preserving the documented metrics namespace.
+                "repo_hygiene_health": dict(
+                    getattr(self, "_maintenance_status", {}).get(
+                        "repo_hygiene_health", {}
+                    )
+                    or {}
+                ),
                 "jobs": {
                     name: {
                         "status": state.last_status,
