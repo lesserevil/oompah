@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-633
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Repair stale integration queues in nested epics
 parent: OOMPAH-584
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:54:49.391955Z'
-updated_at: '2026-07-31T05:52:04.390898Z'
+updated_at: '2026-07-31T05:52:40.422289Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-633
 target_branch: null
 review_url: null
@@ -43,7 +43,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: eb3ab5fa-47fb-4f9b-836f-bab3f5f80f5b
+oompah.agent_run_id: 62694961-95a5-4333-8098-bfd589e8b1ab
 oompah.work_branch: epic-OOMPAH-584--task-OOMPAH-633
 oompah.integration:
   version: 1
@@ -545,5 +545,10 @@ created: 2026-07-31 05:52
 **Evidence:** Last agent comment signals completion without a human question; the Needs Human transition appears accidental.
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-07-31 05:52
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->

@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:00.331568Z'
-updated_at: '2026-07-31T05:28:35.705395Z'
+updated_at: '2026-07-31T05:52:15.598621Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-601
 target_branch: null
 review_url: null
@@ -730,5 +730,10 @@ created: 2026-07-31 05:28
 Needs Human — Done audit requires operator input.
 
 No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then move the task back to Open to retry.
+---
+author: oompah
+created: 2026-07-31 05:52
+---
+Post-restart landing re-evaluation: this task's refreshed exact remote work ref is an ancestor of merged origin/main bb0fd760c3. The Needs Human state was a false regression from the old runtime comparing a pre-rebase SHA. Restoring the task's previously audited Done state.
 ---
 <!-- COMMENTS:END -->
