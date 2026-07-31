@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-645
 type: task
-status: Needs CI Fix
+status: Open
 priority: null
 title: Clear recovered terminal-audit transport failures without contaminating later
   audits
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T06:47:58.732088Z'
-updated_at: '2026-07-31T07:43:06.689071Z'
+updated_at: '2026-07-31T07:50:09.742856Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -429,5 +429,17 @@ Installed 23 packages in 73ms
  + websockets==16.1.1
 make[1]: *** [Makefile:225: test] Error 1
 ```
+---
+author: oompah
+created: 2026-07-31 07:50
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #18)
+
+**State audited:** `Needs CI Fix`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** Recent comment indicates CI is now passing or PR has been merged; safe to reopen for dispatch.
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
 ---
 <!-- COMMENTS:END -->
