@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-586
 type: epic
-status: Needs Rebase
+status: In Progress
 priority: 0
 title: Restore least-privilege task and lifecycle access
 parent: OOMPAH-584
@@ -12,11 +12,10 @@ children:
 blocked_by: []
 start_blocked_by: []
 labels:
-- merge-conflict
 - epic:rebasing
 assignee: null
 created_at: '2026-07-30T14:13:33.901470Z'
-updated_at: '2026-07-31T00:35:18.435755Z'
+updated_at: '2026-07-31T00:35:35.639912Z'
 work_branch: epic-OOMPAH-586
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/597
@@ -26,7 +25,7 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/597
 oompah.review_number: '597'
 oompah.work_branch: epic-OOMPAH-586
 oompah.target_branch: epic-OOMPAH-584
-oompah.agent_run_id: f7d66fe8-6544-4878-bfab-c6c2704820d7
+oompah.agent_run_id: 1339ce75-a22a-456c-b7f0-5556f4c37888
 oompah.task_costs:
   total_input_tokens: 245565
   total_output_tokens: 1879
@@ -125,5 +124,15 @@ author: oompah
 created: 2026-07-31 00:35
 ---
 Resolved PR #597 directly after the server resolver's handoff failure. Rebased the six-child epic branch onto parent c03e52f66; Git correctly dropped patch-equivalent timeout commit 0a260f027 already present upstream. Conflict resolution preserves both terminal-audit health and operator/worker auth-health state, banners, and alerts. New exact head 04d072a5f was pushed with lease. Focused auth/dashboard/orchestrator/task-handoff suite: 423 passed; terminal mutation scan passed.
+---
+author: oompah
+created: 2026-07-31 00:35
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-07-31 00:35
+---
+Focus: Merge Conflict Resolver
 ---
 <!-- COMMENTS:END -->
