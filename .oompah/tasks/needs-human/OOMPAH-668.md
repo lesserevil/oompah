@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-668
 type: bug
-status: In Progress
+status: Needs Human
 priority: 1
 title: Use the trusted test virtualenv without reinstalling inside quality-gate sandbox
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T21:35:20.853943Z'
-updated_at: '2026-07-31T21:46:58.087504Z'
+updated_at: '2026-07-31T21:47:16.453868Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -284,5 +284,15 @@ author: oompah
 created: 2026-07-31 21:46
 ---
 Understanding: auditing the existing OOMPAH-668 review head and branch-gate failure. The quality-gate fix reportedly passed focused and full tests; the current failure is review-worktree resolution ('Head: unknown'), so I will verify task metadata, local/remote branch identity, and actual check evidence before making any minimal repair.
+---
+author: oompah
+created: 2026-07-31 21:47
+---
+Operator recovery: exact-head validation could not match the clean pushed branch because the manually recovered Git worktree is not registered in the running ProjectManager. Temporarily holding the task while the active retry is drained; I will remove only the clean unregistered checkout, reopen so Oompah recreates its managed worktree at origin/OOMPAH-668, and resubmit the unchanged tested head.
+---
+author: oompah
+created: 2026-07-31 21:47
+---
+Moved to Needs Human from the dashboard/API. Human action required: inspect OOMPAH-668 (Use the trusted test virtualenv without reinstalling inside quality-gate sandbox), add the specific decision, missing information, or manual fix needed, then move the task back to Open when it is ready for agents again.
 ---
 <!-- COMMENTS:END -->
