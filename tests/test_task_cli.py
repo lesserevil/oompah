@@ -743,6 +743,30 @@ class TestCmdSetStatus:
         assert "In Validation" in out
         assert "audit-5" in out
 
+    def test_prints_truthful_unstaged_terminal_response(self, capsys):
+        args = _make_args(
+            subcommand="set-status",
+            identifier="TASK-5",
+            status="Done",
+            summary=None,
+            project=None,
+        )
+        with _make_http_mock(
+            {
+                "ok": True,
+                "status": "Needs Human",
+                "requested_target": "Done",
+                "audit_id": "audit-5",
+                "status_staged": False,
+            }
+        ):
+            task_cli._cmd_set_status("http://localhost:8080", args)
+
+        out = capsys.readouterr().out
+        assert "Terminal transition recorded: Done" in out
+        assert "status remains: Needs Human" in out
+        assert "audit-5" in out
+
 
 class TestCmdAddLabel:
     def test_posts_to_labels_endpoint(self):

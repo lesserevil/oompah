@@ -3860,6 +3860,8 @@ def _safe_terminal_transition_error(result, *, override: bool = False) -> tuple[
 def _terminal_transition_payload(
     target: TargetState,
     result: TransitionResult | OverrideResult,
+    *,
+    current_status: str | None = None,
 ) -> dict[str, Any]:
     """Return the public terminal-transition response shape."""
 
@@ -3874,11 +3876,17 @@ def _terminal_transition_payload(
 
     return {
         "ok": True,
-        "status": IN_VALIDATION,
+        "status": (
+            IN_VALIDATION
+            if result.status_staged
+            else canonicalize_status(current_status or "")
+        ),
         "requested_target": target.value,
         "audit_id": result.audit_id,
         "queued_targets": [item.value for item in result.queued_targets],
         "coalesced": result.coalesced,
+        "status_staged": result.status_staged,
+        "status_repaired": result.status_repaired,
     }
 
 
@@ -4000,7 +4008,11 @@ async def _stage_terminal_transition(
         if not result.success:
             _rollback_dispatch_fence()
             return None, _safe_terminal_transition_error(result, override=True)
-        return _terminal_transition_payload(target, result), None
+        return _terminal_transition_payload(
+            target,
+            result,
+            current_status=getattr(issue, "state", None),
+        ), None
 
     try:
         result = await _with_issue_ownership_lock(
@@ -4029,7 +4041,11 @@ async def _stage_terminal_transition(
     if not result.success:
         _rollback_dispatch_fence()
         return None, _safe_terminal_transition_error(result)
-    return _terminal_transition_payload(target, result), None
+    return _terminal_transition_payload(
+        target,
+        result,
+        current_status=getattr(issue, "state", None),
+    ), None
 
 
 def _request_bool(body: dict | None, *keys: str) -> bool:

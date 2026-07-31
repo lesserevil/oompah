@@ -537,6 +537,7 @@ class TerminalTransitionCoordinator:
                 trigger_identity,
                 project_id,
                 evidence_fingerprint,
+                ensure_validation_on_coalesce=True,
             )
 
         return await asyncio.to_thread(
@@ -880,15 +881,21 @@ class TerminalTransitionCoordinator:
 
         # Return early if the updater decided to short-circuit (coalesce/stale).
         # A previous tracker write can fail after the durable audit has been
-        # staged.  Automatic retirement repairs only the nonterminal staging
-        # status on its next pass; it never creates or supersedes an audit.
+        # staged, or another writer can race the task out of In Validation.
+        # Callers that explicitly request repair restore the staging status
+        # without creating or superseding an audit.
         if decision.early_result is not None:
+            issue_status = canonicalize_status(current_issue.state or "")
+            decision.early_result.status_staged = issue_status == IN_VALIDATION
+            can_stage = (
+                requested_target == TargetState.ARCHIVED
+                and issue_status != ARCHIVED
+            ) or issue_status not in TERMINAL_STATUSES
             if (
                 decision.early_result.coalesced
                 and ensure_validation_on_coalesce
-                and requested_target == TargetState.ARCHIVED
-                and canonicalize_status(current_issue.state or "")
-                not in {IN_VALIDATION, ARCHIVED}
+                and not decision.early_result.status_staged
+                and can_stage
             ):
                 try:
                     tracker.update_issue(identifier, status=IN_VALIDATION)
@@ -896,7 +903,7 @@ class TerminalTransitionCoordinator:
                     decision.early_result.status_staged = True
                 except Exception:
                     logger.exception(
-                        "Failed to restore In Validation for pending archive audit %s",
+                        "Failed to restore In Validation for pending terminal audit %s",
                         identifier,
                     )
             return decision.early_result

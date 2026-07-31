@@ -490,6 +490,12 @@ async def _stage_acp_terminal_status(
         if result.reason == "already completed":
             return "Error: terminal transition has already been completed"
         return "Error: terminal transition could not be staged"
+    if not result.status_staged:
+        return (
+            f"Terminal transition recorded: {target.value} "
+            f"(status remains: {canonicalize_status(issue.state or '') or 'unchanged'}, "
+            f"audit ID: {result.audit_id or 'pending'})"
+        )
     return (
         f"Terminal transition queued: {target.value} "
         f"(status: In Validation, audit ID: {result.audit_id or 'pending'})"

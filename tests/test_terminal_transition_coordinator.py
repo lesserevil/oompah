@@ -483,11 +483,55 @@ class TestCoalescing:
         ))
         initial_update_count = len(tracker.update_calls)
 
-        _run(coord.request_transition(
-            _issue(), TargetState.DONE, _trigger(), PROJECT_ID, fp
+        result = _run(coord.request_transition(
+            _issue(IN_VALIDATION), TargetState.DONE, _trigger(), PROJECT_ID, fp
         ))
 
         # Second call should not trigger any new tracker updates
+        assert len(tracker.update_calls) == initial_update_count
+        assert result.status_staged is True
+        assert result.status_repaired is False
+
+    def test_explicit_coalesced_retry_repairs_validation_status_drift(self) -> None:
+        tracker = _MemoryTracker()
+        coord = _coordinator(tracker)
+        fp = _fingerprint()
+
+        first = _run(coord.request_transition(
+            _issue(), TargetState.DONE, _trigger(), PROJECT_ID, fp
+        ))
+        tracker.update_issue(TASK_ID, status="Needs Human")
+        initial_comment_count = len(tracker.comment_calls)
+
+        repeated = _run(coord.request_transition(
+            _issue("Needs Human"), TargetState.DONE, _trigger(), PROJECT_ID, fp
+        ))
+
+        assert repeated.success is True
+        assert repeated.coalesced is True
+        assert repeated.audit_id == first.audit_id
+        assert repeated.status_repaired is True
+        assert repeated.status_staged is True
+        assert tracker.current_status(TASK_ID) == IN_VALIDATION
+        assert len(tracker.comment_calls) == initial_comment_count
+
+    def test_coalesced_retry_does_not_regress_terminal_status(self) -> None:
+        tracker = _MemoryTracker()
+        pending = _pending_done_record()
+        _seed_metadata(tracker, [pending])
+        tracker.update_issue(TASK_ID, status=DONE)
+        coord = _coordinator(tracker)
+        initial_update_count = len(tracker.update_calls)
+
+        result = _run(coord.request_transition(
+            _issue(DONE), TargetState.DONE, _trigger(), PROJECT_ID, _fingerprint()
+        ))
+
+        assert result.success is True
+        assert result.coalesced is True
+        assert result.status_repaired is False
+        assert result.status_staged is False
+        assert tracker.current_status(TASK_ID) == DONE
         assert len(tracker.update_calls) == initial_update_count
 
 
