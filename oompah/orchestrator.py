@@ -4937,20 +4937,17 @@ class Orchestrator:
             return False
 
     def _reconcile_standalone_ready_to_integrate_tasks(self) -> None:
-        """Detect and deliver standalone Ready to Integrate tasks without PRs.
-        
-        Reconciliation for tasks that:
-        - Are in "Ready to Integrate" status
-        - Are standalone (no parent_id/epic)
-        - Have pushed branches
-        - Have no open PR
-        - Have no active integration execution (queue entry)
-        
-        Creates PRs idempotently and marks tasks In Review.
-        Logs actionable failures when delivery is impossible.
+        """Deliver stranded standalone submissions through their review path.
+
+        Epic children are recovered by :meth:`_sync_ready_integration_submissions`.
+        A top-level task instead owns a PR/MR against the project's default
+        branch.  This sweep is the restart-safe fallback for a task whose
+        submission reached the tracker but whose worker exited before review
+        creation completed.
         """
         for project in self.project_store.list_all():
-            tracker = self._tracker_for_project(project.id)
+            project_id = str(project.id)
+            tracker = self._tracker_for_project(project_id)
             try:
                 ready = tracker.fetch_issues_by_states([READY_TO_INTEGRATE])
             except Exception as exc:  # noqa: BLE001
@@ -4960,137 +4957,336 @@ class Orchestrator:
                     exc,
                 )
                 continue
-            
-            # Filter to standalone tasks only (no parent_id)
+
             standalone = [
-                issue for issue in ready
+                issue
+                for issue in ready
                 if not str(issue.parent_id or "").strip()
+                and not _is_epic_issue(issue)
             ]
-            
             if not standalone:
                 continue
-            
-            # Get project config
+
+            # A queue row is already a durable delivery path.  It may be an
+            # active integration, a completed integration awaiting audit, or a
+            # blocked row with its own actionable error.  Never create a
+            # competing standalone review for the same task.
             try:
-                scm = self.provider_store.get_scm_for_project(project.id)
-                if not scm or not scm.is_available():
-                    logger.warning(
-                        "No available SCM for project %s; skipping standalone "
-                        "Ready to Integrate delivery",
-                        project.name,
-                    )
-                    continue
-            except Exception as exc:
+                queued_by_task = {
+                    item.task_id: item
+                    for item in self.integration_queue.items(project_id=project_id)
+                }
+            except Exception as exc:  # noqa: BLE001
                 logger.warning(
-                    "Could not get SCM for project %s: %s",
+                    "Could not inspect integration delivery rows for %s: %s",
                     project.name,
                     exc,
                 )
                 continue
-            
-            repo_slug = getattr(project, "repo_slug", None)
-            if not repo_slug:
-                logger.warning(
-                    "Project %s has no repo_slug configured; skipping standalone "
-                    "Ready to Integrate delivery",
-                    project.name,
-                )
-                continue
-            
-            default_branch = getattr(project, "default_branch", "main")
-            
+
+            pending_review: list[Issue] = []
             for issue in standalone:
-                issue.project_id = project.id
                 task_id = issue.identifier
-                
-                # Get task branch name (typically matches task identifier)
-                task_branch = getattr(issue, "work_branch", None) or task_id
-                
-                # Check if branch exists on origin
+                queue_item = queued_by_task.get(task_id)
+                if queue_item is None:
+                    pending_review.append(issue)
+                    continue
+                self._clear_standalone_delivery_alert(project_id, task_id)
+                logger.debug(
+                    "Standalone Ready task %s already has integration "
+                    "delivery state %s",
+                    task_id,
+                    queue_item.state,
+                )
+            if not pending_review:
+                continue
+
+            provider = None
+            repo_slug = ""
+            provider_error = ""
+            try:
+                provider = detect_provider(
+                    project.repo_url,
+                    access_token=project.access_token,
+                )
+                if provider is not None:
+                    repo_slug = extract_repo_slug(project.repo_url)
+                else:
+                    provider_error = (
+                        f"no supported forge provider was detected for "
+                        f"{project.repo_url or '<missing repo URL>'}; configure "
+                        "a GitHub or GitLab project repo_url"
+                    )
+            except Exception as exc:  # noqa: BLE001
+                provider_error = f"SCM provider setup failed: {exc}"
+
+            target_branch = str(project.default_branch or "").strip()
+            for issue in pending_review:
+                issue.project_id = project_id
+                task_id = issue.identifier
+
+                if provider is None or not repo_slug:
+                    reason = provider_error or (
+                        "repository slug could not be resolved; configure a "
+                        "supported project repo_url"
+                    )
+                    self._arm_standalone_delivery_alert(project_id, task_id, reason)
+                    logger.warning(
+                        "Standalone Ready task %s is undeliverable: %s",
+                        task_id,
+                        reason,
+                    )
+                    continue
+                if not target_branch:
+                    reason = "project default_branch is not configured"
+                    self._arm_standalone_delivery_alert(project_id, task_id, reason)
+                    logger.warning(
+                        "Standalone Ready task %s is undeliverable: %s",
+                        task_id,
+                        reason,
+                    )
+                    continue
+
+                task_branch = self._branch_for_issue(issue, project)
+                if not task_branch:
+                    reason = "task work branch is not recorded"
+                    self._arm_standalone_delivery_alert(project_id, task_id, reason)
+                    logger.warning(
+                        "Standalone Ready task %s is undeliverable: %s",
+                        task_id,
+                        reason,
+                    )
+                    continue
+
                 try:
-                    ls_result = scm.get_branch_head_sha(repo_slug, task_branch)
-                    if not ls_result:
+                    branch_head = provider.get_branch_head_sha(
+                        repo_slug,
+                        task_branch,
+                    )
+                    if not branch_head:
+                        reason = (
+                            f"branch {task_branch} is not present on the remote; "
+                            "push it or correct oompah.work_branch metadata"
+                        )
+                        self._arm_standalone_delivery_alert(
+                            project_id,
+                            task_id,
+                            reason,
+                        )
                         logger.warning(
-                            "Standalone Ready task %s branch %s not found on origin",
+                            "Standalone Ready task %s branch %s not found on remote",
                             task_id,
                             task_branch,
                         )
                         continue
                 except Exception as exc:
+                    reason = f"remote branch check failed: {exc}"
+                    self._arm_standalone_delivery_alert(
+                        project_id,
+                        task_id,
+                        reason,
+                    )
                     logger.warning(
                         "Could not check if branch exists for %s: %s",
                         task_id,
                         exc,
                     )
                     continue
-                
-                # Check if PR already exists for this branch
+
                 try:
-                    existing_pr = scm.find_pr_for_branch(repo_slug, task_branch)
-                    if existing_pr:
-                        logger.debug(
-                            "Standalone Ready task %s already has open PR %s",
-                            task_id,
-                            getattr(existing_pr, "id", "?"),
-                        )
-                        # PR already exists and is open; mark task In Review if not already
-                        try:
-                            current_status = tracker.get_issue(task_id).state
-                            if current_status != IN_REVIEW:
-                                tracker.update_issue(task_id, status=IN_REVIEW)
-                                # Also update review metadata
-                                self._write_review_metadata(
-                                    tracker,
-                                    task_id,
-                                    review_id=getattr(existing_pr, "id", None),
-                                    review_url=getattr(existing_pr, "url", None),
-                                    source_branch=task_branch,
-                                    target_branch=default_branch,
-                                )
-                        except Exception as exc:
-                            logger.warning(
-                                "Could not update %s to In Review: %s",
-                                task_id,
-                                exc,
-                            )
-                        continue
+                    existing_pr = provider.find_pr_for_branch(
+                        repo_slug,
+                        task_branch,
+                    )
                 except Exception as exc:
+                    reason = f"review lookup failed: {exc}"
+                    self._arm_standalone_delivery_alert(
+                        project_id,
+                        task_id,
+                        reason,
+                    )
                     logger.warning(
                         "Could not check for existing PR for %s: %s",
                         task_id,
                         exc,
                     )
                     continue
-                
-                # Create a new PR for this standalone Ready task
+
+                review_state = str(
+                    getattr(existing_pr, "state", "") or ""
+                ).strip().lower()
+                if existing_pr is not None and review_state == "open":
+                    try:
+                        tracker.update_issue(task_id, status=IN_REVIEW)
+                        self._write_review_metadata(
+                            tracker,
+                            task_id,
+                            review_id=getattr(existing_pr, "id", None),
+                            review_url=getattr(existing_pr, "url", None),
+                            source_branch=task_branch,
+                            target_branch=target_branch,
+                        )
+                        self._clear_standalone_delivery_alert(
+                            project_id,
+                            task_id,
+                        )
+                    except Exception as exc:  # noqa: BLE001
+                        self._arm_standalone_delivery_alert(
+                            project_id,
+                            task_id,
+                            f"existing review metadata update failed: {exc}",
+                        )
+                        logger.warning(
+                            "Could not update %s to In Review: %s",
+                            task_id,
+                            exc,
+                        )
+                    continue
+
+                if existing_pr is not None and review_state == "merged":
+                    issue.work_branch = task_branch
+                    issue.branch_name = task_branch
+                    issue.target_branch = target_branch
+                    issue.review_number = str(
+                        getattr(existing_pr, "id", "") or ""
+                    ) or None
+                    issue.review_url = getattr(existing_pr, "url", None)
+                    self._write_review_metadata(
+                        tracker,
+                        task_id,
+                        review_id=issue.review_number,
+                        review_url=issue.review_url,
+                        source_branch=task_branch,
+                        target_branch=target_branch,
+                    )
+                    transition = self._request_merged_via_coordinator(
+                        issue,
+                        project_id,
+                        trigger_identity="standalone-ready-reconciliation",
+                        trigger_source="oompah",
+                    )
+                    if transition is not None and transition.success:
+                        self._clear_standalone_delivery_alert(
+                            project_id,
+                            task_id,
+                        )
+                        logger.info(
+                            "Staged merged standalone task %s for terminal audit "
+                            "from review #%s",
+                            task_id,
+                            getattr(existing_pr, "id", "?"),
+                        )
+                    else:
+                        reason = (
+                            transition.reason
+                            if transition is not None
+                            else "terminal audit transition failed"
+                        )
+                        self._arm_standalone_delivery_alert(
+                            project_id,
+                            task_id,
+                            f"merged review could not enter terminal audit: {reason}",
+                        )
+                    continue
+
+                if existing_pr is not None and review_state != "closed":
+                    reason = (
+                        f"review #{getattr(existing_pr, 'id', '?')} has "
+                        f"unrecognized state {review_state or '<empty>'}"
+                    )
+                    self._arm_standalone_delivery_alert(
+                        project_id,
+                        task_id,
+                        reason,
+                    )
+                    logger.warning(
+                        "Standalone Ready task %s is undeliverable: %s",
+                        task_id,
+                        reason,
+                    )
+                    continue
+
+                n_open, limit, at_capacity = self._project_review_capacity(
+                    project_id
+                )
+                if at_capacity:
+                    reason = (
+                        f"waiting for review capacity ({n_open}/{limit} open)"
+                    )
+                    self._arm_standalone_delivery_alert(
+                        project_id,
+                        task_id,
+                        reason,
+                    )
+                    logger.info(
+                        "Deferred standalone review for %s: %s",
+                        task_id,
+                        reason,
+                    )
+                    continue
+
+                if not self._review_quality_gate_passes(
+                    project,
+                    issue,
+                    task_branch,
+                    target_branch,
+                ):
+                    self._arm_standalone_delivery_alert(
+                        project_id,
+                        task_id,
+                        "configured branch quality gate did not pass",
+                    )
+                    continue
+
                 title = f"{task_id}: {issue.title}" if issue.title else task_id
                 description = issue.description or ""
-                
+                hub_link = self._build_pr_body(
+                    issue,
+                    target_branch,
+                    repo_slug,
+                    project.default_branch,
+                )
+                if hub_link:
+                    description = (
+                        f"{hub_link}\n\n{description}".strip()
+                        if description
+                        else hub_link
+                    )
+
                 try:
-                    result = scm.create_review(
+                    result = provider.create_review(
                         repo_slug,
                         title,
                         task_branch,
-                        target_branch=default_branch,
+                        target_branch=target_branch,
                         description=description,
                     )
                 except Exception as exc:
+                    self._arm_standalone_delivery_alert(
+                        project_id,
+                        task_id,
+                        f"review creation failed: {exc}",
+                    )
                     logger.warning(
                         "Failed to create PR for standalone Ready task %s: %s",
                         task_id,
                         exc,
                     )
                     continue
-                
+
                 if result is None:
+                    self._arm_standalone_delivery_alert(
+                        project_id,
+                        task_id,
+                        "forge provider returned no review",
+                    )
                     logger.warning(
                         "Failed to create PR for standalone Ready task %s "
                         "(provider returned None)",
                         task_id,
                     )
                     continue
-                
-                # Successfully created PR; update task state
+
                 try:
                     tracker.update_issue(task_id, status=IN_REVIEW)
                     self._write_review_metadata(
@@ -5099,8 +5295,9 @@ class Orchestrator:
                         review_id=getattr(result, "id", None),
                         review_url=getattr(result, "url", None),
                         source_branch=task_branch,
-                        target_branch=default_branch,
+                        target_branch=target_branch,
                     )
+                    self._clear_standalone_delivery_alert(project_id, task_id)
                     logger.info(
                         "Created PR for standalone Ready task %s (PR #%s)",
                         task_id,
@@ -5112,6 +5309,44 @@ class Orchestrator:
                         task_id,
                         exc,
                     )
+                    self._arm_standalone_delivery_alert(
+                        project_id,
+                        task_id,
+                        f"created review but tracker update failed: {exc}",
+                    )
+
+    def _arm_standalone_delivery_alert(
+        self,
+        project_id: str,
+        task_id: str,
+        reason: str,
+    ) -> None:
+        """Surface one idempotent actionable alert for a stranded submission."""
+        source = f"standalone_ready_delivery:{project_id}:{task_id}"
+        self._alerts = [
+            alert for alert in self._alerts if alert.get("source") != source
+        ]
+        self._alerts.append(
+            {
+                "level": "warning",
+                "source": source,
+                "message": (
+                    f"Standalone Ready task {task_id} has no active delivery: "
+                    f"{reason}."
+                ),
+            }
+        )
+
+    def _clear_standalone_delivery_alert(
+        self,
+        project_id: str,
+        task_id: str,
+    ) -> None:
+        """Clear the stranded-submission alert once a delivery path exists."""
+        source = f"standalone_ready_delivery:{project_id}:{task_id}"
+        self._alerts = [
+            alert for alert in self._alerts if alert.get("source") != source
+        ]
 
     def _integration_satisfied_dependencies(
         self,
