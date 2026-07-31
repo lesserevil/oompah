@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T10:41:54.992794Z'
+updated_at: '2026-07-31T10:43:17.179743Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -113,5 +113,10 @@ author: oompah
 created: 2026-07-31 10:41
 ---
 Discovery: Found the issue in quality_gate.py:287-296. The subprocess.Popen() call uses agent_environment() which only removes client credentials, but doesn't enforce lifecycle isolation variables (OOMPAH_PYTEST_GATE, OOMPAH_PYTEST_RUN_ROOT, OOMPAH_TEST_SERVER_PORT, OOMPAH_TEST_PID_FILE). Old candidate Makefiles will use canonical .oompah.pid. Solution: Create quality_gate_environment() function in client_auth.py that sets up full lifecycle isolation (private temp root, PID files, ephemeral port, HOME state) and use it in quality_gate.py subprocess call. Implements the server-controlled launch boundary isolation that doesn't rely on candidate code cooperation.
+---
+author: oompah
+created: 2026-07-31 10:43
+---
+Implementation: Added quality_gate_environment() function to client_auth.py that enforces full lifecycle isolation at the server-controlled launch boundary: (1) creates private temp directory per gate run, (2) allocates ephemeral port, (3) sets OOMPAH_PYTEST_GATE=1 and private PID file paths, (4) redirects TMPDIR/TMP/TEMP to private root, (5) removes server URL and credentials. Updated quality_gate.py to use this function instead of agent_environment() in subprocess.Popen(). This prevents any candidate code from discovering operator service lifecycle files or connecting to operator port.
 ---
 <!-- COMMENTS:END -->
