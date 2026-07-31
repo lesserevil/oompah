@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-657
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Run branch quality gates from immutable exact-head snapshots
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:06:15.542774Z'
-updated_at: '2026-07-31T12:39:11.381844Z'
+updated_at: '2026-07-31T12:45:32.573885Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -526,5 +526,10 @@ author: oompah
 created: 2026-07-31 12:39
 ---
 Run quality gates from immutable exact-head snapshots; fence cancelled, stale, reopened, and expired/reclaimed generations; retire inactive delivery authority and alerts; preserve only exact durable queue ownership. Focused regression family: 83 passed.
+---
+author: oompah
+created: 2026-07-31 12:45
+---
+Branch quality gate passed for `0212dada64768ed8f89e7b27f461f121c4a42299` using `make test` in 370.5s. Review creation may proceed.
 ---
 <!-- COMMENTS:END -->
