@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-653
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Make terminal-audit success and owner override retire every duplicate record
   and alert
@@ -16,7 +16,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T13:16:09.241535Z'
+updated_at: '2026-07-31T13:23:57.264478Z'
 work_branch: OOMPAH-653
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/619
@@ -198,6 +198,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/619
 oompah.review_number: '619'
 oompah.work_branch: OOMPAH-653
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-da21a95f144e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-653
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 38b2aa4b2fe75d8d6c077a45b5ed91473b4d3690166c6a85146f4d29f3ca2b5a
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-31T13:23:52.407384+00:00'
+  - version: 1
+    audit_id: audit-2f9b77f8e8e1
+    project_id: proj-14849f1b
+    task_id: OOMPAH-653
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 38b2aa4b2fe75d8d6c077a45b5ed91473b4d3690166c6a85146f4d29f3ca2b5a
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-07-31T13:23:52.407384+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -962,5 +1001,15 @@ author: oompah
 created: 2026-07-31 13:15
 ---
 Branch quality gate passed for `ff9771dbefc638350b7cc9d7025e3f677fef14a6` using `make test` in 376.4s. Review creation may proceed.
+---
+author: oompah
+created: 2026-07-31 13:23
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-07-31 13:23
+---
+YOLO: merged PR #619.
 ---
 <!-- COMMENTS:END -->
