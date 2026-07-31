@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T13:41:36.779002Z'
+updated_at: '2026-07-31T13:46:47.152585Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -603,5 +603,10 @@ author: oompah
 created: 2026-07-31 13:41
 ---
 Understanding: OOMPAH-657 (snapshot/generation management) has now been merged to main. This OOMPAH-655 branch has 6 commits implementing full-gate service isolation via bwrap sandboxing (later commits) and environment isolation (earlier commits). Rebasing onto main now to integrate OOMPAH-657's work and resolve conflicts. Goal: use OOMPAH-657's exact-head snapshot foundation with OOMPAH-655's service isolation enforcement.
+---
+author: oompah
+created: 2026-07-31 13:46
+---
+Discovery: OOMPAH-655 (6 commits) and OOMPAH-657 (3 commits) have parallel implementations. OOMPAH-657 is now on main with generation management + exact-head snapshots (git worktrees). OOMPAH-655 adds bwrap empty-root sandboxing + git archive snapshots + minimal environment isolation. Both approaches address the task requirement but differ in implementation. Current rebase encounters widespread conflicts across 28 files (quality_gate, integration_executor, orchestrator, terminal_audit, etc.). Key decision needed: integrate both approaches (complex multi-file changes) OR validate that OOMPAH-657's generation + snapshot containment is sufficient for the task (simpler, run tests).
 ---
 <!-- COMMENTS:END -->
