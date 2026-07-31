@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-653
 type: bug
-status: In Progress
+status: Needs Human
 priority: 1
 title: Make terminal-audit success and owner override retire every duplicate record
   and alert
@@ -16,7 +16,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T13:01:40.250591Z'
+updated_at: '2026-07-31T13:02:54.983486Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,8 +42,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 66ed8563-bf6d-4c3b-9a8f-48f09fd910da
 oompah.task_costs:
-  total_input_tokens: 20632255
-  total_output_tokens: 90198
+  total_input_tokens: 21007037
+  total_output_tokens: 92277
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -51,8 +51,8 @@ oompah.task_costs:
       output_tokens: 61859
       cost_usd: 0.0
     opus:
-      input_tokens: 4301609
-      output_tokens: 28339
+      input_tokens: 4676391
+      output_tokens: 30418
       cost_usd: 0.0
   runs:
   - profile: default
@@ -121,6 +121,12 @@ oompah.task_costs:
     output_tokens: 858
     cost_usd: 0.0
     recorded_at: '2026-07-31T12:28:30.890356+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 374782
+    output_tokens: 2079
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T13:02:48.526291+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-653__20260731T090421Z
@@ -171,6 +177,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-653
     source_sha: 69fff643e1780198faaa011397487d8721997b49
     completed_at: '2026-07-31T12:25:15.199909+00:00'
+  - run_id: OOMPAH-653__20260731T130140Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-sol
+    focus: ci_fix
+    source_branch: OOMPAH-653
+    source_sha: 69fff643e1780198faaa011397487d8721997b49
+    completed_at: '2026-07-31T13:02:48.529126+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -904,5 +918,25 @@ author: oompah
 created: 2026-07-31 13:01
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-07-31 13:02
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Codex/gpt-5.6-sol]
+- Turns: 1, Tool calls: 6
+- Tokens: 374.8K in / 2.1K out [376.9K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 15s
+- Log: OOMPAH-653__20260731T130140Z.jsonl
+---
+author: oompah
+created: 2026-07-31 13:02
+---
+Task handoff failed after the worker ran: the server-owned, task-scoped tracker capability could not update this task. The task is held in Needs Human and will not be redispatched automatically; verify the handoff service and reconcile the worker's branch before resuming it.
+---
+author: oompah
+created: 2026-07-31 13:02
+---
+Operator recorded the active worker's understanding because its scoped task-comment path is returning the known handoff-interceptor 400 tracked by OOMPAH-650. Authorized scope: rebase accepted head 69fff643e onto current main after OOMPAH-657; resolve terminal-audit overlap; cover PASS/owner-override sibling retirement including enforcement pending metrics; run focused tests and terminal scan; push and submit. The worker may continue implementation; operator will provide tracker comments until OOMPAH-650 lands.
 ---
 <!-- COMMENTS:END -->
