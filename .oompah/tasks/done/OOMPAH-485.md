@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-485
 type: feature
-status: In Progress
+status: Done
 priority: 1
 title: Add In Validation and terminal-audit details to the dashboard
 parent: OOMPAH-460
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:24.220262Z'
-updated_at: '2026-07-31T03:57:51.463779Z'
+updated_at: '2026-07-31T03:58:12.849615Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-485
 target_branch: null
 review_url: null
@@ -182,6 +182,24 @@ oompah.terminal_audit:
       with the recovered content. This override closes bookkeeping only and does not
       waive code verification.'
     created_at: '2026-07-31T03:56:48.898727+00:00'
+  - version: 1
+    override_id: override-b6c259a80092
+    project_id: proj-14849f1b
+    task_id: OOMPAH-485
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 431a4147fe9037209bbceaa172f06be830158a34d144ccba150b84492aed2ee2
+    authorized_by:
+      version: 1
+      identity: lesserevil
+      source: api
+    reason: Reassert terminal tracker reconciliation after the old runtime raced a
+      stale blocked integration row against the prior owner override. Code is already
+      present and verified in OOMPAH-597 head 44e5c5579. This second override is an
+      ownership fence; the obsolete queue attempt must not reopen or redispatch implementation.
+    created_at: '2026-07-31T03:58:08.263609+00:00'
   version: 1
   pending_chain: []
   attempt_history: []
@@ -344,5 +362,12 @@ author: oompah
 created: 2026-07-31 03:57
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-07-31 03:58
+---
+Override by lesserevil: terminal transition to Done applied by project owner.
+
+Reason: Reassert terminal tracker reconciliation after the old runtime raced a stale blocked integration row against the prior owner override. Code is already present and verified in OOMPAH-597 head 44e5c5579. This second override is an ownership fence; the obsolete queue attempt must not reopen or redispatch implementation.
 ---
 <!-- COMMENTS:END -->
