@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T13:52:05.961085Z'
-updated_at: '2026-07-31T14:00:32.630459Z'
+updated_at: '2026-07-31T14:04:04.513891Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -21,17 +21,49 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 9c360850b6c5b27e660228b90dfb195a9e618c097840d9bc4e5d7613b84d84cf
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-07-31T14:04:00.236167+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 4fae4798-f5b7-4d7c-a99d-71784f2ae4d8
-  claim_owner: 660099b4-9353-48a0-9b6d-9b3e8f3b8896
-  claimed_at: '2026-07-31T14:00:24.505696+00:00'
-  claim_expires_at: '2026-07-31T14:30:24.505696+00:00'
+  evidence: "No repository or tracker mutations were made.\n\nFocus handoff: duplicate_detector\
+    \  \nDuplicate preflight verdict: no_duplicate  \nMatches: none  \nEvidence: Active\
+    \ OOMPAH-645, OOMPAH-658, and OOMPAH-661 cover transport-health, duplicate-preflight,\
+    \ and retry-authority issues respectively. Closest terminal records OOMPAH-604,\
+    \ OOMPAH-577, OOMPAH-626, OOMPAH-627, and OOMPAH-653 are Done/Merged and therefore\
+    \ excluded; their scopes differ from this canonical integrated-evidence fingerprint\
+    \ bug."
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
 oompah.agent_run_id: cd436e5a-c0f6-4cc3-8afc-7b0258555ee2
+oompah.task_costs:
+  total_input_tokens: 3662929
+  total_output_tokens: 8902
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 3662929
+      output_tokens: 8902
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 3662929
+    output_tokens: 8902
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T14:04:00.235023+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-663__20260731T140033Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: OOMPAH-663
+    source_sha: ef2938146bf828ddc8d8d677501f4fad61d65a73
+    completed_at: '2026-07-31T14:04:00.251325+00:00'
 ---
 ## Summary
 
@@ -54,5 +86,15 @@ author: oompah
 created: 2026-07-31 14:00
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-31 14:04
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 36
+- Tokens: 3.7M in / 8.9K out [3.7M total]
+- Cost: $0.0000
+- Exit: normal, Duration: 3m 30s
+- Log: OOMPAH-663__20260731T140033Z.jsonl
 ---
 <!-- COMMENTS:END -->
