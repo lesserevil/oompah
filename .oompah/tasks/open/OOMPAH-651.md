@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T11:52:12.423330Z'
+updated_at: '2026-07-31T11:52:17.888870Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -34,7 +34,7 @@ oompah.duplicate_screening:
   claim_expires_at: '2026-07-31T12:22:11.581954+00:00'
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 8beae452-2b35-406b-8eda-4a9f141cb75e
+oompah.agent_run_id: f189ed60-48fd-4c27-8512-ffaecfbdef65
 oompah.task_costs:
   total_input_tokens: 16588299
   total_output_tokens: 103458
@@ -745,5 +745,15 @@ Run #2 [attempt=2, profile=deep, role=deep -> Codex/gpt-5.6-sol]
 - Cost: $0.0000
 - Exit: normal, Duration: 2m 46s
 - Log: OOMPAH-651__20260731T114920Z.jsonl
+---
+author: oompah
+created: 2026-07-31 11:52
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-07-31 11:52
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
