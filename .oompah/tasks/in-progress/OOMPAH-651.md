@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-651
 type: bug
-status: Ready to Integrate
+status: In Progress
 priority: 1
 title: Redact secrets from agent tool inputs, outputs, and JSONL event logs
 parent: null
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T11:01:06.986063Z'
+updated_at: '2026-07-31T11:04:56.392945Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,7 +36,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: b11da48a-fbfd-48d4-8a09-0a4fbe01c7ea
+oompah.agent_run_id: 16005eb1-3510-47a7-a6ee-589a06efd44f
 oompah.task_costs:
   total_input_tokens: 3889288
   total_output_tokens: 61233
@@ -629,5 +629,20 @@ Run #1 [attempt=1, profile=deep, role=deep -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 25m 21s
 - Log: OOMPAH-651__20260731T103549Z.jsonl
+---
+author: oompah
+created: 2026-07-31 11:04
+---
+Exact-head review rejection for 723abbf57bf9a59bc1b378e71f6fbcb42ff239c3: the configured-secret requirement is still unimplemented. oompah/secrets.py advertises Known configured secret values, but has no registry, registration API, startup initialization, or longest-first literal replacement. _redact_string returns an innocuously named bare configured password/token unchanged whenever its text has no password/token/auth/etc. indicator, so a value such as opaque-value-Q9x in an ordinary detail/content field is persisted verbatim. The bytes branch likewise returns raw bytes whenever pattern redaction makes no change, so registered-literal coverage could not protect it as written. Add a thread-safe/non-logging registry populated at startup from the actual configured password/token sources, exact literal replacement longest-first for str and decoded bytes, safe rotation/update semantics, and regression tests proving a bare configured sentinel in innocuous keys/text/bytes is absent from every relevant sink. Do not claim all configured secrets are covered until this exact case passes.
+---
+author: oompah
+created: 2026-07-31 11:04
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-31 11:04
+---
+Focus: Security Auditor
 ---
 <!-- COMMENTS:END -->
