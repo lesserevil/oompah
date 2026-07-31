@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-587
 type: epic
-status: In Validation
+status: Done
 priority: 1
 title: Drain integration queues and prevent stranded delivery states
 parent: OOMPAH-584
@@ -19,7 +19,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-30T14:13:38.093049Z'
-updated_at: '2026-07-31T04:46:21.960161Z'
+updated_at: '2026-07-31T04:54:35.215294Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -27,6 +27,8 @@ review_number: null
 merged_at: null
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-17be272b6055: '2026-07-31T04:54:32.668794+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -34,7 +36,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-587
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -43,7 +45,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-17be272b6055
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -53,12 +55,15 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T04:46:16.153208+00:00'
       branch_key: OOMPAH-587
+      verdict: pass
+      completed_at: '2026-07-31T04:54:32.668587+00:00'
+      ended_at: '2026-07-31T04:54:32.668587+00:00'
     requested_by:
       version: 1
       identity: orchestrator
     previous_state: Open
     created_at: '2026-07-31T04:46:11.844859+00:00'
-    updated_at: '2026-07-31T04:46:16.153208+00:00'
+    updated_at: '2026-07-31T04:54:32.668587+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-17be272b6055
@@ -120,5 +125,22 @@ author: oompah
 created: 2026-07-31 04:46
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 04:54
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- children_done_count: 6
+- children_terminal: OOMPAH-596=Done,OOMPAH-597=Done,OOMPAH-598=Done,OOMPAH-599=Done,OOMPAH-617=Done,OOMPAH-637=Done
+- epic_branch_head: origin/epic-OOMPAH-587 @ 88adebe114c187b8fdc33f935e2fe4d61f1df3d1
+- standalone_ready_outcomes: OOMPAH-574 merged (PR #598 c8ab3957b), OOMPAH-576 merged (PR #599 4f5172149), OOMPAH-581 merged (PR #600 24bd5d6c1), OOMPAH-575 landed via 9e8bf3323
+- delivered_test_suites: tests/test_integration_conflict_repair.py, tests/test_standalone_ready_to_integrate.py, tests/test_delivery_plane_recovery.py, tests/test_integration_queue.py, tests/test_integration_executor.py, tests/test_epic_terminal_audit_contract.py, tests/test_done_merged_archived_lifecycle.py, tests/test_terminal_audit_observability.py
+- rebase_labels: rebase-requested,epic:rebasing observed but do not block terminal Done rollup per _epic_synchronization_decision
+- task_state: In Validation (previous_state=Open per scheduler contract)
+- parent_epic_reference: OOMPAH-460 closure is a downstream consequence of the delivery machinery repaired here; its own children continue to advance on origin/epic-OOMPAH-460
 ---
 <!-- COMMENTS:END -->
