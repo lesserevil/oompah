@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-664
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Make issue-list snapshots advance with canonical state-branch task changes
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T16:04:06.140108Z'
-updated_at: '2026-07-31T18:38:41.161220Z'
+updated_at: '2026-07-31T18:38:51.050910Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -69,6 +69,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-664
     source_sha: a1dd3287d1faeeccf777c57764b9283cb653304d
     completed_at: '2026-07-31T18:16:36.837903+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-664
+  head_sha: db975da26c71bb65456d0df87549cc65ce582095
+  submitted_at: '2026-07-31T18:38:47.626545+00:00'
+  updated_at: '2026-07-31T18:38:47.626545+00:00'
 ---
 ## Summary
 
@@ -156,5 +164,10 @@ author: oompah
 created: 2026-07-31 18:38
 ---
 Completion: Delivered generation-bound issue snapshots for OOMPAH-664. All acceptance criteria met: (1) authoritative status moves visible on all read surfaces without TTL delay via synchronous cache invalidation callbacks, (2) OOMPAH-651/655-style tasks cannot disappear from lane queries — stale snapshots are rejected and marked stale rather than serving as empty fresh lanes, (3) state-branch generation fences list, detail, websocket broadcast, and canonical Markdown agreement. Branch db975da26 pushed to origin/OOMPAH-664. 59 focused tests pass, 660 broader tests pass.
+---
+author: oompah
+created: 2026-07-31 18:38
+---
+Bound issue-list snapshots to state-branch generation: added get_state_branch_generation(), add_read_change_callback()/_notify_read_change() to OompahMarkdownTracker for synchronous cache invalidation; extended _issues_snapshot with source_generations + invalidated fields in server.py; generation-aware _detail_cache_get/_detail_cache_set for detail endpoint parity; _fetch_all_issues with include_source_generations path; all 6 required deterministic tests pass (barrier, checkpoint invalidation, two-project isolation, list/detail parity, restart, read-failure stale preservation). 59 focused tests pass.
 ---
 <!-- COMMENTS:END -->
