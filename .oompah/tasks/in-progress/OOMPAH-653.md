@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T11:44:30.904494Z'
+updated_at: '2026-07-31T11:52:25.505897Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -680,5 +680,10 @@ author: oompah
 created: 2026-07-31 11:44
 ---
 **Discovery**: Located the defects in terminal_audit_enforcement.py. Key issues: (1) _recover_terminal_override uses next() to select first unapplied override without validating evidence_fingerprint against current task evidence - must compute current fingerprint from issue description and select newest by created_at, retiring stale ones; (2) _recover_terminal_result uses candidates[-1] (list order) not validated created_at timestamps. (3) Current tests use dynamically attached evidence_fingerprint field; need production-like native Markdown task tests. Starting implementation of override selection authority validation and created_at-based result ordering.
+---
+author: oompah
+created: 2026-07-31 11:52
+---
+Exact review of the current dirty recovery diff still blocks submission. (1) Multiple valid overrides are not retired: only the selected newest row is marked applied, while stale_keys contains evidence mismatches only. The older same-evidence override stays unapplied and will be applied on the next recovery scan. Mark every non-selected valid candidate retired with superseded_by_newer_override in the same metadata update. (2) Authority is still list-order dependent for equal or malformed timestamps: override max() takes the first row and result max() explicitly uses enumerate/list position. Define one deterministic key using validated timestamp plus a stable persisted ID; add input-permutation tests for equal/malformed timestamps. (3) The claimed native-Markdown test is another _Tracker mutation, not the production adapter, and it tests description only. Native Issue has no source_sha field, while audit evidence includes source/target SHA and other fields; recovery must obtain/recompute the same canonical current evidence that transition creation used, not a reduced description-only digest or an old pending-chain digest. Exercise an actual persisted native task through fresh adapter/restart and source-head/revision mutation. (4) The stale-native test currently expects recovery [] while the earlier stale-evidence test expects the still-current audit pending; resolve and assert the intended actionable state consistently. Also remove unused stale_override_ids, duplicate timestamp parsers, trailing whitespace, and replace loose untyped helpers with a single tested authority-key helper.
 ---
 <!-- COMMENTS:END -->
