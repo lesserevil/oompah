@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-607
 type: bug
-status: In Review
-priority: 1
+status: Needs CI Fix
+priority: 0
 title: Canonicalize project aliases before terminal owner authorization
 parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- ci-fix
 assignee: null
 created_at: '2026-07-30T18:17:13.371379Z'
-updated_at: '2026-07-31T06:01:50.590671Z'
+updated_at: '2026-07-31T06:09:51.252163Z'
 work_branch: OOMPAH-607
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/605
@@ -346,5 +347,10 @@ author: oompah
 created: 2026-07-31 06:01
 ---
 Branch quality gate passed for `b10b328ed7779cd3c72e7097a77f8ab4e69c1c90` using `make test` in 252.9s. Review creation may proceed.
+---
+author: oompah
+created: 2026-07-31 06:09
+---
+YOLO: CI tests failed on MR #605. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
 ---
 <!-- COMMENTS:END -->
