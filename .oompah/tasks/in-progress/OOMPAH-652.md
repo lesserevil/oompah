@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-652
 type: bug
-status: Needs Human
+status: In Progress
 priority: 1
 title: Isolate the full Makefile test gate from a running Oompah service
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:15.160957Z'
-updated_at: '2026-07-31T09:41:35.961058Z'
+updated_at: '2026-07-31T09:43:50.953131Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -172,5 +172,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 1m 12s
 - Log: OOMPAH-652__20260731T094029Z.jsonl
+---
+author: oompah
+created: 2026-07-31 09:43
+---
+Operator recovery complete on pushed head 6ef786631. Live evidence: the original complete 14,257-test gate exited while pre-existing service PID 3339192 remained healthy. Review then added normal provider-exit reaping, atomic/fail-closed lifecycle identity handling, pre-identity restart migration, and exact PID/start-time/group/session/cwd mismatch tests. Final verification: 96 focused process/lifecycle/worker-exit tests pass; 3 live orphan/timing regressions pass; Granian and sentinel tests passed in the preceding focused run; terminal mutation scan passes; git diff --check is clean. Submit this exact pushed head to Oompah full integration gating.
 ---
 <!-- COMMENTS:END -->
