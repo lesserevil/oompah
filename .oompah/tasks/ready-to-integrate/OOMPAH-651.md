@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-651
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Redact secrets from agent tool inputs, outputs, and JSONL event logs
 parent: null
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T11:00:16.571790Z'
+updated_at: '2026-07-31T11:00:34.074058Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -102,11 +102,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-651
-  base_branch: main
-  base_sha: 72ed26d3777a42adc53a6a740713c83ca555984a
-  head_sha: 627592f96b2c4152b81fad825202a75035448b29
-  submitted_at: '2026-07-31T10:05:19.653520+00:00'
-  updated_at: '2026-07-31T10:06:23.257040+00:00'
+  head_sha: 723abbf57bf9a59bc1b378e71f6fbcb42ff239c3
+  submitted_at: '2026-07-31T11:00:31.412710+00:00'
+  updated_at: '2026-07-31T11:00:31.412710+00:00'
 ---
 ## Summary
 
@@ -606,5 +604,10 @@ Documentation:
 
 COMPLETION:
 Every persisted / streamed / logged sink now runs through the central redact_sensitive_data pass, with unknown-type objects rendered + scanned before return (no default=str bypass). Type-safe usage handling in the orchestrator + console paths. Comprehensive sentinel tests for every backend (Claude, Codex, OpenCode, API-agent, legacy) and every sink (JSONL, state activity, session.last_message, WS broadcast, service log). Fail-closed edge cases (max depth, dataclass reconstruction failure, credential-named class, broken repr) verified.
+---
+author: oompah
+created: 2026-07-31 11:00
+---
+Redaction hardened: fail-closed unknown-object handling in secrets.py; api_agent JSONL, api_agent AgentActivity, console_legacy JSONL/WS broadcast, ConsoleEvent attachments, orchestrator usage type-safety, and 'oompah' service logger filter all covered by the central redact_sensitive_data boundary. Added 31 sentinel e2e tests across Claude/Codex/OpenCode/API-agent/legacy backends and every persisted/streamed/logged sink. Added operator runbook docs/secret-redaction-and-rotation.md for audit/rotation without copying plaintext into task comments. make check-secrets and terminal mutation scan pass; 745 focused tests pass.
 ---
 <!-- COMMENTS:END -->

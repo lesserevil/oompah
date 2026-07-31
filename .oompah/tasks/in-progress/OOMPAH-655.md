@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-655
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Enforce full-gate service isolation outside candidate branch code
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:36:19.315184Z'
-updated_at: '2026-07-31T11:00:17.804329Z'
+updated_at: '2026-07-31T11:00:40.548432Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -34,7 +34,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: d5ebe0b5-0306-4edb-8b02-1013ec367ba2
+oompah.agent_run_id: 4c85ec71-426b-4a1f-baa3-2647460cfc01
 oompah.task_costs:
   total_input_tokens: 2699648
   total_output_tokens: 8171
@@ -228,5 +228,15 @@ author: oompah
 created: 2026-07-31 11:00
 ---
 Operator rejects head 2713e14ea933ea14555b6e5561fb122500d9d55f. It is still the spoofable four-substring design explicitly rejected in comment 19 and does not map needs_rebase into actionable task repair. A Makefile containing those four strings in comments and then reading an absolute canonical PID/curling localhost/signaling the same-UID service passes this preflight. The test claiming a hostile compliant script cannot signal the operator does not create a live sentinel, permits the command to execute, and accepts ambiguous pass/fail output; it is not proof. Replace string matching with exact trusted ancestry plus a non-spoofable lifecycle contract (or server-owned immutable/OS boundary), add caller state-transition coverage, and prove a spoofed-marker fixture never executes by checking a sentinel side effect. Do not resubmit marker scanning.
+---
+author: oompah
+created: 2026-07-31 11:00
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-31 11:00
+---
+Focus: Maintenance Engineer
 ---
 <!-- COMMENTS:END -->
