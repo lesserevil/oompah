@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:46:34.785511Z'
-updated_at: '2026-07-31T00:51:08.541488Z'
+updated_at: '2026-07-31T00:52:35.634069Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-632
 target_branch: null
 review_url: null
@@ -134,5 +134,21 @@ created: 2026-07-31 00:51
 2. Call it before landing evidence checks in _child_landing_evidence_block_reason
 3. Preserve fail-closed behavior (defer mutation if fetch fails)
 4. Add tests to verify the fix
+---
+author: oompah
+created: 2026-07-31 00:52
+---
+**Discovery:** Found the root cause and implemented the fix.
+
+**Key Changes:**
+1. Added new function _refresh_landing_evidence_candidate_refs() that fetches candidate task branch refs from origin before patch comparison
+2. Modified _mark_epic_merged() to collect all Done child branches and refresh them before checking landing evidence
+3. Defers reconciliation if any candidate ref refresh fails (fail-closed behavior preserved)
+4. This ensures force-pushed rebases are judged from authoritative remote refs, not stale local refs
+
+**Files changed:**
+- oompah/orchestrator.py: Added refresh function and modified _mark_epic_merged()
+
+Now implementing tests to verify the fix works correctly.
 ---
 <!-- COMMENTS:END -->

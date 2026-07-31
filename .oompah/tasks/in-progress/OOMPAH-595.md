@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-595
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Expose separate operator and worker task-auth health signals
 parent: OOMPAH-586
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:56.897824Z'
-updated_at: '2026-07-31T00:52:14.628539Z'
+updated_at: '2026-07-31T00:52:34.774961Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-595
 target_branch: null
 review_url: null
@@ -48,22 +48,16 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 1
   retry_after: null
-oompah.agent_run_id: bba6dc8b-569b-4934-85c6-4ee1dcf641e9
+oompah.agent_run_id: 7d8ff8e3-b5ab-487b-b224-32118c2b058a
 oompah.work_branch: epic-OOMPAH-586--task-OOMPAH-595
 oompah.integration:
   version: 1
-  state: integrated
-  attempts: 1
+  state: working
+  attempts: 0
   task_branch: epic-OOMPAH-586--task-OOMPAH-595
   base_branch: epic-OOMPAH-586
-  base_sha: e0cff8ffd3319cf6d22dab914befea3222a1498d
-  head_sha: ca49d0c25b30d149cb59f0af0bac57276c1f8120
-  integrated_sha: ca49d0c25b30d149cb59f0af0bac57276c1f8120
-  submitted_at: '2026-07-30T15:50:15.824542+00:00'
-  updated_at: '2026-07-31T00:13:49.368284+00:00'
-  dependency_heads:
-    OOMPAH-594: 31a10b064158948503a7eaa646a1bfa7d1b35e55
-    OOMPAH-593: 0a260f0279690a12fb056da0c8becb6f492f8c26
+  base_sha: ca49d0c25b30d149cb59f0af0bac57276c1f8120
+  updated_at: '2026-07-31T00:52:31.767901+00:00'
 oompah.task_costs:
   total_input_tokens: 47236
   total_output_tokens: 61392
@@ -619,5 +613,15 @@ created: 2026-07-31 00:52
 **Evidence:** Last agent comment signals completion without a human question; the Needs Human transition appears accidental.
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-07-31 00:52
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-31 00:52
+---
+Focus: Frontend Developer
 ---
 <!-- COMMENTS:END -->
