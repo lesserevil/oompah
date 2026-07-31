@@ -16,7 +16,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:28.198709Z'
-updated_at: '2026-07-31T04:06:08.873189Z'
+updated_at: '2026-07-31T04:06:21.107062Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-489
 target_branch: null
 review_url: null
@@ -51,8 +51,8 @@ oompah.duplicate_screening:
 oompah.agent_run_id: cabe305e-e8e0-4b5d-b2e3-debfa2c544c6
 oompah.work_branch: epic-OOMPAH-460--task-OOMPAH-489
 oompah.task_costs:
-  total_input_tokens: 1976997
-  total_output_tokens: 16926
+  total_input_tokens: 1977024
+  total_output_tokens: 22209
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -60,8 +60,8 @@ oompah.task_costs:
       output_tokens: 15591
       cost_usd: 0.0
     sonnet:
-      input_tokens: 49952
-      output_tokens: 366
+      input_tokens: 49979
+      output_tokens: 5649
       cost_usd: 0.0
     opus:
       input_tokens: 41
@@ -92,14 +92,22 @@ oompah.task_costs:
     output_tokens: 969
     cost_usd: 0.0
     recorded_at: '2026-07-29T19:21:29.471084+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 27
+    output_tokens: 5283
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T04:06:16.985435+00:00'
 oompah.integration:
   version: 1
   state: ready
   attempts: 0
   task_branch: epic-OOMPAH-460--task-OOMPAH-489
+  base_branch: main
+  base_sha: 24bd5d6c166af7f8c839e9d5c9e4f3f17d17508e
   head_sha: 0d7c3578f56f2939e4d9d3b73b5a92cad10d203a
   submitted_at: '2026-07-31T04:06:06.400927+00:00'
-  updated_at: '2026-07-31T04:06:06.400927+00:00'
+  updated_at: '2026-07-31T04:06:18.629283+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-489__20260729T184610Z
@@ -118,6 +126,14 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-460--task-OOMPAH-489
     source_sha: ea5f0f0a9a5ead2ca542f17afb038973c5e4727b
     completed_at: '2026-07-29T19:17:08.038667+00:00'
+  - run_id: OOMPAH-489__20260731T040239Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: sonnet
+    focus: general
+    source_branch: epic-OOMPAH-460--task-OOMPAH-489
+    source_sha: 0d7c3578f56f2939e4d9d3b73b5a92cad10d203a
+    completed_at: '2026-07-31T04:06:16.988528+00:00'
 oompah.terminal_audit:
   oompah.terminal_override_records:
   - version: 1
@@ -449,5 +465,20 @@ author: oompah
 created: 2026-07-31 04:06
 ---
 Added end-to-end terminal audit contract tests for nested epics (tests/test_epic_terminal_audit_contract.py). Tests cover: nested evidence fingerprinting including every contributor and child audit, rollup blocking for In Validation children, child landing evidence via bare git refs, Done/Merged audits across native Markdown, GitHub, and GitLab tracker adapters, evidence-change race protection, duplicate webhook+polling idempotency, service restart recovery, authorized owner override recording, and multi-contributor exclusion for independent auditor selection. Fixed constructor calls for ModelProvider (added base_url) and WorkContributor (added focus, source_branch, source_sha). All 20 tests pass; 1 xfail correctly marks the repair-planner contract gated on OOMPAH-482.
+---
+author: oompah
+created: 2026-07-31 04:06
+---
+Agent completed successfully in 225s (5310 tokens)
+---
+author: oompah
+created: 2026-07-31 04:06
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 47, Tool calls: 31
+- Tokens: 27 in / 5.3K out [5.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 3m 45s
+- Log: OOMPAH-489__20260731T040239Z.jsonl
 ---
 <!-- COMMENTS:END -->
