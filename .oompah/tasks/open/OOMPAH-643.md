@@ -11,12 +11,27 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:17:38.708513Z'
-updated_at: '2026-07-31T06:17:52.387271Z'
+updated_at: '2026-07-31T06:18:18.125535Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 9abbcf4dd79879d506fdc5f606cc6e4c8640347bccd38c7c18d8bad4639174ac
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 717c5e2e-0916-4ad5-8939-11708a4e79c5
+  claim_owner: d12922aa-baf6-4258-aa45-02da3deea710
+  claimed_at: '2026-07-31T06:18:11.143200+00:00'
+  claim_expires_at: '2026-07-31T06:48:11.143200+00:00'
+  retry_count: 0
+  retry_after: null
+oompah.agent_run_id: 4c26d494-92b3-40d5-84b1-a992a04c101e
 ---
 ## Summary
 
@@ -32,3 +47,16 @@ Required tests: persisted restart state containing mixed live and stale audits; 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-07-31 06:18
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-07-31 06:18
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
