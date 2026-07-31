@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-600
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Integrate OOMPAH-581 and prune current safe terminal workspaces
 parent: OOMPAH-588
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:58.634342Z'
-updated_at: '2026-07-31T03:29:00.516696Z'
+updated_at: '2026-07-31T03:30:35.851433Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-600
 target_branch: null
 review_url: null
@@ -62,12 +62,12 @@ oompah.agent_run_id: 3501ff77-2066-4e14-8c0e-bc496f035bc4
 oompah.work_branch: epic-OOMPAH-588--task-OOMPAH-600
 oompah.integration:
   version: 1
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-588--task-OOMPAH-600
-  base_branch: epic-OOMPAH-588
-  base_sha: b4959703ee1354fbbdec1d9df256c5f1c78cf575
-  updated_at: '2026-07-31T03:14:14.405467+00:00'
+  head_sha: 67c67ffa6f932ca2a41ff1cd214ed33c9655becc
+  submitted_at: '2026-07-31T03:30:30.310337+00:00'
+  updated_at: '2026-07-31T03:30:30.310337+00:00'
 oompah.task_costs:
   total_input_tokens: 1180
   total_output_tokens: 6935
@@ -390,5 +390,15 @@ author: oompah
 created: 2026-07-31 03:29
 ---
 Verification: Exact-head full gate passed on 67c67ffa6: make test completed with 13,914 passed, 7 skipped, and 49 pre-existing warnings; terminal mutation scan passed. Focused checks also passed: 21 runner/Makefile tests and 169 task CLI/handoff tests. No duplicate OOMPAH-581 delivery commit is included.
+---
+author: oompah
+created: 2026-07-31 03:30
+---
+Final head 67c67ffa6: guarded cleanup completed; test runner uses prepared virtualenv; scoped comment/add-label payloads are correctly task-bound. Exact make test: 13,914 passed, 7 skipped; focused: 21 runner plus 169 handoff/CLI passed.
+---
+author: oompah
+created: 2026-07-31 03:30
+---
+Operator completed the old-runtime handoff after the worker's 401. Final pushed head 67c67ffa6 is queued for exact integration. This is the live-runtime limitation already covered by the recovery graph; no user action is required.
 ---
 <!-- COMMENTS:END -->
