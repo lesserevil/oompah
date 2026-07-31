@@ -1031,3 +1031,58 @@ def test_failed_snapshot_verification_removes_worktree_registration(tmp_path, mo
     ).stdout
     assert f"worktree {snapshot}" not in registered
     assert not snapshot.exists()
+
+
+def test_quality_gate_enforces_lifecycle_isolation_variables(tmp_path):
+    """Quality gate subprocess must have full lifecycle isolation."""
+    repo = _git_repo(tmp_path)
+    gate = BranchQualityGate(str(tmp_path / "quality.json"))
+
+    # Command checks that:
+    # 1. OOMPAH_PYTEST_GATE=1 (gate mode is enabled)
+    # 2. OOMPAH_PYTEST_RUN_ROOT is set and is a valid directory
+    # 3. OOMPAH_TEST_SERVER_PORT and OOMPAH_SERVER_PORT are set and numeric
+    # 4. OOMPAH_TEST_PID_FILE and OOMPAH_TEST_PID_META_FILE are under the run root
+    # 5. TMPDIR/TMP/TEMP are redirected to the run root
+    command = (
+        'test "$OOMPAH_PYTEST_GATE" = "1"'
+        ' && test -d "$OOMPAH_PYTEST_RUN_ROOT"'
+        ' && test -n "$OOMPAH_TEST_SERVER_PORT"'
+        ' && test -n "$OOMPAH_SERVER_PORT"'
+        ' && test "$OOMPAH_TEST_SERVER_PORT" = "$OOMPAH_SERVER_PORT"'
+        ' && test "$TMPDIR" = "$OOMPAH_PYTEST_RUN_ROOT"'
+        ' && test "$TMP" = "$OOMPAH_PYTEST_RUN_ROOT"'
+        ' && test "$TEMP" = "$OOMPAH_PYTEST_RUN_ROOT"'
+        ' && case "$OOMPAH_TEST_PID_FILE" in'
+        '    "$OOMPAH_PYTEST_RUN_ROOT"/*) ;;'
+        '    *) exit 1 ;;'
+        '   esac'
+        ' && case "$OOMPAH_TEST_PID_META_FILE" in'
+        '    "$OOMPAH_PYTEST_RUN_ROOT"/*) ;;'
+        '    *) exit 1 ;;'
+        '   esac'
+    )
+
+    result = _run(gate, repo, command)
+    assert result.passed, f"Isolation check failed: {result.output_tail}"
+
+
+def test_quality_gate_isolates_server_url_and_task_credentials(tmp_path, monkeypatch):
+    """Quality gate subprocess must not inherit server URL or task credentials."""
+    repo = _git_repo(tmp_path)
+    gate = BranchQualityGate(str(tmp_path / "quality.json"))
+
+    # Set credentials and server URL that should be stripped
+    monkeypatch.setenv("OOMPAH_SERVER_URL", "http://example.test:8080")
+    monkeypatch.setenv("OOMPAH_TASK_HANDOFF_TOKEN", "secret-token")
+    monkeypatch.setenv("OOMPAH_TASK_HANDOFF_PROJECT_ID", "secret-project")
+
+    # Command checks that server URL and task credentials are NOT in the subprocess
+    command = (
+        'test -z "${OOMPAH_SERVER_URL+x}"'
+        ' && test -z "${OOMPAH_TASK_HANDOFF_TOKEN+x}"'
+        ' && test -z "${OOMPAH_TASK_HANDOFF_PROJECT_ID+x}"'
+    )
+
+    result = _run(gate, repo, command)
+    assert result.passed, "Server URL and task credentials were not properly isolated"

@@ -17,7 +17,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Callable
 
-from oompah.client_auth import agent_environment
+from oompah.client_auth import agent_environment, quality_gate_environment
 
 logger = logging.getLogger(__name__)
 
@@ -661,7 +661,10 @@ class BranchQualityGate:
                 process = subprocess.Popen(  # noqa: S602 - operator-owned command
                     command,
                     cwd=snapshot,
-                    env=agent_environment(),
+                    # Enforce lifecycle isolation at the server-controlled
+                    # launch boundary while retaining the immutable snapshot
+                    # and generation barriers supplied by main.
+                    env=quality_gate_environment(),
                     shell=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
