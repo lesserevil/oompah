@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-653
 type: bug
-status: In Progress
+status: Needs Human
 priority: 1
 title: Make terminal-audit success and owner override retire every duplicate record
   and alert
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T10:31:32.981749Z'
+updated_at: '2026-07-31T10:32:46.394654Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -368,5 +368,10 @@ Understanding: This issue requires fixing two live regressions in terminal audit
 **Affected files**: terminal_transition_coordinator.py, orchestrator audit paths, terminal_audit_enforcement.py, terminal_audit_observability.py, bootstrap.py, and tests.
 
 **Prior work**: Implementation was started and tests added (commits 1274f1e3, 21791cde0). Need to verify implementation is complete and tests pass under isolated lifecycle.
+---
+author: oompah
+created: 2026-07-31 10:32
+---
+Moved to Needs Human from the dashboard/API. Human action required: inspect OOMPAH-653 (Make terminal-audit success and owner override retire every duplicate record and alert), add the specific decision, missing information, or manual fix needed, then move the task back to Open when it is ready for agents again.
 ---
 <!-- COMMENTS:END -->

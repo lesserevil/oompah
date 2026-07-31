@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-650
 type: bug
-status: In Progress
+status: Needs Human
 priority: 1
 title: Keep scoped task handoff credentials valid for the full worker lifetime
 parent: OOMPAH-619
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T10:31:59.352652Z'
+updated_at: '2026-07-31T10:32:25.800609Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -47,13 +47,13 @@ oompah.integration:
   base_sha: 0dc7d0f7caeea06a6eceb55ea2e58cf16554f0a4
   updated_at: '2026-07-31T10:30:49.217263+00:00'
 oompah.task_costs:
-  total_input_tokens: 1607085
-  total_output_tokens: 9124
+  total_input_tokens: 1607393
+  total_output_tokens: 9207
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 1607085
-      output_tokens: 9124
+      input_tokens: 1607393
+      output_tokens: 9207
       cost_usd: 0.0
   runs:
   - profile: default
@@ -74,6 +74,12 @@ oompah.task_costs:
     output_tokens: 797
     cost_usd: 0.0
     recorded_at: '2026-07-31T09:51:22.086848+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 308
+    output_tokens: 83
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T10:32:21.587388+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-650__20260731T090726Z
@@ -446,5 +452,20 @@ I will verify the security implications of the heartbeat/lease mechanism:
 2. Verify revocation race conditions are fixed
 3. Validate diagnostics distinguish all failure modes
 4. Run focused security and functional tests
+---
+author: oompah
+created: 2026-07-31 10:32
+---
+Moved to Needs Human from the dashboard/API. Human action required: inspect OOMPAH-650 (Keep scoped task handoff credentials valid for the full worker lifetime), add the specific decision, missing information, or manual fix needed, then move the task back to Open when it is ready for agents again.
+---
+author: oompah
+created: 2026-07-31 10:32
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 18
+- Tokens: 308 in / 83 out [391 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 1m 39s
+- Log: OOMPAH-650__20260731T103058Z.jsonl
 ---
 <!-- COMMENTS:END -->

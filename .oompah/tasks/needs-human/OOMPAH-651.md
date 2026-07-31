@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-651
 type: bug
-status: In Progress
+status: Needs Human
 priority: 1
 title: Redact secrets from agent tool inputs, outputs, and JSONL event logs
 parent: null
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T10:30:54.761601Z'
+updated_at: '2026-07-31T10:32:43.437199Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -505,5 +505,20 @@ author: oompah
 created: 2026-07-31 10:30
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-07-31 10:32
+---
+Moved to Needs Human from the dashboard/API. Human action required: inspect OOMPAH-651 (Redact secrets from agent tool inputs, outputs, and JSONL event logs), add the specific decision, missing information, or manual fix needed, then move the task back to Open when it is ready for agents again.
+---
+author: oompah
+created: 2026-07-31 10:32
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 29
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 1m 57s
+- Log: OOMPAH-651__20260731T103058Z.jsonl
 ---
 <!-- COMMENTS:END -->

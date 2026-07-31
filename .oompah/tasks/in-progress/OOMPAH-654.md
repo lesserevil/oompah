@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-654
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Keep service lifecycle identity metadata out of git worktree status
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:29:49.323393Z'
-updated_at: '2026-07-31T10:31:16.510044Z'
+updated_at: '2026-07-31T10:32:40.252289Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -21,17 +21,46 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 8636c86f6d347afd10831ff399fc2b9d01193f270c6c2981b38987c794a9a5b9
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-07-31T10:32:21.579375+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 4bb78865-92a3-408e-82b7-71458b85682c
-  claim_owner: f6d86559-4e9d-42bf-ac66-416781dbb14f
-  claimed_at: '2026-07-31T10:31:07.284463+00:00'
-  claim_expires_at: '2026-07-31T11:01:07.284463+00:00'
+  evidence: "Focus handoff: duplicate_detector  \nDuplicate preflight verdict: no_duplicate\
+    \  \nMatches: none  \nEvidence: Reviewed OOMPAH-36, OOMPAH-32, and OOMPAH-38;\
+    \ all are archived and cover unrelated beads cleanup, documentation, or release\
+    \ work. No active task matches the PID metadata/git-status regression."
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: b5c9fce1-9a14-41d0-b3b8-32a3357f089e
+oompah.agent_run_id: fc45554e-d0f5-4f0a-b99f-edb1a44f941b
+oompah.task_costs:
+  total_input_tokens: 496817
+  total_output_tokens: 2667
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 496817
+      output_tokens: 2667
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 496817
+    output_tokens: 2667
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T10:32:21.577657+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-654__20260731T103119Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: OOMPAH-654
+    source_sha: ec0ec7d89fb8804571fcf7e780558e6d979b73ea
+    completed_at: '2026-07-31T10:32:21.590256+00:00'
 ---
 ## Summary
 
@@ -54,5 +83,25 @@ author: oompah
 created: 2026-07-31 10:31
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-07-31 10:32
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 10
+- Tokens: 496.8K in / 2.7K out [499.5K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 7s
+- Log: OOMPAH-654__20260731T103119Z.jsonl
+---
+author: oompah
+created: 2026-07-31 10:32
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-07-31 10:32
+---
+Focus: Refactoring Specialist
 ---
 <!-- COMMENTS:END -->
