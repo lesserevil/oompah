@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-633
 type: bug
-status: In Validation
+status: Done
 priority: 1
 title: Repair stale integration queues in nested epics
 parent: OOMPAH-584
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:54:49.391955Z'
-updated_at: '2026-07-31T05:55:13.794247Z'
+updated_at: '2026-07-31T05:56:08.711937Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-633
 target_branch: null
 review_url: null
@@ -118,6 +118,23 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-70d2d55461f6: '2026-07-31T01:20:42.727325+00:00'
     attempt-a2e3da846065: '2026-07-31T01:37:53.871077+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-909cee002461
+    project_id: proj-14849f1b
+    task_id: OOMPAH-633
+    target_state: Done
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 38f8ef4617ce4bfff0aea1812bda9303b13ef927fceacb0fcab294d28b115968
+    authorized_by:
+      version: 1
+      identity: lesserevil
+      source: api
+    reason: Restore previously audited Done after false post-merge landing regression;
+      refreshed exact task ref is contained in main.
+    created_at: '2026-07-31T05:56:01.649334+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -627,5 +644,12 @@ author: oompah
 created: 2026-07-31 05:55
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 05:56
+---
+Override by lesserevil: terminal transition to Done applied by project owner.
+
+Reason: Restore previously audited Done after false post-merge landing regression; refreshed exact task ref is contained in main.
 ---
 <!-- COMMENTS:END -->
