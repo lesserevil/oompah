@@ -75,6 +75,11 @@ TRACKER_KIND = "oompah_md"
 
 _repo_write_locks: dict[str, threading.RLock] = {}
 _repo_write_locks_guard = threading.Lock()
+# Read caches are per tracker instance, but status changes can be made through
+# another instance after a config reload.  Keep a lightweight per-repository
+# generation alongside the shared lock so that such a write invalidates every
+# instance's cache before the next read.
+_repo_read_generations: dict[str, int] = {}
 
 
 def _repo_write_lock(repo_path: str) -> threading.RLock:
@@ -88,7 +93,22 @@ def _repo_write_lock(repo_path: str) -> threading.RLock:
     with _repo_write_locks_guard:
         if repo_path not in _repo_write_locks:
             _repo_write_locks[repo_path] = threading.RLock()
+        _repo_read_generations.setdefault(repo_path, 0)
         return _repo_write_locks[repo_path]
+
+
+def _repo_read_generation(repo_path: str) -> int:
+    """Return the current read-cache generation for *repo_path*."""
+    with _repo_write_locks_guard:
+        return _repo_read_generations.setdefault(repo_path, 0)
+
+
+def _advance_repo_read_generation(repo_path: str) -> int:
+    """Invalidate read caches held by all tracker instances for *repo_path*."""
+    with _repo_write_locks_guard:
+        generation = _repo_read_generations.setdefault(repo_path, 0) + 1
+        _repo_read_generations[repo_path] = generation
+        return generation
 TASKS_DIR = ".oompah/tasks"
 DEFAULT_TASK_PREFIX = "TASK"
 _IMPORT_INDEX_FILE = "external-imports.yml"
@@ -196,6 +216,11 @@ def _read_markdown(path: Path) -> tuple[dict[str, Any], str]:
     if not isinstance(meta, dict):
         meta = {}
     return meta, content[body_start:]
+
+
+def _is_missing_task_file_error(exc: TrackerError) -> bool:
+    """Return whether ``exc`` wraps an ENOENT raised while opening a task."""
+    return isinstance(exc.__cause__, FileNotFoundError)
 
 
 def _atomic_write(path: Path, content: str) -> None:
@@ -312,8 +337,10 @@ class OompahMarkdownTracker:
         # serialize through this lock, even across graceful reloads where
         # reload_config() clears the tracker cache and creates a new instance
         # while an in-flight write still holds the old instance's lock.
-        self._write_lock = _repo_write_lock(str(self._root))
+        self._repo_lock_key = str(self._root)
+        self._write_lock = _repo_write_lock(self._repo_lock_key)
         self._read_cache: list[dict[str, Any]] | None = None
+        self._read_cache_generation: int | None = None
         self._corrupt_stubs: list[dict[str, Any]] | None = None
         self._read_cache_guard = threading.Lock()
         # Monotonic timestamp of the last successful state-branch checkpoint
@@ -1020,8 +1047,14 @@ class OompahMarkdownTracker:
                 raise TrackerError(f"git push origin HEAD:{branch} failed: {stderr}")
 
     def invalidate_read_cache(self) -> None:
+        # A task mutation may have been performed by another tracker instance
+        # for the same repository.  Advancing a shared generation prevents this
+        # instance from returning a record whose cached path was just moved to
+        # another status directory.
+        _advance_repo_read_generation(self._repo_lock_key)
         with self._read_cache_guard:
             self._read_cache = None
+            self._read_cache_generation = None
             self._corrupt_stubs = None
 
     def list_corrupt_stubs(self) -> list[dict[str, Any]]:
@@ -1245,61 +1278,120 @@ class OompahMarkdownTracker:
         )
 
     def _read_records(self) -> list[dict[str, Any]]:
-        with self._read_cache_guard:
-            cached = self._read_cache
-        if cached is not None:
-            return cached
-        records_by_id: dict[str, dict[str, Any]] = {}
-        corrupt_stubs: list[dict[str, Any]] = []
-        if self.tasks_root.is_dir():
-            for path in sorted(self.tasks_root.glob("*/*.md")):
-                try:
-                    meta, body = _read_markdown(path)
-                except TrackerError as exc:
+        # A status transition writes the replacement path then removes the old
+        # path.  Keep enumeration and opening each enumerated path inside the
+        # repository-wide mutation boundary so a reader observes one coherent
+        # generation (before or after that transition), including when a
+        # graceful reload has created a second tracker instance.
+        with self._write_lock:
+            generation = _repo_read_generation(self._repo_lock_key)
+            with self._read_cache_guard:
+                cached = self._read_cache
+                cache_generation = self._read_cache_generation
+            if cached is not None and cache_generation == generation:
+                return cached
+
+            missing_paths: list[Path] = []
+            # The lock covers normal writers.  A separate process or a manual
+            # filesystem change can still move a file after glob() returns, so
+            # retry the whole authoritative status-directory scan before
+            # diagnosing an ENOENT as task corruption.
+            for attempt in range(2):
+                records_by_id: dict[str, dict[str, Any]] = {}
+                corrupt_errors: list[tuple[Path, TrackerError]] = []
+                paths = (
+                    sorted(self.tasks_root.glob("*/*.md"))
+                    if self.tasks_root.is_dir()
+                    else []
+                )
+                readable_stems: set[str] = set()
+                missing_this_attempt: list[Path] = []
+                for path in paths:
+                    try:
+                        meta, body = _read_markdown(path)
+                    except TrackerError as exc:
+                        if _is_missing_task_file_error(exc):
+                            missing_this_attempt.append(path)
+                            continue
+                        corrupt_errors.append((path, exc))
+                        continue
+                    readable_stems.add(path.stem)
+                    record = {"path": path, "meta": meta, "body": body}
+                    identifier = self._lookup_id(str(meta.get("id") or path.stem))
+                    previous = records_by_id.get(identifier)
+                    if previous is None:
+                        records_by_id[identifier] = record
+                        continue
+
+                    # A task can be left in two status directories if concurrent
+                    # writers race while moving it.  Never expose both copies to
+                    # the board or scheduler: prefer the most recently updated
+                    # record and leave the obsolete file for an explicit repair.
+                    def recency(item: dict[str, Any]) -> tuple[datetime, str]:
+                        updated = _parse_timestamp(item["meta"].get("updated_at"))
+                        return (
+                            updated or datetime.min.replace(tzinfo=timezone.utc),
+                            str(item["path"]),
+                        )
+
+                    winner, loser = (
+                        (record, previous)
+                        if recency(record) > recency(previous)
+                        else (previous, record)
+                    )
+                    records_by_id[identifier] = winner
+                    logger.warning(
+                        "Duplicate native oompah task ID %s at %s and %s; using %s "
+                        "and ignoring %s. Repair the stale record before editing this task.",
+                        identifier,
+                        previous["path"],
+                        record["path"],
+                        winner["path"],
+                        loser["path"],
+                    )
+
+                missing_paths.extend(missing_this_attempt)
+                if missing_this_attempt and attempt == 0:
+                    continue
+
+                # An ENOENT that resolves to a readable copy with the same
+                # filename in another canonical status directory was an atomic
+                # status-file move, not corruption.  A missing stem after the
+                # refresh is a real disappearance and must remain actionable.
+                for path in missing_paths:
+                    if path.stem not in readable_stems:
+                        corrupt_errors.append(
+                            (
+                                path,
+                                TrackerError(
+                                    "Native task file disappeared while it was being read"
+                                ),
+                            )
+                        )
+
+                corrupt_stubs: list[dict[str, Any]] = []
+                for path, exc in corrupt_errors:
                     logger.warning(
                         "Corrupt native oompah task %s: %s — "
                         "the scheduler will not dispatch this task until it is repaired. "
                         "Restore the file from a backup or git history "
                         "(e.g. `git show HEAD:.oompah/tasks/%s/%s.md > %s`).",
-                        path, exc,
-                        path.parent.name, path.stem, path,
+                        path,
+                        exc,
+                        path.parent.name,
+                        path.stem,
+                        path,
                     )
                     corrupt_stubs.append({"path": path, "stem": path.stem})
-                    continue
-                record = {"path": path, "meta": meta, "body": body}
-                identifier = self._lookup_id(str(meta.get("id") or path.stem))
-                previous = records_by_id.get(identifier)
-                if previous is None:
-                    records_by_id[identifier] = record
-                    continue
 
-                # A task can be left in two status directories if concurrent
-                # writers race while moving it.  Never expose both copies to
-                # the board or scheduler: prefer the most recently updated
-                # record and leave the obsolete file for an explicit repair.
-                def recency(item: dict[str, Any]) -> tuple[datetime, str]:
-                    updated = _parse_timestamp(item["meta"].get("updated_at"))
-                    return (
-                        updated or datetime.min.replace(tzinfo=timezone.utc),
-                        str(item["path"]),
-                    )
+                records = list(records_by_id.values())
+                with self._read_cache_guard:
+                    self._read_cache = records
+                    self._read_cache_generation = generation
+                    self._corrupt_stubs = corrupt_stubs
+                return records
 
-                winner, loser = (record, previous) if recency(record) > recency(previous) else (previous, record)
-                records_by_id[identifier] = winner
-                logger.warning(
-                    "Duplicate native oompah task ID %s at %s and %s; using %s "
-                    "and ignoring %s. Repair the stale record before editing this task.",
-                    identifier,
-                    previous["path"],
-                    record["path"],
-                    winner["path"],
-                    loser["path"],
-                )
-        records = list(records_by_id.values())
-        with self._read_cache_guard:
-            self._read_cache = records
-            self._corrupt_stubs = corrupt_stubs
-        return records
+        raise AssertionError("native task read retry loop did not return")
 
     def _read_record(self, identifier: str) -> dict[str, Any] | None:
         needle = self._lookup_id(identifier)
