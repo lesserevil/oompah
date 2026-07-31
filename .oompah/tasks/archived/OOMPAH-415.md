@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-415
 type: task
-status: In Validation
+status: Archived
 priority: 0
 title: Decouple stale-dispatch threshold from full_sync_interval and reduce recovery
   latency
@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-23T19:34:14.691327Z'
-updated_at: '2026-07-31T06:00:30.554673Z'
+updated_at: '2026-07-31T06:00:52.983365Z'
 work_branch: epic-OOMPAH-414
 target_branch: null
 review_url: null
@@ -64,6 +64,23 @@ oompah.task_costs:
     recorded_at: '2026-07-23T21:06:27.409042+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-ac80a97c7791
+    project_id: proj-14849f1b
+    task_id: OOMPAH-415
+    target_state: Archived
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 509e60f15351a0c0197bc11585adec852f1ca6bd98acf7e302396e44b1abaac0
+    authorized_by:
+      version: 1
+      identity: lesserevil
+      source: api
+    reason: 'Archive previously merged and audited task after verifying its commits
+      in main PR #543; prior archive audit was interrupted by stale landing evidence.'
+    created_at: '2026-07-31T06:00:50.171505+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -542,5 +559,12 @@ author: oompah
 created: 2026-07-31 06:00
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 06:00
+---
+Override by lesserevil: terminal transition to Archived applied by project owner.
+
+Reason: Archive previously merged and audited task after verifying its commits in main PR #543; prior archive audit was interrupted by stale landing evidence.
 ---
 <!-- COMMENTS:END -->
