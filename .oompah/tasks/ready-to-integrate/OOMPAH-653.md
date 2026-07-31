@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T09:02:42.727629Z'
-updated_at: '2026-07-31T11:53:42.384228Z'
+updated_at: '2026-07-31T11:53:55.799631Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,13 +40,13 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: c208c994-70d2-4dd2-871f-a8df3ac1b3aa
 oompah.task_costs:
-  total_input_tokens: 17049872
-  total_output_tokens: 69988
+  total_input_tokens: 17051566
+  total_output_tokens: 70441
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 16328952
-      output_tokens: 61406
+      input_tokens: 16330646
+      output_tokens: 61859
       cost_usd: 0.0
     opus:
       input_tokens: 720920
@@ -101,6 +101,12 @@ oompah.task_costs:
     output_tokens: 9564
     cost_usd: 0.0
     recorded_at: '2026-07-31T11:41:24.597261+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 1694
+    output_tokens: 453
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T11:53:53.788456+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-653__20260731T090421Z
@@ -726,5 +732,15 @@ author: oompah
 created: 2026-07-31 11:53
 ---
 Implemented terminal-audit recovery authority validation: override evidence fingerprint matching, created_at-based selection for overrides and results, and stale override retirement. All 143 terminal-audit and transition coordinator tests pass. Implementation closed defects identified in code review (comments 62-64) regarding recovery authority selection and evidence validation. Full integration gate remains blocked on OOMPAH-657 dependency.
+---
+author: oompah
+created: 2026-07-31 11:53
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 99
+- Tokens: 1.7K in / 453 out [2.1K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 12m 19s
+- Log: OOMPAH-653__20260731T114140Z.jsonl
 ---
 <!-- COMMENTS:END -->
