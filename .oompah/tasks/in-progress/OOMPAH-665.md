@@ -12,7 +12,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-07-31T16:04:07.401588Z'
-updated_at: '2026-07-31T18:48:54.021659Z'
+updated_at: '2026-07-31T18:50:09.840450Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -233,5 +233,10 @@ author: oompah
 created: 2026-07-31 18:48
 ---
 Understanding (run #3): The branch was blocked by the OS-enforced quality-gate sandbox with error: 'unsafe link in candidate archive: .oompah-no-hooks/prepare-commit-msg -> /home/shedwards/src/oompah/oompah/git_hooks/prepare-commit-msg'. The symlink to an absolute host path was tracked in git by the prior commit. OOMPAH-664 is the sibling branch that fixes this by removing the symlink from version control and adding .oompah-no-hooks/ to .gitignore. I need to apply the same fix in OOMPAH-665 so the gate sandbox can create an immutable snapshot and run make test. The core implementation (the no-auditor alert retirement logic in orchestrator.py and 4 new tests) is already complete. The only repair needed is the symlink exclusion.
+---
+author: oompah
+created: 2026-07-31 18:50
+---
+Verification: 133 focused tests pass (17 terminal_audit_observability + 116 terminal_transition_coordinator). The symlink repair commit removes .oompah-no-hooks/prepare-commit-msg from version control and adds .oompah-no-hooks/ to .gitignore. Branch head 8aacda651 pushed to origin/OOMPAH-665.
 ---
 <!-- COMMENTS:END -->
