@@ -17,7 +17,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T16:53:21.720882Z'
+updated_at: '2026-07-31T16:56:31.180212Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -1147,5 +1147,10 @@ Verification: Focused tests all pass across the redaction-relevant paths:
 - tests/test_projects.py + github_tracker + providers + scm: 815
 
 Combined focused subset: 1414 passed. make check-secrets passes; scripts/find_terminal_mutations.py passes (6/6 allowlisted).
+---
+author: oompah
+created: 2026-07-31 16:56
+---
+Completion: Branch head b90d1e353 rebased onto origin/main (79a27ae54). Delivered: (1) centralized redact_sensitive_data + SecretRedactionFilter at logger/factory boundaries; (2) recursive coverage of dicts/lists/dataclasses/repr forms with fail-closed unknown-object policy; (3) applied at fan-out sinks in console.py/_legacy/_format, orchestrator.py ACP+legacy paths, api_agent.py JSONL + activity, acp_backends/claude|codex|opencode _truncate helpers, task_handoff issue/revoke; (4) process-local registered-secret registry with register/renew/retire lifecycle (renew/retire APIs ready for OOMPAH-650 lease wiring when it merges); (5) redaction on last_message state fields (state API + HTML); (6) autouse test isolation for the registry; (7) operator runbook in docs/secret-redaction-and-rotation.md. Focused suites all green (test_secrets 112, test_agent 7, test_task_handoff 33, test_console* 93, test_client_auth 62, test_api_agent_budget 34, test_acp_agent + backends 190, test_projects/github_tracker/providers/scm 815 - combined 1414 pass). make check-secrets and terminal-mutation scan clean.
 ---
 <!-- COMMENTS:END -->
