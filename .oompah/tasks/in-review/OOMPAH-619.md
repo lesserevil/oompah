@@ -20,7 +20,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-30T21:24:41.452666Z'
-updated_at: '2026-07-31T20:54:03.731766Z'
+updated_at: '2026-07-31T21:19:57.052692Z'
 work_branch: epic-OOMPAH-619
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/626
@@ -212,5 +212,10 @@ author: oompah
 created: 2026-07-31 20:54
 ---
 Final hosted-CI boundedness fix pushed at ba5e86c7e. The exact-revision CLI test now avoids redundant dependency installation and build isolation while preserving VCS revision metadata, lifecycle port checks use ss authoritatively instead of falling through to unbounded lsof scans, and hatchling is explicit in the dev environment. Focused hosted-failure reproductions: 6 passed. Complete branch gate: 14,535 passed, 7 skipped, 1 xfailed in 376.02s. PR #626 auto-merge remains armed; waiting for the fresh matrix on this exact head.
+---
+author: oompah
+created: 2026-07-31 21:19
+---
+Hosted Python 3.11 exposed a final fixture-only boundedness defect: pip partial-cloned the local shallow exact-revision source by repeatedly lazy-fetching the same commit until the 120-second timeout. Commit b8658598d now constructs a one-revision 4-MiB VCS remote and makes pip use a normal clone for this fixture, while retaining a genuine VCS install and exact PEP 610 commit assertion. Focused compatibility file: 19 passed in 5.16s on the committed head. Complete branch gate: 14,535 passed, 7 skipped, 1 xfailed in 374.13s. Pushed for a fresh PR #626 matrix.
 ---
 <!-- COMMENTS:END -->
