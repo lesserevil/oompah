@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T12:53:39.335817Z'
-updated_at: '2026-07-31T13:33:43.587907Z'
+updated_at: '2026-07-31T13:33:51.416846Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-660
 target_branch: null
 review_url: null
@@ -567,5 +567,16 @@ The 3 originally failing tests now pass:
 - tests/test_orchestrator_full_sync.py::TestFullSyncIntervalConfig::test_from_workflow_custom PASSED
 
 Branch pushed: epic-OOMPAH-619--task-OOMPAH-660 @ 793bcc796
+---
+author: oompah
+created: 2026-07-31 13:33
+---
+Completion: Fixed 2 test failures from the quality gate by isolating unit tests from server environment variables.
+
+What was delivered:
+- tests/test_oompah_http.py: Added OOMPAH_DISABLE_CLIENT_AUTH isolation so load_client_environment() reads the .env fixture as intended
+- tests/test_orchestrator_full_sync.py: Added OOMPAH_FULL_SYNC_INTERVAL_MS isolation for from_workflow tests so YAML-value coercion tests aren't overridden by the server's env var
+
+No implementation code changes were needed — the production code was correct. The tests were missing environment isolation that already existed as a pattern in test_event_driven_loop.py.
 ---
 <!-- COMMENTS:END -->
