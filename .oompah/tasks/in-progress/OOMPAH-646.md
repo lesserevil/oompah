@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T06:55:23.505409Z'
-updated_at: '2026-07-31T07:02:57.491680Z'
+updated_at: '2026-07-31T08:02:08.546899Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -128,5 +128,10 @@ author: oompah
 created: 2026-07-31 07:02
 ---
 Additional live consequence: PR #610 for OOMPAH-643 was created from base d7027de514 while overlapping PR #609 remained open. When #609 merged as 50625abed, #610 immediately became DIRTY/CONFLICTING at head 84521c288. The capacity race therefore creates avoidable rebase work and delays the critical terminal-audit metrics fix; include this cross-sweep stale-base sequence in the deterministic regression.
+---
+author: oompah
+created: 2026-07-31 08:02
+---
+Implementation pushed at 355258ef0 (includes d06656a56). Durable SQLite review reservations serialize capacity across sweeps/processes, reconcile forge state, release on close/merge/failure, and preserve retryability. Coordination review: OOMPAH-642 and OOMPAH-643 are already in this branch ancestry; OOMPAH-621 is integrated into its parent branch and has no unresolved overlap here. Verification: focused capacity/webhook/standalone/epic/close-gate coverage 229 passed; ACP handoff recovery 8 passed with OOMPAH_AGENT_LOG_DIR redirected writable; terminal mutation scan passed. The initial full run had 14,196 passed and 12 environment/mock-compatibility failures; all 12 were rerun and passed after the review-state normalization fix.
 ---
 <!-- COMMENTS:END -->
