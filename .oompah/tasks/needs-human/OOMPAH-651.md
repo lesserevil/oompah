@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-651
 type: bug
-status: Ready to Integrate
+status: Needs Human
 priority: 1
 title: Redact secrets from agent tool inputs, outputs, and JSONL event logs
 parent: null
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T10:05:45.712850Z'
+updated_at: '2026-07-31T10:06:27.437529Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,13 +38,13 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 7ca073e7-5cdf-40f4-8df2-7fe9ae6687ef
 oompah.task_costs:
-  total_input_tokens: 3889174
-  total_output_tokens: 16997
+  total_input_tokens: 3889184
+  total_output_tokens: 17428
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 3889174
-      output_tokens: 16997
+      input_tokens: 3889184
+      output_tokens: 17428
       cost_usd: 0.0
   runs:
   - profile: default
@@ -65,6 +65,12 @@ oompah.task_costs:
     output_tokens: 13470
     cost_usd: 0.0
     recorded_at: '2026-07-31T09:51:22.004483+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 10
+    output_tokens: 431
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T10:06:18.561654+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-651__20260731T090132Z
@@ -83,14 +89,24 @@ oompah.work_contributors:
     source_branch: OOMPAH-651
     source_sha: 1bea7c39dd0a64593284c59209f55a8e84f41fca
     completed_at: '2026-07-31T09:51:22.016400+00:00'
+  - run_id: OOMPAH-651__20260731T095136Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: security
+    source_branch: OOMPAH-651
+    source_sha: 627592f96b2c4152b81fad825202a75035448b29
+    completed_at: '2026-07-31T10:06:18.564942+00:00'
 oompah.integration:
   version: 2
   state: ready
   attempts: 0
   task_branch: OOMPAH-651
+  base_branch: main
+  base_sha: 72ed26d3777a42adc53a6a740713c83ca555984a
   head_sha: 627592f96b2c4152b81fad825202a75035448b29
   submitted_at: '2026-07-31T10:05:19.653520+00:00'
-  updated_at: '2026-07-31T10:05:19.653520+00:00'
+  updated_at: '2026-07-31T10:06:23.257040+00:00'
 ---
 ## Summary
 
@@ -449,5 +465,30 @@ COMPLETION: Centralized Secret Redaction Implementation
 ✅ Branch 627592f96 ready for integration
 
 **Security Impact:** Complete closure of secret exposure through all event logging and state API paths.
+---
+author: oompah
+created: 2026-07-31 10:06
+---
+Agent completed successfully in 887s (441 tokens)
+---
+author: oompah
+created: 2026-07-31 10:06
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 175, Tool calls: 80
+- Tokens: 10 in / 431 out [441 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 14m 47s
+- Log: OOMPAH-651__20260731T095136Z.jsonl
+---
+author: oompah
+created: 2026-07-31 10:06
+---
+Temporarily fencing in Needs Human because the current worker cannot consume the live instruction to avoid pre-isolation make test. Operator stopped only exact full-test PGID 409787; preserve the dirty security repair exactly. Resume after OOMPAH-652 is Merged and the safe gate runtime is deployed, then finish the missing end-to-end sink/backend coverage and submit.
+---
+author: oompah
+created: 2026-07-31 10:06
+---
+Moved to Needs Human from the dashboard/API. Human action required: inspect OOMPAH-651 (Redact secrets from agent tool inputs, outputs, and JSONL event logs), add the specific decision, missing information, or manual fix needed, then move the task back to Open when it is ready for agents again.
 ---
 <!-- COMMENTS:END -->
