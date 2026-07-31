@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-586
 type: epic
-status: Needs Human
+status: In Progress
 priority: 0
 title: Restore least-privilege task and lifecycle access
 parent: OOMPAH-584
@@ -15,7 +15,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-30T14:13:33.901470Z'
-updated_at: '2026-07-31T00:39:48.070764Z'
+updated_at: '2026-07-31T00:40:11.263847Z'
 work_branch: epic-OOMPAH-586
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/597
@@ -27,13 +27,17 @@ oompah.work_branch: epic-OOMPAH-586
 oompah.target_branch: epic-OOMPAH-584
 oompah.agent_run_id: 1339ce75-a22a-456c-b7f0-5556f4c37888
 oompah.task_costs:
-  total_input_tokens: 245565
-  total_output_tokens: 1879
+  total_input_tokens: 245571
+  total_output_tokens: 2198
   total_cost_usd: 0.0
   by_model:
     opus:
       input_tokens: 245565
       output_tokens: 1879
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 6
+      output_tokens: 319
       cost_usd: 0.0
   runs:
   - profile: deep
@@ -42,6 +46,12 @@ oompah.task_costs:
     output_tokens: 1879
     cost_usd: 0.0
     recorded_at: '2026-07-31T00:27:37.416571+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 6
+    output_tokens: 319
+    cost_usd: 0.0
+    recorded_at: '2026-07-31T00:40:05.213561+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-586__20260731T002641Z
@@ -248,5 +258,15 @@ Instructions:
 - Reconcile child OOMPAH-595 tracker state (advance to a terminal state or explicitly re-audit) before re-dispatching an epic terminal audit for OOMPAH-586.
 - If OOMPAH-595's Needs Human is only a handoff-service artefact and the underlying auth-health work is complete (commit 04d072a5f delivers it), record that reconciliation on OOMPAH-595 and let the child audit complete first.
 - Optionally run `make test` at current epic head cd08185c9 to confirm the post-rebase full gate before terminal transition; only the pre-rebase head (ca49d0c25) has a recorded full-gate pass.
+---
+author: oompah
+created: 2026-07-31 00:40
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 33, Tool calls: 21
+- Tokens: 6 in / 319 out [325 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 3m 5s
+- Log: OOMPAH-586__20260731T003705Z.jsonl
 ---
 <!-- COMMENTS:END -->
