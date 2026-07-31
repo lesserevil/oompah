@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:29.695490Z'
-updated_at: '2026-07-31T02:27:25.364164Z'
+updated_at: '2026-07-31T02:28:51.043621Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-598
 target_branch: null
 review_url: null
@@ -566,5 +566,10 @@ author: oompah
 created: 2026-07-31 02:27
 ---
 Operator code-review blocker: current dirty correction defines _reconcile_standalone_ready_to_integrate_tasks but has no production call site. Exact search in oompah/orchestrator.py finds only the definition at line ~4939. Direct unit tests therefore pass while the live service never invokes the feature. Wire it into an appropriate serialized maintenance/tick lane, cover automatic invocation (not just direct method calls), and ensure the potentially long full gate does not block the async event loop before submitting.
+---
+author: oompah
+created: 2026-07-31 02:28
+---
+Correction to the preceding operator review note: the production call site does exist in async _process_integration_queues (HEAD around lines 5774-5786; working tree around 6009-6021), where both Ready-submission reconcilers run via the tick pool. My prior exact-search result was incomplete. Retract the no-call-site blocker. Retain automatic-path coverage if practical, and verify the serialized standalone gate does not create unacceptable integration-queue starvation, but no missing-invocation defect is established.
 ---
 <!-- COMMENTS:END -->
