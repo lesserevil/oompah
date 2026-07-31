@@ -12,7 +12,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-07-31T16:04:07.401588Z'
-updated_at: '2026-07-31T21:32:23.064116Z'
+updated_at: '2026-07-31T21:33:46.245351Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -479,5 +479,15 @@ author: oompah
 created: 2026-07-31 21:32
 ---
 Understanding: the alert-retirement implementation is preserved but the branch must be reconciled with the deployed main base. I will inspect the current branch and task history, rebase safely if needed, verify the terminal-audit behavior and tests, then push and submit the completed task.
+---
+author: oompah
+created: 2026-07-31 21:33
+---
+Implementation: rebased OOMPAH-665 onto deployed main; upstream already contains the quality-gate and generated-hook prerequisite patches, leaving the alert-retirement logic and its identity-safety regression coverage as the only branch changes in oompah/orchestrator.py and tests/test_terminal_audit_observability.py.
+---
+author: oompah
+created: 2026-07-31 21:33
+---
+Verification: focused observability and terminal-transition suites pass: 134 passed in 5.13s. The tests cover migrated override/PASS metadata, changed fingerprints after merge, restart recovery, reopened current Needs Human decisions, quarantine/read failures, project isolation, and mismatched retirement identity.
 ---
 <!-- COMMENTS:END -->

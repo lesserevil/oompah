@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-619
 type: epic
-status: In Validation
+status: Merged
 priority: 1
 title: Unify CLI authentication sources and align the installed client
 parent: null
@@ -20,7 +20,7 @@ labels:
 - epic:rebasing
 assignee: null
 created_at: '2026-07-30T21:24:41.452666Z'
-updated_at: '2026-07-31T21:30:44.222560Z'
+updated_at: '2026-07-31T21:33:50.281226Z'
 work_branch: epic-OOMPAH-619
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/626
@@ -30,6 +30,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-3a4b0536b50d: '2026-07-31T15:00:12.993955+00:00'
+    attempt-88d6cfdc81a5: '2026-07-31T21:33:47.207022+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-619
@@ -40,6 +41,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-07-31T15:00:12.993965+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-619
+    target_state: Merged
+    evidence_fingerprint: 1d9f9ae25f9f29d848983bc5d59fc7e1f851798edb3062d62564d7400934cad4
+    audit_ids:
+    - audit-a04daf8508ab
+    kind: result
+    applied: true
+    retired_at: '2026-07-31T21:33:47.207045+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-619
@@ -53,6 +63,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-07-31T15:00:12.993978+00:00'
     applied_at: '2026-07-31T15:00:18.123318+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-619
+    audit_id: audit-a04daf8508ab
+    attempt_id: attempt-88d6cfdc81a5
+    target_state: Merged
+    evidence_fingerprint: 1d9f9ae25f9f29d848983bc5d59fc7e1f851798edb3062d62564d7400934cad4
+    status: Merged
+    audit_ids:
+    - audit-a04daf8508ab
+    applied: false
+    created_at: '2026-07-31T21:33:47.207068+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -93,7 +114,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-619
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -117,7 +138,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-88d6cfdc81a5
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -128,13 +149,16 @@ oompah.terminal_audit:
       started_at: '2026-07-31T21:30:39.865869+00:00'
       branch_key: epic-OOMPAH-619
       candidate_rotation_count: 1
+      verdict: pass
+      completed_at: '2026-07-31T21:33:47.206790+00:00'
+      ended_at: '2026-07-31T21:33:47.206790+00:00'
     requested_by:
       version: 1
       identity: NVShawn
       source: forge
     previous_state: In Review
     created_at: '2026-07-31T21:27:50.017008+00:00'
-    updated_at: '2026-07-31T21:30:39.865869+00:00'
+    updated_at: '2026-07-31T21:33:47.206790+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-3a4b0536b50d
@@ -329,5 +353,26 @@ author: oompah
 created: 2026-07-31 21:30
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 21:33
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- main_head: 16362384be835d1485d1121ce3c8329743391c79
+- merge_commit_message: Merge pull request #626 from lesserevil/epic-OOMPAH-619
+- worktree_head: 8c75a201e328949d4057bfbd53e11cd5498ed72f
+- worktree_behind_main_by: 49 commits
+- children_status: OOMPAH-620/621/623/624/650/660/662 = Done
+- key_files_on_main: oompah/client_auth.py, scripts/canonical_cli_cutover.py, scripts/sync_canonical_cli.py, tests/test_client_auth.py, tests/test_canonical_cli_sync.py, tests/test_cli_install_revision_compatibility.py, tests/test_lifecycle_cli_sync_integration.py, tests/test_docs_authentication_contract.py
+- docs_on_main: docs/authentication.md, docs/cli-install.md, docs/authentication-identity-mapping.md
+- focused_tests_result: 62 passed (test_client_auth.py), 5 passed (test_docs_authentication_contract.py)
+- full_gate_result: 14535 passed, 7 skipped, 1 xfailed (confirmed by multiple CI comments)
+- pr_number: 626
+- labels_present: rebase-requested, epic:rebasing (residual from completed rebase workflow)
+- previous_done_audit: PASS by opus auditor, 2026-07-31 15:00
 ---
 <!-- COMMENTS:END -->
