@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-07-31T12:06:40.124170Z'
+updated_at: '2026-07-31T12:07:16.035070Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -836,5 +836,10 @@ author: oompah
 created: 2026-07-31 12:06
 ---
 Bound dynamic secret redaction renewal and revocation lifecycle; focused security suites and static gates pass.
+---
+author: oompah
+created: 2026-07-31 12:07
+---
+Exact-head review found that short registered configured literals still used alphanumeric boundary matching and could leak when concatenated into surrounding text. I am switching all registered literal replacement to unconditional longest-first replacement and adding embedded string/bytes regression coverage.
 ---
 <!-- COMMENTS:END -->

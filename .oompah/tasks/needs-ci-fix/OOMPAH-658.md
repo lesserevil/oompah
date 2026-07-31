@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T11:19:01.632127Z'
-updated_at: '2026-07-31T12:07:08.389124Z'
+updated_at: '2026-07-31T12:07:19.144299Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -539,5 +539,10 @@ tests/test_delivery_plane_recovery.py::test_blocked_row_alerts_clear_after_row_a
 tests/test_default_first_dispatch.py::TestSafetyCriticalAcpRouting::test_would_dispatch_via_acp_no_acp_profile 
 make[1]: *** [Makefile:295: test] Terminated
 ```
+---
+author: oompah
+created: 2026-07-31 12:07
+---
+Stopped another premature full make test at 12:07 UTC (exact gate PGID 2991395). The branch remains under implementation/review; run focused regression tests only. Oompah will run the configured complete branch gate once for the accepted exact review-ready head.
 ---
 <!-- COMMENTS:END -->
