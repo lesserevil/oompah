@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-584
 type: epic
-status: In Progress
+status: Done
 priority: 0
 title: Return the oompah delivery control plane to green
 parent: null
@@ -21,7 +21,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-30T14:13:01.872040Z'
-updated_at: '2026-07-31T05:42:31.066277Z'
+updated_at: '2026-07-31T05:43:19.431841Z'
 work_branch: epic-OOMPAH-584
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/603
@@ -29,6 +29,8 @@ review_number: '603'
 merged_at: null
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-a2bcda188bfb: '2026-07-31T05:43:15.018394+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -66,7 +68,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-584
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -75,7 +77,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-a2bcda188bfb
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -85,13 +87,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-07-31T05:40:27.595345+00:00'
       branch_key: epic-OOMPAH-584
+      verdict: pass
+      completed_at: '2026-07-31T05:43:15.018289+00:00'
+      ended_at: '2026-07-31T05:43:15.018289+00:00'
     requested_by:
       version: 1
       identity: api-client
       source: api
     previous_state: In Progress
     created_at: '2026-07-31T05:40:18.105657+00:00'
-    updated_at: '2026-07-31T05:40:27.595345+00:00'
+    updated_at: '2026-07-31T05:43:15.018289+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-4132c39c1619
@@ -362,5 +367,24 @@ author: oompah
 created: 2026-07-31 05:40
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-07-31 05:43
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- branch_head_local: cf2fd7cfc6f556f51a9f11c6a950f00e6ba2d220
+- branch_head_remote: a3a577a489650c602ec3c62bd242eb53de631af4
+- origin_main: 24bd5d6c166af7f8c839e9d5c9e4f3f17d17508e
+- tree_equivalence: HEAD tree identical to origin/epic-OOMPAH-584 (git diff --stat empty)
+- behind_main_commits: 0
+- children_merged: OOMPAH-585, OOMPAH-586, OOMPAH-587, OOMPAH-588
+- children_done: OOMPAH-630, OOMPAH-631, OOMPAH-632, OOMPAH-633
+- full_gate_evidence: operator recovery comment: 14,163 passed / 7 skipped / 1 xfailed / 57 warnings in 255.59s on head a3a577a48
+- prior_quality_gate: branch quality gate passed for cf2fd7cfc (same tree) in 262.5s
+- changed_lines_vs_main: +18477 / -936 across 78 files covering auth_health, terminal_audit_health, repo_hygiene, orchestrator conflict repair, and integration queue reconciliation
 ---
 <!-- COMMENTS:END -->
