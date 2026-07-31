@@ -69,6 +69,7 @@ def _review(
 def _close_orchestrator(orch: Orchestrator) -> None:
     orch.integration_queue.close()
     orch.coordination_store.close()
+    orch.review_capacity_store.close()
     orch._tick_pool.shutdown(wait=True, cancel_futures=True)
     orch._refresh_pool.shutdown(wait=True, cancel_futures=True)
 
@@ -280,6 +281,49 @@ def test_existing_closed_review_is_replaced_after_gate(harness):
     tracker.update_issue.assert_called_once_with("TASK-4", status=IN_REVIEW)
 
 
+def test_stale_merged_reconciliation_releases_persisted_review_capacity(
+    tmp_path,
+):
+    project = Project(
+        id="proj-stale-merge",
+        name="Stale Merge Project",
+        repo_url="https://github.com/org/repo.git",
+        repo_path=str(tmp_path / "repo"),
+        default_branch="trunk",
+    )
+    tracker = mock.MagicMock()
+    orch = _make_orchestrator(
+        tmp_path,
+        project=project,
+        tracker=tracker,
+        provider_store=ProviderStore(str(tmp_path / "providers.json")),
+    )
+    issue = _issue("TASK-STALE-MERGED", branch="feature/stale-merged")
+    issue.project_id = project.id
+    reservation = orch.review_capacity_store.adopt(
+        project_id=project.id,
+        task_id=issue.identifier,
+        source_branch=issue.work_branch,
+        target_branch=project.default_branch,
+        review_id="701",
+        reservation_id="reservation-701",
+    )
+    orch._request_merged_via_coordinator = mock.MagicMock(
+        return_value=mock.MagicMock(success=True),
+    )
+
+    try:
+        orch._mark_stale_in_review_merged(
+            tracker,
+            issue,
+            issue.work_branch,
+        )
+        assert reservation.review_id == "701"
+        assert orch.review_capacity_store.count(project.id, []) == 0
+    finally:
+        _close_orchestrator(orch)
+
+
 def test_existing_integration_queue_row_prevents_competing_review(harness):
     orch, project, tracker, provider, detect, gate = harness
     task = _issue("TASK-5")
@@ -341,6 +385,60 @@ def test_same_sweep_reserves_review_capacity_without_false_alert(harness):
         "TASK-CAPACITY-1",
         status=IN_REVIEW,
     )
+    assert not _delivery_alerts(orch)
+
+
+def test_later_sweep_stale_cache_cannot_create_second_review(harness):
+    """A stale cache after the first PR still observes durable capacity."""
+    orch, project, tracker, provider, _detect, gate = harness
+    project.max_in_flight_prs = 1
+    first = _issue("TASK-STale-FIRST")
+    second = _issue("TASK-STale-SECOND")
+    created = _review(first.work_branch or first.identifier, review_id="601")
+    provider.find_pr_for_branch.return_value = None
+    provider.list_open_reviews.return_value = []
+    provider.create_review.return_value = created
+
+    tracker.fetch_issues_by_states.return_value = [first]
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+    assert provider.create_review.call_count == 1
+
+    # The cache is stale/empty and the forge listing still lags creation.
+    orch._reviews_cache = {project.id: []}
+    tracker.fetch_issues_by_states.return_value = [second]
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+
+    assert provider.create_review.call_count == 1
+    assert gate.call_count == 1
+    assert not _delivery_alerts(orch)
+
+
+def test_concurrent_ready_sweeps_share_one_durable_slot(harness):
+    orch, project, tracker, provider, _detect, gate = harness
+    project.max_in_flight_prs = 1
+    tracker.fetch_issues_by_states.return_value = [
+        _issue("TASK-CONCURRENT-1"),
+        _issue("TASK-CONCURRENT-2"),
+    ]
+    provider.find_pr_for_branch.return_value = None
+    provider.list_open_reviews.return_value = []
+    provider.create_review.return_value = _review(
+        "TASK-CONCURRENT-1",
+        review_id="602",
+    )
+
+    workers = [
+        threading.Thread(
+            target=orch._reconcile_standalone_ready_to_integrate_tasks,
+        )
+        for _ in range(2)
+    ]
+    for worker in workers:
+        worker.start()
+    for worker in workers:
+        worker.join()
+
+    assert provider.create_review.call_count == 1
     assert not _delivery_alerts(orch)
 
 

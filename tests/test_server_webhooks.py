@@ -190,6 +190,11 @@ class TestGitHubWebhookEndpoint:
         )
         assert resp.status_code == 200
         orch.request_refresh.assert_called_once()
+        orch.release_review_capacity.assert_called_once_with(
+            "proj-gh1",
+            "42",
+            source_branch="feat-branch",
+        )
 
     def test_pr_merged_to_tracked_branch_triggers_sync(self, client_no_secret):
         """A merged PR whose base is the project's tracked branch should
