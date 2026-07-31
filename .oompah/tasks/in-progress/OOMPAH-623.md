@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-623
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Keep the canonical user CLI synchronized with the running server
 parent: OOMPAH-619
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:32:18.734139Z'
-updated_at: '2026-07-30T21:38:29.111699Z'
+updated_at: '2026-07-31T08:33:29.034959Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-623
 target_branch: null
 review_url: null
@@ -86,7 +86,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: a0be7eff-b4fb-4755-94fd-1d387b5bb4e9
+oompah.agent_run_id: 8dcfe0a5-b5c8-4811-8c7d-1cf336dc7ebb
 oompah.work_branch: epic-OOMPAH-619--task-OOMPAH-623
 oompah.integration:
   version: 1
@@ -159,5 +159,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 35s
 - Log: OOMPAH-623__20260730T213656Z.jsonl
+---
+author: oompah
+created: 2026-07-31 08:33
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
