@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T12:05:24.382952Z'
-updated_at: '2026-08-01T14:34:57.898740Z'
+updated_at: '2026-08-01T14:38:27.753381Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -161,5 +161,10 @@ author: oompah
 created: 2026-08-01 14:34
 ---
 Understanding: the activity panel is keyed by task identifier across agent-run boundaries, so a completed preflight run's title/provider/activity can survive into the next implementation run. I will trace running-state/activity serialization, dashboard state and polling/WebSocket lifecycle, introduce a stable per-run identity with reset/stale-event guards, and add focused transition regression coverage.
+---
+author: oompah
+created: 2026-08-01 14:38
+---
+Discovery: RunningEntry already has assignment_id only for selected tracker claims, so it is not a universal UI lifecycle key. The API/ACP activity closures and _on_worker_exit only check issue.id, allowing late old-run callbacks/cleanup to target a replacement entry. Dashboard state also updates the open title only when focus_role is truthy, preserving the old role during empty-focus startup. Fix: generated per-dispatch run_id, identity in state/activity/WS, backend callback/exit fencing, and client cache/request/poll reset by run_id.
 ---
 <!-- COMMENTS:END -->
