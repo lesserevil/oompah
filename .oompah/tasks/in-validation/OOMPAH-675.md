@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-675
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Keep the parallel pytest gate stable when workers terminate
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T04:59:55.163807Z'
-updated_at: '2026-08-01T06:12:18.459447Z'
+updated_at: '2026-08-01T06:20:54.185682Z'
 work_branch: OOMPAH-675
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/639
@@ -101,6 +101,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/639
 oompah.review_number: '639'
 oompah.work_branch: OOMPAH-675
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-1239e350baa1
+    project_id: proj-14849f1b
+    task_id: OOMPAH-675
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 34b9ef2b3b09ec3e0ba42be1cca1d6482f7dc60a317c202ffde1cfd40b5f6bfb
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-01T06:20:49.253937+00:00'
+  - version: 1
+    audit_id: audit-4b7b622193d1
+    project_id: proj-14849f1b
+    task_id: OOMPAH-675
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 34b9ef2b3b09ec3e0ba42be1cca1d6482f7dc60a317c202ffde1cfd40b5f6bfb
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-01T06:20:49.253937+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -287,5 +326,15 @@ author: oompah
 created: 2026-08-01 06:12
 ---
 Branch quality gate passed for `d13a33d342e917c1ecb660e629a5e585724f2c11` using `make test` in 386.7s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-01 06:20
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-01 06:20
+---
+YOLO: merged PR #639.
 ---
 <!-- COMMENTS:END -->
