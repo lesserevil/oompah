@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T04:42:35.189136Z'
-updated_at: '2026-08-01T04:46:43.131072Z'
+updated_at: '2026-08-01T04:48:01.997067Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -119,5 +119,22 @@ Planned approach:
 6. Ensure backward compatibility for unauthenticated deployments
 
 Starting investigation now.
+---
+author: oompah
+created: 2026-08-01 04:48
+---
+Discovery: Found the bug in oompah/server.py:
+
+The WebSocket endpoint (line 2896) sends _cached_state_snapshot_or_unavailable() directly without augmenting it with http_auth state.
+
+The REST /api/v1/state endpoint (lines 3308-3362) calls the same function but then enriches the snapshot with:
+- snapshot["http_auth"] = _http_auth_reload_status() 
+- snapshot["build_id"]
+- snapshot["service_instance_id"]
+- snapshot["api_metrics"]
+
+This is why authenticated dashboards connecting via WebSocket have httpAuthEnabled=false, causing status mutations to include actor_login which triggers actor_mismatch errors.
+
+Solution: Create a helper function to enrich snapshots consistently, use it in both REST and WebSocket endpoints. Add regression tests for WebSocket bootstrap with HTTP Basic auth.
 ---
 <!-- COMMENTS:END -->
