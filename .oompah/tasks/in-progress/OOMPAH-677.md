@@ -13,7 +13,7 @@ labels:
 - focus-complete:chore
 assignee: null
 created_at: '2026-08-01T11:56:19.836343Z'
-updated_at: '2026-08-01T14:37:42.062517Z'
+updated_at: '2026-08-01T14:39:12.881531Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -239,5 +239,18 @@ author: oompah
 created: 2026-08-01 14:37
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-01 14:39
+---
+**Understanding**: NodeVirt project regression where oompah_md tracker without status_actor_login/tracker_owner blocked all Backlog→Open transitions. Frontend agent added UI warnings/fields. I will now implement backend owner-identity resolution/validation for project create/update (GitHub, GitLab, oompah_md), extend transition_gate for GitLab, repair pre-existing ownerless projects, and add regression tests.
+
+Implementation approach:
+1. Add _resolve_owner_identity helper to derive status_actor_login from repo_url/tracker credentials
+2. Validate during create that dispatchable projects have an owner
+3. In update, block clearing owner fields if project would become ownerless while active
+4. Extend transition_gate.is_project_owner to cover GitLab tracker_owner
+5. One-shot repair on load for pre-existing ownerless projects
+6. Regression tests for NodeVirt (oompah_md, no owner) configuration
 ---
 <!-- COMMENTS:END -->
