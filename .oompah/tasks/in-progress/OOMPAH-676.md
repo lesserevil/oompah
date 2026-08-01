@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T05:18:04.532392Z'
-updated_at: '2026-08-01T05:24:10.676766Z'
+updated_at: '2026-08-01T05:31:15.560202Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -135,5 +135,10 @@ author: oompah
 created: 2026-08-01 05:24
 ---
 Discovery: graceful_restart already waits naturally and persists only state.running at timeout; explicit pause is the destructive path because it schedules _terminate_all_running. The fix will add a transient quiesced dispatch gate with state/API/IPC support, preserve /pause semantics, and have canonical cutover continue to /restart with drain_timeout_s=0 only after its configured drain window, allowing the server restart path to persist truly undrained workers.
+---
+author: oompah
+created: 2026-08-01 05:31
+---
+Implementation: added transient Orchestrator.quiesce() and quiesced state, dispatch/retry/audit gating, restart-safe state reporting, and API/IPC /api/v1/orchestrator/quiesce. Canonical cutover now quiesces, waits for natural completion, and on timeout proceeds transactionally to restart with the server’s zero-budget persistence/termination boundary. Added lifecycle tests for natural completion (no recovery), timeout recovery exactly once, API/IPC routing, and explicit pause compatibility; updated CLI lifecycle docs.
 ---
 <!-- COMMENTS:END -->
