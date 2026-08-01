@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-682
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Make duplicate-preflight recovery authoritative and self-sufficient
 parent: null
@@ -11,10 +11,10 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T18:07:47.349822Z'
-updated_at: '2026-08-01T19:13:19.130994Z'
+updated_at: '2026-08-01T19:31:45.539246Z'
 work_branch: null
 target_branch: null
-review_url: null
+review_url: https://github.com/lesserevil/oompah/pull/645
 review_number: null
 merged_at: null
 oompah.duplicate_screening:
@@ -83,6 +83,7 @@ oompah.integration:
   head_sha: 4978bf801cf8cbf43e4566403969e8e95b10c381
   submitted_at: '2026-08-01T19:12:55.039828+00:00'
   updated_at: '2026-08-01T19:12:55.039828+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/645
 ---
 ## Summary
 
@@ -236,5 +237,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 9m 22s
 - Log: OOMPAH-682__20260801T190359Z.jsonl
+---
+author: oompah
+created: 2026-08-01 19:31
+---
+Branch quality gate passed for `4978bf801cf8cbf43e4566403969e8e95b10c381` using `make test` in 407.6s. Review creation may proceed.
 ---
 <!-- COMMENTS:END -->
