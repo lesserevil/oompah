@@ -19,9 +19,9 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-08-01T00:07:01.696350Z'
-work_branch: null
-target_branch: null
+updated_at: '2026-08-01T00:07:07.345440Z'
+work_branch: OOMPAH-651
+target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/630
 review_number: '630'
 merged_at: null
@@ -250,6 +250,8 @@ oompah.integration:
 oompah.start_blocked_by: *id001
 oompah.review_url: https://github.com/lesserevil/oompah/pull/630
 oompah.review_number: '630'
+oompah.work_branch: OOMPAH-651
+oompah.target_branch: main
 ---
 ## Summary
 
