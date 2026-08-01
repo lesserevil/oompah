@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-685
 type: task
-status: Needs Human
+status: Ready to Integrate
 priority: null
 title: Forward project forge credentials through integration verification
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T21:46:41.297124Z'
-updated_at: '2026-08-01T22:29:28.444826Z'
+updated_at: '2026-08-01T22:56:41.700254Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -148,6 +148,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-685
     source_sha: 3d50e86c334e8a6318b767b281bc254fa6d93cc2
     completed_at: '2026-08-01T22:00:53.075154+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-685
+  head_sha: 94d7ce2f75cd12737800c4b9c6b485c489d0a1ee
+  submitted_at: '2026-08-01T22:56:38.027506+00:00'
+  updated_at: '2026-08-01T22:56:38.027506+00:00'
 ---
 ## Summary
 
@@ -256,5 +264,15 @@ Oompah could not durably preserve this worker's task worktree before retry. The 
 .oompah-no-hooks
 hint: Use -f if you really want to add them.
 hint: Disable this message with "git config set advice.addIgnoredFile false"
+---
+author: oompah
+created: 2026-08-01 22:56
+---
+Operator-owned recovery complete at 94d7ce2f75cd12737800c4b9c6b485c489d0a1ee. The project-credential implementation was preserved, reviewed for redaction/lifetime/concurrency, committed, and pushed after removing only the generated .oompah-no-hooks helper.\n\nValidation:\n- Focused managed-credential, integration-executor, landing, staleness, unpushed-gate, and ProjectStore suites: 177 passed.\n- Full make test: 14861 passed, 7 skipped, 1 xfailed in 401.95s.\n- git diff --check passed.\n- Branch is clean and matches origin/OOMPAH-685.\n\nThe Needs Human transition was caused by the ignored generated-helper snapshot defect already fixed canonically by OOMPAH-683; no duplicate follow-up was filed.
+---
+author: oompah
+created: 2026-08-01 22:56
+---
+Operator recovery complete at 94d7ce2f7: every managed integration network path now uses ephemeral project-scoped forge credentials with redaction and safe diagnostics; focused 177/177 and full 14861-test gates pass.
 ---
 <!-- COMMENTS:END -->
