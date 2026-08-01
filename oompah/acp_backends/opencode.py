@@ -86,15 +86,24 @@ class _OpencodeCounters:
 
 
 def _truncate(value: Any, limit: int = 1500) -> Any:
-    """Same truncation policy as the other backends — keeps the JSONL
-    log readable when tool inputs/outputs are huge."""
-    if isinstance(value, str):
-        return value if len(value) <= limit else value[:limit] + " …[truncated]"
-    if isinstance(value, dict):
-        return {k: _truncate(v, limit) for k, v in value.items()}
-    if isinstance(value, list):
-        return [_truncate(v, limit) for v in value]
-    return value
+    """Redact + truncate tool inputs/outputs before they hit the JSONL log.
+
+    Truncation limits size but does NOT remove secrets — the console
+    fan-out boundary redacts as a hard requirement, but redacting here
+    too keeps the emitted BackendEvent payload safe for any observer
+    that consumes it before the console persist boundary runs (e.g. a
+    debug on_event callback set by tests or an orchestrator hook).
+    """
+    from oompah.secrets import redact_sensitive_data
+
+    redacted = redact_sensitive_data(value)
+    if isinstance(redacted, str):
+        return redacted if len(redacted) <= limit else redacted[:limit] + " …[truncated]"
+    if isinstance(redacted, dict):
+        return {k: _truncate(v, limit) for k, v in redacted.items()}
+    if isinstance(redacted, list):
+        return [_truncate(v, limit) for v in redacted]
+    return redacted
 
 
 class OpencodeAcpBackendSession(AcpBackendSession):

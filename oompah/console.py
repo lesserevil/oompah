@@ -67,6 +67,7 @@ from typing import TYPE_CHECKING, Any, Awaitable, Callable
 from oompah.console_format import ConsoleEvent, make_error, make_operator_input
 from oompah.console_store import ConsoleStore
 from oompah.console_translators import get_translator, known_backends
+from oompah.secrets import redact_sensitive_data
 
 if TYPE_CHECKING:
     from oompah.providers import ProviderStore
@@ -182,6 +183,81 @@ class _PendingSend:
     # errors). Lets callers ``await session.send(...)`` and know the
     # turn has finished.
     done: asyncio.Future[None] | None = None
+
+
+# ---------------------------------------------------------------------------
+# Secret redaction helper
+# ---------------------------------------------------------------------------
+
+
+def _redact_console_event(event: ConsoleEvent) -> ConsoleEvent:
+    """Create a copy of the ConsoleEvent with all sensitive fields redacted.
+
+    This is the central redaction boundary for ConsoleEvent fan-out.
+    All fields that might contain secrets (text, args, result, usage,
+    attachments) are redacted before the event is persisted or fanned
+    out to callbacks.
+
+    SECURITY: Attachments are strings and may contain any operator-
+    supplied text (e.g. a URL with embedded userinfo pasted as an
+    attachment); we scan them the same way as other free-form strings.
+    Values whose type is unexpected fall through the generic
+    redact_sensitive_data() fail-closed path.
+
+    Args:
+        event: The original ConsoleEvent (may contain secrets)
+
+    Returns:
+        A new ConsoleEvent with sensitive fields redacted
+    """
+    def _redact_or_none(v: Any) -> Any:
+        # Preserve None/empty; run all other values through redaction so
+        # anything that made it into the field gets scanned regardless
+        # of type. Type-safe: usage must remain dict-shaped (callers
+        # expect .get(...)).
+        if v is None:
+            return None
+        return redact_sensitive_data(v)
+
+    # Usage must remain dict-shaped: if redaction returns a non-dict
+    # marker (e.g. because the input was a credential-like object),
+    # substitute a safe marker dict rather than propagating a string
+    # where a dict is expected downstream.
+    if event.usage is None:
+        redacted_usage: Any = None
+    else:
+        _u = redact_sensitive_data(event.usage)
+        redacted_usage = _u if isinstance(_u, dict) else {"_redacted": True}
+
+    # Attachments are typed as list[str] | None. Scan each string
+    # through _redact_string via redact_sensitive_data; unexpected
+    # element types are coerced through the fail-closed str path so
+    # nothing raw slips into the transcript.
+    if event.attachments is None:
+        redacted_attachments: list[str] | None = None
+    else:
+        _out: list[str] = []
+        for att in event.attachments:
+            _r = redact_sensitive_data(att)
+            # redact_sensitive_data always returns a str for str input,
+            # and a string form for unknown-type input.
+            _out.append(_r if isinstance(_r, str) else str(_r))
+        redacted_attachments = _out
+
+    return ConsoleEvent(
+        ts=event.ts,
+        kind=event.kind,
+        backend=event.backend,
+        model=event.model,
+        text=_redact_or_none(event.text),
+        tool=event.tool,  # tool names are not secrets
+        args=_redact_or_none(event.args),
+        result=_redact_or_none(event.result),
+        is_error=event.is_error,
+        usage=redacted_usage,
+        raw_event_kind=event.raw_event_kind,
+        attachments=redacted_attachments,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -680,9 +756,16 @@ class ConsoleSession:
 
         Both operations are best-effort — we don't want a buggy on_event
         consumer to corrupt the transcript or vice-versa.
+
+        SECURITY: The event is redacted before JSONL storage and before
+        fanning out to on_event callbacks to prevent secrets from leaking
+        into state/activity/telemetry.
         """
+        # Redact sensitive fields in the event before any exposure
+        redacted_event = _redact_console_event(event)
+
         try:
-            self.store.append(self.project_id, event.to_dict())
+            self.store.append(self.project_id, redacted_event.to_dict())
         except Exception as exc:
             logger.warning(
                 "ConsoleSession[%s] store.append failed: %s",
@@ -690,7 +773,7 @@ class ConsoleSession:
             )
         if self.on_event is not None:
             try:
-                self.on_event(event)
+                self.on_event(redacted_event)
             except Exception as exc:
                 logger.debug(
                     "ConsoleSession[%s] on_event callback raised: %s",

@@ -142,6 +142,19 @@ class AcpAgentSession:
         self.task_identifier = task_identifier
         self.action_policy = action_policy
         self.task_handoff_token = task_handoff_token
+        # These values are intentionally passed to selected backend
+        # environments.  Register them before the backend can emit a startup
+        # event so an opaque token cannot leak through an innocuous payload.
+        from oompah.secrets import register_configured_secrets, register_secret
+
+        register_secret(task_handoff_token, expires_in=60 * 60)
+        # Only register the explicit credential sources understood by the
+        # service. Broad key-name heuristics would treat innocuous values such
+        # as ``BUILD_KEY=1`` as process-wide secrets and could redact ordinary
+        # diagnostics. Authoritative project/provider credentials are
+        # registered by their stores; this covers the environment passed to
+        # the backend without duplicating that policy here.
+        register_configured_secrets(self.env)
         self.focus = focus
         self.auditor = auditor
         self.audit_target = audit_target

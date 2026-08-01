@@ -213,6 +213,21 @@ class TaskHandoffGrantStore:
         with self._lock:
             self._purge_locked(now)
             self._grants[grant.token_digest] = grant
+        # The capability is intentionally returned to the subprocess, but
+        # any parent-side event, exception, or telemetry text containing it
+        # must be redacted even without a token-shaped label around it.
+        from oompah.secrets import (
+            SECRET_REDACTION_GRACE_SECONDS,
+            register_secret,
+        )
+
+        register_secret(
+            token,
+            # Keep a bounded grace period after grant expiry for delayed
+            # worker shutdown/error events without retaining every historical
+            # handoff capability forever.
+            expires_in=ttl + SECRET_REDACTION_GRACE_SECONDS,
+        )
         return token
 
     def validate(
@@ -314,10 +329,21 @@ class TaskHandoffGrantStore:
         # Keep delayed shutdown/error events safe without retaining every
         # revoked bearer for the original grant lifetime.  The redaction
         # registry consumes the value only to register its digest-independent
-        # literal; this path never logs or returns the token.
+        # literal; this path never logs or returns the token.  The module-
+        # level ``retire_secret`` binding is used deliberately so tests can
+        # patch ``oompah.task_handoff.retire_secret`` to observe the call;
+        # the grace value is looked up on ``oompah.secrets`` at call time so
+        # ``monkeypatch.setattr(secrets_module, "SECRET_REDACTION_GRACE_SECONDS", ...)``
+        # is honored even after this module has cached the initial import.
+        import oompah.secrets as _secrets_module
+
         retire_secret(
             token,
-            grace_seconds=SECRET_REDACTION_GRACE_SECONDS,
+            grace_seconds=getattr(
+                _secrets_module,
+                "SECRET_REDACTION_GRACE_SECONDS",
+                SECRET_REDACTION_GRACE_SECONDS,
+            ),
         )
 
     def record_failure(self, token: str | None, reason: str) -> None:

@@ -14,6 +14,7 @@ import threading
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 from fnmatch import fnmatchcase
@@ -31,6 +32,7 @@ from oompah.agent import (
 )
 from oompah.agent_profile_store import AgentProfileStore
 from oompah.api_agent import AgentActivity, ApiAgentSession
+from oompah.secrets import redact_sensitive_data
 from oompah.tool_liveness import ToolLivenessMonitor
 from oompah.authority_boundary import (
     AgentActionPolicy,
@@ -146,6 +148,7 @@ from oompah.terminal_audit import (
     ContributorIdentity,
     EvidenceFingerprint,
     FailureClassification,
+    OverrideRecord,
     RequestState,
     TargetState,
     Verdict,
@@ -427,6 +430,191 @@ def _dispatch_active_state_keys(active_states: list[str] | tuple[str, ...]) -> s
 def _is_terminal_state(state: str | None, terminal_states: list[str] | tuple[str, ...]) -> bool:
     """Return True when a tracker state is terminal in canonical oompah terms."""
     return is_terminal_status(state) or _state_key(state) in _terminal_state_keys(terminal_states)
+
+
+_TERMINAL_RETIREMENTS_KEY = "oompah.terminal_audit_retirements"
+_TERMINAL_OVERRIDE_RECORDS_KEY = "oompah.terminal_override_records"
+
+
+def _audit_observability_time(value: object) -> datetime | None:
+    """Parse a persisted audit timestamp without treating malformed data as proof."""
+
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed.replace(tzinfo=timezone.utc) if parsed.tzinfo is None else parsed
+
+
+def _audit_record_time(record: Any, *, verdict: Verdict | None = None) -> datetime | None:
+    """Return the newest trustworthy time for a record or selected verdict."""
+
+    values: list[datetime] = []
+    for value in (
+        getattr(record, "created_at", None),
+        getattr(record, "updated_at", None),
+    ):
+        parsed = _audit_observability_time(value)
+        if parsed is not None:
+            values.append(parsed)
+    for attempt in getattr(record, "attempts", ()) or ():
+        if verdict is not None and getattr(attempt, "verdict", None) != verdict:
+            continue
+        for value in (
+            getattr(attempt, "created_at", None),
+            getattr(attempt, "completed_at", None),
+            getattr(attempt, "ended_at", None),
+        ):
+            parsed = _audit_observability_time(value)
+            if parsed is not None:
+                values.append(parsed)
+    return max(values) if values else None
+
+
+def _record_has_no_auditor(record: Any) -> bool:
+    return any(
+        getattr(attempt, "failure_classification", None)
+        == FailureClassification.NO_AUDITOR
+        for attempt in getattr(record, "attempts", ()) or ()
+    )
+
+
+def _retirement_metadata_proves_identity(
+    document: Any,
+    record: Any,
+    project_id: str,
+    task_id: str,
+) -> bool:
+    """Return whether a retirement row proves the exact record was retired."""
+
+    raw_rows = getattr(document, "unknown_fields", {}).get(_TERMINAL_RETIREMENTS_KEY)
+    if not isinstance(raw_rows, list):
+        return False
+    audit_id = getattr(record, "audit_id", None)
+    record_target = getattr(record, "target_state", None)
+    record_fingerprint = getattr(record, "evidence_fingerprint", None)
+    if (
+        not isinstance(audit_id, str)
+        or not audit_id
+        or not isinstance(record_target, TargetState)
+        or not isinstance(record_fingerprint, EvidenceFingerprint)
+    ):
+        return False
+    for raw_row in raw_rows:
+        if not isinstance(raw_row, Mapping) or raw_row.get("applied", True) is False:
+            continue
+        if raw_row.get("project_id") != project_id or raw_row.get("task_id") != task_id:
+            continue
+        raw_ids = raw_row.get("audit_ids")
+        if (
+            not isinstance(raw_ids, list)
+            or not all(isinstance(value, str) and value.strip() for value in raw_ids)
+            or audit_id not in raw_ids
+        ):
+            continue
+        try:
+            row_target = TargetState.from_raw(raw_row.get("target_state"))
+            raw_fingerprint = raw_row.get("evidence_fingerprint")
+            if isinstance(raw_fingerprint, Mapping):
+                raw_fingerprint = raw_fingerprint.get(
+                    "digest", raw_fingerprint.get("sha256", raw_fingerprint.get("value"))
+                )
+            row_fingerprint = EvidenceFingerprint(str(raw_fingerprint))
+        except (TypeError, ValueError):
+            # Unknown or malformed forward-compatible data is not lifecycle
+            # evidence. Keep the alert until a trusted source confirms it.
+            continue
+        if row_target != record_target or row_fingerprint != record_fingerprint:
+            # An audit ID alone is not a durable lifecycle identity. A
+            # mismatched row can be historical or malformed, so fail closed.
+            continue
+        return True
+    return False
+
+
+def _legacy_override_proves_identity(
+    document: Any,
+    record: Any,
+    project_id: str,
+    task_id: str,
+) -> bool:
+    """Recognize an applied pre-retirement owner override conservatively."""
+
+    raw_overrides = getattr(document, "unknown_fields", {}).get(
+        _TERMINAL_OVERRIDE_RECORDS_KEY
+    )
+    if not isinstance(raw_overrides, list):
+        return False
+    record_time = _audit_record_time(record)
+    for raw_override in raw_overrides:
+        if not isinstance(raw_override, Mapping) or raw_override.get("applied", True) is False:
+            continue
+        try:
+            override = OverrideRecord.from_dict(raw_override)
+        except (TypeError, ValueError):
+            continue
+        if (
+            override.project_id != project_id
+            or override.task_id != task_id
+            or override.target_state != getattr(record, "target_state", None)
+            or override.evidence_fingerprint != getattr(record, "evidence_fingerprint", None)
+        ):
+            continue
+        override_time = _audit_observability_time(override.created_at)
+        # A legacy row without ordering is ambiguous when the task may have
+        # been reopened. Canonical terminal tracker state remains sufficient,
+        # but this metadata alone does not.
+        if record_time is None or override_time is None or record_time > override_time:
+            continue
+        return True
+    return False
+
+
+def _later_pass_proves_identity(record: Any, records: Iterable[Any]) -> bool:
+    """Find a later equivalent PASS without retiring a newer reopened decision."""
+
+    no_auditor_attempts = [
+        attempt
+        for attempt in getattr(record, "attempts", ()) or ()
+        if getattr(attempt, "failure_classification", None)
+        == FailureClassification.NO_AUDITOR
+    ]
+    if not no_auditor_attempts:
+        return False
+    no_time = _audit_record_time(record, verdict=Verdict.FAIL)
+    for candidate in records:
+        if (
+            getattr(candidate, "project_id", None) != getattr(record, "project_id", None)
+            or getattr(candidate, "task_id", None) != getattr(record, "task_id", None)
+            or getattr(candidate, "target_state", None) != getattr(record, "target_state", None)
+            or getattr(candidate, "evidence_fingerprint", None)
+            != getattr(record, "evidence_fingerprint", None)
+        ):
+            continue
+        pass_attempts = [
+            attempt
+            for attempt in getattr(candidate, "attempts", ()) or ()
+            if getattr(attempt, "verdict", None) == Verdict.PASS
+        ]
+        if not pass_attempts:
+            continue
+        if candidate is record:
+            # Same-record retries retain attempt order even in old metadata
+            # that predates persisted timestamps.
+            last_terminal = [
+                attempt
+                for attempt in getattr(candidate, "attempts", ()) or ()
+                if getattr(attempt, "verdict", None) in (Verdict.PASS, Verdict.FAIL)
+            ]
+            if last_terminal and getattr(last_terminal[-1], "verdict", None) == Verdict.PASS:
+                return True
+            continue
+        pass_time = _audit_record_time(candidate, verdict=Verdict.PASS)
+        if no_time is not None and pass_time is not None and pass_time > no_time:
+            return True
+    return False
 
 
 def _configured_in_progress_state(active_states: list[str]) -> str:
@@ -1716,12 +1904,67 @@ class Orchestrator:
             )
             no_candidate_terminal = (
                 record.request_state == RequestState.COMPLETED
-                and any(
-                    attempt.failure_classification == FailureClassification.NO_AUDITOR
-                    for attempt in record.attempts
-                )
+                and _record_has_no_auditor(record)
             )
-            if live or no_candidate_terminal:
+            if live:
+                continue
+            if no_candidate_terminal:
+                # Newer coordinators persist a retirement row naming every
+                # superseded identity. This is deliberately checked before
+                # tracker state so a reopened task can retain a genuinely new
+                # no-auditor decision while the old identity is retired.
+                if _retirement_metadata_proves_identity(
+                    document, record, project_id, task_id
+                ):
+                    self._forget_terminal_audit_alert_identity(
+                        project_id, task_id, audit_id
+                    )
+                    continue
+                if _legacy_override_proves_identity(
+                    document, record, project_id, task_id
+                ) or _later_pass_proves_identity(record, document.pending_chain):
+                    self._forget_terminal_audit_alert_identity(
+                        project_id, task_id, audit_id
+                    )
+                    continue
+
+                # A successful canonical tracker read is an independent
+                # lifecycle authority. It retires legacy no-auditor alerts
+                # even when historical evidence fingerprints no longer match
+                # the task after merge. Fetch failures and ambiguous identity
+                # responses intentionally leave the alert untouched.
+                fetch_issue_detail = getattr(tracker, "fetch_issue_detail", None)
+                if not callable(fetch_issue_detail):
+                    continue
+                try:
+                    current_issue = fetch_issue_detail(task_id)
+                except Exception:
+                    continue
+                if current_issue is None:
+                    continue
+                current_project_id = str(getattr(current_issue, "project_id", "") or "")
+                if current_project_id and current_project_id != str(project_id):
+                    continue
+                current_ids = {
+                    str(value)
+                    for value in (
+                        getattr(current_issue, "identifier", None),
+                        getattr(current_issue, "id", None),
+                    )
+                    if value
+                }
+                if task_id not in current_ids:
+                    continue
+                if _is_terminal_state(
+                    getattr(current_issue, "state", None),
+                    self.config.tracker_terminal_states,
+                ):
+                    self._forget_terminal_audit_alert_identity(
+                        project_id, task_id, audit_id
+                    )
+                    continue
+                # The task is still nonterminal (including Needs Human), so
+                # the completed no-auditor decision remains actionable.
                 continue
             self._forget_terminal_audit_alert_identity(
                 project_id, task_id, audit_id
@@ -24876,7 +25119,14 @@ class Orchestrator:
                 s.output_tokens = result.output_tokens
                 s.total_tokens = result.total_tokens
                 s.turn_count = result.turns
-                s.last_message = result.last_message[:200]
+                # SECURITY: last_message is exposed via the state API and
+                # the operator HTML. The API-agent result.last_message is
+                # raw assistant content; it can carry a URL with userinfo
+                # or an echoed bearer token. Redact before recording.
+                _redacted_last = redact_sensitive_data(result.last_message or "")
+                if not isinstance(_redacted_last, str):
+                    _redacted_last = str(_redacted_last)
+                s.last_message = _redacted_last[:200]
                 s.last_event = f"api_{result.status}"
 
             if result.status == "ask_question":
@@ -25306,7 +25556,11 @@ class Orchestrator:
                 when the agent was actively working — the JSONL log was
                 being written but the live state wasn't.
                 """
-                # 1. Persist the raw event to per-agent JSONL.
+                # SECURITY: Redact all payloads before JSONL/state use.
+                # This is the central fan-out boundary for ACP events.
+                redacted_payload = redact_sensitive_data(ev.payload or {})
+
+                # 1. Persist the redacted event to per-agent JSONL.
                 try:
                     log_fp.write(
                         json.dumps(
@@ -25316,8 +25570,8 @@ class Orchestrator:
                                     timezone.utc,
                                 ).isoformat(),
                                 "kind": ev.event,
-                                "usage": ev.usage,
-                                "payload": ev.payload,
+                                "usage": redact_sensitive_data(ev.usage) if ev.usage else None,
+                                "payload": redacted_payload,
                             },
                             default=str,
                         )
@@ -25330,7 +25584,7 @@ class Orchestrator:
                 # 2. Map ACP event kinds onto the AgentActivity vocabulary
                 #    the UI already renders for api_agent runs. Keeping
                 #    the same kinds means no template changes needed.
-                payload = ev.payload or {}
+                payload = redacted_payload
                 # Only `acp_text` (actual model speech) maps to 'message'.
                 # Session start/result events are metadata-shaped (JSON-ish
                 # blobs in the detail field) and should NOT be hidden by
@@ -25410,13 +25664,25 @@ class Orchestrator:
                     sess = entry.session
                     turn_count = sess.turn_count if sess else 0
 
+                    # SECURITY: type-safe usage redaction. If redaction
+                    # returns a non-dict marker (e.g. because ev.usage was
+                    # a credential-like object), fall back to a marker
+                    # dict rather than crashing on dict(<str>).
+                    if ev.usage:
+                        _redacted_usage = redact_sensitive_data(ev.usage)
+                        if isinstance(_redacted_usage, dict):
+                            _usage_for_activity = dict(_redacted_usage)
+                        else:
+                            _usage_for_activity = {"_redacted": True}
+                    else:
+                        _usage_for_activity = None
                     activity = AgentActivity(
                         turn=turn_count,
                         kind=activity_kind,
                         summary=summary,
                         detail=detail,
                         timestamp=ev.timestamp,
-                        usage=dict(ev.usage) if ev.usage else None,
+                        usage=_usage_for_activity,
                     )
                     entry.activity_log.append(activity)
 
@@ -25950,7 +26216,16 @@ class Orchestrator:
         entry.session.last_timestamp = datetime.fromtimestamp(
             event.timestamp, tz=timezone.utc
         )
-        entry.session.last_message = event.payload.get("message", "")
+        # SECURITY: The legacy agent's AgentEvent.payload["message"] is
+        # derived from the agent subprocess stdout and may contain a
+        # bearer token, HTTP Basic password, or URL with userinfo when
+        # the model quotes something back. Redact before storing on
+        # session state (which is exposed via the state API + HTML).
+        _raw_last = event.payload.get("message", "") if event.payload else ""
+        _redacted_last = redact_sensitive_data(_raw_last)
+        if not isinstance(_redacted_last, str):
+            _redacted_last = str(_redacted_last)
+        entry.session.last_message = _redacted_last
         entry.session.agent_pid = event.agent_pid
 
         # Update token counts from absolute totals

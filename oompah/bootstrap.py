@@ -195,8 +195,19 @@ async def setup_services(
     from oompah.projects import ProjectStore
     from oompah.providers import ProviderStore
     from oompah.roles import RoleStore, migrate_agent_profiles_to_roles
+    from oompah.secrets import (
+        install_secret_redaction_filter,
+        register_configured_secrets,
+    )
     from oompah.terminal_transition_coordinator import TerminalTransitionCoordinator
     from oompah.webhooks import GitLabHookManager, WebhookForwarder
+
+    # Granian workers import the ASGI app directly and do not execute the
+    # normal CLI logging setup.  Initialise the same process-local registry
+    # and logger boundary here so both server launch paths protect configured
+    # credentials before services start emitting events.
+    register_configured_secrets()
+    install_secret_redaction_filter("oompah")
 
     # ------------------------------------------------------------------
     # 1. Load and parse WORKFLOW.md

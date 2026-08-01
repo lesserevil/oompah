@@ -19,6 +19,7 @@ from urllib.parse import urlsplit
 from oompah.git_hooks import hook_path as _bundled_hook_path
 from oompah.models import Project
 from oompah.repo_health import ensure_repo_sound
+from oompah.secrets import register_secret_values
 
 logger = logging.getLogger(__name__)
 
@@ -863,6 +864,7 @@ class ProjectStore:
                 p = Project.from_dict(entry)
                 if p.id:
                     self._projects[p.id] = p
+                    register_secret_values((p.access_token, p.webhook_secret))
         except (json.JSONDecodeError, OSError) as exc:
             logger.warning("Failed to load projects from %s: %s", self.path, exc)
             self._projects = {}
@@ -1131,6 +1133,7 @@ class ProjectStore:
             paused=bool(paused),
         )
         self._projects[project_id] = project
+        register_secret_values((project.access_token, project.webhook_secret))
         self._save()
         logger.info(
             "Project created id=%s name=%s repo=%s lfs_available=%s",
@@ -1527,6 +1530,11 @@ class ProjectStore:
 
         for key, value in fields.items():
             setattr(project, key, value)
+
+        # Dynamic project updates can introduce a new opaque token/secret;
+        # retain both the new and old value in the process-local registry so
+        # delayed workers cannot expose either during rotation.
+        register_secret_values((project.access_token, project.webhook_secret))
 
         self._save()
         return project

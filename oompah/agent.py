@@ -633,12 +633,23 @@ class AgentSession:
                 summary = summary.get("text", str(summary))
             summary = str(summary)[:200]
 
+        # SECURITY: the raw subprocess message may quote back an
+        # authorization header, URL with userinfo, or configured
+        # credential. Redact before packaging into the AgentEvent so
+        # every downstream consumer (JSONL log, orchestrator state,
+        # WS fan-out) sees only scrubbed text.
+        from oompah.secrets import redact_sensitive_data as _redact
+
+        _redacted_summary = _redact(summary)
+        if not isinstance(_redacted_summary, str):
+            _redacted_summary = str(_redacted_summary)
+
         return AgentEvent(
             event=event_name,
             timestamp=now,
             agent_pid=self.pid,
             usage=usage,
-            payload={"message": summary, "method": method},
+            payload={"message": _redacted_summary, "method": method},
         )
 
     async def stop(self, timeout_s: float = DEFAULT_STOP_TIMEOUT_S) -> None:

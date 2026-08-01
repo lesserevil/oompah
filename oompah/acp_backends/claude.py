@@ -32,6 +32,7 @@ from oompah.acp_backends.base import (
 from oompah.acp_backends.registry import register_backend
 from oompah.agent import AgentEvent
 from oompah.client_auth import agent_environment
+from oompah.secrets import redact_sensitive_data
 
 if TYPE_CHECKING:
     from oompah.models import ModelProvider
@@ -114,15 +115,19 @@ class _SessionCounters:
 
 def _truncate_for_log(value: Any, limit: int = 1500) -> Any:
     """Shrink large tool inputs/outputs before they hit the JSONL log so
-    a 10 MB shell-pipe doesn't bloat the log file. Preserves shape for
-    dicts/lists; truncates string leaves with an ellipsis."""
-    if isinstance(value, str):
-        return value if len(value) <= limit else (value[:limit] + " …[truncated]")
-    if isinstance(value, dict):
-        return {k: _truncate_for_log(v, limit) for k, v in value.items()}
-    if isinstance(value, list):
-        return [_truncate_for_log(v, limit) for v in value]
-    return value
+    a 10 MB shell-pipe doesn't bloat the log file. Also redacts secrets
+    from the value. Preserves shape for dicts/lists; truncates string
+    leaves with an ellipsis."""
+    # First redact secrets, then truncate
+    redacted = redact_sensitive_data(value)
+
+    if isinstance(redacted, str):
+        return redacted if len(redacted) <= limit else (redacted[:limit] + " …[truncated]")
+    if isinstance(redacted, dict):
+        return {k: _truncate_for_log(v, limit) for k, v in redacted.items()}
+    if isinstance(redacted, list):
+        return [_truncate_for_log(v, limit) for v in redacted]
+    return redacted
 
 
 class ClaudeAcpBackendSession(AcpBackendSession):
