@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T23:11:33.946132Z'
-updated_at: '2026-08-01T23:45:04.667849Z'
+updated_at: '2026-08-01T23:51:02.228130Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -252,5 +252,10 @@ author: oompah
 created: 2026-08-01 23:45
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-08-01 23:51
+---
+Understanding: The quality gate failed with test_tick_does_not_start_second_maintenance_while_first_running in tests/test_orchestrator_handlers.py. Root cause: the test doesn't mock _recover_release_addendum_leases, which reads all task files from disk in the tick thread pool. Under parallel CI load this can cause (1) a 5-second test timeout, or (2) total_ms > 2000 triggering slow-tick logging that fails because _handle_dispatch_needed returns AsyncMock() instead of {}. OOMPAH-686 has an identical fix at commit 19f4f3f9c — adding orch._recover_release_addendum_leases = MagicMock(return_value=0) to the test. Applying the same minimal fix to our branch.
 ---
 <!-- COMMENTS:END -->
