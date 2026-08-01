@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-675
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Keep the parallel pytest gate stable when workers terminate
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T04:59:55.163807Z'
-updated_at: '2026-08-01T05:11:49.779216Z'
+updated_at: '2026-08-01T05:12:08.847374Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -21,17 +21,22 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 5ab5cde2ab072b5c4f07af63d1f20e0931acb6036cfa517d764ef6c88708cd73
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-01T05:11:47.902873+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 98e4aa8f-1cc1-420a-9c72-bc544e284c5d
-  claim_owner: cd8a4634-d8cd-489c-950d-630a9fe1bdff
-  claimed_at: '2026-08-01T05:10:51.505900+00:00'
-  claim_expires_at: '2026-08-01T05:40:51.505900+00:00'
+  evidence: "Focus handoff: duplicate_detector  \nDuplicate preflight verdict: no_duplicate\
+    \  \nMatches: none  \nEvidence: Searched active and terminal task records for\
+    \ xdist, pytest worker termination, node-down, replacement-worker, process-group,\
+    \ and parallel-gate terms. Closest matches were archived OOMPAH-219 and unrelated\
+    \ active OOMPAH-281; neither covers this issue. No files or tracker state were\
+    \ modified."
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 70bd1f7f-beff-4986-9b0d-8fddcaa2b827
+oompah.agent_run_id: a491585b-73cd-4e7b-8a5a-16f264ae4cad
 oompah.task_costs:
   total_input_tokens: 348763
   total_output_tokens: 2085
@@ -48,6 +53,16 @@ oompah.task_costs:
     output_tokens: 2085
     cost_usd: 0.0
     recorded_at: '2026-08-01T05:11:47.900532+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-675__20260801T051057Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: OOMPAH-675
+    source_sha: cde6401136d6561b694b05f81f4337cd26d7a3fe
+    completed_at: '2026-08-01T05:11:47.923643+00:00'
 ---
 ## Summary
 
@@ -80,5 +95,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 54s
 - Log: OOMPAH-675__20260801T051057Z.jsonl
+---
+author: oompah
+created: 2026-08-01 05:12
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-01 05:12
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
