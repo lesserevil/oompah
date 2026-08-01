@@ -125,8 +125,23 @@ After a quarantined result, inspect `make status` and `make logs`, correct the
 deployment problem, and run `make start` to establish the matching candidate
 pair. Do not start an unverified service manually or roll back only the CLI.
 
-For a failed pre-cutover install, after pushing the intended server revision,
-recover with:
+## CLI/server mismatch recovery
+
+If the launcher and running service revision do not match, the `make graceful`
+cutover will automatically repair the launcher to match the running service
+before proceeding. This handles the case where:
+
+1. Service is running at revision A
+2. Launcher was mistakenly installed at revision B (from an advanced checkout)
+3. Checkout is now at revision B (intended upgrade target)
+4. Operator runs `make graceful`
+
+The cutover will detect the mismatch, repair the launcher to revision A (from
+the running service's reported build_id), then proceed with the normal A→B
+upgrade. No temporary remote branches or manual workarounds are needed.
+
+If the launcher is missing or broken, or the repair fails, the cutover will
+print a clear error message. Manual recovery is then:
 
 ```bash
 make install-cli
