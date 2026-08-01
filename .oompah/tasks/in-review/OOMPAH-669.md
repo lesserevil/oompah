@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-669
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Same-head task resubmission must restore Ready to Integrate lifecycle
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T21:52:16.588312Z'
-updated_at: '2026-08-01T00:36:54.678761Z'
+updated_at: '2026-08-01T00:36:57.868012Z'
 work_branch: null
 target_branch: null
 review_url: https://github.com/lesserevil/oompah/pull/631
