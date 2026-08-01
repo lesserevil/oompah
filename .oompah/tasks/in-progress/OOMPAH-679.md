@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T12:05:24.382952Z'
-updated_at: '2026-08-01T14:45:09.697264Z'
+updated_at: '2026-08-01T14:47:20.127882Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -171,5 +171,10 @@ author: oompah
 created: 2026-08-01 14:45
 ---
 Implementation: added generated RunningEntry.run_id and propagated it through get_snapshot/get_issue_detail, activity REST, EventBus, and WebSocket messages. API/ACP activity callbacks and _on_worker_exit now reject superseded run IDs before state mutation/cleanup. Dashboard activity state now tracks run_id plus request generation, clears entries/provider/polling on run changes or ended runs, rejects stale pushes/fetches, and renders empty-focus titles without the old role. Added tests/test_activity_run_identity.py.
+---
+author: oompah
+created: 2026-08-01 14:47
+---
+Verification: focused changed-path suites pass — activity/dashboard 110 passed; WebSocket/EventBus 82 passed; activity identity + candidate/dispatch 81 passed; server auth/WebSocket 128 passed; task handoff 58 passed. Full test_acp_agent.py had 42 passed and 7 environment failures before assertions because its configured agent-log directory is read-only in this sandbox (/home/shedwards/.oompah/agent-logs).
 ---
 <!-- COMMENTS:END -->
