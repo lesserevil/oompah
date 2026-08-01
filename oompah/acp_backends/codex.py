@@ -94,7 +94,11 @@ from oompah.acp_backends.base import (
 )
 from oompah.acp_backends.registry import register_backend
 from oompah.client_auth import agent_environment
-from oompah.task_handoff import TASK_HANDOFF_PROJECT_ENV, TASK_HANDOFF_TOKEN_ENV
+from oompah.task_handoff import (
+    TASK_HANDOFF_PROJECT_ENV,
+    TASK_HANDOFF_TASK_ENV,
+    TASK_HANDOFF_TOKEN_ENV,
+)
 from oompah.agent import AgentEvent
 
 if TYPE_CHECKING:
@@ -785,6 +789,8 @@ class CodexAcpBackendSession(AcpBackendSession):
             cli_env[TASK_HANDOFF_TOKEN_ENV] = self._options.task_handoff_token
             if self._options.project_id:
                 cli_env[TASK_HANDOFF_PROJECT_ENV] = self._options.project_id
+            if self._options.task_identifier:
+                cli_env[TASK_HANDOFF_TASK_ENV] = self._options.task_identifier
         cli_env.pop("CODEX_API_KEY", None)
 
         # Detect git worktrees: the Codex ``workspace-write`` sandbox only

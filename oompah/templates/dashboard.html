@@ -2920,7 +2920,8 @@ function renderRepoHygieneHealth(health) {
  * Render the auth-health banner from the `auth_health` field in the state
  * snapshot.  The banner shows two plane badges (operator / worker) and, when
  * any plane is degraded, expands to show the message and recovery action.
- * When both planes are ok (or the field is absent), the banner stays hidden.
+ * Intentional policy denials remain informational and do not change the
+ * worker badge status.
  *
  * Security: only non-sensitive count/status fields from auth_health are
  * rendered.  Token values, credentials, and Authorization headers are
@@ -2943,9 +2944,12 @@ function renderAuthHealthBanner(authHealth) {
   var wk = authHealth.worker || {};
   var opStatus = op.status || 'ok';
   var wkStatus = wk.status || 'ok';
+  var wkPolicyDenials = wk.policy_denial_count || wk.scope_denial_count || 0;
 
-  // Only show the banner when at least one plane is not healthy.
-  if (opStatus === 'ok' && (wkStatus === 'ok' || wkStatus === 'never_minted')) {
+  // Hide the banner only when there is neither a degraded plane nor useful
+  // informational policy-denial context to show.
+  if (opStatus === 'ok' && (wkStatus === 'ok' || wkStatus === 'never_minted') &&
+      wkPolicyDenials === 0) {
     banner.hidden = true;
     planesEl.innerHTML = '';
     detailsEl.innerHTML = '';
@@ -3001,6 +3005,18 @@ function renderAuthHealthBanner(authHealth) {
       '<code>OOMPAH_TASK_HANDOFF_PROJECT_ID</code> are forwarded to every spawned worker. ' +
       'See <a href="#" onclick="return false;" title="docs/scoped-task-cli-authentication.md">' +
       'scoped-task-cli-authentication.md</a> for the live probe procedure.</div>' +
+      '</li>'
+    );
+  }
+  if (wkPolicyDenials > 0) {
+    items.push(
+      '<li>' +
+      '<div class="ah-message">' + esc(wkPolicyDenials +
+        ' intentional task-policy denial' + (wkPolicyDenials !== 1 ? 's' : '') +
+        ' recorded; worker auth remains healthy.') + '</div>' +
+      '<div class="ah-action">For read-only sibling inspection, use ' +
+      '<code>oompah task coordinate peers &lt;task-id&gt;</code> or ' +
+      '<code>oompah task coordinate inbox &lt;task-id&gt;</code>.</div>' +
       '</li>'
     );
   }

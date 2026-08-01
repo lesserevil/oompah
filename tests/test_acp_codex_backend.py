@@ -1442,15 +1442,21 @@ class TestCodexHandoffAuth:
     ):
         """The Codex CLI subprocess env must contain both the scoped task
         handoff token and its associated project_id when provided."""
-        from oompah.task_handoff import TASK_HANDOFF_PROJECT_ENV, TASK_HANDOFF_TOKEN_ENV
+        from oompah.task_handoff import (
+            TASK_HANDOFF_PROJECT_ENV,
+            TASK_HANDOFF_TASK_ENV,
+            TASK_HANDOFF_TOKEN_ENV,
+        )
 
         cli_env = self._drive_cli(
             monkeypatch,
             project_id="proj-abc",
+            task_identifier="TASK-1",
             task_handoff_token="opaque-handoff-token",
         )
         assert cli_env.get(TASK_HANDOFF_TOKEN_ENV) == "opaque-handoff-token"
         assert cli_env.get(TASK_HANDOFF_PROJECT_ENV) == "proj-abc"
+        assert cli_env.get(TASK_HANDOFF_TASK_ENV) == "TASK-1"
 
     def test_cli_session_strips_operator_creds_when_token_is_present(
         self, monkeypatch

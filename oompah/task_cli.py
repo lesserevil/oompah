@@ -52,6 +52,7 @@ from oompah.client_auth import (
 from oompah.task_handoff import (
     TASK_HANDOFF_HEADER,
     TASK_HANDOFF_PROJECT_ENV,
+    TASK_HANDOFF_TASK_ENV,
     TASK_HANDOFF_TOKEN_ENV,
 )
 
@@ -347,6 +348,9 @@ def _task_handoff_request(
         project_id = _task_handoff_project(payload)
         if project_id:
             payload["project_id"] = project_id
+    assigned_task = os.environ.get(TASK_HANDOFF_TASK_ENV, "").strip()
+    if assigned_task and not payload.get("worker_task_identifier"):
+        payload["worker_task_identifier"] = assigned_task
     payload["action"] = action
     return _http(
         "POST",

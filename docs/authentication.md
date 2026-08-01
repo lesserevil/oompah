@@ -907,6 +907,15 @@ every spawned subprocess environment.
 different project or task identifier.  Verify `OOMPAH_TASK_HANDOFF_PROJECT_ID`
 matches the project of the dispatched task.
 
+**Intentional peer-policy denials:** A running worker that intentionally asks
+for another live task through the scoped handoff route still receives `403`,
+but the server records it as an informational policy event when the assigned
+task identifier and capability match the server's running-entry record. These
+events do not degrade auth health or hold the worker for human reconciliation.
+Use the approved read-only coordination surface instead:
+`oompah task coordinate peers <task-id>` and
+`oompah task coordinate inbox <task-id>`.
+
 **Intentional action denials (403 action):** The worker requested an action
 not included in the capability grant (e.g., a tracker operation not in the
 allowed-actions set).  These are expected least-privilege denials and are

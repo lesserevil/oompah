@@ -64,6 +64,10 @@ except ModuleNotFoundError as exc:  # pragma: no cover - removed when 651 lands
 
 TASK_HANDOFF_TOKEN_ENV = "OOMPAH_TASK_HANDOFF_TOKEN"
 TASK_HANDOFF_PROJECT_ENV = "OOMPAH_TASK_HANDOFF_PROJECT_ID"
+# Non-secret assignment context used only to classify an intentional peer
+# denial in auth-health telemetry. The server verifies it against the live
+# running entry and presented capability before treating a 403 as expected.
+TASK_HANDOFF_TASK_ENV = "OOMPAH_TASK_HANDOFF_TASK_ID"
 TASK_HANDOFF_HEADER = "x-oompah-task-capability"
 # Bind grant lifetime to the owning worker session, not wall-clock TTL.
 # This TTL should be longer than any single worker's expected runtime,
