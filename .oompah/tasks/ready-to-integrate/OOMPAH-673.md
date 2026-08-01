@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T02:34:24.348580Z'
-updated_at: '2026-08-01T02:42:11.245179Z'
+updated_at: '2026-08-01T02:42:34.190902Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,13 +38,13 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 88a64ded-7a4c-4184-8e43-59b838628a0c
 oompah.task_costs:
-  total_input_tokens: 760034
-  total_output_tokens: 3487
+  total_input_tokens: 760356
+  total_output_tokens: 23866
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 760034
-      output_tokens: 3487
+      input_tokens: 760356
+      output_tokens: 23866
       cost_usd: 0.0
   runs:
   - profile: default
@@ -53,6 +53,12 @@ oompah.task_costs:
     output_tokens: 3487
     cost_usd: 0.0
     recorded_at: '2026-08-01T02:36:05.989406+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 322
+    output_tokens: 20379
+    cost_usd: 0.0
+    recorded_at: '2026-08-01T02:42:27.974665+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-673__20260801T023441Z
@@ -63,14 +69,24 @@ oompah.work_contributors:
     source_branch: OOMPAH-673
     source_sha: aceb82319369f1082307d6fc0a2931da03fab608
     completed_at: '2026-08-01T02:36:05.994734+00:00'
+  - run_id: OOMPAH-673__20260801T023626Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: event_api
+    source_branch: OOMPAH-673
+    source_sha: b792568ef85d4b46a2e5607305a3dc3549a95860
+    completed_at: '2026-08-01T02:42:27.978985+00:00'
 oompah.integration:
   version: 2
   state: ready
   attempts: 0
   task_branch: OOMPAH-673
+  base_branch: main
+  base_sha: aceb82319369f1082307d6fc0a2931da03fab608
   head_sha: b792568ef85d4b46a2e5607305a3dc3549a95860
   submitted_at: '2026-08-01T02:42:07.028732+00:00'
-  updated_at: '2026-08-01T02:42:07.028732+00:00'
+  updated_at: '2026-08-01T02:42:33.407583+00:00'
 ---
 ## Summary
 
@@ -168,5 +184,20 @@ author: oompah
 created: 2026-08-01 02:42
 ---
 Implemented automatic CLI/server mismatch recovery during graceful cutover. Added --running-revision parameter to sync_canonical_cli.py for recovery mode installation. Modified canonical_cli_cutover.py to detect mismatch and auto-repair from running service revision via API. Bounded recovery with no temporary branches required. 50 tests pass including 7 new recovery scenario tests. Documentation updated.
+---
+author: oompah
+created: 2026-08-01 02:42
+---
+Agent completed successfully in 368s (20701 tokens)
+---
+author: oompah
+created: 2026-08-01 02:42
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 89, Tool calls: 41
+- Tokens: 322 in / 20.4K out [20.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 6m 8s
+- Log: OOMPAH-673__20260801T023626Z.jsonl
 ---
 <!-- COMMENTS:END -->
