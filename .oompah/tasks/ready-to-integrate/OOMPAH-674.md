@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-674
 type: bug
-status: In Review
+status: Ready to Integrate
 priority: 1
 title: Include authenticated state in dashboard WebSocket bootstrap
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T04:42:35.189136Z'
-updated_at: '2026-08-01T04:59:23.548668Z'
+updated_at: '2026-08-01T04:59:41.876861Z'
 work_branch: OOMPAH-674
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/637
@@ -82,10 +82,9 @@ oompah.integration:
   attempts: 0
   task_branch: OOMPAH-674
   base_branch: main
-  base_sha: f64c1c9b35d46b4028d323697eb75287f60d04a7
-  head_sha: 15eea17a142a79a33d69464d6e6c608c23e1eac4
-  submitted_at: '2026-08-01T04:51:55.470195+00:00'
-  updated_at: '2026-08-01T04:52:13.113541+00:00'
+  head_sha: 939abfda0d393cd98d95b61a71fb92df7ea740d0
+  submitted_at: '2026-08-01T04:59:38.274093+00:00'
+  updated_at: '2026-08-01T04:59:38.274093+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/637
 oompah.review_number: '637'
 oompah.work_branch: OOMPAH-674
@@ -246,5 +245,10 @@ author: oompah
 created: 2026-08-01 04:59
 ---
 Branch quality gate passed for `15eea17a142a79a33d69464d6e6c608c23e1eac4` using `make test` in 399.0s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-01 04:59
+---
+Centralized redacted state enrichment across REST and every WebSocket state path so authenticated dashboards no longer send mismatched actor identities. Added bootstrap, refresh, redaction, backward-compatibility, and scheduler-broadcast regression coverage; 161 focused tests pass. The configured four-worker full gate separately reproduced an existing xdist worker-replacement failure unrelated to this patch.
 ---
 <!-- COMMENTS:END -->
