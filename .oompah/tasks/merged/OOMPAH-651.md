@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-651
 type: bug
-status: In Validation
+status: Merged
 priority: 0
 title: Redact secrets from agent tool inputs, outputs, and JSONL event logs
 parent: null
@@ -19,7 +19,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-08-01T00:21:26.113120Z'
+updated_at: '2026-08-01T00:24:46.325445Z'
 work_branch: OOMPAH-651
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/630
@@ -266,6 +266,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-cf516fe05da3: '2026-08-01T00:20:52.173711+00:00'
+    attempt-38daae4c66fe: '2026-08-01T00:24:43.156292+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-651
@@ -276,6 +277,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-01T00:20:52.173720+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-651
+    target_state: Merged
+    evidence_fingerprint: 6c4b3b2fd3745a53f9ce4a45bbb3ca017726449e46c918c5d62cb7c2ad39f56b
+    audit_ids:
+    - audit-5f488e748a5c
+    kind: result
+    applied: true
+    retired_at: '2026-08-01T00:24:43.156305+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-651
@@ -289,6 +299,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-01T00:20:52.173731+00:00'
     applied_at: '2026-08-01T00:20:55.538664+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-651
+    audit_id: audit-5f488e748a5c
+    attempt_id: attempt-38daae4c66fe
+    target_state: Merged
+    evidence_fingerprint: 6c4b3b2fd3745a53f9ce4a45bbb3ca017726449e46c918c5d62cb7c2ad39f56b
+    status: Merged
+    audit_ids:
+    - audit-5f488e748a5c
+    applied: false
+    created_at: '2026-08-01T00:24:43.156320+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -330,7 +351,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-651
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -339,7 +360,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-38daae4c66fe
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -349,13 +370,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-01T00:21:20.309156+00:00'
       branch_key: OOMPAH-651
+      verdict: pass
+      completed_at: '2026-08-01T00:24:43.156171+00:00'
+      ended_at: '2026-08-01T00:24:43.156171+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-01T00:15:11.881745+00:00'
-    updated_at: '2026-08-01T00:21:20.309156+00:00'
+    updated_at: '2026-08-01T00:24:43.156171+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-cf516fe05da3
@@ -1638,5 +1662,23 @@ author: oompah
 created: 2026-08-01 00:21
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-01 00:24
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- submitted_head: 62328ae2881b05346ed02c0bef2a25cd57380567
+- merge_commit: 72f8e7061ab5a6ae37b08b23c9e75190cf746a87
+- pr_number: 630
+- branch_contains_check: origin/main contains submitted head (git branch -r --contains)
+- [REDACTED-credential-key]: clean exit 0
+- focused_test_task_handoff: 58 pass
+- focused_test_client_auth: 79 pass
+- runbook_present: docs/secret-redaction-and-rotation.md present
+- full_gate_prior_run: make test passed in 400.4s (branch quality gate comment 2026-08-01 00:06)
 ---
 <!-- COMMENTS:END -->
