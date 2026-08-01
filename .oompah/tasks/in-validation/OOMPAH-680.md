@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-680
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Use project forge credentials for all managed Git network operations
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T17:31:44.735248Z'
-updated_at: '2026-08-01T18:22:14.299399Z'
+updated_at: '2026-08-01T18:30:34.624290Z'
 work_branch: OOMPAH-680
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/643
@@ -87,6 +87,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/643
 oompah.review_number: '643'
 oompah.work_branch: OOMPAH-680
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-991084691511
+    project_id: proj-14849f1b
+    task_id: OOMPAH-680
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 544d20e1f855d7ef1a5e45f47e0ac5c92b1122b1a6bedb07a3af93eda11154b9
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-01T18:30:29.250095+00:00'
+  - version: 1
+    audit_id: audit-e479b83291f7
+    project_id: proj-14849f1b
+    task_id: OOMPAH-680
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 544d20e1f855d7ef1a5e45f47e0ac5c92b1122b1a6bedb07a3af93eda11154b9
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-01T18:30:29.250095+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -319,5 +358,15 @@ author: oompah
 created: 2026-08-01 18:21
 ---
 Branch quality gate passed for `fd8f961459742e42427b9e5c80b73cdda894c625` using `make test` in 402.8s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-01 18:30
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-01 18:30
+---
+YOLO: merged PR #643.
 ---
 <!-- COMMENTS:END -->
