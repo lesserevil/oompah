@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-441
 type: task
-status: Needs Human
+status: Archived
 priority: null
 title: Resolve shared epic parent lookup for review gates
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-25T01:59:58.245991Z'
-updated_at: '2026-08-01T02:18:37.255677Z'
+updated_at: '2026-08-01T02:23:54.894872Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -73,6 +73,27 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-01T02:18:15.510946+00:00'
     applied_at: '2026-08-01T02:18:18.700403+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-64d32afa2a10
+    project_id: proj-14849f1b
+    task_id: OOMPAH-441
+    target_state: Archived
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7f53ea68b15d7a2b32d8d0930e1653cc55c483e9ff204f44f607a80781951ecd
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Direct project-owner evidence reconciliation: implementation commit 05dbe67cc2a7b156cd783c3dcfc8eca56b82fdc6
+      is an ancestor of origin/main. It changes oompah/orchestrator.py to preserve
+      project_id during branch-to-task resolution and adds TestResolveTaskForBranchProjectContext
+      covering EXOCOMP-29 / PR #10 and the shared-epic YOLO gate. The implementation
+      record reports 187 focused tests and full make test; current main CI is green.'
+    created_at: '2026-08-01T02:23:51.734463+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -80,7 +101,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-441
     target_state: Archived
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -110,6 +131,23 @@ oompah.terminal_audit:
     previous_state: Merged
     created_at: '2026-08-01T02:12:11.420321+00:00'
     updated_at: '2026-08-01T02:18:15.510659+00:00'
+  - version: 1
+    audit_id: audit-3ab886e6a2a4
+    project_id: proj-14849f1b
+    task_id: OOMPAH-441
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7f53ea68b15d7a2b32d8d0930e1653cc55c483e9ff204f44f607a80781951ecd
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: Needs Human
+    created_at: '2026-08-01T02:23:46.419368+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-551cefcbccdd
@@ -281,5 +319,17 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 5m 59s
 - Log: OOMPAH-441__20260801T021240Z.jsonl
+---
+author: oompah
+created: 2026-08-01 02:23
+---
+Re-evaluation evidence: implementation commit 05dbe67cc2a7b156cd783c3dcfc8eca56b82fdc6 is on main; it preserves project context in branch resolution and adds the EXOCOMP-29 / PR #10 shared-epic gate regression. Historical focused and full gates passed; current main CI is green.
+---
+author: oompah
+created: 2026-08-01 02:23
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Direct project-owner evidence reconciliation: implementation commit 05dbe67cc2a7b156cd783c3dcfc8eca56b82fdc6 is an ancestor of origin/main. It changes oompah/orchestrator.py to preserve project_id during branch-to-task resolution and adds TestResolveTaskForBranchProjectContext covering EXOCOMP-29 / PR #10 and the shared-epic YOLO gate. The implementation record reports 187 focused tests and full make test; current main CI is green.
 ---
 <!-- COMMENTS:END -->
