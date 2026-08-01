@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T12:01:06.107132Z'
-updated_at: '2026-08-01T14:35:30.750904Z'
+updated_at: '2026-08-01T14:42:37.334491Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -134,5 +134,10 @@ author: oompah
 created: 2026-08-01 14:35
 ---
 Discovery: api_task_handoff currently sends every scope-validation 403 to record_worker_403_scope(), and the dashboard treats that counter as degraded. RunningEntry already stores the server-owned task_handoff_token, but spawned requests carry only token/project. The fix will propagate a non-secret assigned-task identifier, verify it against the live running entry and presented token, count verified peer denials as informational policy events, and retain degraded health for mismatched-token/unknown-scope cases.
+---
+author: oompah
+created: 2026-08-01 14:42
+---
+Implementation: added verified live-peer scope classification in api_task_handoff. Spawned CLI/ACP workers now carry non-secret OOMPAH_TASK_HANDOFF_TASK_ID; the server matches it to the live RunningEntry token before recording a peer 403 as policy_denial_count. Expected denials remain HTTP 403, skip worker-failure reconciliation, and direct read-only inspection to coordinate peers/inbox. Genuine copied-token, missing-token, expired, revoked, and unknown-scope cases retain actionable auth counters. Dashboard/docs/tests were updated.
 ---
 <!-- COMMENTS:END -->
