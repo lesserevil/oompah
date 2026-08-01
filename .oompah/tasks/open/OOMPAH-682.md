@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-682
 type: task
-status: In Validation
+status: Open
 priority: null
 title: Make duplicate-preflight recovery authoritative and self-sufficient
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T18:07:47.349822Z'
-updated_at: '2026-08-01T19:40:50.335020Z'
+updated_at: '2026-08-01T19:48:34.282515Z'
 work_branch: OOMPAH-682
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/645
@@ -89,6 +89,31 @@ oompah.work_branch: OOMPAH-682
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-f119a532f4e9: '2026-08-01T19:48:30.143929+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-682
+    target_state: Done
+    evidence_fingerprint: 3baa534ed07547f1dad2d377b69c119e951fe10f057eb9511fe63613c7b6ee7f
+    audit_ids:
+    - audit-1349157c443b
+    kind: result
+    applied: true
+    retired_at: '2026-08-01T19:48:30.143943+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-682
+    audit_id: audit-1349157c443b
+    attempt_id: attempt-f119a532f4e9
+    target_state: Done
+    evidence_fingerprint: 3baa534ed07547f1dad2d377b69c119e951fe10f057eb9511fe63613c7b6ee7f
+    status: Open
+    audit_ids:
+    - audit-1349157c443b
+    applied: true
+    created_at: '2026-08-01T19:48:30.143960+00:00'
+    applied_at: '2026-08-01T19:48:33.345212+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -96,7 +121,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-682
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -105,7 +130,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-f119a532f4e9
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -115,13 +140,17 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-01T19:40:45.875411+00:00'
       branch_key: OOMPAH-682
+      verdict: fail
+      failure_classification: incomplete
+      completed_at: '2026-08-01T19:48:30.143823+00:00'
+      ended_at: '2026-08-01T19:48:30.143823+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-01T19:40:31.840981+00:00'
-    updated_at: '2026-08-01T19:40:45.875411+00:00'
+    updated_at: '2026-08-01T19:48:30.143823+00:00'
   - version: 1
     audit_id: audit-89e1fed5fe91
     project_id: proj-14849f1b
@@ -331,5 +360,12 @@ author: oompah
 created: 2026-08-01 19:40
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-01 19:48
+---
+Audit FAIL — incomplete. Routing task to Open.
+
+[REDACTED]
 ---
 <!-- COMMENTS:END -->
