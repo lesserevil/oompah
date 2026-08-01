@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+from importlib import metadata
 import json
 import logging
 import os
@@ -19,6 +20,7 @@ from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from pathlib import Path, PurePosixPath
 from typing import Callable
+from urllib.parse import unquote, urlparse
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +32,90 @@ _SANDBOX_RUN_ROOT = Path("/oompah-gate")
 
 class _SandboxUnavailable(RuntimeError):
     """Raised when the operator cannot create the required OS boundary."""
+
+
+class _TrustedRuntimeCorruption(RuntimeError):
+    """Raised when the operator's installed source mapping is not trusted."""
+
+
+def _declared_editable_oompah_source() -> Path | None:
+    """Return the declared local source of the trusted editable install.
+
+    The source is read from the trusted interpreter's distribution metadata,
+    not from candidate files.  A missing source directory is returned as a
+    path too, allowing the gate to distinguish a poisoned mapping from a
+    package that was installed non-editably.
+    """
+    try:
+        direct_url = metadata.distribution("oompah").read_text("direct_url.json")
+    except (metadata.PackageNotFoundError, OSError):
+        return None
+    if not direct_url:
+        return None
+    try:
+        install_metadata = json.loads(direct_url)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(install_metadata, dict):
+        return None
+    directory_info = install_metadata.get("dir_info")
+    if not isinstance(directory_info, dict) or directory_info.get("editable") is not True:
+        return None
+    source_url = install_metadata.get("url")
+    if not isinstance(source_url, str):
+        return None
+    try:
+        parsed = urlparse(source_url)
+    except ValueError:
+        return None
+    if parsed.scheme != "file" or parsed.netloc not in {"", "localhost"}:
+        return None
+    try:
+        return Path(unquote(parsed.path)).resolve(strict=False)
+    except OSError:
+        return None
+
+
+def _editable_oompah_source() -> Path | None:
+    """Return an existing local editable source, for runtime projection."""
+    source = _declared_editable_oompah_source()
+    return source if source is not None and source.is_dir() else None
+
+
+def _validate_trusted_runtime_source(
+    runtime_prefix: Path,
+    candidate_snapshot: Path,
+) -> Path | None:
+    """Validate the editable source visible to the trusted runtime.
+
+    A normal operator install maps ``<service-checkout>/.venv`` back to its
+    sibling checkout (or another deployed package checkout when the venv is
+    stored separately).  The only other acceptable mapping is the immutable
+    snapshot itself, useful when a gate is deliberately launched from a
+    candidate-projected runtime.  Any other worktree indicates that a task
+    setup command rewrote the service environment, so fail as executor
+    corruption before candidate code runs.
+    """
+    actual = _declared_editable_oompah_source()
+    if actual is None:
+        return None
+    expected_roots = {
+        runtime_prefix.parent.resolve(strict=False),
+        # In a normal service process this is the deployed package checkout.
+        # Keeping it as an allowed root also makes the check correct when the
+        # operator stores the venv outside the checkout.
+        Path(__file__).resolve().parent.parent,
+    }
+    candidate = candidate_snapshot.resolve(strict=False)
+    if actual not in expected_roots | {candidate}:
+        raise _TrustedRuntimeCorruption(
+            "trusted editable source mapping is inconsistent: "
+            f"expected one of {sorted(str(path) for path in expected_roots)} "
+            f"or immutable candidate {candidate}; "
+            f"actual {actual}. Repair or replace the service test runtime "
+            "before rerunning the branch gate."
+        )
+    return actual
 
 
 @dataclass(frozen=True)
@@ -739,6 +825,15 @@ class BranchQualityGate:
         runtime_binds: list[str] = []
         runtime_prefix = Path(sys.prefix).resolve()
         runtime_python = runtime_prefix / "bin" / "python"
+        if not runtime_python.exists():
+            raise _TrustedRuntimeCorruption(
+                "trusted quality-gate Python is unavailable at "
+                f"{runtime_python}; replace the operator test runtime before "
+                "rerunning the branch gate."
+            )
+        declared_editable_source = _validate_trusted_runtime_source(
+            runtime_prefix, repo
+        )
         if runtime_python.exists():
             add_destination(repo / ".venv")
             base_prefix = Path(sys.base_prefix).resolve()
@@ -767,6 +862,24 @@ class BranchQualityGate:
                         "--ro-bind",
                         str(runtime_prefix),
                         str(runtime_prefix),
+                    ]
+                )
+            # An editable install may point at a deployed checkout stored
+            # separately from the venv.  Project that declared source to the
+            # immutable candidate too, so console scripts cannot import an
+            # older service/task checkout.  The source mapping was validated
+            # above before this bind is constructed.
+            editable_source = _editable_oompah_source() or declared_editable_source
+            if editable_source and editable_source not in {
+                runtime_checkout,
+                repo,
+            }:
+                add_destination(editable_source)
+                runtime_binds.extend(
+                    [
+                        "--bind",
+                        str(repo),
+                        str(editable_source),
                     ]
                 )
             runtime_binds.extend(
@@ -1170,6 +1283,16 @@ class BranchQualityGate:
                         command,
                         str(snapshot),
                         run_root,
+                    )
+                except _TrustedRuntimeCorruption as exc:
+                    return QualityGateResult(
+                        status="infrastructure_error",
+                        head_sha=head_sha,
+                        command=command,
+                        output_tail=(
+                            "Trusted quality-gate runtime corruption detected; "
+                            f"candidate CI was not run: {exc}"
+                        ),
                     )
                 except _SandboxUnavailable as exc:
                     return QualityGateResult(

@@ -356,7 +356,10 @@ class AgentSession:
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                env=agent_environment({**os.environ, **self.env}),
+                env=agent_environment(
+                    {**os.environ, **self.env},
+                    workspace_path=self.workspace_path,
+                ),
                 start_new_session=(os.name == "posix"),
             )
         except FileNotFoundError:

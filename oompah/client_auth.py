@@ -75,6 +75,39 @@ CLIENT_AUTH_ENV_VARS = frozenset(
 # removed them from a spawned worker's inherited environment.
 CLIENT_AUTH_DISABLED_ENV = "OOMPAH_DISABLE_CLIENT_AUTH"
 
+# A service process commonly has an active virtual environment in its own
+# checkout.  Passing that environment through to a task worker lets uv select
+# the service venv even when the worker is operating in another worktree.  Keep
+# these selectors out of worker processes; Make receives an explicit,
+# worktree-private environment path below instead.
+TASK_VENV_ENV = "OOMPAH_TASK_VENV"
+_WORKER_RUNTIME_SELECTOR_ENV_VARS = frozenset(
+    {
+        "VIRTUAL_ENV",
+        "UV_PROJECT_ENVIRONMENT",
+        "UV_PYTHON",
+        "PYTHONHOME",
+        "PYTHONPATH",
+        "PYTHONUSERBASE",
+        "CONDA_PREFIX",
+        "CONDA_DEFAULT_ENV",
+        "PIPENV_ACTIVE",
+        "PIP_TARGET",
+        "PIP_PREFIX",
+    }
+)
+
+
+def task_venv_path(workspace_path: str | os.PathLike[str]) -> str:
+    """Return the disposable dependency environment for one task worktree.
+
+    The path is intentionally below the task checkout.  It is ignored by the
+    repository's ``.oompah/*`` rules, unique per managed worktree, and never
+    aliases the operator/service virtual environment.
+    """
+    workspace = Path(workspace_path).resolve()
+    return str(workspace / ".oompah" / "task-venv")
+
 
 def _parse_dotenv_value(raw: str) -> str:
     """Parse the small, dependency-free .env subset needed by CLI clients."""
@@ -779,18 +812,29 @@ def resolve_client_credentials(
     return ClientCredentials(username=username, password=resolved_password)
 
 
-def agent_environment(base_env: Mapping[str, str] | None = None) -> dict[str, str]:
+def agent_environment(
+    base_env: Mapping[str, str] | None = None,
+    *,
+    workspace_path: str | os.PathLike[str] | None = None,
+) -> dict[str, str]:
     """Return an environment safe to pass to an agent subprocess.
 
     The server may itself be started from a shell that exports client Basic
     auth variables for ``make`` or a CLI.  Copy the supplied environment and
     remove those client-only values before an agent process can inherit them.
     ``OOMPAH_SERVER_URL`` is intentionally retained because it is a locator,
-    not a credential, and existing agent workflows may use it.
+    not a credential, and existing agent workflows may use it.  When a task
+    workspace is supplied, runtime selectors from the service process are
+    removed and replaced with a worktree-private venv path so dependency
+    setup cannot rewrite the service environment.
     """
     environment = dict(os.environ if base_env is None else base_env)
     for key in CLIENT_AUTH_ENV_VARS:
         environment.pop(key, None)
+    for key in _WORKER_RUNTIME_SELECTOR_ENV_VARS:
+        environment.pop(key, None)
+    if workspace_path is not None:
+        environment[TASK_VENV_ENV] = task_venv_path(workspace_path)
     environment[CLIENT_AUTH_DISABLED_ENV] = "1"
     return environment
 
@@ -820,4 +864,3 @@ def format_auth_error(server_url: str) -> str:
         "or OOMPAH_SERVER_PASSWORD to authenticate against the oompah server.\n"
         "Verify that the credentials match the server's htpasswd configuration."
     )
-

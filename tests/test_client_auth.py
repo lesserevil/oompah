@@ -35,6 +35,7 @@ import pytest
 
 from oompah.client_auth import (
     CLIENT_AUTH_DISABLED_ENV,
+    TASK_VENV_ENV,
     ClientCredentials,
     CredentialError,
     _check_password_file_permissions,
@@ -44,6 +45,7 @@ from oompah.client_auth import (
     load_client_environment,
     resolve_client_credentials,
     sanitize_server_url,
+    task_venv_path,
 )
 
 
@@ -751,6 +753,32 @@ class TestEndToEnd:
             "OOMPAH_SERVER_URL": "http://127.0.0.1:8080",
             CLIENT_AUTH_DISABLED_ENV: "1",
         }
+
+    def test_agent_environment_selects_private_task_venv(self, tmp_path):
+        """Worker setup cannot inherit or overwrite the service venv."""
+        service_venv = str(tmp_path / "service" / ".venv")
+        clean = agent_environment(
+            {
+                "PATH": "/bin",
+                "VIRTUAL_ENV": service_venv,
+                "UV_PROJECT_ENVIRONMENT": service_venv,
+                "PYTHONPATH": str(tmp_path / "service"),
+                "PYTHONHOME": str(tmp_path / "python"),
+                "OOMPAH_SERVER_URL": "http://127.0.0.1:8080",
+            },
+            workspace_path=tmp_path / "task-worktree",
+        )
+
+        assert clean[TASK_VENV_ENV] == task_venv_path(tmp_path / "task-worktree")
+        assert all(
+            key not in clean
+            for key in (
+                "VIRTUAL_ENV",
+                "UV_PROJECT_ENVIRONMENT",
+                "PYTHONPATH",
+                "PYTHONHOME",
+            )
+        )
 
 
 class TestCurrentClientEnvironment:

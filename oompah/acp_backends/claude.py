@@ -360,7 +360,8 @@ class ClaudeAcpBackendSession(AcpBackendSession):
 
         # Compose the env we want claude to see.
         agent_env = agent_environment(
-            {**os.environ, **(self._options.env or {})}
+            {**os.environ, **(self._options.env or {})},
+            workspace_path=self._options.workspace_path,
         )
         if self._options.task_handoff_token and self._options.task_identifier:
             agent_env[TASK_HANDOFF_TASK_ENV] = self._options.task_identifier
