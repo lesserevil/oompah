@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-681
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Reject interactive Git commands before they can deadlock worker slots
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T17:34:02.400338Z'
-updated_at: '2026-08-01T19:16:14.393464Z'
+updated_at: '2026-08-01T19:24:38.432696Z'
 work_branch: OOMPAH-681
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/644
@@ -111,6 +111,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/644
 oompah.review_number: '644'
 oompah.work_branch: OOMPAH-681
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-354aebe6da20
+    project_id: proj-14849f1b
+    task_id: OOMPAH-681
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 1fdb3119ec60fa6e0f79941acdb979e50adeff98c09aaed1391181b92323dd3d
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-01T19:24:33.187545+00:00'
+  - version: 1
+    audit_id: audit-7192ec116636
+    project_id: proj-14849f1b
+    task_id: OOMPAH-681
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 1fdb3119ec60fa6e0f79941acdb979e50adeff98c09aaed1391181b92323dd3d
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-01T19:24:33.187545+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -272,5 +311,15 @@ author: oompah
 created: 2026-08-01 19:15
 ---
 Branch quality gate passed for `5f555e4194a01a2686d7f71f83a411ed207f285c` using `make test` in 422.5s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-01 19:24
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-01 19:24
+---
+YOLO: merged PR #644.
 ---
 <!-- COMMENTS:END -->
