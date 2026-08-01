@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T04:42:35.189136Z'
-updated_at: '2026-08-01T04:51:59.506209Z'
+updated_at: '2026-08-01T04:52:13.907254Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,13 +37,13 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: ca12a5d3-6dc7-4666-b490-7289e979dd91
 oompah.task_costs:
-  total_input_tokens: 1459760
-  total_output_tokens: 5743
+  total_input_tokens: 1460250
+  total_output_tokens: 24777
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 1459760
-      output_tokens: 5743
+      input_tokens: 1460250
+      output_tokens: 24777
       cost_usd: 0.0
   runs:
   - profile: default
@@ -52,6 +52,12 @@ oompah.task_costs:
     output_tokens: 5743
     cost_usd: 0.0
     recorded_at: '2026-08-01T04:46:09.787965+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 490
+    output_tokens: 19034
+    cost_usd: 0.0
+    recorded_at: '2026-08-01T04:52:07.777103+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-674__20260801T044338Z
@@ -62,14 +68,24 @@ oompah.work_contributors:
     source_branch: OOMPAH-674
     source_sha: f64c1c9b35d46b4028d323697eb75287f60d04a7
     completed_at: '2026-08-01T04:46:09.867194+00:00'
+  - run_id: OOMPAH-674__20260801T044626Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: event_api
+    source_branch: OOMPAH-674
+    source_sha: 15eea17a142a79a33d69464d6e6c608c23e1eac4
+    completed_at: '2026-08-01T04:52:07.781733+00:00'
 oompah.integration:
   version: 2
   state: ready
   attempts: 0
   task_branch: OOMPAH-674
+  base_branch: main
+  base_sha: f64c1c9b35d46b4028d323697eb75287f60d04a7
   head_sha: 15eea17a142a79a33d69464d6e6c608c23e1eac4
   submitted_at: '2026-08-01T04:51:55.470195+00:00'
-  updated_at: '2026-08-01T04:51:55.470195+00:00'
+  updated_at: '2026-08-01T04:52:13.113541+00:00'
 ---
 ## Summary
 
@@ -206,5 +222,20 @@ author: oompah
 created: 2026-08-01 04:51
 ---
 Implemented centralized state snapshot enrichment for WebSocket and REST endpoints. WebSocket bootstrap now includes authenticated state (http_auth.enabled) matching REST behavior. Fixes actor_mismatch errors in authenticated dashboards. All 119 tests passing including 14 new regression tests for WebSocket authentication bootstrap.
+---
+author: oompah
+created: 2026-08-01 04:52
+---
+Agent completed successfully in 345s (19524 tokens)
+---
+author: oompah
+created: 2026-08-01 04:52
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 155, Tool calls: 60
+- Tokens: 490 in / 19.0K out [19.5K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 5m 45s
+- Log: OOMPAH-674__20260801T044626Z.jsonl
 ---
 <!-- COMMENTS:END -->
