@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T21:41:35.163259Z'
-updated_at: '2026-08-01T21:53:35.777472Z'
+updated_at: '2026-08-01T21:59:18.750718Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -138,5 +138,10 @@ author: oompah
 created: 2026-08-01 21:53
 ---
 Discovery: recovery is concentrated in ProjectStore._preserve_dirty_worktree_locked() and _prepare_existing_worktree(). It stages via git add --all with an exclusion pathspec, requires symbolic-ref HEAD, and therefore rejects the detached HEAD Git intentionally uses during a paused rebase. Generated-hook filtering is ad hoc and submission cleanliness still sees helpers. I will centralize helper filtering/removal, stage only enumerated deliverable paths, checkpoint active operation state without mutating rebase metadata/index beyond legitimate staging, and fence late termination cleanup on the original RunningEntry.
+---
+author: oompah
+created: 2026-08-01 21:59
+---
+Implementation: recovery now enumerates changed paths and calls git add only for deliverable paths, excluding the .oompah-* generated-helper namespace; helper removal is delayed until the recovery ref is durable. Paused rebase/merge/cherry-pick/sequencer state is inspected read-only, and active operations get a commit-tree checkpoint preserving branch identity, detached HEAD, staged tree, and bounded todo/operation metadata without advancing or aborting Git's operation. Submission checks remove generated helpers before porcelain status, and forced termination skips snapshot/cleanup when a newer worker entry has taken ownership.
 ---
 <!-- COMMENTS:END -->
