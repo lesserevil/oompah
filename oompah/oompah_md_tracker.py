@@ -2091,26 +2091,34 @@ class OompahMarkdownTracker:
             and args[0] in ("push", "fetch", "ls-remote")
         )
 
-        env = None
-        if is_network_op and self._access_token:
-            # Use ephemeral credential environment for network operations.
-            # The context manager creates a temp GIT_ASKPASS script and sets
-            # credential env vars, then cleans up after the subprocess exits.
-            with git_credential_environment(
-                forge_kind=self._forge_kind,
-                access_token=self._access_token,
-            ) as credential_env:
-                env = credential_env
-
+        # Run git command, optionally with credential environment for network ops.
+        result: subprocess.CompletedProcess[str]
         try:
-            result = subprocess.run(
-                ["git", *args],
-                cwd=effective_cwd,
-                capture_output=True,
-                text=True,
-                timeout=60,
-                env=env,
-            )
+            if is_network_op and self._access_token:
+                # Use ephemeral credential environment for network operations.
+                # The context manager creates a temp GIT_ASKPASS script and sets
+                # credential env vars, then cleans up after the subprocess exits.
+                with git_credential_environment(
+                    forge_kind=self._forge_kind,
+                    access_token=self._access_token,
+                ) as credential_env:
+                    result = subprocess.run(
+                        ["git", *args],
+                        cwd=effective_cwd,
+                        capture_output=True,
+                        text=True,
+                        timeout=60,
+                        env=credential_env,
+                    )
+            else:
+                # No credentials needed (or no token configured) — use default env
+                result = subprocess.run(
+                    ["git", *args],
+                    cwd=effective_cwd,
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
+                )
         except subprocess.TimeoutExpired:
             raise TrackerError(
                 f"git {' '.join(args[:2])} timed out after 60s"
