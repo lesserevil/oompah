@@ -192,6 +192,38 @@ def test_integration_git_subprocess_inherits_ephemeral_project_credentials(
     assert "integration-token" not in result.stderr
 
 
+def test_failed_authenticated_clone_removes_partial_checkout(tmp_path: Path) -> None:
+    store = ProjectStore(
+        path=str(tmp_path / "projects.json"),
+        repos_root=str(tmp_path / "repos"),
+        worktree_root=str(tmp_path / "worktrees"),
+    )
+    with patch.object(
+        store,
+        "_run_network_git",
+        return_value=subprocess.CompletedProcess(
+            ["git", "clone"],
+            128,
+            "",
+            "fatal: authentication failed",
+        ),
+    ):
+        try:
+            store.create(
+                "https://gitlab.example/acme/repo.git",
+                name="repo",
+                access_token="fixture-token",
+                forge_kind="gitlab",
+                git_user_name="Agent",
+                git_user_email="agent@example.test",
+            )
+        except Exception as exc:
+            assert "fixture-token" not in str(exc)
+        else:  # pragma: no cover - the failed clone must raise
+            raise AssertionError("failed clone unexpectedly succeeded")
+    assert not (tmp_path / "repos" / "repo").exists()
+
+
 def test_project_credentials_do_not_cross_concurrent_network_calls(
     tmp_path: Path,
 ) -> None:

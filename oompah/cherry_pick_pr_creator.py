@@ -48,6 +48,7 @@ import re
 import subprocess
 from typing import TYPE_CHECKING, Any
 
+from oompah.git_credentials import git_credential_environment, redact_git_output
 from oompah.git_noninteractive import NONINTERACTIVE_GIT_ENV
 from oompah.release_pick_schema import BackportEntry, ReleasePick
 from oompah.statuses import IN_REVIEW, NEEDS_REBASE
@@ -335,7 +336,13 @@ def apply_cherry_pick(wt_path: str, commits: list[str]) -> None:
     )
 
 
-def push_branch(wt_path: str, branch_name: str) -> None:
+def push_branch(
+    wt_path: str,
+    branch_name: str,
+    *,
+    access_token: str | None = None,
+    forge_kind: str = "github",
+) -> None:
     """Push *branch_name* to ``origin`` from the worktree at *wt_path*.
 
     Uses ``-u`` to set the upstream tracking reference so subsequent
@@ -349,15 +356,30 @@ def push_branch(wt_path: str, branch_name: str) -> None:
     Raises:
         subprocess.CalledProcessError: When ``git push`` exits non-zero.
     """
-    subprocess.run(
-        ["git", "push", "-u", "--force-with-lease", "origin", branch_name],
-        cwd=wt_path,
-        capture_output=True,
-        text=True,
-        check=True,
-        timeout=_GIT_TIMEOUT,
-        env=_git_env(),
-    )
+    command = ["git", "push", "-u", "--force-with-lease", "origin", branch_name]
+    with git_credential_environment(
+        forge_kind=forge_kind,
+        access_token=access_token,
+        base_env=_git_env(),
+    ) as env:
+        try:
+            result = subprocess.run(
+                command,
+                cwd=wt_path,
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=_GIT_TIMEOUT,
+                env=env,
+            )
+        except subprocess.CalledProcessError as exc:
+            # CalledProcessError may retain captured forge output; redact it
+            # before it reaches the reconciler or its logs.
+            exc.stdout = redact_git_output(exc.stdout, (access_token or "",))
+            exc.stderr = redact_git_output(exc.stderr, (access_token or "",))
+            raise
+    result.stdout = redact_git_output(result.stdout, (access_token or "",))
+    result.stderr = redact_git_output(result.stderr, (access_token or "",))
     logger.info(
         "push_branch: pushed %s from %s to origin",
         branch_name,
@@ -602,7 +624,20 @@ def cherry_pick_push_and_open_pr(
     # ------------------------------------------------------------------
     # Step 2: Push the child branch
     # ------------------------------------------------------------------
-    push_branch(wt_path, branch_name)
+    project = project_store.get(project_id)
+    project_token = getattr(project, "access_token", None)
+    project_forge = getattr(project, "forge_kind", "github")
+    if not isinstance(project_token, str):
+        project_token = None
+    if not isinstance(project_forge, str):
+        project_forge = "github"
+    push_kwargs: dict[str, str] = {}
+    if project_token or project_forge != "github":
+        push_kwargs = {
+            "access_token": project_token or "",
+            "forge_kind": project_forge,
+        }
+    push_branch(wt_path, branch_name, **push_kwargs)
 
     # ------------------------------------------------------------------
     # Step 3: Open the PR via SCM

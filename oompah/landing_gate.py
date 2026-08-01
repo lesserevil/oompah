@@ -174,9 +174,14 @@ def check_landing_gate(
         r.stderr = redact_git_output(r.stderr, (access_token or "",))
         branch_on_origin = bool(r.stdout.strip())
     except (subprocess.TimeoutExpired, OSError) as exc:
-        result.error = f"git ls-remote failed: {exc}"
-        logger.warning("landing_gate: %s for %s: %s", branch, issue.identifier, exc)
-        result.skip_reason = f"git ls-remote error: {exc}"
+        result.error = f"git ls-remote failed: {type(exc).__name__}"
+        logger.warning(
+            "landing_gate: %s for %s: %s",
+            branch,
+            issue.identifier,
+            type(exc).__name__,
+        )
+        result.skip_reason = "git ls-remote error; retry after credentials or remote connectivity are repaired"
         return result
 
     result.branch_on_origin = branch_on_origin

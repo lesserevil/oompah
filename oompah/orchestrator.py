@@ -2427,7 +2427,7 @@ class Orchestrator:
                 logger.warning(
                     "shared_absorption: git fetch failed for %s: %s",
                     evidence.branch,
-                    exc,
+                    type(exc).__name__,
                 )
                 continue  # fail open
 
@@ -13466,6 +13466,10 @@ class Orchestrator:
         """Run a managed network Git command with project-scoped credentials."""
         token = getattr(project, "access_token", None)
         forge_kind = getattr(project, "forge_kind", "github")
+        if not isinstance(token, str):
+            token = None
+        if not isinstance(forge_kind, str):
+            forge_kind = "github"
         with git_credential_environment(
             forge_kind=forge_kind,
             access_token=token,
@@ -27264,6 +27268,7 @@ class Orchestrator:
 
         repo_path = ""
         base_branch = "main"
+        project = None
         if project_id:
             try:
                 project = self.project_store.get(project_id)
@@ -27344,8 +27349,8 @@ class Orchestrator:
             entry_profile=entry.agent_profile_name,
             entry_focus=entry.focus_name or "",
             entry_attempt=entry.retry_attempt or 0,
-            access_token=getattr(project, "access_token", None),
-            forge_kind=getattr(project, "forge_kind", "github"),
+            access_token=getattr(project, "access_token", None) if project else None,
+            forge_kind=getattr(project, "forge_kind", "github") if project else "github",
         )
 
         if result.allowed:

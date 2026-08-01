@@ -49,6 +49,7 @@ from oompah.client_auth import (
     resolve_client_credentials,
     sanitize_server_url,
 )
+from oompah.git_credentials import git_credential_environment, redact_git_output
 from oompah.task_handoff import (
     TASK_HANDOFF_HEADER,
     TASK_HANDOFF_PROJECT_ENV,
@@ -696,6 +697,8 @@ def _git_value(*args: str, cwd: str | Path | None = None) -> str | None:
 def _git_submission_evidence(
     *,
     cwd: str | Path | None = None,
+    access_token: str | None = None,
+    forge_kind: str = "github",
 ) -> dict[str, Any]:
     """Capture branch/head evidence from the worker's current worktree."""
 
@@ -716,13 +719,24 @@ def _git_submission_evidence(
     remote_head_sha = None
     if branch:
         try:
-            remote = subprocess.run(
-                ["git", "ls-remote", "--heads", "origin", branch],
-                check=False,
-                capture_output=True,
-                text=True,
-                timeout=15,
-                cwd=cwd,
+            with git_credential_environment(
+                forge_kind=forge_kind,
+                access_token=access_token,
+            ) as env:
+                remote = subprocess.run(
+                    ["git", "ls-remote", "--heads", "origin", branch],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    timeout=15,
+                    cwd=cwd,
+                    env=env,
+                )
+            remote.stdout = redact_git_output(
+                remote.stdout, (access_token or "",)
+            )
+            remote.stderr = redact_git_output(
+                remote.stderr, (access_token or "",)
             )
             if remote.returncode == 0 and remote.stdout.strip():
                 remote_head_sha = remote.stdout.split()[0].strip()
