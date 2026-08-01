@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T04:59:55.163807Z'
-updated_at: '2026-08-01T05:24:43.521193Z'
+updated_at: '2026-08-01T05:29:10.951078Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -193,5 +193,18 @@ author: oompah
 created: 2026-08-01 05:24
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-01 05:29
+---
+**Understanding & continuation plan**: Previous runs (Codex/Haiku) reviewed pyproject/pytest_worker_isolation.py and process_lifecycle.py but did not commit code. Current pytest is 9.0.2 with pytest-xdist 3.8.0, timeout=5s thread method, --dist loadgroup, PYTEST_WORKERS=4.
+
+Confirmed root-cause hypothesis: 'Not properly terminated' means an xdist worker's execnet channel closes without a clean shutdown message. That triggers _clone_node in dsession.py, which spawns a replacement (gw4, gw5, gw6…). LoadScopeScheduling.remove_node/schedule() does not KeyError-guard every edge case with replacement nodes (assertion 'node not in self.assigned_work' in add_node and unguarded pop in remove_node). Additionally, xdist worker_workerfinished calls sched.remove_node(node) without try/except; if a replacement gets scheduled and then finishes cleanly while assigned_work has drifted, it KeyErrors out.
+
+Plan:
+1. Reproduce with 4-worker run and identify the test(s) causing worker loss.
+2. Fix the offending test(s) so a bounded test cannot terminate its own worker.
+3. Configure the runner so worker-loss no longer propagates as an internal-error crash (max-worker-restart bound + preferring worksteal for non-group tests, or --tx retention).
+4. Add regression coverage that exercises worker failure/replacement paths.
 ---
 <!-- COMMENTS:END -->
