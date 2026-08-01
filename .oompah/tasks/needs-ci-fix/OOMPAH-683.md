@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-683
 type: task
-status: Ready to Integrate
+status: Needs CI Fix
 priority: null
 title: Make retry recovery snapshots tolerate generated hooks and in-progress rebases
 parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- ci-fix
 assignee: null
 created_at: '2026-08-01T21:41:35.163259Z'
-updated_at: '2026-08-01T22:38:08.866868Z'
+updated_at: '2026-08-01T22:45:28.078838Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -169,5 +170,73 @@ author: oompah
 created: 2026-08-01 22:38
 ---
 Operator recovery complete at bdc4cf5d1: ignored generated helpers are excluded, active Git operations receive durable noninteractive checkpoints, stale cleanup is generation-fenced, focused tests pass 181/181, and full make test passes 14857 tests.
+---
+author: oompah
+created: 2026-08-01 22:45
+---
+Branch quality gate blocked review creation.
+
+Branch: `OOMPAH-683`
+Target: `main`
+Head: `bdc4cf5d1fa259b7fa155c1f02aabda34749a103`
+Command: `make test`
+Result: `failed`
+
+Required: run the command in the task worktree, fix the failure, commit and push the repair, then leave the task in Done. Oompah will rerun the gate for the new head before creating the PR/MR.
+
+Output tail:
+```text
+l/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 104, in close
+      proto.pipe.close()
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 568, in close
+      self._close(None)
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 592, in _close
+      self._loop.call_soon(self._call_connection_lost, exc)
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 799, in call_soon
+      self._check_closed()
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 545, in _check_closed
+      raise RuntimeError('Event loop is closed')
+  RuntimeError: Event loop is closed
+  
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))
+
+tests/test_websocket_authenticated_bootstrap.py::TestRESTWebSocketConsistency::test_rest_and_ws_both_include_build_id
+  /home/shedwards/.oompah/tmp/oompah-quality-gate-hei25jjh/workspace/.venv/lib/python3.12/site-packages/_pytest/unraisableexception.py:67: PytestUnraisableExceptionWarning: Exception ignored in: <function BaseSubprocessTransport.__del__ at 0x747b3184b9c0>
+  
+  Traceback (most recent call last):
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 126, in __del__
+      self.close()
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 104, in close
+      proto.pipe.close()
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 568, in close
+      self._close(None)
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 592, in _close
+      self._loop.call_soon(self._call_connection_lost, exc)
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 799, in call_soon
+      self._check_closed()
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 545, in _check_closed
+      raise RuntimeError('Event loop is closed')
+  RuntimeError: Event loop is closed
+  
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_installed_cli_smoke.py::TestCurrentInstallSmoke::test_oompah_task_help_exits_zero
+FAILED tests/test_installed_cli_smoke.py::TestCurrentInstallSmoke::test_oompah_project_bootstrap_help_exits_zero
+FAILED tests/test_installed_cli_smoke.py::TestCurrentInstallSmoke::test_oompah_task_view_help_exits_zero
+FAILED tests/test_installed_cli_smoke.py::TestCurrentInstallSmoke::test_oompah_help_exits_zero
+FAILED tests/test_installed_cli_smoke.py::TestCurrentInstallSmoke::test_oompah_task_port_flag_help_exits_zero
+FAILED tests/test_installed_cli_smoke.py::TestCurrentInstallSmoke::test_oompah_help_contains_usage
+FAILED tests/test_installed_cli_smoke.py::TestCurrentInstallSmoke::test_bare_oompah_prints_help_exits_zero
+FAILED tests/test_installed_cli_smoke.py::TestCurrentInstallSmoke::test_oompah_task_server_flag_help_exits_zero
+= 8 failed, 14848 passed, 8 skipped, 1 xfailed, 43 warnings in 408.44s (0:06:48) =
+
+make: *** [Makefile:388: test] Error 1
+```
 ---
 <!-- COMMENTS:END -->
