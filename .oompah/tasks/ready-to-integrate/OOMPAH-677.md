@@ -13,7 +13,7 @@ labels:
 - focus-complete:chore
 assignee: null
 created_at: '2026-08-01T11:56:19.836343Z'
-updated_at: '2026-08-01T14:50:49.838268Z'
+updated_at: '2026-08-01T14:51:11.936962Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -60,13 +60,13 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: ba9a2f07-2c25-468d-baae-f62c902923d6
 oompah.task_costs:
-  total_input_tokens: 3543882
-  total_output_tokens: 20808
+  total_input_tokens: 3544740
+  total_output_tokens: 59646
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 3543845
-      output_tokens: 19897
+      input_tokens: 3544703
+      output_tokens: 58735
       cost_usd: 0.0
     opus:
       input_tokens: 37
@@ -91,6 +91,12 @@ oompah.task_costs:
     output_tokens: 911
     cost_usd: 0.0
     recorded_at: '2026-08-01T14:36:58.792301+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 858
+    output_tokens: 38838
+    cost_usd: 0.0
+    recorded_at: '2026-08-01T14:51:05.411963+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-677__20260801T142515Z
@@ -109,14 +115,24 @@ oompah.work_contributors:
     source_branch: OOMPAH-677
     source_sha: 95371a0da020a1f82bd0e4fb48c2202e8a8a91d6
     completed_at: '2026-08-01T14:33:41.269262+00:00'
+  - run_id: OOMPAH-677__20260801T143744Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: general
+    source_branch: OOMPAH-677
+    source_sha: 5c34c716e7cc522081824e94da4be47208ac155d
+    completed_at: '2026-08-01T14:51:05.417444+00:00'
 oompah.integration:
   version: 2
   state: ready
   attempts: 0
   task_branch: OOMPAH-677
+  base_branch: main
+  base_sha: 62ca0ca696d08b754e03a200d7227455786da960
   head_sha: 5c34c716e7cc522081824e94da4be47208ac155d
   submitted_at: '2026-08-01T14:50:34.461208+00:00'
-  updated_at: '2026-08-01T14:50:34.461208+00:00'
+  updated_at: '2026-08-01T14:51:10.778470+00:00'
 ---
 ## Summary
 
@@ -314,5 +330,20 @@ created: 2026-08-01 14:50
 ✓ Regression tests reproduce NodeVirt (oompah_md, no owner) and prove repair
 
 **Test Results**: 307 passing tests (test_projects.py, test_projects_crud.py, test_transition_gate.py, new OOMPAH-677 regression suite)
+---
+author: oompah
+created: 2026-08-01 14:51
+---
+Agent completed successfully in 806s (39696 tokens)
+---
+author: oompah
+created: 2026-08-01 14:51
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 230, Tool calls: 106
+- Tokens: 858 in / 38.8K out [39.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 13m 26s
+- Log: OOMPAH-677__20260801T143744Z.jsonl
 ---
 <!-- COMMENTS:END -->
