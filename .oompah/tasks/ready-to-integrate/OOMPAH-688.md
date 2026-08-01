@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-688
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Make slow-tick telemetry tests deterministic under load
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T23:11:33.946132Z'
-updated_at: '2026-08-01T23:25:33.727421Z'
+updated_at: '2026-08-01T23:25:44.124340Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -75,6 +75,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-688
     source_sha: 3d50e86c334e8a6318b767b281bc254fa6d93cc2
     completed_at: '2026-08-01T23:13:09.005446+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-688
+  head_sha: 381465f986404d2ea67dd1aad4fa918fc0d83365
+  submitted_at: '2026-08-01T23:25:41.341746+00:00'
+  updated_at: '2026-08-01T23:25:41.341746+00:00'
 ---
 ## Summary
 
@@ -142,5 +150,10 @@ author: oompah
 created: 2026-08-01 23:25
 ---
 Completion: Delivered deterministic slow-tick telemetry tests for OOMPAH-688.\n\nSummary of changes:\n- oompah/orchestrator.py: Added self._monotonic_clock = time.monotonic seam to Orchestrator.__init__(); replaced 12 time.monotonic() calls in _tick() with self._monotonic_clock(). No production behaviour change.\n- tests/test_orchestrator_tick_telemetry.py: Added _make_fast_tick_clock() / _make_slow_tick_clock() helpers; rewrote 3 slow-tick tests to use injected clocks (no time.sleep); added 1 new stability regression test (test_no_slow_tick_warning_for_fast_ticks_repeated). 35 tests total, all pass deterministically under parallel load.\n\nBranch OOMPAH-688 pushed at 381465f98. Production thresholds and telemetry semantics are unchanged.
+---
+author: oompah
+created: 2026-08-01 23:25
+---
+Added self._monotonic_clock seam to Orchestrator._tick() and updated the three slow-tick telemetry tests to use deterministic injected clocks instead of time.sleep(). The flaky test_no_slow_tick_warning_for_fast_ticks now uses a 1ms-per-call fast clock (total_ms ≤ 12ms, never crosses 2000ms threshold). The two slow-tick tests use a first-call-0.0/rest-3.0 clock (total_ms = 3000ms, always triggers warning). Added one new stability test (test_no_slow_tick_warning_for_fast_ticks_repeated). 35 tests pass, deterministic under -n 4 parallel load. No production behaviour change.
 ---
 <!-- COMMENTS:END -->
