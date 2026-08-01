@@ -294,6 +294,33 @@ def test_same_head_resubmit_from_needs_human_restores_ready_lifecycle(tmp_path):
     _same_head_recovery_case(tmp_path, "Needs Human")
 
 
+def test_same_head_resubmit_clears_stale_dispatch_assignment(tmp_path):
+    existing = IntegrationRecord(
+        state="ready",
+        task_branch="oompah/task/TASK-2",
+        head_sha="a" * 40,
+    )
+    _, tracker, orch, queue = _submit_test_bed(
+        tmp_path, issue_state="Needs Human", existing_integration=existing
+    )
+    tracker.get_metadata.return_value = {
+        "oompah.agent_run_id": "stale-run-id",
+    }
+    try:
+        response = _run_submit(orch, summary="Operator resubmission")
+        assert response.status_code == 201, response.json()
+    finally:
+        queue.close()
+
+    assert any(
+        call.args[:3] == ("TASK-2", "oompah.agent_run_id", None)
+        for call in tracker.set_metadata_field.call_args_list
+    )
+    tracker.update_issue.assert_called_once_with(
+        "TASK-2", status="Ready to Integrate"
+    )
+
+
 def test_same_head_resubmit_from_needs_ci_fix_restores_ready_lifecycle(tmp_path):
     _same_head_recovery_case(tmp_path, "Needs CI Fix")
 

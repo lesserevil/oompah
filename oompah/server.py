@@ -3562,6 +3562,50 @@ async def _persist_worker_submission(
     return record
 
 
+@contextlib.asynccontextmanager
+async def _submission_authority_lock(orch, issue_id: str):
+    """Serialize accepted submission writes with implementation dispatch setup."""
+    lock_factory = getattr(orch, "issue_transition_lock", None)
+    lock = lock_factory(issue_id) if callable(lock_factory) else None
+    # Test doubles and legacy orchestrator adapters do not expose the native
+    # asyncio lock.  They already serialize their mocked writes themselves.
+    if isinstance(lock, asyncio.Lock):
+        async with lock:
+            yield
+    else:
+        yield
+
+
+async def _clear_submission_assignment(tracker, issue) -> None:
+    """Remove a stale shared-tracker run claim when a submit is accepted."""
+    get_metadata = getattr(tracker, "get_metadata", None)
+    set_metadata = getattr(tracker, "set_metadata_field", None)
+    if not callable(get_metadata) or not callable(set_metadata):
+        return
+    try:
+        metadata = await _run_api_io(get_metadata, issue.identifier)
+    except Exception as exc:  # noqa: BLE001 - accepted submission still wins
+        logger.debug(
+            "Could not inspect stale dispatch assignment for %s: %s",
+            issue.identifier,
+            exc,
+        )
+        return
+    if not isinstance(metadata, dict):
+        return
+    assignment = metadata.get("oompah.agent_run_id") or metadata.get(
+        "agent_run_id"
+    )
+    if not assignment:
+        return
+    await _run_api_io(
+        set_metadata,
+        issue.identifier,
+        "oompah.agent_run_id",
+        None,
+    )
+
+
 def _enqueue_worker_submission(
     orch, project_id: str, issue, record, *, explicit_retry: bool = True
 ) -> None:
@@ -3704,23 +3748,28 @@ async def api_submit_issue(identifier: str, request: Request):
     try:
         # Validate the complete submission before withdrawing retry authority;
         # once accepted, Ready to Integrate is the sole owner of this task
-        # generation and any delayed implementation retry is stale.
+        # generation and any delayed implementation retry is stale.  The
+        # per-task lock is shared with the dispatcher's final In Progress
+        # transition, so a callback selected before this request cannot write
+        # stale lifecycle state after the accepted submission wins.
         record = _submission_record(issue, body)
-        cancel_retry = getattr(orch, "_cancel_retry_for_issue", None)
-        if callable(cancel_retry):
-            cancel_retry(
-                issue_id=issue.id,
-                identifier=issue.identifier,
-                project_id=project_id,
-                reason="task submitted for integration",
+        async with _submission_authority_lock(orch, issue.id):
+            cancel_retry = getattr(orch, "_cancel_retry_for_issue", None)
+            if callable(cancel_retry):
+                cancel_retry(
+                    issue_id=issue.id,
+                    identifier=issue.identifier,
+                    project_id=project_id,
+                    reason="task submitted for integration",
+                )
+            await _clear_submission_assignment(tracker, issue)
+            record = await _persist_worker_submission(
+                tracker, issue, body, record=record
             )
-        record = await _persist_worker_submission(
-            tracker, issue, body, record=record
-        )
-        _enqueue_worker_submission(orch, project_id, issue, record)
-        _publish_submission_coordination(
-            orch, project_id, issue, record, body
-        )
+            _enqueue_worker_submission(orch, project_id, issue, record)
+            _publish_submission_coordination(
+                orch, project_id, issue, record, body
+            )
     except ValueError as exc:
         return JSONResponse(
             {"error": {"code": "validation", "message": str(exc)}},
@@ -4326,21 +4375,23 @@ async def api_task_handoff(request: Request):
             try:
                 async def persist_submission() -> Any:
                     record = _submission_record(issue, body)
-                    cancel_retry = getattr(orch, "_cancel_retry_for_issue", None)
-                    if callable(cancel_retry):
-                        cancel_retry(
-                            issue_id=getattr(issue, "id", None),
-                            identifier=identifier,
-                            project_id=project_id,
-                            reason="task submitted for integration",
+                    async with _submission_authority_lock(orch, issue.id):
+                        cancel_retry = getattr(orch, "_cancel_retry_for_issue", None)
+                        if callable(cancel_retry):
+                            cancel_retry(
+                                issue_id=getattr(issue, "id", None),
+                                identifier=identifier,
+                                project_id=project_id,
+                                reason="task submitted for integration",
+                            )
+                        await _clear_submission_assignment(tracker, issue)
+                        record = await _persist_worker_submission(
+                            tracker, issue, body, record=record
                         )
-                    record = await _persist_worker_submission(
-                        tracker, issue, body, record=record
-                    )
-                    _enqueue_worker_submission(orch, project_id, issue, record)
-                    _publish_submission_coordination(
-                        orch, project_id, issue, record, body
-                    )
+                        _enqueue_worker_submission(orch, project_id, issue, record)
+                        _publish_submission_coordination(
+                            orch, project_id, issue, record, body
+                        )
                     return record
 
                 record = await run_mutation(persist_submission)
