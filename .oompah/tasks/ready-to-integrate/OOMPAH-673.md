@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-673
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 2
 title: Make canonical CLI mismatch recovery unambiguous across upgrades
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T02:34:24.348580Z'
-updated_at: '2026-08-01T02:38:10.510437Z'
+updated_at: '2026-08-01T02:42:08.809782Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -63,6 +63,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-673
     source_sha: aceb82319369f1082307d6fc0a2931da03fab608
     completed_at: '2026-08-01T02:36:05.994734+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-673
+  head_sha: b792568ef85d4b46a2e5607305a3dc3549a95860
+  submitted_at: '2026-08-01T02:42:07.028732+00:00'
+  updated_at: '2026-08-01T02:42:07.028732+00:00'
 ---
 ## Summary
 
@@ -124,5 +132,36 @@ author: oompah
 created: 2026-08-01 02:38
 ---
 **Discovery**: The problem occurs in canonical_cli_cutover.py::graceful_cutover() which validates CLI matches running service. When launcher is advanced to B but service remains at A, the validation rejects with message 'repair it with make install-cli', but running make install-cli from B checkout reinstalls launcher B, not A. The fix: add recovery mode to sync_canonical_cli.py that accepts --running-revision parameter to install a specific revision without requiring git checkout to be at that revision. Then modify canonical_cli_cutover.py to detect this mismatch, extract running service revision from API (/healthz, /api/v1/state), and automatically repair the launcher before proceeding with normal cutover. This avoids temp remote refs and keeps recovery bounded.
+---
+author: oompah
+created: 2026-08-01 02:42
+---
+**Implementation Complete**: Built automatic CLI/server mismatch recovery for the common operational trap where launcher has been advanced to revision B but service remains at A.
+
+**Changes:**
+1. Modified sync_canonical_cli.py: Added --running-revision parameter allowing CLI installation from specific revision without git checkout requirement. Enables recovery mode that pairs launcher with verified running service revision.
+
+2. Modified canonical_cli_cutover.py: Added pre-cutover detection of launcher/service mismatch. When detected, automatically calls sync_canonical_cli with running service revision extracted from /healthz and /api/v1/state APIs. Recovery is bounded and transparent to normal cutover flow.
+
+3. Updated docs/cli-install.md: Added 'CLI/server mismatch recovery' section documenting automatic repair behavior and operator guidance.
+
+4. Added comprehensive tests (test_cli_mismatch_recovery.py): 7 new tests covering A service + mismatched launcher + B checkout scenario, automatic detection and repair, failure cases, lifecycle locking preserved, and proof of no final mismatch.
+
+**Test Results:** 50/50 tests pass
+- 18 canonical CLI sync tests: PASS
+- 25 lifecycle integration tests: PASS  
+- 7 new recovery tests: PASS
+
+**Verification:** All requirements met:
+✓ Bounded recovery (uses verified running service revision)
+✓ No temporary remote branches required
+✓ No manual tool-root surgery required
+✓ Atomic launcher activation preserved
+✓ Lifecycle locking preserved
+✓ Fail-closed for unknown/unparseable revisions
+✓ Comprehensive deterministic test coverage
+✓ Documentation updated with recovery behavior
+
+Branch pushed to OOMPAH-673. Ready for integration tests and review.
 ---
 <!-- COMMENTS:END -->
