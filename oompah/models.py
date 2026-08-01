@@ -1445,6 +1445,12 @@ class RunningEntry:
     # reject events that belong to a superseded worker.
     run_id: str = field(default_factory=lambda: uuid.uuid4().hex)
     authority_generation: str | None = None
+    # Set when operator submission or another accepted lifecycle transition
+    # withdraws this dispatch while it is still starting or running.  The
+    # worker-exit path uses this tombstone to quarantine the run instead of
+    # scheduling another implementation retry.
+    authority_revoked: bool = False
+    authority_revocation_reason: str | None = None
 
 
 @dataclass
