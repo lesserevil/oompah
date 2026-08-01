@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-671
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Recover terminal audits when historical work branches were deleted
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T23:31:12.705782Z'
-updated_at: '2026-08-01T01:27:46.308311Z'
+updated_at: '2026-08-01T01:27:49.367004Z'
 work_branch: null
 target_branch: null
 review_url: https://github.com/lesserevil/oompah/pull/634
