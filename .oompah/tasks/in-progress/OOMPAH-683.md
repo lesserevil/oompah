@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T21:41:35.163259Z'
-updated_at: '2026-08-01T21:48:25.775506Z'
+updated_at: '2026-08-01T21:53:35.777472Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -133,5 +133,10 @@ author: oompah
 created: 2026-08-01 21:48
 ---
 Understanding: I will trace retry recovery snapshotting, Git/worktree operation-state detection, generated helper cleanup, and submission checks. I will preserve active-operation state and branch identity without interactive Git commands, exclude generated helpers from snapshots/submission, add race-safe cleanup diagnostics, cover the stated reproductions with focused tests, then run the relevant Makefile checks.
+---
+author: oompah
+created: 2026-08-01 21:53
+---
+Discovery: recovery is concentrated in ProjectStore._preserve_dirty_worktree_locked() and _prepare_existing_worktree(). It stages via git add --all with an exclusion pathspec, requires symbolic-ref HEAD, and therefore rejects the detached HEAD Git intentionally uses during a paused rebase. Generated-hook filtering is ad hoc and submission cleanliness still sees helpers. I will centralize helper filtering/removal, stage only enumerated deliverable paths, checkpoint active operation state without mutating rebase metadata/index beyond legitimate staging, and fence late termination cleanup on the original RunningEntry.
 ---
 <!-- COMMENTS:END -->
