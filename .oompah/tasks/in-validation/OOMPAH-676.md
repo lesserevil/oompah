@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T05:18:04.532392Z'
-updated_at: '2026-08-01T06:05:31.518084Z'
+updated_at: '2026-08-01T06:09:14.123082Z'
 work_branch: OOMPAH-676
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/638
@@ -122,6 +122,31 @@ oompah.work_branch: OOMPAH-676
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-e30fe34ea93a: '2026-08-01T06:09:09.326992+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-676
+    target_state: Done
+    evidence_fingerprint: a2b47ef5d5f03107e321acad1889bb215846e9673336f71c2eafe9437b9a99d6
+    audit_ids:
+    - audit-e79b9631ed9f
+    kind: result
+    applied: true
+    retired_at: '2026-08-01T06:09:09.327001+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-676
+    audit_id: audit-e79b9631ed9f
+    attempt_id: attempt-e30fe34ea93a
+    target_state: Done
+    evidence_fingerprint: a2b47ef5d5f03107e321acad1889bb215846e9673336f71c2eafe9437b9a99d6
+    status: In Validation
+    audit_ids:
+    - audit-e79b9631ed9f
+    applied: true
+    created_at: '2026-08-01T06:09:09.327014+00:00'
+    applied_at: '2026-08-01T06:09:13.180799+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -129,7 +154,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-676
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -138,7 +163,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-e30fe34ea93a
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -148,13 +173,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-01T06:05:27.115774+00:00'
       branch_key: OOMPAH-676
+      verdict: pass
+      completed_at: '2026-08-01T06:09:09.326858+00:00'
+      ended_at: '2026-08-01T06:09:09.326858+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-01T06:04:15.796051+00:00'
-    updated_at: '2026-08-01T06:05:27.115774+00:00'
+    updated_at: '2026-08-01T06:09:09.326858+00:00'
   - version: 1
     audit_id: audit-45c1e7847e18
     project_id: proj-14849f1b
@@ -418,5 +446,23 @@ author: oompah
 created: 2026-08-01 06:05
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-01 06:09
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: f9f1463a06f1236fba60722393bab132b6018de2
+- merge_commit: 96bb396ea (PR #638)
+- commits_on_branch: cd9b2652a (drain workers before graceful CLI cutover), f9f1463a0 (fix _ServerWithMismatchedLauncher mock for /quiesce)
+- focused_tests: test_cli_mismatch_recovery=7 passed; test_orchestrator_pause=17 passed; test_lifecycle_cli_sync_integration=26 passed; test_restart_api+test_makefile_restart_wait=46 passed; test_ipc+test_mcp_exposure_policy=339 passed
+- branch_gate: make test PASSED for f9f1463a0 per scheduler comment 2026-08-01 05:56 UTC
+- quiesce_endpoint: POST /api/v1/orchestrator/quiesce added in oompah/server.py:11816
+- cutover_uses_quiesce: scripts/canonical_cli_cutover.py line 613 POSTs /api/v1/orchestrator/quiesce
+- pause_preserved: Orchestrator.pause() still schedules _terminate_all_running (oompah/orchestrator.py:2789)
+- explicit_pause_test: test_explicit_pause_still_marks_operator_pause verifies terminate.assert_awaited_once_with()
 ---
 <!-- COMMENTS:END -->
