@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T04:59:55.163807Z'
-updated_at: '2026-08-01T05:12:08.847374Z'
+updated_at: '2026-08-01T05:12:24.023454Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -105,5 +105,20 @@ author: oompah
 created: 2026-08-01 05:12
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-01 05:12
+---
+**Understanding**: OOMPAH-675 is a stability issue where parallel pytest runs with 4 xdist workers fail when tests terminate workers, causing LoadGroupScheduling crashes (KeyError for WorkerController). Tests abort at ~47%, losing original failures.
+
+**Planned approach**:
+1. Explore Makefile test target, run-tests.sh, and pytest/xdist configuration
+2. Identify which tests or test patterns terminate workers
+3. Reproduce the issue with multi-worker runs
+4. Implement isolation fixes to prevent tests from killing their pytest worker
+5. Ensure timeout handling surfaces original test failures
+6. Add regression tests for worker failure scenarios
+
+**Scope**: Makefile, run-tests.sh, pytest.ini/conftest, process lifecycle tests
 ---
 <!-- COMMENTS:END -->
