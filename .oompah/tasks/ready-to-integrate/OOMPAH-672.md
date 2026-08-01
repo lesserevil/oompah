@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-672
 type: task
-status: Needs Human
+status: Ready to Integrate
 priority: null
 title: Preserve logging format placeholders during secret redaction
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T00:18:06.952783Z'
-updated_at: '2026-08-01T00:35:18.723229Z'
+updated_at: '2026-08-01T00:36:21.981923Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -122,6 +122,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-672
     source_sha: 72f8e7061ab5a6ae37b08b23c9e75190cf746a87
     completed_at: '2026-08-01T00:20:19.854501+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-672
+  head_sha: 32eb28d5950c7c55f0455c74b9129e5657b5adf9
+  submitted_at: '2026-08-01T00:36:18.586162+00:00'
+  updated_at: '2026-08-01T00:36:18.586162+00:00'
 ---
 ## Summary
 
@@ -187,5 +195,15 @@ author: oompah
 created: 2026-08-01 00:35
 ---
 Direct operator takeover after recovery snapshot failed on the ignored .oompah-no-hooks path. The worker is stopped; its worktree is intact and has only staged changes to oompah/secrets.py and tests/test_secrets.py. I am reviewing and validating that partial implementation in place; keep Needs Human as the scheduler hold.
+---
+author: oompah
+created: 2026-08-01 00:36
+---
+Direct recovery complete on the preserved worker worktree. Reviewed the staged implementation: logging conversion directives are preserved while literal template segments and arguments are redacted independently, including repeated factory/filter passes, mapping and tuple args, exceptions, and the real server htpasswd startup call. Verification: all 116 secret-redaction tests pass, Python compilation and diff checks pass. Pushed clean head 32eb28d5950c7c55f0455c74b9129e5657b5adf9.
+---
+author: oompah
+created: 2026-08-01 00:36
+---
+Preserved percent-style logging placeholders through repeated redaction boundaries while keeping configured secrets out of formatted logs. Added tuple, mapping, repeated-pass, exception, and startup regression coverage; 116 focused tests pass. Pushed head 32eb28d5950c7c55f0455c74b9129e5657b5adf9.
 ---
 <!-- COMMENTS:END -->
