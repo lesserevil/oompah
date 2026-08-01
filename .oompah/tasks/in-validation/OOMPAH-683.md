@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T21:41:35.163259Z'
-updated_at: '2026-08-01T23:37:04.223425Z'
+updated_at: '2026-08-01T23:47:53.956916Z'
 work_branch: OOMPAH-683
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/646
@@ -102,6 +102,31 @@ oompah.work_branch: OOMPAH-683
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-bdd80e91c875: '2026-08-01T23:47:49.065137+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-683
+    target_state: Done
+    evidence_fingerprint: 9f6add4f8616b075fdd058b77ae0b012dc438047855fdcecb7add06aaef94601
+    audit_ids:
+    - audit-ada0ea2602cb
+    kind: result
+    applied: true
+    retired_at: '2026-08-01T23:47:49.065149+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-683
+    audit_id: audit-ada0ea2602cb
+    attempt_id: attempt-bdd80e91c875
+    target_state: Done
+    evidence_fingerprint: 9f6add4f8616b075fdd058b77ae0b012dc438047855fdcecb7add06aaef94601
+    status: In Validation
+    audit_ids:
+    - audit-ada0ea2602cb
+    applied: true
+    created_at: '2026-08-01T23:47:49.065164+00:00'
+    applied_at: '2026-08-01T23:47:52.813289+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -109,7 +134,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-683
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -118,7 +143,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-bdd80e91c875
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -128,13 +153,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-01T23:36:58.213430+00:00'
       branch_key: OOMPAH-683
+      verdict: pass
+      completed_at: '2026-08-01T23:47:49.064934+00:00'
+      ended_at: '2026-08-01T23:47:49.064934+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Progress
     created_at: '2026-08-01T23:36:33.440885+00:00'
-    updated_at: '2026-08-01T23:36:58.213430+00:00'
+    updated_at: '2026-08-01T23:47:49.064934+00:00'
   - version: 1
     audit_id: audit-06fb8603071f
     project_id: proj-14849f1b
@@ -457,5 +485,25 @@ author: oompah
 created: 2026-08-01 23:37
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-01 23:47
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- branch_head_local: abc69ba5a (audit worktree, detached)
+- branch_head_ref: a82bb0c32 (OOMPAH-683 local ref)
+- merge_commit: e613933ec (Merge pull request #646 from lesserevil/OOMPAH-683)
+- impl_commit: bdc4cf5d1 preserve retry worktrees across Git operations
+- impl_stat: 820 insertions across oompah/projects.py, oompah/orchestrator.py, oompah/unpushed_gate.py, tests/test_projects.py, tests/test_unpushed_gate.py, tests/test_task_cost_telemetry.py
+- gate_result_abc69ba5a: make test passed in 399.4s per branch quality gate comment
+- acceptance_ignored_helper: covered by test_projects.TestExistingWorktreeBranchValidation dirty-snapshot test (+ ls-tree assertion)
+- acceptance_detached_rebase: covered by test_paused_rebase_checkpoint_preserves_branch_index_and_todo
+- acceptance_helper_absent_submission: covered by test_generated_helper_is_removed_before_submission_cleanliness_check
+- acceptance_race_safety: covered by test_late_termination_cannot_clean_newer_worker_generation
+- acceptance_no_interactive_git: test invokes rebase with GIT_EDITOR=true and GIT_SEQUENCE_EDITOR=true; implementation uses _recovery_git_env
 ---
 <!-- COMMENTS:END -->
