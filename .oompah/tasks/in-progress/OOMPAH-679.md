@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T12:05:24.382952Z'
-updated_at: '2026-08-01T15:36:57.913179Z'
+updated_at: '2026-08-01T15:39:14.740271Z'
 work_branch: OOMPAH-679
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/641
@@ -354,5 +354,10 @@ author: oompah
 created: 2026-08-01 15:36
 ---
 Understanding: MR #641 CI (test 3.11) failed on tests/test_duplicate_names.py::test_no_duplicate_test_names_in_test_files with 'Failed: Timeout (>5.0s) from pytest-timeout' while ast-parsing tests/test_webhooks.py. The test iterates all 370 test_*.py files under tests/ and ast.parses each. Locally the pass takes ~1s, but under CI xdist load it exceeds the project's 5s default per-test timeout (pyproject.toml [tool.pytest.ini_options] timeout = 5). Neither test_duplicate_names.py nor test_webhooks.py were modified on this branch, so this is CI capacity flakiness surfaced by the growing test corpus. Plan: minimal, precedent-matching fix — add an explicit @pytest.mark.timeout override to test_no_duplicate_test_names_in_test_files (existing tests already use per-test overrides where the default 5s is unrealistic).
+---
+author: oompah
+created: 2026-08-01 15:39
+---
+Discovery: only failing job on MR #641 is test (3.11) with tests/test_duplicate_names.py::test_no_duplicate_test_names_in_test_files timing out at >5s while ast-parsing tests/test_webhooks.py. Neither the test nor the target file was modified on this branch. Locally the full pass is ~1s (measured across 370 files). The default per-test timeout is 5s; existing tests already override it with @pytest.mark.timeout when the default is unrealistic (7 existing overrides in tests/). Implementation: added @pytest.mark.timeout(60) to test_no_duplicate_test_names_in_test_files with an explanatory comment citing MR #641. No other code changed.
 ---
 <!-- COMMENTS:END -->
