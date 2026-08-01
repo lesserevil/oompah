@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:07.401588Z'
-updated_at: '2026-08-01T00:35:30.864700Z'
+updated_at: '2026-08-01T00:35:39.943636Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -61,8 +61,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 57004dc6-4e48-4c28-9024-8679bbe3dd1c
 oompah.task_costs:
-  total_input_tokens: 2590617
-  total_output_tokens: 47925
+  total_input_tokens: 2590643
+  total_output_tokens: 52048
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -74,8 +74,8 @@ oompah.task_costs:
       output_tokens: 30315
       cost_usd: 0.0
     unknown:
-      input_tokens: 77
-      output_tokens: 13475
+      input_tokens: 103
+      output_tokens: 17598
       cost_usd: 0.0
   runs:
   - profile: default
@@ -126,6 +126,12 @@ oompah.task_costs:
     output_tokens: 13475
     cost_usd: 0.0
     recorded_at: '2026-08-01T00:33:23.991737+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 26
+    output_tokens: 4123
+    cost_usd: 0.0
+    recorded_at: '2026-08-01T00:35:38.091921+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-665__20260731T181648Z
@@ -207,8 +213,9 @@ oompah.terminal_audit:
     status: Merged
     audit_ids:
     - audit-80812b27e5b6
-    applied: false
+    applied: true
     created_at: '2026-08-01T00:35:27.331604+00:00'
+    applied_at: '2026-08-01T00:35:32.644382+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -909,5 +916,15 @@ Safe evidence:
 - prior_full_gate: make test passed at 04d681f10 in 386.4s (per task comment 2026-08-01 00:23)
 - commits_delivered_on_main: 0ce87c6ec, 04d681f10
 - working_tree_state: clean; branch up to date with origin/OOMPAH-665
+---
+author: oompah
+created: 2026-08-01 00:35
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 27, Tool calls: 20
+- Tokens: 26 in / 4.1K out [4.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 9s
+- Log: OOMPAH-665__20260801T003332Z.jsonl
 ---
 <!-- COMMENTS:END -->
