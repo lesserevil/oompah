@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-25T01:59:58.245991Z'
-updated_at: '2026-08-01T02:23:54.894872Z'
+updated_at: '2026-08-01T02:24:00.341903Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -60,6 +60,16 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-01T02:18:15.510926+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-441
+    target_state: Archived
+    evidence_fingerprint: 7f53ea68b15d7a2b32d8d0930e1653cc55c483e9ff204f44f607a80781951ecd
+    audit_ids:
+    - audit-f583cdddb7b1
+    - audit-3ab886e6a2a4
+    kind: override
+    applied: true
+    retired_at: '2026-08-01T02:23:56.776532+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-441
@@ -73,6 +83,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-01T02:18:15.510946+00:00'
     applied_at: '2026-08-01T02:18:18.700403+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-64d32afa2a10
@@ -93,7 +104,7 @@ oompah.terminal_audit:
       covering EXOCOMP-29 / PR #10 and the shared-epic YOLO gate. The implementation
       record reports 187 focused tests and full make test; current main CI is green.'
     created_at: '2026-08-01T02:23:51.734463+00:00'
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -136,7 +147,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-441
     target_state: Archived
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -148,6 +159,7 @@ oompah.terminal_audit:
       source: api
     previous_state: Needs Human
     created_at: '2026-08-01T02:23:46.419368+00:00'
+    updated_at: '2026-08-01T02:23:56.776495+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-551cefcbccdd
@@ -331,5 +343,10 @@ created: 2026-08-01 02:23
 Override by oompah-cli: terminal transition to Archived applied by project owner.
 
 Reason: Direct project-owner evidence reconciliation: implementation commit 05dbe67cc2a7b156cd783c3dcfc8eca56b82fdc6 is an ancestor of origin/main. It changes oompah/orchestrator.py to preserve project_id during branch-to-task resolution and adds TestResolveTaskForBranchProjectContext covering EXOCOMP-29 / PR #10 and the shared-epic YOLO gate. The implementation record reports 187 focused tests and full make test; current main CI is green.
+---
+author: oompah
+created: 2026-08-01 02:24
+---
+Archived after linking and verifying merged implementation commit 05dbe67cc.
 ---
 <!-- COMMENTS:END -->
