@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-672
 type: task
-status: In Progress
+status: Needs Human
 priority: null
 title: Preserve logging format placeholders during secret redaction
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T00:18:06.952783Z'
-updated_at: '2026-08-01T00:20:58.039932Z'
+updated_at: '2026-08-01T00:32:45.771504Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -174,5 +174,13 @@ author: oompah
 created: 2026-08-01 00:20
 ---
 Understanding: SecretRedactionFilter must keep percent-style logging message/argument arity valid while redacting both templates and values, including tuple/mapping args, repeated filter/factory passes, exceptions, and bootstrap htpasswd logs. I will inspect oompah/secrets.py and existing redaction/bootstrap tests, implement a focused fix, run focused tests plus the Makefile gate, then commit, push, and submit.
+---
+author: oompah
+created: 2026-08-01 00:32
+---
+Oompah could not durably preserve this worker's task worktree before retry. The worktree was left in place and no reset, clean, or retry was started. Reconcile the workspace and recovery evidence manually before resuming the task. Error: could not stage recovery snapshot for OOMPAH-672: The following paths are ignored by one of your .gitignore files:
+.oompah-no-hooks
+hint: Use -f if you really want to add them.
+hint: Disable this message with "git config set advice.addIgnoredFile false"
 ---
 <!-- COMMENTS:END -->

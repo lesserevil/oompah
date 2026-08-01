@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-666
 type: bug
-status: Needs CI Fix
+status: In Progress
 priority: 1
 title: Fix dashboard vertical scrolling when alerts precede the Kanban board
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T21:19:38.816688Z'
-updated_at: '2026-08-01T00:30:05.971500Z'
+updated_at: '2026-08-01T00:32:57.634267Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -57,7 +57,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: a0d4d1f3-ca53-4231-a444-0e9ef748ec59
+oompah.agent_run_id: 71ffe688-9f2e-4a38-9608-90a05d47920b
 oompah.task_costs:
   total_input_tokens: 372340
   total_output_tokens: 8225
@@ -282,5 +282,27 @@ FAILED tests/test_orchestrator_handlers.py::TestRunStep5cEpicMaintenance::test_t
 
 make: *** [Makefile:369: test] Error 1
 ```
+---
+author: oompah
+created: 2026-08-01 00:32
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-08-01 00:32
+---
+Agent failed: could not stage recovery snapshot for OOMPAH-666: The following paths are ignored by one of your .gitignore files:
+.oompah-no-hooks
+hint: Use -f if you really want to add them.
+hint: Disable this message with "git config set advice.addIgnoredFile false". Retrying in 10s (attempt #1)
+---
+author: oompah
+created: 2026-08-01 00:32
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=— -> Claude/opus]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 3s
 ---
 <!-- COMMENTS:END -->
