@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-680
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Use project forge credentials for all managed Git network operations
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T17:31:44.735248Z'
-updated_at: '2026-08-01T18:21:56.802202Z'
+updated_at: '2026-08-01T18:22:06.278731Z'
 work_branch: null
 target_branch: null
 review_url: null
