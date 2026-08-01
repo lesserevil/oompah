@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T17:31:44.735248Z'
-updated_at: '2026-08-01T17:46:21.232882Z'
+updated_at: '2026-08-01T17:49:34.764691Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -151,5 +151,44 @@ GitLab project has a configured access token that works for API calls, but Git n
 7. Secret scan validation
 
 Starting discovery phase next.
+---
+author: oompah
+created: 2026-08-01 17:49
+---
+**DISCOVERY: Identified all credential gaps**
+
+Found that git_credentials.py has a solid ephemeral/redacted mechanism but it's only used in 2 places:
+- oompah/state_branch_migration.py (via _network_git, _network_git_check)
+- oompah/project_bootstrap/__init__.py (via _git_network)
+
+Gaps identified in credential-less git network operations:
+1. **oompah/oompah_md_tracker.py** (74 SLOC)
+   - _git() method at line ~500: subprocess.run with no credential env
+   - Calls: push origin HEAD (lines 1068, 1075, 2023, 2033)
+   - Calls: fetch origin branch (lines 1701, 1950)
+   - Impact: Epic publication, state checkpoint, branch cleanup all fail on private GitLab
+
+2. **oompah/cherry_pick_pr_creator.py**
+   - git push with --force-with-lease (line ~350)
+   - No forge credentials passed
+
+3. **oompah/integration_executor.py**
+   - git fetch origin (multiple locations)
+
+4. **oompah/issue_template_refresh.py**
+   - git push origin (line ~150)
+
+5. **oompah/repo_map_generator.py**
+   - git push origin HEAD (line ~1400)
+
+6. **oompah/project_bootstrap/__init__.py** (apply path only)
+   - apply_project_bootstrap_updates() git push without credentials
+
+**Security Risks (OWASP/CWE coverage):**
+- **CWE-532**: Token leakage via stderr redaction gaps in TrackerError, subprocess exceptions
+- **CWE-639**: No project-scoped credential isolation (concurrent projects)
+- **CWE-798**: Operations fail when token required, but no safe fallback
+
+**Next step:** Implement credential environment propagation into all _git methods and network callsites. Will add forge_kind/access_token parameters and use git_credential_environment context manager.
 ---
 <!-- COMMENTS:END -->
