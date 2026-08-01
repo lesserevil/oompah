@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T22:19:41.486806Z'
-updated_at: '2026-08-01T22:40:16.576925Z'
+updated_at: '2026-08-01T22:40:37.613815Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -366,5 +366,10 @@ author: oompah
 created: 2026-08-01 22:40
 ---
 Discovery correction: the isolated test leaves release-addendum recovery as real tracker I/O while asserting only maintenance-future sequencing. That executor work can exceed pytest’s five-second parallel-CI timeout; nearby tick tests already isolate it with a mock. The runtime fallback implementation is not implicated.
+---
+author: oompah
+created: 2026-08-01 22:40
+---
+Implementation: Stabilized the reported maintenance-lane regression test by mocking release-addendum recovery, matching neighboring tick tests. This keeps the test focused on whether a completed maintenance future permits exactly one new maintenance submission and removes unrelated tracker I/O from the five-second parallel-CI timeout path.
 ---
 <!-- COMMENTS:END -->
