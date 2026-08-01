@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-679
 type: bug
-status: Needs Human
+status: Merged
 priority: 0
 title: Reset activity panel identity when a task starts a new agent run
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T12:05:24.382952Z'
-updated_at: '2026-08-01T17:55:45.353972Z'
+updated_at: '2026-08-01T18:04:18.846313Z'
 work_branch: OOMPAH-679
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/641
@@ -238,6 +238,27 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-01T17:55:39.932203+00:00'
     applied_at: '2026-08-01T17:55:44.430273+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-fbab1952602c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-679
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 3b6f79304129fbf181aa3e54c58e68ce4375d0a6cc9f5184b65db1dadd238aee
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'PR #641 is merged at audited head cf050cb8591a3e85855f0879ec4bbf1aa9b7590c;
+      independent audit comment #38 already recorded PASS evidence for that exact
+      head. The rearmed auditor was interrupted during the service cutover and no
+      additional independent candidate remains, so this owner override accepts the
+      existing independent PASS rather than reopening completed implementation.'
+    created_at: '2026-08-01T18:04:13.460427+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -782,5 +803,12 @@ created: 2026-08-01 17:55
 Needs Human — Merged audit requires operator input.
 
 No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
+---
+author: oompah
+created: 2026-08-01 18:04
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: PR #641 is merged at audited head cf050cb8591a3e85855f0879ec4bbf1aa9b7590c; independent audit comment #38 already recorded PASS evidence for that exact head. The rearmed auditor was interrupted during the service cutover and no additional independent candidate remains, so this owner override accepts the existing independent PASS rather than reopening completed implementation.
 ---
 <!-- COMMENTS:END -->
