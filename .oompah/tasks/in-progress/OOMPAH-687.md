@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-687
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Isolate branch-gate runtime from task worktree environments
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T23:00:54.291962Z'
-updated_at: '2026-08-01T23:04:20.913005Z'
+updated_at: '2026-08-01T23:04:36.150663Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -59,7 +59,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 3f0d669c-121a-48cc-8dc7-695bc81b2a5d
+oompah.agent_run_id: 48514e94-4986-43f1-8bd9-e096dfb5a273
 oompah.task_costs:
   total_input_tokens: 250
   total_output_tokens: 6063
@@ -118,5 +118,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 2m 20s
 - Log: OOMPAH-687__20260801T230204Z.jsonl
+---
+author: oompah
+created: 2026-08-01 23:04
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-01 23:04
+---
+Focus: Callback Auth Validation Specialist
 ---
 <!-- COMMENTS:END -->
