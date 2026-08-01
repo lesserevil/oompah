@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T22:19:41.486806Z'
-updated_at: '2026-08-01T22:57:21.837691Z'
+updated_at: '2026-08-01T23:01:26.576420Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -512,5 +512,15 @@ author: oompah
 created: 2026-08-01 22:57
 ---
 Discovery: The eight failures are a quality-gate sandbox projection bug, not the worker runtime fallback. The trusted test venv's editable oompah metadata currently points at a prior worktree, while _sandbox_command only projects the venv parent checkout. Direct imports succeed from the candidate cwd, but console-script subprocesses resolve the stale editable source path, hidden by bwrap. I will project the trusted oompah distribution's declared editable source path to the candidate snapshot and cover this mapping.
+---
+author: oompah
+created: 2026-08-01 23:01
+---
+Implementation: Updated the quality-gate sandbox to read the trusted oompah distribution's editable direct_url metadata and bind that declared source path to the candidate snapshot. This prevents console-script subprocesses from importing a hidden prior worktree while retaining a read-only trusted venv and the existing private sandbox. Added regression coverage for valid and unusable metadata plus the distinct-worktree bind.
+---
+author: oompah
+created: 2026-08-01 23:01
+---
+Verification: python3 -m pytest -n 4 -q tests/test_quality_gate.py tests/test_installed_cli_smoke.py tests/test_makefile_setup.py passed (83 passed, 5 skipped). python3 -m ruff check oompah/quality_gate.py and git diff --check passed. make test-setup remains blocked locally by the host uv/DBus transient-scope confinement before pytest starts; the full gate will rerun on the pushed head.
 ---
 <!-- COMMENTS:END -->
