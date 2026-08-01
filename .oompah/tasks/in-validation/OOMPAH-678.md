@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T12:01:06.107132Z'
-updated_at: '2026-08-01T15:11:40.354205Z'
+updated_at: '2026-08-01T15:12:25.936022Z'
 work_branch: OOMPAH-678
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/640
@@ -57,13 +57,17 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: b4477585-ed1a-46af-bc44-9bf2f59b337c
 oompah.task_costs:
-  total_input_tokens: 10685887
-  total_output_tokens: 39763
+  total_input_tokens: 10685893
+  total_output_tokens: 40113
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 10685887
       output_tokens: 39763
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 6
+      output_tokens: 350
       cost_usd: 0.0
   runs:
   - profile: default
@@ -78,6 +82,12 @@ oompah.task_costs:
     output_tokens: 33789
     cost_usd: 0.0
     recorded_at: '2026-08-01T14:45:20.342453+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 6
+    output_tokens: 350
+    cost_usd: 0.0
+    recorded_at: '2026-08-01T15:12:23.324819+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-678__20260801T142816Z
@@ -334,5 +344,15 @@ Safe evidence:
 - acceptance_a_five_call_pattern: verified via test_live_peer_scope_denial_is_policy_event_not_auth_failure and test_verified_policy_denial_is_informational_only
 - [REDACTED-credential-key]: verified: response message references only task ids and coordination CLI commands
 - acceptance_c_mutations_rejected: verified: 403 status preserved for all peer scope denials regardless of classification
+---
+author: oompah
+created: 2026-08-01 15:12
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 28, Tool calls: 20
+- Tokens: 6 in / 350 out [356 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 6m 33s
+- Log: OOMPAH-678__20260801T150555Z.jsonl
 ---
 <!-- COMMENTS:END -->
