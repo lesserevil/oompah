@@ -51,6 +51,25 @@ def test_runner_keeps_pytest_and_bytecode_caches_in_disposable_tree():
     assert "uv run pytest" not in text
 
 
+def test_runner_bounds_worker_restart_to_prevent_scheduler_replacement_crash():
+    """The parallel gate must not restart a lost worker (OOMPAH-675).
+
+    pytest-xdist's LoadScopeScheduling / LoadGroupScheduling replaces a crashed
+    worker via ``_clone_node`` and later processes messages from the newly
+    added replacement.  If any of those late messages arrive for a controller
+    whose scheduler bookkeeping has already been popped, the run aborts with a
+    KeyError inside the scheduler and the original crash identity is lost.
+    With ``timeout_method = "signal"`` an intentional timeout no longer tears
+    down its worker, so ``--max-worker-restart=0`` fails fast only on a genuine
+    crash while still surfacing the responsible test in xdist's ``crashitem``
+    handling.
+    """
+    text = RUNNER.read_text(encoding="utf-8")
+
+    assert "--max-worker-restart=0" in text
+    assert "--dist loadgroup" in text
+
+
 def test_dotenv_documents_conservative_default():
     text = ENV_EXAMPLE.read_text(encoding="utf-8")
 

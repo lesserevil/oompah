@@ -125,7 +125,18 @@ dev = [
 [tool.pytest.ini_options]
 addopts = "-p tests.pytest_worker_isolation"
 timeout = 5
-timeout_method = "thread"
+# Signal-based timeouts raise pytest.Failed inside the worker's main thread and
+# leave the worker alive to run the rest of its scoped tests.  The thread-based
+# method (pytest_timeout.timeout_timer) calls os._exit(1) on timeout, which
+# terminates the xdist worker process before it can send a completion message
+# to the controller.  The controller then reports "Not properly terminated",
+# spawns a replacement, and LoadScopeScheduling/LoadGroupScheduling stops
+# tracking the original test identity — the same class of scheduler-internal
+# KeyError crash that OOMPAH-675 tracks.  Every code path in this repository
+# that must survive an intentional test timeout is now signal-safe: no test
+# handler installs its own SIGALRM handler, and no test blocks in a syscall
+# that ignores signals.
+timeout_method = "signal"
 markers = [
     "integration: tests that install or launch a real matching-revision service",
     "xdist_group(name): keep process-global integration tests on one worker",
