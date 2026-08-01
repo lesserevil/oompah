@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-683
 type: task
-status: Needs CI Fix
+status: In Progress
 priority: null
 title: Make retry recovery snapshots tolerate generated hooks and in-progress rebases
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T21:41:35.163259Z'
-updated_at: '2026-08-01T23:02:06.800001Z'
+updated_at: '2026-08-01T23:02:29.371855Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,7 +39,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: a280504f-7a66-400a-bffe-7f3cd945e4eb
+oompah.agent_run_id: a0398f99-1b53-4d71-b1fb-606be00467ab
 oompah.task_costs:
   total_input_tokens: 431418
   total_output_tokens: 4821
@@ -295,5 +295,15 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Claude
 - Cost: $0.0000
 - Exit: terminated, Duration: 10m 8s
 - Log: OOMPAH-683__20260801T224815Z.jsonl
+---
+author: oompah
+created: 2026-08-01 23:02
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-08-01 23:02
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->

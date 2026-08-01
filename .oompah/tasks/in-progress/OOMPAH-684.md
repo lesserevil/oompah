@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-684
 type: task
-status: Needs CI Fix
+status: In Progress
 priority: null
 title: Prevent stale retry dispatch after operator task resubmission
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T21:44:29.390457Z'
-updated_at: '2026-08-01T23:02:12.405812Z'
+updated_at: '2026-08-01T23:02:34.994491Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -60,7 +60,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: d063adb7-80fe-42ac-b8f3-60b0eee801b9
+oompah.agent_run_id: 4cfbf505-c88d-43b4-b043-720443baf42d
 oompah.task_costs:
   total_input_tokens: 202
   total_output_tokens: 6472
@@ -273,5 +273,15 @@ author: oompah
 created: 2026-08-01 23:01
 ---
 Resubmitted clean head bfcd6f199 after repairing the shared branch-gate runtime mapping. Source validation remains 32 focused and 14859 full tests passing; OOMPAH-687 tracks permanent runtime isolation.
+---
+author: oompah
+created: 2026-08-01 23:02
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-08-01 23:02
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
