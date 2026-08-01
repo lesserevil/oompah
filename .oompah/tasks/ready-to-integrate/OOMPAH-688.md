@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-688
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Make slow-tick telemetry tests deterministic under load
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T23:11:33.946132Z'
-updated_at: '2026-08-01T23:52:40.546309Z'
+updated_at: '2026-08-01T23:52:50.797624Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -87,9 +87,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-688
-  head_sha: 381465f986404d2ea67dd1aad4fa918fc0d83365
-  submitted_at: '2026-08-01T23:25:41.341746+00:00'
-  updated_at: '2026-08-01T23:25:41.341746+00:00'
+  head_sha: dbb50c914cc8fc683420a716ad98974d58036498
+  submitted_at: '2026-08-01T23:52:47.206345+00:00'
+  updated_at: '2026-08-01T23:52:47.206345+00:00'
 ---
 ## Summary
 
@@ -267,5 +267,10 @@ author: oompah
 created: 2026-08-01 23:52
 ---
 Verification: Focused tests pass:\n- tests/test_orchestrator_handlers.py::TestMaintenanceLaneNonBlocking: 4 passed (serial and -n 4 parallel)\n- tests/test_orchestrator_tick_telemetry.py: 35 passed in 16.5s\n\nThe previously failing test test_tick_does_not_start_second_maintenance_while_first_running now completes deterministically without real tracker I/O blocking the tick thread pool.
+---
+author: oompah
+created: 2026-08-01 23:52
+---
+Fixed the quality gate failure caused by a pre-existing flaky test test_tick_does_not_start_second_maintenance_while_first_running in tests/test_orchestrator_handlers.py. Root cause: the test did not mock _recover_release_addendum_leases (which reads all tracker task files from disk in the tick thread pool), causing timeouts or triggering slow-tick logging failures under parallel CI load. Applied the same fix as OOMPAH-686 commit 19f4f3f9c: mock _recover_release_addendum_leases and fix _handle_dispatch_needed to return {} so slow-tick dispatch formatting never fails. The original OOMPAH-688 changes (orchestrator _monotonic_clock seam + deterministic telemetry tests) remain intact. Branch pushed at dbb50c914.
 ---
 <!-- COMMENTS:END -->
