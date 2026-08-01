@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-671
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Recover terminal audits when historical work branches were deleted
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T23:31:12.705782Z'
-updated_at: '2026-08-01T01:27:56.218552Z'
+updated_at: '2026-08-01T01:36:28.778367Z'
 work_branch: OOMPAH-671
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/634
@@ -29,6 +29,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/634
 oompah.review_number: '634'
 oompah.work_branch: OOMPAH-671
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-0be8237f0624
+    project_id: proj-14849f1b
+    task_id: OOMPAH-671
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f713ab0bbbd1c702553b62fa10cb99fcc3db2bdc76bfc17fc69ef3e7e0069cb9
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-01T01:36:24.558751+00:00'
+  - version: 1
+    audit_id: audit-9f357f4a2c68
+    project_id: proj-14849f1b
+    task_id: OOMPAH-671
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f713ab0bbbd1c702553b62fa10cb99fcc3db2bdc76bfc17fc69ef3e7e0069cb9
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-01T01:36:24.558751+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -71,5 +110,15 @@ author: oompah
 created: 2026-08-01 01:27
 ---
 Branch quality gate passed for `6d34fc1adb6ca08a60d807b76eb2d982d5837cb4` using `make test` in 392.5s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-01 01:36
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-01 01:36
+---
+YOLO: merged PR #634.
 ---
 <!-- COMMENTS:END -->
