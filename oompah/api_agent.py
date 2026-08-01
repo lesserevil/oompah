@@ -27,6 +27,8 @@ from typing import Any, Callable
 from oompah.prompt import RenderedPrompt
 from oompah.client_auth import agent_environment
 from oompah.authority_boundary import AgentActionPolicy, check_shell_command
+from oompah.git_command_validation import validate_git_command_is_noninteractive
+from oompah.git_noninteractive import NONINTERACTIVE_GIT_ENV
 from oompah.secrets import redact_sensitive_data, register_secret
 from oompah.auditor import (
     AUDITOR_ALLOWED_TOOLS,
@@ -551,12 +553,21 @@ def _exec_run_command(
     cd_err = _validate_command_stays_in_workspace(command, workspace)
     if cd_err:
         return f"Error: {cd_err}"
+    # Validate that git commands are noninteractive (OOMPAH-681)
+    git_err = validate_git_command_is_noninteractive(command)
+    if git_err:
+        return f"Error: {git_err}"
     # Build env from the agent's own env, layering caller-supplied overrides
     # on top, then remove client-only Basic-auth inputs before spawning a
     # command.  This applies even when no explicit overrides are supplied,
     # because ``env=None`` would otherwise inherit the server's full env.
     inherited_env = {**os.environ, **(env_overrides or {})}
     env = agent_environment(inherited_env)
+    
+    # Apply noninteractive git environment to all commands as defense-in-depth (OOMPAH-681).
+    # This prevents git from spawning editors even if the command bypasses our validation.
+    if "git" in command:
+        env.update(NONINTERACTIVE_GIT_ENV)
 
     def _terminate_process_tree(process: subprocess.Popen[str]) -> tuple[str, str]:
         if os.name == "posix":

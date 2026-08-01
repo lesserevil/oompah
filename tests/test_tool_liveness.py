@@ -229,3 +229,79 @@ def test_command_executor_returns_command_specific_timeout(tmp_path):
 
     assert result == "Error: command timed out after 0.05s"
     assert monitor.snapshot() is None
+
+
+# ---------------------------------------------------------------------------
+# Interactive git command rejection tests (OOMPAH-681)
+# ---------------------------------------------------------------------------
+
+
+def test_interactive_rebase_rejected_before_execution(tmp_path):
+    """``git rebase -i`` should be rejected before subprocess execution."""
+    result = _exec_run_command(
+        tmp_path,
+        {"command": "git rebase -i main"},
+        timeout=2,
+    )
+
+    assert "Error: git rebase -i" in result
+    assert "GIT_SEQUENCE_EDITOR" in result
+
+
+def test_git_add_patch_rejected_before_execution(tmp_path):
+    """``git add -p`` should be rejected before subprocess execution."""
+    result = _exec_run_command(
+        tmp_path,
+        {"command": "git add -p"},
+        timeout=2,
+    )
+
+    assert "Error: git add -p" in result
+
+
+def test_git_commit_without_message_rejected_before_execution(tmp_path):
+    """``git commit`` without -m should be rejected before subprocess execution."""
+    result = _exec_run_command(
+        tmp_path,
+        {"command": "git commit"},
+        timeout=2,
+    )
+
+    assert "Error: git commit without -m/-F" in result
+
+
+def test_git_commit_with_message_allowed(tmp_path):
+    """``git commit -m "msg"`` is allowed but may fail due to git not being set up."""
+    # This will likely fail because git isn't configured, but it should pass
+    # the validation and attempt execution.
+    result = _exec_run_command(
+        tmp_path,
+        {"command": "git commit -m 'test message' 2>&1 || true"},
+        timeout=2,
+    )
+
+    # Should not be rejected by the validation layer
+    assert "Error: git commit without -m/-F" not in result
+
+
+def test_non_git_commands_pass_validation(tmp_path):
+    """Non-git commands should pass the validation layer."""
+    result = _exec_run_command(
+        tmp_path,
+        {"command": "echo 'hello world'"},
+        timeout=2,
+    )
+
+    assert "Error: git" not in result
+    assert "hello world" in result
+
+
+def test_git_merge_without_no_edit_rejected(tmp_path):
+    """``git merge`` without --no-edit should be rejected."""
+    result = _exec_run_command(
+        tmp_path,
+        {"command": "git merge main"},
+        timeout=2,
+    )
+
+    assert "Error: git merge" in result or "Error:" in result
