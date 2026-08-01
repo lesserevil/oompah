@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-678
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Do not flag intentional cross-task handoff denials as auth failures
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T12:01:06.107132Z'
-updated_at: '2026-08-01T14:53:44.469740Z'
+updated_at: '2026-08-01T15:02:34.873370Z'
 work_branch: OOMPAH-678
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/640
@@ -110,6 +110,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/640
 oompah.review_number: '640'
 oompah.work_branch: OOMPAH-678
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-9064a4d81921
+    project_id: proj-14849f1b
+    task_id: OOMPAH-678
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ddd8c3b83c34d5a414b3f25dba2318bbfdfc2c29fda7598043d59c4cf77cd902
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-01T15:02:28.469874+00:00'
+  - version: 1
+    audit_id: audit-520a1d5b5dcf
+    project_id: proj-14849f1b
+    task_id: OOMPAH-678
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ddd8c3b83c34d5a414b3f25dba2318bbfdfc2c29fda7598043d59c4cf77cd902
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-01T15:02:28.469874+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -202,5 +241,15 @@ author: oompah
 created: 2026-08-01 14:53
 ---
 Branch quality gate passed for `f4e334dc5545267d6b143858ee09f95972f13641` using `make test` in 405.6s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-01 15:02
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-01 15:02
+---
+YOLO: merged PR #640.
 ---
 <!-- COMMENTS:END -->
