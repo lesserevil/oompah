@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-676
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Make graceful CLI cutover drain workers before restart
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T05:18:04.532392Z'
-updated_at: '2026-08-01T06:09:33.314351Z'
+updated_at: '2026-08-01T06:11:26.821956Z'
 work_branch: OOMPAH-676
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/638
@@ -134,6 +134,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-e30fe34ea93a: '2026-08-01T06:09:09.326992+00:00'
+    attempt-20888666cb7d: '2026-08-01T06:11:20.547814+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-676
@@ -144,6 +145,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-01T06:09:09.327001+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-676
+    target_state: Merged
+    evidence_fingerprint: a2b47ef5d5f03107e321acad1889bb215846e9673336f71c2eafe9437b9a99d6
+    audit_ids:
+    - audit-45c1e7847e18
+    kind: result
+    applied: true
+    retired_at: '2026-08-01T06:11:20.547835+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-676
@@ -157,6 +167,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-01T06:09:09.327014+00:00'
     applied_at: '2026-08-01T06:09:13.180799+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-676
+    audit_id: audit-45c1e7847e18
+    attempt_id: attempt-20888666cb7d
+    target_state: Merged
+    evidence_fingerprint: a2b47ef5d5f03107e321acad1889bb215846e9673336f71c2eafe9437b9a99d6
+    status: Merged
+    audit_ids:
+    - audit-45c1e7847e18
+    applied: false
+    created_at: '2026-08-01T06:11:20.547858+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -198,7 +219,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-676
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -207,7 +228,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-20888666cb7d
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -217,13 +238,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-01T06:09:28.913186+00:00'
       branch_key: OOMPAH-676
+      verdict: pass
+      completed_at: '2026-08-01T06:11:20.547593+00:00'
+      ended_at: '2026-08-01T06:11:20.547593+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-01T06:04:15.796051+00:00'
-    updated_at: '2026-08-01T06:09:28.913186+00:00'
+    updated_at: '2026-08-01T06:11:20.547593+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-e30fe34ea93a
@@ -521,5 +545,26 @@ author: oompah
 created: 2026-08-01 06:09
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-01 06:11
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: f9f1463a06f1236fba60722393bab132b6018de2
+- merge_commit: 96bb396eaa45ce6b5dad8de215bd2b34c02dd2cb
+- merge_pr: #638
+- merge_on_main: confirmed via git log origin/main --merges
+- commits_on_branch: cd9b2652a (drain workers before graceful CLI cutover); f9f1463a0 (fix _ServerWithMismatchedLauncher mock for /quiesce)
+- branch_gate: make test PASSED for f9f1463a0 in 396.4s per scheduler comment 2026-08-01 05:56 UTC
+- quiesce_endpoint: oompah/server.py:11816 POST /api/v1/orchestrator/quiesce
+- orchestrator_quiesce_method: oompah/orchestrator.py:2797 def quiesce
+- orchestrator_pause_preserved: oompah/orchestrator.py:2789 pause() schedules _terminate_all_running
+- cutover_uses_quiesce: scripts/canonical_cli_cutover.py:613 POST /api/v1/orchestrator/quiesce; drain_gate 'paused' if was_paused else 'quiesced'
+- prior_audit: Done audit passed 2026-08-01 06:09 UTC with matching evidence
+- state_reports_quiesced: oompah/server.py:1577 state dict includes 'quiesced': False
 ---
 <!-- COMMENTS:END -->
