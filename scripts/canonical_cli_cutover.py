@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Coordinate a safe canonical-CLI and service restart cutover.
 
-The old service is paused and drained before a candidate is staged.  Staging
+The old service is quiesced and drained before a candidate is staged.  Staging
 uses an isolated UV tool root; activation is the only operation that changes
 the canonical launcher.  Failures before a restart attempt restore and resume
 the old pair.  After a restart attempt, bounded build/instance probes either
@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import re
 import signal
@@ -25,6 +26,9 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
+
+
+logger = logging.getLogger(__name__)
 
 try:  # Works both as ``python -m`` and as a Makefile script path.
     from scripts.sync_canonical_cli import (
@@ -486,7 +490,7 @@ def graceful_cutover(
     quarantine: Quarantine | None = None,
     quarantine_timeout: float = 30,
 ) -> str:
-    """Perform a pause, stage, activate, restart, and identity transaction."""
+    """Perform a quiesce, drain, stage, restart, and identity transaction."""
     env = dict(os.environ if environ is None else environ)
     validation_path = env.get("PATH", "") if operator_path is None else operator_path
     operator_env = {**env, "PATH": validation_path}
@@ -600,21 +604,42 @@ def graceful_cutover(
         )
 
     was_paused = bool(old_state.get("paused"))
-    paused_by_cutover = False
+    quiesced_by_cutover = False
     restart_attempted = False
     staged: StagedCLI | None = None
     activation: Activation | None = None
     try:
         if not was_paused:
-            request("POST", "/api/v1/orchestrator/pause", {})
-            paused_by_cutover = True
+            request("POST", "/api/v1/orchestrator/quiesce", {})
+            quiesced_by_cutover = True
         if not force:
-            _wait_for_state(
-                request,
-                lambda state: bool(state.get("paused")) and _running_count(state) == 0,
-                timeout=timeout,
-                sleep=sleep,
-            )
+            drain_gate = "paused" if was_paused else "quiesced"
+            try:
+                _wait_for_state(
+                    request,
+                    lambda state: bool(state.get(drain_gate))
+                    and _running_count(state) == 0,
+                    timeout=timeout,
+                    sleep=sleep,
+                )
+            except CutoverError as drain_error:
+                # The local wait owns the configured drain budget.  If the
+                # transient gate is still confirmed but workers remain, let
+                # the restart endpoint cross its zero-budget persistence and
+                # shutdown boundary.  It will record only those workers that
+                # are genuinely still running at that point.  A missing gate
+                # is a control-plane failure and must still roll back.
+                latest_state = request("GET", "/api/v1/state", None)
+                if not bool(latest_state.get(drain_gate)):
+                    raise drain_error
+                if _running_count(latest_state) == 0:
+                    pass
+                else:
+                    logger.warning(
+                        "Lifecycle drain timed out with %d worker(s) still running; "
+                        "delegating persistence and termination to restart",
+                        _running_count(latest_state),
+                    )
 
         staged = stage(
             repo=repo,
@@ -672,9 +697,9 @@ def graceful_cutover(
             activation.rollback()
             activation = None
             restart_attempted = False
-            if paused_by_cutover:
+            if quiesced_by_cutover:
                 request("POST", "/api/v1/orchestrator/resume", {})
-                paused_by_cutover = False
+                quiesced_by_cutover = False
             detail = str(restart_error) if restart_error else "restart was not accepted"
             raise CutoverError(
                 f"{detail}; the verified old service and CLI pair was restored"
@@ -726,7 +751,7 @@ def graceful_cutover(
 
         if activation is not None:
             activation.rollback()
-        if paused_by_cutover:
+        if quiesced_by_cutover:
             try:
                 request("POST", "/api/v1/orchestrator/resume", {})
             except Exception as resume_exc:  # pragma: no cover - defensive alert

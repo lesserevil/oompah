@@ -29,7 +29,7 @@ required before any route becomes an MCP tool.
 | `ADMIN_MUTATION` | Service config mutations (project, profile, role, focus) | ❌ No |
 | `CREDENTIAL_BEARING` | Provider API key management | ❌ No |
 | `WEBHOOK_INGESTION` | Inbound webhook handlers (GitHub, GitLab) | ❌ No |
-| `ORCHESTRATOR_CONTROL` | Lifecycle control (restart, pause, resume, dispatch) | ❌ No |
+| `ORCHESTRATOR_CONTROL` | Lifecycle control (restart, pause, quiesce, resume, dispatch) | ❌ No |
 | `RELEASE_DELIVERY` | Release pipeline mutations | ❌ No |
 | `UNKNOWN` | Catch-all for unclassified routes | ❌ No |
 

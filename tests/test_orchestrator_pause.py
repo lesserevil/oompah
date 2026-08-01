@@ -55,6 +55,63 @@ class TestPausedStatePersistence:
             data = json.load(f)
         assert data["paused"] is True
 
+    def test_quiesce_does_not_persist_operator_pause_or_terminate_workers(
+        self, tmp_path
+    ):
+        """Cutover quiesce preserves active workers and explicit pause state."""
+        from datetime import datetime, timezone
+
+        from oompah.models import Issue, RunningEntry
+
+        state_path = str(tmp_path / "service_state.json")
+        orch = Orchestrator(
+            config=_make_config(),
+            workflow_path="WORKFLOW.md",
+            state_path=state_path,
+        )
+        issue_id = "quiesced-worker"
+        orch.state.running[issue_id] = RunningEntry(
+            worker_task=None,
+            identifier=issue_id,
+            issue=Issue(
+                id=issue_id,
+                identifier=issue_id,
+                title="Drain me naturally",
+                state="In Progress",
+            ),
+            session=None,
+            retry_attempt=0,
+            started_at=datetime.now(timezone.utc),
+        )
+
+        orch.quiesce()
+
+        assert orch._quiesced is True
+        assert orch.is_paused is False
+        assert issue_id in orch.state.running
+        assert orch._load_state().get("paused", False) is False
+
+    def test_explicit_pause_still_marks_operator_pause(self, tmp_path, event_loop):
+        """The destructive operator pause contract remains unchanged."""
+        from unittest.mock import AsyncMock
+
+        orch = Orchestrator(
+            config=_make_config(),
+            workflow_path="WORKFLOW.md",
+            state_path=str(tmp_path / "service_state.json"),
+        )
+        terminate = AsyncMock()
+        orch._terminate_all_running = terminate
+
+        async def invoke_pause():
+            orch.pause()
+            await asyncio.sleep(0)
+
+        event_loop.run_until_complete(invoke_pause())
+
+        assert orch.is_paused is True
+        terminate.assert_awaited_once_with()
+
     def test_unpause_persists_to_disk(self, tmp_path, event_loop):
         """Calling unpause() writes paused=False to the state file."""
         state_path = str(tmp_path / "service_state.json")

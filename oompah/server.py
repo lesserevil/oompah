@@ -1574,6 +1574,7 @@ def _cached_state_snapshot_or_unavailable() -> dict[str, Any]:
         return snapshot
     return {
         "paused": False,
+        "quiesced": False,
         "counts": {"running": 0, "retrying": 0},
         "running": [],
         "retrying": [],
@@ -11808,6 +11809,27 @@ async def api_orchestrator_pause():
         orch = _get_orchestrator()
         orch.pause()
         return JSONResponse({"ok": True, "paused": True})
+    except Exception as exc:
+        return JSONResponse({"error": str(exc)}, status_code=500)
+
+
+@app.post("/api/v1/orchestrator/quiesce")
+async def api_orchestrator_quiesce():
+    """Stop new dispatch without terminating currently running agents.
+
+    Lifecycle cutovers use this transient gate before requesting the restart
+    endpoint.  It is intentionally separate from ``/pause`` because operator
+    pause remains a destructive stop operation.
+    """
+    try:
+        if _orchestrator is None and _ipc is not None:
+            cmd_id = _ipc.enqueue_command("quiesce")
+            return JSONResponse(
+                {"ok": True, "quiesced": True, "ipc_command_id": cmd_id}
+            )
+        orch = _get_orchestrator()
+        orch.quiesce()
+        return JSONResponse({"ok": True, "quiesced": True})
     except Exception as exc:
         return JSONResponse({"error": str(exc)}, status_code=500)
 

@@ -9,7 +9,7 @@ Acceptance criteria:
   1. make start with no running service: syncs CLI before starting new service
   2. make start with running service: reports no-op without modifying CLI
   3. make restart: drains, stages, and atomically activates before server exec
-  4. make restart after drain failure: refuses to sync CLI, preserves known-good pair
+  4. make restart after drain timeout: recovers only the still-running worker
   5. make force-restart: uses the same transaction while skipping agent drain
   6. Pre-restart failure: rolls back to the known-good CLI and resumes the service
   7. CLI/server build_id equality verified after successful lifecycle operations
@@ -67,6 +67,7 @@ class _LiveOldServer:
         restart_drops: bool = False,
         restart_drops_before_accept: bool = False,
         initially_paused: bool = False,
+        complete_after_quiesce_polls: int | None = None,
         old_state_instance: object = _MATCHING_STATE_INSTANCE,
         new_state_instance: object = _MATCHING_STATE_INSTANCE,
     ):
@@ -80,12 +81,15 @@ class _LiveOldServer:
         self.restart_drops = restart_drops
         self.restart_drops_before_accept = restart_drops_before_accept
         self.paused = initially_paused
+        self.quiesced = False
+        self.complete_after_quiesce_polls = complete_after_quiesce_polls
         self.old_state_instance = old_state_instance
         self.new_state_instance = new_state_instance
         self.committed = False
         self.resumed = False
         self.stopped = False
         self.quarantine_reason: str | None = None
+        self.restart_recovery: list[str] = []
         self.calls: list[tuple[str, str]] = []
 
     def __call__(self, method, path, body):
@@ -107,6 +111,16 @@ class _LiveOldServer:
         if path == "/api/v1/state" and method == "GET":
             if self.committed and not self.new_health:
                 raise ConnectionError("new service state is unavailable")
+            if (
+                not self.committed
+                and self.quiesced
+                and self.complete_after_quiesce_polls is not None
+            ):
+                self.complete_after_quiesce_polls -= 1
+                if self.complete_after_quiesce_polls <= 0:
+                    # Model a natural worker exit, not a termination caused
+                    # by the lifecycle request.
+                    self.running = 0
             instance = self.new_instance if self.committed else self.old_instance
             revision = (
                 self.reported_new_revision if self.committed else self.old_revision
@@ -118,6 +132,7 @@ class _LiveOldServer:
                 state_instance = instance
             return {
                 "paused": self.paused,
+                "quiesced": self.quiesced,
                 "counts": {"running": self.running},
                 "service_instance_id": state_instance,
                 "build_id": {"revision": revision},
@@ -126,13 +141,24 @@ class _LiveOldServer:
         if path == "/api/v1/orchestrator/pause":
             self.paused = True
             return {"ok": True, "paused": True}
+        if path == "/api/v1/orchestrator/quiesce":
+            self.quiesced = True
+            return {"ok": True, "quiesced": True}
         if path == "/api/v1/orchestrator/resume":
             self.paused = False
+            self.quiesced = False
             self.resumed = True
-            return {"ok": True, "paused": False}
+            return {"ok": True, "paused": False, "quiesced": False}
         if path == "/api/v1/orchestrator/restart":
             if self.restart_drops_before_accept:
                 raise ConnectionError("simulated drop before restart acceptance")
+            if self.running:
+                self.restart_recovery = [
+                    f"running-worker-{number}" for number in range(self.running)
+                ]
+                # The old process terminates these after the restart drain
+                # reaches its deadline.
+                self.running = 0
             self.committed = True
             if self.restart_drops:
                 raise ConnectionError("simulated connection drop during exec")
@@ -215,12 +241,12 @@ def test_start_with_running_service_reports_noop(tmp_path):
     assert "sync_canonical_cli.py" not in running_branch
 
 
-def test_restart_activates_only_after_drain_before_restart(tmp_path):
+def test_restart_activates_only_after_natural_drain_before_restart(tmp_path):
     """Verify activation happens only after drain and before the restart request.
 
     The sequence is:
     1. Verify old service is healthy
-    2. Pause and wait for drain
+    2. Quiesce and wait for drain
     3. Stage and atomically activate the CLI
     4. Request restart
     5. Verify the new instance and matching build identity
@@ -230,10 +256,22 @@ def test_restart_activates_only_after_drain_before_restart(tmp_path):
     assert revision == server.new_revision
     assert activation.commit_count == 1
     assert activation.rollback_count == 0
-    assert server.calls.index(("POST", "/api/v1/orchestrator/pause")) < server.calls.index(
+    assert server.calls.index(("POST", "/api/v1/orchestrator/quiesce")) < server.calls.index(
         ("POST", "/api/v1/orchestrator/restart")
     )
     assert server.calls[-1] == ("POST", "/api/v1/orchestrator/resume")
+
+
+def test_restart_drain_completion_is_not_requeued(tmp_path):
+    """A worker that exits during quiesced drain is absent from recovery."""
+    server = _LiveOldServer(running=1, complete_after_quiesce_polls=1)
+
+    revision, activation = _run_cutover(tmp_path, server)
+
+    assert revision == server.new_revision
+    assert activation.commit_count == 1
+    assert server.restart_recovery == []
+    assert server.quiesced is False
 
 
 def test_cutover_and_install_cli_share_one_transaction_lock(tmp_path, monkeypatch):
@@ -330,18 +368,17 @@ def test_cutover_and_install_cli_share_one_transaction_lock(tmp_path, monkeypatc
     assert not list(canonical.parent.glob(".oompah-cli-activation-*"))
 
 
-def test_restart_with_drain_failure_refuses_cli_sync(tmp_path):
-    """Verify CLI is not synced if drain/restart fails.
-
-    If the drain request fails or the new instance never appears, sync-cli
-    should be skipped entirely, preserving the CLI/server invariant.
-    """
+def test_restart_timeout_recovers_only_undrained_worker(tmp_path):
+    """A drain timeout crosses restart once and recovers the live worker."""
     server = _LiveOldServer(running=1)
-    with pytest.raises(CutoverError, match="lifecycle state|timeout"):
-        _run_cutover(tmp_path, server, timeout=0.001)
-    assert server.committed is False
+    revision, activation = _run_cutover(tmp_path, server, timeout=0.001)
+
+    assert revision == server.new_revision
+    assert activation.commit_count == 1
+    assert server.committed is True
+    assert server.restart_recovery == ["running-worker-0"]
+    assert server.calls.count(("POST", "/api/v1/orchestrator/restart")) == 1
     assert server.resumed is True
-    assert ("POST", "/api/v1/orchestrator/restart") not in server.calls
 
 
 def test_install_failure_preserves_known_good_cli_with_running_server(tmp_path):
@@ -422,13 +459,13 @@ def test_verify_pair_requires_matching_non_null_service_instances(
         )
 
 
-def test_cutover_refuses_unpaired_initial_identity_before_pause(tmp_path):
+def test_cutover_refuses_unpaired_initial_identity_before_quiesce(tmp_path):
     server = _LiveOldServer(old_state_instance=None)
 
     with pytest.raises(CutoverError, match="same non-null service instance"):
         _run_cutover(tmp_path, server)
 
-    assert ("POST", "/api/v1/orchestrator/pause") not in server.calls
+    assert ("POST", "/api/v1/orchestrator/quiesce") not in server.calls
 
 
 @pytest.mark.parametrize("state_instance", [None, "different-instance"])
@@ -492,7 +529,7 @@ def test_restart_refuses_to_activate_without_quarantine_identity(tmp_path):
             sleep=lambda _: None,
         )
 
-    assert ("POST", "/api/v1/orchestrator/pause") not in server.calls
+    assert ("POST", "/api/v1/orchestrator/quiesce") not in server.calls
 
 
 def test_accepted_restart_health_timeout_quarantines_service(tmp_path):
@@ -578,7 +615,7 @@ def test_previously_paused_service_remains_paused_after_success(tmp_path):
     assert revision == server.new_revision
     assert server.paused is True
     assert server.resumed is False
-    assert ("POST", "/api/v1/orchestrator/pause") not in server.calls
+    assert ("POST", "/api/v1/orchestrator/quiesce") not in server.calls
     assert ("POST", "/api/v1/orchestrator/resume") not in server.calls
 
 
