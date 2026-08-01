@@ -210,6 +210,31 @@ class TestDashboardIntakeActions:
         assert "showBoardError(message)" in body
         assert "clearBoardError()" in body
 
+    def test_transition_rejection_renders_authenticated_actor_and_owner_config(self):
+        script = _load_dashboard_script()
+        body = _function_body(script, "formatTransitionRejection")
+
+        assert "authenticated_actor" in body
+        assert "resolved_authenticated_actor" in body
+        assert "project_owner_config" in body
+        assert "status_actor_login" in body
+        assert "tracker_owner" in body
+        assert "status_label_authorized_logins" in body
+        assert "Remediation" in body
+
+    def test_update_issue_uses_structured_transition_rejection_formatter(self):
+        script = _load_dashboard_script()
+        body = _function_body(script, "updateIssue")
+
+        assert "formatTransitionRejection(errorData, detail)" in body
+
+    def test_intake_action_uses_accessible_board_error_for_rejection(self):
+        script = _load_dashboard_script()
+        body = _function_body(script, "performIntakeAction")
+
+        assert "formatTransitionRejection(body, messageText)" in body
+        assert "showBoardError(messageText)" in body
+
     def test_update_issue_surfaces_terminal_validation_audit(self):
         script = _load_dashboard_script()
         body = _function_body(script, "updateIssue")

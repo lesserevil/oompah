@@ -69,6 +69,10 @@
     .form-group select { width: 100%; padding: 0.4rem 0.6rem; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 0.85rem; }
     .gitlab-only { display: none; }
     .capability-warning { font-size: 0.75rem; color: #d29922; background: rgba(210, 153, 34, 0.08); border: 1px solid rgba(210, 153, 34, 0.25); border-radius: 6px; padding: 0.4rem 0.6rem; margin-top: 0.35rem; }
+    .owner-identity-warning { font-size: 0.75rem; color: var(--red); background: rgba(248, 81, 73, 0.08); border: 1px solid rgba(248, 81, 73, 0.35); border-radius: 6px; padding: 0.55rem 0.65rem; margin-top: 0.55rem; line-height: 1.35; }
+    .owner-identity-warning strong { display: block; margin-bottom: 0.2rem; }
+    .owner-identity-warning button { margin-top: 0.4rem; color: var(--text); border-color: rgba(248, 81, 73, 0.45); }
+    .owner-identity-help { display: block; font-size: 0.7rem; color: var(--text-muted); margin-top: 0.25rem; line-height: 1.35; }
   </style>
   <script>
     window.onerror = function(msg, src, line, col, err) {
@@ -164,6 +168,15 @@
         <label>Access Token (optional &mdash; GitHub/GitLab API token; falls back to env vars or gh/glab CLI)</label>
         <input type="password" id="add-access-token" placeholder="" autocomplete="off">
       </div>
+      <div class="form-group" data-field="add-status-actor">
+        <label>Status Actor Login <span style="font-weight:400;color:var(--text-muted);">(owner identity for protected status transitions; leave blank to derive from the token)</span></label>
+        <input type="text" id="add-status-actor-login" placeholder="e.g. project-owner" autocomplete="off">
+      </div>
+      <div class="form-group" data-field="add-status-authorized-logins">
+        <label>Additional Authorized Logins <span style="font-weight:400;color:var(--text-muted);">(optional, comma-separated)</span></label>
+        <input type="text" id="add-status-label-authorized-logins" placeholder="e.g. release-manager" autocomplete="off">
+        <span class="owner-identity-help">The server resolves the authenticated actor. These values configure who may pass the owner gate; they are not used as a client-supplied actor.</span>
+      </div>
       <div id="add-error" style="color:var(--red);font-size:0.8rem;margin-bottom:0.5rem;display:none;"></div>
       <div class="form-actions">
         <button onclick="toggleAddForm()">Cancel</button>
@@ -225,6 +238,48 @@ function renderProviderWhitelistCheckboxes(projectId, whitelist) {
       + ' ' + esc(opt.name) + unknownNote
       + '</label>';
   }).join('\n');
+}
+
+const PROTECTED_OWNER_TRACKERS = new Set(['oompah_md', 'github_issues', 'gitlab_issues']);
+
+function projectOwnerConfiguration(project) {
+  const statusActor = String((project && project.status_actor_login) || '').trim();
+  const trackerOwner = String((project && project.tracker_owner) || '').trim();
+  const allowlist = Array.isArray(project && project.status_label_authorized_logins)
+    ? project.status_label_authorized_logins.map(login => String(login || '').trim()).filter(Boolean)
+    : [];
+  return {
+    status_actor_login: statusActor,
+    tracker_owner: trackerOwner,
+    status_label_authorized_logins: allowlist,
+    owner_capable: Boolean(statusActor || trackerOwner || allowlist.length),
+  };
+}
+
+function projectNeedsOwnerIdentity(project) {
+  const trackerKind = String((project && project.tracker_kind) || 'oompah_md').trim().toLowerCase();
+  return PROTECTED_OWNER_TRACKERS.has(trackerKind);
+}
+
+function renderOwnerIdentityHealth(project) {
+  if (!projectNeedsOwnerIdentity(project)) return '';
+  const config = projectOwnerConfiguration(project);
+  if (config.owner_capable) return '';
+  const projectId = esc(project.id || '');
+  return `<div class="owner-identity-warning" role="alert" aria-live="polite" data-field="owner-identity-health">
+    <strong>Owner identity is not configured.</strong>
+    Protected status transitions will be rejected until Status Actor Login or an authorized login is configured. The project remains safely paused; use Edit to configure the owner, then resume it.
+    <button type="button" onclick="toggleEditForm('${projectId}')" aria-label="Configure owner identity for ${esc(project.name || 'project')}">Configure owner identity</button>
+  </div>`;
+}
+
+function renderOwnerIdentityEditHelp(project) {
+  if (!projectNeedsOwnerIdentity(project)) return '';
+  const config = projectOwnerConfiguration(project);
+  if (config.owner_capable) {
+    return '<span class="owner-identity-help">The server derives the authenticated actor for each transition. Configured owner values are used only by the server-side owner gate.</span>';
+  }
+  return '<span class="owner-identity-help" role="alert">Required before resuming a protected project: set an owner login or provide a token whose authenticated owner can be resolved.</span>';
 }
 
 async function loadProjects() {
@@ -365,6 +420,7 @@ async function loadProjects() {
           <span class="field-label">Status Allowlist:</span>
           <span class="field-value">${(p.status_label_authorized_logins || []).length ? esc(p.status_label_authorized_logins.join(', ')) : '<em style="color:var(--text-muted);font-style:italic;">none</em>'}</span>
         </div>
+        ${renderOwnerIdentityHealth(p)}
         ${p.github_project_node_id ? `<div class="field-row" data-field="github-project-node-id">
           <span class="field-label">GH Project:</span>
           <span class="field-value">${esc(p.github_project_node_id)}</span>
@@ -502,6 +558,7 @@ async function loadProjects() {
         <div class="form-group">
           <label>Status Actor Login <span style="font-weight:400;color:var(--text-muted);">(defaults to the owner of the configured project token)</span></label>
           <input type="text" id="edit-status-actor-login-${esc(p.id)}" value="${esc(p.status_actor_login || '')}" placeholder="e.g. project-owner">
+          ${renderOwnerIdentityEditHelp(p)}
         </div>
         <div class="form-group">
           <label>Status Authorized Logins <span style="font-weight:400;color:var(--text-muted);">(comma-separated GitHub logins allowed to move issues through protected status transitions)</span></label>
@@ -641,6 +698,11 @@ async function addProject() {
   const gitUserName = document.getElementById('add-git-user-name').value.trim() || undefined;
   const gitUserEmail = document.getElementById('add-git-user-email').value.trim() || undefined;
   const accessToken = document.getElementById('add-access-token').value.trim() || undefined;
+  const statusActorLogin = document.getElementById('add-status-actor-login').value.trim() || undefined;
+  const statusAuthorizedRaw = document.getElementById('add-status-label-authorized-logins').value.trim();
+  const statusLabelAuthorizedLogins = statusAuthorizedRaw
+    ? statusAuthorizedRaw.split(',').map(s => s.trim()).filter(s => s.length > 0)
+    : [];
   // Forge configuration (OOMPAH-327).
   const forgeKindEl = document.getElementById('add-forge-kind');
   const forgeKind = forgeKindEl ? (forgeKindEl.value || 'github') : 'github';
@@ -657,7 +719,7 @@ async function addProject() {
     res = await fetch('/api/v1/projects', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({repo_url: repo, name, branch, branches, default_branch: defaultBranch, git_user_name: gitUserName, git_user_email: gitUserEmail, access_token: accessToken, forge_kind: forgeKind, forge_base_url: forgeBaseUrl, tracker_kind: 'oompah_md', paused: true}),
+      body: JSON.stringify({repo_url: repo, name, branch, branches, default_branch: defaultBranch, git_user_name: gitUserName, git_user_email: gitUserEmail, access_token: accessToken, forge_kind: forgeKind, forge_base_url: forgeBaseUrl, tracker_kind: 'oompah_md', status_actor_login: statusActorLogin, status_label_authorized_logins: statusLabelAuthorizedLogins, paused: true}),
     });
   } catch (err) {
     console.error('addProject fetch failed:', err);
@@ -675,6 +737,8 @@ async function addProject() {
     document.getElementById('add-git-user-name').value = '';
     document.getElementById('add-git-user-email').value = '';
     document.getElementById('add-access-token').value = '';
+    document.getElementById('add-status-actor-login').value = '';
+    document.getElementById('add-status-label-authorized-logins').value = '';
     const addForgeKind = document.getElementById('add-forge-kind');
     if (addForgeKind) addForgeKind.value = 'github';
     onAddForgeChange();
