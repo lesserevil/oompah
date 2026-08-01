@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-680
 type: task
-status: In Validation
+status: In Review
 priority: null
 title: Use project forge credentials for all managed Git network operations
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T17:31:44.735248Z'
-updated_at: '2026-08-01T19:34:12.215807Z'
+updated_at: '2026-08-01T20:15:16.938935Z'
 work_branch: OOMPAH-680
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/643
@@ -108,6 +108,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-7bb232f7c6b0: '2026-08-01T18:49:23.451181+00:00'
+    attempt-cd841e90756b: '2026-08-01T20:15:12.884663+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-680
@@ -118,6 +119,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-01T18:49:23.451189+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-680
+    target_state: Merged
+    evidence_fingerprint: a1c3cf9d80d2ecaf16e098bd2dd7789d97fff709ff46d0925c850a5394dab919
+    audit_ids:
+    - audit-40b7ddbe115b
+    kind: result
+    applied: true
+    retired_at: '2026-08-01T20:15:12.884686+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-680
@@ -131,6 +141,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-01T18:49:23.451201+00:00'
     applied_at: '2026-08-01T18:49:26.592603+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-680
+    audit_id: audit-40b7ddbe115b
+    attempt_id: attempt-cd841e90756b
+    target_state: Merged
+    evidence_fingerprint: a1c3cf9d80d2ecaf16e098bd2dd7789d97fff709ff46d0925c850a5394dab919
+    status: In Review
+    audit_ids:
+    - audit-40b7ddbe115b
+    applied: false
+    created_at: '2026-08-01T20:15:12.884710+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -190,7 +211,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-680
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -199,7 +220,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-cd841e90756b
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -209,13 +230,17 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-01T19:34:07.541395+00:00'
       branch_key: OOMPAH-680
+      verdict: fail
+      failure_classification: healthy_unmerged_review
+      completed_at: '2026-08-01T20:15:12.884415+00:00'
+      ended_at: '2026-08-01T20:15:12.884415+00:00'
     requested_by:
       version: 1
       identity: standalone-ready-reconciliation
       source: oompah
     previous_state: Ready to Integrate
     created_at: '2026-08-01T19:33:44.920836+00:00'
-    updated_at: '2026-08-01T19:34:07.541395+00:00'
+    updated_at: '2026-08-01T20:15:12.884415+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-7bb232f7c6b0
@@ -583,5 +608,21 @@ author: oompah
 created: 2026-08-01 19:34
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-01 20:15
+---
+Audit FAIL — healthy unmerged review. Routing task to In Review.
+
+[REDACTED]
+
+Questions:
+- Should the orchestrator open a fresh PR for the current branch head d08a8da to complete the Merged cycle, or is a force-update of the existing PR #643 workflow expected?
+- Should oompah.review_url be refreshed when a branch head advances past a merged review, or is that reconciler bug outside this task's scope?
+
+Instructions:
+- Route the task to In Review; the orchestrator's standalone Ready-to-Integrate reconciler should create a new PR for branch OOMPAH-680 at d08a8da and update oompah.review_url before re-queuing the Merged audit chain.
+- After the new PR is merged into main so that d08a8da becomes an ancestor of origin/main HEAD, dispatch a fresh Done/Merged audit chain against the resulting integrated_sha.
+- Optionally file a follow-up to harden the reconciler that moved OOMPAH-680 to In Validation while the review_url pointed at an already-merged stale head — the current metadata should not treat a stale merged review as terminal evidence for a newer branch head.
 ---
 <!-- COMMENTS:END -->
