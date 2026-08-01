@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-679
 type: bug
-status: In Review
+status: In Validation
 priority: 0
 title: Reset activity panel identity when a task starts a new agent run
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T12:05:24.382952Z'
-updated_at: '2026-08-01T15:41:11.862104Z'
+updated_at: '2026-08-01T15:49:18.795524Z'
 work_branch: OOMPAH-679
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/641
@@ -153,6 +153,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/641
 oompah.review_number: '641'
 oompah.work_branch: OOMPAH-679
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-f82179cc92d3
+    project_id: proj-14849f1b
+    task_id: OOMPAH-679
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 3b6f79304129fbf181aa3e54c58e68ce4375d0a6cc9f5184b65db1dadd238aee
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-01T15:49:11.551264+00:00'
+  - version: 1
+    audit_id: audit-b1375f6be9f8
+    project_id: proj-14849f1b
+    task_id: OOMPAH-679
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 3b6f79304129fbf181aa3e54c58e68ce4375d0a6cc9f5184b65db1dadd238aee
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-01T15:49:11.551264+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -405,5 +444,15 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Claude/opus]
 - Cost: $0.0000
 - Exit: normal, Duration: 6m 2s
 - Log: OOMPAH-679__20260801T153423Z.jsonl
+---
+author: oompah
+created: 2026-08-01 15:49
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-01 15:49
+---
+YOLO: merged PR #641.
 ---
 <!-- COMMENTS:END -->
