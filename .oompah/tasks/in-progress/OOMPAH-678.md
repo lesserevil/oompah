@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T12:01:06.107132Z'
-updated_at: '2026-08-01T14:42:37.334491Z'
+updated_at: '2026-08-01T14:44:41.578116Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -139,5 +139,10 @@ author: oompah
 created: 2026-08-01 14:42
 ---
 Implementation: added verified live-peer scope classification in api_task_handoff. Spawned CLI/ACP workers now carry non-secret OOMPAH_TASK_HANDOFF_TASK_ID; the server matches it to the live RunningEntry token before recording a peer 403 as policy_denial_count. Expected denials remain HTTP 403, skip worker-failure reconciliation, and direct read-only inspection to coordinate peers/inbox. Genuine copied-token, missing-token, expired, revoked, and unknown-scope cases retain actionable auth counters. Dashboard/docs/tests were updated.
+---
+author: oompah
+created: 2026-08-01 14:44
+---
+Verification: focused suite passed (258 tests): tests/test_auth_health.py, tests/test_task_handoff.py, tests/test_server_auth.py, tests/test_acp_codex_backend.py, and tests/test_dashboard_credential_warning.py. Also passed bash -n scripts/run-tests.sh, git diff --check, and make check-secrets. make terminal-audit-scan could not start because uv failed to create its transient scope (DBus kernel-thread error) before scanning.
 ---
 <!-- COMMENTS:END -->
