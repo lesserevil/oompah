@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-679
 type: bug
-status: Needs CI Fix
+status: In Progress
 priority: 1
 title: Reset activity panel identity when a task starts a new agent run
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T12:05:24.382952Z'
-updated_at: '2026-08-01T15:09:38.362155Z'
+updated_at: '2026-08-01T15:11:09.978288Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -88,7 +88,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 6ab016d9-736a-4cb7-b1cf-087d504bdbee
+oompah.agent_run_id: a9162a0d-cc94-4689-9e53-e5eae3c6cb3e
 oompah.task_costs:
   total_input_tokens: 202
   total_output_tokens: 5482
@@ -265,5 +265,15 @@ FAILED tests/test_duplicate_preflight.py::test_dispatch_preflight_does_not_move_
 
 make: *** [Makefile:388: test] Error 1
 ```
+---
+author: oompah
+created: 2026-08-01 15:11
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-08-01 15:11
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
