@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-676
 type: task
-status: Needs CI Fix
+status: In Progress
 priority: null
 title: Make graceful CLI cutover drain workers before restart
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T05:18:04.532392Z'
-updated_at: '2026-08-01T05:40:30.958842Z'
+updated_at: '2026-08-01T05:41:20.739246Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -57,7 +57,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 9bc487f4-b41f-480e-8a45-261cadf2c119
+oompah.agent_run_id: 7f10fcf3-33c2-4e82-b506-3e24037247d9
 oompah.task_costs:
   total_input_tokens: 11821934
   total_output_tokens: 38053
@@ -265,5 +265,15 @@ FAILED tests/test_cli_mismatch_recovery.py::test_successful_recovery_proves_no_f
 
 make: *** [Makefile:388: test] Error 1
 ```
+---
+author: oompah
+created: 2026-08-01 05:41
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-08-01 05:41
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
