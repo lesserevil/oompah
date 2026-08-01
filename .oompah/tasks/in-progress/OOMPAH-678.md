@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-678
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Do not flag intentional cross-task handoff denials as auth failures
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T12:01:06.107132Z'
-updated_at: '2026-08-01T14:31:22.566472Z'
+updated_at: '2026-08-01T14:31:45.915626Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -55,7 +55,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 8a17bfd9-c347-4492-a23a-7691cc508eea
+oompah.agent_run_id: b4477585-ed1a-46af-bc44-9bf2f59b337c
 oompah.task_costs:
   total_input_tokens: 202
   total_output_tokens: 5974
@@ -114,5 +114,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 3m 15s
 - Log: OOMPAH-678__20260801T142816Z.jsonl
+---
+author: oompah
+created: 2026-08-01 14:31
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-01 14:31
+---
+Focus: Frontend Developer
 ---
 <!-- COMMENTS:END -->

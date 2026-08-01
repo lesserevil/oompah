@@ -11,12 +11,27 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T12:05:24.382952Z'
-updated_at: '2026-08-01T12:05:26.544129Z'
+updated_at: '2026-08-01T14:31:51.170043Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: c2afc418e9d217abf284d9e8a66ead0db5aec54a956ab1276d9a2e851c9b6bfe
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 1527f55b-f311-452a-a778-49d7f810d20c
+  claim_owner: 7946c223-6c24-4967-8291-1d20c0e47f05
+  claimed_at: '2026-08-01T14:31:45.026404+00:00'
+  claim_expires_at: '2026-08-01T15:01:45.026404+00:00'
+  retry_count: 0
+  retry_after: null
+oompah.agent_run_id: 3819e905-1dea-4a4e-a61c-08226c56e9b9
 ---
 ## Summary
 
@@ -28,3 +43,16 @@ Live UI regression observed for EXOCOMP-143 on 2026-08-01. A read-only Duplicate
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-01 14:31
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-01 14:31
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
