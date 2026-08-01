@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-680
 type: task
-status: In Validation
+status: Open
 priority: null
 title: Use project forge credentials for all managed Git network operations
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T17:31:44.735248Z'
-updated_at: '2026-08-01T18:31:22.273455Z'
+updated_at: '2026-08-01T18:49:27.565632Z'
 work_branch: OOMPAH-680
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/643
@@ -89,6 +89,31 @@ oompah.work_branch: OOMPAH-680
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-7bb232f7c6b0: '2026-08-01T18:49:23.451181+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-680
+    target_state: Done
+    evidence_fingerprint: 544d20e1f855d7ef1a5e45f47e0ac5c92b1122b1a6bedb07a3af93eda11154b9
+    audit_ids:
+    - audit-991084691511
+    kind: result
+    applied: true
+    retired_at: '2026-08-01T18:49:23.451189+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-680
+    audit_id: audit-991084691511
+    attempt_id: attempt-7bb232f7c6b0
+    target_state: Done
+    evidence_fingerprint: 544d20e1f855d7ef1a5e45f47e0ac5c92b1122b1a6bedb07a3af93eda11154b9
+    status: Open
+    audit_ids:
+    - audit-991084691511
+    applied: true
+    created_at: '2026-08-01T18:49:23.451201+00:00'
+    applied_at: '2026-08-01T18:49:26.592603+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -96,7 +121,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-680
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -105,7 +130,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-7bb232f7c6b0
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -115,13 +140,17 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-01T18:31:15.307592+00:00'
       branch_key: OOMPAH-680
+      verdict: fail
+      failure_classification: incomplete
+      completed_at: '2026-08-01T18:49:23.451013+00:00'
+      ended_at: '2026-08-01T18:49:23.451013+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-01T18:30:29.250095+00:00'
-    updated_at: '2026-08-01T18:31:15.307592+00:00'
+    updated_at: '2026-08-01T18:49:23.451013+00:00'
   - version: 1
     audit_id: audit-e479b83291f7
     project_id: proj-14849f1b
@@ -405,5 +434,23 @@ author: oompah
 created: 2026-08-01 18:31
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-01 18:49
+---
+Audit FAIL — incomplete. Routing task to Open.
+
+[REDACTED]
+
+Questions:
+- Does the operator accept a partial fix that addresses state-branch checkpointing but not epic publishing (projects.py:2588) and integration push (integration_executor.py) on private GitLab? These are within the task's explicit scope and were the failure modes cited in the incident.
+- Should follow-up tasks be filed for projects.py, integration_executor.py, cherry_pick_pr_creator.py, and repo_map_generator.py credentialization, and for the six required test suites (GitLab publish, invalid-token diagnostics, GitHub regression, concurrent isolation, worktree inheritance, secret scan)?
+
+Instructions:
+- Route git push in prepare_epic_branch_for_private_dispatch (projects.py:~2586) and delete_epic_child_branch (projects.py:1849, 2429) through git_credential_environment using the target Project's access_token and forge_kind.
+- Thread project access_token/forge_kind into integration_executor.execute_integration and wrap fetch/push (lines 154, 244, 329, 361, 409) in git_credential_environment; redact output with redact_git_output.
+- Thread access_token/forge_kind through cherry_pick_pr_creator.push_branch and RepoMapGenerator._push_state_branch; use git_credential_environment for the push.
+- Add the six required test suites the task calls out: GitLab-token acceptance for epic publish + state checkpoint, forge-neutral diagnostics for missing/invalid tokens (no partial state), GitHub regression, concurrent-project credential isolation, worktree inheritance, secret scan.
+- Verify no token can appear in argv, remote URLs, persisted git config, stdout, stderr, exceptions, or logs across all covered paths (regression test on redact_git_output for URL userinfo + token substrings + URL-encoded variants).
 ---
 <!-- COMMENTS:END -->
