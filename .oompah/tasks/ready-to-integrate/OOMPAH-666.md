@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-666
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Fix dashboard vertical scrolling when alerts precede the Kanban board
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T21:19:38.816688Z'
-updated_at: '2026-08-01T00:33:51.218019Z'
+updated_at: '2026-08-01T00:34:07.266804Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -107,9 +107,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-666
-  head_sha: 8d3da62bf488a6537a188303934957293b2d2951
-  submitted_at: '2026-07-31T23:12:06.885897+00:00'
-  updated_at: '2026-07-31T23:12:06.885897+00:00'
+  head_sha: 5741f6a05613dd038d49c25e03a01eb37b04e71f
+  submitted_at: '2026-08-01T00:34:03.770683+00:00'
+  updated_at: '2026-08-01T00:34:03.770683+00:00'
 ---
 ## Summary
 
@@ -336,5 +336,15 @@ author: oompah
 created: 2026-08-01 00:33
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-08-01 00:34
+---
+Direct CI recovery: the lone gate failure was load-sensitive test scaffolding, not the dashboard change. test_tick_sets_epic_maintenance_future used AsyncMock() without the handler's required timing-map return; only when a loaded tick crossed the 2s slow-log threshold did .items() hit the mock coroutine. Reproduced the exact test 21/21 green at normal speed, then made the mock return {} explicitly, rebased onto current main, and passed 281 focused handler/dashboard tests. Pushed clean head 5741f6a05613dd038d49c25e03a01eb37b04e71f.
+---
+author: oompah
+created: 2026-08-01 00:34
+---
+Rebased the validated dashboard scroll fix onto current main and stabilized the slow-tick test mock contract. Focused handler/dashboard suites pass (281 tests); pushed head 5741f6a05613dd038d49c25e03a01eb37b04e71f.
 ---
 <!-- COMMENTS:END -->
