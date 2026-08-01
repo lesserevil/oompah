@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:07.401588Z'
-updated_at: '2026-08-01T00:33:25.760733Z'
+updated_at: '2026-08-01T00:33:31.893749Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -229,18 +229,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-665
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 08587e11ed8008f31ea43053a9d571eb65e49661aa65834013fcb94ff62d4649
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-7dd0979b7f9e
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 08587e11ed8008f31ea43053a9d571eb65e49661aa65834013fcb94ff62d4649
+      created_at: '2026-08-01T00:33:27.822533+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-01T00:33:27.822533+00:00'
+      branch_key: OOMPAH-665
     requested_by:
       version: 1
       identity: oompah-cli
       source: api
     previous_state: Ready to Integrate
     created_at: '2026-08-01T00:24:07.729145+00:00'
+    updated_at: '2026-08-01T00:33:27.822533+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-a46d5580cb51
@@ -254,6 +268,19 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: opus
     started_at: '2026-08-01T00:24:15.768122+00:00'
+    branch_key: OOMPAH-665
+  - version: 1
+    attempt_id: attempt-7dd0979b7f9e
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 08587e11ed8008f31ea43053a9d571eb65e49661aa65834013fcb94ff62d4649
+    created_at: '2026-08-01T00:33:27.822533+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-01T00:33:27.822533+00:00'
     branch_key: OOMPAH-665
 ---
 ## Summary
@@ -830,5 +857,15 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/o
 - Cost: $0.0000
 - Exit: normal, Duration: 9m 7s
 - Log: OOMPAH-665__20260801T002422Z.jsonl
+---
+author: oompah
+created: 2026-08-01 00:33
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-01 00:33
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
