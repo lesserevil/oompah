@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T21:46:41.297124Z'
-updated_at: '2026-08-01T23:10:45.359977Z'
+updated_at: '2026-08-01T23:11:55.886546Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -164,9 +164,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-685
-  head_sha: 94d7ce2f75cd12737800c4b9c6b485c489d0a1ee
-  submitted_at: '2026-08-01T22:56:38.027506+00:00'
-  updated_at: '2026-08-01T22:56:38.027506+00:00'
+  head_sha: ae6d482665a589d09c113edeb452ad34960e25b8
+  submitted_at: '2026-08-01T23:11:53.613646+00:00'
+  updated_at: '2026-08-01T23:11:53.613646+00:00'
 ---
 ## Summary
 
@@ -390,5 +390,15 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Claude
 - Cost: $0.0000
 - Exit: terminated, Duration: 1m 23s
 - Log: OOMPAH-685__20260801T230923Z.jsonl
+---
+author: oompah
+created: 2026-08-01 23:11
+---
+The failed gate was a false negative in tests/test_orchestrator_tick_telemetry.py::TestSlowTickSubstepLogging::test_no_slow_tick_warning_for_fast_ticks. The exact test and exact source head pass outside the contended gate. Filed OOMPAH-688 to replace the one-second wall-clock assertion with deterministic time control. Refreshed only the branch-gate key with empty commit ae6d48266; no source code changed.
+---
+author: oompah
+created: 2026-08-01 23:11
+---
+Operator recovery complete at ae6d48266; implementation unchanged and fully passing locally, with transient gate-test flake tracked by OOMPAH-688.
 ---
 <!-- COMMENTS:END -->

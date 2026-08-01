@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-688
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Make slow-tick telemetry tests deterministic under load
 parent: null
@@ -11,12 +11,30 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T23:11:33.946132Z'
-updated_at: '2026-08-01T23:11:33.946132Z'
+updated_at: '2026-08-01T23:12:02.868908Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 396bfb10a05238676da45fa675e1c1f4b5aa329c2213456458b15432fcdac00d
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 73c05981-b828-4441-97ea-61ae49176a08
+  claim_owner: 9c8dda42-c87b-429a-bdb1-42da8ebebe7e
+  claimed_at: '2026-08-01T23:11:57.750115+00:00'
+  claim_expires_at: '2026-08-01T23:41:57.750115+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
+oompah.agent_run_id: 4d058dc8-7292-4424-af84-a9dc30bf0eaf
 ---
 ## Summary
 
@@ -28,3 +46,16 @@ Observed twice during operator recovery on 2026-08-01: tests/test_orchestrator_t
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-01 23:12
+---
+Duplicate screening dispatched (profile: standard, task remains Open)
+---
+author: oompah
+created: 2026-08-01 23:12
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
