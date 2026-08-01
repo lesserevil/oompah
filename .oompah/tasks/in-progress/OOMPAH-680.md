@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-680
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Use project forge credentials for all managed Git network operations
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T17:31:44.735248Z'
-updated_at: '2026-08-01T18:50:59.337969Z'
+updated_at: '2026-08-01T18:51:13.854548Z'
 work_branch: OOMPAH-680
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/643
@@ -42,7 +42,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 3ecae2ab-abaf-471b-afdb-5e87ba555188
+oompah.agent_run_id: 4549fa35-e46a-4492-b972-3dead87f8f3f
 oompah.task_costs:
   total_input_tokens: 228064
   total_output_tokens: 27333
@@ -472,5 +472,15 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 18m 31s
 - Log: OOMPAH-680__20260801T183123Z.jsonl
+---
+author: oompah
+created: 2026-08-01 18:51
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-01 18:51
+---
+Focus: Callback Auth Validation Specialist
 ---
 <!-- COMMENTS:END -->
