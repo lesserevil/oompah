@@ -13,7 +13,7 @@ labels:
 - focus-complete:chore
 assignee: null
 created_at: '2026-08-01T11:56:19.836343Z'
-updated_at: '2026-08-01T18:14:09.235630Z'
+updated_at: '2026-08-01T18:14:11.772983Z'
 work_branch: OOMPAH-677
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/642
@@ -193,8 +193,9 @@ oompah.terminal_audit:
     status: Merged
     audit_ids:
     - audit-cb72359b5eda
-    applied: false
+    applied: true
     created_at: '2026-08-01T18:14:06.491944+00:00'
+    applied_at: '2026-08-01T18:14:10.920228+00:00'
   version: 1
   pending_chain:
   - version: 1

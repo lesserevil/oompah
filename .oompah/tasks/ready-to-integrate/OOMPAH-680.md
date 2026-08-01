@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-680
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Use project forge credentials for all managed Git network operations
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T17:31:44.735248Z'
-updated_at: '2026-08-01T18:14:03.826172Z'
+updated_at: '2026-08-01T18:14:18.217304Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -69,6 +69,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-680
     source_sha: 6f6909fb85fa4194ee11f991e86ad290160bec2f
     completed_at: '2026-08-01T17:43:21.092891+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-680
+  head_sha: fd8f961459742e42427b9e5c80b73cdda894c625
+  submitted_at: '2026-08-01T18:14:15.685687+00:00'
+  updated_at: '2026-08-01T18:14:15.685687+00:00'
 ---
 ## Summary
 
@@ -281,5 +289,10 @@ Commits:
 
 Branch: OOMPAH-680
 Status: Ready for integration review
+---
+author: oompah
+created: 2026-08-01 18:14
+---
+Implemented forge credential support for all managed Git network operations in oompah_md_tracker, orchestrator, project_bootstrap, and issue_template_refresh. Credentials routed through ephemeral GIT_ASKPASS environment, preventing token leakage in URLs, config, logs, or process listings. Comprehensive redaction and project-scoped isolation. 14,757 tests pass.
 ---
 <!-- COMMENTS:END -->
