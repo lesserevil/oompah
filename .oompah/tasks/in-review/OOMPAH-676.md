@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-676
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Make graceful CLI cutover drain workers before restart
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T05:18:04.532392Z'
-updated_at: '2026-08-01T05:49:20.314275Z'
+updated_at: '2026-08-01T05:56:07.303293Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -323,5 +323,10 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Claude
 - Cost: $0.0000
 - Exit: terminated, Duration: 8m 1s
 - Log: OOMPAH-676__20260801T054123Z.jsonl
+---
+author: oompah
+created: 2026-08-01 05:56
+---
+Branch quality gate passed for `f9f1463a06f1236fba60722393bab132b6018de2` using `make test` in 396.4s. Review creation may proceed.
 ---
 <!-- COMMENTS:END -->
