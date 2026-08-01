@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T21:41:35.163259Z'
-updated_at: '2026-08-01T22:48:28.372202Z'
+updated_at: '2026-08-01T22:57:51.847293Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -265,5 +265,10 @@ author: oompah
 created: 2026-08-01 22:48
 ---
 Understanding: CI gate failed with 8 tests in test_installed_cli_smoke.py — all basic help/usage CLI smoke tests. These tests invoke the installed oompah binary and check that help commands exit zero. I need to (1) examine what changed on this branch that could break CLI entrypoints, (2) reproduce the failure locally, (3) make the minimal fix, and (4) push and submit. Starting investigation now.
+---
+author: oompah
+created: 2026-08-01 22:57
+---
+Operator takeover: do not modify, reset, rebase, commit, or push OOMPAH-683. The exact head bdc4cf5d1 already passed the full gate locally and is clean/pushed. I am investigating the branch gate's installed-CLI environment contamination directly; preserve the worktree and exit without changes.
 ---
 <!-- COMMENTS:END -->
