@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-25T19:55:15.601730Z'
-updated_at: '2026-08-01T20:20:35.932327Z'
+updated_at: '2026-08-01T20:20:38.468080Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -58,8 +58,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-469b2e7593c1
-    applied: false
+    applied: true
     created_at: '2026-08-01T20:20:33.385739+00:00'
+    applied_at: '2026-08-01T20:20:37.738943+00:00'
   version: 1
   pending_chain:
   - version: 1
