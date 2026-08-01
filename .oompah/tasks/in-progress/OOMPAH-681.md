@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T17:34:02.400338Z'
-updated_at: '2026-08-01T19:00:24.120661Z'
+updated_at: '2026-08-01T19:01:16.290246Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -125,5 +125,26 @@ author: oompah
 created: 2026-08-01 19:00
 ---
 Focus: Callback Auth Validation Specialist
+---
+author: oompah
+created: 2026-08-01 19:01
+---
+## Understanding
+
+OOMPAH-681 requires preventing interactive Git commands from deadlocking worker slots. The regression (EXOCOMP-140) occurred when \`git rebase -i\` was executed through mcp__oompah__run_command, spawning /usr/bin/vi and blocking the worker slot.
+
+### Planned approach:
+1. **Command-level validation**: Inspect and reject known interactive Git commands before execution (git rebase -i, git add -p, git commit without -m in non-amend, etc.)
+2. **Environment hardening**: Enforce noninteractive Git environment (GIT_EDITOR=true, GIT_SEQUENCE_EDITOR=true) already in git_noninteractive.py
+3. **Process tree monitoring**: Add bounded editor-child detection to terminate unexpected editors
+4. **Worker-command boundary enforcement**: Apply validation at every MCP run_command call
+
+### Key files identified:
+- oompah/git_noninteractive.py (already handles server-side noninteractive git)
+- oompah/acp_tools.py (run_command implementations)
+- oompah/tool_liveness.py (tool monitoring/watchdog)
+- oompah/mcp_exposure_policy.py (command exposure rules)
+
+### Next: Discover the specific run_command implementations and design the validation layer.
 ---
 <!-- COMMENTS:END -->
