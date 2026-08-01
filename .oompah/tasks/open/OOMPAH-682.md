@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T18:07:47.349822Z'
-updated_at: '2026-08-01T19:00:11.423090Z'
+updated_at: '2026-08-01T19:03:42.461099Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -21,17 +21,54 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 95ed1042ea2ed55477eeb3c00c184da3a8df18c95bdabf32b16ad9b8b15eefeb
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-01T19:03:37.561709+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 9506c2fe-4f91-4d81-ad2d-782f77510b15
-  claim_owner: cdcf766d-728b-41c9-bcaa-eb3b220f310c
-  claimed_at: '2026-08-01T19:00:06.416745+00:00'
-  claim_expires_at: '2026-08-01T19:30:06.416745+00:00'
+  evidence: 'Focus handoff: duplicate_detector
+
+
+    Duplicate preflight verdict: no_duplicate
+
+
+    Matches: none
+
+
+    Evidence: Reviewed active OOMPAH-281 in full; it covers self-hosted CI runners
+    and is unrelated. No active task covers duplicate-preflight recovery, owner rearming,
+    or verdict authentication.'
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
 oompah.agent_run_id: cb0b9aa3-6004-438c-8520-ce627bdbde8c
+oompah.task_costs:
+  total_input_tokens: 4703342
+  total_output_tokens: 8542
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 4703342
+      output_tokens: 8542
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 4703342
+    output_tokens: 8542
+    cost_usd: 0.0
+    recorded_at: '2026-08-01T19:03:37.553105+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-682__20260801T190014Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: OOMPAH-682
+    source_sha: 7fd628c2d9aeaa33898ada3e40fff89f261f2d98
+    completed_at: '2026-08-01T19:03:37.576792+00:00'
 ---
 ## Summary
 
@@ -76,5 +113,15 @@ author: oompah
 created: 2026-08-01 19:00
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-01 19:03
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 34
+- Tokens: 4.7M in / 8.5K out [4.7M total]
+- Cost: $0.0000
+- Exit: normal, Duration: 3m 29s
+- Log: OOMPAH-682__20260801T190014Z.jsonl
 ---
 <!-- COMMENTS:END -->
