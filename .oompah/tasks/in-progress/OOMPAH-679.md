@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T12:05:24.382952Z'
-updated_at: '2026-08-01T15:11:09.978288Z'
+updated_at: '2026-08-01T15:11:30.884808Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -275,5 +275,10 @@ author: oompah
 created: 2026-08-01 15:11
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-08-01 15:11
+---
+Understanding: I am repairing the existing OOMPAH-679 review head only. I will sync the same branch, inspect the branch-gate/GitHub check evidence for the 19 dispatch and duplicate-preflight failures, reproduce the focused suites, and apply the smallest tested fix before pushing and resubmitting.
 ---
 <!-- COMMENTS:END -->
