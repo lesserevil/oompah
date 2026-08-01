@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T23:11:33.946132Z'
-updated_at: '2026-08-01T23:25:26.097928Z'
+updated_at: '2026-08-01T23:25:33.727421Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -137,5 +137,10 @@ author: oompah
 created: 2026-08-01 23:25
 ---
 Verification: All 35 tests in tests/test_orchestrator_tick_telemetry.py pass:\n- Serial run: 35 passed in 15.55s (previously took ~4s+ per slow-tick test due to time.sleep)\n- Parallel run (-n 4): 35 passed in 7.35s (confirms no race conditions, no shared state)\n- Adjacent suite tests/test_orchestrator_handlers.py: 277 passed in 85s (no regressions)\n\nThe previously flaky test (test_no_slow_tick_warning_for_fast_ticks) now uses _make_fast_tick_clock() which guarantees total_ms ≤ 12ms regardless of host load. The slow-tick tests use _make_slow_tick_clock() and fire deterministically at 3000ms without any real sleep.
+---
+author: oompah
+created: 2026-08-01 23:25
+---
+Completion: Delivered deterministic slow-tick telemetry tests for OOMPAH-688.\n\nSummary of changes:\n- oompah/orchestrator.py: Added self._monotonic_clock = time.monotonic seam to Orchestrator.__init__(); replaced 12 time.monotonic() calls in _tick() with self._monotonic_clock(). No production behaviour change.\n- tests/test_orchestrator_tick_telemetry.py: Added _make_fast_tick_clock() / _make_slow_tick_clock() helpers; rewrote 3 slow-tick tests to use injected clocks (no time.sleep); added 1 new stability regression test (test_no_slow_tick_warning_for_fast_ticks_repeated). 35 tests total, all pass deterministically under parallel load.\n\nBranch OOMPAH-688 pushed at 381465f98. Production thresholds and telemetry semantics are unchanged.
 ---
 <!-- COMMENTS:END -->
