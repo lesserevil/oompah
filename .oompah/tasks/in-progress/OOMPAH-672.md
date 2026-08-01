@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T00:18:06.952783Z'
-updated_at: '2026-08-01T00:20:37.564627Z'
+updated_at: '2026-08-01T00:20:58.039932Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -169,5 +169,10 @@ author: oompah
 created: 2026-08-01 00:20
 ---
 Focus: Event Api Redaction Specialist
+---
+author: oompah
+created: 2026-08-01 00:20
+---
+Understanding: SecretRedactionFilter must keep percent-style logging message/argument arity valid while redacting both templates and values, including tuple/mapping args, repeated filter/factory passes, exceptions, and bootstrap htpasswd logs. I will inspect oompah/secrets.py and existing redaction/bootstrap tests, implement a focused fix, run focused tests plus the Makefile gate, then commit, push, and submit.
 ---
 <!-- COMMENTS:END -->
