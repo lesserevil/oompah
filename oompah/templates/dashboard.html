@@ -2684,6 +2684,43 @@ function projectStatusActorLogin(project) {
   return String(project.tracker_owner || '').trim();
 }
 
+function formatOwnerConfiguration(config) {
+  if (!config || typeof config !== 'object') return '';
+  const statusActor = String(config.status_actor_login || '').trim() || 'not set';
+  const trackerOwner = String(config.tracker_owner || '').trim() || 'not set';
+  const rawAllowlist = Array.isArray(config.status_label_authorized_logins)
+    ? config.status_label_authorized_logins
+    : (Array.isArray(config.authorized_logins) ? config.authorized_logins : []);
+  const allowlist = rawAllowlist.map(login => String(login || '').trim()).filter(Boolean);
+  return 'Status Actor Login: ' + statusActor +
+    '; Tracker Owner: ' + trackerOwner +
+    '; Authorized Logins: ' + (allowlist.length ? allowlist.join(', ') : 'none');
+}
+
+function formatTransitionRejection(data, fallbackMessage) {
+  const error = data && data.error ? data.error : {};
+  const lines = [String(error.message || fallbackMessage || 'Update failed')];
+  if (error.code === 'intake_transition_rejected' || error.gate === 'project_owner') {
+    const actor = error.authenticated_actor !== undefined
+      ? error.authenticated_actor
+      : (error.resolved_authenticated_actor !== undefined ? error.resolved_authenticated_actor : error.actor);
+    if (actor !== undefined) {
+      lines.push('Authenticated actor: ' + (String(actor || '').trim() || 'unresolved'));
+    }
+    const config = error.project_owner_config || error.owner_configuration || error.project_owner;
+    const configText = formatOwnerConfiguration(config || {
+      status_actor_login: error.status_actor_login,
+      tracker_owner: error.tracker_owner,
+      status_label_authorized_logins: error.status_label_authorized_logins,
+    });
+    if (configText) lines.push('Project owner configuration: ' + configText);
+    if (error.remedy && !String(error.message || '').includes(String(error.remedy))) {
+      lines.push('Remediation: ' + error.remedy);
+    }
+  }
+  return lines.join('\n');
+}
+
 async function refreshProjectConfigForStatusActor(projectId) {
   if (!projectId) return null;
   const existing = currentProjects.find(p => p.id === projectId);
@@ -3706,9 +3743,10 @@ async function updateIssue(identifier, fields) {
   if (!res.ok) {
     if (hasBoardOptimistic) delete optimisticUpdates[optimisticKey];
     let detail = res.status;
+    let errorData = null;
     try {
-      const err = await res.json();
-      detail = (err.error && err.error.message) || detail;
+      errorData = await res.json();
+      detail = formatTransitionRejection(errorData, detail);
     } catch (_) { /* ignore */ }
     const message = 'Update failed: ' + detail;
     document.getElementById('status-text').textContent = message;
@@ -6265,9 +6303,9 @@ async function performIntakeAction(identifier, action) {
     let messageText = 'Intake action failed';
     try {
       const body = await res.json();
-      messageText = (body.error && body.error.message) || messageText;
+      messageText = formatTransitionRejection(body, messageText);
     } catch (_) {}
-    alert(messageText);
+    showBoardError(messageText);
     return;
   }
   await openDetailPanel(identifier);

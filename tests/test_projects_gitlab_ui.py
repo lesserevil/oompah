@@ -120,6 +120,44 @@ class TestForgeBadgeDisplay:
         )
 
 
+class TestOwnerIdentityHealth:
+    """Protected projects must make missing owner configuration actionable."""
+
+    def test_protected_tracker_kinds_include_gitlab_and_native_markdown(self, script: str) -> None:
+        body = _get_func_body(script, "projectNeedsOwnerIdentity")
+        assert "oompah_md" in script
+        assert "github_issues" in script
+        assert "gitlab_issues" in script
+        assert "PROTECTED_OWNER_TRACKERS" in body
+
+    def test_owner_configuration_exposes_all_gate_inputs(self, script: str) -> None:
+        body = _get_func_body(script, "projectOwnerConfiguration")
+        assert "status_actor_login" in body
+        assert "tracker_owner" in body
+        assert "status_label_authorized_logins" in body
+        assert "owner_capable" in body
+
+    def test_ownerless_projects_render_accessible_repair_warning(self, html: str, script: str) -> None:
+        body = _get_func_body(script, "renderOwnerIdentityHealth")
+        assert 'role="alert"' in body
+        assert "Owner identity is not configured" in body
+        assert "Configure owner identity" in body
+        assert "toggleEditForm" in body
+        assert "owner-identity-warning" in html
+
+    def test_add_form_collects_owner_identity_configuration(self, html: str, script: str) -> None:
+        assert 'id="add-status-actor-login"' in html
+        assert 'id="add-status-label-authorized-logins"' in html
+        body = _get_func_body(script, "addProject")
+        assert "status_actor_login" in body
+        assert "status_label_authorized_logins" in body
+
+    def test_edit_form_explains_server_side_actor_resolution(self, script: str) -> None:
+        body = _get_func_body(script, "renderOwnerIdentityEditHelp")
+        assert "server derives the authenticated actor" in body
+        assert "Required before resuming" in body
+
+
 # ---------------------------------------------------------------------------
 # GitLab base URL display in project card
 # ---------------------------------------------------------------------------
