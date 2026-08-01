@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-679
 type: bug
-status: Needs Human
+status: In Validation
 priority: 0
 title: Reset activity panel identity when a task starts a new agent run
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T12:05:24.382952Z'
-updated_at: '2026-08-01T17:41:00.796995Z'
+updated_at: '2026-08-01T17:42:00.760466Z'
 work_branch: OOMPAH-679
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/641
@@ -259,7 +259,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-679
     target_state: Merged
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -300,7 +300,24 @@ oompah.terminal_audit:
       source: forge
     previous_state: In Review
     created_at: '2026-08-01T15:49:11.551264+00:00'
-    updated_at: '2026-08-01T16:27:56.350051+00:00'
+    updated_at: '2026-08-01T17:41:55.316334+00:00'
+  - version: 1
+    audit_id: audit-f270e771355e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-679
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 3b6f79304129fbf181aa3e54c58e68ce4375d0a6cc9f5184b65db1dadd238aee
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: In Review
+    created_at: '2026-08-01T17:41:55.316334+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-4cb5c0a64622
@@ -670,5 +687,10 @@ author: oompah
 created: 2026-08-01 17:41
 ---
 Operator rearm after deploying merged fix on main at 6f6909fb8. PR #641 is merged, the implementation audit already recorded PASS evidence, and current terminal-audit health is clean. Rearming the terminal Merged transition only; do not reopen implementation.
+---
+author: oompah
+created: 2026-08-01 17:42
+---
+Terminal audit rearmed by project owner after recovery: Merged fix is deployed on main at 6f6909fb8; terminal-audit health is clean and the implementation branch remains closed.
 ---
 <!-- COMMENTS:END -->

@@ -11,12 +11,27 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T17:31:44.735248Z'
-updated_at: '2026-08-01T17:41:11.725600Z'
+updated_at: '2026-08-01T17:42:04.849683Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 26e4c605cd4b174aae95ca9bca020dcfc7f0aa3165acc75318ef4df395d353b8
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 5b193f8b-ca4f-4260-8bb9-8b244036d0e4
+  claim_owner: cdcf766d-728b-41c9-bcaa-eb3b220f310c
+  claimed_at: '2026-08-01T17:41:49.501664+00:00'
+  claim_expires_at: '2026-08-01T18:11:49.501664+00:00'
+  retry_count: 0
+  retry_after: null
+oompah.agent_run_id: 8904b37e-d4f9-4212-ac47-503356b91b86
 ---
 ## Summary
 
@@ -28,3 +43,16 @@ Live NodeVirt failure on 2026-08-01: the GitLab project has a valid configured a
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-01 17:42
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-01 17:42
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
