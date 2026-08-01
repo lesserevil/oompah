@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T04:42:35.189136Z'
-updated_at: '2026-08-01T04:46:25.986556Z'
+updated_at: '2026-08-01T04:46:43.131072Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -104,5 +104,20 @@ author: oompah
 created: 2026-08-01 04:46
 ---
 Focus: Event Api Redaction Specialist
+---
+author: oompah
+created: 2026-08-01 04:46
+---
+Understanding: This is a bug follow-up to OOMPAH-670. The issue is that the WebSocket endpoint doesn't include HTTP auth state in the initial state snapshot, while the REST /api/v1/state endpoint does. This causes authenticated dashboards to have httpAuthEnabled=false and incorrectly include actor_login in status mutations, triggering actor_mismatch rejections. 
+
+Planned approach:
+1. Find the _cached_state_snapshot_or_unavailable() implementation in the websocket endpoint
+2. Find how /api/v1/state augments the snapshot with http_auth
+3. Centralize state snapshot enrichment so both REST and WebSocket paths use the same logic
+4. Add tests verifying WebSocket bootstrap includes auth state under HTTP Basic auth
+5. Verify status mutations omit client-supplied actor identity
+6. Ensure backward compatibility for unauthenticated deployments
+
+Starting investigation now.
 ---
 <!-- COMMENTS:END -->
