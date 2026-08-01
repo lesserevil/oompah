@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-685
 type: task
-status: Needs CI Fix
+status: In Progress
 priority: null
 title: Forward project forge credentials through integration verification
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T21:46:41.297124Z'
-updated_at: '2026-08-01T23:09:07.573239Z'
+updated_at: '2026-08-01T23:09:23.111400Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -108,7 +108,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: edc3772c-6e83-47fa-88f1-216608359366
+oompah.agent_run_id: d2a62e89-5c45-410a-a4a1-2be4637384ca
 oompah.task_costs:
   total_input_tokens: 252
   total_output_tokens: 9009
@@ -345,5 +345,15 @@ FAILED tests/test_orchestrator_tick_telemetry.py::TestSlowTickSubstepLogging::te
 
 make: *** [Makefile:388: test] Error 1
 ```
+---
+author: oompah
+created: 2026-08-01 23:09
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-08-01 23:09
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
