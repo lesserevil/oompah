@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-680
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Use project forge credentials for all managed Git network operations
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T17:31:44.735248Z'
-updated_at: '2026-08-01T19:29:15.827020Z'
+updated_at: '2026-08-01T19:29:32.882181Z'
 work_branch: OOMPAH-680
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/643
@@ -90,9 +90,10 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-680
-  head_sha: fd8f961459742e42427b9e5c80b73cdda894c625
-  submitted_at: '2026-08-01T18:14:15.685687+00:00'
-  updated_at: '2026-08-01T18:14:15.685687+00:00'
+  base_branch: main
+  head_sha: d08a8da59b0195cd3811f8adcc9935a156e68e36
+  submitted_at: '2026-08-01T19:29:28.176368+00:00'
+  updated_at: '2026-08-01T19:29:28.176368+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/643
 oompah.review_number: '643'
 oompah.work_branch: OOMPAH-680
@@ -507,5 +508,10 @@ author: oompah
 created: 2026-08-01 19:29
 ---
 Completion: routed managed clone/fetch/ls-remote/push/delete and verification paths through project-scoped ephemeral forge credentials, including epic/worktree publication, integration, release helpers, state/checkpoint evidence, landing/staleness refreshes, and task submission evidence. Added credential isolation/redaction/failure-cleanup regression coverage. Final make test passed; 128 focused credential/tracker tests and 268 additional managed-network tests passed; make check-secrets passed. Commit d08a8da59b0195cd3811f8adcc9935a156e68e36 is pushed and the branch is up to date.
+---
+author: oompah
+created: 2026-08-01 19:29
+---
+Routed all managed Git network operations through project-scoped ephemeral forge credentials with redaction, isolation, and regression coverage; full gate passed.
 ---
 <!-- COMMENTS:END -->
