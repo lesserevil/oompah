@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-681
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Reject interactive Git commands before they can deadlock worker slots
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T17:34:02.400338Z'
-updated_at: '2026-08-01T19:00:05.142018Z'
+updated_at: '2026-08-01T19:00:24.120661Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -56,7 +56,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: f492f9d4-7517-4016-956b-78c781e82823
+oompah.agent_run_id: 66e41d84-24de-4a5b-9bec-87d87fab74d7
 oompah.task_costs:
   total_input_tokens: 242
   total_output_tokens: 5456
@@ -115,5 +115,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 2m 0s
 - Log: OOMPAH-681__20260801T185802Z.jsonl
+---
+author: oompah
+created: 2026-08-01 19:00
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-01 19:00
+---
+Focus: Callback Auth Validation Specialist
 ---
 <!-- COMMENTS:END -->
