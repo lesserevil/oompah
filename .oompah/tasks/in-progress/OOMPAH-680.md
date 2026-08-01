@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T17:31:44.735248Z'
-updated_at: '2026-08-01T17:43:53.277627Z'
+updated_at: '2026-08-01T17:46:21.232882Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -111,5 +111,45 @@ author: oompah
 created: 2026-08-01 17:43
 ---
 Focus: Security Auditor
+---
+author: oompah
+created: 2026-08-01 17:46
+---
+**SECURITY AUDIT: Understanding & Approach**
+
+## Issue Summary
+GitLab project has a configured access token that works for API calls, but Git network operations (push/clone/fetch/ls-remote) lack forge credentials, failing with 'fatal: could not read Username'. An ephemeral, redacted credential mechanism exists in oompah/git_credentials.py (used by state-branch migration) but is not consistently applied across all managed Git operations.
+
+## Security Requirements (OWASP/CWE-based audit scope)
+1. **Secrets Management (CWE-798)**: Tokens must NEVER appear in argv, URLs, persisted config, stdout/stderr, exceptions, or logs
+2. **Input Validation (CWE-20)**: Detect missing/invalid tokens with actionable diagnostics, no partial state
+3. **Access Control (CWE-639)**: Concurrent projects cannot access each other's credentials
+4. **Process Isolation**: Worktrees inherit safe credential behavior
+5. **Credential Leakage Prevention (CWE-532)**: Secret scans must pass; redaction must be comprehensive
+
+## Attack Vectors Identified
+- **A1: Token in command args** → credentials in process listings, history
+- **A2: Token in environment (unbounded)** → inherited by child processes, visible in /proc
+- **A3: Token in Git URLs** → stored in .git/config, reflog, remote tracking branches
+- **A4: Token in error messages** → exposed in logs, tracebacks, redaction gaps
+- **A5: Token in git helper/credential storage** → persisted across sessions
+- **A6: Concurrent project credential mixing** → cross-project access escalation
+- **A7: Worktree inheritance** → temporary creds leaking between worktrees
+
+## Discovered Code
+- `oompah/git_credentials.py` — secure credential environment (GIT_ASKPASS pattern), redaction helpers
+- `oompah/git_noninteractive.py` — noninteractive git commands (editor/prompt safety) but NO credential handling
+- Calls spread across: `projects.py`, `oompah_md_tracker.py`, `cherry_pick_pr_creator.py`, `repo_map.py`, integration helpers
+
+## Audit Plan
+1. Map ALL git commands: clone, push, fetch, ls-remote, delete, verify
+2. Verify git_credentials.py usage: scope, edge cases, token handling safety
+3. Identify all callsites missing credential injection
+4. Check for token leakage via output redaction, exception handling, logging
+5. Verify worktree isolation, project credential separation
+6. Test with invalid/missing tokens, GitHub vs GitLab behavior
+7. Secret scan validation
+
+Starting discovery phase next.
 ---
 <!-- COMMENTS:END -->
