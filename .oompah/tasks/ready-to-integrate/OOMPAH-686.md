@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T22:19:41.486806Z'
-updated_at: '2026-08-01T22:29:49.552371Z'
+updated_at: '2026-08-01T22:30:07.090458Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -48,13 +48,13 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: 1f4ac41c-38b4-4a1d-8bdb-90cd83a49885
 oompah.task_costs:
-  total_input_tokens: 226219
-  total_output_tokens: 2068
+  total_input_tokens: 226885
+  total_output_tokens: 29071
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 226219
-      output_tokens: 2068
+      input_tokens: 226885
+      output_tokens: 29071
       cost_usd: 0.0
   runs:
   - profile: default
@@ -63,6 +63,12 @@ oompah.task_costs:
     output_tokens: 2068
     cost_usd: 0.0
     recorded_at: '2026-08-01T22:21:21.257881+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 666
+    output_tokens: 27003
+    cost_usd: 0.0
+    recorded_at: '2026-08-01T22:30:00.202075+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-686__20260801T222030Z
@@ -73,14 +79,24 @@ oompah.work_contributors:
     source_branch: OOMPAH-686
     source_sha: 3d50e86c334e8a6318b767b281bc254fa6d93cc2
     completed_at: '2026-08-01T22:21:21.269250+00:00'
+  - run_id: OOMPAH-686__20260801T222224Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: callback_auth
+    source_branch: OOMPAH-686
+    source_sha: 72a5ce1d6b0be15ea758513b86d7ff3b9f1bd182
+    completed_at: '2026-08-01T22:30:00.205769+00:00'
 oompah.integration:
   version: 2
   state: ready
   attempts: 0
   task_branch: OOMPAH-686
+  base_branch: main
+  base_sha: 3d50e86c334e8a6318b767b281bc254fa6d93cc2
   head_sha: 72a5ce1d6b0be15ea758513b86d7ff3b9f1bd182
   submitted_at: '2026-08-01T22:29:46.728175+00:00'
-  updated_at: '2026-08-01T22:29:46.728175+00:00'
+  updated_at: '2026-08-01T22:30:06.202039+00:00'
 ---
 ## Summary
 
@@ -239,5 +255,20 @@ author: oompah
 created: 2026-08-01 22:29
 ---
 Implemented worker XDG_RUNTIME_DIR fallback to prevent read-only libpod from escalating to Needs Human. Added helper functions to detect and handle read-only inherited runtime directories, automatic cleanup logic across all agent backends, and 23 focused tests covering environment setup, directory creation, security, and backward compatibility. All 109 tests passing (23 new + 86 existing).
+---
+author: oompah
+created: 2026-08-01 22:30
+---
+Agent completed successfully in 462s (27669 tokens)
+---
+author: oompah
+created: 2026-08-01 22:30
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 181, Tool calls: 82
+- Tokens: 666 in / 27.0K out [27.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 7m 42s
+- Log: OOMPAH-686__20260801T222224Z.jsonl
 ---
 <!-- COMMENTS:END -->
