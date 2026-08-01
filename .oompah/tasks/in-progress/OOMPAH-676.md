@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T05:18:04.532392Z'
-updated_at: '2026-08-01T05:41:20.739246Z'
+updated_at: '2026-08-01T05:41:35.553232Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -275,5 +275,10 @@ author: oompah
 created: 2026-08-01 05:41
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-08-01 05:41
+---
+Understanding: CI gate failed on branch OOMPAH-676 (head cd9b2652a) with 3 failing tests all in tests/test_cli_mismatch_recovery.py. The previous DevOps agent introduced a quiesce() path for graceful CLI cutover to avoid terminating running workers. The mismatch-recovery tests are now failing — likely because the cutover codepath they test now calls /quiesce instead of /pause, or the canonical_cli_cutover.py changes broke assumptions those tests made about the sequence of API calls or state transitions. Plan: read the failing test file, read the changed canonical_cli_cutover.py and orchestrator.py, identify the exact mismatch, apply minimal fix to make those 3 tests pass without breaking the new quiesce behavior.
 ---
 <!-- COMMENTS:END -->
