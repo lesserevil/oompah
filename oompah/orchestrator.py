@@ -1438,6 +1438,11 @@ class Orchestrator:
         # Empty until the first tick completes.
         self._last_tick_timings: dict[str, object] = {}
 
+        # Replaceable monotonic clock used by _tick() for all elapsed-time
+        # measurements.  Defaults to time.monotonic in production; tests may
+        # inject a deterministic callable to avoid wall-clock sensitivity.
+        self._monotonic_clock = time.monotonic
+
         # Dispatch lane serialization contract (TASK-465.2).
         # _dispatch_lane_lock serializes the DISPATCH lane: only one
         # _handle_dispatch_needed() pass can run at a time, ensuring
@@ -5028,7 +5033,7 @@ class Orchestrator:
 
           6.  _handle_auto_update()     — git pull + restart when idle.
         """
-        t0 = time.monotonic()
+        t0 = self._monotonic_clock()
 
         # A configured zero means "size to this host". Refresh the effective
         # limit every scheduler tick so memory pressure and CPU availability
@@ -5061,7 +5066,7 @@ class Orchestrator:
         )
         if (
             self._terminal_audit_started
-            and time.monotonic() - self._terminal_audit_last_scan
+            and self._monotonic_clock() - self._terminal_audit_last_scan
             >= terminal_audit_interval
         ):
             await asyncio.get_running_loop().run_in_executor(
@@ -5077,7 +5082,7 @@ class Orchestrator:
 
         # 1. Reconcile running agents against tracker
         await self._handle_reconcile()
-        t1 = time.monotonic()
+        t1 = self._monotonic_clock()
 
         # 2. Validate config before doing any expensive work
         errors = validate_dispatch_config(self.config)
@@ -5088,14 +5093,14 @@ class Orchestrator:
 
         # 3. Fetch forge state (reviews + merged branches) — populates caches
         await self._handle_review_check()
-        t2 = time.monotonic()
+        t2 = self._monotonic_clock()
 
         # 4. DISPATCH LANE — fetch candidates and dispatch eligible issues.
         # _handle_dispatch_needed() acquires _dispatch_lane_lock for its full
         # duration so no second selection pass can start concurrently.
-        t3_start = time.monotonic()
+        t3_start = self._monotonic_clock()
         dispatch_timings = await self._handle_dispatch_needed()
-        t3 = time.monotonic()
+        t3 = self._monotonic_clock()
 
         # 5. YOLO merge actions (uses cached forge state).
         # Auto-archive and merged-labeling have moved to step 5b maintenance lane.
@@ -5110,7 +5115,7 @@ class Orchestrator:
                 merged_ms = float(yolo_result[2])
         else:
             yolo_ms = float(yolo_result)
-        t4 = time.monotonic()
+        t4 = self._monotonic_clock()
 
         # 5a. MAINTENANCE LANE — watchdog: detect and fix stuck issues.
         # Offloaded to the tick thread pool to keep the event loop unblocked —
@@ -5119,11 +5124,11 @@ class Orchestrator:
         # watchdog runs after all other tick handlers have settled, so the
         # shared mutable state it reads (state.completed, _orphan_reset_counts,
         # _last_candidates) is not being concurrently written.
-        _t_watchdog = time.monotonic()
+        _t_watchdog = self._monotonic_clock()
         await asyncio.get_event_loop().run_in_executor(
             self._tick_pool, self._maybe_run_watchdog
         )
-        watchdog_ms = (time.monotonic() - _t_watchdog) * 1000
+        watchdog_ms = (self._monotonic_clock() - _t_watchdog) * 1000
 
         # Ready private task heads are integrated outside the dispatch lane.
         # Only one queue driver is live per service instance; SQLite leases
@@ -5149,7 +5154,7 @@ class Orchestrator:
         # sub-job inside _run_step5b_maintenance() is independently gated by
         # _run_maintenance_job() so the four jobs have separate in-flight
         # coalescing and interval throttling.
-        _t_maintenance = time.monotonic()
+        _t_maintenance = self._monotonic_clock()
         if self._maintenance_future is None or self._maintenance_future.done():
             self._maintenance_future = asyncio.get_event_loop().run_in_executor(
                 self._tick_pool, self._run_step5b_maintenance
@@ -5167,9 +5172,9 @@ class Orchestrator:
             self._epic_maintenance_future = asyncio.get_event_loop().run_in_executor(
                 self._tick_pool, self._run_step5c_epic_maintenance
             )
-        heal_ms = (time.monotonic() - _t_maintenance) * 1000
+        heal_ms = (self._monotonic_clock() - _t_maintenance) * 1000
 
-        t4b = time.monotonic()
+        t4b = self._monotonic_clock()
         total_ms = (t4b - t0) * 1000
         self._last_tick_metrics = {
             "finished_at": datetime.now(timezone.utc).isoformat(),
