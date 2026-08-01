@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-651
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 0
 title: Redact secrets from agent tool inputs, outputs, and JSONL event logs
 parent: null
@@ -19,11 +19,11 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-08-01T00:06:57.272961Z'
+updated_at: '2026-08-01T00:07:01.696350Z'
 work_branch: null
 target_branch: null
 review_url: https://github.com/lesserevil/oompah/pull/630
-review_number: null
+review_number: '630'
 merged_at: null
 oompah.duplicate_screening:
   schema_version: 1
@@ -249,6 +249,7 @@ oompah.integration:
   updated_at: '2026-07-31T23:28:22.099129+00:00'
 oompah.start_blocked_by: *id001
 oompah.review_url: https://github.com/lesserevil/oompah/pull/630
+oompah.review_number: '630'
 ---
 ## Summary
 
