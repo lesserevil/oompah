@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T02:34:24.348580Z'
-updated_at: '2026-08-01T02:36:23.407355Z'
+updated_at: '2026-08-01T02:37:34.333428Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -112,5 +112,12 @@ author: oompah
 created: 2026-08-01 02:36
 ---
 Focus: Event Api Redaction Specialist
+---
+author: oompah
+created: 2026-08-01 02:37
+---
+**Understanding**: This issue describes a recovery trap when: service is at revision A, canonical CLI launcher does not match A, and checkout is advanced to B. Current problem: make install-cli from B creates launcher B while service A remains, preventing graceful cutover. Current recovery requires temporary remote branches and manual workarounds. Need to implement one of two solutions: (1) Recovery operation that pairs launcher with running revision without temp refs, or (2) Normal cutover safely accepts and repairs this pre-cutover state. Must add tests for A/mismatched-launcher/B scenario, documented operator sequence, failure rollbacks, concurrent locking, and proof of no final mismatch.
+
+**Initial Approach**: Investigating the lifecycle management code (canonical_cli_cutover.py, sync_canonical_cli.py), API endpoints used (/api/v1/state, /healthz), and existing validation logic to determine best solution. Will then implement with full test coverage per requirements.
 ---
 <!-- COMMENTS:END -->
