@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T12:05:24.382952Z'
-updated_at: '2026-08-01T17:42:00.760466Z'
+updated_at: '2026-08-01T17:43:04.965435Z'
 work_branch: OOMPAH-679
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/641
@@ -306,18 +306,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-679
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 3b6f79304129fbf181aa3e54c58e68ce4375d0a6cc9f5184b65db1dadd238aee
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-168495564d3e
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 3b6f79304129fbf181aa3e54c58e68ce4375d0a6cc9f5184b65db1dadd238aee
+      created_at: '2026-08-01T17:43:03.402637+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-01T17:43:03.402637+00:00'
+      branch_key: OOMPAH-679
     requested_by:
       version: 1
       identity: oompah-cli
       source: api
     previous_state: In Review
     created_at: '2026-08-01T17:41:55.316334+00:00'
+    updated_at: '2026-08-01T17:43:03.402637+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-4cb5c0a64622
@@ -349,6 +363,19 @@ oompah.terminal_audit:
     ended_at: '2026-08-01T16:27:39.440244+00:00'
     failure_reason: normal
     next_retry_at: '2026-08-01T16:27:49.440206+00:00'
+  - version: 1
+    attempt_id: attempt-168495564d3e
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 3b6f79304129fbf181aa3e54c58e68ce4375d0a6cc9f5184b65db1dadd238aee
+    created_at: '2026-08-01T17:43:03.402637+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-01T17:43:03.402637+00:00'
+    branch_key: OOMPAH-679
 ---
 ## Summary
 
