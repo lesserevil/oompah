@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-679
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Reset activity panel identity when a task starts a new agent run
 parent: null
@@ -12,10 +12,10 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T12:05:24.382952Z'
-updated_at: '2026-08-01T15:18:19.283014Z'
+updated_at: '2026-08-01T15:25:36.982846Z'
 work_branch: null
 target_branch: null
-review_url: null
+review_url: https://github.com/lesserevil/oompah/pull/641
 review_number: null
 merged_at: null
 oompah.duplicate_screening:
@@ -133,6 +133,7 @@ oompah.integration:
   head_sha: c24ba48c7516245298b2d68dbf1ddbf0f280f75a
   submitted_at: '2026-08-01T15:17:14.384903+00:00'
   updated_at: '2026-08-01T15:17:14.384903+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/641
 ---
 ## Summary
 
@@ -325,5 +326,10 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Codex/gpt-5.6-
 - Cost: $0.0000
 - Exit: terminated, Duration: 7m 10s
 - Log: OOMPAH-679__20260801T151111Z.jsonl
+---
+author: oompah
+created: 2026-08-01 15:25
+---
+Branch quality gate passed for `c24ba48c7516245298b2d68dbf1ddbf0f280f75a` using `make test` in 393.0s. Review creation may proceed.
 ---
 <!-- COMMENTS:END -->
