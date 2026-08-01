@@ -33,6 +33,7 @@ from oompah.acp_backends.registry import register_backend
 from oompah.agent import AgentEvent
 from oompah.client_auth import agent_environment
 from oompah.secrets import redact_sensitive_data
+from oompah.task_handoff import TASK_HANDOFF_TASK_ENV
 
 if TYPE_CHECKING:
     from oompah.models import ModelProvider
@@ -361,6 +362,8 @@ class ClaudeAcpBackendSession(AcpBackendSession):
         agent_env = agent_environment(
             {**os.environ, **(self._options.env or {})}
         )
+        if self._options.task_handoff_token and self._options.task_identifier:
+            agent_env[TASK_HANDOFF_TASK_ENV] = self._options.task_identifier
 
         async def _can_use_tool(
             tool_name: str,

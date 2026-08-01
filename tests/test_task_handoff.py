@@ -17,6 +17,7 @@ from oompah.task_handoff import (
     OperationPermitDenied,
     TASK_HANDOFF_HEADER,
     TASK_HANDOFF_PROJECT_ENV,
+    TASK_HANDOFF_TASK_ENV,
     TASK_HANDOFF_TOKEN_ENV,
     TaskHandoffGrantStore,
 )
@@ -150,6 +151,28 @@ class TestTaskCliHandoff:
         assert request_data["identifier"] == "TASK-1"
         assert request_data["action"] == "comment"
         assert "reusable-secret" not in repr(client_factory.call_args)
+
+    def test_capability_route_includes_assigned_task_for_policy_classification(
+        self, monkeypatch
+    ):
+        from oompah import task_cli
+
+        monkeypatch.setenv(TASK_HANDOFF_TOKEN_ENV, "opaque")
+        monkeypatch.setenv(TASK_HANDOFF_PROJECT_ENV, "proj-a")
+        monkeypatch.setenv(TASK_HANDOFF_TASK_ENV, "TASK-1")
+        response = MagicMock(is_success=True, status_code=200)
+        response.json.return_value = {"ok": True}
+        client = MagicMock()
+        client.__enter__.return_value = client
+        client.__exit__.return_value = False
+        client.post.return_value = response
+
+        with patch("httpx.Client", return_value=client):
+            task_cli._task_handoff_request(
+                "http://server", "view", {"identifier": "TASK-2"}
+            )
+
+        assert client.post.call_args.kwargs["json"]["worker_task_identifier"] == "TASK-1"
 
     def test_spawned_cli_does_not_resolve_inherited_operator_credentials(
         self, monkeypatch
@@ -984,6 +1007,165 @@ class TestHandoffTokenFailClosed:
         body = response.json()
         msg = body.get("error", {}).get("message", "")
         assert "another task" in msg
+
+    def test_live_peer_scope_denial_is_policy_event_not_auth_failure(self):
+        """A worker may inspect live peers only through coordination APIs."""
+        from fastapi.testclient import TestClient
+
+        import oompah.auth_health as ah
+        import oompah.server as server
+        from oompah.server import app
+        from oompah.task_handoff import (
+            consume_task_handoff_failure,
+            issue_task_handoff_token,
+        )
+
+        ah._reset_for_testing()
+        source_token = issue_task_handoff_token(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"view"},
+        )
+        target_token = issue_task_handoff_token(
+            project_id="proj-a",
+            task_identifier="TASK-2",
+            allowed_actions={"view"},
+        )
+        source_issue = Issue(
+            id="issue-1",
+            identifier="TASK-1",
+            title="Source",
+            description="body",
+            state="In Progress",
+            project_id="proj-a",
+        )
+        target_issue = Issue(
+            id="issue-2",
+            identifier="TASK-2",
+            title="Peer",
+            description="body",
+            state="In Progress",
+            project_id="proj-a",
+        )
+        orch, _tracker = self._make_server_context(server)
+        orch.state = SimpleNamespace(
+            running={
+                "issue-1": SimpleNamespace(
+                    identifier="TASK-1",
+                    issue=source_issue,
+                    task_handoff_token=source_token,
+                ),
+                "issue-2": SimpleNamespace(
+                    identifier="TASK-2",
+                    issue=target_issue,
+                    task_handoff_token=target_token,
+                ),
+            }
+        )
+        old_orch = server._orchestrator
+        old_creds = server._http_credentials
+        server._orchestrator = orch
+        server._http_credentials = None
+        try:
+            with TestClient(app, raise_server_exceptions=False) as client:
+                response = client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: source_token},
+                    json={
+                        "action": "view",
+                        "project_id": "proj-a",
+                        "identifier": "TASK-2",
+                        "worker_task_identifier": "TASK-1",
+                    },
+                )
+        finally:
+            server._orchestrator = old_orch
+            server._http_credentials = old_creds
+
+        assert response.status_code == 403
+        assert "coordinate peers TASK-1" in response.json()["error"]["message"]
+        snap = ah.auth_health_snapshot()["worker"]
+        assert snap["recent_403_scope_count"] == 0
+        assert snap["policy_denial_count"] == 1
+        assert consume_task_handoff_failure(source_token) is None
+        ah._reset_for_testing()
+
+    def test_wrong_token_targeting_assigned_task_remains_auth_failure(self):
+        """A copied peer token must still produce an actionable scope alert."""
+        from fastapi.testclient import TestClient
+
+        import oompah.auth_health as ah
+        import oompah.server as server
+        from oompah.server import app
+        from oompah.task_handoff import issue_task_handoff_token
+
+        ah._reset_for_testing()
+        assigned_token = issue_task_handoff_token(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"view"},
+        )
+        copied_token = issue_task_handoff_token(
+            project_id="proj-a",
+            task_identifier="TASK-2",
+            allowed_actions={"view"},
+        )
+        assigned_issue = Issue(
+            id="issue-1",
+            identifier="TASK-1",
+            title="Assigned",
+            description="body",
+            state="In Progress",
+            project_id="proj-a",
+        )
+        peer_issue = Issue(
+            id="issue-2",
+            identifier="TASK-2",
+            title="Peer",
+            description="body",
+            state="In Progress",
+            project_id="proj-a",
+        )
+        orch, _tracker = self._make_server_context(server)
+        orch.state = SimpleNamespace(
+            running={
+                "issue-1": SimpleNamespace(
+                    identifier="TASK-1",
+                    issue=assigned_issue,
+                    task_handoff_token=assigned_token,
+                ),
+                "issue-2": SimpleNamespace(
+                    identifier="TASK-2",
+                    issue=peer_issue,
+                    task_handoff_token=copied_token,
+                ),
+            }
+        )
+        old_orch = server._orchestrator
+        old_creds = server._http_credentials
+        server._orchestrator = orch
+        server._http_credentials = None
+        try:
+            with TestClient(app, raise_server_exceptions=False) as client:
+                response = client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: copied_token},
+                    json={
+                        "action": "view",
+                        "project_id": "proj-a",
+                        "identifier": "TASK-1",
+                        "worker_task_identifier": "TASK-1",
+                    },
+                )
+        finally:
+            server._orchestrator = old_orch
+            server._http_credentials = old_creds
+
+        assert response.status_code == 403
+        snap = ah.auth_health_snapshot()["worker"]
+        assert snap["recent_403_scope_count"] == 1
+        assert snap["policy_denial_count"] == 0
+        ah._reset_for_testing()
 
     def test_ungranted_action_returns_403(self):
         """A token that was issued without 'create' in its allowed_actions

@@ -197,6 +197,7 @@ def _isolate_agent_profile_store(tmp_path, monkeypatch):
     # default; handoff tests opt in explicitly with monkeypatch.setenv().
     monkeypatch.delenv("OOMPAH_TASK_HANDOFF_TOKEN", raising=False)
     monkeypatch.delenv("OOMPAH_TASK_HANDOFF_PROJECT_ID", raising=False)
+    monkeypatch.delenv("OOMPAH_TASK_HANDOFF_TASK_ID", raising=False)
 
     yield
 

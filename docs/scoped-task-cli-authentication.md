@@ -104,9 +104,18 @@ triple that was granted; a mismatch fails closed:
   auth. Reusing the capability outside the handoff endpoint provides no
   authority at all.
 
-Failed operations are recorded on the grant via `record_task_handoff_failure`
-and consumed by the orchestrator when the worker exits — a worker whose
-handoff failed is held for a human rather than silently retried.
+Genuine failed operations are recorded on the grant via
+`record_task_handoff_failure` and consumed by the orchestrator when the worker
+exits — a worker whose handoff failed is held for a human rather than silently
+retried.
+
+Spawned workers also receive the non-secret `OOMPAH_TASK_HANDOFF_TASK_ID`
+assignment identifier. The endpoint uses it only for auth-health classification:
+when it matches a live running entry carrying the presented capability and the
+request targets a different live task, the rejected request is an intentional
+policy event. Authorization still fails closed. For read-only peer inspection,
+use `oompah task coordinate peers <task-id>` or
+`oompah task coordinate inbox <task-id>`.
 
 ## Live least-privilege probe
 

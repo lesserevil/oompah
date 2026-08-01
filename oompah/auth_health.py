@@ -146,6 +146,8 @@ class WorkerAuthHealth:
     * **403_scope** — capability scoped to a different project or task
     * **403_action** — capability action not in the grant set (intentional
       least-privilege; never counted toward degraded status)
+    * **403_policy** — a verified live worker intentionally targeted another
+      running task (policy denial; never counted toward degraded status)
 
     Thread-safe; all public methods may be called from any thread.
     """
@@ -158,6 +160,7 @@ class WorkerAuthHealth:
         self._401_window = _SlidingWindow()
         self._403_scope_window = _SlidingWindow()
         self._403_action: int = 0  # intentional — not a health signal
+        self._403_policy: int = 0  # intentional cross-task policy denials
         self._total_401: int = 0
         self._total_403_scope: int = 0
 
@@ -190,6 +193,11 @@ class WorkerAuthHealth:
         with self._lock:
             self._403_action += 1
 
+    def record_403_policy(self) -> None:
+        """Increment verified intentional cross-task policy denials."""
+        with self._lock:
+            self._403_policy += 1
+
     def snapshot(self, window_seconds: float = _WINDOW_SECONDS) -> dict[str, Any]:
         """Return a safe, redacted health snapshot.
 
@@ -202,7 +210,8 @@ class WorkerAuthHealth:
               - recent_403_scope_count: int
               - total_401_count: int
               - total_403_scope_count: int
-              - scope_denial_count: int   # intentional, informational only
+              - policy_denial_count: int  # intentional, informational only
+              - scope_denial_count: int   # compatibility alias for policy count
               - window_seconds: float
               - status: "ok" | "degraded" | "never_minted"
         """
@@ -214,7 +223,7 @@ class WorkerAuthHealth:
             accepted = self._accepted
             total_401 = self._total_401
             total_403_scope = self._total_403_scope
-            action_denials = self._403_action
+            policy_denials = self._403_action + self._403_policy
 
         if minted == 0:
             status = "never_minted"
@@ -231,7 +240,8 @@ class WorkerAuthHealth:
             "recent_403_scope_count": recent_403_scope,
             "total_401_count": total_401,
             "total_403_scope_count": total_403_scope,
-            "scope_denial_count": action_denials,
+            "policy_denial_count": policy_denials,
+            "scope_denial_count": policy_denials,
             "window_seconds": window_seconds,
             "status": status,
         }
@@ -326,6 +336,11 @@ def record_worker_403_scope() -> None:
 def record_worker_403_action() -> None:
     """Record an intentional action-denial 403 (not a health signal)."""
     _worker_health.record_403_action()
+
+
+def record_worker_403_policy() -> None:
+    """Record a verified intentional cross-task policy 403."""
+    _worker_health.record_403_policy()
 
 
 def auth_health_snapshot() -> dict[str, Any]:

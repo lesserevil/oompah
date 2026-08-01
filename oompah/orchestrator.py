@@ -177,6 +177,7 @@ from oompah.terminal_transition_coordinator import (
 from oompah.archived_audit_requests import request_archived_audit
 from oompah.task_handoff import (
     TASK_HANDOFF_PROJECT_ENV,
+    TASK_HANDOFF_TASK_ENV,
     TASK_HANDOFF_TOKEN_ENV,
     consume_task_handoff_failure,
     issue_task_handoff_token,
@@ -26170,6 +26171,7 @@ class Orchestrator:
                     {
                         TASK_HANDOFF_TOKEN_ENV: handoff_token,
                         TASK_HANDOFF_PROJECT_ENV: issue.project_id,
+                        TASK_HANDOFF_TASK_ENV: issue.identifier,
                     }
                     if handoff_token and issue.project_id
                     else None

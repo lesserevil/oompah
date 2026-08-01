@@ -24,6 +24,7 @@ from oompah.auth_health import (
     record_operator_401,
     record_worker_401,
     record_worker_403_action,
+    record_worker_403_policy,
     record_worker_403_scope,
     record_worker_token_accepted,
     record_worker_token_minted,
@@ -250,6 +251,19 @@ class TestWorkerAuthHealth:
         assert snap["recent_403_scope_count"] == 0
         assert snap["status"] == "ok"
 
+    def test_verified_policy_denial_is_informational_only(self):
+        health, _ = self._make()
+        health.record_minted()
+        health.record_accepted()
+        for _ in range(5):
+            health.record_403_policy()
+        snap = health.snapshot()
+        assert snap["policy_denial_count"] == 5
+        assert snap["scope_denial_count"] == 5
+        assert snap["recent_403_scope_count"] == 0
+        assert snap["status"] == "ok"
+        assert health.build_alert() is None
+
 
 # ---------------------------------------------------------------------------
 # Combined auth_health_snapshot and auth_health_alerts
@@ -287,6 +301,15 @@ class TestCombinedAuthHealth:
             record_worker_403_action()
         alerts = auth_health_alerts()
         assert not any(a["source"] == "auth_health:worker" for a in alerts)
+
+    def test_policy_denial_does_not_surface_alert(self):
+        record_worker_token_minted()
+        record_worker_token_accepted()
+        for _ in range(5):
+            record_worker_403_policy()
+        assert not any(
+            a["source"] == "auth_health:worker" for a in auth_health_alerts()
+        )
 
     def test_both_planes_can_alert_simultaneously(self):
         record_operator_401()

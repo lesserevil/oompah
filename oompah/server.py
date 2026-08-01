@@ -131,6 +131,7 @@ from oompah.auth_health import (
     record_worker_401,
     record_worker_403_scope,
     record_worker_403_action,
+    record_worker_403_policy,
     record_worker_token_accepted,
 )
 from oompah.projects import ProjectError, ProjectStore
@@ -3909,6 +3910,72 @@ async def api_coordination_checkpoint(identifier: str, request: Request):
         return _coordination_error(exc)
 
 
+def _verified_running_entry(
+    orch: Any,
+    *,
+    project_id: str = "",
+    identifier: str,
+    token: str | None = None,
+) -> Any | None:
+    """Find a live worker entry by scope, optionally matching its token."""
+    if orch is None:
+        return None
+    state = getattr(orch, "state", None)
+    running = getattr(state, "running", None)
+    values = getattr(running, "values", None)
+    if not callable(values):
+        return None
+    for entry in values():
+        issue = getattr(entry, "issue", None)
+        entry_project = str(getattr(issue, "project_id", "") or "").strip()
+        if project_id and entry_project != project_id:
+            continue
+        identifiers = {
+            str(getattr(entry, "identifier", "") or "").strip(),
+            str(getattr(issue, "identifier", "") or "").strip(),
+            str(getattr(issue, "id", "") or "").strip(),
+        }
+        if identifier in identifiers and (
+            token is None or getattr(entry, "task_handoff_token", None) == token
+        ):
+            return entry
+    return None
+
+
+def _is_verified_peer_scope_denial(
+    orch: Any,
+    *,
+    token: str,
+    project_id: str,
+    target_identifier: str,
+    worker_task_identifier: str,
+) -> bool:
+    """Return true only for a known worker intentionally targeting a peer.
+
+    The assignment identifier is merely routing context from the worker. It
+    becomes trustworthy for this classification only when the server's live
+    entry for that task carries the exact presented capability. A copied
+    capability therefore cannot suppress a genuine mismatched-token alert
+    while targeting the worker's assigned task. This helper never participates
+    in authorization; the failed capability validation remains authoritative.
+    """
+    if not worker_task_identifier or not target_identifier:
+        return False
+    source = _verified_running_entry(
+        orch,
+        token=token,
+        identifier=worker_task_identifier,
+    )
+    if source is None:
+        return False
+    target = _verified_running_entry(
+        orch,
+        project_id=project_id,
+        identifier=target_identifier,
+    )
+    return target is not None and target is not source
+
+
 @app.post("/api/v1/task-handoff")
 async def api_task_handoff(request: Request):
     """Apply one server-issued, task-scoped worker handoff operation.
@@ -3945,6 +4012,14 @@ async def api_task_handoff(request: Request):
     action = str(body.get("action") or "").strip()
     project_id = str(body.get("project_id") or "").strip()
     identifier = str(body.get("identifier") or "").strip()
+    # This is non-secret assignment context, supplied by spawned workers so
+    # auth-health can distinguish an intentional peer denial from a token
+    # accidentally forwarded to the wrong worker. It is never used to grant
+    # access; the capability's exact project/task validation remains the sole
+    # authorization check.
+    worker_task_identifier = str(
+        body.get("worker_task_identifier") or ""
+    ).strip()
     if action not in {
         "view",
         "comment",
@@ -3995,8 +4070,6 @@ async def api_task_handoff(request: Request):
                 action=action,
             )
     if not allowed:
-        # Do not expose whether a token exists for another task/project.
-        record_task_handoff_failure(token, "task handoff scope validation failed")
         # Expired and explicitly revoked grants are authentication failures;
         # scope and action denials remain 403. This lets the worker distinguish
         # transport/authentication loss from a task operation failure without
@@ -4015,13 +4088,44 @@ async def api_task_handoff(request: Request):
             if is_auth_failure
             else "handoff_forbidden"
         )
-        # Count by auth-plane failure type for health signals.
+        expected_policy_denial = False
+        if status_code == 403 and "scoped to another" in reason.lower():
+            if orch is None:
+                try:
+                    orch = _get_orchestrator()
+                except RuntimeError:
+                    orch = None
+            expected_policy_denial = _is_verified_peer_scope_denial(
+                orch,
+                token=token,
+                project_id=project_id,
+                target_identifier=identifier,
+                worker_task_identifier=worker_task_identifier,
+            )
+
+        # Do not expose whether a token exists for another task/project. A
+        # verified policy denial is expected exploration and must not poison
+        # the worker-exit failure reconciler either.
+        if not expected_policy_denial:
+            record_task_handoff_failure(token, "task handoff scope validation failed")
+
+        # Count by auth-plane failure type for health signals. Expected
+        # cross-task policy denials are informational, like action denials.
         if status_code == 401:
             record_worker_401()
+        elif expected_policy_denial:
+            record_worker_403_policy()
         else:
             record_worker_403_scope()
+        response_message = reason
+        if expected_policy_denial:
+            response_message = (
+                f"{reason}; use `oompah task coordinate peers {worker_task_identifier}` "
+                "or `oompah task coordinate inbox "
+                f"{worker_task_identifier}` for read-only peer coordination"
+            )
         return JSONResponse(
-            {"error": {"code": error_code, "message": reason}},
+            {"error": {"code": error_code, "message": response_message}},
             status_code=status_code,
         )
     # Token presented and scope validated — record acceptance before dispatch.

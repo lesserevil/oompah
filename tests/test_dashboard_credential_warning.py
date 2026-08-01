@@ -368,3 +368,18 @@ class TestGenericAlertRenderingHelpers:
         assert "esc(detail)" in render_alert_item_body
         assert "esc(action)" in render_alert_item_body
         assert "esc(source)" in render_alert_item_body
+
+
+class TestAuthHealthPolicyRendering:
+    """Intentional worker policy denials are visible without an auth alert."""
+
+    def test_policy_denial_info_is_rendered_without_degraded_counter(
+        self, script: str
+    ):
+        body = _get_func_body(script, "renderAuthHealthBanner")
+        assert "policy_denial_count" in body
+        assert "wkPolicyDenials" in body
+        assert "wkFailCount" in body
+        assert "task-policy denial" in body
+        assert "coordinate peers" in body
+        assert "coordinate inbox" in body

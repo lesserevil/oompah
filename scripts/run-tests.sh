@@ -50,7 +50,7 @@ export OOMPAH_TEST_PID_FILE="${test_lifecycle_root}/.oompah.pid"
 export OOMPAH_TEST_PID_META_FILE="${test_lifecycle_root}/.oompah.pid.meta"
 unset OOMPAH_SERVER_URL OOMPAH_SERVER_USERNAME OOMPAH_SERVER_PASSWORD \
     OOMPAH_SERVER_PASSWORD_FILE OOMPAH_TASK_HANDOFF_TOKEN \
-    OOMPAH_TASK_HANDOFF_PROJECT_ID
+    OOMPAH_TASK_HANDOFF_PROJECT_ID OOMPAH_TASK_HANDOFF_TASK_ID
 
 cleanup_test_run() {
     case "${test_run_root}" in
