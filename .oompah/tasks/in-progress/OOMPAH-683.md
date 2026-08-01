@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T21:41:35.163259Z'
-updated_at: '2026-08-01T21:48:09.804620Z'
+updated_at: '2026-08-01T21:48:25.775506Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -128,5 +128,10 @@ author: oompah
 created: 2026-08-01 21:48
 ---
 Focus: Callback Auth Validation Specialist
+---
+author: oompah
+created: 2026-08-01 21:48
+---
+Understanding: I will trace retry recovery snapshotting, Git/worktree operation-state detection, generated helper cleanup, and submission checks. I will preserve active-operation state and branch identity without interactive Git commands, exclude generated helpers from snapshots/submission, add race-safe cleanup diagnostics, cover the stated reproductions with focused tests, then run the relevant Makefile checks.
 ---
 <!-- COMMENTS:END -->
