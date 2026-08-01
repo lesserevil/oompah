@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-676
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Make graceful CLI cutover drain workers before restart
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T05:18:04.532392Z'
-updated_at: '2026-08-01T05:32:08.270101Z'
+updated_at: '2026-08-01T05:33:03.448254Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -83,6 +83,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-676
     source_sha: cde6401136d6561b694b05f81f4337cd26d7a3fe
     completed_at: '2026-08-01T05:19:57.690711+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-676
+  head_sha: cd9b2652a665bd9004c0d91d2b1921bcf4a831c6
+  submitted_at: '2026-08-01T05:32:58.461601+00:00'
+  updated_at: '2026-08-01T05:32:58.461601+00:00'
 ---
 ## Summary
 
@@ -146,5 +154,15 @@ created: 2026-08-01 05:32
 ---
 Verification: focused lifecycle/cutover and event-driven restart tests pass (80). API, IPC, explicit-pause, Makefile restart-wait, and orchestrator pause suites pass (105). Dispatch compatibility/state API neighboring suites pass (80). MCP exposure policy and gateway suites pass (311). make[1]: Entering directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-676'
 make[1]: Leaving directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-676' was attempted but the environment cannot initialize the project venv: astral-uv failed with DBus InvalidArgs/kernel-thread transient-scope error; no code test failure was observed.
+---
+author: oompah
+created: 2026-08-01 05:32
+---
+Completion: delivered and pushed cd9b2652a. Graceful make restart/cutover now quiesces dispatch, allows active workers to finish, and delegates only timed-out workers to restart recovery; natural completions are not redispatched. Explicit /pause behavior is unchanged. Added API/IPC/MCP policy coverage, lifecycle regression tests, and updated CLI docs. Branch is pushed and clean. Note: make test could not pass setup because astral-uv failed with the host DBus transient-scope error; focused suites all passed.
+---
+author: oompah
+created: 2026-08-01 05:33
+---
+Quiesced graceful CLI cutover now drains active workers naturally, recovers only timed-out workers, preserves explicit pause semantics, and includes lifecycle/API/IPC/MCP regression coverage.
 ---
 <!-- COMMENTS:END -->
