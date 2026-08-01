@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-665
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: 0
 title: Retire legacy no-auditor alerts after terminal task completion
 parent: null
@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:07.401588Z'
-updated_at: '2026-08-01T00:23:06.771311Z'
+updated_at: '2026-08-01T00:24:21.070907Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -151,6 +151,72 @@ oompah.integration:
   submitted_at: '2026-07-31T23:14:07.326424+00:00'
   updated_at: '2026-07-31T23:14:07.326424+00:00'
 oompah.start_blocked_by: *id001
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-92a70e3fdd47
+    project_id: proj-14849f1b
+    task_id: OOMPAH-665
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 08587e11ed8008f31ea43053a9d571eb65e49661aa65834013fcb94ff62d4649
+    attempts:
+    - version: 1
+      attempt_id: attempt-a46d5580cb51
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 08587e11ed8008f31ea43053a9d571eb65e49661aa65834013fcb94ff62d4649
+      created_at: '2026-08-01T00:24:15.768122+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-01T00:24:15.768122+00:00'
+      branch_key: OOMPAH-665
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: Ready to Integrate
+    created_at: '2026-08-01T00:24:07.729145+00:00'
+    updated_at: '2026-08-01T00:24:15.768122+00:00'
+  - version: 1
+    audit_id: audit-80812b27e5b6
+    project_id: proj-14849f1b
+    task_id: OOMPAH-665
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 08587e11ed8008f31ea43053a9d571eb65e49661aa65834013fcb94ff62d4649
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: Ready to Integrate
+    created_at: '2026-08-01T00:24:07.729145+00:00'
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-a46d5580cb51
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 08587e11ed8008f31ea43053a9d571eb65e49661aa65834013fcb94ff62d4649
+    created_at: '2026-08-01T00:24:15.768122+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-01T00:24:15.768122+00:00'
+    branch_key: OOMPAH-665
 ---
 ## Summary
 
@@ -678,5 +744,25 @@ author: oompah
 created: 2026-08-01 00:23
 ---
 Branch quality gate passed for `04d681f1033fb34e61cb9a00647d87ef879b90da` using `make test` in 386.4s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-01 00:24
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-01 00:24
+---
+Reconciled direct delivery after the exact submitted head 04d681f1033fb34e61cb9a00647d87ef879b90da was verified as an ancestor of origin/main. The isolated full gate passed, but forge review creation returned 422 because there were correctly no commits to review. Staging the supported Merged terminal transition now; do not reopen implementation.
+---
+author: oompah
+created: 2026-08-01 00:24
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-01 00:24
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
