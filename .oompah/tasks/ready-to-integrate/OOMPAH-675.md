@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T04:59:55.163807Z'
-updated_at: '2026-08-01T05:53:53.656024Z'
+updated_at: '2026-08-01T05:54:12.582985Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,13 +38,17 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: c80b7804-0b05-44f0-93e2-2099fcd339c5
 oompah.task_costs:
-  total_input_tokens: 349329
-  total_output_tokens: 2219
+  total_input_tokens: 349457
+  total_output_tokens: 44906
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 349329
       output_tokens: 2219
+      cost_usd: 0.0
+    opus:
+      input_tokens: 128
+      output_tokens: 42687
       cost_usd: 0.0
   runs:
   - profile: default
@@ -59,6 +63,12 @@ oompah.task_costs:
     output_tokens: 134
     cost_usd: 0.0
     recorded_at: '2026-08-01T05:15:30.851060+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 128
+    output_tokens: 42687
+    cost_usd: 0.0
+    recorded_at: '2026-08-01T05:54:05.673778+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-675__20260801T051057Z
@@ -69,14 +79,24 @@ oompah.work_contributors:
     source_branch: OOMPAH-675
     source_sha: cde6401136d6561b694b05f81f4337cd26d7a3fe
     completed_at: '2026-08-01T05:11:47.923643+00:00'
+  - run_id: OOMPAH-675__20260801T052445Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: opus
+    focus: general
+    source_branch: OOMPAH-675
+    source_sha: d13a33d342e917c1ecb660e629a5e585724f2c11
+    completed_at: '2026-08-01T05:54:05.679277+00:00'
 oompah.integration:
   version: 2
   state: ready
   attempts: 0
   task_branch: OOMPAH-675
+  base_branch: main
+  base_sha: cde6401136d6561b694b05f81f4337cd26d7a3fe
   head_sha: d13a33d342e917c1ecb660e629a5e585724f2c11
   submitted_at: '2026-08-01T05:53:50.577959+00:00'
-  updated_at: '2026-08-01T05:53:50.577959+00:00'
+  updated_at: '2026-08-01T05:54:11.468861+00:00'
 ---
 ## Summary
 
@@ -243,5 +263,20 @@ author: oompah
 created: 2026-08-01 05:53
 ---
 Switched pyproject timeout_method from thread to signal so intentional per-test timeouts raise pytest.Failed in the worker's main thread instead of pytest-timeout calling os._exit(1). Added --max-worker-restart=0 to scripts/run-tests.sh so a genuine crash fails fast with the crashitem identified rather than triggering LoadScopeScheduling / LoadGroupScheduling replacement KeyError. Updated the pyproject regression and runner regression, and added tests/test_pytest_worker_survives_timeout.py — a subprocess-driven pytest+xdist run that proves signal-mode timeouts name the responsible test, neighbouring tests survive, and a hard os._exit(1) crash under --max-worker-restart=0 surfaces the crashitem without a scheduler internal error. Two full 4-worker gates completed without 'Not properly terminated' or xdist internal errors.
+---
+author: oompah
+created: 2026-08-01 05:54
+---
+Agent completed successfully in 1765s (42815 tokens)
+---
+author: oompah
+created: 2026-08-01 05:54
+---
+Run #2 [attempt=2, profile=deep, role=deep -> Claude/opus]
+- Turns: 174, Tool calls: 122
+- Tokens: 128 in / 42.7K out [42.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 29m 25s
+- Log: OOMPAH-675__20260801T052445Z.jsonl
 ---
 <!-- COMMENTS:END -->
