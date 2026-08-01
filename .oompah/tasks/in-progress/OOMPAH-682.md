@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T18:07:47.349822Z'
-updated_at: '2026-08-01T19:05:19.671701Z'
+updated_at: '2026-08-01T19:07:05.037023Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -149,5 +149,16 @@ My approach as Callback Auth Validation Specialist:
 - Implement read-only task-corpus access for investigators (via MCP or task context)
 - Enforce structured verdict parsing with claim_id binding to prevent comment injection
 - Add tests for owner auth, non-owner rejection, and race-safe concurrent updates
+---
+author: oompah
+created: 2026-08-01 19:07
+---
+**Discovery**: Found the root issue in orchestrator.py:27442-27445. When retry_count reaches max (3), task moves to Needs Human. Owner then moves to Open, but old screening record persists with retry_count=3. Next run inherits this retry_count, immediately re-attempting as attempt 4.
+
+**Solution path**:
+1. Extended DuplicateScreeningRecord with owner_resolved_at, owner_login, owner_resolution_reason
+2. Added owner_resolution_record() that creates conclusive records with reset retry_count=0
+3. Added is_owner_resolved property for quick checks
+4. Next: Add orchestrator methods to accept owner resolutions via API, validate auth, and honor them
 ---
 <!-- COMMENTS:END -->

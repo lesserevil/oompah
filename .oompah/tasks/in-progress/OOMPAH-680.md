@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T17:31:44.735248Z'
-updated_at: '2026-08-01T19:04:56.636186Z'
+updated_at: '2026-08-01T19:06:59.293567Z'
 work_branch: OOMPAH-680
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/643
@@ -497,5 +497,10 @@ author: oompah
 created: 2026-08-01 19:04
 ---
 Implementation: added a shared project-scoped network Git runner in projects.py and credential propagation through integration_executor, orchestrator review/epic helpers, cherry-pick/release pushes, repo-map state pushes, release branch discovery, landing/unpushed gates, and server bootstrap/template endpoints. All network calls use ephemeral GIT_ASKPASS environments, no token-bearing argv/URLs/config, and redact captured output; failed clones remove partial checkouts. Added tests/test_managed_git_credentials.py covering GitLab/GitHub identity, redaction, isolation, integration propagation, and failure cleanup.
+---
+author: oompah
+created: 2026-08-01 19:06
+---
+Verification: focused suites pass, including 5 new managed credential tests and make check-secrets (exit 0). The secret scan reported only its existing null-byte warning. I am running the complete Makefile test gate against this final head before commit/push.
 ---
 <!-- COMMENTS:END -->
