@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-25T19:55:15.601730Z'
-updated_at: '2026-08-01T20:18:14.042174Z'
+updated_at: '2026-08-01T20:18:24.344571Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -43,19 +43,46 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-444
     target_state: Archived
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: af5d477560ad1fe7bff51a8405cd75b74b196dd13f496559f1b1a3152b71963e
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-9d6d82113b78
+      target_state: Archived
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: af5d477560ad1fe7bff51a8405cd75b74b196dd13f496559f1b1a3152b71963e
+      created_at: '2026-08-01T20:18:18.868085+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-01T20:18:18.868085+00:00'
+      branch_key: OOMPAH-444
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-01T20:18:11.021537+00:00'
-  attempt_history: []
+    updated_at: '2026-08-01T20:18:18.868085+00:00'
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-9d6d82113b78
+    target_state: Archived
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: af5d477560ad1fe7bff51a8405cd75b74b196dd13f496559f1b1a3152b71963e
+    created_at: '2026-08-01T20:18:18.868085+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-01T20:18:18.868085+00:00'
+    branch_key: OOMPAH-444
 ---
 ## Summary
 
@@ -166,5 +193,15 @@ author: oompah
 created: 2026-08-01 20:18
 ---
 Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
+---
+author: oompah
+created: 2026-08-01 20:18
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-01 20:18
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
