@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T12:05:24.382952Z'
-updated_at: '2026-08-01T15:39:50.658119Z'
+updated_at: '2026-08-01T15:39:58.035793Z'
 work_branch: OOMPAH-679
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/641
@@ -364,5 +364,10 @@ author: oompah
 created: 2026-08-01 15:39
 ---
 Verification: scripts/run-tests.sh serial tests/test_duplicate_names.py tests/test_default_first_dispatch.py tests/test_duplicate_preflight.py tests/test_activity_run_identity.py — 112 passed in 30.01s. The formerly-flaky test now runs under the raised @pytest.mark.timeout(60) ceiling (measured ~1.87s locally). No other changes.
+---
+author: oompah
+created: 2026-08-01 15:39
+---
+Completion: pushed cf050cb85 to OOMPAH-679. Minimal CI repair adds a per-test @pytest.mark.timeout(60) override to tests/test_duplicate_names.py::test_no_duplicate_test_names_in_test_files, addressing the MR #641 test (3.11) failure without touching production code or unrelated tests.
 ---
 <!-- COMMENTS:END -->
