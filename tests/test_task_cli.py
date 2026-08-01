@@ -720,6 +720,37 @@ class TestCmdSetStatus:
         assert data["override_reason"] == "Approved after manual review"
         assert data["actor_login"] == "owner"
 
+    def test_sends_owner_audit_retry_directly_without_worker_handoff(self):
+        args = _make_args(
+            subcommand="set-status",
+            identifier="TASK-5",
+            status="Archived",
+            summary=None,
+            project="proj-1",
+            actor="owner",
+            audit_retry=True,
+            audit_retry_reason="Deleted-branch checkout bug is fixed",
+        )
+        with (
+            _make_http_mock(
+                {
+                    "ok": True,
+                    "status": "In Validation",
+                    "requested_target": "Archived",
+                    "audit_id": "audit-new",
+                    "audit_retry": True,
+                }
+            ) as http_mock,
+            patch.object(task_cli, "_task_handoff_request") as handoff,
+        ):
+            task_cli._cmd_set_status("http://localhost:8080", args)
+
+        data = http_mock.call_args.kwargs["data"]
+        assert data["audit_retry"] is True
+        assert data["audit_retry_reason"] == "Deleted-branch checkout bug is fixed"
+        assert data["actor_login"] == "owner"
+        handoff.assert_not_called()
+
     def test_prints_terminal_queue_response(self, capsys):
         args = _make_args(
             subcommand="set-status",
@@ -1407,6 +1438,21 @@ class TestBuildParser:
         )
         assert args.audit_override is True
         assert args.override_reason == "Approved retirement"
+
+    def test_set_status_audit_retry_flags_parse(self):
+        parser = task_cli.build_parser()
+        args = parser.parse_args(
+            [
+                "set-status",
+                "TASK-1",
+                "Archived",
+                "--audit-retry",
+                "--audit-retry-reason",
+                "Transport repaired",
+            ]
+        )
+        assert args.audit_retry is True
+        assert args.audit_retry_reason == "Transport repaired"
 
     def test_add_label_subcommand_parses(self):
         parser = task_cli.build_parser()

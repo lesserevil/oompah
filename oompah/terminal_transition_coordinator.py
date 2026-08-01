@@ -738,6 +738,189 @@ class TerminalTransitionCoordinator:
 
         return self._run_project_serialized(project_id, _operation)
 
+    async def retry_failed_audit(
+        self,
+        current_issue: Issue,
+        requested_target: TargetState,
+        authorized_actor: ContributorIdentity,
+        project_id: str,
+        reason: str,
+        project: Any = None,
+    ) -> TransitionResult:
+        """Rearm an exhausted no-auditor decision without reopening work.
+
+        This is an owner-authorized recovery operation for infrastructure or
+        transport repairs.  It supersedes the completed ``NO_AUDITOR`` record,
+        preserves its attempt history, appends a fresh pending record for the
+        exact same evidence fingerprint, and restores ``In Validation``.  A
+        repeated request coalesces with that pending record.
+        """
+
+        requested_target = TargetState.from_raw(requested_target)
+        if not isinstance(authorized_actor, ContributorIdentity):
+            raise TypeError("authorized_actor must be a ContributorIdentity")
+        if not isinstance(reason, str) or not reason.strip():
+            raise ValueError("reason must be a non-empty string")
+        if not isinstance(project_id, str) or not project_id.strip():
+            raise ValueError("project_id must be a non-empty string")
+
+        actor_login = authorized_actor.identity
+        if not (
+            is_authorized_status_actor(actor_login, project)
+            and is_project_owner(actor_login, project)
+        ):
+            return TransitionResult(success=False, reason="unauthorized_actor")
+        if getattr(current_issue, "project_id", None) and (
+            str(current_issue.project_id) != project_id
+        ):
+            return TransitionResult(success=False, reason="project_mismatch")
+
+        def _operation() -> TransitionResult:
+            tracker = self._tracker_for_project(project_id)
+            store = TerminalAuditMetadataStore(
+                tracker, self._project_store, project_id
+            )
+            decision = TransitionResult(success=False, reason="audit_not_retryable")
+            retired_audit_id: str | None = None
+
+            def _updater(doc: TerminalAuditMetadata) -> TerminalAuditMetadata:
+                nonlocal decision, retired_audit_id
+                chain = list(doc.pending_chain)
+                matching = [
+                    record
+                    for record in chain
+                    if record.target_state == requested_target
+                    and record.project_id == project_id
+                    and record.task_id
+                    in {current_issue.identifier, str(current_issue.id or "")}
+                ]
+                active = next(
+                    (
+                        record
+                        for record in reversed(matching)
+                        if record.request_state
+                        in (RequestState.PENDING, RequestState.IN_PROGRESS)
+                    ),
+                    None,
+                )
+                if active is not None:
+                    decision = TransitionResult(
+                        success=True,
+                        audit_id=active.audit_id,
+                        coalesced=True,
+                        status_staged=False,
+                    )
+                    return doc
+
+                exhausted = next(
+                    (
+                        record
+                        for record in reversed(matching)
+                        if record.request_state == RequestState.COMPLETED
+                        and record.attempts
+                        and all(
+                            attempt.failure_classification
+                            in {
+                                FailureClassification.NO_AUDITOR,
+                                FailureClassification.INFRASTRUCTURE_ERROR,
+                            }
+                            for attempt in record.attempts
+                        )
+                    ),
+                    None,
+                )
+                if exhausted is None:
+                    return doc
+
+                now = _now_iso8601()
+                retired_audit_id = exhausted.audit_id
+                chain = [
+                    replace(record, request_state=RequestState.SUPERSEDED, updated_at=now)
+                    if record.audit_id == exhausted.audit_id
+                    else record
+                    for record in chain
+                ]
+                fresh = _make_record(
+                    project_id,
+                    current_issue.identifier,
+                    requested_target,
+                    exhausted.evidence_fingerprint,
+                    authorized_actor,
+                    exhausted.previous_state,
+                    now,
+                )
+                chain.append(fresh)
+                decision = TransitionResult(
+                    success=True,
+                    audit_id=fresh.audit_id,
+                    audit_ids=[fresh.audit_id],
+                    queued_targets=[requested_target],
+                    superseded_audit_id=exhausted.audit_id,
+                    status_staged=False,
+                )
+                return replace(doc, pending_chain=chain)
+
+            try:
+                store.update(current_issue.identifier, _updater)
+            except TerminalAuditMetadataQuarantinedError:
+                return TransitionResult(
+                    success=False,
+                    reason="metadata_quarantined",
+                )
+
+            if not decision.success:
+                return decision
+
+            try:
+                tracker.update_issue(current_issue.identifier, status=IN_VALIDATION)
+                decision.status_staged = True
+            except Exception:
+                logger.exception(
+                    "Failed to restore In Validation for retried audit %s",
+                    current_issue.identifier,
+                )
+                return decision
+
+            if not decision.coalesced:
+                try:
+                    tracker.add_comment(
+                        current_issue.identifier,
+                        "Terminal audit rearmed by project owner after recovery: "
+                        f"{reason.strip()}",
+                        author="oompah",
+                    )
+                except Exception:
+                    logger.exception(
+                        "Failed to post terminal-audit retry comment for %s",
+                        current_issue.identifier,
+                    )
+            if retired_audit_id:
+                self._record_metric(
+                    "record_stale_discarded",
+                    project_id,
+                    current_issue.identifier,
+                    retired_audit_id,
+                )
+                self._clear_retired_alert(
+                    project_id,
+                    current_issue.identifier,
+                    retired_audit_id,
+                )
+            if decision.audit_id and not decision.coalesced:
+                self._record_metric(
+                    "record_queued",
+                    project_id,
+                    current_issue.identifier,
+                    decision.audit_id,
+                )
+            return decision
+
+        return await asyncio.to_thread(
+            self._run_project_serialized,
+            project_id,
+            _operation,
+        )
+
     # ------------------------------------------------------------------
     # Public API — apply_audit_result
     # ------------------------------------------------------------------

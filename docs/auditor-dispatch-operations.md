@@ -53,7 +53,8 @@ flowchart TD
 
     Retry --> MaxAttempts{Attempts exhausted?}
     MaxAttempts -- no --> Lane
-    MaxAttempts -- yes --> NoAudit
+    MaxAttempts -- candidate exhaustion --> NoAudit
+    MaxAttempts -- infrastructure exhaustion --> InfraHold[Needs Human: rearm audit]
 ```
 
 ## Target-Specific Audit Chains
@@ -81,8 +82,16 @@ from every agent that contributed to this task's branch:
 - If contributors used provider `prov-a` but the model is unknown (ACP
   SDK-managed), then **all** candidates on `prov-a` are excluded (fail-closed).
 - Candidates are tried in saved role order. Once all independent candidates
-  have been tried (or are unavailable), the audit is exhausted and routed to
-  `Needs Human` with the `no_auditor` failure classification.
+  have been tried or are unavailable, the audit is exhausted and routed to
+  `Needs Human` with the `no_auditor` failure classification. Workspace and
+  transport failures remain `infrastructure_error`; exhausting those retries
+  does not claim that no independent auditor exists.
+
+Auditors run in detached, attempt-scoped worktrees. Oompah prefers a persisted
+immutable source or integration SHA. Legacy Merged-to-Archived audits that did
+not persist a SHA may use the fetched default-branch tip when their historical
+work branch has already been deleted. A named immutable SHA that cannot be
+resolved always fails closed; Oompah never substitutes another branch for it.
 
 ## Failure Routing
 
@@ -258,6 +267,24 @@ then rotates to the next independent candidate.
 1. After restart, an in-progress attempt with no live worker is reclaimed
    immediately and the lane retries on the next tick.
 2. Check the orchestrator and agent logs for the crash reason.
+
+### Audit Exhausted After Workspace or Transport Failures
+
+Fix the reported infrastructure problem, then rearm the audit without moving
+the task to `Open`:
+
+```bash
+oompah task set-status TASK-123 Archived \
+  --project PROJECT_ID \
+  --audit-retry \
+  --audit-retry-reason "Deleted-branch checkout recovery is deployed"
+```
+
+Use the target recorded on the failed audit (`Done`, `Merged`, or `Archived`).
+The authenticated actor must be a project owner. The command supersedes the
+failed audit record, preserves its history and evidence fingerprint, appends
+one fresh pending audit, and restores `In Validation`. Repeating the command
+is idempotent. It never reopens or dispatches implementation work.
 
 ## Explicit Owner Override
 
