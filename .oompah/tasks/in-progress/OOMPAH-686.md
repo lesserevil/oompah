@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T22:19:41.486806Z'
-updated_at: '2026-08-01T22:40:09.065888Z'
+updated_at: '2026-08-01T22:40:16.576925Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -361,5 +361,10 @@ author: oompah
 created: 2026-08-01 22:40
 ---
 Discovery: GitHub has no PR or Actions run for OOMPAH-686, so I used the recorded branch-gate failure and local reproduction. The failing test left  as real tracker I/O while asserting only maintenance-future sequencing. That executor work can exceed pytest's five-second parallel-CI timeout; nearby  tests already isolate it with a mock. The runtime fallback implementation itself is not implicated.
+---
+author: oompah
+created: 2026-08-01 22:40
+---
+Discovery correction: the isolated test leaves release-addendum recovery as real tracker I/O while asserting only maintenance-future sequencing. That executor work can exceed pytest’s five-second parallel-CI timeout; nearby tick tests already isolate it with a mock. The runtime fallback implementation is not implicated.
 ---
 <!-- COMMENTS:END -->
