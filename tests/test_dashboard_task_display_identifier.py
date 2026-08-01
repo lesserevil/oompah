@@ -27,6 +27,8 @@ def clear_api_state():
                 "duration_ms": None,
                 "issue_count": 0,
                 "error": None,
+                "source_generations": {},
+                "invalidated": False,
             }
         )
     server_module._api_cache.clear()
@@ -42,6 +44,8 @@ def clear_api_state():
                 "duration_ms": None,
                 "issue_count": 0,
                 "error": None,
+                "source_generations": {},
+                "invalidated": False,
             }
         )
     server_module._api_cache.clear()
