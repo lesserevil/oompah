@@ -2315,10 +2315,10 @@ async def _ensure_issues_snapshot_refresh(
 
 async def _wait_for_issues_snapshot_refresh(timeout_ms: int = 250) -> bool:
     """Wait for the issues snapshot refresh to complete.
-    
+
     Args:
         timeout_ms: Maximum time to wait in milliseconds.
-    
+
     Returns:
         True if the refresh completed before timeout, False if timeout expired.
     """
@@ -2546,7 +2546,10 @@ def _on_state_only_change(snapshot: dict) -> None:
     if now - _last_state_broadcast < _STATE_THROTTLE_MS:
         return
     _last_state_broadcast = now
-    _schedule_api_coro(lambda: _broadcast({"type": "state", "data": snapshot}))
+    enriched_snapshot = _enrich_state_snapshot(snapshot)
+    _schedule_api_coro(
+        lambda: _broadcast({"type": "state", "data": enriched_snapshot})
+    )
 
 
 def _on_orchestrator_change(snapshot: dict) -> None:
@@ -2563,7 +2566,8 @@ def _on_orchestrator_change(snapshot: dict) -> None:
     if now - _last_state_broadcast < _STATE_THROTTLE_MS:
         return
     _last_state_broadcast = now
-    _schedule_api_coro(lambda: _broadcast({"type": "state", "data": snapshot}))
+    enriched_snapshot = _enrich_state_snapshot(snapshot)
+    _schedule_api_coro(lambda: _broadcast({"type": "state", "data": enriched_snapshot}))
     _schedule_api_coro(_throttled_broadcast_issues)
 
 
@@ -2815,7 +2819,7 @@ def _serialize_issues(orch, all_issues: list) -> dict[str, list]:
 
 async def _do_broadcast_issues() -> None:
     """Refresh the board snapshot, then broadcast it to WebSocket clients.
-    
+
     Critical for duplicate-screening state sync: the snapshot MUST be refreshed
     before any broadcast to prevent stale payloads from overwriting newer state.
     """
@@ -2884,16 +2888,23 @@ async def _broadcast(msg: dict) -> None:
 
 @app.websocket("/ws")
 async def websocket_endpoint(ws: WebSocket):
-    """WebSocket endpoint for real-time UI updates."""
+    """WebSocket endpoint for real-time UI updates.
+
+    Sends enriched state snapshots with HTTP auth, build, and metrics metadata
+    to ensure authenticated dashboards have the same metadata as REST clients.
+    """
     await ws.accept()
     _ws_clients.add(ws)
     logger.info("WebSocket client connected (%d total)", len(_ws_clients))
     try:
         # Send initial state + issues immediately
         orch = _get_orchestrator()
+        initial_state = _enrich_state_snapshot(
+            _cached_state_snapshot_or_unavailable()
+        )
         await ws.send_text(
             json.dumps(
-                {"type": "state", "data": _cached_state_snapshot_or_unavailable()},
+                {"type": "state", "data": initial_state},
                 default=str,
             )
         )
@@ -2910,11 +2921,14 @@ async def websocket_endpoint(ws: WebSocket):
             try:
                 msg = json.loads(data)
                 if msg.get("action") == "refresh":
+                    refresh_state = _enrich_state_snapshot(
+                        _cached_state_snapshot_or_unavailable()
+                    )
                     await ws.send_text(
                         json.dumps(
                             {
                                 "type": "state",
-                                "data": _cached_state_snapshot_or_unavailable(),
+                                "data": refresh_state,
                             },
                             default=str,
                         )
@@ -3302,6 +3316,29 @@ async def api_console_delete(project_id: str):
     return JSONResponse({"ok": True})
 
 
+def _enrich_state_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
+    """Enrich state snapshot with HTTP auth, build, and metrics metadata.
+
+    This centralizes state enrichment so REST and WebSocket endpoints send
+    consistent redacted build, service, and auth metadata. Ensures no
+    credentials or secret material can enter the payload.
+
+    Args:
+        snapshot: A state snapshot dict from _cached_state_snapshot_or_unavailable()
+
+    Returns:
+        A new dict with the snapshot enriched with build_id, service_instance_id,
+        http_auth, and api_metrics fields.
+    """
+    # Create a copy to avoid mutating cached snapshots
+    enriched = dict(snapshot)
+    enriched["build_id"] = dict(_BUILD_ID)
+    enriched["service_instance_id"] = _INSTANCE_ID
+    enriched["http_auth"] = _http_auth_reload_status()
+    enriched["api_metrics"] = _api_metrics_snapshot()
+    return enriched
+
+
 # --- JSON REST API ---
 
 
@@ -3342,25 +3379,16 @@ async def api_state():
                     },
                     status_code=503,
                 )
-            snapshot = dict(snapshot)
-            snapshot["build_id"] = dict(_BUILD_ID)
-            snapshot["service_instance_id"] = _INSTANCE_ID
             duration_ms = (time.monotonic() - t_start) * 1000
             _record_api_latency("/api/v1/state", duration_ms)
-            snapshot["api_metrics"] = _api_metrics_snapshot()
-            snapshot["http_auth"] = _http_auth_reload_status()
-            return JSONResponse(snapshot)
+            return JSONResponse(_enrich_state_snapshot(snapshot))
 
         # Combined mode: prefer the cached snapshot to avoid recomputing
         # during maintenance / tick bursts.
         snapshot = _cached_state_snapshot_or_unavailable()
-        snapshot["build_id"] = dict(_BUILD_ID)
-        snapshot["service_instance_id"] = _INSTANCE_ID
         duration_ms = (time.monotonic() - t_start) * 1000
         _record_api_latency("/api/v1/state", duration_ms)
-        snapshot["api_metrics"] = _api_metrics_snapshot()
-        snapshot["http_auth"] = _http_auth_reload_status()
-        return JSONResponse(snapshot)
+        return JSONResponse(_enrich_state_snapshot(snapshot))
     except Exception as exc:
         _record_api_latency(
             "/api/v1/state", (time.monotonic() - t_start) * 1000, ok=False
@@ -3523,7 +3551,7 @@ def _enqueue_worker_submission(
     orch, project_id: str, issue, record, *, explicit_retry: bool = True
 ) -> None:
     """Mirror an epic-child submission into the durable integration queue.
-    
+
     When explicit_retry=True (default for API submissions), clears blocked state
     to allow explicit retries. When explicit_retry=False (for background sync),
     maintains idempotent behavior.
@@ -4741,7 +4769,7 @@ def _terminal_evidence_fingerprint(
     project_id: str,
 ) -> EvidenceFingerprint:
     """Build the canonical, auditor-independent evidence fingerprint for API callers.
-    
+
     OOMPAH-663: This is the canonical fingerprint path used by all API owner-override
     requests. It uses the same compute_issue_evidence_fingerprint function as the
     orchestrator integration path and ACP override path to ensure consistent,

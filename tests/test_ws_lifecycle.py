@@ -230,6 +230,9 @@ class TestOnOrchestratorChange:
                 # At least a state broadcast should have been scheduled
                 state_msgs = [m for m in broadcast_calls if m.get("type") == "state"]
                 assert len(state_msgs) >= 1
+                assert "http_auth" in state_msgs[0]["data"]
+                assert "build_id" in state_msgs[0]["data"]
+                assert "service_instance_id" in state_msgs[0]["data"]
 
     @pytest.mark.asyncio
     async def test_throttle_suppresses_rapid_second_call(self):
