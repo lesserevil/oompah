@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-666
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Fix dashboard vertical scrolling when alerts precede the Kanban board
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T21:19:38.816688Z'
-updated_at: '2026-08-01T00:53:42.371019Z'
+updated_at: '2026-08-01T01:03:48.746549Z'
 work_branch: OOMPAH-666
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/632
@@ -114,6 +114,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/632
 oompah.review_number: '632'
 oompah.work_branch: OOMPAH-666
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-bb3c2315b724
+    project_id: proj-14849f1b
+    task_id: OOMPAH-666
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7201b3bb98283a820ee65523eb2be11b3dff18bf7866dfb70e8792506035f80b
+    attempts: []
+    requested_by:
+      version: 1
+      identity: yolo-merge
+      source: oompah
+    previous_state: In Review
+    created_at: '2026-08-01T01:03:43.049834+00:00'
+  - version: 1
+    audit_id: audit-b774ed8bcd47
+    project_id: proj-14849f1b
+    task_id: OOMPAH-666
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7201b3bb98283a820ee65523eb2be11b3dff18bf7866dfb70e8792506035f80b
+    attempts: []
+    requested_by:
+      version: 1
+      identity: yolo-merge
+      source: oompah
+    previous_state: In Review
+    created_at: '2026-08-01T01:03:43.049834+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -365,5 +404,15 @@ author: oompah
 created: 2026-08-01 00:53
 ---
 Branch quality gate passed for `5741f6a05613dd038d49c25e03a01eb37b04e71f` using `make test` in 387.3s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-01 01:03
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-01 01:03
+---
+YOLO: merged PR #632.
 ---
 <!-- COMMENTS:END -->
