@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-674
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Include authenticated state in dashboard WebSocket bootstrap
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T04:42:35.189136Z'
-updated_at: '2026-08-01T04:59:59.241693Z'
+updated_at: '2026-08-01T05:07:56.027813Z'
 work_branch: OOMPAH-674
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/637
@@ -89,6 +89,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/637
 oompah.review_number: '637'
 oompah.work_branch: OOMPAH-674
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-f2c5c85797e8
+    project_id: proj-14849f1b
+    task_id: OOMPAH-674
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c5f72648c1528946f42facaee0d7f6a06fc734b696b9ac77091148fbebca7cb3
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-01T05:07:51.113032+00:00'
+  - version: 1
+    audit_id: audit-975420f01fba
+    project_id: proj-14849f1b
+    task_id: OOMPAH-674
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c5f72648c1528946f42facaee0d7f6a06fc734b696b9ac77091148fbebca7cb3
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-01T05:07:51.113032+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -250,5 +289,15 @@ author: oompah
 created: 2026-08-01 04:59
 ---
 Centralized redacted state enrichment across REST and every WebSocket state path so authenticated dashboards no longer send mismatched actor identities. Added bootstrap, refresh, redaction, backward-compatibility, and scheduler-broadcast regression coverage; 161 focused tests pass. The configured four-worker full gate separately reproduced an existing xdist worker-replacement failure unrelated to this patch.
+---
+author: oompah
+created: 2026-08-01 05:07
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-01 05:07
+---
+YOLO: merged PR #637.
 ---
 <!-- COMMENTS:END -->
