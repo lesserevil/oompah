@@ -1257,18 +1257,18 @@ class ProjectStore:
         tracker_owner_value = str(tracker_owner).strip() if tracker_owner else None
         tracker_repo_value = str(tracker_repo).strip() if tracker_repo else None
         
-        # For GitHub-backed trackers and oompah_md with GitHub intake, infer tracker_repo from URL
-        # (tracker_owner has already been inferred via _resolve_owner_identity above)
-        tracker_repo_value = str(tracker_repo).strip() if tracker_repo else None
+        # For GitHub-backed trackers and oompah_md with GitHub intake, infer tracker_owner/repo from URL
         if (
             _is_github_backed_kind(_resolved_kind)
             or (
                 _is_oompah_md_kind(_resolved_kind)
                 and bool(github_issue_intake_enabled)
             )
-        ) and not tracker_repo_value:
-            _, inferred_repo = github_owner_repo_from_url(repo_url)
-            tracker_repo_value = inferred_repo
+        ):
+            if not tracker_owner_value or not tracker_repo_value:
+                inferred_owner, inferred_repo = github_owner_repo_from_url(repo_url)
+                tracker_owner_value = tracker_owner_value or inferred_owner
+                tracker_repo_value = tracker_repo_value or inferred_repo
 
         project_id = f"proj-{uuid.uuid4().hex[:8]}"
         project = Project(
