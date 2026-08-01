@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-682
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Make duplicate-preflight recovery authoritative and self-sufficient
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T18:07:47.349822Z'
-updated_at: '2026-08-01T19:03:42.461099Z'
+updated_at: '2026-08-01T19:03:57.960926Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,7 +42,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: cb0b9aa3-6004-438c-8520-ce627bdbde8c
+oompah.agent_run_id: 65463141-215e-47b3-bd4f-ce2415da2caa
 oompah.task_costs:
   total_input_tokens: 4703342
   total_output_tokens: 8542
@@ -123,5 +123,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 3m 29s
 - Log: OOMPAH-682__20260801T190014Z.jsonl
+---
+author: oompah
+created: 2026-08-01 19:03
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-01 19:03
+---
+Focus: Callback Auth Validation Specialist
 ---
 <!-- COMMENTS:END -->
