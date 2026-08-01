@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T05:18:04.532392Z'
-updated_at: '2026-08-01T05:41:35.553232Z'
+updated_at: '2026-08-01T05:44:24.817194Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -280,5 +280,10 @@ author: oompah
 created: 2026-08-01 05:41
 ---
 Understanding: CI gate failed on branch OOMPAH-676 (head cd9b2652a) with 3 failing tests all in tests/test_cli_mismatch_recovery.py. The previous DevOps agent introduced a quiesce() path for graceful CLI cutover to avoid terminating running workers. The mismatch-recovery tests are now failing — likely because the cutover codepath they test now calls /quiesce instead of /pause, or the canonical_cli_cutover.py changes broke assumptions those tests made about the sequence of API calls or state transitions. Plan: read the failing test file, read the changed canonical_cli_cutover.py and orchestrator.py, identify the exact mismatch, apply minimal fix to make those 3 tests pass without breaking the new quiesce behavior.
+---
+author: oompah
+created: 2026-08-01 05:44
+---
+Discovery: root cause confirmed. The 3 failing tests all use _ServerWithMismatchedLauncher, a test mock that handles /api/v1/orchestrator/pause but NOT /api/v1/orchestrator/quiesce. The previous DevOps agent changed graceful_cutover to call POST /api/v1/orchestrator/quiesce instead of pause, so the mock raises AssertionError('unexpected request: POST /api/v1/orchestrator/quiesce'). Fix: update _ServerWithMismatchedLauncher in tests/test_cli_mismatch_recovery.py to (1) track quiesced state, (2) handle POST /api/v1/orchestrator/quiesce, and (3) include 'quiesced' in GET /api/v1/state response. Minimal change — no production code changes needed.
 ---
 <!-- COMMENTS:END -->
