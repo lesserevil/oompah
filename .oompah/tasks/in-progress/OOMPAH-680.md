@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-680
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Use project forge credentials for all managed Git network operations
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T17:31:44.735248Z'
-updated_at: '2026-08-01T18:49:50.998737Z'
+updated_at: '2026-08-01T18:50:05.709778Z'
 work_branch: OOMPAH-680
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/643
@@ -42,7 +42,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 1b99245e-c123-4e48-80b7-dd0d98ec4f7e
+oompah.agent_run_id: 3ecae2ab-abaf-471b-afdb-5e87ba555188
 oompah.task_costs:
   total_input_tokens: 228064
   total_output_tokens: 27333
