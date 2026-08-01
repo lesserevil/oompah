@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-679
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Reset activity panel identity when a task starts a new agent run
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T12:05:24.382952Z'
-updated_at: '2026-08-01T14:33:53.749163Z'
+updated_at: '2026-08-01T14:34:39.263427Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -87,7 +87,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 3819e905-1dea-4a4e-a61c-08226c56e9b9
+oompah.agent_run_id: 6ab016d9-736a-4cb7-b1cf-087d504bdbee
 oompah.task_costs:
   total_input_tokens: 202
   total_output_tokens: 5482
@@ -146,5 +146,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 2m 0s
 - Log: OOMPAH-679__20260801T143153Z.jsonl
+---
+author: oompah
+created: 2026-08-01 14:34
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-01 14:34
+---
+Focus: Frontend Developer
 ---
 <!-- COMMENTS:END -->

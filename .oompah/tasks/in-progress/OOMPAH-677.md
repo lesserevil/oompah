@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-677
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Prevent ownerless projects from deadlocking intake promotion
 parent: null
@@ -10,10 +10,9 @@ blocked_by: []
 start_blocked_by: []
 labels:
 - focus-complete:frontend
-- needs:feature
 assignee: null
 created_at: '2026-08-01T11:56:19.836343Z'
-updated_at: '2026-08-01T14:33:47.865341Z'
+updated_at: '2026-08-01T14:34:35.110543Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -58,7 +57,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 487d7f93-122e-456e-9b1a-cf6ab373a868
+oompah.agent_run_id: 31b6c5ff-f494-4de0-9a0d-b142fe528fc8
 oompah.task_costs:
   total_input_tokens: 3543845
   total_output_tokens: 19897
@@ -185,5 +184,15 @@ author: oompah
 created: 2026-08-01 14:33
 ---
 Focus handoff from `frontend` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-08-01 14:34
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-08-01 14:34
+---
+Focus: Maintenance Engineer
 ---
 <!-- COMMENTS:END -->
