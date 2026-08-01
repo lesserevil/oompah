@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-682
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Make duplicate-preflight recovery authoritative and self-sufficient
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T18:07:47.349822Z'
-updated_at: '2026-08-01T19:48:49.273966Z'
+updated_at: '2026-08-01T19:49:01.052770Z'
 work_branch: OOMPAH-682
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/645
@@ -42,7 +42,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 65463141-215e-47b3-bd4f-ce2415da2caa
+oompah.agent_run_id: 2c6ea4c1-af31-4a62-b716-6a90f7a9afb7
 oompah.task_costs:
   total_input_tokens: 4704779
   total_output_tokens: 27459
@@ -387,5 +387,15 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: normal, Duration: 8m 0s
 - Log: OOMPAH-682__20260801T194051Z.jsonl
+---
+author: oompah
+created: 2026-08-01 19:48
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-01 19:49
+---
+Focus: Callback Auth Validation Specialist
 ---
 <!-- COMMENTS:END -->
