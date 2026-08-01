@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T23:11:33.946132Z'
-updated_at: '2026-08-01T23:24:53.352489Z'
+updated_at: '2026-08-01T23:25:26.097928Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -132,5 +132,10 @@ author: oompah
 created: 2026-08-01 23:24
 ---
 Implementation: Two files changed.\n\n1. oompah/orchestrator.py:\n   - Added self._monotonic_clock = time.monotonic to Orchestrator.__init__() as a replaceable clock seam (near the _last_tick_timings init block, ~line 1444).\n   - Replaced all 12 time.monotonic() calls in _tick() with self._monotonic_clock(). This covers t0, t1, t2, t3_start, t3, t4, _t_watchdog, watchdog_ms calculation, _t_maintenance, heal_ms calculation, t4b, and the terminal audit timestamp check. Production behavior is unchanged — default is time.monotonic.\n\n2. tests/test_orchestrator_tick_telemetry.py:\n   - Added two clock helper functions: _make_fast_tick_clock() (1ms per call, guarantees total_ms << 2000) and _make_slow_tick_clock() (t0=0.0, all subsequent=3.0, guarantees total_ms=3000ms > 2000).\n   - Rewrote test_slow_tick_log_includes_dispatch_substep_names: removed time.sleep(2.1), uses _make_slow_tick_clock() instead.\n   - Rewrote test_slow_tick_log_includes_watchdog_and_heal: removed time.sleep(2.1) slow_watchdog, uses _make_slow_tick_clock() instead.\n   - Rewrote test_no_slow_tick_warning_for_fast_ticks: added orch._monotonic_clock = _make_fast_tick_clock() — eliminates wall-clock sensitivity.\n   - Added new test test_no_slow_tick_warning_for_fast_ticks_repeated: runs the fast-tick check twice to verify no state leaks between clock instances.\n   - Total: 35 tests (1 added, 3 updated). All pass in 15s serial, 7s parallel (-n 4).
+---
+author: oompah
+created: 2026-08-01 23:25
+---
+Verification: All 35 tests in tests/test_orchestrator_tick_telemetry.py pass:\n- Serial run: 35 passed in 15.55s (previously took ~4s+ per slow-tick test due to time.sleep)\n- Parallel run (-n 4): 35 passed in 7.35s (confirms no race conditions, no shared state)\n- Adjacent suite tests/test_orchestrator_handlers.py: 277 passed in 85s (no regressions)\n\nThe previously flaky test (test_no_slow_tick_warning_for_fast_ticks) now uses _make_fast_tick_clock() which guarantees total_ms ≤ 12ms regardless of host load. The slow-tick tests use _make_slow_tick_clock() and fire deterministically at 3000ms without any real sleep.
 ---
 <!-- COMMENTS:END -->
