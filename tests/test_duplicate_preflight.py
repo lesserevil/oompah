@@ -820,8 +820,10 @@ async def test_dispatch_preflight_does_not_move_task_in_progress():
     orch._notify_observers = MagicMock()
     orch.event_bus = EventBus()
     stop = asyncio.Event()
+    worker_run_ids = []
 
-    async def fake_worker(current, attempt, profile):
+    async def fake_worker(current, attempt, profile, *, run_id):
+        worker_run_ids.append(run_id)
         await stop.wait()
 
     orch._run_worker = fake_worker
@@ -841,6 +843,7 @@ async def test_dispatch_preflight_does_not_move_task_in_progress():
 
     stop.set()
     await entry.worker_task
+    assert worker_run_ids == [entry.run_id]
     orch._tick_pool.shutdown(wait=True)
 
 
