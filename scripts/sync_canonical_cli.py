@@ -650,15 +650,22 @@ def synchronize(
     bin_dir: Path | None = None,
     environ: dict[str, str] | None = None,
     operator_path: str | None = None,
+    running_revision: str | None = None,
 ) -> bool:
-    """Synchronize the canonical CLI and return whether an install occurred."""
+    """Synchronize the canonical CLI and return whether an install occurred.
+    
+    If running_revision is provided (recovery mode), skip git validation and
+    install from that specific revision. This allows pairing the launcher with
+    the verified running service revision without requiring a checkout at that
+    revision.
+    """
     env = dict(os.environ if environ is None else environ)
     validation_path = _operator_path(env, operator_path)
     home = Path(env.get("HOME", str(Path.home())))
     tool_dir = tool_dir or Path(env.get("UV_TOOL_DIR", home / ".local/share/uv/tools"))
     bin_dir = bin_dir or Path(env.get("UV_TOOL_BIN_DIR", canonical.parent))
     canonical = canonical.expanduser()
-    revision = selected_revision(repo)
+    revision = running_revision if running_revision is not None else selected_revision(repo)
 
     # Validate PATH even for a no-op. A stale local virtualenv must never win
     # command resolution after deployment.
@@ -730,6 +737,10 @@ def _parser() -> argparse.ArgumentParser:
         "--operator-path",
         help="PATH from the operator shell for canonical CLI validation",
     )
+    parser.add_argument(
+        "--running-revision",
+        help="install a specific revision (recovery mode: skip git validation)",
+    )
     return parser
 
 
@@ -744,6 +755,7 @@ def main(argv: list[str] | None = None) -> int:
             tool_dir=args.tool_dir,
             bin_dir=args.bin_dir,
             operator_path=args.operator_path,
+            running_revision=args.running_revision,
         )
     except SyncError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)

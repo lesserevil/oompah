@@ -536,13 +536,40 @@ def graceful_cutover(
         text=True,
         check=False,
     )
-    if current.returncode != 0 or f"revision {old_revision}" not in (
-        current.stdout + current.stderr
-    ).lower():
-        raise CutoverError(
-            "canonical CLI does not match the running service; repair it with "
-            "make install-cli before attempting a restart"
-        )
+    current_cli_revision = None
+    if current.returncode == 0:
+        match = re.search(r"revision\s+([0-9a-fA-F]{7,64})\b", current.stdout + current.stderr)
+        if match:
+            current_cli_revision = match.group(1).lower()
+    
+    # Recovery: detect launcher/service mismatch and repair automatically
+    # by installing the launcher from the running service revision
+    if current_cli_revision != old_revision.lower():
+        if current_cli_revision is None or current.returncode != 0:
+            raise CutoverError(
+                "canonical CLI is not installed or not executable; repair it with "
+                "make install-cli before attempting a restart"
+            )
+        # Launcher exists but doesn't match running service revision.
+        # Recovery: reinstall launcher from running service revision.
+        try:
+            from scripts.sync_canonical_cli import synchronize as sync_cli
+            sync_cli(
+                repo=repo,
+                canonical=canonical,
+                source_url=source_url,
+                uv=uv,
+                tool_dir=tool_dir,
+                bin_dir=bin_dir,
+                environ=env,
+                operator_path=operator_path,
+                running_revision=old_revision,
+            )
+        except Exception as sync_exc:
+            raise CutoverError(
+                f"failed to repair canonical CLI from running service revision {old_revision}; "
+                f"manual recovery may be needed: {sync_exc}"
+            ) from sync_exc
 
     owned_service: OwnedService | None = None
     if quarantine is None:
