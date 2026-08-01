@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-683
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Make retry recovery snapshots tolerate generated hooks and in-progress rebases
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T21:41:35.163259Z'
-updated_at: '2026-08-01T21:47:21.953906Z'
+updated_at: '2026-08-01T21:48:09.804620Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,7 +38,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: cc2c91c8-f6ff-417b-ac0e-a5a7e10ee91c
+oompah.agent_run_id: 9454ca3e-2248-46d2-8a80-66bd0eea1d36
 oompah.task_costs:
   total_input_tokens: 431343
   total_output_tokens: 2396
@@ -118,5 +118,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 36s
 - Log: OOMPAH-683__20260801T214545Z.jsonl
+---
+author: oompah
+created: 2026-08-01 21:48
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-01 21:48
+---
+Focus: Callback Auth Validation Specialist
 ---
 <!-- COMMENTS:END -->
