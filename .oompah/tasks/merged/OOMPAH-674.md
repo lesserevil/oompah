@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-674
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Include authenticated state in dashboard WebSocket bootstrap
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T04:42:35.189136Z'
-updated_at: '2026-08-01T05:12:04.306619Z'
+updated_at: '2026-08-01T05:14:33.420009Z'
 work_branch: OOMPAH-674
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/637
@@ -103,6 +103,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-a14907dc5a93: '2026-08-01T05:11:38.787775+00:00'
+    attempt-af077b3208be: '2026-08-01T05:14:29.909974+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-674
@@ -113,6 +114,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-01T05:11:38.787784+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-674
+    target_state: Merged
+    evidence_fingerprint: c5f72648c1528946f42facaee0d7f6a06fc734b696b9ac77091148fbebca7cb3
+    audit_ids:
+    - audit-975420f01fba
+    kind: result
+    applied: true
+    retired_at: '2026-08-01T05:14:29.909996+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-674
@@ -126,6 +136,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-01T05:11:38.787795+00:00'
     applied_at: '2026-08-01T05:11:42.670008+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-674
+    audit_id: audit-975420f01fba
+    attempt_id: attempt-af077b3208be
+    target_state: Merged
+    evidence_fingerprint: c5f72648c1528946f42facaee0d7f6a06fc734b696b9ac77091148fbebca7cb3
+    status: Merged
+    audit_ids:
+    - audit-975420f01fba
+    applied: false
+    created_at: '2026-08-01T05:14:29.910021+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -167,7 +188,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-674
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -176,7 +197,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-af077b3208be
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -186,13 +207,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-01T05:11:59.552699+00:00'
       branch_key: OOMPAH-674
+      verdict: pass
+      completed_at: '2026-08-01T05:14:29.909730+00:00'
+      ended_at: '2026-08-01T05:14:29.909730+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-01T05:07:51.113032+00:00'
-    updated_at: '2026-08-01T05:11:59.552699+00:00'
+    updated_at: '2026-08-01T05:14:29.909730+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-a14907dc5a93
@@ -437,5 +461,22 @@ author: oompah
 created: 2026-08-01 05:12
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-01 05:14
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- merge_state: Branch fully merged into main via PR #637 (merge commit cde640113). git log main..HEAD returns empty; git log HEAD..main returns only the merge commit.
+- commits_on_main: 15eea17a1 (implementation) and 939abfda0 (regression tightening) reachable from main.
+- enrichment_helper: _enrich_state_snapshot at oompah/server.py:3319 adds build_id, service_instance_id, http_auth (via _http_auth_reload_status at line 1304), api_metrics.
+- enrichment_call_sites: oompah/server.py lines 2549, 2569, 2902, 2924, 3384, 3391 — covers REST /api/v1/state (both branches), WebSocket initial bootstrap, WebSocket refresh, and both broadcast paths.
+- redaction_confirmed: _http_auth_reload_status at line 1304 returns only {enabled, reload: {state, generation, retaining_last_known_good}} — no credentials.
+- focused_tests: test_websocket_authenticated_bootstrap.py 14/14 pass in 0.98s; test_dashboard_authenticated_mutations + test_state_api_responsiveness + test_server_auth 105/105 pass in 3.97s.
+- branch_gate_history: Scheduler comment records 'Branch quality gate passed for 15eea17a142a79a33d69464d6e6c608c23e1eac4 using make test in 399.0s'.
+- pr_status: Scheduler comment records 'YOLO: merged PR #637'.
 ---
 <!-- COMMENTS:END -->
