@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T17:31:44.735248Z'
-updated_at: '2026-08-01T19:33:46.772632Z'
+updated_at: '2026-08-01T19:34:12.215807Z'
 work_branch: OOMPAH-680
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/643
@@ -190,18 +190,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-680
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: a1c3cf9d80d2ecaf16e098bd2dd7789d97fff709ff46d0925c850a5394dab919
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-cd841e90756b
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: a1c3cf9d80d2ecaf16e098bd2dd7789d97fff709ff46d0925c850a5394dab919
+      created_at: '2026-08-01T19:34:07.541395+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-01T19:34:07.541395+00:00'
+      branch_key: OOMPAH-680
     requested_by:
       version: 1
       identity: standalone-ready-reconciliation
       source: oompah
     previous_state: Ready to Integrate
     created_at: '2026-08-01T19:33:44.920836+00:00'
+    updated_at: '2026-08-01T19:34:07.541395+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-7bb232f7c6b0
@@ -215,6 +229,19 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: opus
     started_at: '2026-08-01T18:31:15.307592+00:00'
+    branch_key: OOMPAH-680
+  - version: 1
+    attempt_id: attempt-cd841e90756b
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a1c3cf9d80d2ecaf16e098bd2dd7789d97fff709ff46d0925c850a5394dab919
+    created_at: '2026-08-01T19:34:07.541395+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-01T19:34:07.541395+00:00'
     branch_key: OOMPAH-680
 ---
 ## Summary
@@ -546,5 +573,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 40m 29s
 - Log: OOMPAH-680__20260801T185114Z.jsonl
+---
+author: oompah
+created: 2026-08-01 19:34
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-01 19:34
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
