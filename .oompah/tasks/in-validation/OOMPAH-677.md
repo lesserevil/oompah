@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-677
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Prevent ownerless projects from deadlocking intake promotion
 parent: null
@@ -13,7 +13,7 @@ labels:
 - focus-complete:chore
 assignee: null
 created_at: '2026-08-01T11:56:19.836343Z'
-updated_at: '2026-08-01T17:47:55.984680Z'
+updated_at: '2026-08-01T17:56:26.788506Z'
 work_branch: OOMPAH-677
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/642
@@ -137,6 +137,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/642
 oompah.review_number: '642'
 oompah.work_branch: OOMPAH-677
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-634a147c895b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-677
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 754916872b9efe42aa687e347ba60a4927704e8c21c7762ec152be99f2554e3a
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-01T17:56:20.941888+00:00'
+  - version: 1
+    audit_id: audit-cb72359b5eda
+    project_id: proj-14849f1b
+    task_id: OOMPAH-677
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 754916872b9efe42aa687e347ba60a4927704e8c21c7762ec152be99f2554e3a
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-01T17:56:20.941888+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -354,5 +393,15 @@ author: oompah
 created: 2026-08-01 17:47
 ---
 Branch quality gate passed for `5c34c716e7cc522081824e94da4be47208ac155d` using `make test` in 395.7s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-01 17:56
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-01 17:56
+---
+YOLO: merged PR #642.
 ---
 <!-- COMMENTS:END -->
