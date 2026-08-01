@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T17:31:44.735248Z'
-updated_at: '2026-08-01T18:51:41.891123Z'
+updated_at: '2026-08-01T18:53:28.833375Z'
 work_branch: OOMPAH-680
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/643
@@ -487,5 +487,10 @@ author: oompah
 created: 2026-08-01 18:51
 ---
 Understanding: the prior implementation covered tracker/state checkpoint paths but the completion audit found remaining managed Git network callers in projects.py, integration_executor.py, cherry_pick_pr_creator.py, and repo_map_generator.py. I will trace those call graphs, apply project-scoped ephemeral forge credentials without URL/config/log leakage, add focused regression tests, verify, and hand off the completed branch.
+---
+author: oompah
+created: 2026-08-01 18:53
+---
+Discovery: project-scoped credentials are currently injected only by OompahMarkdownTracker and a few bootstrap paths. Remaining network calls include ProjectStore clone/fetch/ls-remote/push-delete/epic publication, integration_executor fetch and compare-and-swap pushes, orchestrator review/epic helpers, cherry_pick_pr_creator.push_branch, and RepoMapGenerator state-branch push. Project and worktree objects already carry access_token/forge_kind, so these can be threaded without changing remote URLs or persistent config; local-only Git mutations will remain credential-free.
 ---
 <!-- COMMENTS:END -->
