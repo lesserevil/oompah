@@ -145,11 +145,18 @@ class DuplicateScreeningRecord:
     claim_expires_at: datetime | None = None
     retry_count: int = 0
     retry_after: datetime | None = None
+    owner_resolved_at: datetime | None = None
+    owner_login: str | None = None
+    owner_resolution_reason: str = ""
     schema_version: int = SCHEMA_VERSION
 
     @property
     def is_running(self) -> bool:
         return bool(self.claim_id)
+
+    @property
+    def is_owner_resolved(self) -> bool:
+        return bool(self.owner_resolved_at is not None and self.owner_login)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -166,6 +173,9 @@ class DuplicateScreeningRecord:
             "claim_expires_at": _iso(self.claim_expires_at),
             "retry_count": max(int(self.retry_count), 0),
             "retry_after": _iso(self.retry_after),
+            "owner_resolved_at": _iso(self.owner_resolved_at),
+            "owner_login": self.owner_login,
+            "owner_resolution_reason": self.owner_resolution_reason,
         }
 
     @classmethod
@@ -215,6 +225,9 @@ class DuplicateScreeningRecord:
             claim_expires_at=_parse_datetime(raw.get("claim_expires_at")),
             retry_count=retry_count,
             retry_after=_parse_datetime(raw.get("retry_after")),
+            owner_resolved_at=_parse_datetime(raw.get("owner_resolved_at")),
+            owner_login=str(raw.get("owner_login") or "").strip() or None,
+            owner_resolution_reason=str(raw.get("owner_resolution_reason") or "").strip(),
         )
 
 
@@ -437,4 +450,48 @@ def inconclusive_record(
         evidence=str(evidence or "").strip(),
         retry_count=max(int(retry_count), 0),
         retry_after=retry_after,
+    )
+
+
+def owner_resolution_record(
+    record: DuplicateScreeningRecord,
+    *,
+    owner_login: str,
+    verdict: ScreeningVerdict,
+    reason: str = "",
+    matched_identifiers: Iterable[str] = (),
+    now: datetime | None = None,
+) -> DuplicateScreeningRecord:
+    """Create an owner-authorized resolution that resets retry budget.
+    
+    When a project owner explicitly resolves a duplicate verdict (e.g.,
+    "no active duplicate exists"), this creates a conclusive record that
+    resets retry_count to 0 and records the owner's decision with audit
+    trail. Only conclusive verdicts (NO_DUPLICATE or DUPLICATE_CANDIDATE
+    with verified matches) can be owner-resolved.
+    """
+
+    now = now or datetime.now(timezone.utc)
+    if verdict not in {ScreeningVerdict.NO_DUPLICATE, ScreeningVerdict.DUPLICATE_CANDIDATE}:
+        raise ValueError(
+            f"Owner resolution only accepts conclusive verdicts, got {verdict}"
+        )
+    
+    return DuplicateScreeningRecord(
+        task_fingerprint=record.task_fingerprint,
+        detector_version=record.detector_version,
+        verdict=verdict,
+        checked_at=now,
+        matched_identifiers=tuple(
+            dict.fromkeys(
+                str(identifier).strip()
+                for identifier in matched_identifiers
+                if str(identifier).strip()
+            )
+        ),
+        evidence=str(reason or "").strip(),
+        retry_count=0,  # Reset retry budget on owner resolution
+        owner_resolved_at=now,
+        owner_login=str(owner_login or "").strip(),
+        owner_resolution_reason=str(reason or "").strip(),
     )

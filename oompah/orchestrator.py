@@ -61,6 +61,7 @@ from oompah.duplicate_screening import (
     inconclusive_record,
     load_record as load_duplicate_screening_record,
     new_claim_record,
+    owner_resolution_record,
     save_record as save_duplicate_screening_record,
 )
 from oompah.integration import IntegrationRecord, classify_conflict_repair_failure
@@ -9251,6 +9252,62 @@ class Orchestrator:
             issue.duplicate_screening = cleared.to_dict()
             return True
 
+    def _owner_resolve_duplicate_screening(
+        self,
+        issue: Issue,
+        *,
+        owner_login: str,
+        verdict: ScreeningVerdict,
+        matched_identifiers: Iterable[str] = (),
+        reason: str = "",
+    ) -> bool:
+        """Apply an owner-authorized duplicate resolution.
+        
+        Allows project owners to bypass inconclusive screening results by
+        explicitly confirming "no active duplicate" or identifying a known
+        duplicate. Resets retry_count to 0 and records the owner's decision
+        with audit trail. Only owner-resolved verdicts bypass further retries.
+        """
+
+        if verdict not in {ScreeningVerdict.NO_DUPLICATE, ScreeningVerdict.DUPLICATE_CANDIDATE}:
+            logger.warning(
+                "Invalid verdict for owner resolution of %s: %s",
+                issue.identifier,
+                verdict,
+            )
+            return False
+
+        project_key = str(issue.project_id or "__legacy_duplicate_preflight__")
+        lock = self._get_project_maintenance_lock(project_key)
+        tracker = self._tracker_for_issue(issue)
+        with lock:
+            try:
+                tracker.invalidate_read_cache()
+            except Exception:
+                pass
+            fresh = tracker.fetch_issue_detail(issue.identifier)
+            if fresh is None:
+                return False
+            if not fresh.project_id:
+                fresh.project_id = issue.project_id
+            record = load_duplicate_screening_record(tracker, fresh)
+            if record is None:
+                # Create a new record if none exists
+                record = DuplicateScreeningRecord(
+                    task_fingerprint=compute_task_fingerprint(fresh),
+                    detector_version=DUPLICATE_DETECTOR_VERSION,
+                )
+            resolved = owner_resolution_record(
+                record,
+                owner_login=owner_login,
+                verdict=verdict,
+                reason=reason,
+                matched_identifiers=matched_identifiers,
+            )
+            save_duplicate_screening_record(tracker, fresh, resolved)
+            issue.duplicate_screening = resolved.to_dict()
+            return True
+
     def _renew_duplicate_preflight_claims(self) -> int:
         """Renew live claims near half-life; stale claims are left for retry."""
 
@@ -9332,6 +9389,10 @@ class Orchestrator:
                 continue
             assessment = self._duplicate_screening_assessment(issue)
             if assessment.state == ScreeningState.CHECKED:
+                # Also skip if this is owner-resolved (which is conclusive)
+                if assessment.record is not None and assessment.record.is_owner_resolved:
+                    metrics["skipped_checked"] += 1
+                    continue
                 metrics["skipped_checked"] += 1
                 continue
             if assessment.state == ScreeningState.RUNNING:

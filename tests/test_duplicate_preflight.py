@@ -21,6 +21,7 @@ from oompah.duplicate_screening import (
     ScreeningVerdict,
     assess_screening,
     complete_claim_record,
+    inconclusive_record,
     new_claim_record,
 )
 from oompah.events import EventBus
@@ -960,3 +961,142 @@ def test_normal_implementation_gate_requires_current_model_pass():
 
     issue.title = "Changed after screening"
     assert orch._implementation_duplicate_screening_ready(issue) is False
+
+
+def test_owner_resolved_verdict_resets_retry_count():
+    """An owner resolution resets retry budget for exhausted tasks."""
+    issue = _issue()
+    tracker = _Tracker([issue])
+    orch = _orch(tracker)
+    
+    # Simulate exhausted retries: retry_count=3, verdict=inconclusive
+    failed_record = new_claim_record(issue, owner="scheduler", retry_count=3)
+    inconclusive = inconclusive_record(
+        failed_record,
+        retry_count=3,
+        retry_after=datetime.now(timezone.utc) - timedelta(seconds=1),
+        evidence="Infrastructure unavailable (3rd attempt)",
+    )
+    tracker.set_metadata_field(issue.identifier, METADATA_KEY, inconclusive.to_dict())
+    issue.duplicate_screening = inconclusive.to_dict()
+    
+    # Owner resolves: no_duplicate
+    from oompah.duplicate_screening import owner_resolution_record
+    resolved = owner_resolution_record(
+        inconclusive,
+        owner_login="owner@example.com",
+        verdict=ScreeningVerdict.NO_DUPLICATE,
+        reason="Reviewed active tasks; no equivalent exists.",
+    )
+    
+    assert resolved.retry_count == 0
+    assert resolved.is_owner_resolved is True
+    assert resolved.owner_login == "owner@example.com"
+    assert resolved.verdict == ScreeningVerdict.NO_DUPLICATE
+
+
+def test_owner_resolution_cannot_use_inconclusive_verdict():
+    """Owner resolutions reject inconclusive verdicts."""
+    from oompah.duplicate_screening import owner_resolution_record
+    
+    issue = _issue()
+    record = new_claim_record(issue, owner="scheduler")
+    
+    with pytest.raises(ValueError, match="conclusive"):
+        owner_resolution_record(
+            record,
+            owner_login="owner@example.com",
+            verdict=ScreeningVerdict.INCONCLUSIVE,
+        )
+
+
+def test_owner_resolved_task_skipped_from_selection():
+    """Owner-resolved tasks do not re-enter duplicate screening."""
+    from oompah.duplicate_screening import owner_resolution_record
+    
+    issue = _issue()
+    tracker = _Tracker([issue])
+    orch = _orch(tracker, slots=4, preflight_limit=4)
+    orch._should_dispatch = lambda issue, duplicate_preflight=False: True
+    
+    # Owner-resolved task
+    record = new_claim_record(issue, owner="scheduler")
+    resolved = owner_resolution_record(
+        record,
+        owner_login="owner@example.com",
+        verdict=ScreeningVerdict.NO_DUPLICATE,
+        reason="No active duplicate found.",
+    )
+    tracker.set_metadata_field(issue.identifier, METADATA_KEY, resolved.to_dict())
+    
+    candidate = tracker.fetch_issue_detail(issue.identifier)
+    assert candidate is not None
+    candidate.project_id = "project-1"
+    
+    selected = orch._select_duplicate_preflight_candidates([candidate])
+    
+    assert selected == []
+    metrics = orch._last_duplicate_preflight_metrics
+    assert metrics["skipped_checked"] == 1
+
+
+def test_owner_resolution_applied_via_orchestrator_method():
+    """The _owner_resolve_duplicate_screening method persists owner verdicts."""
+    from oompah.duplicate_screening import owner_resolution_record
+    
+    issue = _issue()
+    tracker = _Tracker([issue])
+    orch = _orch(tracker)
+    
+    # Seed an inconclusive record
+    claim = new_claim_record(issue, owner="scheduler", retry_count=2)
+    inconclusive = inconclusive_record(
+        claim,
+        retry_count=2,
+        retry_after=datetime.now(timezone.utc),
+    )
+    tracker.set_metadata_field(issue.identifier, METADATA_KEY, inconclusive.to_dict())
+    
+    # Owner resolves through orchestrator
+    result = orch._owner_resolve_duplicate_screening(
+        issue,
+        owner_login="project-owner",
+        verdict=ScreeningVerdict.NO_DUPLICATE,
+        reason="Confirmed: no active equivalent.",
+    )
+    
+    assert result is True
+    resolved = tracker.get_metadata(issue.identifier)[METADATA_KEY]
+    assert resolved["owner_resolved_at"] is not None
+    assert resolved["owner_login"] == "project-owner"
+    assert resolved["retry_count"] == 0
+    assert resolved["verdict"] == "no_duplicate"
+
+
+def test_concurrent_owner_resolution_and_late_claim_completion():
+    """Late claim completion cannot overwrite newer owner resolution."""
+    issue = _issue()
+    tracker = _Tracker([issue])
+    orch = _orch(tracker)
+    
+    # First: claim is made
+    claim = orch._claim_duplicate_preflight(issue)
+    assert claim is not None
+    
+    # Owner resolves while agent is running
+    orch._owner_resolve_duplicate_screening(
+        issue,
+        owner_login="owner@example.com",
+        verdict=ScreeningVerdict.NO_DUPLICATE,
+        reason="No duplicate.",
+    )
+    
+    # Now agent finishes (late), tries to record inconclusive
+    entry = _entry(issue, claim.claim_id or "", claim.task_fingerprint)
+    result = orch._finish_duplicate_preflight_sync(entry, "abnormal", "test error")
+    
+    # Late completion must not overwrite the owner resolution
+    stored = tracker.get_metadata(issue.identifier)[METADATA_KEY]
+    assert stored["owner_login"] == "owner@example.com"
+    # The result should indicate stale_claim or similar, not override the owner resolution
+    assert result["outcome"] == "stale_claim"
