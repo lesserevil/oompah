@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-683
 type: task
-status: In Progress
+status: In Validation
 priority: 0
 title: Make retry recovery snapshots tolerate generated hooks and in-progress rebases
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T21:41:35.163259Z'
-updated_at: '2026-08-01T23:25:09.466555Z'
+updated_at: '2026-08-01T23:36:38.437986Z'
 work_branch: OOMPAH-683
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/646
@@ -94,6 +94,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/646
 oompah.review_number: '646'
 oompah.work_branch: OOMPAH-683
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-ada0ea2602cb
+    project_id: proj-14849f1b
+    task_id: OOMPAH-683
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9f6add4f8616b075fdd058b77ae0b012dc438047855fdcecb7add06aaef94601
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Progress
+    created_at: '2026-08-01T23:36:33.440885+00:00'
+  - version: 1
+    audit_id: audit-06fb8603071f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-683
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9f6add4f8616b075fdd058b77ae0b012dc438047855fdcecb7add06aaef94601
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Progress
+    created_at: '2026-08-01T23:36:33.440885+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -355,5 +394,15 @@ author: oompah
 created: 2026-08-01 23:25
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-08-01 23:36
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-01 23:36
+---
+YOLO: merged PR #646.
 ---
 <!-- COMMENTS:END -->
