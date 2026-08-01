@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-673
 type: bug
-status: In Validation
+status: Merged
 priority: 2
 title: Make canonical CLI mismatch recovery unambiguous across upgrades
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T02:34:24.348580Z'
-updated_at: '2026-08-01T03:02:58.850914Z'
+updated_at: '2026-08-01T03:05:56.890326Z'
 work_branch: OOMPAH-673
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/636
@@ -105,6 +105,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-33ffa8237c83: '2026-08-01T03:02:36.247447+00:00'
+    attempt-4ae928769713: '2026-08-01T03:05:54.172826+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-673
@@ -115,6 +116,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-01T03:02:36.247462+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-673
+    target_state: Merged
+    evidence_fingerprint: d155dfab198a6d48d8569da85f715abab9db9a43bc947d98d5c3296a7fd0ea24
+    audit_ids:
+    - audit-89792911edfa
+    kind: result
+    applied: true
+    retired_at: '2026-08-01T03:05:54.172838+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-673
@@ -128,6 +138,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-01T03:02:36.247481+00:00'
     applied_at: '2026-08-01T03:02:39.387617+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-673
+    audit_id: audit-89792911edfa
+    attempt_id: attempt-4ae928769713
+    target_state: Merged
+    evidence_fingerprint: d155dfab198a6d48d8569da85f715abab9db9a43bc947d98d5c3296a7fd0ea24
+    status: Merged
+    audit_ids:
+    - audit-89792911edfa
+    applied: false
+    created_at: '2026-08-01T03:05:54.172853+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -169,7 +190,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-673
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -178,7 +199,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-4ae928769713
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -188,13 +209,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-01T03:02:54.508195+00:00'
       branch_key: OOMPAH-673
+      verdict: pass
+      completed_at: '2026-08-01T03:05:54.172703+00:00'
+      ended_at: '2026-08-01T03:05:54.172703+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-01T02:57:36.451604+00:00'
-    updated_at: '2026-08-01T03:02:54.508195+00:00'
+    updated_at: '2026-08-01T03:05:54.172703+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-33ffa8237c83
@@ -397,5 +421,26 @@ author: oompah
 created: 2026-08-01 03:02
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-01 03:05
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit: f64c1c9b3
+- merged_commit: b792568ef85d4b46a2e5607305a3dc3549a95860
+- pr_number: 636
+- files_changed: scripts/sync_canonical_cli.py, scripts/canonical_cli_cutover.py, docs/cli-install.md, tests/test_cli_mismatch_recovery.py
+- lines_added: 479
+- recovery_tests: 7/7 pass
+- canonical_cli_sync_tests: 18/18 pass
+- lifecycle_integration_tests: 25/25 pass
+- branch_gate: make test passed in 386.0s on merged head b792568ef
+- approach: auto-repair during graceful cutover (task-permitted alternative)
+- preserves: atomic activation, lifecycle lock, drain semantics, fail-closed on unknown revisions
+- docs_updated: docs/cli-install.md section 'CLI/server mismatch recovery'
 ---
 <!-- COMMENTS:END -->
