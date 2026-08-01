@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T22:19:41.486806Z'
-updated_at: '2026-08-01T22:22:21.849290Z'
+updated_at: '2026-08-01T22:22:50.009016Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -115,5 +115,22 @@ author: oompah
 created: 2026-08-01 22:22
 ---
 Focus: Callback Auth Validation Specialist
+---
+author: oompah
+created: 2026-08-01 22:22
+---
+**Understanding & Approach**
+
+EXOCOMP-145 escalated to Needs Human due to a spawned worker failing with 'Failed to obtain podman configuration: set sticky bit on: chmod /run/user/1000/libpod: read-only file system'. The code was healthy (passed make gates from operator env), proving the issue is worker runtime isolation vs. host environment.
+
+**Planned approach:**
+1. Trace worker environment construction in oompah/api_agent.py, oompah/agent.py, oompah/client_auth.py, acp_backends/
+2. Identify where inherited XDG_RUNTIME_DIR is read-only and podman configuration fails
+3. Implement fallback: provide private writable XDG_RUNTIME_DIR when sandbox makes inherited one read-only
+4. Add preflight classification to distinguish container-runtime failures from code/CI failures
+5. Route infrastructure-only failures to safe configured executor (avoiding Needs Human escalation)
+6. Add comprehensive tests: environment construction, EXOCOMP-145 regression, cleanup/secrets, provider tests
+
+This task involves infrastructure/runtime setup which is outside my Callback Auth Validation specialty. I'll investigate the code and likely hand off to a more appropriate focus (devops/infrastructure) if the issue requires deep container/runtime expertise beyond auth/integration aspects.
 ---
 <!-- COMMENTS:END -->
