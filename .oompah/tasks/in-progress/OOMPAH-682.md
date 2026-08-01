@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T18:07:47.349822Z'
-updated_at: '2026-08-01T19:49:01.052770Z'
+updated_at: '2026-08-01T19:49:18.595703Z'
 work_branch: OOMPAH-682
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/645
@@ -397,5 +397,10 @@ author: oompah
 created: 2026-08-01 19:49
 ---
 Focus: Callback Auth Validation Specialist
+---
+author: oompah
+created: 2026-08-01 19:49
+---
+Understanding: I will audit the existing owner-resolution, duplicate-investigator context, structured verdict, and claim/finish race paths against the acceptance criteria; then implement focused fixes/tests, update operator documentation/action text as needed, verify with Makefile targets, and submit the pushed branch.
 ---
 <!-- COMMENTS:END -->
