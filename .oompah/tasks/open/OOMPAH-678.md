@@ -11,12 +11,27 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T12:01:06.107132Z'
-updated_at: '2026-08-01T12:01:09.794090Z'
+updated_at: '2026-08-01T14:28:06.034713Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 3f434c6d149013d600af4f8593b4fdc3ec2db0f1c291658effc7086e08ab1b9b
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 4b071cde-8653-4683-975d-4d15e1bb619f
+  claim_owner: 7946c223-6c24-4967-8291-1d20c0e47f05
+  claimed_at: '2026-08-01T14:27:57.910349+00:00'
+  claim_expires_at: '2026-08-01T14:57:57.910349+00:00'
+  retry_count: 0
+  retry_after: null
+oompah.agent_run_id: 8a17bfd9-c347-4492-a23a-7691cc508eea
 ---
 ## Summary
 
@@ -28,3 +43,16 @@ Live regression observed on 2026-08-01 after opening the Exocomp task graph. Aut
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-01 14:28
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-01 14:28
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
