@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-683
 type: task
-status: Needs CI Fix
+status: In Progress
 priority: null
 title: Make retry recovery snapshots tolerate generated hooks and in-progress rebases
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T21:41:35.163259Z'
-updated_at: '2026-08-01T22:45:28.078838Z'
+updated_at: '2026-08-01T22:48:05.435423Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -238,5 +238,17 @@ FAILED tests/test_installed_cli_smoke.py::TestCurrentInstallSmoke::test_oompah_t
 
 make: *** [Makefile:388: test] Error 1
 ```
+---
+author: oompah
+created: 2026-08-01 22:47
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #25)
+
+**State audited:** `Needs CI Fix`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** Recent comment indicates CI is now passing or PR has been merged; safe to reopen for dispatch.
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
 ---
 <!-- COMMENTS:END -->

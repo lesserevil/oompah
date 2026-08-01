@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-684
 type: task
-status: Needs Human
+status: Ready to Integrate
 priority: null
 title: Prevent stale retry dispatch after operator task resubmission
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T21:44:29.390457Z'
-updated_at: '2026-08-01T22:23:50.870932Z'
+updated_at: '2026-08-01T22:48:00.393190Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -86,6 +86,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-684
     source_sha: 3d50e86c334e8a6318b767b281bc254fa6d93cc2
     completed_at: '2026-08-01T21:52:20.275034+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-684
+  head_sha: bfcd6f1999dc6739d37c28ef481bce29aee08527
+  submitted_at: '2026-08-01T22:47:56.761772+00:00'
+  updated_at: '2026-08-01T22:47:56.761772+00:00'
 ---
 ## Summary
 
@@ -176,5 +184,15 @@ Oompah could not durably preserve this worker's task worktree before retry. The 
 .oompah-no-hooks
 hint: Use -f if you really want to add them.
 hint: Disable this message with "git config set advice.addIgnoredFile false"
+---
+author: oompah
+created: 2026-08-01 22:47
+---
+Operator-owned recovery complete at bfcd6f1999dc6739d37c28ef481bce29aee08527. The stale dispatch implementation was preserved, reviewed, committed, and pushed after removing only the generated .oompah-no-hooks helper.\n\nValidation:\n- Focused retry-authority and worker-submission suites: 32 passed.\n- Full make test: 14859 passed, 7 skipped, 1 xfailed in 410.24s.\n- git diff --check passed.\n- Branch is clean and matches origin/OOMPAH-684.\n\nThe Needs Human transition was caused by the ignored generated-helper snapshot defect already fixed canonically by OOMPAH-683; no duplicate follow-up was filed.
+---
+author: oompah
+created: 2026-08-01 22:48
+---
+Operator recovery complete at bfcd6f199: submission now atomically revokes retry/run authority, clears stale claims, fences workspace mutations, and quarantines crossed workers; focused 32/32 and full 14859-test gates pass.
 ---
 <!-- COMMENTS:END -->
