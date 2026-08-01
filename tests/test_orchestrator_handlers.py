@@ -1187,7 +1187,11 @@ class TestRunStep5cEpicMaintenance:
         orch = _make_orchestrator(tmp_path)
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
-        orch._handle_dispatch_needed = AsyncMock()
+        # _tick() records and, on slow runs, formats the dispatch substep
+        # timings returned by this handler.  Keep the mock faithful to that
+        # mapping contract so host load cannot turn the slow-tick diagnostic
+        # path into a coroutine/mock formatting failure.
+        orch._handle_dispatch_needed = AsyncMock(return_value={})
         orch._handle_yolo_review = AsyncMock(return_value=0.0)
         orch._handle_auto_update = AsyncMock()
         orch._notify_observers = MagicMock()
