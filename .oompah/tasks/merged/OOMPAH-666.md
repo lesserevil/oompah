@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-666
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Fix dashboard vertical scrolling when alerts precede the Kanban board
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T21:19:38.816688Z'
-updated_at: '2026-08-01T01:06:42.063499Z'
+updated_at: '2026-08-01T01:07:49.194356Z'
 work_branch: OOMPAH-666
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/632
@@ -128,6 +128,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-e7d6c4359460: '2026-08-01T01:06:16.154153+00:00'
+    attempt-67c26931c0db: '2026-08-01T01:07:46.266089+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-666
@@ -138,6 +139,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-01T01:06:16.154162+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-666
+    target_state: Merged
+    evidence_fingerprint: 7201b3bb98283a820ee65523eb2be11b3dff18bf7866dfb70e8792506035f80b
+    audit_ids:
+    - audit-b774ed8bcd47
+    kind: result
+    applied: true
+    retired_at: '2026-08-01T01:07:46.266109+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-666
@@ -151,6 +161,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-01T01:06:16.154175+00:00'
     applied_at: '2026-08-01T01:06:19.663737+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-666
+    audit_id: audit-b774ed8bcd47
+    attempt_id: attempt-67c26931c0db
+    target_state: Merged
+    evidence_fingerprint: 7201b3bb98283a820ee65523eb2be11b3dff18bf7866dfb70e8792506035f80b
+    status: Merged
+    audit_ids:
+    - audit-b774ed8bcd47
+    applied: false
+    created_at: '2026-08-01T01:07:46.266131+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -192,7 +213,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-666
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -201,7 +222,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-67c26931c0db
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -211,13 +232,16 @@ oompah.terminal_audit:
       model: sonnet
       started_at: '2026-08-01T01:06:36.309650+00:00'
       branch_key: OOMPAH-666
+      verdict: pass
+      completed_at: '2026-08-01T01:07:46.265924+00:00'
+      ended_at: '2026-08-01T01:07:46.265924+00:00'
     requested_by:
       version: 1
       identity: yolo-merge
       source: oompah
     previous_state: In Review
     created_at: '2026-08-01T01:03:43.049834+00:00'
-    updated_at: '2026-08-01T01:06:36.309650+00:00'
+    updated_at: '2026-08-01T01:07:46.265924+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-e7d6c4359460
@@ -550,5 +574,19 @@ author: oompah
 created: 2026-08-01 01:06
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-01 01:07
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- head_on_main: 8bac16ed4 Merge pull request #632 from lesserevil/OOMPAH-666
+- branch_ahead_of_main: 0 commits (remote deleted after merge, fully integrated)
+- regression_tests: tests/test_dashboard_vertical_scroll.py: 4 passed in 0.12s
+- dashboard_fix_presence: min-height: 0 found at 4 locations in oompah/templates/dashboard.html (lines 107, 119, 200, 243)
+- full_gate_result: 14544 passed, 8 skipped, 1 xfailed at head 5741f6a05 (previously confirmed by quality gate runner)
 ---
 <!-- COMMENTS:END -->
