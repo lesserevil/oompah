@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-667
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Keep Makefile virtualenv PATH from defeating canonical CLI cutover
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T21:32:57.017227Z'
-updated_at: '2026-08-01T00:02:30.424870Z'
+updated_at: '2026-08-01T00:04:40.222566Z'
 work_branch: OOMPAH-667
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/629
@@ -145,6 +145,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-e0d3e435db98: '2026-08-01T00:02:07.669699+00:00'
+    attempt-7ad4c42ec884: '2026-08-01T00:04:37.186208+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-667
@@ -155,6 +156,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-01T00:02:07.669708+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-667
+    target_state: Merged
+    evidence_fingerprint: c8c5cbe715ac16fca6fd06860bbe3555d86dd3f0fb69240521fe555ea9a0e588
+    audit_ids:
+    - audit-9c0d35990825
+    kind: result
+    applied: true
+    retired_at: '2026-08-01T00:04:37.186220+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-667
@@ -168,6 +178,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-01T00:02:07.669720+00:00'
     applied_at: '2026-08-01T00:02:11.414612+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-667
+    audit_id: audit-9c0d35990825
+    attempt_id: attempt-7ad4c42ec884
+    target_state: Merged
+    evidence_fingerprint: c8c5cbe715ac16fca6fd06860bbe3555d86dd3f0fb69240521fe555ea9a0e588
+    status: Merged
+    audit_ids:
+    - audit-9c0d35990825
+    applied: false
+    created_at: '2026-08-01T00:04:37.186243+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -209,7 +230,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-667
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -218,7 +239,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-7ad4c42ec884
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -228,13 +249,16 @@ oompah.terminal_audit:
       model: sonnet
       started_at: '2026-08-01T00:02:25.773983+00:00'
       branch_key: OOMPAH-667
+      verdict: pass
+      completed_at: '2026-08-01T00:04:37.186100+00:00'
+      ended_at: '2026-08-01T00:04:37.186100+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-07-31T23:58:43.595561+00:00'
-    updated_at: '2026-08-01T00:02:25.773983+00:00'
+    updated_at: '2026-08-01T00:04:37.186100+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-e0d3e435db98
@@ -525,5 +549,21 @@ author: oompah
 created: 2026-08-01 00:02
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-01 00:04
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: 669094c81f4b2d52431134b99f084878223785dc
+- merge_commit: 8fe9439ff6589d076e210a3c7bf0292f54661d8a
+- gate_result: passed 398s, 14542 passed 8 skipped 1 xfailed
+- commits: 6ee3e0213 (Makefile+scripts+tests), 669094c81 (test flake fix)
+- makefile_operator_path_lines: 7-9: OPERATOR_PATH captured before venv prepend, exported as OOMPAH_OPERATOR_PATH
+- key_tests: test_operator_path_ignores_internal_virtualenv_launcher:155, test_wrong_operator_path_still_refuses_shadowing_launcher:179, test_already_current_is_a_noop:143, test_failed_install_or_mismatch_preserves_known_good_cli:321
+- prior_audit_1_verdict: pass (same evidence fingerprint, same branch head)
 ---
 <!-- COMMENTS:END -->
