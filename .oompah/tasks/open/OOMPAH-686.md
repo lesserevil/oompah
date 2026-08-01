@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-686
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Keep worker container-runtime failures out of Needs Human
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T22:19:41.486806Z'
-updated_at: '2026-08-01T22:19:41.486806Z'
+updated_at: '2026-08-01T22:20:15.600279Z'
 work_branch: null
 target_branch: null
 review_url: null
