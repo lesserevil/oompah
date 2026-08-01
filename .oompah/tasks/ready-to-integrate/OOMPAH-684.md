@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T21:44:29.390457Z'
-updated_at: '2026-08-01T23:03:29.704918Z'
+updated_at: '2026-08-01T23:03:33.031611Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -283,5 +283,10 @@ author: oompah
 created: 2026-08-01 23:02
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-08-01 23:03
+---
+Operator authority reasserted while the stale CI-fix run is registered. Preserve clean pushed head bfcd6f199 and terminate implementation; gate-key recovery follows after runtime repair.
 ---
 <!-- COMMENTS:END -->
