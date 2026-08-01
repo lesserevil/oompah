@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-679
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 0
 title: Reset activity panel identity when a task starts a new agent run
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T12:05:24.382952Z'
-updated_at: '2026-08-01T15:39:58.035793Z'
+updated_at: '2026-08-01T15:40:06.894855Z'
 work_branch: OOMPAH-679
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/641
@@ -130,9 +130,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-679
-  head_sha: c24ba48c7516245298b2d68dbf1ddbf0f280f75a
-  submitted_at: '2026-08-01T15:17:14.384903+00:00'
-  updated_at: '2026-08-01T15:17:14.384903+00:00'
+  head_sha: cf050cb8591a3e85855f0879ec4bbf1aa9b7590c
+  submitted_at: '2026-08-01T15:40:04.440018+00:00'
+  updated_at: '2026-08-01T15:40:04.440018+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/641
 oompah.review_number: '641'
 oompah.work_branch: OOMPAH-679
@@ -369,5 +369,10 @@ author: oompah
 created: 2026-08-01 15:39
 ---
 Completion: pushed cf050cb85 to OOMPAH-679. Minimal CI repair adds a per-test @pytest.mark.timeout(60) override to tests/test_duplicate_names.py::test_no_duplicate_test_names_in_test_files, addressing the MR #641 test (3.11) failure without touching production code or unrelated tests.
+---
+author: oompah
+created: 2026-08-01 15:40
+---
+Repaired MR #641 CI failure: added @pytest.mark.timeout(60) to test_no_duplicate_test_names_in_test_files (whole-tests-tree AST scan was racing the 5s default under CI xdist contention). No production or feature-test changes.
 ---
 <!-- COMMENTS:END -->
