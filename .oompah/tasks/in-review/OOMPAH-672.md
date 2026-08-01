@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-672
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Preserve logging format placeholders during secret redaction
 parent: null
@@ -11,11 +11,11 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T00:18:06.952783Z'
-updated_at: '2026-08-01T00:36:21.981923Z'
+updated_at: '2026-08-01T01:50:34.138548Z'
 work_branch: null
 target_branch: null
-review_url: null
-review_number: null
+review_url: https://github.com/lesserevil/oompah/pull/635
+review_number: '635'
 merged_at: null
 oompah.duplicate_screening:
   schema_version: 1
@@ -130,6 +130,8 @@ oompah.integration:
   head_sha: 32eb28d5950c7c55f0455c74b9129e5657b5adf9
   submitted_at: '2026-08-01T00:36:18.586162+00:00'
   updated_at: '2026-08-01T00:36:18.586162+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/635
+oompah.review_number: '635'
 ---
 ## Summary
 
@@ -205,5 +207,10 @@ author: oompah
 created: 2026-08-01 00:36
 ---
 Preserved percent-style logging placeholders through repeated redaction boundaries while keeping configured secrets out of formatted logs. Added tuple, mapping, repeated-pass, exception, and startup regression coverage; 116 focused tests pass. Pushed head 32eb28d5950c7c55f0455c74b9129e5657b5adf9.
+---
+author: oompah
+created: 2026-08-01 01:50
+---
+Branch quality gate passed for `32eb28d5950c7c55f0455c74b9129e5657b5adf9` using `make test` in 388.4s. Review creation may proceed.
 ---
 <!-- COMMENTS:END -->
