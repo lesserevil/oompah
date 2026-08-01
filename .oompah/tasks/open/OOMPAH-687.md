@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-687
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Isolate branch-gate runtime from task worktree environments
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T23:00:54.291962Z'
-updated_at: '2026-08-01T23:00:54.291962Z'
+updated_at: '2026-08-01T23:01:04.237895Z'
 work_branch: null
 target_branch: null
 review_url: null
