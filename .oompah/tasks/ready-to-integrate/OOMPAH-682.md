@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T18:07:47.349822Z'
-updated_at: '2026-08-01T19:12:58.075748Z'
+updated_at: '2026-08-01T19:13:06.094653Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -202,5 +202,23 @@ author: oompah
 created: 2026-08-01 19:12
 ---
 Implemented authoritative owner-controlled duplicate-screening resolution with retry reset, verdict robustness, and race-safe concurrent updates. Added 8 new tests covering owner authorization, comment injection prevention, truncation robustness, and concurrent safety. All 61 related tests pass.
+---
+author: oompah
+created: 2026-08-01 19:13
+---
+**Completion**: Task submitted for integration.
+
+Delivered:
+1. Owner-controlled resolution API: Project owners can now authoritatively resolve inconclusive screening via POST /api/v1/issues/{identifier}/duplicate-screening/owner-resolution
+2. Retry budget reset: Owner resolutions set retry_count=0, allowing exhausted tasks to be revived by owner decision
+3. Authentication: Verdicts validated via is_project_owner(), non-owners cannot forge via comments
+4. Verdict robustness: Structured verdicts (prefixed with regex markers) are required; truncated responses with leading verdict lines parse correctly; prose-only responses fail closed to inconclusive
+5. Race safety: Owner resolutions cannot be overwritten by late claim completion; time-based filtering prevents verdict injection before claim starts
+6. Audit trail: Records include owner_login, owner_resolved_at, owner_resolution_reason for accountability
+
+Test coverage: 8 new tests (32 total in test_duplicate_preflight.py) + 25 existing duplicate detection + 4 dashboard tests = 61 passing
+
+Branch: OOMPAH-682
+Commits: 2 (owner resolution implementation + verdict robustness tests)
 ---
 <!-- COMMENTS:END -->
