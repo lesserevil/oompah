@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T12:01:06.107132Z'
-updated_at: '2026-08-01T14:31:45.915626Z'
+updated_at: '2026-08-01T14:32:01.988782Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -124,5 +124,10 @@ author: oompah
 created: 2026-08-01 14:31
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-08-01 14:32
+---
+Understanding: cross-task 403s made during approved read-only exploration should be informational policy events, while a mismatched token targeting the worker's assigned task must continue to degrade auth health. I will trace server scope validation, auth-health aggregation, task routing, and dashboard rendering, then add regression tests and verify the focused Makefile checks.
 ---
 <!-- COMMENTS:END -->
