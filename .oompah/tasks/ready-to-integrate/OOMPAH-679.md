@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-679
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Reset activity panel identity when a task starts a new agent run
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T12:05:24.382952Z'
-updated_at: '2026-08-01T14:47:20.127882Z'
+updated_at: '2026-08-01T14:53:58.625001Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -114,6 +114,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-679
     source_sha: 62ca0ca696d08b754e03a200d7227455786da960
     completed_at: '2026-08-01T14:33:49.270886+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-679
+  head_sha: df28f501739ec456e061966015317545b02a7616
+  submitted_at: '2026-08-01T14:53:54.548014+00:00'
+  updated_at: '2026-08-01T14:53:54.548014+00:00'
 ---
 ## Summary
 
@@ -176,5 +184,15 @@ author: oompah
 created: 2026-08-01 14:47
 ---
 Verification: focused changed-path suites pass — activity/dashboard 110 passed; WebSocket/EventBus 82 passed; activity identity + candidate/dispatch 81 passed; server auth/WebSocket 128 passed; task handoff 58 passed. Full test_acp_agent.py had 42 passed and 7 environment failures before assertions because its configured agent-log directory is read-only in this sandbox (/home/shedwards/.oompah/agent-logs).
+---
+author: oompah
+created: 2026-08-01 14:53
+---
+Completion: delivered and pushed df28f5017. Each worker run now has a stable run_id across state/activity/WebSocket APIs; stale callbacks/exits are fenced; the dashboard resets identity-bound title, provider metadata, cache, polling, and fetch generations across duplicate-preflight-to-implementation transitions, including empty-focus startup. Added regression coverage in tests/test_activity_run_identity.py. Focused suites pass; make test could not initialize because the worktree lacks .venv and uv fails with a host DBus transient-scope error.
+---
+author: oompah
+created: 2026-08-01 14:53
+---
+Reset activity panel identity between sequential agent runs; added run_id propagation, stale-event fencing, dashboard reset logic, and regression tests.
 ---
 <!-- COMMENTS:END -->
