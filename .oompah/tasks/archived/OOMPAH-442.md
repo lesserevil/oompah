@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-442
 type: bug
-status: In Validation
+status: Archived
 priority: 0
 title: '[backend:orchestrator] ACP worker failed issue_id=EXOCOMP-29'
 parent: null
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-25T02:09:54.140002Z'
-updated_at: '2026-08-01T04:01:25.833202Z'
+updated_at: '2026-08-01T04:02:45.346899Z'
 work_branch: OOMPAH-442
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/553
@@ -72,6 +72,30 @@ oompah.work_branch: OOMPAH-442
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-2476c0d30a4e: '2026-08-01T04:02:42.210087+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-442
+    target_state: Archived
+    evidence_fingerprint: 1996127239ed333ab8414dd00ca94e144791238bb1f463604999b48532044ddb
+    audit_ids:
+    - audit-3e820b0f00a6
+    kind: result
+    applied: true
+    retired_at: '2026-08-01T04:02:42.210098+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-442
+    audit_id: audit-3e820b0f00a6
+    attempt_id: attempt-2476c0d30a4e
+    target_state: Archived
+    evidence_fingerprint: 1996127239ed333ab8414dd00ca94e144791238bb1f463604999b48532044ddb
+    status: Archived
+    audit_ids:
+    - audit-3e820b0f00a6
+    applied: false
+    created_at: '2026-08-01T04:02:42.210113+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -79,7 +103,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-442
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -88,7 +112,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-2476c0d30a4e
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -98,13 +122,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-01T04:01:18.968730+00:00'
       branch_key: OOMPAH-442
+      verdict: pass
+      completed_at: '2026-08-01T04:02:42.209900+00:00'
+      ended_at: '2026-08-01T04:02:42.209900+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-01T04:01:13.936148+00:00'
-    updated_at: '2026-08-01T04:01:18.968730+00:00'
+    updated_at: '2026-08-01T04:02:42.209900+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-2476c0d30a4e
@@ -377,5 +404,21 @@ author: oompah
 created: 2026-08-01 04:01
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-01 04:02
+---
+Audit PASS — Archived
+
+Aged Merged auto-archive is safe. PR #553 was merged as 4be4606e32b47cd2f6f619b376f881b95ed559ab on 2026-07-24 21:58:54 -0500 and both implementation commits (c8f61a1f0 workspace-allocation recovery; 7dbf87f2b _lifespan SystemExit deferral) are present on main and origin/main. Prior CI run 30141105951 reportedly green across Python 3.11/3.12/3.13. More than 7 days have elapsed with no reopen, no ci-fix regression, and no evidence of follow-up work required in the tracker.
+
+Safe evidence:
+- merge_commit: 4be4606e32b47cd2f6f619b376f881b95ed559ab
+- merge_commit_date: 2026-07-24 21:58:54 -0500
+- implementation_commits: c8f61a1f0 (workspace allocation recovery), 7dbf87f2b (_lifespan SystemExit fix)
+- merge_pr: #553
+- on_main: yes (confirmed via git branch --contains including origin/main)
+- days_since_merge: ~7 (audit date 2026-08-01, merge 2026-07-24)
+- previous_state: Merged
 ---
 <!-- COMMENTS:END -->
