@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T00:18:06.952783Z'
-updated_at: '2026-08-01T01:59:21.642459Z'
+updated_at: '2026-08-01T02:03:12.218958Z'
 work_branch: OOMPAH-672
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/635
@@ -136,6 +136,31 @@ oompah.work_branch: OOMPAH-672
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-bde7208b5a06: '2026-08-01T02:03:07.594009+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-672
+    target_state: Done
+    evidence_fingerprint: 07af63b09106d3fc6ac7cfee195f319ecbf35e17d6e82e9e1ccc33f519da04a0
+    audit_ids:
+    - audit-84436c19fbe0
+    kind: result
+    applied: true
+    retired_at: '2026-08-01T02:03:07.594020+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-672
+    audit_id: audit-84436c19fbe0
+    attempt_id: attempt-bde7208b5a06
+    target_state: Done
+    evidence_fingerprint: 07af63b09106d3fc6ac7cfee195f319ecbf35e17d6e82e9e1ccc33f519da04a0
+    status: In Validation
+    audit_ids:
+    - audit-84436c19fbe0
+    applied: true
+    created_at: '2026-08-01T02:03:07.594038+00:00'
+    applied_at: '2026-08-01T02:03:11.029743+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -143,7 +168,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-672
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -152,7 +177,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-bde7208b5a06
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -162,13 +187,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-01T01:59:16.981035+00:00'
       branch_key: OOMPAH-672
+      verdict: pass
+      completed_at: '2026-08-01T02:03:07.593833+00:00'
+      ended_at: '2026-08-01T02:03:07.593833+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-01T01:58:59.389796+00:00'
-    updated_at: '2026-08-01T01:59:16.981035+00:00'
+    updated_at: '2026-08-01T02:03:07.593833+00:00'
   - version: 1
     audit_id: audit-3d76192e31bc
     project_id: proj-14849f1b
@@ -300,5 +328,23 @@ author: oompah
 created: 2026-08-01 01:59
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-01 02:03
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- head_commit: 32eb28d5950c7c55f0455c74b9129e5657b5adf9
+- main_merge_commit: aceb82319369f1082307d6fc0a2931da03fab608
+- merged_pr: 635
+- focused_tests_result: 242 passed
+- [REDACTED-credential-key]: 12 passed (includes 4 new placeholder-preserving regressions)
+- full_gate_prior: make test 388.4s green on head 32eb28d59
+- impl_file: oompah/secrets.py (+37/-1)
+- test_file: tests/test_secrets.py (+130)
+- key_new_symbols: _LOG_FORMAT_PLACEHOLDER_RE, _redact_log_message
 ---
 <!-- COMMENTS:END -->
