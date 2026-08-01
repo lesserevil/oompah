@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T23:11:33.946132Z'
-updated_at: '2026-08-01T23:13:38.257311Z'
+updated_at: '2026-08-01T23:19:55.884220Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -122,5 +122,10 @@ author: oompah
 created: 2026-08-01 23:13
 ---
 Understanding: The test tests/test_orchestrator_tick_telemetry.py::TestSlowTickSubstepLogging::test_no_slow_tick_warning_for_fast_ticks fails intermittently under parallel CI load because it relies on wall-clock timing to distinguish fast ticks from slow ticks. When the host is contended, an otherwise-fast synthetic tick crosses the 1-second threshold and triggers a false slow-tick warning, causing assertion failures. Plan: (1) Read the test file and production code to understand the seam, (2) inject a controllable clock/elapsed-time seam into the production tick timing path, (3) rewrite the affected tests to use the injected clock with deterministic values (below/at/above threshold), (4) run the focused test suite to confirm stability.
+---
+author: oompah
+created: 2026-08-01 23:19
+---
+Discovery: Root cause confirmed. The _tick() method in oompah/orchestrator.py uses 11 direct calls to time.monotonic() (lines 5031, 5080, 5091, 5096, 5098, 5113, 5122, 5126, 5152, 5170, 5172) to measure elapsed time, then checks if total_ms > 2000 to emit a slow-tick warning. The test test_no_slow_tick_warning_for_fast_ticks runs _tick() with all sub-handlers mocked but relies on real wall-clock time; under parallel CI load, the 2-second window can be exceeded. Fix: add a self._monotonic_clock = time.monotonic instance attribute to Orchestrator.__init__(), replace the 11 time.monotonic() calls in _tick() with self._monotonic_clock(), and update the three slow-tick tests to inject controlled clocks instead of using time.sleep().
 ---
 <!-- COMMENTS:END -->
