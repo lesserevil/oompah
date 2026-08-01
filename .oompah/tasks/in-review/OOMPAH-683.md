@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-683
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Make retry recovery snapshots tolerate generated hooks and in-progress rebases
 parent: null
@@ -12,10 +12,10 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T21:41:35.163259Z'
-updated_at: '2026-08-01T23:04:48.177135Z'
+updated_at: '2026-08-01T23:16:31.098146Z'
 work_branch: null
 target_branch: null
-review_url: null
+review_url: https://github.com/lesserevil/oompah/pull/646
 review_number: null
 merged_at: null
 oompah.duplicate_screening:
@@ -90,6 +90,7 @@ oompah.integration:
   head_sha: abc69ba5a112889d1354f09a818492f308433df2
   submitted_at: '2026-08-01T23:04:46.100144+00:00'
   updated_at: '2026-08-01T23:04:46.100144+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/646
 ---
 ## Summary
 
@@ -331,5 +332,10 @@ author: oompah
 created: 2026-08-01 23:04
 ---
 Empty recovery commit refreshes the exact-head gate key after restoring the trusted service runtime. Source tree is unchanged from bdc4cf5d1, which passed 181 focused and 14857 full tests.
+---
+author: oompah
+created: 2026-08-01 23:16
+---
+Branch quality gate passed for `abc69ba5a112889d1354f09a818492f308433df2` using `make test` in 399.4s. Review creation may proceed.
 ---
 <!-- COMMENTS:END -->
