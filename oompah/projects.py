@@ -17,6 +17,7 @@ from fnmatch import fnmatchcase
 from urllib.parse import urlsplit
 
 from oompah.git_hooks import hook_path as _bundled_hook_path
+from oompah.git_noninteractive import NONINTERACTIVE_GIT_ENV
 from oompah.models import Project
 from oompah.repo_health import ensure_repo_sound
 from oompah.secrets import register_secret_values
@@ -35,6 +36,260 @@ class ProjectError(Exception):
 
 _WORKTREE_RECOVERY_VERSION = 1
 _WORKTREE_RECOVERY_MARKER = "oompah-recovery-json:"
+_RECOVERY_METADATA_LIMIT = 64 * 1024
+
+
+def _is_generated_worktree_helper(path: str) -> bool:
+    """Return whether *path* names an Oompah-owned worktree artifact.
+
+    Worktree helpers are deliberately kept at the worktree root and use the
+    ``.oompah-`` namespace.  The namespace rule covers the hook directory and
+    future generated helpers without treating the tracked ``.oompah/tasks``
+    tree as disposable task output.
+    """
+
+    normalized = str(path or "").replace("\\", "/")
+    while normalized.startswith("./"):
+        normalized = normalized[2:]
+    root = normalized.split("/", 1)[0]
+    return root.startswith(".oompah-")
+
+
+def _generated_worktree_helper_paths(wt_path: str) -> list[str]:
+    """List generated helper paths without asking Git to expose ignored files."""
+
+    paths: list[str] = []
+    if not os.path.isdir(wt_path):
+        return paths
+    try:
+        children = list(os.scandir(wt_path))
+    except OSError:
+        return paths
+    for child in children:
+        if not _is_generated_worktree_helper(child.name):
+            continue
+        if child.is_dir(follow_symlinks=False) and not child.is_symlink():
+            found = False
+            for root, _dirs, files in os.walk(child.path, followlinks=False):
+                for name in files:
+                    found = True
+                    relative = os.path.relpath(os.path.join(root, name), wt_path)
+                    paths.append(relative.replace(os.sep, "/"))
+            if not found:
+                paths.append(child.name)
+        else:
+            paths.append(child.name)
+    return sorted(dict.fromkeys(paths))
+
+
+def remove_generated_worktree_helpers(wt_path: str) -> list[str]:
+    """Remove only generated Oompah helpers from one exact worktree.
+
+    This is intentionally limited to direct children of *wt_path*.  Callers
+    must invoke it only after task-owned changes have been durably snapshotted;
+    it never removes arbitrary ignored files or nested task content.
+    """
+
+    removed: list[str] = []
+    if not os.path.isdir(wt_path):
+        return removed
+    try:
+        children = list(os.scandir(wt_path))
+    except OSError:
+        return removed
+    for child in children:
+        if not _is_generated_worktree_helper(child.name):
+            continue
+        try:
+            if child.is_dir(follow_symlinks=False) and not child.is_symlink():
+                shutil.rmtree(child.path)
+            else:
+                os.unlink(child.path)
+        except OSError:
+            logger.warning(
+                "recovery generated-helper cleanup failed path=%s",
+                child.path,
+                exc_info=True,
+            )
+            continue
+        removed.append(child.name)
+    if removed:
+        logger.info(
+            "recovery generated-helper exclusion removed helpers path=%s helpers=%s",
+            wt_path,
+            sorted(removed),
+        )
+    return removed
+
+
+def _read_recovery_metadata(path: str) -> str:
+    """Read a bounded Git operation metadata file for recovery evidence."""
+
+    try:
+        with open(path, "r", encoding="utf-8", errors="surrogateescape") as fh:
+            return fh.read(_RECOVERY_METADATA_LIMIT)
+    except (OSError, UnicodeError):
+        return ""
+
+
+def _recovery_git_env() -> dict[str, str]:
+    """Return the process environment with Git prompts disabled."""
+
+    env = dict(os.environ)
+    env.update(NONINTERACTIVE_GIT_ENV)
+    return env
+
+
+def _worktree_git_dir(wt_path: str) -> str | None:
+    """Resolve the per-worktree Git directory without invoking a prompt."""
+
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--git-dir"],
+            cwd=wt_path,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+            env=_recovery_git_env(),
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if result.returncode != 0 or not result.stdout.strip():
+        return None
+    git_dir = result.stdout.strip()
+    if not os.path.isabs(git_dir):
+        git_dir = os.path.join(wt_path, git_dir)
+    return os.path.realpath(git_dir)
+
+
+def _git_operation_state(
+    wt_path: str,
+    *,
+    current_branch: str = "",
+    branch_result_code: int = 0,
+) -> dict[str, object] | None:
+    """Inspect paused Git operations without changing the worktree.
+
+    Rebase state lives in the worktree's private Git directory, while merge,
+    cherry-pick, and sequencer markers may be placed in the common directory by
+    older Git versions.  We inspect both locations and only read metadata.  In
+    particular, this helper never runs ``rebase --continue`` or another
+    operation that could consume conflict resolutions.
+    """
+
+    git_dir = _worktree_git_dir(wt_path)
+    if not git_dir:
+        return None
+    git_dirs = [git_dir]
+    commondir_file = os.path.join(git_dir, "commondir")
+    try:
+        common = _read_recovery_metadata(commondir_file).strip()
+    except Exception:  # pragma: no cover - defensive filesystem guard
+        common = ""
+    if common:
+        common_dir = common if os.path.isabs(common) else os.path.join(git_dir, common)
+        common_dir = os.path.realpath(common_dir)
+        if common_dir not in git_dirs:
+            git_dirs.append(common_dir)
+
+    rebase_dir = next(
+        (
+            os.path.join(candidate, name)
+            for candidate in git_dirs
+            for name in ("rebase-merge", "rebase-apply")
+            if os.path.isdir(os.path.join(candidate, name))
+        ),
+        None,
+    )
+    marker_names = (
+        ("rebase", rebase_dir),
+        ("merge", next(
+            (
+                os.path.join(candidate, "MERGE_HEAD")
+                for candidate in git_dirs
+                if os.path.isfile(os.path.join(candidate, "MERGE_HEAD"))
+            ),
+            None,
+        )),
+        ("cherry-pick", next(
+            (
+                os.path.join(candidate, "CHERRY_PICK_HEAD")
+                for candidate in git_dirs
+                if os.path.isfile(os.path.join(candidate, "CHERRY_PICK_HEAD"))
+            ),
+            None,
+        )),
+        ("revert", next(
+            (
+                os.path.join(candidate, "REVERT_HEAD")
+                for candidate in git_dirs
+                if os.path.isfile(os.path.join(candidate, "REVERT_HEAD"))
+            ),
+            None,
+        )),
+        ("sequencer", next(
+            (
+                os.path.join(candidate, "sequencer")
+                for candidate in git_dirs
+                if os.path.isdir(os.path.join(candidate, "sequencer"))
+            ),
+            None,
+        )),
+    )
+    active_kind, state_path = next(
+        ((kind, path) for kind, path in marker_names if path),
+        (None, None),
+    )
+    if not active_kind or not state_path:
+        return None
+
+    metadata: dict[str, str] = {}
+    if active_kind == "rebase":
+        names = (
+            "head-name",
+            "onto",
+            "orig-head",
+            "git-rebase-todo",
+            "done",
+            "msgnum",
+            "end",
+            "stopped-sha",
+            "rewritten-list",
+        )
+        for name in names:
+            metadata_path = os.path.join(state_path, name)
+            if os.path.isfile(metadata_path):
+                metadata[name] = _read_recovery_metadata(metadata_path)
+        for candidate in git_dirs:
+            value = _read_recovery_metadata(os.path.join(candidate, "REBASE_HEAD"))
+            if value:
+                metadata["REBASE_HEAD"] = value
+                break
+        raw_branch = metadata.get("head-name", "").strip()
+        operation_branch = (
+            raw_branch[len("refs/heads/") :]
+            if raw_branch.startswith("refs/heads/")
+            else raw_branch
+        )
+    else:
+        operation_branch = current_branch
+        if os.path.isfile(state_path):
+            metadata[os.path.basename(state_path)] = _read_recovery_metadata(state_path)
+        elif active_kind == "sequencer":
+            for name in ("head", "onto", "todo", "done", "opts", "abort-safety"):
+                metadata_path = os.path.join(state_path, name)
+                if os.path.isfile(metadata_path):
+                    metadata[name] = _read_recovery_metadata(metadata_path)
+
+    return {
+        "kind": active_kind,
+        "git_dir": git_dir,
+        "state_path": state_path,
+        "branch": operation_branch or current_branch,
+        "detached": branch_result_code != 0,
+        "metadata": metadata,
+    }
 
 
 def _worktree_recovery_ref(issue_identifier: str) -> str:
@@ -2094,7 +2349,7 @@ class ProjectStore:
 
     @staticmethod
     def _worktree_dirty_paths(status_output: str) -> list[str]:
-        """Extract changed paths while ignoring Oompah's hook directory."""
+        """Extract changed deliverable paths, excluding generated helpers."""
 
         paths: list[str] = []
         for line in str(status_output or "").splitlines():
@@ -2105,13 +2360,26 @@ class ProjectStore:
             # makes the recovery context useful without attempting to parse
             # Git's quoting rules here.
             candidates = [part.strip() for part in path.split(" -> ")]
-            if any(
-                candidate == ".oompah-no-hooks"
-                or candidate.startswith(".oompah-no-hooks/")
-                for candidate in candidates
-            ):
+            if any(_is_generated_worktree_helper(candidate) for candidate in candidates):
                 continue
             paths.extend(candidate for candidate in candidates if candidate)
+        return list(dict.fromkeys(paths))
+
+    @staticmethod
+    def _worktree_generated_paths(status_output: str) -> list[str]:
+        """Extract generated helper paths for operator-facing diagnostics."""
+
+        paths: list[str] = []
+        for line in str(status_output or "").splitlines():
+            if len(line) < 3:
+                continue
+            payload = line[3:].strip()
+            candidates = [part.strip() for part in payload.split(" -> ")]
+            paths.extend(
+                candidate
+                for candidate in candidates
+                if candidate and _is_generated_worktree_helper(candidate)
+            )
         return list(dict.fromkeys(paths))
 
     @staticmethod
@@ -2129,6 +2397,7 @@ class ProjectStore:
                 text=True,
                 check=False,
                 timeout=30,
+                env=_recovery_git_env(),
             )
         except (OSError, subprocess.TimeoutExpired) as exc:
             raise ProjectError(f"git status failed for worktree {wt_path}: {exc}") from exc
@@ -2149,6 +2418,7 @@ class ProjectStore:
                 text=True,
                 check=False,
                 timeout=10,
+                env=_recovery_git_env(),
             )
         except (OSError, subprocess.TimeoutExpired) as exc:
             raise ProjectError(
@@ -2166,6 +2436,7 @@ class ProjectStore:
                 text=True,
                 check=False,
                 timeout=10,
+                env=_recovery_git_env(),
             )
         except (OSError, subprocess.TimeoutExpired) as exc:
             raise ProjectError(
@@ -2228,12 +2499,14 @@ class ProjectStore:
         *,
         branch_name: str | None = None,
     ) -> dict[str, object] | None:
-        """Snapshot dirty task files before any reuse, sync, or cleanup.
+        """Snapshot task-owned state before any reuse, sync, or cleanup.
 
-        The snapshot is a normal commit on the task branch plus a stable
-        recovery ref.  This deliberately captures staged, unstaged, and
-        untracked (non-ignored) files in one atomic Git commit.  A failure
-        raises before any reset/clean/removal is attempted.
+        Ordinary dirty work is captured by a commit on the task branch.  A
+        paused Git operation is different: Git intentionally detaches HEAD and
+        stores conflict/todo state outside the index.  In that case we create a
+        checkpoint commit with ``commit-tree`` while leaving HEAD, the index,
+        and operation metadata in place.  Both paths update a stable recovery
+        ref only after the snapshot is durable.
         """
 
         status = self._git_status_for_worktree(wt_path)
@@ -2243,8 +2516,16 @@ class ProjectStore:
                 f"{status.stderr.strip()[:500]}"
             )
         dirty_paths = self._worktree_dirty_paths(status.stdout)
-        if not dirty_paths:
-            return self._recovery_context_from_ref(project, issue_identifier)
+        generated_paths = sorted(
+            set(self._worktree_generated_paths(status.stdout))
+            | set(_generated_worktree_helper_paths(wt_path))
+        )
+        if generated_paths:
+            logger.info(
+                "recovery snapshot excluded ignored-helper paths issue=%s paths=%s",
+                issue_identifier,
+                sorted(generated_paths),
+            )
 
         branch_result = subprocess.run(
             ["git", "symbolic-ref", "--short", "HEAD"],
@@ -2253,18 +2534,64 @@ class ProjectStore:
             text=True,
             check=False,
             timeout=10,
+            env=_recovery_git_env(),
         )
         current_branch = branch_result.stdout.strip()
-        expected_branch = str(branch_name or current_branch).strip()
-        if branch_result.returncode != 0 or not current_branch:
-            raise ProjectError(
-                f"cannot snapshot task worktree {wt_path}: detached HEAD"
+        operation = _git_operation_state(
+            wt_path,
+            current_branch=current_branch,
+            branch_result_code=branch_result.returncode,
+        )
+        operation_branch = str(operation.get("branch") or "").strip() if operation else ""
+        expected_branch = str(branch_name or current_branch or operation_branch).strip()
+
+        if operation:
+            if operation.get("detached") and not operation_branch:
+                logger.error(
+                    "recovery snapshot unrecoverable active-operation branch "
+                    "identity issue=%s operation=%s",
+                    issue_identifier,
+                    operation.get("kind"),
+                )
+                raise ProjectError(
+                    f"cannot checkpoint active {operation.get('kind')} for "
+                    f"{issue_identifier}: branch identity metadata is missing"
+                )
+            if operation_branch and expected_branch and operation_branch != expected_branch:
+                raise ProjectError(
+                    f"cannot snapshot task worktree {wt_path}: active "
+                    f"{operation.get('kind')} belongs to branch {operation_branch!r}, "
+                    f"not expected branch {expected_branch!r}"
+                )
+            logger.info(
+                "recovery snapshot preserving active-operation state issue=%s "
+                "operation=%s branch=%s detached=%s",
+                issue_identifier,
+                operation.get("kind"),
+                operation_branch or expected_branch,
+                operation.get("detached"),
             )
-        if expected_branch and current_branch != expected_branch:
+        elif branch_result.returncode != 0 or not current_branch:
+            logger.error(
+                "recovery snapshot unrecoverable detached HEAD issue=%s path=%s",
+                issue_identifier,
+                wt_path,
+            )
+            raise ProjectError(
+                f"cannot snapshot task worktree {wt_path}: detached HEAD with no "
+                "active Git operation"
+            )
+        elif expected_branch and current_branch != expected_branch:
             raise ProjectError(
                 f"cannot snapshot task worktree {wt_path}: branch changed from "
                 f"{expected_branch!r} to {current_branch!r}"
             )
+
+        # A helper-only change is not a task change.  Do not manufacture a
+        # recovery commit for it, but still checkpoint an active operation so
+        # its detached state and todo metadata are durable.
+        if not dirty_paths and not operation:
+            return self._recovery_context_from_ref(project, issue_identifier)
 
         before = subprocess.run(
             ["git", "rev-parse", "HEAD"],
@@ -2273,6 +2600,7 @@ class ProjectStore:
             text=True,
             check=False,
             timeout=10,
+            env=_recovery_git_env(),
         )
         if before.returncode != 0 or not before.stdout.strip():
             raise ProjectError(
@@ -2280,18 +2608,62 @@ class ProjectStore:
             )
         prior_head = before.stdout.strip()
         recovery_ref = _worktree_recovery_ref(issue_identifier)
+        branch_ref = (
+            f"refs/heads/{operation_branch or current_branch}"
+            if operation_branch or current_branch
+            else None
+        )
+        branch_head = None
+        if branch_ref:
+            branch_result_for_context = subprocess.run(
+                ["git", "rev-parse", "--verify", branch_ref],
+                cwd=wt_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_recovery_git_env(),
+            )
+            if branch_result_for_context.returncode == 0:
+                branch_head = branch_result_for_context.stdout.strip()
+
         context: dict[str, object] = {
             "version": _WORKTREE_RECOVERY_VERSION,
             "project_id": project.id,
             "issue_identifier": issue_identifier,
-            "branch": current_branch,
+            "branch": operation_branch or current_branch,
+            "branch_ref": branch_ref,
+            "branch_head": branch_head,
             "prior_head": prior_head,
             "changed_paths": dirty_paths,
+            "excluded_generated_helpers": generated_paths,
             "recovery_ref": recovery_ref,
             "preserved_at": time.time(),
         }
+        if operation:
+            context["operation"] = {
+                "kind": operation.get("kind"),
+                "detached": operation.get("detached"),
+                "metadata": operation.get("metadata", {}),
+            }
+            operation_heads = {
+                name: str(value).strip()
+                for name, value in (
+                    (
+                        "rebase_head",
+                        (operation.get("metadata") or {}).get("REBASE_HEAD")
+                        or (operation.get("metadata") or {}).get("stopped-sha"),
+                    ),
+                    ("merge_head", (operation.get("metadata") or {}).get("MERGE_HEAD")),
+                    ("cherry_pick_head", (operation.get("metadata") or {}).get("CHERRY_PICK_HEAD")),
+                )
+                if str(value or "").strip()
+            }
+            if operation_heads:
+                context["operation_heads"] = operation_heads
+
         message = (
-            "Oompah preserved dirty task worktree\n\n"
+            "Oompah preserved task worktree recovery checkpoint\n\n"
             f"{_WORKTREE_RECOVERY_MARKER}"
             f"{json.dumps(context, ensure_ascii=False, sort_keys=True)}"
             "\n\n🤖 Generated with https://github.com/lesserevil/oompah"
@@ -2299,34 +2671,83 @@ class ProjectStore:
             "<lesserevil@users.noreply.github.com>"
         )
 
-        try:
-            added = subprocess.run(
-                [
-                    "git",
-                    "add",
-                    "--all",
-                    "--",
-                    ".",
-                    ":(exclude).oompah-no-hooks",
-                    ":(exclude).oompah-no-hooks/**",
-                ],
+        if dirty_paths:
+            try:
+                added = subprocess.run(
+                    [
+                        "git",
+                        "add",
+                        "--all",
+                        "--",
+                        *dirty_paths,
+                    ],
+                    cwd=wt_path,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=30,
+                    env=_recovery_git_env(),
+                )
+            except (OSError, subprocess.TimeoutExpired) as exc:
+                raise ProjectError(
+                    f"could not stage recovery snapshot for {issue_identifier}: {exc}"
+                ) from exc
+            if added.returncode != 0:
+                raise ProjectError(
+                    f"could not stage recovery snapshot for {issue_identifier}: "
+                    f"{added.stderr.strip()[:500]}"
+                )
+
+        if operation:
+            # write-tree refuses unresolved index entries.  That is useful
+            # evidence: do not invent a commit or erase the conflict state.
+            tree = subprocess.run(
+                ["git", "write-tree"],
                 cwd=wt_path,
                 capture_output=True,
                 text=True,
                 check=False,
                 timeout=30,
+                env=_recovery_git_env(),
             )
-        except (OSError, subprocess.TimeoutExpired) as exc:
-            raise ProjectError(
-                f"could not stage recovery snapshot for {issue_identifier}: {exc}"
-            ) from exc
-        if added.returncode != 0:
-            raise ProjectError(
-                f"could not stage recovery snapshot for {issue_identifier}: "
-                f"{added.stderr.strip()[:500]}"
+            if tree.returncode != 0 or not tree.stdout.strip():
+                logger.error(
+                    "recovery snapshot unrecoverable active-operation index issue=%s "
+                    "operation=%s error=%s",
+                    issue_identifier,
+                    operation.get("kind"),
+                    tree.stderr.strip()[:500],
+                )
+                raise ProjectError(
+                    f"could not checkpoint active {operation.get('kind')} for "
+                    f"{issue_identifier}: index is not representable: "
+                    f"{tree.stderr.strip()[:500]}"
+                )
+            committed = subprocess.run(
+                [
+                    "git",
+                    "-c",
+                    "user.name=oompah",
+                    "-c",
+                    "user.email=lesserevil@users.noreply.github.com",
+                    "-c",
+                    "commit.gpgsign=false",
+                    "commit-tree",
+                    tree.stdout.strip(),
+                    "-p",
+                    prior_head,
+                    "-m",
+                    message,
+                ],
+                cwd=wt_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=60,
+                env=_recovery_git_env(),
             )
-
-        try:
+            commit_error = "could not create active-operation recovery checkpoint"
+        else:
             committed = subprocess.run(
                 [
                     "git",
@@ -2346,27 +2767,29 @@ class ProjectStore:
                 text=True,
                 check=False,
                 timeout=60,
+                env=_recovery_git_env(),
             )
-        except (OSError, subprocess.TimeoutExpired) as exc:
-            raise ProjectError(
-                f"could not commit recovery snapshot for {issue_identifier}: {exc}"
-            ) from exc
+            commit_error = "could not commit recovery snapshot"
         if committed.returncode != 0:
             raise ProjectError(
-                f"could not commit recovery snapshot for {issue_identifier}: "
+                f"{commit_error} for {issue_identifier}: "
                 f"{committed.stderr.strip()[:500]}"
             )
 
-        after = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            cwd=wt_path,
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=10,
-        )
-        snapshot_head = after.stdout.strip()
-        if after.returncode != 0 or not snapshot_head:
+        if operation:
+            snapshot_head = committed.stdout.strip()
+        else:
+            after = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=wt_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_recovery_git_env(),
+            )
+            snapshot_head = after.stdout.strip()
+        if not snapshot_head:
             raise ProjectError(
                 f"recovery snapshot commit has no resolvable head for {issue_identifier}"
             )
@@ -2380,6 +2803,7 @@ class ProjectStore:
                 text=True,
                 check=False,
                 timeout=10,
+                env=_recovery_git_env(),
             )
         except (OSError, subprocess.TimeoutExpired) as exc:
             raise ProjectError(
@@ -2391,8 +2815,32 @@ class ProjectStore:
                 f"{updated_ref.stderr.strip()[:500]}"
             )
 
+        # The helper is disposable only after the task snapshot/ref is durable.
+        # A subsequent dispatch reinstalls the hook before the worker starts.
+        removed_helpers = remove_generated_worktree_helpers(wt_path)
+        context["removed_generated_helpers"] = removed_helpers
+
         final_status = self._git_status_for_worktree(wt_path)
-        if final_status.returncode != 0 or self._worktree_dirty_paths(final_status.stdout):
+        if final_status.returncode != 0:
+            raise ProjectError(
+                f"recovery snapshot for {issue_identifier} did not produce a clean "
+                "worktree; refusing further Git mutation"
+            )
+        if operation:
+            # A staged conflict resolution is expected to remain dirty against
+            # detached HEAD.  The operation marker itself is the cleanliness
+            # invariant for this checkpoint; refusing to reset it is the point
+            # of the active-operation path.
+            if _git_operation_state(
+                wt_path,
+                current_branch="",
+                branch_result_code=128,
+            ) is None:
+                raise ProjectError(
+                    f"active {operation.get('kind')} disappeared while "
+                    f"checkpointing {issue_identifier}"
+                )
+        elif self._worktree_dirty_paths(final_status.stdout):
             raise ProjectError(
                 f"recovery snapshot for {issue_identifier} did not produce a clean "
                 "worktree; refusing further Git mutation"
@@ -2745,11 +3193,9 @@ class ProjectStore:
             dirty_lines = [
                 line
                 for line in status.stdout.splitlines()
-                if line[3:].strip() not in {
-                    ".oompah-no-hooks",
-                    ".oompah-no-hooks/",
-                }
-                and not line[3:].strip().startswith(".oompah-no-hooks/")
+                if not _is_generated_worktree_helper(
+                    line[3:].strip() if len(line) >= 3 else ""
+                )
             ]
             if status.returncode != 0 or dirty_lines:
                 raise ProjectError(
@@ -2940,6 +3386,7 @@ class ProjectStore:
         """
 
         def _run(cmd: list[str], **kw) -> subprocess.CompletedProcess:
+            kw.setdefault("env", _recovery_git_env())
             return subprocess.run(
                 cmd,
                 cwd=wt_path,
@@ -3001,6 +3448,57 @@ class ProjectStore:
         if not os.path.isdir(wt_path):
             self._prune_git_worktrees(project.repo_path)
             return False
+
+        # ``remove_worktree`` is used by termination cleanup as well as
+        # terminal maintenance.  Never force-remove a live operation or dirty
+        # task worktree here; the snapshot must succeed first and active Git
+        # state must remain inspectable for a retry.
+        if _is_git_working_tree(wt_path):
+            status = self._git_status_for_worktree(wt_path)
+            if status.returncode != 0:
+                raise ProjectError(
+                    f"cannot inspect worktree before removal {wt_path}: "
+                    f"{status.stderr.strip()[:500]}"
+                )
+            branch_probe = subprocess.run(
+                ["git", "symbolic-ref", "--short", "HEAD"],
+                cwd=wt_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_recovery_git_env(),
+            )
+            operation = _git_operation_state(
+                wt_path,
+                current_branch=branch_probe.stdout.strip(),
+                branch_result_code=branch_probe.returncode,
+            )
+            if operation:
+                recovery = self._preserve_dirty_worktree_locked(
+                    project,
+                    issue_identifier,
+                    wt_path,
+                    branch_name=str(operation.get("branch") or "") or None,
+                )
+                raise ProjectError(
+                    f"Refusing to remove active {operation.get('kind')} worktree "
+                    f"{wt_path}; recovery snapshot "
+                    f"{recovery.get('recovery_ref') if recovery else 'unavailable'} "
+                    "was preserved"
+                )
+            if self._worktree_dirty_paths(status.stdout):
+                recovery = self._preserve_dirty_worktree_locked(
+                    project,
+                    issue_identifier,
+                    wt_path,
+                    branch_name=branch_probe.stdout.strip() or None,
+                )
+                raise ProjectError(
+                    f"Refusing to remove dirty task worktree {wt_path}; recovery "
+                    f"snapshot {recovery.get('recovery_ref') if recovery else 'unavailable'} "
+                    "was preserved"
+                )
 
         try:
             subprocess.run(
@@ -3184,6 +3682,7 @@ class ProjectStore:
         """Reuse an existing task worktree without discarding task-owned work."""
 
         def _run(cmd: list[str], **kw) -> subprocess.CompletedProcess:
+            kw.setdefault("env", _recovery_git_env())
             return subprocess.run(
                 cmd,
                 cwd=wt_path,
@@ -3201,10 +3700,16 @@ class ProjectStore:
             current_branch = r.stdout.strip() if r.returncode == 0 else ""
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
             current_branch = ""
-        if current_branch != branch_name:
+        operation = _git_operation_state(
+            wt_path,
+            current_branch=current_branch,
+            branch_result_code=0 if current_branch else 128,
+        )
+        operation_branch = str(operation.get("branch") or "").strip() if operation else ""
+        if current_branch != branch_name and operation_branch != branch_name:
             raise ProjectError(
                 f"Task worktree {wt_path} is on "
-                f"{current_branch or 'a detached HEAD'}, not expected branch "
+                f"{current_branch or ('active ' + str(operation.get('kind')) if operation else 'a detached HEAD')}, not expected branch "
                 f"{branch_name}; refusing to reset it"
             )
 
@@ -3221,11 +3726,14 @@ class ProjectStore:
         if recovery and recovery.get("snapshot_head"):
             logger.info(
                 "Reusing task worktree with durable recovery snapshot "
-                "project=%s issue=%s ref=%s head=%s",
+                "project=%s issue=%s ref=%s head=%s operation=%s",
                 project.id,
                 recovery_identifier,
                 recovery.get("recovery_ref"),
                 recovery.get("snapshot_head"),
+                (recovery.get("operation") or {}).get("kind")
+                if isinstance(recovery.get("operation"), dict)
+                else None,
             )
             self._disable_worktree_hooks(wt_path)
             return
@@ -3263,6 +3771,7 @@ class ProjectStore:
                 capture_output=True,
                 text=True,
                 timeout=5,
+                env=_recovery_git_env(),
             )
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
             pass
@@ -3308,6 +3817,45 @@ class ProjectStore:
             raise ProjectError(
                 f"cannot inspect terminal worktree {wt_path}: "
                 f"{status.stderr.strip()[:500]}"
+            )
+        branch_probe = subprocess.run(
+            ["git", "symbolic-ref", "--short", "HEAD"],
+            cwd=wt_path,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+            env=_recovery_git_env(),
+        )
+        operation = _git_operation_state(
+            wt_path,
+            current_branch=branch_probe.stdout.strip(),
+            branch_result_code=branch_probe.returncode,
+        )
+        if operation:
+            operation_branch = str(operation.get("branch") or "").strip()
+            if operation_branch and operation_branch != branch_name:
+                raise ProjectError(
+                    f"Refusing terminal cleanup of {wt_path}: active "
+                    f"{operation.get('kind')} belongs to {operation_branch!r}, "
+                    f"not {branch_name!r}"
+                )
+            recovery = self._preserve_dirty_worktree_locked(
+                project,
+                issue_identifier,
+                wt_path,
+                branch_name=branch_name,
+            )
+            logger.warning(
+                "terminal cleanup preserved active-operation recovery issue=%s "
+                "operation=%s ref=%s",
+                issue_identifier,
+                operation.get("kind"),
+                recovery.get("recovery_ref") if recovery else None,
+            )
+            raise ProjectError(
+                f"Refusing terminal cleanup of active {operation.get('kind')} "
+                f"worktree {wt_path}; recovery state was preserved"
             )
         if self._worktree_dirty_paths(status.stdout):
             recovery = self._preserve_dirty_worktree_locked(
@@ -3511,8 +4059,9 @@ class ProjectStore:
         dirty_lines = [
             line
             for line in status_result.stdout.splitlines()
-            if line[3:].strip() not in {".oompah-no-hooks", ".oompah-no-hooks/"}
-            and not line[3:].strip().startswith(".oompah-no-hooks/")
+            if not _is_generated_worktree_helper(
+                line[3:].strip() if len(line) >= 3 else ""
+            )
         ]
         if status_result.returncode != 0 or dirty_lines:
             logger.warning(

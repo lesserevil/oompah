@@ -30331,6 +30331,18 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 and entry.workspace_path
                 and recovery_preserver is not None
             ):
+                # A replacement generation may have claimed the issue while
+                # process cleanup was yielding.  It owns the worktree now;
+                # the old termination path must not snapshot or later remove
+                # its unsnapshotted changes.
+                if self.state.running.get(issue_id) is not entry:
+                    logger.info(
+                        "Skipping stale recovery snapshot issue_id=%s "
+                        "old_run_id=%s newer_generation_owns_workspace=true",
+                        issue_id,
+                        getattr(entry, "run_id", None),
+                    )
+                    return True
                 try:
                     expected_path = project_store.worktree_path_for(
                         project_id, entry.identifier
@@ -30351,6 +30363,15 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                                 ),
                             ),
                         )
+                        if self.state.running.get(issue_id) is not entry:
+                            logger.info(
+                                "Recovery snapshot completed after replacement "
+                                "generation appeared; skipping cleanup issue_id=%s "
+                                "old_run_id=%s",
+                                issue_id,
+                                getattr(entry, "run_id", None),
+                            )
+                            return True
                 except Exception as exc:  # noqa: BLE001 - fail closed for retries
                     if self.state.running.get(issue_id) is entry:
                         self.state.running.pop(issue_id, None)

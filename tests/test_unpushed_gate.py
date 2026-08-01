@@ -20,7 +20,7 @@ import asyncio
 import json
 import logging
 from datetime import datetime, timezone
-from subprocess import TimeoutExpired
+from subprocess import CompletedProcess, TimeoutExpired
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -354,6 +354,35 @@ class TestBuildUnpushedRefusalComment:
 
 class TestCheckUnpushedHelper:
     """Tests for the private _check_unpushed() git helper."""
+
+    def test_generated_helper_is_removed_before_submission_cleanliness_check(self, tmp_path):
+        """An otherwise-clean submission cannot fail on an Oompah helper."""
+        worktree = tmp_path / "worktree"
+        worktree.mkdir()
+        helper = worktree / ".oompah-no-hooks" / "prepare-commit-msg"
+        helper.parent.mkdir()
+        helper.write_text("generated\n", encoding="utf-8")
+
+        def fake_run(args, **kwargs):
+            if args[:3] == ["git", "status", "--porcelain"]:
+                return CompletedProcess(args, 0, "", "")
+            if args[:3] == ["git", "fetch", "origin"]:
+                return CompletedProcess(args, 0, "", "")
+            if args[:3] == ["git", "rev-list", "--count"]:
+                return CompletedProcess(args, 0, "0\n", "")
+            raise AssertionError(args)
+
+        with patch("oompah.unpushed_gate.subprocess.run", side_effect=fake_run):
+            result = _check_unpushed(
+                str(tmp_path / "repo"),
+                "TASK-HELPER",
+                "main",
+                worktree_path=str(worktree),
+            )
+
+        assert result == (False, 0, [], "")
+        assert not helper.exists()
+        assert not helper.parent.exists()
 
     def test_clean_repo_returns_false(self):
         """Worktree clean + branch on base → (False, 0, [], '')."""

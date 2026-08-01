@@ -823,8 +823,12 @@ class TestExistingWorktreeBranchValidation:
         subprocess.run(["git", "init", "-b", "main", str(repo)], check=True)
         for key, value in (("user.name", "Test"), ("user.email", "test@example.com")):
             subprocess.run(["git", "-C", str(repo), "config", key, value], check=True)
+        (repo / ".gitignore").write_text(".oompah-no-hooks/\n", encoding="utf-8")
         (repo / "tracked.txt").write_bytes(b"before\n")
-        subprocess.run(["git", "-C", str(repo), "add", "tracked.txt"], check=True)
+        subprocess.run(
+            ["git", "-C", str(repo), "add", ".gitignore", "tracked.txt"],
+            check=True,
+        )
         subprocess.run(["git", "-C", str(repo), "commit", "-m", "base"], check=True)
 
         store = _store(tmp_path)
@@ -843,6 +847,9 @@ class TestExistingWorktreeBranchValidation:
             check=True,
         )
 
+        generated_hook = Path(worktree) / ".oompah-no-hooks" / "prepare-commit-msg"
+        generated_hook.parent.mkdir()
+        generated_hook.write_text("generated helper\n", encoding="utf-8")
         (Path(worktree) / "tracked.txt").write_bytes(b"unstaged bytes\n")
         (Path(worktree) / "staged.txt").write_bytes(b"staged bytes\x00\n")
         subprocess.run(["git", "-C", worktree, "add", "staged.txt"], check=True)
@@ -860,13 +867,11 @@ class TestExistingWorktreeBranchValidation:
         assert (Path(worktree) / "tracked.txt").read_bytes() == b"unstaged bytes\n"
         assert (Path(worktree) / "staged.txt").read_bytes() == b"staged bytes\x00\n"
         assert (Path(worktree) / "untracked.bin").read_bytes() == b"untracked bytes\xff\n"
-        status = subprocess.run(
-            ["git", "-C", worktree, "status", "--porcelain"],
-            check=True,
-            capture_output=True,
-            text=True,
-        ).stdout
-        assert ".oompah-no-hooks" in status  # hook sentinel is not task content
+        assert generated_hook.exists()  # the next dispatch reinstalls the hook
+        assert subprocess.run(
+            ["git", "-C", worktree, "check-ignore", "--quiet", str(generated_hook)],
+            check=False,
+        ).returncode == 0
         task_status = store._git_status_for_worktree(worktree)
         assert store._worktree_dirty_paths(task_status.stdout) == []
 
@@ -879,6 +884,9 @@ class TestExistingWorktreeBranchValidation:
             "staged.txt",
             "untracked.bin",
         }
+        assert context["excluded_generated_helpers"] == [
+            ".oompah-no-hooks/prepare-commit-msg"
+        ]
         assert context["snapshot_head"] == subprocess.run(
             ["git", "-C", worktree, "rev-parse", "HEAD"],
             check=True,
@@ -906,6 +914,103 @@ class TestExistingWorktreeBranchValidation:
             "🤖 Generated with https://github.com/lesserevil/oompah\n\n"
             "Co-authored-by: oompah <lesserevil@users.noreply.github.com>"
         )
+        tree = subprocess.run(
+            ["git", "-C", worktree, "ls-tree", "-r", "--name-only", str(context["snapshot_head"])],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.splitlines()
+        assert ".oompah-no-hooks/prepare-commit-msg" not in tree
+
+    def test_paused_rebase_checkpoint_preserves_branch_index_and_todo(self, tmp_path):
+        """A detached paused rebase is checkpointed without consuming its state."""
+        repo = tmp_path / "repo"
+        subprocess.run(["git", "init", "-b", "main", str(repo)], check=True)
+        for key, value in (("user.name", "Test"), ("user.email", "test@example.com")):
+            subprocess.run(["git", "-C", str(repo), "config", key, value], check=True)
+        (repo / "conflict.txt").write_text("base\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(repo), "add", "conflict.txt"], check=True)
+        subprocess.run(["git", "-C", str(repo), "commit", "-m", "base"], check=True)
+
+        store = _store(tmp_path)
+        project = Project(
+            id="proj-rebase-recovery",
+            name="rebase-recovery",
+            repo_url=str(repo),
+            repo_path=str(repo),
+            branch="main",
+            default_branch="main",
+        )
+        store._projects[project.id] = project
+        worktree = store.worktree_path_for(project.id, "TASK-REBASE")
+        subprocess.run(
+            ["git", "-C", str(repo), "worktree", "add", "-b", "TASK-REBASE", worktree, "main"],
+            check=True,
+        )
+        (Path(worktree) / "conflict.txt").write_text("feature\n", encoding="utf-8")
+        subprocess.run(["git", "-C", worktree, "add", "conflict.txt"], check=True)
+        subprocess.run(["git", "-C", worktree, "commit", "-m", "feature"], check=True)
+        (repo / "conflict.txt").write_text("main\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(repo), "add", "conflict.txt"], check=True)
+        subprocess.run(["git", "-C", str(repo), "commit", "-m", "main conflict"], check=True)
+
+        subprocess.run(
+            ["git", "-C", worktree, "rebase", "main"],
+            check=False,
+            env={"PATH": os.environ["PATH"], "GIT_EDITOR": "true", "GIT_SEQUENCE_EDITOR": "true"},
+            capture_output=True,
+            text=True,
+        )
+        (Path(worktree) / "conflict.txt").write_text("resolved feature\n", encoding="utf-8")
+        subprocess.run(["git", "-C", worktree, "add", "conflict.txt"], check=True)
+        branch_before = subprocess.run(
+            ["git", "-C", str(repo), "rev-parse", "refs/heads/TASK-REBASE"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        todo_state = subprocess.run(
+            ["git", "-C", worktree, "rev-parse", "--git-path", "rebase-merge/git-rebase-todo"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        todo_contents = Path(todo_state).read_text(encoding="utf-8")
+
+        store.create_worktree(project.id, "TASK-REBASE")
+        context = store.worktree_recovery_context(project.id, "TASK-REBASE")
+
+        assert context is not None
+        assert context["branch"] == "TASK-REBASE"
+        assert context["branch_head"] == branch_before
+        assert context["operation"]["kind"] == "rebase"
+        assert context["operation"]["detached"] is True
+        assert context["operation"]["metadata"]["git-rebase-todo"] == todo_contents
+        assert subprocess.run(
+            ["git", "-C", str(repo), "rev-parse", "refs/heads/TASK-REBASE"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip() == branch_before
+        assert subprocess.run(
+            ["git", "-C", worktree, "symbolic-ref", "--short", "HEAD"],
+            check=False,
+            capture_output=True,
+            text=True,
+        ).returncode != 0
+        assert (Path(worktree) / "conflict.txt").read_text(encoding="utf-8") == (
+            "resolved feature\n"
+        )
+        assert subprocess.run(
+            ["git", "-C", worktree, "ls-files", "-u"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout == ""
+        assert subprocess.run(
+            ["git", "-C", worktree, "cat-file", "-e", f"{context['snapshot_head']}:conflict.txt"],
+            check=True,
+        ).returncode == 0
 
     def test_recovery_snapshot_is_idempotent_across_repeated_retries(self, tmp_path):
         """Repeated retry preparation reuses one durable snapshot."""
