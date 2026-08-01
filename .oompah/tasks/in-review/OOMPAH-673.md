@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-673
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 2
 title: Make canonical CLI mismatch recovery unambiguous across upgrades
 parent: null
@@ -11,10 +11,10 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T02:34:24.348580Z'
-updated_at: '2026-08-01T02:42:34.190902Z'
+updated_at: '2026-08-01T02:49:21.474852Z'
 work_branch: null
 target_branch: null
-review_url: null
+review_url: https://github.com/lesserevil/oompah/pull/636
 review_number: null
 merged_at: null
 oompah.duplicate_screening:
@@ -87,6 +87,7 @@ oompah.integration:
   head_sha: b792568ef85d4b46a2e5607305a3dc3549a95860
   submitted_at: '2026-08-01T02:42:07.028732+00:00'
   updated_at: '2026-08-01T02:42:33.407583+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/636
 ---
 ## Summary
 
@@ -199,5 +200,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 6m 8s
 - Log: OOMPAH-673__20260801T023626Z.jsonl
+---
+author: oompah
+created: 2026-08-01 02:49
+---
+Branch quality gate passed for `b792568ef85d4b46a2e5607305a3dc3549a95860` using `make test` in 386.0s. Review creation may proceed.
 ---
 <!-- COMMENTS:END -->
