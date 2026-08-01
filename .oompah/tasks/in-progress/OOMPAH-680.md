@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T17:31:44.735248Z'
-updated_at: '2026-08-01T19:06:59.293567Z'
+updated_at: '2026-08-01T19:29:15.827020Z'
 work_branch: OOMPAH-680
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/643
@@ -502,5 +502,10 @@ author: oompah
 created: 2026-08-01 19:06
 ---
 Verification: focused suites pass, including 5 new managed credential tests and make check-secrets (exit 0). The secret scan reported only its existing null-byte warning. I am running the complete Makefile test gate against this final head before commit/push.
+---
+author: oompah
+created: 2026-08-01 19:29
+---
+Completion: routed managed clone/fetch/ls-remote/push/delete and verification paths through project-scoped ephemeral forge credentials, including epic/worktree publication, integration, release helpers, state/checkpoint evidence, landing/staleness refreshes, and task submission evidence. Added credential isolation/redaction/failure-cleanup regression coverage. Final make test passed; 128 focused credential/tracker tests and 268 additional managed-network tests passed; make check-secrets passed. Commit d08a8da59b0195cd3811f8adcc9935a156e68e36 is pushed and the branch is up to date.
 ---
 <!-- COMMENTS:END -->
