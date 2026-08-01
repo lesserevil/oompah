@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T12:05:24.382952Z'
-updated_at: '2026-08-01T15:15:50.519044Z'
+updated_at: '2026-08-01T15:17:05.590083Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -295,5 +295,10 @@ author: oompah
 created: 2026-08-01 15:15
 ---
 Verification: scripts/run-tests.sh serial tests/test_default_first_dispatch.py tests/test_duplicate_preflight.py tests/test_activity_run_identity.py passed: 111 passed in 27.93s. This includes every one of the 19 tests named by the failed branch gate plus the run-identity regression suite.
+---
+author: oompah
+created: 2026-08-01 15:17
+---
+Completion: pushed c24ba48c7 to the existing OOMPAH-679 branch. The minimal CI repair updates only dispatch/preflight test doubles for the run_id keyword and adds an exact worker-to-RunningEntry identity assertion; 111 focused tests pass and the secret scan completed successfully.
 ---
 <!-- COMMENTS:END -->
