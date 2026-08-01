@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T11:56:19.836343Z'
-updated_at: '2026-08-01T14:28:18.862642Z'
+updated_at: '2026-08-01T14:32:52.073165Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -130,5 +130,15 @@ author: oompah
 created: 2026-08-01 14:28
 ---
 Understanding: ownerless managed projects currently reject every human Backlog-to-Open promotion. I will trace project create/update identity handling, actor resolution, the owner-only transition gate, and dashboard rejection rendering; then add safe owner derivation/validation, actionable health feedback, regression tests, and verify with focused Make targets.
+---
+author: oompah
+created: 2026-08-01 14:32
+---
+Implementation: updated oompah/templates/projects.html with accessible owner-identity health warnings for oompah_md, GitHub Issues, and GitLab Issues; added onboarding fields for status actor and authorized logins; and documented server-side actor resolution. Updated oompah/templates/dashboard.html to render authenticated actor, project owner configuration, and remediation details from structured intake-transition rejections in the board alert, including intake actions. Added UI contract coverage in tests/test_projects_gitlab_ui.py and tests/test_dashboard_intake_actions.py.
+---
+author: oompah
+created: 2026-08-01 14:32
+---
+Verification: PYTHONPATH=. pytest -q tests/test_projects_gitlab_ui.py tests/test_dashboard_intake_actions.py -> 106 passed; PYTHONPATH=. pytest -q tests/test_projects_crud.py -> 157 passed; git diff --check passed. The first pytest invocation hit an environment ImportPathMismatchError from /home/shedwards/src/oompah, resolved by explicitly prioritizing this worktree on PYTHONPATH.
 ---
 <!-- COMMENTS:END -->
