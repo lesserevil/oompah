@@ -659,6 +659,8 @@ def apply_project_bootstrap_updates(
     push: bool = True,
     commit: bool = True,
     dry_run: bool = False,
+    access_token: str | None = None,
+    forge_kind: str = "github",
 ) -> ProjectBootstrapApplyResult:
     """Write pending bootstrap files and optionally commit/push.
 
@@ -752,7 +754,27 @@ def apply_project_bootstrap_updates(
         result.commit_sha = sha_r.stdout.strip()
 
     if push:
-        push_r = _run(["git", "push", "origin", branch], timeout=60)
+        # Use authenticated credential environment for git push on private repos.
+        push_env = env
+        if access_token:
+            with git_credential_environment(
+                forge_kind=forge_kind,
+                access_token=access_token,
+                base_env=env,
+            ) as credential_env:
+                push_r = subprocess.run(
+                    ["git", "push", "origin", branch],
+                    cwd=str(repo_path),
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
+                    env=credential_env,
+                )
+                push_r.stdout = redact_git_output(push_r.stdout, (access_token,))
+                push_r.stderr = redact_git_output(push_r.stderr, (access_token,))
+        else:
+            push_r = _run(["git", "push", "origin", branch], timeout=60)
+
         if push_r.returncode != 0:
             result.error = f"git push failed: {push_r.stderr.strip()[:300]}"
             return result
