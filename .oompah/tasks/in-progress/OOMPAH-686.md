@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T22:19:41.486806Z'
-updated_at: '2026-08-01T22:29:07.894251Z'
+updated_at: '2026-08-01T22:29:40.094967Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -192,5 +192,39 @@ Implemented full solution to prevent read-only libpod runtime from escalating to
 - Backward compatibility: 4 tests verifying existing behavior preserved
 
 All existing tests pass (agent + client_auth).
+---
+author: oompah
+created: 2026-08-01 22:29
+---
+**Verification: Tests Passing**
+
+Comprehensive test results:
+✓ 23 new OOMPAH-686 tests (environment detection, directory creation, integration)
+✓ 79 existing client_auth tests (all pass)
+✓ 7 existing agent tests (all pass)
+= 109 total tests passing
+
+**Key Tests Added:**
+- Environment detection: read-only dirs, missing dirs, permissions
+- Private directory creation: secure permissions (0o700), uniqueness, TMPDIR respect
+- Integration: fallback when inherited is read-only, marked for cleanup
+- Security: no credential leaks, auth stripping preserved
+- Backward compatibility: existing behavior unchanged
+
+**Code Coverage:**
+- oompah/client_auth.py: Environment setup with fallback logic
+- oompah/agent.py: AgentSession lifecycle management + cleanup
+- ACP backends: Session lifecycle with cleanup (claude, codex, opencode)
+- test_oompah_686_worker_runtime.py: 23 focused tests
+
+**Acceptance Criteria Met:**
+✓ Workers with read-only libpod can run gates through fallback
+✓ Infrastructure failures distinguished from code failures (via preflight)
+✓ EXOCOMP-145 scenario covered by tests (read-only XDG_RUNTIME_DIR)
+✓ No host /run/user permissions modified
+✓ No secrets leaked in logs or paths
+✓ Cleanup happens automatically after worker exits
+
+Branch pushed and ready for review.
 ---
 <!-- COMMENTS:END -->
