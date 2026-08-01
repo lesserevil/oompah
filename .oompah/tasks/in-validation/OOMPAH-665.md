@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:07.401588Z'
-updated_at: '2026-08-01T00:24:21.070907Z'
+updated_at: '2026-08-01T00:33:25.760733Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -61,8 +61,8 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 57004dc6-4e48-4c28-9024-8679bbe3dd1c
 oompah.task_costs:
-  total_input_tokens: 2590540
-  total_output_tokens: 34450
+  total_input_tokens: 2590617
+  total_output_tokens: 47925
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -72,6 +72,10 @@ oompah.task_costs:
     sonnet:
       input_tokens: 2590370
       output_tokens: 30315
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 77
+      output_tokens: 13475
       cost_usd: 0.0
   runs:
   - profile: default
@@ -116,6 +120,12 @@ oompah.task_costs:
     output_tokens: 9271
     cost_usd: 0.0
     recorded_at: '2026-07-31T23:15:16.032539+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 77
+    output_tokens: 13475
+    cost_usd: 0.0
+    recorded_at: '2026-08-01T00:33:23.991737+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-665__20260731T181648Z
@@ -153,6 +163,31 @@ oompah.integration:
 oompah.start_blocked_by: *id001
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-a46d5580cb51: '2026-08-01T00:33:08.035993+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-665
+    target_state: Done
+    evidence_fingerprint: 08587e11ed8008f31ea43053a9d571eb65e49661aa65834013fcb94ff62d4649
+    audit_ids:
+    - audit-92a70e3fdd47
+    kind: result
+    applied: true
+    retired_at: '2026-08-01T00:33:08.036005+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-665
+    audit_id: audit-92a70e3fdd47
+    attempt_id: attempt-a46d5580cb51
+    target_state: Done
+    evidence_fingerprint: 08587e11ed8008f31ea43053a9d571eb65e49661aa65834013fcb94ff62d4649
+    status: In Validation
+    audit_ids:
+    - audit-92a70e3fdd47
+    applied: true
+    created_at: '2026-08-01T00:33:08.036023+00:00'
+    applied_at: '2026-08-01T00:33:11.530254+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -160,7 +195,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-665
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -169,7 +204,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-a46d5580cb51
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -179,13 +214,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-01T00:24:15.768122+00:00'
       branch_key: OOMPAH-665
+      verdict: pass
+      completed_at: '2026-08-01T00:33:08.035816+00:00'
+      ended_at: '2026-08-01T00:33:08.035816+00:00'
     requested_by:
       version: 1
       identity: oompah-cli
       source: api
     previous_state: Ready to Integrate
     created_at: '2026-08-01T00:24:07.729145+00:00'
-    updated_at: '2026-08-01T00:24:15.768122+00:00'
+    updated_at: '2026-08-01T00:33:08.035816+00:00'
   - version: 1
     audit_id: audit-80812b27e5b6
     project_id: proj-14849f1b
@@ -764,5 +802,33 @@ author: oompah
 created: 2026-08-01 00:24
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-01 00:33
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: 04d681f1033fb34e61cb9a00647d87ef879b90da
+- branch_head_in_main: true
+- focused_tests_terminal_audit_observability: 18 passed
+- focused_tests_terminal_transition_coordinator: 116 passed
+- focused_tests_orchestrator_profile_and_handlers: 288 passed
+- retirement_paths_implemented: retirement_row, legacy_override, later_pass, canonical_tracker_terminal_state
+- fail_closed_paths: fetch_issue_detail read failure, MetadataQuarantine, mismatched retirement fingerprint/target
+- prior_full_gate: make test passed at 04d681f10 in 386.4s (task comment 2026-08-01 00:23)
+- commits_delivered: 0ce87c6ec, 04d681f10
+---
+author: oompah
+created: 2026-08-01 00:33
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 90, Tool calls: 71
+- Tokens: 77 in / 13.5K out [13.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 9m 7s
+- Log: OOMPAH-665__20260801T002422Z.jsonl
 ---
 <!-- COMMENTS:END -->
