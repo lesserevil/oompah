@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-666
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Fix dashboard vertical scrolling when alerts precede the Kanban board
 parent: null
@@ -12,11 +12,11 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T21:19:38.816688Z'
-updated_at: '2026-08-01T00:34:23.240316Z'
+updated_at: '2026-08-01T00:53:36.762588Z'
 work_branch: null
 target_branch: null
-review_url: null
-review_number: null
+review_url: https://github.com/lesserevil/oompah/pull/632
+review_number: '632'
 merged_at: null
 oompah.duplicate_screening:
   schema_version: 1
@@ -110,6 +110,8 @@ oompah.integration:
   head_sha: 5741f6a05613dd038d49c25e03a01eb37b04e71f
   submitted_at: '2026-08-01T00:34:03.770683+00:00'
   updated_at: '2026-08-01T00:34:03.770683+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/632
+oompah.review_number: '632'
 ---
 ## Summary
 
@@ -356,5 +358,10 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Codex/gpt-5.6-
 - Cost: $0.0000
 - Exit: terminated, Duration: 36s
 - Log: OOMPAH-666__20260801T003353Z.jsonl
+---
+author: oompah
+created: 2026-08-01 00:53
+---
+Branch quality gate passed for `5741f6a05613dd038d49c25e03a01eb37b04e71f` using `make test` in 387.3s. Review creation may proceed.
 ---
 <!-- COMMENTS:END -->
