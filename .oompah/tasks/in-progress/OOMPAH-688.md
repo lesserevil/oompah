@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T23:11:33.946132Z'
-updated_at: '2026-08-01T23:51:02.228130Z'
+updated_at: '2026-08-01T23:52:40.546309Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -257,5 +257,15 @@ author: oompah
 created: 2026-08-01 23:51
 ---
 Understanding: The quality gate failed with test_tick_does_not_start_second_maintenance_while_first_running in tests/test_orchestrator_handlers.py. Root cause: the test doesn't mock _recover_release_addendum_leases, which reads all task files from disk in the tick thread pool. Under parallel CI load this can cause (1) a 5-second test timeout, or (2) total_ms > 2000 triggering slow-tick logging that fails because _handle_dispatch_needed returns AsyncMock() instead of {}. OOMPAH-686 has an identical fix at commit 19f4f3f9c — adding orch._recover_release_addendum_leases = MagicMock(return_value=0) to the test. Applying the same minimal fix to our branch.
+---
+author: oompah
+created: 2026-08-01 23:52
+---
+Implementation: Fixed test_tick_does_not_start_second_maintenance_while_first_running in tests/test_orchestrator_handlers.py (same pattern identified and fixed by OOMPAH-686 at 19f4f3f9c).\n\nChanges:\n- Added orch._recover_release_addendum_leases = MagicMock(return_value=0) — prevents real tracker I/O that can exceed the 5s test timeout under parallel CI load\n- Changed orch._handle_dispatch_needed = AsyncMock(return_value={}) — ensures the slow-tick warning logging path can safely iterate dispatch_timings.items() if total_ms exceeds 2000ms\n\nThis is a minimal fix to the handlers test that was pre-existing and flaky; the OOMPAH-688 orchestrator clock changes are unaffected. Pushed at dbb50c914.
+---
+author: oompah
+created: 2026-08-01 23:52
+---
+Verification: Focused tests pass:\n- tests/test_orchestrator_handlers.py::TestMaintenanceLaneNonBlocking: 4 passed (serial and -n 4 parallel)\n- tests/test_orchestrator_tick_telemetry.py: 35 passed in 16.5s\n\nThe previously failing test test_tick_does_not_start_second_maintenance_while_first_running now completes deterministically without real tracker I/O blocking the tick thread pool.
 ---
 <!-- COMMENTS:END -->
