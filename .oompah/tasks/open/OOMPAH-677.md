@@ -11,12 +11,27 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T11:56:19.836343Z'
-updated_at: '2026-08-01T11:56:21.902403Z'
+updated_at: '2026-08-01T14:25:12.749345Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 6cdbdaeba8a7b84ac3ed57dc13ef68a811eafaf4f7d6cace04b58274b3c4ab92
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 6f0b5127-c692-4228-8c00-1d7dad783e3e
+  claim_owner: 7946c223-6c24-4967-8291-1d20c0e47f05
+  claimed_at: '2026-08-01T14:25:07.588449+00:00'
+  claim_expires_at: '2026-08-01T14:55:07.588449+00:00'
+  retry_count: 0
+  retry_after: null
+oompah.agent_run_id: 307320dc-a1fa-4f26-9ec7-4997c370f92a
 ---
 ## Summary
 
@@ -28,3 +43,16 @@ Live regression discovered on the NodeVirt managed project on 2026-08-01. The pr
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-01 14:25
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-01 14:25
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
