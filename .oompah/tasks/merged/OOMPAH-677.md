@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-677
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Prevent ownerless projects from deadlocking intake promotion
 parent: null
@@ -13,7 +13,7 @@ labels:
 - focus-complete:chore
 assignee: null
 created_at: '2026-08-01T11:56:19.836343Z'
-updated_at: '2026-08-01T18:05:10.545671Z'
+updated_at: '2026-08-01T18:14:09.235630Z'
 work_branch: OOMPAH-677
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/642
@@ -151,6 +151,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-b972eacb7c9e: '2026-08-01T18:04:28.533487+00:00'
+    attempt-2d69afac3aa5: '2026-08-01T18:14:06.491911+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-677
@@ -161,6 +162,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-01T18:04:28.533495+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-677
+    target_state: Merged
+    evidence_fingerprint: 754916872b9efe42aa687e347ba60a4927704e8c21c7762ec152be99f2554e3a
+    audit_ids:
+    - audit-cb72359b5eda
+    kind: result
+    applied: true
+    retired_at: '2026-08-01T18:14:06.491927+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-677
@@ -174,6 +184,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-01T18:04:28.533505+00:00'
     applied_at: '2026-08-01T18:04:31.442582+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-677
+    audit_id: audit-cb72359b5eda
+    attempt_id: attempt-2d69afac3aa5
+    target_state: Merged
+    evidence_fingerprint: 754916872b9efe42aa687e347ba60a4927704e8c21c7762ec152be99f2554e3a
+    status: Merged
+    audit_ids:
+    - audit-cb72359b5eda
+    applied: false
+    created_at: '2026-08-01T18:14:06.491944+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -215,7 +236,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-677
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -224,7 +245,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-2d69afac3aa5
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -234,13 +255,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-01T18:05:03.230336+00:00'
       branch_key: OOMPAH-677
+      verdict: pass
+      completed_at: '2026-08-01T18:14:06.491669+00:00'
+      ended_at: '2026-08-01T18:14:06.491669+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-01T17:56:20.941888+00:00'
-    updated_at: '2026-08-01T18:05:03.230336+00:00'
+    updated_at: '2026-08-01T18:14:06.491669+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-b972eacb7c9e
@@ -550,5 +574,34 @@ author: oompah
 created: 2026-08-01 18:05
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-01 18:14
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit: f3784697eb19ec252cc74b64305d9826d82deda1
+- branch_head: 5c34c716e7cc522081824e94da4be47208ac155d
+- pr_number: 642
+- merge_second_parent_matches_branch_head: true
+- merge_on_origin_main: true
+- regression_tests_file: tests/test_oompah_677_ownerless_projects.py
+- regression_test_count: 31
+- diff_stat: 6 files changed, +957/-11 (oompah/projects.py, oompah/templates/dashboard.html, oompah/templates/projects.html, tests/test_dashboard_intake_actions.py, tests/test_oompah_677_ownerless_projects.py, tests/test_projects_gitlab_ui.py)
+- gitlab_url_parser_location: oompah/projects.py:154
+- resolve_owner_identity_location: oompah/projects.py:910
+- create_time_owner_guard_location: oompah/projects.py:1154
+- update_time_owner_guard_location: oompah/projects.py:1614
+- transition_gate_is_project_owner_location: oompah/transition_gate.py:146
+- transition_gate_covers_gitlab: true (checks status_actor_login, tracker_owner, status_label_authorized_logins tracker-agnostically)
+- dashboard_error_field_rendering: oompah/templates/dashboard.html:2704-2706 (authenticated_actor + fallback aliases)
+- projects_ui_health_warning_class: owner-identity-warning at oompah/templates/projects.html:72-282
+- branch_gate_status: make test passed in 395.7s at 5c34c716e per trusted 17:47 server comment
+- prior_auditor_verdict: PASS for Done at 2026-08-01 18:04 (Claude/opus attempt #1)
+- nodovirt_regression_class: TestNodeVirtRegressionScenario with 6 tests including owner-can-promote and non-owner-rejected
+- client_actor_not_trusted: verified by test_client_supplied_status_actor_not_trusted
 ---
 <!-- COMMENTS:END -->
