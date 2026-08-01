@@ -151,6 +151,77 @@ def github_owner_repo_from_url(repo_url: str) -> tuple[str | None, str | None]:
     return parts[0], parts[1]
 
 
+def gitlab_owner_repo_from_url(repo_url: str, gitlab_base_url: str | None = None) -> tuple[str | None, str | None]:
+    """Return ``(owner/path, repo)`` for GitLab clone URLs, else ``(None, None)``.
+    
+    GitLab project paths can include groups and subgroups (e.g., "group/subgroup/project").
+    This function extracts the full path as the owner component.
+    
+    Args:
+        repo_url: Git clone URL (https, ssh, or local).
+        gitlab_base_url: Expected GitLab instance base URL (e.g., "https://gitlab.com").
+                         If provided, only URLs matching this host are accepted.
+    
+    Returns:
+        Tuple of (project_path, repo_name) for GitLab URLs matching the base URL,
+        or (None, None) if the URL doesn't match or isn't a valid GitLab URL.
+    """
+    value = (repo_url or "").strip()
+    if not value:
+        return None, None
+    
+    # Determine the expected GitLab host from gitlab_base_url
+    expected_host = None
+    if gitlab_base_url:
+        parsed_base = urlsplit(gitlab_base_url)
+        expected_host = (parsed_base.hostname or "").lower()
+    
+    path = ""
+    host = ""
+    
+    if value.startswith("git@") or re.match(r"^[^/@:]+@", value):
+        # SSH format: git@gitlab.com:group/subgroup/project.git
+        if ":" not in value:
+            return None, None
+        host_part, path = value.split(":", 1)
+        # Extract hostname from git@host
+        if "@" in host_part:
+            host = host_part.split("@")[1].lower()
+        else:
+            return None, None
+    elif value.lower().startswith(("https://", "http://", "ssh://")):
+        # HTTPS format: https://gitlab.com/group/subgroup/project.git
+        parsed = urlsplit(value)
+        host = (parsed.hostname or "").lower()
+        path = parsed.path
+    else:
+        # Local path or unrecognized format
+        return None, None
+    
+    # Check if host matches the expected GitLab instance
+    if expected_host and host != expected_host:
+        return None, None
+    
+    # Check if it looks like a GitLab host
+    if not (host and ("gitlab" in host or host in ("localhost", "127.0.0.1") or ":" in host)):
+        return None, None
+    
+    path = path.strip("/")
+    if path.endswith(".git"):
+        path = path[:-4]
+    
+    parts = [part for part in path.split("/") if part]
+    if len(parts) < 2:
+        return None, None
+    
+    # For GitLab, the owner is the full path (group/subgroup/project)
+    # and we need at least group/project
+    project_name = parts[-1]
+    project_path = "/".join(parts)
+    
+    return project_path, project_name
+
+
 def _sanitize_identifier(value: str) -> str:
     """Make a project or task identifier safe for local branch/path names."""
     cleaned = re.sub(r"[^A-Za-z0-9._-]+", "_", str(value or "").strip())
@@ -825,6 +896,82 @@ def _is_github_backed(project: "Project") -> bool:
     return _is_github_backed_kind(kind)
 
 
+def _is_gitlab_backed_kind(kind: str) -> bool:
+    """Return True when *kind* (already lower-stripped) is a GitLab Issues tracker."""
+    return kind in ("gitlab_issues", "gitlab-issues")
+
+
+def _is_gitlab_backed(project: "Project") -> bool:
+    """Return True when *project* uses the GitLab Issues tracker backend."""
+    kind = (getattr(project, "tracker_kind", None) or "").strip().lower()
+    return _is_gitlab_backed_kind(kind)
+
+
+def _resolve_owner_identity(
+    repo_url: str,
+    tracker_kind: str | None,
+    tracker_owner: str | None,
+    forge_kind: str | None,
+    forge_base_url: str | None,
+    status_actor_login: str | None,
+    is_dispatchable: bool = False,
+) -> tuple[str | None, str | None]:
+    """Resolve the owner identity for a project (OOMPAH-677).
+    
+    This function derives the project owner (status_actor_login) from the
+    repo_url, tracker configuration, and/or provided credentials. It never
+    trusts client-supplied status_actor_login values for authorization.
+    
+    For dispatchable projects (paused=False), it validates that an owner
+    can be determined.
+    
+    Args:
+        repo_url: Git clone URL.
+        tracker_kind: Tracker backend kind (e.g., "github_issues", "gitlab_issues", "oompah_md").
+        tracker_owner: Explicitly configured tracker owner/namespace.
+        forge_kind: Forge kind ("github" or "gitlab").
+        forge_base_url: Base URL of the forge instance.
+        status_actor_login: Client-supplied status actor (NOT used for authorization).
+        is_dispatchable: If True, the project must have a derivable owner.
+    
+    Returns:
+        Tuple of (resolved_status_actor_login, error_message).
+        - resolved_status_actor_login: The derived owner login, or None.
+        - error_message: None if successful, or an error message if
+          is_dispatchable=True and no owner could be derived.
+    """
+    resolved_kind = str(tracker_kind or "").strip().lower()
+    resolved_forge = str(forge_kind or "github").strip().lower()
+    
+    # Try to derive owner from repo_url based on tracker/forge configuration
+    inferred_owner = None
+    
+    if resolved_kind in ("github_issues", "github-issues"):
+        # GitHub Issues tracker: derive owner from GitHub repo URL
+        inferred_owner, _ = github_owner_repo_from_url(repo_url)
+    elif resolved_kind in ("gitlab_issues", "gitlab-issues"):
+        # GitLab Issues tracker: derive owner from GitLab repo URL
+        inferred_owner, _ = gitlab_owner_repo_from_url(repo_url, forge_base_url)
+    elif resolved_kind in ("oompah_md", "oompah.md", "oompah", ""):
+        # Native Markdown tracker (or None/empty): try to infer from GitHub URL if it's a GitHub repo
+        inferred_owner, _ = github_owner_repo_from_url(repo_url)
+        # If no GitHub owner but we have tracker_owner (e.g., GitLab-hosted oompah_md),
+        # use that as the project owner
+        if not inferred_owner and tracker_owner:
+            inferred_owner = tracker_owner
+    
+    # For dispatchable projects, ensure we have an owner
+    error_message = None
+    if is_dispatchable and not inferred_owner:
+        error_message = (
+            "Dispatchable projects must have a configured owner. "
+            "Set status_actor_login, tracker_owner, or ensure the repository URL "
+            "is from a supported forge (GitHub, GitLab)."
+        )
+    
+    return inferred_owner, error_message
+
+
 class ProjectStore:
     """File-backed store for project configurations."""
 
@@ -998,6 +1145,25 @@ class ProjectStore:
                 supported_release_branches, branches, default_branch
             )
 
+        # Validate owner identity early (before git clone) for dispatchable projects (OOMPAH-677).
+        # Never trust client-supplied status_actor_login for authorization.
+        tracker_kind_resolved = tracker_kind or "oompah_md"
+        _resolved_kind = str(tracker_kind_resolved).strip().lower()
+        tracker_owner_value = str(tracker_owner).strip() if tracker_owner else None
+        
+        resolved_status_actor, owner_error = _resolve_owner_identity(
+            repo_url=repo_url,
+            tracker_kind=_resolved_kind,
+            tracker_owner=tracker_owner_value,
+            forge_kind=forge_kind_norm,
+            forge_base_url=forge_base_url_norm,
+            status_actor_login=None,  # Never trust client input
+            is_dispatchable=not paused,
+        )
+        
+        if owner_error and not paused:
+            raise ProjectError(owner_error)
+
         # Clone into ~/.oompah/repos/<name>/
         repo_path = os.path.join(self.repos_root, _sanitize_identifier(name))
 
@@ -1090,18 +1256,19 @@ class ProjectStore:
 
         tracker_owner_value = str(tracker_owner).strip() if tracker_owner else None
         tracker_repo_value = str(tracker_repo).strip() if tracker_repo else None
+        
+        # For GitHub-backed trackers and oompah_md with GitHub intake, infer tracker_repo from URL
+        # (tracker_owner has already been inferred via _resolve_owner_identity above)
+        tracker_repo_value = str(tracker_repo).strip() if tracker_repo else None
         if (
             _is_github_backed_kind(_resolved_kind)
             or (
                 _is_oompah_md_kind(_resolved_kind)
                 and bool(github_issue_intake_enabled)
             )
-        ) and (
-            not tracker_owner_value or not tracker_repo_value
-        ):
-            inferred_owner, inferred_repo = github_owner_repo_from_url(repo_url)
-            tracker_owner_value = tracker_owner_value or inferred_owner
-            tracker_repo_value = tracker_repo_value or inferred_repo
+        ) and not tracker_repo_value:
+            _, inferred_repo = github_owner_repo_from_url(repo_url)
+            tracker_repo_value = inferred_repo
 
         project_id = f"proj-{uuid.uuid4().hex[:8]}"
         project = Project(
@@ -1123,7 +1290,7 @@ class ProjectStore:
             tracker_repo=tracker_repo_value,
             github_issue_intake_enabled=bool(github_issue_intake_enabled),
             github_project_node_id=str(github_project_node_id).strip() if github_project_node_id else None,
-            status_actor_login=str(status_actor_login).strip() if status_actor_login else None,
+            status_actor_login=resolved_status_actor,
             status_label_authorized_logins=[
                 str(login).strip()
                 for login in (status_label_authorized_logins or [])
@@ -1418,6 +1585,43 @@ class ProjectStore:
                     fields[key] = s or None
                 else:
                     raise ProjectError(f"'{key}' must be a string or null")
+
+        # Validate that dispatchable projects don't lose their owner (OOMPAH-677).
+        # If the project is active (not paused) and owner fields that are currently set
+        # are being cleared, ensure that an owner can still be derived.
+        effective_paused = fields.get("paused", project.paused)
+        if not effective_paused:
+            # Only apply validation if we're actually clearing a previously-set owner field
+            clearing_status_actor = (
+                "status_actor_login" in fields
+                and fields["status_actor_login"] is None
+                and project.status_actor_login  # Was previously set
+            )
+            clearing_tracker_owner = (
+                "tracker_owner" in fields
+                and fields["tracker_owner"] is None
+                and project.tracker_owner  # Was previously set
+            )
+            
+            if clearing_status_actor or clearing_tracker_owner:
+                # Try to resolve owner with the new configuration
+                effective_repo_url = fields.get("repo_url", project.repo_url)
+                effective_tracker_kind = fields.get("tracker_kind", project.tracker_kind)
+                effective_tracker_owner = fields.get("tracker_owner", project.tracker_owner)
+                effective_forge_kind = fields.get("forge_kind", project.forge_kind)
+                effective_forge_base = fields.get("forge_base_url", project.forge_base_url)
+                
+                resolved_owner, error = _resolve_owner_identity(
+                    repo_url=effective_repo_url,
+                    tracker_kind=effective_tracker_kind,
+                    tracker_owner=effective_tracker_owner,
+                    forge_kind=effective_forge_kind,
+                    forge_base_url=effective_forge_base,
+                    status_actor_login=None,
+                    is_dispatchable=True,
+                )
+                if error:
+                    raise ProjectError(error)
 
         # Validate forge configuration against the effective values after all
         # related fields have been normalized.  This prevents a PATCH from
