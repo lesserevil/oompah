@@ -1,8 +1,8 @@
 ---
 id: OOMPAH-683
 type: task
-status: In Review
-priority: null
+status: Needs CI Fix
+priority: 0
 title: Make retry recovery snapshots tolerate generated hooks and in-progress rebases
 parent: null
 children: []
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T21:41:35.163259Z'
-updated_at: '2026-08-01T23:16:36.488909Z'
+updated_at: '2026-08-01T23:24:44.410147Z'
 work_branch: OOMPAH-683
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/646
@@ -340,5 +340,10 @@ author: oompah
 created: 2026-08-01 23:16
 ---
 Branch quality gate passed for `abc69ba5a112889d1354f09a818492f308433df2` using `make test` in 399.4s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-01 23:24
+---
+YOLO: CI tests failed on MR #646. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
 ---
 <!-- COMMENTS:END -->
