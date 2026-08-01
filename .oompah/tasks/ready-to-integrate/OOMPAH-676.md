@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T05:18:04.532392Z'
-updated_at: '2026-08-01T05:33:03.448254Z'
+updated_at: '2026-08-01T05:33:37.937870Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -58,13 +58,13 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 9bc487f4-b41f-480e-8a45-261cadf2c119
 oompah.task_costs:
-  total_input_tokens: 130
-  total_output_tokens: 5056
+  total_input_tokens: 11821934
+  total_output_tokens: 38053
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 130
-      output_tokens: 5056
+      input_tokens: 11821934
+      output_tokens: 38053
       cost_usd: 0.0
   runs:
   - profile: default
@@ -73,6 +73,12 @@ oompah.task_costs:
     output_tokens: 5056
     cost_usd: 0.0
     recorded_at: '2026-08-01T05:19:57.678406+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 11821804
+    output_tokens: 32997
+    cost_usd: 0.0
+    recorded_at: '2026-08-01T05:33:31.894864+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-676__20260801T051824Z
@@ -83,14 +89,24 @@ oompah.work_contributors:
     source_branch: OOMPAH-676
     source_sha: cde6401136d6561b694b05f81f4337cd26d7a3fe
     completed_at: '2026-08-01T05:19:57.690711+00:00'
+  - run_id: OOMPAH-676__20260801T052014Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: devops
+    source_branch: OOMPAH-676
+    source_sha: cd9b2652a665bd9004c0d91d2b1921bcf4a831c6
+    completed_at: '2026-08-01T05:33:31.899270+00:00'
 oompah.integration:
   version: 2
   state: ready
   attempts: 0
   task_branch: OOMPAH-676
+  base_branch: main
+  base_sha: cde6401136d6561b694b05f81f4337cd26d7a3fe
   head_sha: cd9b2652a665bd9004c0d91d2b1921bcf4a831c6
   submitted_at: '2026-08-01T05:32:58.461601+00:00'
-  updated_at: '2026-08-01T05:32:58.461601+00:00'
+  updated_at: '2026-08-01T05:33:37.067510+00:00'
 ---
 ## Summary
 
@@ -164,5 +180,20 @@ author: oompah
 created: 2026-08-01 05:33
 ---
 Quiesced graceful CLI cutover now drains active workers naturally, recovers only timed-out workers, preserves explicit pause semantics, and includes lifecycle/API/IPC/MCP regression coverage.
+---
+author: oompah
+created: 2026-08-01 05:33
+---
+Agent completed successfully in 803s (11854801 tokens)
+---
+author: oompah
+created: 2026-08-01 05:33
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 108
+- Tokens: 11.8M in / 33.0K out [11.9M total]
+- Cost: $0.0000
+- Exit: normal, Duration: 13m 23s
+- Log: OOMPAH-676__20260801T052014Z.jsonl
 ---
 <!-- COMMENTS:END -->
