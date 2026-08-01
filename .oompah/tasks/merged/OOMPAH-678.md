@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-678
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Do not flag intentional cross-task handoff denials as auth failures
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T12:01:06.107132Z'
-updated_at: '2026-08-01T15:12:44.720348Z'
+updated_at: '2026-08-01T15:15:34.860754Z'
 work_branch: OOMPAH-678
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/640
@@ -124,6 +124,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-651826d8571b: '2026-08-01T15:11:33.662292+00:00'
+    attempt-92ae0fcb3057: '2026-08-01T15:15:32.112954+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-678
@@ -134,6 +135,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-01T15:11:33.662305+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-678
+    target_state: Merged
+    evidence_fingerprint: ddd8c3b83c34d5a414b3f25dba2318bbfdfc2c29fda7598043d59c4cf77cd902
+    audit_ids:
+    - audit-520a1d5b5dcf
+    kind: result
+    applied: true
+    retired_at: '2026-08-01T15:15:32.112968+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-678
@@ -147,6 +157,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-01T15:11:33.662321+00:00'
     applied_at: '2026-08-01T15:11:38.950460+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-678
+    audit_id: audit-520a1d5b5dcf
+    attempt_id: attempt-92ae0fcb3057
+    target_state: Merged
+    evidence_fingerprint: ddd8c3b83c34d5a414b3f25dba2318bbfdfc2c29fda7598043d59c4cf77cd902
+    status: Merged
+    audit_ids:
+    - audit-520a1d5b5dcf
+    applied: false
+    created_at: '2026-08-01T15:15:32.112985+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -188,7 +209,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-678
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -197,7 +218,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-92ae0fcb3057
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -207,13 +228,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-01T15:12:39.997065+00:00'
       branch_key: OOMPAH-678
+      verdict: pass
+      completed_at: '2026-08-01T15:15:32.112805+00:00'
+      ended_at: '2026-08-01T15:15:32.112805+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-01T15:02:28.469874+00:00'
-    updated_at: '2026-08-01T15:12:39.997065+00:00'
+    updated_at: '2026-08-01T15:15:32.112805+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-651826d8571b
@@ -391,5 +415,26 @@ author: oompah
 created: 2026-08-01 15:12
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-01 15:15
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: f4e334dc5545267d6b143858ee09f95972f13641
+- merge_commit: 2e24144ff1f12e3f259b1af546d7506851518dc0
+- pr_number: 640
+- files_changed: 17 files, 422 insertions, 17 deletions
+- acceptance_a_five_call_pattern: verified via test_live_peer_scope_denial_is_policy_event_not_auth_failure and test_verified_policy_denial_is_informational_only
+- [REDACTED-credential-key]: verified via test_wrong_token_targeting_assigned_task_remains_auth_failure (recent_403_scope_count == 1)
+- acceptance_c_mutations_rejected: 403 status preserved for all peer scope denials regardless of classification
+- acceptance_d_message_hygiene: response message uses only task ids and coordinate peers/inbox CLI commands
+- propagation_env: OOMPAH_TASK_HANDOFF_TASK_ID propagated by orchestrator, task_cli, and claude/codex/opencode ACP backends
+- focused_tests: 258 focused tests (previous auditor) — test_task_handoff, test_auth_health, test_server_auth, test_acp_codex_backend, test_dashboard_credential_warning
+- branch_gate: make test passed for f4e334dc5 in 405.6s per prior branch-gate comment
+- merge_on_main: git branch --contains 2e24144ff shows main
 ---
 <!-- COMMENTS:END -->
