@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T05:18:04.532392Z'
-updated_at: '2026-08-01T05:20:28.702747Z'
+updated_at: '2026-08-01T05:24:10.676766Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -130,5 +130,10 @@ author: oompah
 created: 2026-08-01 05:20
 ---
 Understanding: canonical CLI graceful cutover currently appears to use explicit pause semantics that terminate running workers. I will trace the cutover/server/orchestrator lifecycle, introduce a dispatch-quiesce path for restart while preserving explicit pause, add regression tests for natural drain and timeout recovery, then run focused checks.
+---
+author: oompah
+created: 2026-08-01 05:24
+---
+Discovery: graceful_restart already waits naturally and persists only state.running at timeout; explicit pause is the destructive path because it schedules _terminate_all_running. The fix will add a transient quiesced dispatch gate with state/API/IPC support, preserve /pause semantics, and have canonical cutover continue to /restart with drain_timeout_s=0 only after its configured drain window, allowing the server restart path to persist truly undrained workers.
 ---
 <!-- COMMENTS:END -->
