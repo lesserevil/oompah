@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T04:42:35.189136Z'
-updated_at: '2026-08-01T04:51:57.202431Z'
+updated_at: '2026-08-01T04:51:59.506209Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -201,5 +201,10 @@ Implementation verified:
 ✓ Build ID and service instance ID included for both REST and WebSocket
 
 Branch ready for integration.
+---
+author: oompah
+created: 2026-08-01 04:51
+---
+Implemented centralized state snapshot enrichment for WebSocket and REST endpoints. WebSocket bootstrap now includes authenticated state (http_auth.enabled) matching REST behavior. Fixes actor_mismatch errors in authenticated dashboards. All 119 tests passing including 14 new regression tests for WebSocket authentication bootstrap.
 ---
 <!-- COMMENTS:END -->
