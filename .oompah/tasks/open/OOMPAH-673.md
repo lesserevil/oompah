@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T02:34:24.348580Z'
-updated_at: '2026-08-01T02:34:40.134127Z'
+updated_at: '2026-08-01T02:36:10.722674Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -21,17 +21,48 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 6c063c0ee4af6e852f42b593bd42f90fa12c1aac379cb9da31e2685cd7dca129
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-01T02:36:05.990407+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 4a8430de-54d5-4d51-8855-a7772bb44942
-  claim_owner: c9040198-12fd-44df-a501-638d565273c9
-  claimed_at: '2026-08-01T02:34:33.510149+00:00'
-  claim_expires_at: '2026-08-01T03:04:33.510149+00:00'
+  evidence: "Focus handoff: duplicate_detector\n\nDuplicate preflight verdict: no_duplicate\n\
+    \nMatches: none\n\nEvidence: Searched `.oompah/tasks`, `docs/`, and `plans/` for\
+    \ canonical CLI, launcher, revision mismatch, install, restart, and cutover terms.\
+    \ Active tasks OOMPAH-281 and OOMPAH-282 are unrelated. Closest reviewed terminal\
+    \ tasks\u2014OOMPAH-26 (CLI compatibility documentation) and OOMPAH-52 (stale\
+    \ CLI reinstall guidance)\u2014do not address live service/launcher pairing recovery."
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
 oompah.agent_run_id: c07d8fba-3989-414e-8dc4-8c25fd3deb7a
+oompah.task_costs:
+  total_input_tokens: 760034
+  total_output_tokens: 3487
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 760034
+      output_tokens: 3487
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 760034
+    output_tokens: 3487
+    cost_usd: 0.0
+    recorded_at: '2026-08-01T02:36:05.989406+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-673__20260801T023441Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: OOMPAH-673
+    source_sha: aceb82319369f1082307d6fc0a2931da03fab608
+    completed_at: '2026-08-01T02:36:05.994734+00:00'
 ---
 ## Summary
 
@@ -61,5 +92,15 @@ author: oompah
 created: 2026-08-01 02:34
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-01 02:36
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 13
+- Tokens: 760.0K in / 3.5K out [763.5K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 28s
+- Log: OOMPAH-673__20260801T023441Z.jsonl
 ---
 <!-- COMMENTS:END -->
