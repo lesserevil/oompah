@@ -11523,6 +11523,174 @@ async def api_get_release_picks(identifier: str, request: Request):
         )
 
 
+@app.post("/api/v1/issues/{identifier}/duplicate-screening/owner-resolution")
+async def api_owner_resolve_duplicate_screening(identifier: str, request: Request):
+    """Apply a project-owner duplicate-screening resolution.
+
+    Allows project owners to authoritatively resolve inconclusive duplicate
+    screening results by explicitly confirming "no active duplicate" or
+    identifying a known duplicate. Resets retry_count and records the owner's
+    decision with audit trail.
+
+    Request body (JSON):
+        - verdict: "no_duplicate" or "duplicate_candidate"
+        - matched_identifiers: list of task IDs if verdict is duplicate_candidate
+        - reason: explanation of the owner's decision
+        - project_id (optional): explicit project ID
+
+    Returns:
+        - 200 OK on success
+        - 403 Forbidden if actor is not a project owner
+        - 404 Not Found if task doesn't exist
+    """
+    try:
+        orch = _get_orchestrator()
+        try:
+            body = await request.json()
+        except (json.JSONDecodeError, ValueError) as exc:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": f"Invalid JSON: {exc}",
+                    }
+                },
+                status_code=400,
+            )
+        if not isinstance(body, dict):
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": "request body must be a JSON object",
+                    }
+                },
+                status_code=400,
+            )
+
+        # Validate verdict
+        verdict_str = body.get("verdict", "").strip()
+        if verdict_str not in {"no_duplicate", "duplicate_candidate"}:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": f"verdict must be 'no_duplicate' or 'duplicate_candidate', got {verdict_str!r}",
+                    }
+                },
+                status_code=400,
+            )
+
+        # Get actor login for authorization
+        actor_login = _actor_login_from_request(request)
+        if not actor_login:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "authentication",
+                        "message": "Cannot determine actor login — provide Authorization header or GitHub token",
+                    }
+                },
+                status_code=401,
+            )
+
+        # Resolve tracker and project
+        project_id = body.get("project_id") or request.query_params.get("project_id")
+        managed_repo_req = (body.get("managed_repo") or "").strip() or None
+        if not project_id and not managed_repo_req:
+            managed_repo_req = _managed_repo_from_issue_identifier(identifier)
+
+        try:
+            tracker, project_id = _get_tracker_for_issue_or_project(
+                orch, identifier, project_id
+            )
+        except (ProjectError, TrackerError) as exc:
+            return JSONResponse(
+                {"error": {"code": "not_found", "message": str(exc)}},
+                status_code=404,
+            )
+
+        # Fetch issue
+        try:
+            tracker.invalidate_read_cache()
+        except Exception:
+            pass
+        issue = tracker.fetch_issue_detail(identifier)
+        if issue is None:
+            return JSONResponse(
+                {"error": {"code": "not_found", "message": f"Issue {identifier} not found"}},
+                status_code=404,
+            )
+        if not issue.project_id:
+            issue.project_id = project_id
+
+        # Check authorization: actor must be project owner
+        from oompah.transition_gate import is_project_owner
+        if not is_project_owner(actor_login, orch._get_project_by_id(project_id)):
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "forbidden",
+                        "message": "Only project owners may resolve duplicate screening",
+                    }
+                },
+                status_code=403,
+            )
+
+        # Apply resolution
+        from oompah.duplicate_screening import ScreeningVerdict
+        try:
+            verdict = ScreeningVerdict(verdict_str)
+            matched_identifiers = body.get("matched_identifiers") or []
+            reason = str(body.get("reason", "")).strip()
+
+            success = orch._owner_resolve_duplicate_screening(
+                issue,
+                owner_login=actor_login,
+                verdict=verdict,
+                matched_identifiers=matched_identifiers,
+                reason=reason,
+            )
+            if not success:
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "failed",
+                            "message": f"Failed to apply owner resolution to {identifier}",
+                        }
+                    },
+                    status_code=500,
+                )
+
+            return JSONResponse(
+                {
+                    "success": True,
+                    "identifier": identifier,
+                    "verdict": verdict_str,
+                    "owner_login": actor_login,
+                    "reason": reason,
+                },
+                status_code=200,
+            )
+
+        except ValueError as exc:
+            return JSONResponse(
+                {"error": {"code": "validation", "message": str(exc)}},
+                status_code=400,
+            )
+
+    except Exception as exc:
+        logger.exception(
+            "Uncaught exception in api_owner_resolve_duplicate_screening for %s: %s",
+            identifier,
+            exc,
+        )
+        return JSONResponse(
+            {"error": {"code": "unavailable", "message": str(exc)}},
+            status_code=503,
+        )
+
+
 @app.patch("/api/v1/issues/{identifier}/release-picks")
 async def api_update_release_picks(identifier: str, request: Request):
     """Update release-pick metadata for a task.
