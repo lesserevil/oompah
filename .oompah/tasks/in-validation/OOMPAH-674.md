@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T04:42:35.189136Z'
-updated_at: '2026-08-01T05:09:03.826937Z'
+updated_at: '2026-08-01T05:11:43.531423Z'
 work_branch: OOMPAH-674
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/637
@@ -91,6 +91,31 @@ oompah.work_branch: OOMPAH-674
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-a14907dc5a93: '2026-08-01T05:11:38.787775+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-674
+    target_state: Done
+    evidence_fingerprint: c5f72648c1528946f42facaee0d7f6a06fc734b696b9ac77091148fbebca7cb3
+    audit_ids:
+    - audit-f2c5c85797e8
+    kind: result
+    applied: true
+    retired_at: '2026-08-01T05:11:38.787784+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-674
+    audit_id: audit-f2c5c85797e8
+    attempt_id: attempt-a14907dc5a93
+    target_state: Done
+    evidence_fingerprint: c5f72648c1528946f42facaee0d7f6a06fc734b696b9ac77091148fbebca7cb3
+    status: In Validation
+    audit_ids:
+    - audit-f2c5c85797e8
+    applied: true
+    created_at: '2026-08-01T05:11:38.787795+00:00'
+    applied_at: '2026-08-01T05:11:42.670008+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -98,7 +123,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-674
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -107,7 +132,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-a14907dc5a93
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -117,13 +142,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-01T05:08:59.426284+00:00'
       branch_key: OOMPAH-674
+      verdict: pass
+      completed_at: '2026-08-01T05:11:38.787635+00:00'
+      ended_at: '2026-08-01T05:11:38.787635+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-01T05:07:51.113032+00:00'
-    updated_at: '2026-08-01T05:08:59.426284+00:00'
+    updated_at: '2026-08-01T05:11:38.787635+00:00'
   - version: 1
     audit_id: audit-975420f01fba
     project_id: proj-14849f1b
@@ -336,5 +364,21 @@ author: oompah
 created: 2026-08-01 05:09
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-01 05:11
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- merge_state: branch fully merged into main; git log main..HEAD is empty; both OOMPAH-674 commits reachable from main
+- commits: 15eea17a142a79a33d69464d6e6c608c23e1eac4 (implementation, +442 lines) and 939abfda0d393cd98d95b61a71fb92df7ea740d0 (regression tightening)
+- enrichment_helper: _enrich_state_snapshot() at oompah/server.py:3319 adds build_id, service_instance_id, http_auth (via _http_auth_reload_status()), api_metrics
+- enrichment_call_sites: oompah/server.py lines 2549, 2569, 2902, 2924, 3384, 3391 — covers REST /api/v1/state, WebSocket initial bootstrap, WebSocket refresh, and both broadcast paths
+- focused_tests: test_websocket_authenticated_bootstrap.py 14/14 pass; test_dashboard_authenticated_mutations.py + test_state_api_responsiveness.py + test_server_auth.py 105/105 pass locally
+- branch_gate_history: Scheduler comment records 'Branch quality gate passed for 15eea17a142a79a33d69464d6e6c608c23e1eac4 using make test in 399.0s'
+- pr_status: Scheduler comment records 'YOLO: merged PR #637'
 ---
 <!-- COMMENTS:END -->
