@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T21:46:41.297124Z'
-updated_at: '2026-08-01T23:10:27.323427Z'
+updated_at: '2026-08-01T23:10:45.359977Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -110,13 +110,17 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: d2a62e89-5c45-410a-a4a1-2be4637384ca
 oompah.task_costs:
-  total_input_tokens: 252
-  total_output_tokens: 9009
+  total_input_tokens: 274
+  total_output_tokens: 9286
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 252
       output_tokens: 9009
+      cost_usd: 0.0
+    sonnet:
+      input_tokens: 22
+      output_tokens: 277
       cost_usd: 0.0
   runs:
   - profile: default
@@ -131,6 +135,12 @@ oompah.task_costs:
     output_tokens: 4703
     cost_usd: 0.0
     recorded_at: '2026-08-01T22:00:53.061055+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 22
+    output_tokens: 277
+    cost_usd: 0.0
+    recorded_at: '2026-08-01T23:10:42.473834+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-685__20260801T215316Z
@@ -370,5 +380,15 @@ author: oompah
 created: 2026-08-01 23:10
 ---
 Operator recovery reasserted; clean full gate evidence is already attached.
+---
+author: oompah
+created: 2026-08-01 23:10
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 0, Tool calls: 9
+- Tokens: 22 in / 277 out [299 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 1m 23s
+- Log: OOMPAH-685__20260801T230923Z.jsonl
 ---
 <!-- COMMENTS:END -->
