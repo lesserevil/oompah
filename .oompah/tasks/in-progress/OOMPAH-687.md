@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T23:00:54.291962Z'
-updated_at: '2026-08-01T23:04:52.314065Z'
+updated_at: '2026-08-01T23:07:02.161720Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -133,5 +133,10 @@ author: oompah
 created: 2026-08-01 23:04
 ---
 Understanding: I will isolate task-worktree setup from the service-owned venv, audit Makefile/worktree/provider runtime discovery and branch-gate binds, add source-mapping validation with safe diagnostics, and cover the poisoned/concurrent setup regressions with focused tests.
+---
+author: oompah
+created: 2026-08-01 23:07
+---
+Discovery: current gate code derives its runtime from the service process sys.prefix and projects editable source metadata, while worker environments inherit VIRTUAL_ENV/UV_* selectors. Makefile setup then lets uv honor those selectors, so a task worktree can rewrite the service venv's direct_url editable mapping. Existing gate validation only checks launcher path shape and maps any declared source; it does not prove the trusted runtime's import root or classify poisoned metadata as infrastructure corruption.
 ---
 <!-- COMMENTS:END -->
