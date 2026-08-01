@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T04:42:35.189136Z'
-updated_at: '2026-08-01T05:07:56.027813Z'
+updated_at: '2026-08-01T05:09:03.826937Z'
 work_branch: OOMPAH-674
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/637
@@ -98,18 +98,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-674
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: c5f72648c1528946f42facaee0d7f6a06fc734b696b9ac77091148fbebca7cb3
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-a14907dc5a93
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: c5f72648c1528946f42facaee0d7f6a06fc734b696b9ac77091148fbebca7cb3
+      created_at: '2026-08-01T05:08:59.426284+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-01T05:08:59.426284+00:00'
+      branch_key: OOMPAH-674
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-01T05:07:51.113032+00:00'
+    updated_at: '2026-08-01T05:08:59.426284+00:00'
   - version: 1
     audit_id: audit-975420f01fba
     project_id: proj-14849f1b
@@ -127,7 +141,20 @@ oompah.terminal_audit:
       source: forge
     previous_state: In Review
     created_at: '2026-08-01T05:07:51.113032+00:00'
-  attempt_history: []
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-a14907dc5a93
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c5f72648c1528946f42facaee0d7f6a06fc734b696b9ac77091148fbebca7cb3
+    created_at: '2026-08-01T05:08:59.426284+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-01T05:08:59.426284+00:00'
+    branch_key: OOMPAH-674
 ---
 ## Summary
 
@@ -299,5 +326,15 @@ author: oompah
 created: 2026-08-01 05:07
 ---
 YOLO: merged PR #637.
+---
+author: oompah
+created: 2026-08-01 05:09
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-01 05:09
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
