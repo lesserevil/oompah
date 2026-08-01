@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T17:34:02.400338Z'
-updated_at: '2026-08-01T19:01:16.290246Z'
+updated_at: '2026-08-01T19:06:03.641620Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -146,5 +146,37 @@ OOMPAH-681 requires preventing interactive Git commands from deadlocking worker 
 - oompah/mcp_exposure_policy.py (command exposure rules)
 
 ### Next: Discover the specific run_command implementations and design the validation layer.
+---
+author: oompah
+created: 2026-08-01 19:06
+---
+## Discovery
+
+Found the command execution boundary in oompah/api_agent.py:_exec_run_command(). This function validates commands and creates subprocesses for agent execution.
+
+### Key findings:
+1. **Existing validation pattern**: _validate_command_stays_in_workspace() already blocks commands that cd out of worktree
+2. **No interactive git rejection yet**: No existing checks for git rebase -i, git add -p, etc.
+3. **Tool liveness monitoring**: Already in place for timeout tracking
+
+### Implementation approach:
+1. ✅ Created oompah/git_command_validation.py with comprehensive regex-based validation
+   - Rejects git rebase -i/--interactive
+   - Rejects git add -p/--patch/--interactive
+   - Rejects bare git commit (without -m/-F)
+   - Rejects git cherry-pick -i
+   - Rejects git merge/revert without --no-edit
+   - Provides actionable replacement guidance in error messages
+
+2. ✅ Integrated validation into _exec_run_command() in oompah/api_agent.py
+   - Validation happens before subprocess creation
+   - Returns error immediately with guidance
+
+3. ✅ Created comprehensive test coverage:
+   - 38 unit tests in test_git_command_validation.py
+   - 6 integration tests in test_tool_liveness.py
+   - All tests pass (55 total)
+
+### Next: Implement process tree editor-child detection and finalize
 ---
 <!-- COMMENTS:END -->
