@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-441
 type: task
-status: In Validation
+status: Needs Human
 priority: null
 title: Resolve shared epic parent lookup for review gates
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-25T01:59:58.245991Z'
-updated_at: '2026-08-01T02:12:40.026800Z'
+updated_at: '2026-08-01T02:18:19.660979Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,6 +42,31 @@ oompah.task_costs:
     recorded_at: '2026-07-25T02:05:25.564774+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-551cefcbccdd: '2026-08-01T02:18:15.510914+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-441
+    target_state: Archived
+    evidence_fingerprint: 143e29296d0f9cc948cc08434345f639cd8cc8340755a92c1b77a0366e355342
+    audit_ids:
+    - audit-f583cdddb7b1
+    kind: result
+    applied: true
+    retired_at: '2026-08-01T02:18:15.510926+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-441
+    audit_id: audit-f583cdddb7b1
+    attempt_id: attempt-551cefcbccdd
+    target_state: Archived
+    evidence_fingerprint: 143e29296d0f9cc948cc08434345f639cd8cc8340755a92c1b77a0366e355342
+    status: Needs Human
+    audit_ids:
+    - audit-f583cdddb7b1
+    applied: true
+    created_at: '2026-08-01T02:18:15.510946+00:00'
+    applied_at: '2026-08-01T02:18:18.700403+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -49,7 +74,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-441
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -58,7 +83,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-551cefcbccdd
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -68,13 +93,17 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-01T02:12:33.606138+00:00'
       branch_key: OOMPAH-441
+      verdict: fail
+      failure_classification: unsafe_archive
+      completed_at: '2026-08-01T02:18:15.510659+00:00'
+      ended_at: '2026-08-01T02:18:15.510659+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-01T02:12:11.420321+00:00'
-    updated_at: '2026-08-01T02:12:33.606138+00:00'
+    updated_at: '2026-08-01T02:18:15.510659+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-551cefcbccdd
@@ -222,5 +251,19 @@ author: oompah
 created: 2026-08-01 02:12
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-01 02:18
+---
+Needs Human — Archived audit requires operator input.
+
+[REDACTED]
+
+Questions:
+- Was the 'Merged' state applied administratively without a PR, or did a merge occur under a different task/branch identifier that we should link to OOMPAH-441?
+
+Instructions:
+- Do not archive: reopen OOMPAH-441 or route back to a feature/devops focus to actually implement the _resolve_parent_epic fallback, add regression tests for the EXOCOMP-29 / PR #10 scenario, run make test, and land a commit on branch OOMPAH-441.
+- If a fix was in fact merged under another branch/task id, link that commit here so the archive audit can re-evaluate against real evidence.
 ---
 <!-- COMMENTS:END -->
