@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-674
 type: bug
-status: Backlog
+status: In Progress
 priority: 1
 title: Include authenticated state in dashboard WebSocket bootstrap
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T04:42:35.189136Z'
-updated_at: '2026-08-01T04:42:35.189136Z'
+updated_at: '2026-08-01T04:42:53.364494Z'
 work_branch: null
 target_branch: null
 review_url: null
