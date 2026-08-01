@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-684
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Prevent stale retry dispatch after operator task resubmission
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T21:44:29.390457Z'
-updated_at: '2026-08-01T23:02:34.994491Z'
+updated_at: '2026-08-01T23:03:29.704918Z'
 work_branch: null
 target_branch: null
 review_url: null

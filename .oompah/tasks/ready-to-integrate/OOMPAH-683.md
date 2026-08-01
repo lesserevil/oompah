@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-683
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Make retry recovery snapshots tolerate generated hooks and in-progress rebases
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T21:41:35.163259Z'
-updated_at: '2026-08-01T23:02:29.371855Z'
+updated_at: '2026-08-01T23:03:24.226033Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -305,5 +305,10 @@ author: oompah
 created: 2026-08-01 23:02
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-08-01 23:03
+---
+Operator authority reasserted while the stale CI-fix run is registered. Preserve clean pushed head bdc4cf5d1 and terminate implementation; gate-key recovery follows after runtime repair.
 ---
 <!-- COMMENTS:END -->
