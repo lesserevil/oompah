@@ -8,10 +8,12 @@ parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- focus-complete:frontend
+- needs:feature
 assignee: null
 created_at: '2026-08-01T11:56:19.836343Z'
-updated_at: '2026-08-01T14:32:52.073165Z'
+updated_at: '2026-08-01T14:33:21.377336Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -140,5 +142,14 @@ author: oompah
 created: 2026-08-01 14:32
 ---
 Verification: PYTHONPATH=. pytest -q tests/test_projects_gitlab_ui.py tests/test_dashboard_intake_actions.py -> 106 passed; PYTHONPATH=. pytest -q tests/test_projects_crud.py -> 157 passed; git diff --check passed. The first pytest invocation hit an environment ImportPathMismatchError from /home/shedwards/src/oompah, resolved by explicitly prioritizing this worktree on PYTHONPATH.
+---
+author: oompah
+created: 2026-08-01 14:33
+---
+Focus handoff: frontend
+1. Outcome: completed the dashboard/projects UI portion. Protected projects now show an accessible ownerless configuration warning with a Configure owner identity action; onboarding accepts status_actor_login and status_label_authorized_logins; transition/intake failures render the authenticated actor, project owner configuration, and remediation in the board alert.
+2. Relevant files/evidence: oompah/templates/projects.html, oompah/templates/dashboard.html, tests/test_projects_gitlab_ui.py, tests/test_dashboard_intake_actions.py. Focused checks: PYTHONPATH=. pytest -q tests/test_projects_gitlab_ui.py tests/test_dashboard_intake_actions.py (106 passed); PYTHONPATH=. pytest -q tests/test_projects_crud.py (157 passed); git diff --check passed. Commit 95371a0da is pushed to origin/OOMPAH-677.
+3. Remaining work/risks: backend project create/update still only resolves token ownership for GitHub; GitLab and native Markdown configurations can remain ownerless. The API transition evaluator also needs the GitLab tracker included in the protected owner gate. Add structured rejection fields such as error.authenticated_actor and error.project_owner_config (the UI tolerates compatible aliases). Preserve server-side authenticated actor binding and do not authorize from client actor fields.
+4. Recommended next focus: backend/feature agent should implement shared owner identity resolution/validation for create and update, repair or clearly flag existing ownerless projects, extend gate coverage to GitLab, and add regression tests for the NodeVirt configuration and authenticated-owner/non-owner transitions.
 ---
 <!-- COMMENTS:END -->
