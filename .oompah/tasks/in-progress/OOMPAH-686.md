@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T22:19:41.486806Z'
-updated_at: '2026-08-01T22:54:06.730063Z'
+updated_at: '2026-08-01T22:54:20.405103Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -502,5 +502,10 @@ author: oompah
 created: 2026-08-01 22:54
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-08-01 22:54
+---
+Understanding: I am handling the current branch-gate failure only: diagnose the eight installed CLI smoke-test failures from the actual CI evidence, reproduce them locally where possible, apply the smallest deterministic fix with focused coverage, then commit, push, and submit the repaired OOMPAH-686 head.
 ---
 <!-- COMMENTS:END -->
