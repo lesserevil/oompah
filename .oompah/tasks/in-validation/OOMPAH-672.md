@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-672
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Preserve logging format placeholders during secret redaction
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T00:18:06.952783Z'
-updated_at: '2026-08-01T01:50:39.938265Z'
+updated_at: '2026-08-01T01:59:04.233976Z'
 work_branch: OOMPAH-672
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/635
@@ -134,6 +134,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/635
 oompah.review_number: '635'
 oompah.work_branch: OOMPAH-672
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-84436c19fbe0
+    project_id: proj-14849f1b
+    task_id: OOMPAH-672
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 07af63b09106d3fc6ac7cfee195f319ecbf35e17d6e82e9e1ccc33f519da04a0
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-01T01:58:59.389796+00:00'
+  - version: 1
+    audit_id: audit-3d76192e31bc
+    project_id: proj-14849f1b
+    task_id: OOMPAH-672
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 07af63b09106d3fc6ac7cfee195f319ecbf35e17d6e82e9e1ccc33f519da04a0
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-01T01:58:59.389796+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -214,5 +253,15 @@ author: oompah
 created: 2026-08-01 01:50
 ---
 Branch quality gate passed for `32eb28d5950c7c55f0455c74b9129e5657b5adf9` using `make test` in 388.4s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-01 01:59
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-01 01:59
+---
+YOLO: merged PR #635.
 ---
 <!-- COMMENTS:END -->
