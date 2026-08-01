@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T21:44:29.390457Z'
-updated_at: '2026-08-01T21:53:21.330428Z'
+updated_at: '2026-08-01T21:57:55.869320Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -158,5 +158,10 @@ author: oompah
 created: 2026-08-01 21:53
 ---
 Understanding: stale retry dispatch is surviving operator submission across retry, claim/running, tracker persistence, and event refresh boundaries. I will trace the submission and dispatch paths, identify the shared generation authority transition, add an atomic stale-callback fence and setup/worker quarantine behavior, then cover the listed race interleavings with deterministic tests.
+---
+author: oompah
+created: 2026-08-01 21:57
+---
+Discovery: _on_retry_timer retains a retry entry during refresh, but _dispatch writes In Progress before its final retry CAS. _cancel_retry_for_issue removes claimed but not claimed_issues and does not quarantine a registered worker. Parallel-epic workspace setup can persist oompah.integration=working before provider launch. The fix will share the per-task transition lock with submission, revoke exact generations, clear claim placeholders, quarantine live workers, and gate workspace metadata writes on live authority.
 ---
 <!-- COMMENTS:END -->
