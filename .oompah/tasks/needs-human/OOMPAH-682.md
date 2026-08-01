@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-682
 type: task
-status: In Progress
+status: Needs Human
 priority: null
 title: Make duplicate-preflight recovery authoritative and self-sufficient
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T18:07:47.349822Z'
-updated_at: '2026-08-01T20:08:43.766795Z'
+updated_at: '2026-08-01T20:16:22.098694Z'
 work_branch: OOMPAH-682
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/645
@@ -412,5 +412,13 @@ author: oompah
 created: 2026-08-01 20:08
 ---
 Implementation: added authenticated project-owner duplicate resolution with revision binding, status rearm, retry reset, audit metadata, and race-safe late-claim rejection. Duplicate investigators now receive a bounded tracker-backed peer corpus (including state-branch native tasks) wrapped as untrusted read-only prompt data. Verdict parsing accepts only current worker activity with the structured verdict first, ignoring task-comment injection. Updated Needs Human action text, dashboard recovery messaging, operator docs, and added focused API/lifecycle/prompt/corpus tests.
+---
+author: oompah
+created: 2026-08-01 20:16
+---
+Oompah could not durably preserve this worker's task worktree before retry. The worktree was left in place and no reset, clean, or retry was started. Reconcile the workspace and recovery evidence manually before resuming the task. Error: could not stage recovery snapshot for OOMPAH-682: The following paths are ignored by one of your .gitignore files:
+.oompah-no-hooks
+hint: Use -f if you really want to add them.
+hint: Disable this message with "git config set advice.addIgnoredFile false"
 ---
 <!-- COMMENTS:END -->
