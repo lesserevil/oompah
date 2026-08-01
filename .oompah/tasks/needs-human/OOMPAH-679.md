@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-679
 type: bug
-status: In Validation
+status: Needs Human
 priority: 0
 title: Reset activity panel identity when a task starts a new agent run
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T12:05:24.382952Z'
-updated_at: '2026-08-01T17:55:32.178833Z'
+updated_at: '2026-08-01T17:55:45.353972Z'
 work_branch: OOMPAH-679
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/641
@@ -180,6 +180,7 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-4cb5c0a64622: '2026-08-01T16:17:33.006061+00:00'
     infrastructure-exhausted-audit-b1375f6be9f8-1: '2026-08-01T16:27:56.350125+00:00'
+    no-auditor-audit-f270e771355e-1: '2026-08-01T17:55:39.932176+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-679
@@ -196,6 +197,7 @@ oompah.terminal_audit:
     evidence_fingerprint: 3b6f79304129fbf181aa3e54c58e68ce4375d0a6cc9f5184b65db1dadd238aee
     audit_ids:
     - audit-b1375f6be9f8
+    - audit-f270e771355e
     kind: result
     applied: true
     retired_at: '2026-08-01T16:27:56.350136+00:00'
@@ -224,6 +226,18 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-01T16:27:56.350149+00:00'
     applied_at: '2026-08-01T16:27:59.864309+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-679
+    audit_id: audit-f270e771355e
+    attempt_id: no-auditor-audit-f270e771355e-1
+    target_state: Merged
+    evidence_fingerprint: 3b6f79304129fbf181aa3e54c58e68ce4375d0a6cc9f5184b65db1dadd238aee
+    status: Needs Human
+    audit_ids:
+    - audit-f270e771355e
+    applied: true
+    created_at: '2026-08-01T17:55:39.932203+00:00'
+    applied_at: '2026-08-01T17:55:44.430273+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -312,7 +326,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-679
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -321,7 +335,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-168495564d3e
       target_state: Merged
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -331,13 +345,27 @@ oompah.terminal_audit:
       model: sonnet
       started_at: '2026-08-01T17:43:03.402637+00:00'
       branch_key: OOMPAH-679
+      ended_at: '2026-08-01T17:55:37.383221+00:00'
+      failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: no-auditor-audit-f270e771355e-1
+      target_state: Merged
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 3b6f79304129fbf181aa3e54c58e68ce4375d0a6cc9f5184b65db1dadd238aee
+      verdict: fail
+      failure_classification: no_auditor
+      created_at: '2026-08-01T17:55:39.932074+00:00'
+      completed_at: '2026-08-01T17:55:39.932074+00:00'
     requested_by:
       version: 1
       identity: oompah-cli
       source: api
     previous_state: In Review
     created_at: '2026-08-01T17:41:55.316334+00:00'
-    updated_at: '2026-08-01T17:43:03.402637+00:00'
+    updated_at: '2026-08-01T17:55:39.932074+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-4cb5c0a64622
@@ -372,7 +400,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-168495564d3e
     target_state: Merged
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -382,6 +410,8 @@ oompah.terminal_audit:
     model: sonnet
     started_at: '2026-08-01T17:43:03.402637+00:00'
     branch_key: OOMPAH-679
+    ended_at: '2026-08-01T17:55:37.383221+00:00'
+    failure_reason: auditor session abandoned; no live worker owns the attempt
 ---
 ## Summary
 
@@ -745,5 +775,12 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/s
 - Cost: $0.0000
 - Exit: terminated, Duration: 12m 6s
 - Log: OOMPAH-679__20260801T174329Z.jsonl
+---
+author: oompah
+created: 2026-08-01 17:55
+---
+Needs Human — Merged audit requires operator input.
+
+No independent auditor candidate is available for this audit (All eligible auditor candidates were already attempted for this audit.). Configure the `auditor` role with at least one healthy provider/model that is independent of the task contributors, then have a project owner rearm this terminal audit. Please review the audit output, decide the next step, and update this task with your instructions.
 ---
 <!-- COMMENTS:END -->
