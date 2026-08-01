@@ -12,7 +12,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-08-01T11:56:19.836343Z'
-updated_at: '2026-08-01T14:34:35.110543Z'
+updated_at: '2026-08-01T14:36:00.517266Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -194,5 +194,10 @@ author: oompah
 created: 2026-08-01 14:34
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-08-01 14:36
+---
+Understanding (chore focus): the remaining work described in the previous frontend handoff — shared owner-identity resolution/validation for project create+update (covering GitLab and oompah_md, not just GitHub), extending the transition_gate owner check for GitLab configurations, repairing/flagging existing ownerless projects, and adding regression tests for the NodeVirt configuration — is backend feature scope, not maintenance. The current maintenance-engineer role explicitly forbids scope expansion and refactors. The task's needs:feature label already requests the correct next specialist; this dispatch to chore appears to be a routing skip. Handing off to feature.
 ---
 <!-- COMMENTS:END -->
