@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-682
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Make duplicate-preflight recovery authoritative and self-sufficient
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T18:07:47.349822Z'
-updated_at: '2026-08-01T19:31:50.963839Z'
+updated_at: '2026-08-01T19:40:36.690735Z'
 work_branch: OOMPAH-682
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/645
@@ -87,6 +87,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/645
 oompah.review_number: '645'
 oompah.work_branch: OOMPAH-682
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-1349157c443b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-682
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 3baa534ed07547f1dad2d377b69c119e951fe10f057eb9511fe63613c7b6ee7f
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-01T19:40:31.840981+00:00'
+  - version: 1
+    audit_id: audit-89e1fed5fe91
+    project_id: proj-14849f1b
+    task_id: OOMPAH-682
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 3baa534ed07547f1dad2d377b69c119e951fe10f057eb9511fe63613c7b6ee7f
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-01T19:40:31.840981+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -245,5 +284,15 @@ author: oompah
 created: 2026-08-01 19:31
 ---
 Branch quality gate passed for `4978bf801cf8cbf43e4566403969e8e95b10c381` using `make test` in 407.6s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-01 19:40
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-01 19:40
+---
+YOLO: merged PR #645.
 ---
 <!-- COMMENTS:END -->
