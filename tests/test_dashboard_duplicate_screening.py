@@ -20,6 +20,8 @@ def test_dashboard_renders_all_duplicate_screening_states():
     assert "Duplicate check running" in html
     assert "Duplicate checked" in html
     assert "Duplicate check stale" in html
+    assert "summary.recovery_action" in html
+    assert "duplicate-screening-recovery" in html
     assert "${renderDuplicateScreeningSummary(issue.duplicate_screening)}" in html
     assert "renderDuplicateScreeningSummary(detail.duplicate_screening)" in html
 

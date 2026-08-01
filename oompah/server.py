@@ -144,6 +144,7 @@ from oompah.statuses import (
     BACKLOG,
     CANONICAL_STATUSES,
     DONE,
+    DUPLICATE_CANDIDATE,
     IN_VALIDATION,
     IN_PROGRESS,
     IN_REVIEW,
@@ -1877,6 +1878,16 @@ def _issue_duplicate_screening_summary(issue, orch) -> dict[str, Any] | None:
     )
     result = assessment.to_public_dict()
     result["required"] = enabled and eligible_for_model_screening(issue)
+    if (
+        canonicalize_status(getattr(issue, "state", None)) == NEEDS_HUMAN
+        and assessment.record is not None
+        and assessment.record.verdict.value == "inconclusive"
+    ):
+        result["recovery_action"] = (
+            "Project owner: use the authenticated duplicate-screening "
+            "owner-resolution action to record a conclusive decision and "
+            "rearm this task."
+        )
     return result
 
 
@@ -11568,8 +11579,9 @@ async def api_owner_resolve_duplicate_screening(identifier: str, request: Reques
                 status_code=400,
             )
 
-        # Validate verdict
-        verdict_str = body.get("verdict", "").strip()
+        # Validate verdict and all owner-supplied evidence at the API boundary.
+        verdict_raw = body.get("verdict", "")
+        verdict_str = verdict_raw.strip() if isinstance(verdict_raw, str) else ""
         if verdict_str not in {"no_duplicate", "duplicate_candidate"}:
             return JSONResponse(
                 {
@@ -11581,22 +11593,110 @@ async def api_owner_resolve_duplicate_screening(identifier: str, request: Reques
                 status_code=400,
             )
 
-        # Get actor login for authorization
-        actor_login = _actor_login_from_request(request)
+        matched_identifiers = body.get("matched_identifiers", [])
+        if matched_identifiers is None:
+            matched_identifiers = []
+        if not isinstance(matched_identifiers, list) or any(
+            not isinstance(identifier, str) or not identifier.strip()
+            for identifier in matched_identifiers
+        ):
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": "matched_identifiers must be a list of non-empty strings",
+                    }
+                },
+                status_code=400,
+            )
+        reason_raw = body.get("reason", "")
+        reason = reason_raw.strip() if isinstance(reason_raw, str) else ""
+        if not reason:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": "reason is required as owner evidence",
+                    }
+                },
+                status_code=400,
+            )
+        expected_fingerprint = body.get("task_fingerprint")
+        if expected_fingerprint is not None and (
+            not isinstance(expected_fingerprint, str) or not expected_fingerprint.strip()
+        ):
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": "task_fingerprint must be a non-empty string when supplied",
+                    }
+                },
+                status_code=400,
+            )
+        if isinstance(expected_fingerprint, str):
+            expected_fingerprint = expected_fingerprint.strip()
+
+        # Owner resolution is a protected operation, not an actor string
+        # supplied by a task comment or unauthenticated client header.
+        principal = _authenticated_principal(request)
+        if (
+            principal is None
+            or not principal.is_authenticated
+            or principal.source != "basic"
+        ):
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "authentication",
+                        "message": "Owner resolution requires an authenticated project owner",
+                    }
+                },
+                status_code=401,
+            )
+        actor_login, actor_conflict = _resolve_authorization_actor(body, request)
+        if actor_conflict is not None:
+            return actor_conflict
         if not actor_login:
             return JSONResponse(
                 {
                     "error": {
                         "code": "authentication",
-                        "message": "Cannot determine actor login — provide Authorization header or GitHub token",
+                        "message": "Authenticated user has no project actor identity",
                     }
                 },
                 status_code=401,
             )
 
         # Resolve tracker and project
-        project_id = body.get("project_id") or request.query_params.get("project_id")
-        managed_repo_req = (body.get("managed_repo") or "").strip() or None
+        project_id_raw = body.get("project_id") or request.query_params.get("project_id")
+        if project_id_raw is not None and not isinstance(project_id_raw, str):
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": "project_id must be a string when supplied",
+                    }
+                },
+                status_code=400,
+            )
+        project_id = (
+            project_id_raw.strip()
+            if isinstance(project_id_raw, str)
+            else None
+        )
+        managed_repo_raw = body.get("managed_repo")
+        if managed_repo_raw is not None and not isinstance(managed_repo_raw, str):
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": "managed_repo must be a string when supplied",
+                    }
+                },
+                status_code=400,
+            )
+        managed_repo_req = managed_repo_raw.strip() if managed_repo_raw else None
         if not project_id and not managed_repo_req:
             managed_repo_req = _managed_repo_from_issue_identifier(identifier)
 
@@ -11641,26 +11741,32 @@ async def api_owner_resolve_duplicate_screening(identifier: str, request: Reques
         from oompah.duplicate_screening import ScreeningVerdict
         try:
             verdict = ScreeningVerdict(verdict_str)
-            matched_identifiers = body.get("matched_identifiers") or []
-            reason = str(body.get("reason", "")).strip()
-
             success = orch._owner_resolve_duplicate_screening(
                 issue,
                 owner_login=actor_login,
                 verdict=verdict,
                 matched_identifiers=matched_identifiers,
                 reason=reason,
+                expected_fingerprint=expected_fingerprint,
             )
             if not success:
                 return JSONResponse(
                     {
                         "error": {
-                            "code": "failed",
-                            "message": f"Failed to apply owner resolution to {identifier}",
+                            "code": "stale_revision",
+                            "message": (
+                                "The task changed before the owner resolution was applied; "
+                                "review the current task and retry."
+                            ),
                         }
                     },
-                    status_code=500,
+                    status_code=409,
                 )
+
+            _api_cache.invalidate(f"detail:{project_id}:{issue.identifier}")
+            _api_cache.invalidate_prefix(f"detail:{project_id}:{issue.identifier}")
+            _api_cache.invalidate("issues:all")
+            orch.request_refresh()
 
             return JSONResponse(
                 {
@@ -11669,6 +11775,12 @@ async def api_owner_resolve_duplicate_screening(identifier: str, request: Reques
                     "verdict": verdict_str,
                     "owner_login": actor_login,
                     "reason": reason,
+                    "status": (
+                        OPEN
+                        if verdict == ScreeningVerdict.NO_DUPLICATE
+                        else DUPLICATE_CANDIDATE
+                    ),
+                    "retry_count": 0,
                 },
                 status_code=200,
             )

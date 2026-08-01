@@ -19,7 +19,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from enum import Enum
-from typing import Any
+from typing import Any, Iterable
 
 from oompah.models import Issue
 from oompah.statuses import OPEN, canonicalize_status
@@ -258,6 +258,11 @@ class ScreeningAssessment:
             "matched_identifiers": list(record.matched_identifiers) if record else [],
             "claim_started_at": _iso(record.claimed_at) if record else None,
             "claim_expires_at": _iso(record.claim_expires_at) if record else None,
+            "owner_resolved": bool(record and record.is_owner_resolved),
+            "owner_login": record.owner_login if record else None,
+            "owner_resolution_reason": (
+                record.owner_resolution_reason if record else ""
+            ),
         }
 
 
@@ -472,6 +477,9 @@ def owner_resolution_record(
     """
 
     now = now or datetime.now(timezone.utc)
+    normalized_owner = str(owner_login or "").strip()
+    if not normalized_owner:
+        raise ValueError("Owner resolution requires an authenticated owner login")
     if verdict not in {ScreeningVerdict.NO_DUPLICATE, ScreeningVerdict.DUPLICATE_CANDIDATE}:
         raise ValueError(
             f"Owner resolution only accepts conclusive verdicts, got {verdict}"
@@ -492,6 +500,6 @@ def owner_resolution_record(
         evidence=str(reason or "").strip(),
         retry_count=0,  # Reset retry budget on owner resolution
         owner_resolved_at=now,
-        owner_login=str(owner_login or "").strip(),
+        owner_login=normalized_owner,
         owner_resolution_reason=str(reason or "").strip(),
     )

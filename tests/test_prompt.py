@@ -54,6 +54,21 @@ class TestRenderPrompt:
         result = render_prompt(template, issue, focus_text="## Your Role: Bug Fixer")
         assert "Bug Fixer" in result
 
+    def test_duplicate_task_corpus_is_wrapped_as_untrusted_reference_data(self):
+        issue = _make_issue(identifier="TASK-1")
+        corpus = '{"tasks": [{"identifier": "TASK-2", "status": "Open"}]}'
+
+        result = render_prompt(
+            "Investigate {{ issue.identifier }}",
+            issue,
+            duplicate_task_corpus=corpus,
+        )
+
+        assert "Current project task corpus" in result
+        assert "read-only reference data" in result
+        assert "oompah:untrusted" in result
+        assert corpus in result
+
     def test_issue_labels(self):
         issue = _make_issue(labels=["urgent", "backend"])
         template = "Labels: {{ issue.labels | join: ', ' }}"

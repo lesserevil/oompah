@@ -281,6 +281,11 @@ _DUPLICATE_PREFLIGHT_VERDICT_RE = re.compile(
 _DUPLICATE_PREFLIGHT_MATCHES_RE = re.compile(
     r"(?im)^\s*matches:\s*(.+?)\s*$"
 )
+_DUPLICATE_PREFLIGHT_HANDOFF_RE = re.compile(
+    r"(?i)^focus handoff:\s*duplicate_detector\s*$"
+)
+_DUPLICATE_CORPUS_MAX_TASKS = 100
+_DUPLICATE_CORPUS_MAX_BYTES = 96 * 1024
 
 logger = logging.getLogger(__name__)
 
@@ -9169,8 +9174,14 @@ class Orchestrator:
             assessment = self._duplicate_screening_assessment(fresh)
             if assessment.state in {ScreeningState.RUNNING, ScreeningState.CHECKED}:
                 return None
-            if (
+            exhausted_rearm = bool(
                 assessment.record is not None
+                and assessment.record.retry_count >= _DUPLICATE_PREFLIGHT_MAX_RETRIES
+                and canonicalize_status(fresh.state) == OPEN
+            )
+            if (
+                not exhausted_rearm
+                and assessment.record is not None
                 and assessment.record.retry_after is not None
                 and assessment.record.retry_after > datetime.now(timezone.utc)
             ):
@@ -9198,6 +9209,11 @@ class Orchestrator:
             previous_retries = (
                 assessment.record.retry_count if assessment.record is not None else 0
             )
+            if exhausted_rearm:
+                # Returning a Needs Human task to Open is an explicit rearm.
+                # Start a new bounded retry budget instead of booking attempt
+                # four, and clear the old backoff as part of the new claim.
+                previous_retries = 0
             claim = new_claim_record(
                 fresh,
                 owner=str(getattr(self, "_service_instance_id", "scheduler")),
@@ -9260,6 +9276,7 @@ class Orchestrator:
         verdict: ScreeningVerdict,
         matched_identifiers: Iterable[str] = (),
         reason: str = "",
+        expected_fingerprint: str | None = None,
     ) -> bool:
         """Apply an owner-authorized duplicate resolution.
         
@@ -9276,6 +9293,12 @@ class Orchestrator:
                 verdict,
             )
             return False
+        if not str(owner_login or "").strip() or not str(reason or "").strip():
+            logger.warning(
+                "Owner resolution for %s is missing actor attribution or evidence",
+                issue.identifier,
+            )
+            return False
 
         project_key = str(issue.project_id or "__legacy_duplicate_preflight__")
         lock = self._get_project_maintenance_lock(project_key)
@@ -9290,23 +9313,185 @@ class Orchestrator:
                 return False
             if not fresh.project_id:
                 fresh.project_id = issue.project_id
-            record = load_duplicate_screening_record(tracker, fresh)
-            if record is None:
-                # Create a new record if none exists
-                record = DuplicateScreeningRecord(
-                    task_fingerprint=compute_task_fingerprint(fresh),
-                    detector_version=DUPLICATE_DETECTOR_VERSION,
+            current_fingerprint = compute_task_fingerprint(fresh)
+            if expected_fingerprint and expected_fingerprint != current_fingerprint:
+                logger.info(
+                    "Rejecting stale owner resolution for %s: expected fingerprint "
+                    "%s, current fingerprint %s",
+                    issue.identifier,
+                    expected_fingerprint,
+                    current_fingerprint,
                 )
+                return False
+            record = load_duplicate_screening_record(tracker, fresh)
+            # Always bind the owner decision to the revision read while holding
+            # the project lock.  Reusing an older record would make a decision
+            # for a changed task appear stale or, worse, qualify the wrong
+            # content.
+            record = DuplicateScreeningRecord(
+                task_fingerprint=current_fingerprint,
+                detector_version=DUPLICATE_DETECTOR_VERSION,
+                retry_count=(
+                    record.retry_count
+                    if record is not None
+                    and record.task_fingerprint == current_fingerprint
+                    else 0
+                ),
+            )
+            normalized_matches = tuple(
+                dict.fromkeys(
+                    str(identifier).strip()
+                    for identifier in matched_identifiers
+                    if str(identifier).strip()
+                )
+            )
+            if verdict == ScreeningVerdict.DUPLICATE_CANDIDATE:
+                if not normalized_matches:
+                    raise ValueError(
+                        "duplicate_candidate owner resolution requires an active match"
+                    )
+                invalid_matches: list[str] = []
+                for identifier in normalized_matches:
+                    if identifier == fresh.identifier:
+                        invalid_matches.append(identifier)
+                        continue
+                    candidate = tracker.fetch_issue_detail(identifier)
+                    if candidate is None or _is_terminal_state(
+                        candidate.state,
+                        self.config.tracker_terminal_states,
+                    ):
+                        invalid_matches.append(identifier)
+                if invalid_matches:
+                    raise ValueError(
+                        "Owner resolution referenced missing, self, or terminal task(s): "
+                        + ", ".join(invalid_matches)
+                    )
             resolved = owner_resolution_record(
                 record,
                 owner_login=owner_login,
                 verdict=verdict,
                 reason=reason,
-                matched_identifiers=matched_identifiers,
+                matched_identifiers=normalized_matches,
             )
             save_duplicate_screening_record(tracker, fresh, resolved)
+            persisted = load_duplicate_screening_record(tracker, fresh)
+            if (
+                persisted is None
+                or persisted.task_fingerprint != current_fingerprint
+                or not persisted.is_owner_resolved
+                or persisted.owner_login != resolved.owner_login
+            ):
+                logger.warning(
+                    "Owner resolution write was superseded for %s",
+                    issue.identifier,
+                )
+                return False
+            tracker.update_issue(
+                fresh.identifier,
+                status=(
+                    OPEN
+                    if verdict == ScreeningVerdict.NO_DUPLICATE
+                    else DUPLICATE_CANDIDATE
+                ),
+            )
+            fresh.state = (
+                OPEN if verdict == ScreeningVerdict.NO_DUPLICATE else DUPLICATE_CANDIDATE
+            )
             issue.duplicate_screening = resolved.to_dict()
+            issue.state = fresh.state
             return True
+
+    def _duplicate_preflight_task_corpus(self, tracker: Any, issue: Issue) -> str:
+        """Return a bounded, project-scoped read-only peer-task corpus.
+
+        Native task files may live only in the tracker state branch, which is
+        intentionally absent from implementation worktrees.  The tracker is
+        therefore the authority for this context; callers must not make the
+        investigator discover peers by reading the worker checkout.
+        """
+
+        try:
+            tasks = list(tracker.fetch_all_issues())
+        except Exception as exc:
+            logger.info(
+                "Duplicate investigator corpus unavailable for %s: %s",
+                issue.identifier,
+                exc,
+            )
+            return json.dumps(
+                {
+                    "availability": "unavailable",
+                    "reason": "The project task tracker could not provide a read-only corpus.",
+                },
+                ensure_ascii=False,
+            )
+
+        current_project = str(issue.project_id or "").strip()
+        scoped: list[Issue] = []
+        for task in tasks:
+            task_project = str(getattr(task, "project_id", "") or "").strip()
+            # A project-scoped tracker normally omits project_id on native
+            # records.  Only reject an explicitly different project.
+            if current_project and task_project and task_project != current_project:
+                continue
+            scoped.append(task)
+        scoped.sort(
+            key=lambda task: (
+                0 if task.identifier == issue.identifier else 1,
+                str(getattr(task, "state", "") or ""),
+                str(getattr(task, "identifier", "") or ""),
+            )
+        )
+
+        rows: list[dict[str, Any]] = []
+        total_bytes = 0
+
+        def _clip(value: object, limit: int) -> str:
+            text = str(value or "")
+            return text if len(text) <= limit else text[:limit] + "\n[truncated]"
+
+        for task in scoped[:_DUPLICATE_CORPUS_MAX_TASKS]:
+            try:
+                comments = compact_prompt_comments(
+                    task,
+                    tracker.fetch_comments(task.identifier),
+                    max_comments=4,
+                    max_bytes=3000,
+                )
+            except Exception:
+                comments = []
+            row = {
+                "identifier": task.identifier,
+                "title": _clip(task.title, 500),
+                "status": task.state,
+                "issue_type": task.issue_type,
+                "description": _clip(task.description, 2500),
+                "comments": [
+                    {
+                        "author": str(comment.get("author") or ""),
+                        "created_at": str(comment.get("created_at") or ""),
+                        "text": _clip(comment.get("text"), 900),
+                    }
+                    for comment in comments
+                    if isinstance(comment, dict)
+                ],
+            }
+            encoded = json.dumps(row, ensure_ascii=False, separators=(",", ":"))
+            if rows and total_bytes + len(encoded.encode("utf-8")) > _DUPLICATE_CORPUS_MAX_BYTES:
+                break
+            rows.append(row)
+            total_bytes += len(encoded.encode("utf-8"))
+
+        return json.dumps(
+            {
+                "availability": "authoritative",
+                "scope": "current project tracker",
+                "current_task": issue.identifier,
+                "tasks": rows,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
 
     def _renew_duplicate_preflight_claims(self) -> int:
         """Renew live claims near half-life; stale claims are left for retry."""
@@ -9398,8 +9583,14 @@ class Orchestrator:
             if assessment.state == ScreeningState.RUNNING:
                 metrics["skipped_running"] += 1
                 continue
-            if (
+            exhausted_rearm = bool(
                 assessment.record is not None
+                and assessment.record.retry_count >= _DUPLICATE_PREFLIGHT_MAX_RETRIES
+                and canonicalize_status(issue.state) == OPEN
+            )
+            if (
+                not exhausted_rearm
+                and assessment.record is not None
                 and assessment.record.retry_after is not None
                 and assessment.record.retry_after > datetime.now(timezone.utc)
             ):
@@ -25028,6 +25219,11 @@ class Orchestrator:
         project_obj = (
             self.project_store.get(issue.project_id) if issue.project_id else None
         )
+        prompt_running_entry = self.state.running.get(issue.id)
+        read_only_preflight = bool(
+            prompt_running_entry
+            and getattr(prompt_running_entry, "duplicate_preflight", False)
+        )
 
         try:
             # Run blocking setup work in thread to avoid blocking event loop
@@ -25050,16 +25246,26 @@ class Orchestrator:
                 )
                 self._clear_handoff_labels(issue)
 
-                # Fetch comments and memories
+                duplicate_task_corpus = None
+                # Fetch comments and memories from the project-scoped tracker.
                 try:
                     tracker = self._tracker_for_issue(issue)
                     comments = tracker.fetch_comments(issue.identifier)
                 except Exception:
                     comments = []
+                    tracker = None
                 try:
-                    memories = tracker.fetch_memories()
+                    memories = tracker.fetch_memories() if tracker is not None else {}
                 except Exception:
                     memories = {}
+                if (
+                    read_only_preflight
+                    and tracker is not None
+                    and focus.name.lower() == "duplicate_detector"
+                ):
+                    duplicate_task_corpus = self._duplicate_preflight_task_corpus(
+                        tracker, issue
+                    )
 
                 audit_target = None
                 auditor_context = None
@@ -25140,6 +25346,7 @@ class Orchestrator:
                     project=project_obj,
                     repo_map_context=repo_map_ctx.text if repo_map_ctx else None,
                     auditor_context=auditor_context,
+                    duplicate_task_corpus=duplicate_task_corpus,
                 )
                 return wp, rendered, attachments, audit_target
 
@@ -25278,7 +25485,8 @@ class Orchestrator:
                     if focus.name.lower() == AUDITOR_FOCUS_NAME
                     else (
                         "You are a read-only duplicate investigator. Inspect the "
-                        "repository and return the required structured verdict. "
+                        "authoritative project task corpus and return the required "
+                        "structured verdict first, before optional narrative. "
                         "Do not modify files or tracker state. "
                     )
                     if read_only_preflight
@@ -25576,6 +25784,11 @@ class Orchestrator:
         project_obj = (
             self.project_store.get(issue.project_id) if issue.project_id else None
         )
+        prompt_running_entry = self.state.running.get(issue.id)
+        read_only_preflight = bool(
+            prompt_running_entry
+            and getattr(prompt_running_entry, "duplicate_preflight", False)
+        )
 
         try:
 
@@ -25596,15 +25809,25 @@ class Orchestrator:
                 )
                 self._clear_handoff_labels(issue)
 
+                duplicate_task_corpus = None
                 try:
                     tracker = self._tracker_for_issue(issue)
                     comments = tracker.fetch_comments(issue.identifier)
                 except Exception:
                     comments = []
+                    tracker = None
                 try:
-                    memories = tracker.fetch_memories()
+                    memories = tracker.fetch_memories() if tracker is not None else {}
                 except Exception:
                     memories = {}
+                if (
+                    read_only_preflight
+                    and tracker is not None
+                    and focus.name.lower() == "duplicate_detector"
+                ):
+                    duplicate_task_corpus = self._duplicate_preflight_task_corpus(
+                        tracker, issue
+                    )
 
                 audit_target = None
                 auditor_context = None
@@ -25682,6 +25905,7 @@ class Orchestrator:
                     project=project_obj,
                     repo_map_context=repo_map_ctx.text if repo_map_ctx else None,
                     auditor_context=auditor_context,
+                    duplicate_task_corpus=duplicate_task_corpus,
                 )
                 return wp, rendered, attachments, audit_target
 
@@ -26367,10 +26591,20 @@ class Orchestrator:
                     cli_comments = tracker.fetch_comments(issue.identifier)
                 except Exception:
                     cli_comments = []
+                    tracker = None
                 try:
-                    cli_memories = tracker.fetch_memories()
+                    cli_memories = tracker.fetch_memories() if tracker is not None else {}
                 except Exception:
                     cli_memories = {}
+                cli_duplicate_task_corpus = None
+                if (
+                    tracker is not None
+                    and getattr(cli_running, "duplicate_preflight", False)
+                    and cli_focus.name.lower() == "duplicate_detector"
+                ):
+                    cli_duplicate_task_corpus = self._duplicate_preflight_task_corpus(
+                        tracker, issue
+                    )
 
                 cli_project_obj = (
                     self.project_store.get(issue.project_id)
@@ -26415,6 +26649,7 @@ class Orchestrator:
                             repo_map_context=(
                                 cli_repo_map_ctx.text if cli_repo_map_ctx else None
                             ),
+                            duplicate_task_corpus=cli_duplicate_task_corpus,
                         )
                     else:
                         prompt = build_continuation_prompt(
@@ -27271,12 +27506,15 @@ class Orchestrator:
         claimed_at: datetime | None,
         activity_log: list[Any] | None = None,
     ) -> tuple[ScreeningVerdict | None, list[str], str]:
-        """Parse one unambiguous claim-era verdict from comments or activity.
+        """Parse one unambiguous verdict from the current worker activity.
 
-        The model's final response is the primary result channel; requiring it
-        to mutate the tracker made a qualification-only worker unnecessarily
-        powerful.  Ordinary Markdown decoration around the structured lines is
-        tolerated, while conflicting verdicts fail closed.
+        Task comments are reference data and are never a result channel: a
+        project user must not be able to inject a conclusive verdict while a
+        claim is running.  ``activity_log`` is populated only by the server's
+        current worker callback, which is guarded by the dispatch run ID.
+        The machine-readable verdict must be the first substantive output
+        (after the optional focus-handoff header), so truncation after it still
+        produces a safe result while prose-only output remains inconclusive.
         """
 
         def _normalize_result_text(value: object) -> str:
@@ -27287,30 +27525,13 @@ class Orchestrator:
                 lines.append(line)
             return "\n".join(lines)
 
+        # ``comments`` is intentionally unused.  Keep the parameter for the
+        # stable helper signature and for callers that still pass tracker
+        # history, but never allow user-authored task text to qualify a task.
+        del comments
+
         sources: list[tuple[float, str]] = []
         claimed_ts = claimed_at.timestamp() if claimed_at is not None else None
-        for index, comment in enumerate(comments or []):
-            if not isinstance(comment, dict):
-                continue
-            text = str(comment.get("text") or "").strip()
-            if not text:
-                continue
-            created_raw = comment.get("created_at") or comment.get("created")
-            created_ts = float(index)
-            if claimed_at is not None and isinstance(created_raw, str):
-                try:
-                    created = datetime.fromisoformat(
-                        created_raw.replace("Z", "+00:00")
-                    )
-                    if created.tzinfo is None:
-                        created = created.replace(tzinfo=timezone.utc)
-                    if created.astimezone(timezone.utc) < claimed_at:
-                        continue
-                    created_ts = created.timestamp()
-                except ValueError:
-                    pass
-            sources.append((created_ts, text))
-
         for index, activity in enumerate(activity_log or []):
             kind = str(getattr(activity, "kind", "") or "").lower()
             if kind not in {"message", "assistant", "text"}:
@@ -27329,14 +27550,18 @@ class Orchestrator:
         parsed: list[tuple[float, ScreeningVerdict, list[str], str]] = []
         for timestamp, raw_text in sources:
             text = _normalize_result_text(raw_text)
-            matches = list(_DUPLICATE_PREFLIGHT_VERDICT_RE.finditer(text))
-            if not matches:
+            lines = [line for line in text.splitlines() if line.strip()]
+            if lines and _DUPLICATE_PREFLIGHT_HANDOFF_RE.fullmatch(lines[0]):
+                lines = lines[1:]
+            if not lines:
                 continue
-            verdict_values = {match.group(1).lower() for match in matches}
-            if len(verdict_values) != 1:
-                return None, [], "Conflicting duplicate preflight verdicts."
-            verdict = ScreeningVerdict(verdict_values.pop())
-            matches_line = _DUPLICATE_PREFLIGHT_MATCHES_RE.search(text)
+            verdict_match = _DUPLICATE_PREFLIGHT_VERDICT_RE.fullmatch(lines[0])
+            if verdict_match is None:
+                continue
+            verdict = ScreeningVerdict(verdict_match.group(1).lower())
+            matches_line = _DUPLICATE_PREFLIGHT_MATCHES_RE.search(
+                "\n".join(lines[1:])
+            )
             identifiers: list[str] = []
             if matches_line is not None:
                 raw_matches = matches_line.group(1).strip()
@@ -27420,10 +27645,9 @@ class Orchestrator:
             matched_identifiers: list[str] = []
             evidence = str(error or "").strip()
             if reason == "normal":
-                comments = tracker.fetch_comments(entry.identifier)
                 verdict, matched_identifiers, evidence = (
                     self._parse_duplicate_preflight_verdict(
-                        comments,
+                        [],
                         claimed_at=record.claimed_at,
                         activity_log=entry.activity_log,
                     )
@@ -27500,10 +27724,16 @@ class Orchestrator:
                     entry.identifier,
                     (
                         f"Duplicate screening was inconclusive {retry_count} "
-                        "times. Human action required: review the latest "
-                        "duplicate-screening comments, then either identify the "
-                        "active canonical duplicate or confirm that no active "
-                        "duplicate exists and move the task back to Open."
+                        "times. Human action required: a project owner must "
+                        "review the authoritative task corpus and use the "
+                        "authenticated duplicate-screening owner-resolution "
+                        f"action (POST /api/v1/issues/{entry.identifier}/duplicate-"
+                        "screening/owner-resolution) with a conclusive verdict "
+                        "and reason. This records the owner decision, resets "
+                        "the retry budget, and returns no_duplicate tasks to "
+                        "Open (or routes a verified duplicate to Duplicate "
+                        "Candidate). A plain verdict comment is not "
+                        "authoritative."
                     ),
                 )
                 issue.state = NEEDS_HUMAN

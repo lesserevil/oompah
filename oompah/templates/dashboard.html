@@ -4916,11 +4916,15 @@ function renderDuplicateScreeningSummary(summary) {
   const label = labels[state] || 'Duplicate screening';
   const detail = summary.reason || label;
   const checked = summary.checked_at ? ` Checked ${summary.checked_at}.` : '';
+  const recovery = summary.recovery_action
+    ? `<div class="duplicate-screening-recovery" role="note">${esc(summary.recovery_action)}</div>`
+    : '';
   return `
     <div class="duplicate-screening-summary duplicate-screening-${esc(state)}"
          role="status" title="${esc(detail + checked)}"
          aria-label="${esc(label + ': ' + detail)}">
       <span class="duplicate-screening-pill">${esc(label)}</span>
+      ${recovery}
     </div>
   `;
 }
