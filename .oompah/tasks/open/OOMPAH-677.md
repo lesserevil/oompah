@@ -13,7 +13,7 @@ labels:
 - focus-complete:chore
 assignee: null
 created_at: '2026-08-01T11:56:19.836343Z'
-updated_at: '2026-08-01T14:36:38.799797Z'
+updated_at: '2026-08-01T14:37:00.968034Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -60,13 +60,17 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 31b6c5ff-f494-4de0-9a0d-b142fe528fc8
 oompah.task_costs:
-  total_input_tokens: 3543845
-  total_output_tokens: 19897
+  total_input_tokens: 3543882
+  total_output_tokens: 20808
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 3543845
       output_tokens: 19897
+      cost_usd: 0.0
+    opus:
+      input_tokens: 37
+      output_tokens: 911
       cost_usd: 0.0
   runs:
   - profile: default
@@ -81,6 +85,12 @@ oompah.task_costs:
     output_tokens: 15068
     cost_usd: 0.0
     recorded_at: '2026-08-01T14:33:41.264936+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 37
+    output_tokens: 911
+    cost_usd: 0.0
+    recorded_at: '2026-08-01T14:36:58.792301+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-677__20260801T142515Z
@@ -209,5 +219,15 @@ Focus handoff: chore
 2. Relevant files/evidence: oompah/projects.py (create ~L918, update UPDATABLE_FIELDS ~L1160 and validators ~L1290-1420 — no owner identity resolution/validation for GitLab or oompah_md; only GitHub owner is inferred from repo URL for GitHub-backed trackers around L1091-1103), oompah/actor_mapping.py (server principal → project actor login mapping, healthy for reuse), oompah/transition_gate.py (is_project_owner + check_intake_transition — logic is tracker-agnostic but the callers/config surface still assume GitHub owners; verify GitLab coverage during implementation), oompah/intake_promotion.py, oompah/gitlab_tracker.py, oompah/github_tracker.py. Previous UI work is committed as 95371a0da on origin/OOMPAH-677 and 106 focused UI tests plus 157 project CRUD tests were green.
 3. Remaining work/risks: (a) add a shared _resolve_owner_identity helper used by ProjectStore.create and ProjectStore.update that derives status_actor_login from the repo_url or authenticated tracker credentials for GitHub, GitLab, and native Markdown (when github_issue_intake_enabled is False the derivation must still succeed for the operator's forge or fall back to the authenticated server principal), and rejects a dispatchable project that would end up ownerless — never trusting client-supplied actor fields; (b) at update time, block clearing status_actor_login/status_label_authorized_logins/tracker_owner if the project would become ownerless while paused=False, and surface a structured error with error.authenticated_actor and error.project_owner_config that the dashboard already tolerates; (c) run a one-shot repair on load that marks any pre-existing ownerless project with a health flag consumed by projects.html (already renders it); (d) confirm the transition_gate protected-owner set covers GitLab configurations (add unit tests where the project has forge_kind=gitlab and only status_actor_login set); (e) regression tests reproducing NodeVirt (tracker_kind=oompah_md, no status_actor_login/tracker_owner/status_label_authorized_logins) that prove: creation is now rejected or the project is created paused-with-warning, update to un-pause without owner is rejected, authenticated owner promotes Backlog→Open successfully, non-owner is still rejected. Preserve server-side authenticated actor binding via oompah.actor_mapping.ActorMap.resolve; do not authorize from client actor fields.
 4. Recommended next focus: feature (backend). The task already carries needs:feature.
+---
+author: oompah
+created: 2026-08-01 14:37
+---
+Run #1 [attempt=1, profile=deep, role=deep -> Claude/opus]
+- Turns: 0, Tool calls: 19
+- Tokens: 37 in / 911 out [948 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 2m 29s
+- Log: OOMPAH-677__20260801T143437Z.jsonl
 ---
 <!-- COMMENTS:END -->
