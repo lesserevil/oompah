@@ -8,6 +8,7 @@ from enum import Enum
 from typing import Any
 
 import logging
+import uuid
 
 from .integration import IntegrationRecord
 
@@ -1439,6 +1440,10 @@ class RunningEntry:
     # Unique assignment identity for this worker run.  Retry authority is
     # bound to this value so a replacement assignment cannot inherit it.
     assignment_id: str | None = None
+    # Unique in-process identity for this dispatch. Unlike assignment_id,
+    # this is present for every run and is used by UI/activity consumers to
+    # reject events that belong to a superseded worker.
+    run_id: str = field(default_factory=lambda: uuid.uuid4().hex)
     authority_generation: str | None = None
 
 

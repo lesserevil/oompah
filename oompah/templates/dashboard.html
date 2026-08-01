@@ -2574,7 +2574,7 @@ function connectWebSocket() {
           _updateTaskStateStaleBanner(false);
         }
       } else if (msg.type === 'activity') {
-        handleActivityPush(msg.identifier, msg.entry);
+        handleActivityPush(msg.identifier, msg.run_id, msg.entry);
         if (_openDetailIdentifier && msg.identifier === _openDetailIdentifier) {
           refreshOpenDetailPanel();
         }
@@ -2758,8 +2758,9 @@ function renderRunningAgentChips(running, paused) {
   container.innerHTML = visibleRunning.map(r => {
     const rawId = r.issue_identifier || '';
     const id = esc(rawId);
+    const runId = esc(r.run_id || '');
     const displayId = esc(displayIdentifierFor(rawId, r.project_id, r.project_name, r.display_identifier));
-    return '<span class="running-agent-chip" onclick="openActivityPanel(&quot;' + id + '&quot;)">' +
+    return '<span class="running-agent-chip" onclick="openActivityPanel(&quot;' + id + '&quot;,&quot;' + runId + '&quot;)">' +
       '<span class="dot"></span>' +
       displayId +
       (r.agent_profile ? ' (' + esc(r.agent_profile) + ')' : '') +
@@ -3196,26 +3197,10 @@ function handleStateUpdate(state) {
     }
   }
 
-  // Update activity panel if open
-  const activityOverlay = document.getElementById('activity-overlay');
-  if (activityOverlay && activityOverlay.classList.contains('open')) {
-    const activeId = document.getElementById('activity-title').dataset.identifier;
-    const agent = running.find(r => r.issue_identifier === activeId);
-    if (agent && agent.focus_role) {
-      // Update title with latest focus info
-      let title = 'Agent: ' + displayIdentifierFor(
-        agent.issue_identifier,
-        agent.project_id,
-        agent.project_name,
-        agent.display_identifier
-      );
-      const parts = [];
-      if (agent.focus_role) parts.push(agent.focus_role);
-      if (agent.agent_profile) parts.push(agent.agent_profile);
-      if (parts.length > 0) title += ' — ' + parts.join(' · ');
-      document.getElementById('activity-title').textContent = title;
-    }
-  }
+  // Keep the open activity panel tied to the exact worker lifecycle. This
+  // also intentionally renders a title with no role while a replacement run
+  // is still resolving its focus, so the previous role cannot linger.
+  syncOpenActivityPanel(running);
 }
 
 // --- Orchestrator state (legacy fallback, replaced by WebSocket) ---
@@ -5284,6 +5269,10 @@ let activityPollTimer = null;
 // Verbose toggle to re-render without a network round-trip and by
 // handleActivityPush to keep the cache in sync with what the server pushes.
 let _activityEntries = [];
+// The run identity currently owning the panel. Issue identifiers are reused
+// across preflight/implementation runs, so they are not sufficient here.
+let _activityRunId = null;
+let _activityRequestGeneration = 0;
 // Returns true when a string's trimmed form is a complete, self-contained
 // JSON object or array — used to hide raw JSON blobs in compact
 // (Verbose=OFF) mode while letting plain-text content through.
@@ -5327,18 +5316,7 @@ function toggleAgentLogVerbose() {
   renderActivitySummary(_activityEntries);
 }
 
-async function openActivityPanel(identifier) {
-  // Cancel any prior agent's poll loop AND wipe state immediately so
-  // we don't render leftover entries from the previously-viewed agent
-  // while the new fetch is in flight.
-  if (activityPollTimer) { clearInterval(activityPollTimer); activityPollTimer = null; }
-  _activityEntries = [];
-  const bodyEl = document.getElementById('activity-body');
-  if (bodyEl) bodyEl.innerHTML = '';
-  const summaryEl = document.getElementById('activity-summary');
-  if (summaryEl) summaryEl.textContent = 'Loading...';
-
-  const agent = lastRunningAgents.find(r => r.issue_identifier === identifier);
+function activityTitleForAgent(identifier, agent) {
   const issue = allIssuesFlat.find(i => i.identifier === identifier);
   const displayIdentifier = agent
     ? displayIdentifierFor(agent.issue_identifier, agent.project_id, agent.project_name, agent.display_identifier)
@@ -5350,23 +5328,101 @@ async function openActivityPanel(identifier) {
     if (agent.agent_profile) parts.push(agent.agent_profile);
     if (parts.length > 0) title += ' — ' + parts.join(' · ');
   }
+  return title;
+}
+
+function clearActivityPanelData(message) {
+  if (activityPollTimer) { clearInterval(activityPollTimer); activityPollTimer = null; }
+  _activityEntries = [];
+  const bodyEl = document.getElementById('activity-body');
+  if (bodyEl) {
+    bodyEl.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:2rem;">' +
+      esc(message || 'Loading...') + '</div>';
+  }
+  const summaryEl = document.getElementById('activity-summary');
+  if (summaryEl) summaryEl.textContent = message || 'Loading...';
+}
+
+function setActivityPanelIdentity(identifier, agent, runId, resetMetadata = true) {
   const titleEl = document.getElementById('activity-title');
-  titleEl.textContent = title;
-  titleEl.dataset.identifier = identifier;
+  if (titleEl) {
+    titleEl.textContent = activityTitleForAgent(identifier, agent);
+    titleEl.dataset.identifier = identifier;
+    titleEl.dataset.runId = runId || '';
+  }
+  _activityRunId = runId || null;
 
   // Populate provider/model metadata line from the running agent snapshot.
   const pmEl = document.getElementById('activity-provider-model');
-  if (pmEl) {
+  if (pmEl && (resetMetadata || (agent && (agent.provider_name || agent.model_name)))) {
     const providerName = agent && agent.provider_name ? agent.provider_name : null;
     const modelName = agent && agent.model_name ? agent.model_name : null;
     setActivityProviderModel(pmEl, providerName, modelName);
   }
+}
+
+function syncOpenActivityPanel(running) {
+  const overlay = document.getElementById('activity-overlay');
+  if (!overlay || !overlay.classList.contains('open')) return;
+  const titleEl = document.getElementById('activity-title');
+  if (!titleEl) return;
+  const identifier = titleEl.dataset.identifier;
+  const agent = (running || []).find(r => r.issue_identifier === identifier);
+  const currentRunId = titleEl.dataset.runId || '';
+
+  if (!agent) {
+    if (currentRunId) {
+      _activityRequestGeneration++;
+      clearActivityPanelData('Run ended. Waiting for next run...');
+      setActivityPanelIdentity(identifier, null, null);
+      titleEl.textContent = activityTitleForAgent(identifier, null) + ' — run ended';
+    }
+    return;
+  }
+
+  const nextRunId = agent.run_id || '';
+  const runChanged = currentRunId !== nextRunId;
+  if (runChanged) {
+    _activityRequestGeneration++;
+    clearActivityPanelData('Loading...');
+  }
+  setActivityPanelIdentity(identifier, agent, nextRunId, runChanged);
+  if (runChanged) {
+    const generation = _activityRequestGeneration;
+    refreshActivity(identifier, nextRunId, generation);
+  }
+}
+
+async function openActivityPanel(identifier, runId) {
+  // Cancel any prior agent's poll loop AND invalidate every in-flight fetch
+  // before rendering the new run identity.
+  _activityRequestGeneration++;
+  const generation = _activityRequestGeneration;
+  clearActivityPanelData('Loading...');
+
+  // Prefer the current state row if a stale chip was clicked after a new run
+  // had already started. The old run id must never select the new run's cache.
+  const agent = lastRunningAgents.find(r => r.issue_identifier === identifier);
+  const selectedRunId = agent ? (agent.run_id || '') : (runId || '');
+  setActivityPanelIdentity(identifier, agent, selectedRunId);
+  // Keep the open path explicit for the initial header paint; subsequent
+  // state updates use setActivityPanelIdentity() as the same-run update path.
+  const pmEl = document.getElementById('activity-provider-model');
+  if (pmEl) {
+    setActivityProviderModel(
+      pmEl,
+      agent && agent.provider_name ? agent.provider_name : null,
+      agent && agent.model_name ? agent.model_name : null
+    );
+  }
 
   document.getElementById('activity-overlay').classList.add('open');
   initAgentLogVerboseToggle();
-  await refreshActivity(identifier);
+  await refreshActivity(identifier, selectedRunId, generation);
   // Only poll if WebSocket is not connected
-  if (!ws || ws.readyState !== WebSocket.OPEN) {
+  if (_activityRequestGeneration === generation &&
+      document.getElementById('activity-title').dataset.runId === selectedRunId &&
+      (!ws || ws.readyState !== WebSocket.OPEN)) {
     activityPollTimer = setInterval(() => refreshActivity(identifier), 2000);
   }
 }
@@ -5393,8 +5449,12 @@ function setActivityProviderModel(el, providerName, modelName) {
 function closeActivityPanel() {
   const el = document.getElementById('activity-overlay');
   if (el) el.classList.remove('open');
+  _activityRequestGeneration++;
   if (activityPollTimer) { clearInterval(activityPollTimer); activityPollTimer = null; }
   _activityEntries = [];
+  _activityRunId = null;
+  const titleEl = document.getElementById('activity-title');
+  if (titleEl) { titleEl.dataset.identifier = ''; titleEl.dataset.runId = ''; }
   const pmEl = document.getElementById('activity-provider-model');
   if (pmEl) { pmEl.textContent = ''; pmEl.title = ''; pmEl.hidden = true; }
 }
@@ -5595,12 +5655,16 @@ function renderActivityList(entries) {
   renderActivitySummary(entries);
 }
 
-function handleActivityPush(identifier, entry) {
+function handleActivityPush(identifier, runId, entry) {
   // Only update if the activity panel is open for this agent
   const overlay = document.getElementById('activity-overlay');
   if (!overlay || !overlay.classList.contains('open')) return;
   const titleEl = document.getElementById('activity-title');
   if (titleEl.dataset.identifier !== identifier) return;
+  // A task identifier can host multiple sequential runs. Once the panel has
+  // a run identity, an untagged or superseded event is not safe to display.
+  const activeRunId = titleEl.dataset.runId || '';
+  if (activeRunId && (!runId || activeRunId !== runId)) return;
   // Keep the cache in sync so toggling Verbose can re-render without a fetch.
   _activityEntries.push(entry);
   const body = document.getElementById('activity-body');
@@ -5622,7 +5686,11 @@ function handleActivityPush(identifier, entry) {
   renderActivitySummary(_activityEntries);
 }
 
-async function refreshActivity(identifier) {
+async function refreshActivity(
+  identifier,
+  runId = _activityRunId || '',
+  requestGeneration = _activityRequestGeneration
+) {
   try {
     const res = await fetch('/api/v1/agents/' + encodeURIComponent(identifier) + '/activity');
     const data = await res.json();
@@ -5630,12 +5698,16 @@ async function refreshActivity(identifier) {
     // while the fetch was in flight — otherwise we'd render this
     // agent's entries under the new agent's title.
     const titleEl = document.getElementById('activity-title');
-    if (!titleEl || titleEl.dataset.identifier !== identifier) return;
+    if (!titleEl ||
+        requestGeneration !== _activityRequestGeneration ||
+        titleEl.dataset.identifier !== identifier ||
+        (titleEl.dataset.runId || '') !== (runId || '') ||
+        (data.run_id || '') !== (runId || '')) return;
 
     // Update provider/model metadata if the API returned it and the
     // element is not yet populated (e.g. agent wasn't in lastRunningAgents).
     const pmEl = document.getElementById('activity-provider-model');
-    if (pmEl && pmEl.hidden && (data.provider_name || data.model_name)) {
+    if (pmEl && (data.provider_name || data.model_name)) {
       setActivityProviderModel(pmEl, data.provider_name || null, data.model_name || null);
     }
 

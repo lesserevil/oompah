@@ -24179,6 +24179,7 @@ class Orchestrator:
             )
 
         now = datetime.now(timezone.utc)
+        run_id = uuid.uuid4().hex
         assignment_id = claimed_assignment_id or getattr(
             running_issue, "assignment_id", None
         )
@@ -24191,7 +24192,13 @@ class Orchestrator:
             {"auditor_plan": auditor_plan} if auditor_plan is not None else {}
         )
         worker_task = asyncio.create_task(
-            self._run_worker(running_issue, attempt, profile, **worker_kwargs),
+            self._run_worker(
+                running_issue,
+                attempt,
+                profile,
+                run_id=run_id,
+                **worker_kwargs,
+            ),
             name=f"worker-{issue.identifier}",
         )
 
@@ -24220,6 +24227,7 @@ class Orchestrator:
             audit_attempt_id=auditor_plan.attempt_id if auditor_plan else None,
             branch_key=auditor_plan.branch_key if auditor_plan else audit_branch_key(issue),
             assignment_id=assignment_id,
+            run_id=run_id,
             authority_generation=authority_generation,
         )
 
@@ -24528,6 +24536,7 @@ class Orchestrator:
         attempt: int | None,
         profile: AgentProfile | None = None,
         *,
+        run_id: str | None = None,
         auditor_plan: AuditDispatchPlan | None = None,
     ) -> None:
         """Worker: create workspace, build prompt, run agent turns.
@@ -24557,10 +24566,11 @@ class Orchestrator:
         attempted.  Non-provider task failures propagate normally so the
         existing retry/escalation machinery handles them.
         """
+        worker_identity = {"run_id": run_id} if run_id else {}
         mode = (profile.mode if profile else "auto").lower()
 
         if mode == "cli":
-            await self._run_cli_worker(issue, attempt, profile)
+            await self._run_cli_worker(issue, attempt, profile, **worker_identity)
             return
 
         # acp / api / auto: resolve ordered dispatch targets for candidate failover.
@@ -24594,7 +24604,12 @@ class Orchestrator:
                 issue.identifier,
                 whitelist,
             )
-            await self._on_worker_exit(issue.id, "abnormal", error_msg)
+            await self._on_worker_exit(
+                issue.id,
+                "abnormal",
+                error_msg,
+                **worker_identity,
+            )
             return
 
         if not targets:
@@ -24611,6 +24626,7 @@ class Orchestrator:
                     attempt,
                     profile,
                     target=None,
+                    **worker_identity,
                     **auditor_kwargs,
                 )
                 return
@@ -24621,7 +24637,7 @@ class Orchestrator:
                     profile.name if profile else "unknown",
                     issue.identifier,
                 )
-            await self._run_cli_worker(issue, attempt, profile)
+            await self._run_cli_worker(issue, attempt, profile, **worker_identity)
             return
 
         # Try each target in dispatch order; fall back on preflight skip or
@@ -24665,6 +24681,7 @@ class Orchestrator:
                         attempt,
                         profile,
                         target=target,
+                        **worker_identity,
                         **auditor_kwargs,
                     )
                 else:
@@ -24674,6 +24691,7 @@ class Orchestrator:
                         profile,
                         target.provider,
                         target=target,
+                        **worker_identity,
                         **auditor_kwargs,
                     )
                 # Candidate started successfully — record usage for role candidates
@@ -24711,7 +24729,12 @@ class Orchestrator:
             issue.identifier,
             error_msg,
         )
-        await self._on_worker_exit(issue.id, "abnormal", error_msg)
+        await self._on_worker_exit(
+            issue.id,
+            "abnormal",
+            error_msg,
+            **worker_identity,
+        )
 
     async def _run_api_worker(
         self,
@@ -24722,6 +24745,7 @@ class Orchestrator:
         target: "DispatchTarget | None" = None,
         forced_auditor: bool = False,
         auditor_plan: AuditDispatchPlan | None = None,
+        run_id: str | None = None,
     ) -> None:
         """Worker using the OpenAI-compatible API agent.
 
@@ -24737,6 +24761,7 @@ class Orchestrator:
         lets :meth:`_run_worker` try the next candidate.  When no target is
         provided (legacy call site), the original ``ValueError`` is raised.
         """
+        worker_identity = {"run_id": run_id} if run_id else {}
         exit_reason = "normal"
         error_msg = None
         max_turns = profile.max_turns if profile.max_turns else self.config.max_turns
@@ -25252,23 +25277,22 @@ class Orchestrator:
                 )
 
             def _on_activity(activity_entry: AgentActivity) -> None:
-                if issue.id in self.state.running:
-                    self.state.running[issue.id].activity_log.append(activity_entry)
-                    if self.state.running[issue.id].session:
-                        self.state.running[
-                            issue.id
-                        ].session.last_message = activity_entry.summary[:200]
-                        self.state.running[
-                            issue.id
-                        ].session.last_event = activity_entry.kind
-                        self.state.running[
-                            issue.id
-                        ].session.last_timestamp = datetime.now(timezone.utc)
-                    # Broadcast activity entry to WS clients
-                    self._notify_activity(issue.identifier, activity_entry)
-                    # Only broadcast state (lightweight), not issues (expensive)
-                    # Issues are only re-fetched on state changes (dispatch, close, etc.)
-                    self._notify_state_only()
+                current_entry = self.state.running.get(issue.id)
+                if not self._is_current_run(issue.id, run_id):
+                    # A provider callback can arrive after this worker has
+                    # been replaced for the same issue. Never let old-run
+                    # activity contaminate the replacement entry.
+                    return
+                current_entry.activity_log.append(activity_entry)
+                if current_entry.session:
+                    current_entry.session.last_message = activity_entry.summary[:200]
+                    current_entry.session.last_event = activity_entry.kind
+                    current_entry.session.last_timestamp = datetime.now(timezone.utc)
+                # Broadcast activity entry to WS clients
+                self._notify_activity(issue.identifier, activity_entry, run_id=run_id)
+                # Only broadcast state (lightweight), not issues (expensive)
+                # Issues are only re-fetched on state changes (dispatch, close, etc.)
+                self._notify_state_only()
 
             def _is_cancelled() -> bool:
                 """Check if this issue has been closed or removed from running."""
@@ -25371,7 +25395,12 @@ class Orchestrator:
                     self.workspace_mgr.run_after_run(wp)
                 except Exception:
                     pass
-            await self._on_worker_exit(issue.id, exit_reason, error_msg)
+            await self._on_worker_exit(
+                issue.id,
+                exit_reason,
+                error_msg,
+                **worker_identity,
+            )
 
     async def _run_acp_worker(
         self,
@@ -25381,6 +25410,7 @@ class Orchestrator:
         target: "DispatchTarget | None" = None,
         forced_auditor: bool = False,
         auditor_plan: AuditDispatchPlan | None = None,
+        run_id: str | None = None,
     ) -> None:
         """Worker that drives the bundled ``claude`` CLI via the Claude
         Agent SDK so per-token costs bill against the operator's
@@ -25412,6 +25442,7 @@ class Orchestrator:
         from oompah.acp_agent import AcpAgentSession
         from oompah.acp_tools import build_tool_catalog
 
+        worker_identity = {"run_id": run_id} if run_id else {}
         exit_reason = "normal"
         error_msg = None
         # Set when a provider-level launch failure should fail over to the
@@ -25741,6 +25772,12 @@ class Orchestrator:
                 when the agent was actively working — the JSONL log was
                 being written but the live state wasn't.
                 """
+                current_entry = self.state.running.get(issue.id)
+                if not self._is_current_run(issue.id, run_id):
+                    # The SDK may deliver a queued event after the worker was
+                    # replaced. Do not persist, append, or broadcast it.
+                    return
+
                 # SECURITY: Redact all payloads before JSONL/state use.
                 # This is the central fan-out boundary for ACP events.
                 redacted_payload = redact_sensitive_data(ev.payload or {})
@@ -25844,8 +25881,9 @@ class Orchestrator:
                     summary = ev.event
                     detail = json.dumps(payload, default=str)[:2000]
 
-                if issue.id in self.state.running:
-                    entry = self.state.running[issue.id]
+                current_entry = self.state.running.get(issue.id)
+                if self._is_current_run(issue.id, run_id):
+                    entry = current_entry
                     sess = entry.session
                     turn_count = sess.turn_count if sess else 0
 
@@ -25884,7 +25922,11 @@ class Orchestrator:
                         sess.total_tokens = int(u.get("total_tokens", 0) or 0)
 
                     # 3. Push to WS clients exactly the same way api_agent does.
-                    self._notify_activity(issue.identifier, activity)
+                    self._notify_activity(
+                        issue.identifier,
+                        activity,
+                        run_id=run_id,
+                    )
                     self._notify_state_only()
 
             # RenderedPrompt has both `text` (canonical) and optional
@@ -26134,12 +26176,23 @@ class Orchestrator:
                 if failed_entry is not None:
                     failed_entry.task_handoff_token = None
             else:
-                await self._on_worker_exit(issue.id, exit_reason, error_msg)
+                await self._on_worker_exit(
+                    issue.id,
+                    exit_reason,
+                    error_msg,
+                    **worker_identity,
+                )
 
     async def _run_cli_worker(
-        self, issue: Issue, attempt: int | None, profile: AgentProfile | None = None
+        self,
+        issue: Issue,
+        attempt: int | None,
+        profile: AgentProfile | None = None,
+        *,
+        run_id: str | None = None,
     ) -> None:
         """Worker using CLI subprocess (original behavior)."""
+        worker_identity = {"run_id": run_id} if run_id else {}
         exit_reason = "normal"
         error_msg = None
         agent_command = profile.command if profile else self.config.agent_command
@@ -26390,7 +26443,12 @@ class Orchestrator:
                     pass
 
             # Report exit to orchestrator
-            await self._on_worker_exit(issue.id, exit_reason, error_msg)
+            await self._on_worker_exit(
+                issue.id,
+                exit_reason,
+                error_msg,
+                **worker_identity,
+            )
 
     def _handle_agent_event(self, issue_id: str, event: AgentEvent) -> None:
         """Update running entry with agent event data."""
@@ -27542,7 +27600,12 @@ class Orchestrator:
             )
 
     async def _on_worker_exit(
-        self, issue_id: str, reason: str, error: str | None
+        self,
+        issue_id: str,
+        reason: str,
+        error: str | None,
+        *,
+        run_id: str | None = None,
     ) -> None:
         """Handle worker completion."""
         if issue_id in self._terminating_worker_ids:
@@ -27554,6 +27617,14 @@ class Orchestrator:
             return
         entry = self.state.running.get(issue_id)
         if not entry:
+            return
+        if not self._is_current_run(issue_id, run_id):
+            logger.debug(
+                "Ignoring stale worker exit issue_id=%s run_id=%s current_run_id=%s",
+                issue_id,
+                run_id,
+                getattr(entry, "run_id", None),
+            )
             return
 
         # A provider may report completion while one of its tool subprocesses
@@ -30389,6 +30460,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             row: dict[str, Any] = {
                 "issue_id": issue_id,
                 "issue_identifier": entry.identifier,
+                "run_id": getattr(entry, "run_id", None),
                 "project_id": entry.issue.project_id if entry.issue else None,
                 "state": entry.issue.state,
                 # AC #2 (TASK-461.2): include tracker identity so operators
@@ -30771,6 +30843,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 snapshot_entry = None
                 if entry.session:
                     snapshot_entry = {
+                        "run_id": getattr(entry, "run_id", None),
                         "session_id": entry.session.session_id,
                         "turn_count": entry.session.turn_count,
                         "state": entry.issue.state,
@@ -30869,7 +30942,20 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             except Exception:
                 pass
 
-    def _notify_activity(self, identifier: str, entry: Any) -> None:
+    def _is_current_run(self, issue_id: str, run_id: str | None) -> bool:
+        """Return whether *run_id* still owns the issue's live entry."""
+        entry = self.state.running.get(issue_id)
+        return entry is not None and (
+            run_id is None or getattr(entry, "run_id", None) == run_id
+        )
+
+    def _notify_activity(
+        self,
+        identifier: str,
+        entry: Any,
+        *,
+        run_id: str | None = None,
+    ) -> None:
         """Notify observers of a specific agent activity entry.
 
         Emits EventType.AGENT_ACTIVITY on the EventBus and calls legacy
@@ -30877,6 +30963,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         """
         payload = {
             "identifier": identifier,
+            "run_id": run_id,
             "entry": entry.to_dict() if hasattr(entry, "to_dict") else str(entry),
         }
         # EventBus (authoritative)
@@ -30884,6 +30971,11 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         # Legacy observer lists (backward compat)
         for observer in self._activity_observers:
             try:
-                observer(identifier, entry)
+                try:
+                    observer(identifier, entry, run_id)
+                except TypeError:
+                    # Third-party observers registered before run_id was
+                    # added still receive the original two arguments.
+                    observer(identifier, entry)
             except Exception:
                 pass
