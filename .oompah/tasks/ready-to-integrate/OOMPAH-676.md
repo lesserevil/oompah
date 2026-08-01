@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-676
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Make graceful CLI cutover drain workers before restart
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T05:18:04.532392Z'
-updated_at: '2026-08-01T05:48:57.813201Z'
+updated_at: '2026-08-01T05:49:07.670419Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -103,11 +103,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-676
-  base_branch: main
-  base_sha: cde6401136d6561b694b05f81f4337cd26d7a3fe
-  head_sha: cd9b2652a665bd9004c0d91d2b1921bcf4a831c6
-  submitted_at: '2026-08-01T05:32:58.461601+00:00'
-  updated_at: '2026-08-01T05:33:37.067510+00:00'
+  head_sha: f9f1463a06f1236fba60722393bab132b6018de2
+  submitted_at: '2026-08-01T05:49:04.522863+00:00'
+  updated_at: '2026-08-01T05:49:04.522863+00:00'
 ---
 ## Summary
 
@@ -300,5 +298,10 @@ author: oompah
 created: 2026-08-01 05:48
 ---
 Completion: CI gate failure fixed. Root cause was that _ServerWithMismatchedLauncher test mock in tests/test_cli_mismatch_recovery.py didn't handle the new POST /api/v1/orchestrator/quiesce endpoint introduced by the graceful-drain implementation. Fixed with 6-line addition to the mock class (quiesced state tracking, quiesce handler, state response field, resume clear). Branch f9f1463a0 pushed and clean.
+---
+author: oompah
+created: 2026-08-01 05:49
+---
+Fixed 3 failing CI tests in tests/test_cli_mismatch_recovery.py. The _ServerWithMismatchedLauncher test mock only handled /pause but the new graceful_cutover uses /quiesce. Added quiesced state tracking, POST /api/v1/orchestrator/quiesce handler, and 'quiesced' field in state response to the mock. All 7 tests in the file now pass; 362+ adjacent tests verified. Pushed f9f1463a0.
 ---
 <!-- COMMENTS:END -->
