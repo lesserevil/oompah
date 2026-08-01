@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-442
 type: bug
-status: Merged
+status: In Validation
 priority: 0
 title: '[backend:orchestrator] ACP worker failed issue_id=EXOCOMP-29'
 parent: null
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-25T02:09:54.140002Z'
-updated_at: '2026-07-25T03:00:12.944519Z'
+updated_at: '2026-08-01T04:01:17.009026Z'
 work_branch: OOMPAH-442
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/553
@@ -70,6 +70,28 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/553
 oompah.review_number: '553'
 oompah.work_branch: OOMPAH-442
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-3e820b0f00a6
+    project_id: proj-14849f1b
+    task_id: OOMPAH-442
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 1996127239ed333ab8414dd00ca94e144791238bb1f463604999b48532044ddb
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-01T04:01:13.936148+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -313,5 +335,10 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Claude/default
 - Cost: $0.0000
 - Exit: terminated, Duration: 19m 4s
 - Log: OOMPAH-442__20260725T024006Z.jsonl
+---
+author: oompah
+created: 2026-08-01 04:01
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
