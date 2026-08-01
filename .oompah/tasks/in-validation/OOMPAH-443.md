@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-443
 type: task
-status: Merged
+status: In Validation
 priority: null
 title: Require child landing evidence before epic merge and rollup
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-25T17:52:13.750962Z'
-updated_at: '2026-07-25T18:29:53.957553Z'
+updated_at: '2026-08-01T18:42:25.906016Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,6 +46,28 @@ oompah.task_costs:
     output_tokens: 3352
     cost_usd: 0.0
     recorded_at: '2026-07-25T18:20:03.451230+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-1f743525e2b1
+    project_id: proj-14849f1b
+    task_id: OOMPAH-443
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 184d889c0d9828b2dad7ab2cd6fd1a3206dc53044417cb3812061da1383ccf21
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-01T18:42:23.304844+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -251,5 +273,10 @@ author: oompah
 created: 2026-07-25 18:29
 ---
 Deployed epic child completion and Git-containment gates at PR creation, final YOLO merge, and post-merge reconciliation (e1f30f456).
+---
+author: oompah
+created: 2026-08-01 18:42
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
