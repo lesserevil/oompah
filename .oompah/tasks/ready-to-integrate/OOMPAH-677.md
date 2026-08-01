@@ -13,7 +13,7 @@ labels:
 - focus-complete:chore
 assignee: null
 created_at: '2026-08-01T11:56:19.836343Z'
-updated_at: '2026-08-01T14:50:37.619364Z'
+updated_at: '2026-08-01T14:50:49.838268Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -280,5 +280,39 @@ author: oompah
 created: 2026-08-01 14:50
 ---
 Implemented owner-identity resolution for all tracker types (GitHub Issues, GitLab Issues, oompah_md) to prevent ownerless projects from deadlocking intake promotion. Added validation in create() before git clone (fail early) and update() to preserve owner on active projects. Comprehensive regression tests for NodeVirt scenario. All 307 related tests passing.
+---
+author: oompah
+created: 2026-08-01 14:50
+---
+**Completion**: OOMPAH-677 is complete and submitted. Summary of changes:
+
+**Backend Owner-Identity Resolution** (projects.py):
+- Added gitlab_owner_repo_from_url() to parse GitLab URLs with groups/subgroups
+- Added _resolve_owner_identity() that derives project owners from repo URLs/config for GitHub, GitLab, and oompah_md trackers
+- Moved owner validation to happen before git clone in create() (fail fast)
+- Added validation in update() to prevent clearing owner on dispatchable (active) projects
+
+**Regression Tests** (31 new tests covering):
+- GitLab URL parsing (10 tests)
+- Owner identity resolution logic (7 tests)  
+- Project creation validation (5 tests)
+- Project update validation (3 tests)
+- NodeVirt regression scenario (6 tests)
+
+**Key Safeguards**:
+✓ Never trust client-supplied status_actor_login for authorization
+✓ Preserve server-side authenticated actor binding
+✓ Fail early in create() rather than after git clone
+✓ Prevent active projects from becoming ownerless via update()
+✓ Allow paused projects to be created/updated without owner (safe for later config)
+
+**Acceptance Criteria - All Met**:
+✓ Newly configured dispatchable projects cannot silently become ownerless
+✓ Paused projects can safely be created without owner and configured later
+✓ Authenticated project owners can promote Backlog→Open (not blocked by owner gate)
+✓ Non-owners remain rejected as required
+✓ Regression tests reproduce NodeVirt (oompah_md, no owner) and prove repair
+
+**Test Results**: 307 passing tests (test_projects.py, test_projects_crud.py, test_transition_gate.py, new OOMPAH-677 regression suite)
 ---
 <!-- COMMENTS:END -->
