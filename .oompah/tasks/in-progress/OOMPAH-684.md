@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T21:44:29.390457Z'
-updated_at: '2026-08-01T21:53:06.480375Z'
+updated_at: '2026-08-01T21:53:21.330428Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -153,5 +153,10 @@ author: oompah
 created: 2026-08-01 21:53
 ---
 Focus: Callback Auth Validation Specialist
+---
+author: oompah
+created: 2026-08-01 21:53
+---
+Understanding: stale retry dispatch is surviving operator submission across retry, claim/running, tracker persistence, and event refresh boundaries. I will trace the submission and dispatch paths, identify the shared generation authority transition, add an atomic stale-callback fence and setup/worker quarantine behavior, then cover the listed race interleavings with deterministic tests.
 ---
 <!-- COMMENTS:END -->
