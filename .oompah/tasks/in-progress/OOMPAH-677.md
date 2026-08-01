@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T11:56:19.836343Z'
-updated_at: '2026-08-01T14:27:58.776923Z'
+updated_at: '2026-08-01T14:28:18.862642Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -125,5 +125,10 @@ author: oompah
 created: 2026-08-01 14:27
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-08-01 14:28
+---
+Understanding: ownerless managed projects currently reject every human Backlog-to-Open promotion. I will trace project create/update identity handling, actor resolution, the owner-only transition gate, and dashboard rejection rendering; then add safe owner derivation/validation, actionable health feedback, regression tests, and verify with focused Make targets.
 ---
 <!-- COMMENTS:END -->
