@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T21:46:41.297124Z'
-updated_at: '2026-08-01T22:01:49.406046Z'
+updated_at: '2026-08-01T22:13:02.627132Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -238,5 +238,10 @@ author: oompah
 created: 2026-08-01 22:01
 ---
 Understanding: trace all managed integration Git subprocesses and credential-context resolution, then centralize project-scoped ephemeral credential propagation with tests for nested operations, error classification, lifetime, and redaction.
+---
+author: oompah
+created: 2026-08-01 22:13
+---
+Discovery: the integration executor and orchestrator had project credentials available only at submission boundaries, while nested fetch/push/ls-remote subprocesses in integration verification, worktree preparation, cleanup, landing, staleness, and unpushed checks bypassed the ephemeral askpass context. OOMPAH-680 supplies the credential helper; this task is wiring that boundary through every managed integration network operation and classifying missing versus rejected credentials.
 ---
 <!-- COMMENTS:END -->
