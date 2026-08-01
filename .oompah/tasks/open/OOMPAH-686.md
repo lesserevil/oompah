@@ -11,12 +11,30 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T22:19:41.486806Z'
-updated_at: '2026-08-01T22:20:15.600279Z'
+updated_at: '2026-08-01T22:20:29.421675Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: e3660fb39de018ae17c3c234ceeb8dbcf4a54a65f14fd0fe13c92180df8592f2
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 5bc4aaaf-625a-409e-81dc-3695c4bdff4f
+  claim_owner: 9c8dda42-c87b-429a-bdb1-42da8ebebe7e
+  claimed_at: '2026-08-01T22:20:24.547909+00:00'
+  claim_expires_at: '2026-08-01T22:50:24.547909+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
+oompah.agent_run_id: 18cd069a-9ef9-476b-b4da-d288851e0df4
 ---
 ## Summary
 
@@ -28,3 +46,16 @@ Context\nEXOCOMP-145 reached Needs Human after an implementation worker and its 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-01 22:20
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-01 22:20
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
