@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T05:18:04.532392Z'
-updated_at: '2026-08-01T05:31:15.560202Z'
+updated_at: '2026-08-01T05:32:08.270101Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -140,5 +140,11 @@ author: oompah
 created: 2026-08-01 05:31
 ---
 Implementation: added transient Orchestrator.quiesce() and quiesced state, dispatch/retry/audit gating, restart-safe state reporting, and API/IPC /api/v1/orchestrator/quiesce. Canonical cutover now quiesces, waits for natural completion, and on timeout proceeds transactionally to restart with the server’s zero-budget persistence/termination boundary. Added lifecycle tests for natural completion (no recovery), timeout recovery exactly once, API/IPC routing, and explicit pause compatibility; updated CLI lifecycle docs.
+---
+author: oompah
+created: 2026-08-01 05:32
+---
+Verification: focused lifecycle/cutover and event-driven restart tests pass (80). API, IPC, explicit-pause, Makefile restart-wait, and orchestrator pause suites pass (105). Dispatch compatibility/state API neighboring suites pass (80). MCP exposure policy and gateway suites pass (311). make[1]: Entering directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-676'
+make[1]: Leaving directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-676' was attempted but the environment cannot initialize the project venv: astral-uv failed with DBus InvalidArgs/kernel-thread transient-scope error; no code test failure was observed.
 ---
 <!-- COMMENTS:END -->
