@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-444
 type: task
-status: Merged
+status: In Validation
 priority: null
 title: Deduplicate post-merge Needs Human recovery instructions
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-25T19:55:15.601730Z'
-updated_at: '2026-07-25T20:03:42.774482Z'
+updated_at: '2026-08-01T20:18:14.042174Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -34,6 +34,28 @@ oompah.task_costs:
     output_tokens: 8475
     cost_usd: 0.0
     recorded_at: '2026-07-25T20:01:50.314231+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-469b2e7593c1
+    project_id: proj-14849f1b
+    task_id: OOMPAH-444
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: af5d477560ad1fe7bff51a8405cd75b74b196dd13f496559f1b1a3152b71963e
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-01T20:18:11.021537+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -139,5 +161,10 @@ author: oompah
 created: 2026-07-25 20:02
 ---
 Implemented in fb890bff4. Landed-epic reconciliation now suppresses an unchanged Needs Human recovery instruction after normalizing tracker whitespace, while changed landing evidence still produces a fresh actionable handoff. Added regressions for repeated ticks and changed work branches. Full make test: 12,320 passed, 7 skipped. Repository check-secrets remains blocked only by the pre-existing safe test fixture glpat-REDACTED-for-testing; the changed diff was manually checked and contains no secret material.
+---
+author: oompah
+created: 2026-08-01 20:18
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
