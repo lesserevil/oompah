@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T21:44:29.390457Z'
-updated_at: '2026-08-01T21:57:55.869320Z'
+updated_at: '2026-08-01T22:15:16.786767Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -163,5 +163,10 @@ author: oompah
 created: 2026-08-01 21:57
 ---
 Discovery: _on_retry_timer retains a retry entry during refresh, but _dispatch writes In Progress before its final retry CAS. _cancel_retry_for_issue removes claimed but not claimed_issues and does not quarantine a registered worker. Parallel-epic workspace setup can persist oompah.integration=working before provider launch. The fix will share the per-task transition lock with submission, revoke exact generations, clear claim placeholders, quarantine live workers, and gate workspace metadata writes on live authority.
+---
+author: oompah
+created: 2026-08-01 22:15
+---
+Implementation: operator submission now shares the per-task transition lock with retry dispatch, revokes exact retry/running generations, clears claimed placeholders and stale assignment metadata, and quarantines workers that cross the acceptance boundary. Workspace/integration setup mutations are authority-guarded; withdrawn shared claims are conditionally removed by run ID. Added deterministic tests for setup cancellation, running-worker quarantine, claim cleanup, and same-head resubmission.
 ---
 <!-- COMMENTS:END -->

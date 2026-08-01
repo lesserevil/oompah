@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-683
 type: task
-status: In Progress
+status: Needs Human
 priority: null
 title: Make retry recovery snapshots tolerate generated hooks and in-progress rebases
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T21:41:35.163259Z'
-updated_at: '2026-08-01T21:59:18.750718Z'
+updated_at: '2026-08-01T22:17:55.767659Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -143,5 +143,13 @@ author: oompah
 created: 2026-08-01 21:59
 ---
 Implementation: recovery now enumerates changed paths and calls git add only for deliverable paths, excluding the .oompah-* generated-helper namespace; helper removal is delayed until the recovery ref is durable. Paused rebase/merge/cherry-pick/sequencer state is inspected read-only, and active operations get a commit-tree checkpoint preserving branch identity, detached HEAD, staged tree, and bounded todo/operation metadata without advancing or aborting Git's operation. Submission checks remove generated helpers before porcelain status, and forced termination skips snapshot/cleanup when a newer worker entry has taken ownership.
+---
+author: oompah
+created: 2026-08-01 22:17
+---
+Oompah could not durably preserve this worker's task worktree before retry. The worktree was left in place and no reset, clean, or retry was started. Reconcile the workspace and recovery evidence manually before resuming the task. Error: could not stage recovery snapshot for OOMPAH-683: The following paths are ignored by one of your .gitignore files:
+.oompah-no-hooks
+hint: Use -f if you really want to add them.
+hint: Disable this message with "git config set advice.addIgnoredFile false"
 ---
 <!-- COMMENTS:END -->
