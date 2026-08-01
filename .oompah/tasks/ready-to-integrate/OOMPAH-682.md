@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-682
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Make duplicate-preflight recovery authoritative and self-sufficient
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T18:07:47.349822Z'
-updated_at: '2026-08-01T19:12:34.462150Z'
+updated_at: '2026-08-01T19:12:58.075748Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -69,6 +69,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-682
     source_sha: 7fd628c2d9aeaa33898ada3e40fff89f261f2d98
     completed_at: '2026-08-01T19:03:37.576792+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-682
+  head_sha: 4978bf801cf8cbf43e4566403969e8e95b10c381
+  submitted_at: '2026-08-01T19:12:55.039828+00:00'
+  updated_at: '2026-08-01T19:12:55.039828+00:00'
 ---
 ## Summary
 
@@ -189,5 +197,10 @@ Key benefits:
 - Retry counts reflect attempts since latest rearm, not lifetime failures
 - Conclusive evidence is authenticated, revision-bound, and race-safe
 - Owner resolutions bypass model uncertainty when confident
+---
+author: oompah
+created: 2026-08-01 19:12
+---
+Implemented authoritative owner-controlled duplicate-screening resolution with retry reset, verdict robustness, and race-safe concurrent updates. Added 8 new tests covering owner authorization, comment injection prevention, truncation robustness, and concurrent safety. All 61 related tests pass.
 ---
 <!-- COMMENTS:END -->
