@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T21:52:16.588312Z'
-updated_at: '2026-08-01T00:46:56.130217Z'
+updated_at: '2026-08-01T00:51:18.277450Z'
 work_branch: OOMPAH-669
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/631
@@ -39,13 +39,17 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: de234723-7746-4658-8f43-8a3a9bbf3db5
 oompah.task_costs:
-  total_input_tokens: 834156
-  total_output_tokens: 46419
+  total_input_tokens: 834204
+  total_output_tokens: 54126
   total_cost_usd: 0.0
   by_model:
     opus:
       input_tokens: 834156
       output_tokens: 46419
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 48
+      output_tokens: 7707
       cost_usd: 0.0
   runs:
   - profile: deep
@@ -60,6 +64,12 @@ oompah.task_costs:
     output_tokens: 41317
     cost_usd: 0.0
     recorded_at: '2026-07-31T23:15:56.415768+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 48
+    output_tokens: 7707
+    cost_usd: 0.0
+    recorded_at: '2026-08-01T00:51:08.116199+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-669__20260731T225919Z
@@ -94,6 +104,31 @@ oompah.work_branch: OOMPAH-669
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-070d5f1365d9: '2026-08-01T00:51:00.434147+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-669
+    target_state: Done
+    evidence_fingerprint: 8f85331e5ecbe076fd05ac3251bdf9c0b6812ea3b5e779d1abeca6fd1d242066
+    audit_ids:
+    - audit-958931a65e77
+    kind: result
+    applied: true
+    retired_at: '2026-08-01T00:51:00.434156+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-669
+    audit_id: audit-958931a65e77
+    attempt_id: attempt-070d5f1365d9
+    target_state: Done
+    evidence_fingerprint: 8f85331e5ecbe076fd05ac3251bdf9c0b6812ea3b5e779d1abeca6fd1d242066
+    status: In Validation
+    audit_ids:
+    - audit-958931a65e77
+    applied: true
+    created_at: '2026-08-01T00:51:00.434168+00:00'
+    applied_at: '2026-08-01T00:51:03.973091+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -101,7 +136,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-669
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -110,7 +145,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-070d5f1365d9
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -120,30 +155,47 @@ oompah.terminal_audit:
       model: sonnet
       started_at: '2026-08-01T00:46:51.750686+00:00'
       branch_key: OOMPAH-669
+      verdict: pass
+      completed_at: '2026-08-01T00:51:00.434042+00:00'
+      ended_at: '2026-08-01T00:51:00.434042+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-01T00:45:33.065339+00:00'
-    updated_at: '2026-08-01T00:46:51.750686+00:00'
+    updated_at: '2026-08-01T00:51:00.434042+00:00'
   - version: 1
     audit_id: audit-64e34031252c
     project_id: proj-14849f1b
     task_id: OOMPAH-669
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 8f85331e5ecbe076fd05ac3251bdf9c0b6812ea3b5e779d1abeca6fd1d242066
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-902ccfea1ef9
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 8f85331e5ecbe076fd05ac3251bdf9c0b6812ea3b5e779d1abeca6fd1d242066
+      created_at: '2026-08-01T00:51:13.915009+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-01T00:51:13.915009+00:00'
+      branch_key: OOMPAH-669
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-01T00:45:33.065339+00:00'
+    updated_at: '2026-08-01T00:51:13.915009+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-070d5f1365d9
@@ -157,6 +209,19 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: sonnet
     started_at: '2026-08-01T00:46:51.750686+00:00'
+    branch_key: OOMPAH-669
+  - version: 1
+    attempt_id: attempt-902ccfea1ef9
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8f85331e5ecbe076fd05ac3251bdf9c0b6812ea3b5e779d1abeca6fd1d242066
+    created_at: '2026-08-01T00:51:13.915009+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-01T00:51:13.915009+00:00'
     branch_key: OOMPAH-669
 ---
 ## Summary
@@ -280,6 +345,42 @@ Auditor dispatched (attempt #1, candidate: prov-651d553c/sonnet)
 ---
 author: oompah
 created: 2026-08-01 00:46
+---
+Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-01 00:51
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit: bc5f4a60780a97bf9a16fd532b00ff0a33642cc0
+- implementation_commit: e8761afb6029bad39bf28e82b45a6cce92ad0768
+- pr: 631
+- focused_tests: 10/10 pass (test_worker_submission.py)
+- neighboring_tests: 280/280 pass
+- full_gate: make test passed in 397.1s for e8761afb6
+- key_fix_lines: server.py:3208 (reuse set excludes integrated), 3259-3265 (reuses_existing_record guard), 3281-3295 (lifecycle reconciliation)
+---
+author: oompah
+created: 2026-08-01 00:51
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 70, Tool calls: 49
+- Tokens: 48 in / 7.7K out [7.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 4m 15s
+- Log: OOMPAH-669__20260801T004657Z.jsonl
+---
+author: oompah
+created: 2026-08-01 00:51
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/sonnet)
+---
+author: oompah
+created: 2026-08-01 00:51
 ---
 Focus: Completion Auditor
 ---
