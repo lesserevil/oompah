@@ -11,12 +11,27 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T17:34:02.400338Z'
-updated_at: '2026-08-01T17:41:13.373909Z'
+updated_at: '2026-08-01T18:58:02.361289Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 48c3a78a1c359a6746a56297c07d572a613f9b5a2e94083e360ffbb30267836c
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: bed8b9d0-39d4-423d-b199-f69fe827a1e3
+  claim_owner: cdcf766d-728b-41c9-bcaa-eb3b220f310c
+  claimed_at: '2026-08-01T18:57:57.291940+00:00'
+  claim_expires_at: '2026-08-01T19:27:57.291940+00:00'
+  retry_count: 0
+  retry_after: null
+oompah.agent_run_id: f492f9d4-7517-4016-956b-78c781e82823
 ---
 ## Summary
 
@@ -28,3 +43,16 @@ Live regression on 2026-08-01 during graceful restart: EXOCOMP-140 invoked bare 
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-01 18:58
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-01 18:58
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
