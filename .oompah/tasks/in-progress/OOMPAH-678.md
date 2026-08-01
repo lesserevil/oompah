@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T12:01:06.107132Z'
-updated_at: '2026-08-01T14:44:41.578116Z'
+updated_at: '2026-08-01T14:44:49.720223Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -144,5 +144,10 @@ author: oompah
 created: 2026-08-01 14:44
 ---
 Verification: focused suite passed (258 tests): tests/test_auth_health.py, tests/test_task_handoff.py, tests/test_server_auth.py, tests/test_acp_codex_backend.py, and tests/test_dashboard_credential_warning.py. Also passed bash -n scripts/run-tests.sh, git diff --check, and make check-secrets. make terminal-audit-scan could not start because uv failed to create its transient scope (DBus kernel-thread error) before scanning.
+---
+author: oompah
+created: 2026-08-01 14:44
+---
+Completion: pushed f4e334dc5. Intentional verified live-peer 403s remain rejected but are informational policy events, no longer degrade worker auth health or trigger handoff-failure holding, and direct workers to coordination peers/inbox. Genuine mismatched scope/auth failures remain actionable; UI, docs, propagation, and regression tests are included.
 ---
 <!-- COMMENTS:END -->
