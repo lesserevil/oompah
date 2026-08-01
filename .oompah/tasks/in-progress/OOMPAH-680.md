@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T17:31:44.735248Z'
-updated_at: '2026-08-01T18:53:28.833375Z'
+updated_at: '2026-08-01T19:04:56.636186Z'
 work_branch: OOMPAH-680
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/643
@@ -492,5 +492,10 @@ author: oompah
 created: 2026-08-01 18:53
 ---
 Discovery: project-scoped credentials are currently injected only by OompahMarkdownTracker and a few bootstrap paths. Remaining network calls include ProjectStore clone/fetch/ls-remote/push-delete/epic publication, integration_executor fetch and compare-and-swap pushes, orchestrator review/epic helpers, cherry_pick_pr_creator.push_branch, and RepoMapGenerator state-branch push. Project and worktree objects already carry access_token/forge_kind, so these can be threaded without changing remote URLs or persistent config; local-only Git mutations will remain credential-free.
+---
+author: oompah
+created: 2026-08-01 19:04
+---
+Implementation: added a shared project-scoped network Git runner in projects.py and credential propagation through integration_executor, orchestrator review/epic helpers, cherry-pick/release pushes, repo-map state pushes, release branch discovery, landing/unpushed gates, and server bootstrap/template endpoints. All network calls use ephemeral GIT_ASKPASS environments, no token-bearing argv/URLs/config, and redact captured output; failed clones remove partial checkouts. Added tests/test_managed_git_credentials.py covering GitLab/GitHub identity, redaction, isolation, integration propagation, and failure cleanup.
 ---
 <!-- COMMENTS:END -->
