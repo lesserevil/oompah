@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T23:11:33.946132Z'
-updated_at: '2026-08-01T23:13:26.137085Z'
+updated_at: '2026-08-01T23:13:38.257311Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -117,5 +117,10 @@ author: oompah
 created: 2026-08-01 23:13
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-08-01 23:13
+---
+Understanding: The test tests/test_orchestrator_tick_telemetry.py::TestSlowTickSubstepLogging::test_no_slow_tick_warning_for_fast_ticks fails intermittently under parallel CI load because it relies on wall-clock timing to distinguish fast ticks from slow ticks. When the host is contended, an otherwise-fast synthetic tick crosses the 1-second threshold and triggers a false slow-tick warning, causing assertion failures. Plan: (1) Read the test file and production code to understand the seam, (2) inject a controllable clock/elapsed-time seam into the production tick timing path, (3) rewrite the affected tests to use the injected clock with deterministic values (below/at/above threshold), (4) run the focused test suite to confirm stability.
 ---
 <!-- COMMENTS:END -->
