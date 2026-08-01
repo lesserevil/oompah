@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T18:07:47.349822Z'
-updated_at: '2026-08-01T21:38:08.256778Z'
+updated_at: '2026-08-01T21:40:14.918307Z'
 work_branch: OOMPAH-682
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/645
@@ -184,18 +184,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-682
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 6cd797756c589697e2acc305e3b55c24f016247cfa712f5e0520d3bb80aeaea7
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-9a274e6f4acd
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 6cd797756c589697e2acc305e3b55c24f016247cfa712f5e0520d3bb80aeaea7
+      created_at: '2026-08-01T21:40:08.352349+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-01T21:40:08.352349+00:00'
+      branch_key: OOMPAH-682
     requested_by:
       version: 1
       identity: standalone-ready-reconciliation
       source: oompah
     previous_state: Ready to Integrate
     created_at: '2026-08-01T21:38:05.840865+00:00'
+    updated_at: '2026-08-01T21:40:08.352349+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-f119a532f4e9
@@ -209,6 +223,19 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: opus
     started_at: '2026-08-01T19:40:45.875411+00:00'
+    branch_key: OOMPAH-682
+  - version: 1
+    attempt_id: attempt-9a274e6f4acd
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6cd797756c589697e2acc305e3b55c24f016247cfa712f5e0520d3bb80aeaea7
+    created_at: '2026-08-01T21:40:08.352349+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-01T21:40:08.352349+00:00'
     branch_key: OOMPAH-682
 ---
 ## Summary
@@ -443,5 +470,15 @@ author: oompah
 created: 2026-08-01 21:35
 ---
 Recovered the preserved post-review fixes after snapshot staging failed. Added authenticated revision-bound owner resolution, retry reset, authoritative tracker-backed duplicate corpus, structured-verdict-first parsing from current run activity only, late-claim race fencing, corrected recovery UI/docs, and regression coverage. Focused duplicate-screening/API/prompt/dashboard suites: 225 passed.
+---
+author: oompah
+created: 2026-08-01 21:40
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-01 21:40
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
