@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T12:05:24.382952Z'
-updated_at: '2026-08-01T18:04:18.846313Z'
+updated_at: '2026-08-01T18:04:21.612421Z'
 work_branch: OOMPAH-679
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/641
@@ -198,7 +198,8 @@ oompah.terminal_audit:
     audit_ids:
     - audit-b1375f6be9f8
     - audit-f270e771355e
-    kind: result
+    - audit-f82179cc92d3
+    kind: override
     applied: true
     retired_at: '2026-08-01T16:27:56.350136+00:00'
   oompah.terminal_audit_result_intents:
@@ -214,6 +215,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-01T16:17:33.006087+00:00'
     applied_at: '2026-08-01T16:17:36.286646+00:00'
+    retired_by_override: true
   - project_id: proj-14849f1b
     task_id: OOMPAH-679
     audit_id: audit-b1375f6be9f8
@@ -226,6 +228,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-01T16:27:56.350149+00:00'
     applied_at: '2026-08-01T16:27:59.864309+00:00'
+    retired_by_override: true
   - project_id: proj-14849f1b
     task_id: OOMPAH-679
     audit_id: audit-f270e771355e
@@ -238,6 +241,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-01T17:55:39.932203+00:00'
     applied_at: '2026-08-01T17:55:44.430273+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-fbab1952602c
@@ -258,7 +262,7 @@ oompah.terminal_audit:
       additional independent candidate remains, so this owner override accepts the
       existing independent PASS rather than reopening completed implementation.'
     created_at: '2026-08-01T18:04:13.460427+00:00'
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
