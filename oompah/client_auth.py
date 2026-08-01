@@ -52,6 +52,7 @@ import logging
 import os
 import re
 import stat
+import tempfile
 import urllib.parse
 from collections.abc import Mapping
 from pathlib import Path
@@ -812,6 +813,82 @@ def resolve_client_credentials(
     return ClientCredentials(username=username, password=resolved_password)
 
 
+# ---------------------------------------------------------------------------
+# Worker XDG_RUNTIME_DIR handling (OOMPAH-686)
+# ---------------------------------------------------------------------------
+
+
+def _is_xdg_runtime_dir_writable(xdg_runtime_dir: str | None) -> bool:
+    """Check if XDG_RUNTIME_DIR is writable.
+
+    When a worker's sandbox inherits a read-only /run/user/<uid> directory
+    from the host, podman and other tools cannot configure themselves,
+    failing with "chmod: read-only file system" errors. This function
+    detects that condition.
+
+    Args:
+        xdg_runtime_dir: Path to check, typically from $XDG_RUNTIME_DIR env var.
+                        If None or empty, returns False (not writable).
+
+    Returns:
+        True if the directory exists and is writable by the current user,
+        False otherwise (including when the path doesn't exist).
+    """
+    if not xdg_runtime_dir:
+        return False
+
+    try:
+        # Check if directory exists and is writable
+        if not os.path.isdir(xdg_runtime_dir):
+            return False
+        # Test actual write capability: some sandboxes report permissions
+        # but prevent actual writes. Check with os.access() for safety.
+        return os.access(xdg_runtime_dir, os.W_OK)
+    except (OSError, TypeError):
+        return False
+
+
+def _create_worker_runtime_directory() -> str | None:
+    """Create a private, temporary XDG_RUNTIME_DIR for a worker.
+
+    When a worker's sandbox makes the inherited XDG_RUNTIME_DIR read-only,
+    create a private temporary directory. The caller is responsible for
+    cleanup after the worker exits.
+
+    Security model:
+    * Uses mkdtemp() with secure defaults (mode 0o700, single-use directory)
+    * Caller must clean up the directory to prevent leaking temp space
+    * No attempt to set sticky bit or other /run/user semantics; just
+      a private directory for the worker's temporary state
+
+    Returns:
+        Path to the created temporary directory, or None if creation fails.
+        The caller is responsible for removing this directory after the
+        worker exits.
+    """
+    try:
+        # Use $TMPDIR if available (often safer in container/sandbox contexts),
+        # otherwise fall back to the system temp directory
+        tmpdir_root = os.environ.get("TMPDIR")
+        runtime_dir = tempfile.mkdtemp(
+            prefix="oompah-worker-runtime-",
+            dir=tmpdir_root,
+        )
+        logger.debug(
+            "Created private worker runtime directory: %s "
+            "(caller responsible for cleanup after worker exits)",
+            runtime_dir,
+        )
+        return runtime_dir
+    except OSError as exc:
+        logger.warning(
+            "Failed to create private worker runtime directory: %s; "
+            "worker will attempt to use inherited XDG_RUNTIME_DIR",
+            exc,
+        )
+        return None
+
+
 def agent_environment(
     base_env: Mapping[str, str] | None = None,
     *,
@@ -827,6 +904,13 @@ def agent_environment(
     workspace is supplied, runtime selectors from the service process are
     removed and replaced with a worktree-private venv path so dependency
     setup cannot rewrite the service environment.
+
+    Also handles read-only XDG_RUNTIME_DIR: if the inherited runtime directory
+    is read-only or missing, creates a private temporary directory for the
+    worker (OOMPAH-686). The caller is responsible for cleanup.
+
+    Returns:
+        Dictionary of environment variables safe to pass to subprocess.
     """
     environment = dict(os.environ if base_env is None else base_env)
     for key in CLIENT_AUTH_ENV_VARS:
@@ -836,6 +920,30 @@ def agent_environment(
     if workspace_path is not None:
         environment[TASK_VENV_ENV] = task_venv_path(workspace_path)
     environment[CLIENT_AUTH_DISABLED_ENV] = "1"
+
+    # Handle read-only XDG_RUNTIME_DIR (OOMPAH-686): if inherited runtime dir
+    # is read-only or missing, provide a private writable directory so the
+    # worker's podman/container tools can configure themselves.
+    xdg_runtime_dir = environment.get("XDG_RUNTIME_DIR", "").strip()
+    if xdg_runtime_dir and not _is_xdg_runtime_dir_writable(xdg_runtime_dir):
+        logger.info(
+            "Inherited XDG_RUNTIME_DIR %r is read-only or inaccessible; "
+            "creating private worker runtime directory (OOMPAH-686)",
+            xdg_runtime_dir,
+        )
+        fallback_dir = _create_worker_runtime_directory()
+        if fallback_dir:
+            environment["XDG_RUNTIME_DIR"] = fallback_dir
+            # Mark the environment so we know cleanup is needed
+            environment["OOMPAH_WORKER_RUNTIME_DIR"] = fallback_dir
+        else:
+            # Creation failed; worker will have to proceed with read-only dir
+            # and fail gracefully at runtime (caught by Makefile gate retries)
+            logger.warning(
+                "Could not create fallback XDG_RUNTIME_DIR; "
+                "worker may fail if it needs writable runtime directory"
+            )
+
     return environment
 
 

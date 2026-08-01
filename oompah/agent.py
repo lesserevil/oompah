@@ -6,6 +6,7 @@ import asyncio
 import json
 import logging
 import os
+import shutil
 import signal
 import time
 from dataclasses import dataclass, field
@@ -315,6 +316,8 @@ class AgentSession:
         self._thread_id: str | None = None
         self._turn_id: str | None = None
         self._request_id = 0
+        # Track temporary worker runtime directory for cleanup (OOMPAH-686)
+        self._worker_runtime_dir: str | None = None
 
     def _next_id(self) -> int:
         self._request_id += 1
@@ -348,6 +351,15 @@ class AgentSession:
             self.workspace_path,
         )
         try:
+            # Prepare the agent environment (includes XDG_RUNTIME_DIR fallback)
+            agent_env = agent_environment(
+                {**os.environ, **self.env},
+                workspace_path=self.workspace_path,
+            )
+
+            # Track the temporary worker runtime directory for cleanup (OOMPAH-686)
+            self._worker_runtime_dir = agent_env.get("OOMPAH_WORKER_RUNTIME_DIR")
+
             self._process = await asyncio.create_subprocess_exec(
                 "bash",
                 "-lc",
@@ -356,10 +368,7 @@ class AgentSession:
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                env=agent_environment(
-                    {**os.environ, **self.env},
-                    workspace_path=self.workspace_path,
-                ),
+                env=agent_env,
                 start_new_session=(os.name == "posix"),
             )
         except FileNotFoundError:
@@ -818,3 +827,38 @@ class AgentSession:
 
         await _join_process_transport()
         logger.info("Agent process stopped pid=%s", pid)
+
+        # Clean up temporary worker runtime directory if one was created (OOMPAH-686)
+        if self._worker_runtime_dir:
+            self._cleanup_worker_runtime_dir()
+
+    def _cleanup_worker_runtime_dir(self) -> None:
+        """Remove the temporary worker runtime directory created in start().
+
+        This is called from stop() after the worker process has exited.
+        The directory may contain podman/container artifacts that cannot be
+        cleaned up from inside the sandbox (it's read-only), so cleanup happens
+        from the orchestrator process. Failures are logged but not fatal.
+        """
+        if not self._worker_runtime_dir:
+            return
+
+        try:
+            if os.path.isdir(self._worker_runtime_dir):
+                shutil.rmtree(self._worker_runtime_dir, ignore_errors=True)
+                logger.debug(
+                    "Cleaned up temporary worker runtime directory: %s",
+                    self._worker_runtime_dir,
+                )
+            else:
+                logger.debug(
+                    "Worker runtime directory already removed: %s",
+                    self._worker_runtime_dir,
+                )
+        except Exception as exc:
+            logger.warning(
+                "Failed to clean up worker runtime directory %s: %s; "
+                "administrator may need to manually remove",
+                self._worker_runtime_dir,
+                exc,
+            )
