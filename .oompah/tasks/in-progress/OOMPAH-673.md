@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-673
 type: bug
-status: Open
+status: In Progress
 priority: 2
 title: Make canonical CLI mismatch recovery unambiguous across upgrades
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T02:34:24.348580Z'
-updated_at: '2026-08-01T02:36:10.722674Z'
+updated_at: '2026-08-01T02:36:23.407355Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,7 +36,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: c07d8fba-3989-414e-8dc4-8c25fd3deb7a
+oompah.agent_run_id: 88a64ded-7a4c-4184-8e43-59b838628a0c
 oompah.task_costs:
   total_input_tokens: 760034
   total_output_tokens: 3487
@@ -102,5 +102,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 28s
 - Log: OOMPAH-673__20260801T023441Z.jsonl
+---
+author: oompah
+created: 2026-08-01 02:36
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-01 02:36
+---
+Focus: Event Api Redaction Specialist
 ---
 <!-- COMMENTS:END -->
