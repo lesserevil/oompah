@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T04:42:35.189136Z'
-updated_at: '2026-08-01T04:48:01.997067Z'
+updated_at: '2026-08-01T04:51:21.788935Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -136,5 +136,40 @@ The REST /api/v1/state endpoint (lines 3308-3362) calls the same function but th
 This is why authenticated dashboards connecting via WebSocket have httpAuthEnabled=false, causing status mutations to include actor_login which triggers actor_mismatch errors.
 
 Solution: Create a helper function to enrich snapshots consistently, use it in both REST and WebSocket endpoints. Add regression tests for WebSocket bootstrap with HTTP Basic auth.
+---
+author: oompah
+created: 2026-08-01 04:51
+---
+Implementation: Centralized state snapshot enrichment in oompah/server.py
+
+Changes made:
+1. Created _enrich_state_snapshot() helper function that enriches snapshots with:
+   - http_auth (redacted reload status, no credentials)
+   - build_id
+   - service_instance_id
+   - api_metrics
+
+2. Updated WebSocket endpoint to use enriched snapshots:
+   - Initial state bootstrap now includes http_auth.enabled
+   - Refresh state also includes http_auth.enabled
+   - Both REST and WebSocket now send identical metadata
+
+3. Updated broadcast functions:
+   - _on_state_only_change() enriches before broadcast
+   - _on_orchestrator_change() enriches before broadcast
+   
+4. Simplified REST API endpoint to use the same enrichment function
+
+5. Created comprehensive test suite (test_websocket_authenticated_bootstrap.py):
+   - 14 tests covering WebSocket bootstrap with/without auth
+   - Tests verify REST/WebSocket consistency
+   - Tests verify no credentials leak in payloads
+   - Tests verify backward compatibility
+
+All tests pass, including:
+- New WebSocket authentication bootstrap tests: 14/14 ✓
+- Existing dashboard authenticated mutations tests: 13/13 ✓
+- Existing server auth tests: 73/73 ✓
+- Existing state API responsiveness tests: 19/19 ✓
 ---
 <!-- COMMENTS:END -->
