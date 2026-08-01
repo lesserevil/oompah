@@ -1212,6 +1212,136 @@ class TestSecretRedactionLoggingFilter:
         formatted = rec.getMessage()
         _assert_no_sentinels(formatted)
 
+    def test_filter_preserves_sensitive_percent_template_for_tuple_args(self):
+        import logging
+
+        from oompah.secrets import (
+            install_secret_redaction_filter,
+            register_configured_secrets,
+        )
+
+        configured_secret = "configured-htpasswd-secret-7Q"
+        register_configured_secrets(
+            {"OOMPAH_SERVER_PASSWORD": configured_secret}
+        )
+        log = logging.getLogger("oompah.test-logger-format-tuple")
+        rec = logging.LogRecord(
+            name=log.name,
+            level=logging.INFO,
+            pathname=__file__,
+            lineno=0,
+            msg="HTTP Basic authentication enabled (htpasswd: %s)",
+            args=(configured_secret,),
+            exc_info=None,
+        )
+        flt = install_secret_redaction_filter(log.name)
+
+        # The record can pass through both the factory and handler/filter
+        # boundaries. Each pass must retain the conversion directive.
+        for _ in range(3):
+            assert flt.filter(rec) is True
+            assert rec.msg == (
+                "HTTP Basic authentication enabled (htpasswd: %s)"
+            )
+            formatted = rec.getMessage()
+            assert formatted == (
+                "HTTP Basic authentication enabled (htpasswd: "
+                "[REDACTED])"
+            )
+            assert configured_secret not in formatted
+
+    def test_filter_preserves_sensitive_percent_template_for_mapping_args(self):
+        import logging
+
+        from oompah.secrets import (
+            install_secret_redaction_filter,
+            register_configured_secrets,
+        )
+
+        configured_secret = "configured-mapping-secret-3M"
+        register_configured_secrets(
+            {"OOMPAH_SERVER_PASSWORD": configured_secret}
+        )
+        log = logging.getLogger("oompah.test-logger-format-mapping")
+        rec = logging.LogRecord(
+            name=log.name,
+            level=logging.INFO,
+            pathname=__file__,
+            lineno=0,
+            msg="password=%(password)s user=%(user)s",
+            args=({"password": configured_secret, "user": "alice"},),
+            exc_info=None,
+        )
+        flt = install_secret_redaction_filter(log.name)
+        assert flt.filter(rec) is True
+
+        assert rec.msg == "password=%(password)s user=%(user)s"
+        assert rec.getMessage() == "password=[REDACTED] user=alice"
+        assert configured_secret not in rec.getMessage()
+
+    def test_server_htpasswd_startup_message_has_no_logging_error(
+        self, caplog, capfd
+    ):
+        import logging
+
+        import oompah.server as server_module
+        from oompah.http_auth import HtpasswdCredentials
+        from oompah.secrets import (
+            install_secret_redaction_filter,
+            register_configured_secrets,
+        )
+
+        configured_secret = "configured-server-secret-5V"
+        register_configured_secrets(
+            {"OOMPAH_SERVER_PASSWORD": configured_secret}
+        )
+        install_secret_redaction_filter("oompah")
+        caplog.set_level(logging.INFO, logger="oompah.server")
+
+        creds = HtpasswdCredentials(enabled=True)
+        creds.htpasswd_path = f"/srv/{configured_secret}.htpasswd"
+        original = server_module._http_credentials
+        try:
+            server_module.set_http_credentials(creds)
+        finally:
+            server_module._http_credentials = original
+
+        stderr = capfd.readouterr().err
+        assert "Logging error" not in stderr
+        assert configured_secret not in caplog.text
+        assert (
+            "HTTP Basic auth enabled (htpasswd: /srv/[REDACTED].htpasswd)"
+            in caplog.text
+        )
+
+    def test_exception_logging_keeps_template_and_redacts_traceback(
+        self, caplog, capfd
+    ):
+        import logging
+
+        from oompah.secrets import (
+            install_secret_redaction_filter,
+            register_configured_secrets,
+        )
+
+        configured_secret = "configured-exception-secret-6W"
+        register_configured_secrets(
+            {"OOMPAH_SERVER_PASSWORD": configured_secret}
+        )
+        install_secret_redaction_filter("oompah")
+        log = logging.getLogger("oompah.test-logger-exception-format")
+        caplog.set_level(logging.ERROR, logger=log.name)
+
+        try:
+            raise RuntimeError(f"backend rejected {configured_secret}")
+        except RuntimeError:
+            log.exception("password: %s", configured_secret)
+
+        stderr = capfd.readouterr().err
+        assert "Logging error" not in stderr
+        assert configured_secret not in caplog.text
+        assert "password: [REDACTED]" in caplog.text
+
     def test_filter_redacts_args_dict(self):
         import logging
         from oompah.secrets import install_secret_redaction_filter

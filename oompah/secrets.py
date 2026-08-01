@@ -486,6 +486,18 @@ SECRET_PATTERNS = [
 ]
 
 
+# Python's logging message style is a subset of printf formatting.  Keep
+# complete conversion directives intact while redacting the surrounding
+# format string: a directive such as ``passwd: %s`` is a template, not a
+# secret value.  Redacting it as plain text would remove the conversion and
+# leave ``record.args`` with too many values for ``LogRecord.getMessage``.
+_LOG_FORMAT_PLACEHOLDER_RE = re.compile(
+    r"%(?:\([^)]*\))?[-+#0 ]*(?:\*|\d+)?"
+    r"(?:\.(?:\*|\d+))?(?:[hlL])?[diouxXeEfFgGcrsa%]",
+    re.IGNORECASE,
+)
+
+
 def _is_secret_key(key: Any) -> bool:
     """Check if a key name suggests the value is a secret.
 
@@ -559,6 +571,29 @@ def _redact_string(value: str) -> str:
             continue
 
     return result
+
+
+def _redact_log_message(value: str) -> str:
+    """Redact a logging template without changing its conversion directives.
+
+    ``_redact_string`` intentionally treats a sensitive label followed by a
+    percent-style conversion as a secret assignment.  That is correct for a
+    completed message, but not for a logging template: ``"passwd: %s"`` must
+    remain a valid template when its argument is redacted separately.  Apply
+    string redaction only to the literal portions between supported logging
+    directives, preserving both positional and mapping conversions exactly.
+    """
+    if not value:
+        return value
+
+    parts: list[str] = []
+    cursor = 0
+    for match in _LOG_FORMAT_PLACEHOLDER_RE.finditer(value):
+        parts.append(_redact_string(value[cursor : match.start()]))
+        parts.append(match.group(0))
+        cursor = match.end()
+    parts.append(_redact_string(value[cursor:]))
+    return "".join(parts)
 
 
 def redact_sensitive_data(
@@ -787,7 +822,7 @@ class SecretRedactionFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:  # noqa: D401
         try:
             if isinstance(record.msg, str):
-                record.msg = _redact_string(record.msg)
+                record.msg = _redact_log_message(record.msg)
             else:
                 # A formatter stringifies non-string messages directly. Make
                 # that fallback safe before any handler sees the record.
