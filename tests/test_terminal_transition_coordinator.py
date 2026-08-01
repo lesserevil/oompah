@@ -1469,6 +1469,142 @@ def _pending_record(
     )
 
 
+def _exhausted_no_auditor_record() -> TerminalAuditRecord:
+    fingerprint = _fingerprint()
+    attempts = [
+        AuditAttempt(
+            attempt_id="attempt-workspace",
+            target_state=TargetState.ARCHIVED,
+            evidence_fingerprint=fingerprint,
+            request_state=RequestState.PENDING,
+            failure_classification=FailureClassification.INFRASTRUCTURE_ERROR,
+            failure_reason=(
+                "git worktree add failed: invalid reference: "
+                "origin/epic-EXOCOMP-2"
+            ),
+            ended_at="2026-07-31T00:01:00+00:00",
+        ),
+        AuditAttempt(
+            attempt_id="no-auditor-old",
+            target_state=TargetState.ARCHIVED,
+            evidence_fingerprint=fingerprint,
+            request_state=RequestState.COMPLETED,
+            verdict=Verdict.FAIL,
+            failure_classification=FailureClassification.NO_AUDITOR,
+            failure_reason="maximum attempts reached",
+            ended_at="2026-07-31T00:02:00+00:00",
+        ),
+    ]
+    return TerminalAuditRecord(
+        audit_id="audit-exhausted",
+        project_id=PROJECT_ID,
+        task_id=TASK_ID,
+        target_state=TargetState.ARCHIVED,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.COMPLETED,
+        attempts=attempts,
+        previous_state=MERGED,
+        created_at="2026-07-31T00:00:00+00:00",
+    )
+
+
+class TestRetryFailedAudit:
+    @staticmethod
+    def _owner_project():
+        return SimpleNamespace(
+            tracker_owner="project-owner",
+            status_actor_login=None,
+            status_label_authorized_logins=["project-owner"],
+        )
+
+    def test_owner_rearms_same_evidence_without_reopening_implementation(self) -> None:
+        tracker = _MemoryTracker()
+        metrics = _MetricsRecorder()
+        exhausted = _exhausted_no_auditor_record()
+        _seed_metadata(tracker, [exhausted])
+        coordinator = _coordinator(tracker, post_comments=False, metrics=metrics)
+
+        result = _run(
+            coordinator.retry_failed_audit(
+                _issue(NEEDS_HUMAN),
+                TargetState.ARCHIVED,
+                ContributorIdentity("project-owner", "api"),
+                PROJECT_ID,
+                "Detached audit checkout support is deployed.",
+                self._owner_project(),
+            )
+        )
+
+        assert result.success is True
+        assert result.status_staged is True
+        assert result.superseded_audit_id == exhausted.audit_id
+        assert tracker.current_status(TASK_ID) == IN_VALIDATION
+        stored = TerminalAuditMetadataStore(
+            tracker, _LockStore(), PROJECT_ID
+        ).read(TASK_ID)
+        assert len(stored.pending_chain) == 2
+        old, fresh = stored.pending_chain
+        assert old.request_state == RequestState.SUPERSEDED
+        assert fresh.request_state == RequestState.PENDING
+        assert fresh.evidence_fingerprint == exhausted.evidence_fingerprint
+        assert fresh.previous_state == MERGED
+        assert fresh.attempts == []
+        assert (
+            "clear_actionable_alert",
+            (PROJECT_ID, TASK_ID, exhausted.audit_id),
+        ) in metrics.calls
+
+    def test_retry_is_idempotent_after_fresh_record_is_pending(self) -> None:
+        tracker = _MemoryTracker()
+        _seed_metadata(tracker, [_exhausted_no_auditor_record()])
+        coordinator = _coordinator(tracker, post_comments=False)
+        args = (
+            _issue(NEEDS_HUMAN),
+            TargetState.ARCHIVED,
+            ContributorIdentity("project-owner", "api"),
+            PROJECT_ID,
+            "Workspace transport repaired.",
+            self._owner_project(),
+        )
+
+        first = _run(coordinator.retry_failed_audit(*args))
+        second = _run(coordinator.retry_failed_audit(*args))
+
+        assert first.success is True
+        assert second.success is True
+        assert second.coalesced is True
+        assert second.audit_id == first.audit_id
+        stored = TerminalAuditMetadataStore(
+            tracker, _LockStore(), PROJECT_ID
+        ).read(TASK_ID)
+        assert len(stored.pending_chain) == 2
+
+    def test_non_owner_cannot_rearm_audit(self) -> None:
+        tracker = _MemoryTracker()
+        exhausted = _exhausted_no_auditor_record()
+        _seed_metadata(tracker, [exhausted])
+        coordinator = _coordinator(tracker, post_comments=False)
+
+        result = _run(
+            coordinator.retry_failed_audit(
+                _issue(NEEDS_HUMAN),
+                TargetState.ARCHIVED,
+                ContributorIdentity("auditor-only", "api"),
+                PROJECT_ID,
+                "Try again.",
+                self._owner_project(),
+            )
+        )
+
+        assert result.success is False
+        assert result.reason == "unauthorized_actor"
+        stored = TerminalAuditMetadataStore(
+            tracker, _LockStore(), PROJECT_ID
+        ).read(TASK_ID)
+        assert stored.pending_chain == [exhausted]
+        assert tracker.current_status(TASK_ID) is None
+
+
 def _pass_result(record: TerminalAuditRecord, **overrides) -> AuditResult:
     defaults: dict[str, Any] = {
         "audit_id": record.audit_id,

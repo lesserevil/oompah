@@ -5317,20 +5317,39 @@ class Orchestrator:
 
         from oompah.terminal_transition_coordinator import AuditResult
 
-        message = (
-            "No independent auditor candidate is available for this audit "
-            f"({reason}). Configure the `auditor` role with at least one "
-            "healthy provider/model that is independent of the task contributors, "
-            "then move the task back to Open to retry."
+        infrastructure_exhausted = bool(record.attempts) and all(
+            attempt.failure_classification
+            == FailureClassification.INFRASTRUCTURE_ERROR
+            for attempt in record.attempts
         )
+        if infrastructure_exhausted:
+            message = (
+                "Independent auditor launches exhausted their retry budget because "
+                "the audit workspace or transport failed before review began. "
+                "Restore the audit infrastructure, then have a project owner rearm "
+                "this terminal audit; do not reopen implementation work."
+            )
+            verdict = Verdict.NEEDS_HUMAN
+            classification = FailureClassification.INFRASTRUCTURE_ERROR
+            attempt_prefix = "infrastructure-exhausted"
+        else:
+            message = (
+                "No independent auditor candidate is available for this audit "
+                f"({reason}). Configure the `auditor` role with at least one "
+                "healthy provider/model that is independent of the task contributors, "
+                "then have a project owner rearm this terminal audit."
+            )
+            verdict = Verdict.FAIL
+            classification = FailureClassification.NO_AUDITOR
+            attempt_prefix = "no-auditor"
         result = AuditResult(
             audit_id=record.audit_id,
             target_state=record.target_state,
             evidence_fingerprint=record.evidence_fingerprint,
-            verdict=Verdict.FAIL,
-            failure_classification=FailureClassification.NO_AUDITOR,
+            verdict=verdict,
+            failure_classification=classification,
             message=message,
-            attempt_id=f"no-auditor-{record.audit_id}-{len(record.attempts)}",
+            attempt_id=f"{attempt_prefix}-{record.audit_id}-{len(record.attempts)}",
         )
         outcome = await self.terminal_transition_coordinator.apply_audit_result(
             issue, result, str(issue.project_id or "legacy")
@@ -11479,6 +11498,116 @@ class Orchestrator:
             branch_name=work_branch,
         )
         return _finish_workspace(wp, None)
+
+    @staticmethod
+    def _audit_workspace_identifier(
+        issue_identifier: str,
+        attempt_id: str,
+    ) -> str:
+        """Return the attempt-scoped identifier for a detached audit view."""
+
+        return f"{issue_identifier}--terminal-audit-{attempt_id}"
+
+    def _create_workspace_for_auditor(
+        self,
+        issue: Issue,
+        plan: AuditDispatchPlan,
+    ) -> str:
+        """Create a detached workspace for the exact auditable revision.
+
+        Implementation workspace selection intentionally follows parent-epic
+        and work-branch metadata.  Auditors must not: terminal branches may
+        already be deleted, and an audit is a read-only view rather than a new
+        implementation attempt.  Prefer persisted immutable revisions, then a
+        still-published source branch.  A Merged-to-Archived retention audit
+        may safely fall back to the fetched default-branch tip because the
+        audited work is already part of that branch.
+        """
+
+        if not issue.project_id:
+            workspace = self.workspace_mgr.create_for_issue(issue.identifier)
+            self.workspace_mgr.run_before_run(workspace.path)
+            return workspace.path
+
+        project = self.project_store.get(issue.project_id)
+        if project is None:
+            raise ProjectError(f"Unknown project: {issue.project_id}")
+
+        integration = getattr(issue, "integration", None)
+        immutable_revisions: list[str] = []
+        for value in (
+            getattr(issue, "source_sha", None),
+            getattr(integration, "integrated_sha", None),
+            getattr(integration, "head_sha", None),
+            getattr(issue, "target_sha", None),
+        ):
+            revision = str(value or "").strip()
+            if revision and revision not in immutable_revisions:
+                immutable_revisions.append(revision)
+
+        # Once a fingerprint names an immutable revision, never substitute a
+        # branch tip or the default branch if that object is unavailable.
+        # Doing so would audit different evidence while retaining the old
+        # fingerprint. Branch/default fallbacks are only for legacy records
+        # that never persisted a source SHA.
+        revisions = list(immutable_revisions)
+        if not immutable_revisions:
+            for value in (
+                getattr(issue, "source_branch", None),
+                getattr(issue, "work_branch", None),
+                getattr(integration, "task_branch", None),
+                getattr(issue, "branch_name", None),
+            ):
+                branch = str(value or "").strip()
+                revision = f"origin/{branch}" if branch else ""
+                if revision and revision not in revisions:
+                    revisions.append(revision)
+
+        previous_status = canonicalize_status(plan.previous_state or "")
+        default_fallback_allowed = (
+            plan.target_state == TargetState.MERGED
+            or (
+                plan.target_state == TargetState.ARCHIVED
+                and previous_status in {MERGED, ARCHIVED}
+            )
+        )
+        if default_fallback_allowed and not immutable_revisions:
+            default_ref = f"origin/{project.default_branch}"
+            if default_ref not in revisions:
+                revisions.append(default_ref)
+
+        workspace_identifier = self._audit_workspace_identifier(
+            issue.identifier,
+            plan.attempt_id,
+        )
+        unavailable: list[str] = []
+        for revision in revisions:
+            try:
+                workspace, resolved_sha = (
+                    self.project_store.create_detached_audit_worktree(
+                        issue.project_id,
+                        workspace_identifier,
+                        revision,
+                    )
+                )
+                logger.info(
+                    "Auditor workspace resolved issue=%s attempt=%s revision=%s sha=%s",
+                    issue.identifier,
+                    plan.attempt_id,
+                    revision,
+                    resolved_sha,
+                )
+                return workspace
+            except ProjectError as exc:
+                if "revision is unavailable" not in str(exc):
+                    raise
+                unavailable.append(revision)
+
+        tried = ", ".join(unavailable) if unavailable else "no persisted revision"
+        raise ProjectError(
+            "terminal audit evidence has no safely resolvable revision "
+            f"for {issue.identifier} (tried: {tried})"
+        )
 
     def _auto_close_completed_epics(self, candidates: list[Issue]) -> None:
         """Auto-close epics whose children are all in terminal states.
@@ -24194,7 +24323,18 @@ class Orchestrator:
             # No resolvable provider targets (no whitelist involved).
             if mode == "acp":
                 # ACP can run without a specific provider — the SDK manages it.
-                await self._run_acp_worker(issue, attempt, profile, target=None)
+                auditor_kwargs = (
+                    {"forced_auditor": True, "auditor_plan": auditor_plan}
+                    if auditor_plan is not None
+                    else {}
+                )
+                await self._run_acp_worker(
+                    issue,
+                    attempt,
+                    profile,
+                    target=None,
+                    **auditor_kwargs,
+                )
                 return
             if mode == "api":
                 logger.warning(
@@ -24236,8 +24376,10 @@ class Orchestrator:
                 continue
 
             try:
-                forced_focus = (
-                    {"forced_auditor": True} if auditor_plan is not None else {}
+                auditor_kwargs = (
+                    {"forced_auditor": True, "auditor_plan": auditor_plan}
+                    if auditor_plan is not None
+                    else {}
                 )
                 if mode == "acp" or getattr(target.provider, "mode", "api") == "acp":
                     await self._run_acp_worker(
@@ -24245,7 +24387,7 @@ class Orchestrator:
                         attempt,
                         profile,
                         target=target,
-                        **forced_focus,
+                        **auditor_kwargs,
                     )
                 else:
                     await self._run_api_worker(
@@ -24254,7 +24396,7 @@ class Orchestrator:
                         profile,
                         target.provider,
                         target=target,
-                        **forced_focus,
+                        **auditor_kwargs,
                     )
                 # Candidate started successfully — record usage for role candidates
                 # so the round-robin strategy picks a different one next time.
@@ -24301,6 +24443,7 @@ class Orchestrator:
         provider,
         target: "DispatchTarget | None" = None,
         forced_auditor: bool = False,
+        auditor_plan: AuditDispatchPlan | None = None,
     ) -> None:
         """Worker using the OpenAI-compatible API agent.
 
@@ -24521,10 +24664,13 @@ class Orchestrator:
                 # Resolve workspace via the epic_strategy-aware helper:
                 # under epic_strategy='shared' a child of an epic uses
                 # the shared epic worktree; otherwise per-task path.
-                wp, _epic = self._create_workspace_for_issue(
-                    issue,
-                    persist_dispatch_metadata=not forced_auditor,
-                )
+                if forced_auditor and auditor_plan is not None:
+                    wp = self._create_workspace_for_auditor(issue, auditor_plan)
+                else:
+                    wp, _epic = self._create_workspace_for_issue(
+                        issue,
+                        persist_dispatch_metadata=not forced_auditor,
+                    )
 
                 self._post_comment(
                     issue.identifier,
@@ -24949,6 +25095,7 @@ class Orchestrator:
         profile: AgentProfile,
         target: "DispatchTarget | None" = None,
         forced_auditor: bool = False,
+        auditor_plan: AuditDispatchPlan | None = None,
     ) -> None:
         """Worker that drives the bundled ``claude`` CLI via the Claude
         Agent SDK so per-token costs bill against the operator's
@@ -25050,10 +25197,13 @@ class Orchestrator:
 
             def _setup_worker():
                 # Resolve workspace via the epic_strategy-aware helper.
-                wp, _epic = self._create_workspace_for_issue(
-                    issue,
-                    persist_dispatch_metadata=not forced_auditor,
-                )
+                if forced_auditor and auditor_plan is not None:
+                    wp = self._create_workspace_for_auditor(issue, auditor_plan)
+                else:
+                    wp, _epic = self._create_workspace_for_issue(
+                        issue,
+                        persist_dispatch_metadata=not forced_auditor,
+                    )
 
                 self._post_comment(
                     issue.identifier,
@@ -27059,6 +27209,27 @@ class Orchestrator:
             )
             return False
 
+    def _remove_audit_workspace(self, entry: RunningEntry) -> None:
+        """Remove one detached auditor worktree without touching task work."""
+
+        project_id = str(getattr(entry.issue, "project_id", "") or "").strip()
+        attempt_id = str(entry.audit_attempt_id or "").strip()
+        if not project_id or not attempt_id:
+            return
+        workspace_identifier = self._audit_workspace_identifier(
+            entry.identifier,
+            attempt_id,
+        )
+        try:
+            self.project_store.remove_worktree(project_id, workspace_identifier)
+        except Exception as exc:  # noqa: BLE001 - exit cleanup must complete
+            logger.warning(
+                "Detached auditor workspace cleanup failed issue=%s attempt=%s: %s",
+                entry.identifier,
+                attempt_id,
+                exc,
+            )
+
     async def _on_worker_exit(
         self, issue_id: str, reason: str, error: str | None
     ) -> None:
@@ -27202,6 +27373,7 @@ class Orchestrator:
                 reason,
                 error,
             )
+            await asyncio.to_thread(self._remove_audit_workspace, entry)
             if ended:
                 message = error or f"auditor exited ({reason}) without a result"
                 self._post_comment(
@@ -29819,8 +29991,16 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             if cleanup_workspace:
                 try:
                     if project_id:
+                        workspace_identifier = (
+                            self._audit_workspace_identifier(
+                                entry.identifier,
+                                entry.audit_attempt_id or "unknown",
+                            )
+                            if entry.is_auditor
+                            else entry.identifier
+                        )
                         self.project_store.remove_worktree(
-                            project_id, entry.identifier
+                            project_id, workspace_identifier
                         )
                     else:
                         self.workspace_mgr.remove_workspace(entry.identifier)

@@ -1646,6 +1646,114 @@ class ProjectStore:
             self.worktree_root, _sanitize_identifier(project.name), sanitized
         )
 
+    def create_detached_audit_worktree(
+        self,
+        project_id: str,
+        workspace_identifier: str,
+        revision: str,
+    ) -> tuple[str, str]:
+        """Create a branchless, read-only audit view at an exact commit.
+
+        Auditor workspaces must not reuse implementation branches.  Historical
+        task and epic branches are routinely deleted after merge, and trying to
+        recreate them both fails legitimate retention audits and risks turning
+        a read-only audit into a branch-writing implementation checkout.
+
+        Returns ``(path, resolved_sha)``.  The caller supplies a unique
+        attempt-scoped workspace identifier so an implementation worktree is
+        never reset or cleaned as a side effect.
+        """
+
+        with self.project_write_lock(project_id):
+            project = self._projects.get(project_id)
+            if not project:
+                raise ProjectError(f"Unknown project: {project_id}")
+
+            requested = str(revision or "").strip()
+            if not requested:
+                raise ProjectError("terminal audit requires a revision")
+
+            try:
+                subprocess.run(
+                    ["git", "fetch", "origin"],
+                    cwd=project.repo_path,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=60,
+                )
+                resolved = subprocess.run(
+                    ["git", "rev-parse", "--verify", f"{requested}^{{commit}}"],
+                    cwd=project.repo_path,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=10,
+                )
+            except (OSError, subprocess.TimeoutExpired) as exc:
+                raise ProjectError(
+                    f"terminal audit revision lookup failed: {exc}"
+                ) from exc
+            resolved_sha = resolved.stdout.strip()
+            if resolved.returncode != 0 or not re.fullmatch(
+                r"[0-9a-fA-F]{40,64}", resolved_sha
+            ):
+                raise ProjectError(
+                    f"terminal audit revision is unavailable: {requested}"
+                )
+
+            wt_path = self.worktree_path_for(project_id, workspace_identifier)
+            if os.path.isdir(wt_path):
+                try:
+                    existing = subprocess.run(
+                        ["git", "rev-parse", "HEAD"],
+                        cwd=wt_path,
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                        timeout=10,
+                    )
+                    status = self._git_status_for_worktree(wt_path)
+                except (OSError, subprocess.TimeoutExpired) as exc:
+                    raise ProjectError(
+                        f"cannot verify existing terminal audit worktree: {exc}"
+                    ) from exc
+                if (
+                    existing.returncode == 0
+                    and existing.stdout.strip() == resolved_sha
+                    and status.returncode == 0
+                    and not self._worktree_dirty_paths(status.stdout)
+                ):
+                    self._disable_worktree_hooks(wt_path)
+                    return wt_path, resolved_sha
+                raise ProjectError(
+                    "existing terminal audit worktree does not match its "
+                    "attempt revision; refusing to reset it"
+                )
+
+            os.makedirs(os.path.dirname(wt_path), exist_ok=True)
+            try:
+                _git_worktree_add_with_recovery(
+                    ["git", "worktree", "add", "--detach", wt_path, resolved_sha],
+                    cwd=project.repo_path,
+                    wt_path=wt_path,
+                )
+            except subprocess.CalledProcessError as exc:
+                stderr = exc.stderr.strip()[:500] if exc.stderr else ""
+                raise ProjectError(
+                    f"terminal audit worktree add failed: {stderr}"
+                ) from exc
+            except subprocess.TimeoutExpired as exc:
+                raise ProjectError("terminal audit worktree add timed out") from exc
+
+            self._disable_worktree_hooks(wt_path)
+            logger.info(
+                "Detached terminal audit worktree created path=%s revision=%s",
+                wt_path,
+                resolved_sha,
+            )
+            return wt_path, resolved_sha
+
     def epic_worktree_path_for(self, project_id: str, epic_identifier: str) -> str:
         """Path used for the shared epic worktree under epic_strategy='shared'.
 

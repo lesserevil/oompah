@@ -612,7 +612,9 @@ class _Coordinator:
     def __init__(self) -> None:
         self.requests: list[dict] = []
         self.overrides: list[dict] = []
+        self.retries: list[dict] = []
         self.override_result: OverrideResult | None = None
+        self.retry_result: TransitionResult | None = None
 
     async def request_transition(self, **kwargs):
         self.requests.append(kwargs)
@@ -631,6 +633,17 @@ class _Coordinator:
             success=True,
             override_id="audit-override-1",
             applied_status=kwargs["requested_target"].value,
+        )
+
+    async def retry_failed_audit(self, **kwargs):
+        self.retries.append(kwargs)
+        if self.retry_result is not None:
+            return self.retry_result
+        return TransitionResult(
+            success=True,
+            audit_id="audit-retry-1",
+            queued_targets=[kwargs["requested_target"]],
+            status_staged=True,
         )
 
 
@@ -788,6 +801,61 @@ def test_patch_owner_override_requires_reason_and_uses_coordinator(client):
     assert applied.json()["status"] == "Done"
     assert applied.json()["audit_id"] == "audit-override-1"
     assert coordinator.overrides[0]["reason"] == "Emergency release approval"
+    assert tracker.status_updates == []
+
+
+def test_patch_owner_audit_retry_rearms_without_direct_terminal_write(client):
+    issue = Issue(
+        "task-retry",
+        "task-retry",
+        "Task",
+        description="work",
+        state="Needs Human",
+    )
+    orch, tracker, coordinator = _orchestrator(issue)
+    with (
+        patch.object(server_module, "_get_orchestrator", return_value=orch),
+        patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+    ):
+        response = client.patch(
+            "/api/v1/issues/task-retry",
+            json={
+                "project_id": "proj-1",
+                "status": "Archived",
+                "audit_retry": True,
+                "audit_retry_reason": "Detached audit checkout is deployed",
+                "actor_login": "owner",
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json()["audit_retry"] is True
+    assert response.json()["status"] == "In Validation"
+    assert response.json()["audit_id"] == "audit-retry-1"
+    assert coordinator.retries[0]["requested_target"] is TargetState.ARCHIVED
+    assert coordinator.retries[0]["reason"] == "Detached audit checkout is deployed"
+    assert tracker.status_updates == []
+
+
+def test_patch_audit_retry_requires_reason(client):
+    issue = Issue("task-retry", "task-retry", "Task", state="Needs Human")
+    orch, tracker, coordinator = _orchestrator(issue)
+    with (
+        patch.object(server_module, "_get_orchestrator", return_value=orch),
+        patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+    ):
+        response = client.patch(
+            "/api/v1/issues/task-retry",
+            json={
+                "project_id": "proj-1",
+                "status": "Archived",
+                "audit_retry": True,
+                "actor_login": "owner",
+            },
+        )
+
+    assert response.status_code == 400
+    assert coordinator.retries == []
     assert tracker.status_updates == []
 
 

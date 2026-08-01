@@ -588,6 +588,12 @@ def _cmd_set_status(base_url: str, args: argparse.Namespace) -> None:
         reason = getattr(args, "override_reason", None)
         if reason is not None:
             data["override_reason"] = reason
+    audit_retry = getattr(args, "audit_retry", False) is True
+    if audit_retry:
+        data["audit_retry"] = True
+        reason = getattr(args, "audit_retry_reason", None)
+        if reason is not None:
+            data["audit_retry_reason"] = reason
     _add_project_or_managed_repo(data, identifier, getattr(args, "project", None))
     handoff_data = {
         "identifier": identifier,
@@ -601,7 +607,12 @@ def _cmd_set_status(base_url: str, args: argparse.Namespace) -> None:
         handoff_data["audit_override"] = True
         if getattr(args, "override_reason", None) is not None:
             handoff_data["override_reason"] = args.override_reason
-    handoff = _task_handoff_request(base_url, "set-status", handoff_data)
+    # Audit retry is an owner/operator action, never a worker handoff.
+    handoff = (
+        None
+        if audit_retry
+        else _task_handoff_request(base_url, "set-status", handoff_data)
+    )
     if handoff is not None:
         _print_status_result(handoff, args.status)
         return
@@ -630,7 +641,13 @@ def _cmd_set_status(base_url: str, args: argparse.Namespace) -> None:
 def _print_status_result(result: dict[str, Any], requested_status: str) -> None:
     """Print a stable status result for API and task-handoff responses."""
 
-    if (
+    if result.get("audit_retry"):
+        print(
+            f"Terminal audit rearmed: {result.get('requested_target') or requested_status} "
+            f"(status: {result.get('status') or 'In Validation'}, "
+            f"audit ID: {result.get('audit_id') or 'pending'})"
+        )
+    elif (
         str(result.get("status", "")).strip().lower() == "in validation"
         and result.get("requested_target")
     ):
@@ -1218,6 +1235,17 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="REASON",
         help="Required explanation when --audit-override is used",
+    )
+    p_status.add_argument(
+        "--audit-retry",
+        action="store_true",
+        help="Rearm an exhausted terminal audit without reopening implementation work",
+    )
+    p_status.add_argument(
+        "--audit-retry-reason",
+        default=None,
+        metavar="REASON",
+        help="Required explanation when --audit-retry is used",
     )
 
     # --- submit ---

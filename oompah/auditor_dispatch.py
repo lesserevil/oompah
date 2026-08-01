@@ -81,6 +81,7 @@ class AuditDispatchPlan:
     rotation_count: int
     branch_key: str
     created_at: str
+    previous_state: str | None = None
 
 
 @dataclass(frozen=True)
@@ -265,6 +266,7 @@ class AuditorDispatchLane:
                 rotation_count=attempts,
                 branch_key=branch_key,
                 created_at=created,
+                previous_state=record.previous_state,
             ),
             None,
         )

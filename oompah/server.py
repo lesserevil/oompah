@@ -4801,10 +4801,20 @@ async def _stage_terminal_transition(
     audit_override = body.get("audit_override", False)
     if not isinstance(audit_override, bool):
         return None, ("audit_override must be a boolean.", 400)
+    audit_retry = body.get("audit_retry", False)
+    if not isinstance(audit_retry, bool):
+        return None, ("audit_retry must be a boolean.", 400)
+    if audit_override and audit_retry:
+        return None, (
+            "audit_override and audit_retry are mutually exclusive.",
+            400,
+        )
     if not audit_override and body.get("override_reason") is not None:
         # Do not silently accept a reason that a caller may have intended to
         # pair with an override.  It cannot change a normal staged request.
         return None, ("override_reason requires audit_override=true.", 400)
+    if not audit_retry and body.get("audit_retry_reason") is not None:
+        return None, ("audit_retry_reason requires audit_retry=true.", 400)
 
     coordinator = getattr(orch, "terminal_transition_coordinator", None)
     if coordinator is None or not callable(
@@ -4848,6 +4858,59 @@ async def _stage_terminal_transition(
     if actor_conflict is not None:
         # Return the structured JSONResponse directly; callers forward it.
         return None, actor_conflict
+    if audit_retry:
+        retry_reason = body.get("audit_retry_reason")
+        if not isinstance(retry_reason, str) or not retry_reason.strip():
+            _rollback_dispatch_fence()
+            return None, (
+                "audit_retry_reason is required when audit_retry=true.",
+                400,
+            )
+        if not actor:
+            _rollback_dispatch_fence()
+            return None, (
+                "An actor identity is required when audit_retry=true.",
+                400,
+            )
+        retry_failed_audit = getattr(coordinator, "retry_failed_audit", None)
+        if not callable(retry_failed_audit):
+            _rollback_dispatch_fence()
+            return None, ("Terminal audit retry is unavailable.", 503)
+        try:
+            result = await _with_issue_ownership_lock(
+                lambda: retry_failed_audit(
+                    current_issue=issue,
+                    requested_target=target,
+                    authorized_actor=ContributorIdentity(actor, "api"),
+                    project_id=str(project_id),
+                    reason=retry_reason,
+                    project=_project_by_id(orch, str(project_id)),
+                )
+            )
+        except (TypeError, ValueError):
+            _rollback_dispatch_fence()
+            return None, ("The terminal audit retry request is invalid.", 400)
+        except Exception:
+            _rollback_dispatch_fence()
+            logger.exception("Terminal audit retry failed")
+            return None, ("The terminal audit retry could not be staged.", 503)
+        if not result.success:
+            _rollback_dispatch_fence()
+            if result.reason == "unauthorized_actor":
+                return None, ("Only a project owner may retry an audit.", 403)
+            if result.reason in {"audit_not_retryable", "project_mismatch"}:
+                return None, (
+                    "No matching exhausted audit can be retried for this task.",
+                    409,
+                )
+            return None, ("The terminal audit retry could not be staged.", 503)
+        payload = _terminal_transition_payload(
+            target,
+            result,
+            current_status=getattr(issue, "state", None),
+        )
+        payload["audit_retry"] = True
+        return payload, None
     if audit_override:
         reason = body.get("override_reason")
         if not isinstance(reason, str) or not reason.strip():

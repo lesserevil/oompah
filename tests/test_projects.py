@@ -60,6 +60,54 @@ def _store_with_one_project(tmp_path):
     return store, repo
 
 
+class TestDetachedAuditWorktree:
+    def test_creates_branchless_worktree_at_resolved_commit(self, tmp_path):
+        store, _repo = _store_with_one_project(tmp_path)
+        sha = "a" * 40
+        fetch = subprocess.CompletedProcess([], 0, stdout="", stderr="")
+        resolved = subprocess.CompletedProcess([], 0, stdout=f"{sha}\n", stderr="")
+
+        with (
+            patch("oompah.projects.subprocess.run", side_effect=[fetch, resolved]),
+            patch("oompah.projects._git_worktree_add_with_recovery") as add,
+            patch.object(store, "_disable_worktree_hooks") as disable_hooks,
+        ):
+            path, actual = store.create_detached_audit_worktree(
+                "proj-sync1",
+                "TASK-1--terminal-audit-attempt-1",
+                "origin/main",
+            )
+
+        assert actual == sha
+        assert path == str(
+            tmp_path / "wt" / "syncrepo" / "TASK-1--terminal-audit-attempt-1"
+        )
+        add.assert_called_once_with(
+            ["git", "worktree", "add", "--detach", path, sha],
+            cwd=str(_repo),
+            wt_path=path,
+        )
+        disable_hooks.assert_called_once_with(path)
+
+    def test_missing_revision_fails_before_creating_workspace(self, tmp_path):
+        store, _repo = _store_with_one_project(tmp_path)
+        fetch = subprocess.CompletedProcess([], 0, stdout="", stderr="")
+        missing = subprocess.CompletedProcess([], 128, stdout="", stderr="missing")
+
+        with (
+            patch("oompah.projects.subprocess.run", side_effect=[fetch, missing]),
+            patch("oompah.projects._git_worktree_add_with_recovery") as add,
+        ):
+            with pytest.raises(ProjectError, match="revision is unavailable"):
+                store.create_detached_audit_worktree(
+                    "proj-sync1",
+                    "TASK-1--terminal-audit-attempt-1",
+                    "origin/deleted-branch",
+                )
+
+        add.assert_not_called()
+
+
 class TestRepoNameFromUrl:
     def test_https_with_git(self):
         assert _repo_name_from_url("https://github.com/org/repo.git") == "repo"
