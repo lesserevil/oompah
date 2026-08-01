@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T02:34:24.348580Z'
-updated_at: '2026-08-01T02:42:08.809782Z'
+updated_at: '2026-08-01T02:42:11.245179Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -163,5 +163,10 @@ created: 2026-08-01 02:42
 ✓ Documentation updated with recovery behavior
 
 Branch pushed to OOMPAH-673. Ready for integration tests and review.
+---
+author: oompah
+created: 2026-08-01 02:42
+---
+Implemented automatic CLI/server mismatch recovery during graceful cutover. Added --running-revision parameter to sync_canonical_cli.py for recovery mode installation. Modified canonical_cli_cutover.py to detect mismatch and auto-repair from running service revision via API. Bounded recovery with no temporary branches required. 50 tests pass including 7 new recovery scenario tests. Documentation updated.
 ---
 <!-- COMMENTS:END -->
