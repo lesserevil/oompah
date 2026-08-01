@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T17:34:02.400338Z'
-updated_at: '2026-08-01T19:08:12.390691Z'
+updated_at: '2026-08-01T19:08:42.668442Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -58,13 +58,13 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 66e41d84-24de-4a5b-9bec-87d87fab74d7
 oompah.task_costs:
-  total_input_tokens: 242
-  total_output_tokens: 5456
+  total_input_tokens: 764
+  total_output_tokens: 29288
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 242
-      output_tokens: 5456
+      input_tokens: 764
+      output_tokens: 29288
       cost_usd: 0.0
   runs:
   - profile: default
@@ -73,6 +73,12 @@ oompah.task_costs:
     output_tokens: 5456
     cost_usd: 0.0
     recorded_at: '2026-08-01T19:00:00.330468+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 522
+    output_tokens: 23832
+    cost_usd: 0.0
+    recorded_at: '2026-08-01T19:08:35.628857+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-681__20260801T185802Z
@@ -83,14 +89,24 @@ oompah.work_contributors:
     source_branch: OOMPAH-681
     source_sha: 7fd628c2d9aeaa33898ada3e40fff89f261f2d98
     completed_at: '2026-08-01T19:00:00.365414+00:00'
+  - run_id: OOMPAH-681__20260801T190025Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: callback_auth
+    source_branch: OOMPAH-681
+    source_sha: 5f555e4194a01a2686d7f71f83a411ed207f285c
+    completed_at: '2026-08-01T19:08:35.637845+00:00'
 oompah.integration:
   version: 2
   state: ready
   attempts: 0
   task_branch: OOMPAH-681
+  base_branch: main
+  base_sha: 7fd628c2d9aeaa33898ada3e40fff89f261f2d98
   head_sha: 5f555e4194a01a2686d7f71f83a411ed207f285c
   submitted_at: '2026-08-01T19:08:08.760770+00:00'
-  updated_at: '2026-08-01T19:08:08.760770+00:00'
+  updated_at: '2026-08-01T19:08:41.893587+00:00'
 ---
 ## Summary
 
@@ -232,5 +248,20 @@ author: oompah
 created: 2026-08-01 19:08
 ---
 Interactive git command rejection implemented at worker boundary
+---
+author: oompah
+created: 2026-08-01 19:08
+---
+Agent completed successfully in 495s (24354 tokens)
+---
+author: oompah
+created: 2026-08-01 19:08
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 160, Tool calls: 64
+- Tokens: 522 in / 23.8K out [24.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 8m 15s
+- Log: OOMPAH-681__20260801T190025Z.jsonl
 ---
 <!-- COMMENTS:END -->
