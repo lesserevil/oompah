@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T12:05:24.382952Z'
-updated_at: '2026-08-01T14:34:39.263427Z'
+updated_at: '2026-08-01T14:34:57.898740Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -156,5 +156,10 @@ author: oompah
 created: 2026-08-01 14:34
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-08-01 14:34
+---
+Understanding: the activity panel is keyed by task identifier across agent-run boundaries, so a completed preflight run's title/provider/activity can survive into the next implementation run. I will trace running-state/activity serialization, dashboard state and polling/WebSocket lifecycle, introduce a stable per-run identity with reset/stale-event guards, and add focused transition regression coverage.
 ---
 <!-- COMMENTS:END -->
