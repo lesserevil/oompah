@@ -3055,6 +3055,13 @@ class Orchestrator:
             extra["allow_default_branch_task_writes"] = (
                 not state_branch_enabled
             )
+            # Pass forge credentials for authenticated Git network operations.
+            # The tracker uses these in an ephemeral, redacted environment.
+            if getattr(project, "access_token", None):
+                extra["access_token"] = project.access_token
+            forge_kind = str(getattr(project, "forge_kind", None) or "").strip().lower()
+            if forge_kind in ("github", "gitlab"):
+                extra["forge_kind"] = forge_kind
             if state_branch_enabled:
                 extra["state_branch_enabled"] = True
                 extra["state_branch_name"] = project.state_branch_name

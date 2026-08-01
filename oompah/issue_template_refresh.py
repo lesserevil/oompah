@@ -27,6 +27,11 @@ import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from oompah.git_credentials import (
+    git_credential_environment,
+    redact_git_output,
+)
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -408,6 +413,8 @@ def apply_template_updates(
     commit_message: str = "chore: refresh oompah canonical issue templates",
     push: bool = True,
     dry_run: bool = False,
+    access_token: str | None = None,
+    forge_kind: str = "github",
 ) -> TemplateApplyResult:
     """Write canonical templates into the managed repo and commit/push.
 
@@ -526,10 +533,28 @@ def apply_template_updates(
 
     # --- git push ---
     if push:
-        push_r = _run(
-            ["git", "push", "origin", branch],
-            timeout=60,
-        )
+        if access_token:
+            with git_credential_environment(
+                forge_kind=forge_kind,
+                access_token=access_token,
+                base_env=env,
+            ) as credential_env:
+                push_r = subprocess.run(
+                    ["git", "push", "origin", branch],
+                    cwd=str(repo_path),
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
+                    env=credential_env,
+                )
+                push_r.stdout = redact_git_output(push_r.stdout, (access_token,))
+                push_r.stderr = redact_git_output(push_r.stderr, (access_token,))
+        else:
+            push_r = _run(
+                ["git", "push", "origin", branch],
+                timeout=60,
+            )
+
         if push_r.returncode != 0:
             result.error = f"git push failed: {push_r.stderr.strip()[:300]}"
             return result

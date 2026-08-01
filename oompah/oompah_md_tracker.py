@@ -21,6 +21,10 @@ from typing import Any
 import yaml
 
 from oompah.checkpoint_queue import CheckpointQueue
+from oompah.git_credentials import (
+    git_credential_environment,
+    redact_git_output,
+)
 from oompah.integration import parse_integration_record
 from oompah.models import BlockerRef, Issue
 from oompah.statuses import (
@@ -303,6 +307,8 @@ class OompahMarkdownTracker:
         state_branch_push_retry_backoff_ms: int = 1000,
         state_branch_shadow_write: bool = False,
         allow_default_branch_task_writes: bool = True,
+        access_token: str | None = None,
+        forge_kind: str = "github",
         _checkpoint_timer_factory: Any = None,
         _on_checkpoint_flushed: Any = None,
     ) -> None:
@@ -318,6 +324,10 @@ class OompahMarkdownTracker:
         self.allow_default_branch_task_writes = bool(
             allow_default_branch_task_writes
         )
+        # Forge credentials for authenticated Git network operations.
+        # Token is never stored in git config or URLs; only in ephemeral subprocess env.
+        self._access_token = str(access_token or "")
+        self._forge_kind = str(forge_kind or "github").strip().lower() or "github"
         # Optional callback invoked after each successful state-branch checkpoint
         # flush. Used by server.py to invalidate the issues snapshot cache so
         # clients receive fresh data without waiting for the 60-second TTL.
@@ -2060,6 +2070,10 @@ class OompahMarkdownTracker:
     ) -> subprocess.CompletedProcess[str]:
         """Run a git command and return the completed process.
 
+        For network operations (push, fetch, ls-remote), uses the configured
+        project access token passed through an ephemeral GIT_ASKPASS environment.
+        The token is never added to remote URLs or persisted in git config.
+
         Args:
             args: git sub-command and flags (without the ``git`` binary itself).
             check: When ``True``, raise :class:`TrackerError` if the command
@@ -2069,13 +2083,44 @@ class OompahMarkdownTracker:
                 branch worktree path to run commands inside that worktree.
         """
         effective_cwd = str(cwd) if cwd is not None else str(self._root)
-        result = subprocess.run(
-            ["git", *args],
-            cwd=effective_cwd,
-            capture_output=True,
-            text=True,
-            timeout=60,
+
+        # Detect network operations that may need credentials.
+        # Only push/fetch/ls-remote require authentication for private repos.
+        is_network_op = (
+            len(args) > 0
+            and args[0] in ("push", "fetch", "ls-remote")
         )
+
+        env = None
+        if is_network_op and self._access_token:
+            # Use ephemeral credential environment for network operations.
+            # The context manager creates a temp GIT_ASKPASS script and sets
+            # credential env vars, then cleans up after the subprocess exits.
+            with git_credential_environment(
+                forge_kind=self._forge_kind,
+                access_token=self._access_token,
+            ) as credential_env:
+                env = credential_env
+
+        try:
+            result = subprocess.run(
+                ["git", *args],
+                cwd=effective_cwd,
+                capture_output=True,
+                text=True,
+                timeout=60,
+                env=env,
+            )
+        except subprocess.TimeoutExpired:
+            raise TrackerError(
+                f"git {' '.join(args[:2])} timed out after 60s"
+            )
+
+        # Redact any token from output to prevent credential leakage.
+        if self._access_token:
+            result.stdout = redact_git_output(result.stdout, (self._access_token,))
+            result.stderr = redact_git_output(result.stderr, (self._access_token,))
+
         if check and result.returncode != 0:
             stderr = result.stderr.strip() or result.stdout.strip()
             raise TrackerError(f"git {' '.join(args)} failed: {stderr}")
