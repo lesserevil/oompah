@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T22:19:41.486806Z'
-updated_at: '2026-08-01T22:41:24.635362Z'
+updated_at: '2026-08-01T22:41:38.136155Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -49,13 +49,17 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: 532b2bc5-a57b-4077-b904-0dbbc93eaf95
 oompah.task_costs:
-  total_input_tokens: 226885
-  total_output_tokens: 29071
+  total_input_tokens: 1295670
+  total_output_tokens: 35348
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 226885
       output_tokens: 29071
+      cost_usd: 0.0
+    sonnet:
+      input_tokens: 1068785
+      output_tokens: 6277
       cost_usd: 0.0
   runs:
   - profile: default
@@ -70,6 +74,12 @@ oompah.task_costs:
     output_tokens: 27003
     cost_usd: 0.0
     recorded_at: '2026-08-01T22:30:00.202075+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 1068785
+    output_tokens: 6277
+    cost_usd: 0.0
+    recorded_at: '2026-08-01T22:41:31.403348+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-686__20260801T222030Z
@@ -88,14 +98,24 @@ oompah.work_contributors:
     source_branch: OOMPAH-686
     source_sha: 72a5ce1d6b0be15ea758513b86d7ff3b9f1bd182
     completed_at: '2026-08-01T22:30:00.205769+00:00'
+  - run_id: OOMPAH-686__20260801T223820Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-terra
+    focus: ci_fix
+    source_branch: OOMPAH-686
+    source_sha: 19f4f3f9c976cc8c9143880706611c8e448638f6
+    completed_at: '2026-08-01T22:41:31.407137+00:00'
 oompah.integration:
   version: 2
   state: ready
   attempts: 0
   task_branch: OOMPAH-686
+  base_branch: main
+  base_sha: 3d50e86c334e8a6318b767b281bc254fa6d93cc2
   head_sha: 19f4f3f9c976cc8c9143880706611c8e448638f6
   submitted_at: '2026-08-01T22:41:21.022835+00:00'
-  updated_at: '2026-08-01T22:41:21.022835+00:00'
+  updated_at: '2026-08-01T22:41:37.049525+00:00'
 ---
 ## Summary
 
@@ -389,5 +409,20 @@ author: oompah
 created: 2026-08-01 22:41
 ---
 Stabilized the maintenance lane regression test by isolating unrelated release-addendum recovery I/O
+---
+author: oompah
+created: 2026-08-01 22:41
+---
+Agent completed successfully in 197s (1075062 tokens)
+---
+author: oompah
+created: 2026-08-01 22:41
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Codex/gpt-5.6-terra]
+- Turns: 1, Tool calls: 26
+- Tokens: 1.1M in / 6.3K out [1.1M total]
+- Cost: $0.0000
+- Exit: normal, Duration: 3m 17s
+- Log: OOMPAH-686__20260801T223820Z.jsonl
 ---
 <!-- COMMENTS:END -->
