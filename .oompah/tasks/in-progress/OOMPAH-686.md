@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-686
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Keep worker container-runtime failures out of Needs Human
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T22:19:41.486806Z'
-updated_at: '2026-08-01T22:21:26.171260Z'
+updated_at: '2026-08-01T22:22:21.849290Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,7 +46,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 18cd069a-9ef9-476b-b4da-d288851e0df4
+oompah.agent_run_id: 1f4ac41c-38b4-4a1d-8bdb-90cd83a49885
 oompah.task_costs:
   total_input_tokens: 226219
   total_output_tokens: 2068
@@ -105,5 +105,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 54s
 - Log: OOMPAH-686__20260801T222030Z.jsonl
+---
+author: oompah
+created: 2026-08-01 22:22
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-01 22:22
+---
+Focus: Callback Auth Validation Specialist
 ---
 <!-- COMMENTS:END -->
