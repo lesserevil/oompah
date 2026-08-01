@@ -1,8 +1,8 @@
 ---
 id: OOMPAH-679
 type: bug
-status: In Review
-priority: 1
+status: Needs CI Fix
+priority: 0
 title: Reset activity panel identity when a task starts a new agent run
 parent: null
 children: []
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T12:05:24.382952Z'
-updated_at: '2026-08-01T15:25:43.062870Z'
+updated_at: '2026-08-01T15:33:48.809894Z'
 work_branch: OOMPAH-679
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/641
@@ -334,5 +334,10 @@ author: oompah
 created: 2026-08-01 15:25
 ---
 Branch quality gate passed for `c24ba48c7516245298b2d68dbf1ddbf0f280f75a` using `make test` in 393.0s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-01 15:33
+---
+YOLO: CI tests failed on MR #641. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
 ---
 <!-- COMMENTS:END -->
