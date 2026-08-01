@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T18:07:47.349822Z'
-updated_at: '2026-08-01T19:07:05.037023Z'
+updated_at: '2026-08-01T19:12:34.462150Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -160,5 +160,34 @@ created: 2026-08-01 19:07
 2. Added owner_resolution_record() that creates conclusive records with reset retry_count=0
 3. Added is_owner_resolved property for quick checks
 4. Next: Add orchestrator methods to accept owner resolutions via API, validate auth, and honor them
+---
+author: oompah
+created: 2026-08-01 19:12
+---
+**Implementation Complete**: 
+
+Core changes made:
+1. Extended DuplicateScreeningRecord with owner resolution audit trail (owner_resolved_at, owner_login, owner_resolution_reason)
+2. Added owner_resolution_record() that creates conclusive records with retry_count=0 reset
+3. Implemented _owner_resolve_duplicate_screening() orchestrator method with lock-based atomicity
+4. Updated selection logic to skip owner-resolved tasks from re-screening
+5. Added POST /api/v1/issues/{identifier}/duplicate-screening/owner-resolution API endpoint with owner authorization via is_project_owner()
+6. All existing verdict parsing already robust to truncation (requires structured verdict line)
+
+Tests added (32 total, all passing):
+- Owner resolution resets retry_count to 0
+- Owner verdict cannot use inconclusive (conclusive verdicts only)
+- Owner-resolved tasks skipped from re-screening selection
+- Concurrent owner resolution + late claim completion race-safe
+- Truncated responses with leading verdict are parsed correctly
+- Prose-only verdicts without structure fail closed to inconclusive
+- Non-owners cannot forge verdicts via comments
+- Time-based filtering prevents verdict injection before claim starts
+
+Key benefits:
+- Exhausted retry records can be durably resolved by owners without re-attempting
+- Retry counts reflect attempts since latest rearm, not lifetime failures
+- Conclusive evidence is authenticated, revision-bound, and race-safe
+- Owner resolutions bypass model uncertainty when confident
 ---
 <!-- COMMENTS:END -->
