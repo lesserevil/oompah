@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-682
 type: task
-status: In Validation
+status: In Review
 priority: null
 title: Make duplicate-preflight recovery authoritative and self-sufficient
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T18:07:47.349822Z'
-updated_at: '2026-08-01T21:40:14.918307Z'
+updated_at: '2026-08-01T22:04:38.768654Z'
 work_branch: OOMPAH-682
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/645
@@ -102,6 +102,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-f119a532f4e9: '2026-08-01T19:48:30.143929+00:00'
+    attempt-9a274e6f4acd: '2026-08-01T22:04:36.169833+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-682
@@ -112,6 +113,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-01T19:48:30.143943+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-682
+    target_state: Merged
+    evidence_fingerprint: 6cd797756c589697e2acc305e3b55c24f016247cfa712f5e0520d3bb80aeaea7
+    audit_ids:
+    - audit-05edb6c87c95
+    kind: result
+    applied: true
+    retired_at: '2026-08-01T22:04:36.169845+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-682
@@ -125,6 +135,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-01T19:48:30.143960+00:00'
     applied_at: '2026-08-01T19:48:33.345212+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-682
+    audit_id: audit-05edb6c87c95
+    attempt_id: attempt-9a274e6f4acd
+    target_state: Merged
+    evidence_fingerprint: 6cd797756c589697e2acc305e3b55c24f016247cfa712f5e0520d3bb80aeaea7
+    status: In Review
+    audit_ids:
+    - audit-05edb6c87c95
+    applied: false
+    created_at: '2026-08-01T22:04:36.169858+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -184,7 +205,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-682
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -193,7 +214,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-9a274e6f4acd
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -203,13 +224,17 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-01T21:40:08.352349+00:00'
       branch_key: OOMPAH-682
+      verdict: fail
+      failure_classification: healthy_unmerged_review
+      completed_at: '2026-08-01T22:04:36.169729+00:00'
+      ended_at: '2026-08-01T22:04:36.169729+00:00'
     requested_by:
       version: 1
       identity: standalone-ready-reconciliation
       source: oompah
     previous_state: Ready to Integrate
     created_at: '2026-08-01T21:38:05.840865+00:00'
-    updated_at: '2026-08-01T21:40:08.352349+00:00'
+    updated_at: '2026-08-01T22:04:36.169729+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-f119a532f4e9
@@ -480,5 +505,17 @@ author: oompah
 created: 2026-08-01 21:40
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-01 22:04
+---
+Audit FAIL — healthy unmerged review. Routing task to In Review.
+
+[REDACTED]
+
+Instructions:
+- Run the branch quality gate (make test) for OOMPAH-682 head 71f87859f before requesting terminal audit.
+- Integrate 71f87859f into origin/main (via the normal PR/merge path used earlier for PR #645) before re-requesting the Merged terminal transition.
+- When resubmitting, ensure the evidence fingerprint covers the head that is actually on main and that a gate-pass comment exists for that head.
 ---
 <!-- COMMENTS:END -->
