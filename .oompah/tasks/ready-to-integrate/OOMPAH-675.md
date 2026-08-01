@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-675
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Keep the parallel pytest gate stable when workers terminate
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T04:59:55.163807Z'
-updated_at: '2026-08-01T05:53:43.602487Z'
+updated_at: '2026-08-01T05:53:53.656024Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -69,6 +69,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-675
     source_sha: cde6401136d6561b694b05f81f4337cd26d7a3fe
     completed_at: '2026-08-01T05:11:47.923643+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-675
+  head_sha: d13a33d342e917c1ecb660e629a5e585724f2c11
+  submitted_at: '2026-08-01T05:53:50.577959+00:00'
+  updated_at: '2026-08-01T05:53:50.577959+00:00'
 ---
 ## Summary
 
@@ -230,5 +238,10 @@ Run 2: 14736 passed, 7 skipped, 1 xfailed, 1 failed. The single failure was test
 Focused sanity: tests/test_pytest_worker_survives_timeout.py (3 new subprocess-driven tests), tests/test_pytest_timeout_config.py, tests/test_pytest_parallel.py, tests/test_agent.py, tests/test_lifespan_abort.py, tests/test_granian_bootstrap.py, tests/test_granian_e2e.py, tests/test_granian_parity.py, tests/test_makefile_restart_wait.py, tests/test_lifecycle_cli_sync_integration.py, tests/test_checkpoint_coalescing.py, tests/test_task_cost_telemetry.py, tests/test_api_agent_budget.py — all pass.
 
 **Completion**: Delivered pyproject.toml timeout_method='signal', scripts/run-tests.sh --max-worker-restart=0, updated tests/test_pytest_timeout_config.py assertion, added tests/test_pytest_parallel.py runner assertion, and new tests/test_pytest_worker_survives_timeout.py subprocess coverage. Pushed as commit d13a33d34 to origin/OOMPAH-675.
+---
+author: oompah
+created: 2026-08-01 05:53
+---
+Switched pyproject timeout_method from thread to signal so intentional per-test timeouts raise pytest.Failed in the worker's main thread instead of pytest-timeout calling os._exit(1). Added --max-worker-restart=0 to scripts/run-tests.sh so a genuine crash fails fast with the crashitem identified rather than triggering LoadScopeScheduling / LoadGroupScheduling replacement KeyError. Updated the pyproject regression and runner regression, and added tests/test_pytest_worker_survives_timeout.py — a subprocess-driven pytest+xdist run that proves signal-mode timeouts name the responsible test, neighbouring tests survive, and a hard os._exit(1) crash under --max-worker-restart=0 surfaces the crashitem without a scheduler internal error. Two full 4-worker gates completed without 'Not properly terminated' or xdist internal errors.
 ---
 <!-- COMMENTS:END -->
