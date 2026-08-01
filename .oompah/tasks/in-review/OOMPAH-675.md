@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-675
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Keep the parallel pytest gate stable when workers terminate
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T04:59:55.163807Z'
-updated_at: '2026-08-01T06:12:10.109082Z'
+updated_at: '2026-08-01T06:12:13.176417Z'
 work_branch: null
 target_branch: null
 review_url: https://github.com/lesserevil/oompah/pull/639
