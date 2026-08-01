@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T04:59:55.163807Z'
-updated_at: '2026-08-01T05:29:10.951078Z'
+updated_at: '2026-08-01T05:37:39.498832Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -206,5 +206,17 @@ Plan:
 2. Fix the offending test(s) so a bounded test cannot terminate its own worker.
 3. Configure the runner so worker-loss no longer propagates as an internal-error crash (max-worker-restart bound + preferring worksteal for non-group tests, or --tx retention).
 4. Add regression coverage that exercises worker failure/replacement paths.
+---
+author: oompah
+created: 2026-08-01 05:37
+---
+**Discovery — root cause identified**: pyproject.toml sets \`timeout_method = "thread"\`. pytest-timeout's timer thread calls \`os._exit(1)\` on timeout (site-packages/pytest_timeout.py:542), which terminates the xdist worker process before it can send a clean shutdown message. The xdist controller reports 'Not properly terminated', spawns a replacement worker, and LoadScopeScheduling / LoadGroupScheduling can KeyError when late worker-report events arrive for the replaced WorkerController (loadscope.py:249 mark_test_complete, worker_workerfinished remove_node path).
+
+**Implementation**:
+1. pyproject.toml: timeout_method 'thread' → 'signal'. Signal-based timeout raises pytest.Failed inside the worker's main thread, keeping the worker alive.
+2. scripts/run-tests.sh: added --max-worker-restart=0 to the parallel invocation. With signal timeouts, worker loss now indicates a genuine crash and we fail fast on it — that path handles crashitem cleanly in xdist and avoids the LoadScopeScheduling replacement KeyError entirely.
+3. tests/test_pytest_timeout_config.py: updated regression to assert signal method.
+4. tests/test_pytest_parallel.py: added regression that the runner has --max-worker-restart=0 with loadgroup.
+5. tests/test_pytest_worker_survives_timeout.py: new subprocess-driven coverage that runs pytest+xdist with a slow test and asserts (a) responsible test is named in the failure, (b) worker survives to run neighbouring tests, (c) 'Not properly terminated' / 'replacing crashed worker' / 'INTERNALERROR' never appear, (d) a genuine os._exit(1) crash is reported with --max-worker-restart=0 without a scheduler replacement crash.
 ---
 <!-- COMMENTS:END -->
