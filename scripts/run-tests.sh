@@ -78,7 +78,18 @@ pytest_args=(
     -o "cache_dir=${test_run_root}/pytest-cache"
 )
 if [[ "${mode}" == "parallel" ]]; then
-    pytest_args+=(-n "${workers}" --dist loadgroup)
+    # Bound worker restarts to zero.  Signal-based test timeouts (pyproject
+    # ``timeout_method = "signal"``) already keep an intentionally timing-out
+    # test from tearing down its worker, so a lost worker under the parallel
+    # gate now indicates a genuine crash rather than an expected timeout.
+    # Restarting a crashed worker triggers the LoadScopeScheduling /
+    # LoadGroupScheduling KeyError family tracked by OOMPAH-675: xdist re-
+    # attaches events for a replaced ``WorkerController`` whose scheduler
+    # bookkeeping has already been popped, and the run aborts partway through
+    # without the original crash identity.  Failing fast on the first genuine
+    # crash preserves the responsible test's identity in the terminal report
+    # and lets the operator re-run the gate.
+    pytest_args+=(-n "${workers}" --dist loadgroup --max-worker-restart=0)
     echo "Running pytest with ${workers} isolated workers under ${test_run_root}"
 else
     echo "Running pytest serially under ${test_run_root}"
