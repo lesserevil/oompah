@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-679
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Reset activity panel identity when a task starts a new agent run
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T12:05:24.382952Z'
-updated_at: '2026-08-01T15:17:05.590083Z'
+updated_at: '2026-08-01T15:17:17.229608Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -120,9 +120,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-679
-  head_sha: df28f501739ec456e061966015317545b02a7616
-  submitted_at: '2026-08-01T14:53:54.548014+00:00'
-  updated_at: '2026-08-01T14:53:54.548014+00:00'
+  head_sha: c24ba48c7516245298b2d68dbf1ddbf0f280f75a
+  submitted_at: '2026-08-01T15:17:14.384903+00:00'
+  updated_at: '2026-08-01T15:17:14.384903+00:00'
 ---
 ## Summary
 
@@ -300,5 +300,10 @@ author: oompah
 created: 2026-08-01 15:17
 ---
 Completion: pushed c24ba48c7 to the existing OOMPAH-679 branch. The minimal CI repair updates only dispatch/preflight test doubles for the run_id keyword and adds an exact worker-to-RunningEntry identity assertion; 111 focused tests pass and the secret scan completed successfully.
+---
+author: oompah
+created: 2026-08-01 15:17
+---
+Fixed the blocked branch gate by updating strict dispatch and duplicate-preflight test doubles for the run_id worker contract; added an assertion that worker and RunningEntry identities match. Focused suites: 111 passed. Pushed c24ba48c7.
 ---
 <!-- COMMENTS:END -->
