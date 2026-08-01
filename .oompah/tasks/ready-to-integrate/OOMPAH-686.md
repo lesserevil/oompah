@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-686
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Keep worker container-runtime failures out of Needs Human
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T22:19:41.486806Z'
-updated_at: '2026-08-01T22:29:40.094967Z'
+updated_at: '2026-08-01T22:29:49.552371Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -73,6 +73,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-686
     source_sha: 3d50e86c334e8a6318b767b281bc254fa6d93cc2
     completed_at: '2026-08-01T22:21:21.269250+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-686
+  head_sha: 72a5ce1d6b0be15ea758513b86d7ff3b9f1bd182
+  submitted_at: '2026-08-01T22:29:46.728175+00:00'
+  updated_at: '2026-08-01T22:29:46.728175+00:00'
 ---
 ## Summary
 
@@ -226,5 +234,10 @@ Comprehensive test results:
 ✓ Cleanup happens automatically after worker exits
 
 Branch pushed and ready for review.
+---
+author: oompah
+created: 2026-08-01 22:29
+---
+Implemented worker XDG_RUNTIME_DIR fallback to prevent read-only libpod from escalating to Needs Human. Added helper functions to detect and handle read-only inherited runtime directories, automatic cleanup logic across all agent backends, and 23 focused tests covering environment setup, directory creation, security, and backward compatibility. All 109 tests passing (23 new + 86 existing).
 ---
 <!-- COMMENTS:END -->
