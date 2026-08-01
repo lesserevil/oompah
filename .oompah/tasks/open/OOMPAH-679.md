@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T12:05:24.382952Z'
-updated_at: '2026-08-01T14:31:51.170043Z'
+updated_at: '2026-08-01T14:33:53.749163Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -21,17 +21,99 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: c2afc418e9d217abf284d9e8a66ead0db5aec54a956ab1276d9a2e851c9b6bfe
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-01T14:33:49.231152+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 1527f55b-f311-452a-a778-49d7f810d20c
-  claim_owner: 7946c223-6c24-4967-8291-1d20c0e47f05
-  claimed_at: '2026-08-01T14:31:45.026404+00:00'
-  claim_expires_at: '2026-08-01T15:01:45.026404+00:00'
+  evidence: 'Based on my comprehensive search of the oompah task tracker, I''ve completed
+    the duplicate investigation for OOMPAH-679. Let me summarize my findings:
+
+
+    **Investigation Summary:**
+
+
+    I searched for related tasks using multiple approaches:
+
+    1. Searched `.oompah/tasks/open/`, `.oompah/tasks/backlog/` - found OOMPAH-281
+    (self-hosted runners) and OOMPAH-282 (unicode encoding error) - neither related
+
+    2. Reviewed all merged tasks (OOMPAH-271, 272, 275, 277-280) - all about epic
+    rebasing or CI runner setup, none about activity panel or run identity
+
+    3. Searched source code (oompah/) and plans/ for keywords: activity, panel, dashboard,
+    running snapshot, run identity, focus_name, focus_role - no matches in active
+    code planning
+
+    4. Verified the issue describes a specific live UI regression observed on 2026-08-01
+    for task EXOCOMP-143, where the dashboard activity panel failed to reset when
+    transitioning from Duplicate Investigator run to Maintenance Engineer run
+
+
+    **Key Evidence:**
+
+    - OOMPAH-679 is about a regression where activity panel state is keyed by `issue_identifier`
+    alone, not by per-run identity
+
+    - The issue requires architectural changes to: expose stable per-run identity,
+    reset panel title/cached entries/activity by run_id, handle late activity from
+    superseded runs
+
+    - No existing open, backlog, or recent merged tasks cover this specific problem
+
+    - The issue is marked Priority 1, indicating it''s a critical regression
+
+    - Previous comments show duplicate screening was already initiated
+
+
+    ---
+
+
+    **Focus handoff: duplicate_detector**
+
+
+    **Duplicate preflight verdict: no_duplicate**
+
+
+    **Matches: none**
+
+
+    **Evidence:** Extensive search of `.oompah/tasks` (open, backlog, merged, archived),
+    source code plans/, and implementation files found no existing active task covering
+    the activity panel identity reset issue. OOMPAH-281 (self-hosted runners) and
+    OOMPAH-282 (unicode error) in open/backlog are unrelated. All merged tasks (271,
+    272, 275-280) address epic rebasing or CI infrastructure, not dash'
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
 oompah.agent_run_id: 3819e905-1dea-4a4e-a61c-08226c56e9b9
+oompah.task_costs:
+  total_input_tokens: 202
+  total_output_tokens: 5482
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 202
+      output_tokens: 5482
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 202
+    output_tokens: 5482
+    cost_usd: 0.0
+    recorded_at: '2026-08-01T14:33:49.201952+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-679__20260801T143153Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: duplicate_detector
+    source_branch: OOMPAH-679
+    source_sha: 62ca0ca696d08b754e03a200d7227455786da960
+    completed_at: '2026-08-01T14:33:49.270886+00:00'
 ---
 ## Summary
 
@@ -54,5 +136,15 @@ author: oompah
 created: 2026-08-01 14:31
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-01 14:33
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 67, Tool calls: 36
+- Tokens: 202 in / 5.5K out [5.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 0s
+- Log: OOMPAH-679__20260801T143153Z.jsonl
 ---
 <!-- COMMENTS:END -->

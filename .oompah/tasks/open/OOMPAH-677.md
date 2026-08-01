@@ -13,7 +13,7 @@ labels:
 - needs:feature
 assignee: null
 created_at: '2026-08-01T11:56:19.836343Z'
-updated_at: '2026-08-01T14:33:29.246550Z'
+updated_at: '2026-08-01T14:33:47.865341Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -60,13 +60,13 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 487d7f93-122e-456e-9b1a-cf6ab373a868
 oompah.task_costs:
-  total_input_tokens: 234
-  total_output_tokens: 4829
+  total_input_tokens: 3543845
+  total_output_tokens: 19897
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 234
-      output_tokens: 4829
+      input_tokens: 3543845
+      output_tokens: 19897
       cost_usd: 0.0
   runs:
   - profile: default
@@ -75,6 +75,12 @@ oompah.task_costs:
     output_tokens: 4829
     cost_usd: 0.0
     recorded_at: '2026-08-01T14:27:38.918413+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 3543611
+    output_tokens: 15068
+    cost_usd: 0.0
+    recorded_at: '2026-08-01T14:33:41.264936+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-677__20260801T142515Z
@@ -85,6 +91,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-677
     source_sha: 62ca0ca696d08b754e03a200d7227455786da960
     completed_at: '2026-08-01T14:27:38.939916+00:00'
+  - run_id: OOMPAH-677__20260801T142800Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: frontend
+    source_branch: OOMPAH-677
+    source_sha: 95371a0da020a1f82bd0e4fb48c2202e8a8a91d6
+    completed_at: '2026-08-01T14:33:41.269262+00:00'
 ---
 ## Summary
 
@@ -151,5 +165,25 @@ Focus handoff: frontend
 2. Relevant files/evidence: oompah/templates/projects.html, oompah/templates/dashboard.html, tests/test_projects_gitlab_ui.py, tests/test_dashboard_intake_actions.py. Focused checks: PYTHONPATH=. pytest -q tests/test_projects_gitlab_ui.py tests/test_dashboard_intake_actions.py (106 passed); PYTHONPATH=. pytest -q tests/test_projects_crud.py (157 passed); git diff --check passed. Commit 95371a0da is pushed to origin/OOMPAH-677.
 3. Remaining work/risks: backend project create/update still only resolves token ownership for GitHub; GitLab and native Markdown configurations can remain ownerless. The API transition evaluator also needs the GitLab tracker included in the protected owner gate. Add structured rejection fields such as error.authenticated_actor and error.project_owner_config (the UI tolerates compatible aliases). Preserve server-side authenticated actor binding and do not authorize from client actor fields.
 4. Recommended next focus: backend/feature agent should implement shared owner identity resolution/validation for create and update, repair or clearly flag existing ownerless projects, extend gate coverage to GitLab, and add regression tests for the NodeVirt configuration and authenticated-owner/non-owner transitions.
+---
+author: oompah
+created: 2026-08-01 14:33
+---
+Agent completed successfully in 346s (3558679 tokens)
+---
+author: oompah
+created: 2026-08-01 14:33
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 59
+- Tokens: 3.5M in / 15.1K out [3.6M total]
+- Cost: $0.0000
+- Exit: normal, Duration: 5m 46s
+- Log: OOMPAH-677__20260801T142800Z.jsonl
+---
+author: oompah
+created: 2026-08-01 14:33
+---
+Focus handoff from `frontend` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
 ---
 <!-- COMMENTS:END -->
