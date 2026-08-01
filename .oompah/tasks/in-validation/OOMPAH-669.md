@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-669
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Same-head task resubmission must restore Ready to Integrate lifecycle
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T21:52:16.588312Z'
-updated_at: '2026-08-01T00:37:04.903914Z'
+updated_at: '2026-08-01T00:45:37.800545Z'
 work_branch: OOMPAH-669
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/631
@@ -92,6 +92,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/631
 oompah.review_number: '631'
 oompah.work_branch: OOMPAH-669
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-958931a65e77
+    project_id: proj-14849f1b
+    task_id: OOMPAH-669
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8f85331e5ecbe076fd05ac3251bdf9c0b6812ea3b5e779d1abeca6fd1d242066
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-01T00:45:33.065339+00:00'
+  - version: 1
+    audit_id: audit-64e34031252c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-669
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8f85331e5ecbe076fd05ac3251bdf9c0b6812ea3b5e779d1abeca6fd1d242066
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-01T00:45:33.065339+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -196,5 +235,15 @@ author: oompah
 created: 2026-08-01 00:36
 ---
 Branch quality gate passed for `e8761afb6029bad39bf28e82b45a6cce92ad0768` using `make test` in 397.1s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-01 00:45
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-01 00:45
+---
+YOLO: merged PR #631.
 ---
 <!-- COMMENTS:END -->
