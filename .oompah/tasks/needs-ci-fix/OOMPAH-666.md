@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-666
 type: bug
-status: Ready to Integrate
+status: Needs CI Fix
 priority: 1
 title: Fix dashboard vertical scrolling when alerts precede the Kanban board
 parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- ci-fix
 assignee: null
 created_at: '2026-07-31T21:19:38.816688Z'
-updated_at: '2026-07-31T23:45:25.684308Z'
+updated_at: '2026-08-01T00:30:05.971500Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -212,5 +213,74 @@ author: oompah
 created: 2026-07-31 23:45
 ---
 Direct operator validation complete. Reviewed the dashboard flex/overflow change and regression coverage; the exact pushed head 8d3da62bf488a6537a188303934957293b2d2951 passed the full Makefile gate: 14,546 passed, 7 skipped, 1 expected xfail. The prior Needs Human state was only a task-handoff transport failure after successful implementation, so the existing ready integration record is authoritative.
+---
+author: oompah
+created: 2026-08-01 00:30
+---
+Branch quality gate blocked review creation.
+
+Branch: `OOMPAH-666`
+Target: `main`
+Head: `8d3da62bf488a6537a188303934957293b2d2951`
+Command: `make test`
+Result: `failed`
+
+Required: run the command in the task worktree, fix the failure, commit and push the repair, then leave the task in Done. Oompah will rerun the gate for the new head before creating the PR/MR.
+
+Output tail:
+```text
+")
+
+tests/test_mcp_gateway.py::test_mcp_client_can_initialize_list_allowed_tools_and_call_state
+tests/test_mcp_gateway.py::test_authenticated_mcp_client_can_initialize_list_and_call_protected_api
+  /home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/contextlib.py:105: DeprecationWarning: Use `streamable_http_client` instead.
+    self.gen = func(*args, **kwds)
+
+tests/test_orchestrator_handlers.py::TestRunStep5cEpicMaintenance::test_tick_sets_epic_maintenance_future
+  /home/shedwards/.oompah/tmp/oompah-quality-gate-6m9t_jfb/workspace/oompah/orchestrator.py:4927: RuntimeWarning: coroutine 'AsyncMockMixin._execute_mock_call' was never awaited
+    f"{k}={v:.0f}" for k, v in dispatch_timings.items()
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_sdk_install_guards.py::TestClaudeSessionMcpServerGuard::test_no_tool_catalog_skips_mcp_server_path
+  /home/shedwards/.oompah/tmp/oompah-quality-gate-6m9t_jfb/workspace/oompah/acp_backends/claude.py:493: RuntimeWarning: coroutine 'AsyncMockMixin._execute_mock_call' was never awaited
+    async for msg in client.receive_response():
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_server_release_picks.py::TestPatchReleasePicksEndpoint::test_returns_400_on_invalid_json
+tests/test_server_release_picks.py::TestPostApplyReleasePicksToAllChildren::test_returns_400_on_invalid_json
+  /home/shedwards/.oompah/tmp/oompah-quality-gate-6m9t_jfb/workspace/.venv/lib/python3.12/site-packages/httpx/_models.py:408: DeprecationWarning: Use 'content=<...>' to upload raw bytes/text content.
+    headers, stream = encode_request(
+
+tests/test_work_contributors.py::TestWriteWorkContributorRecord::test_tracker_error_on_get_metadata_still_writes
+  /home/shedwards/.oompah/tmp/oompah-quality-gate-6m9t_jfb/workspace/.venv/lib/python3.12/site-packages/_pytest/unraisableexception.py:67: PytestUnraisableExceptionWarning: Exception ignored in: <function BaseSubprocessTransport.__del__ at 0x733e00a0b920>
+  
+  Traceback (most recent call last):
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 126, in __del__
+      self.close()
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 104, in close
+      proto.pipe.close()
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 568, in close
+      self._close(None)
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 592, in _close
+      self._loop.call_soon(self._call_connection_lost, exc)
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 799, in call_soon
+      self._check_closed()
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 545, in _check_closed
+      raise RuntimeError('Event loop is closed')
+  RuntimeError: Event loop is closed
+  
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_orchestrator_handlers.py::TestRunStep5cEpicMaintenance::test_tick_sets_epic_maintenance_future
+= 1 failed, 14544 passed, 8 skipped, 1 xfailed, 45 warnings in 389.87s (0:06:29) =
+
+make: *** [Makefile:369: test] Error 1
+```
 ---
 <!-- COMMENTS:END -->
