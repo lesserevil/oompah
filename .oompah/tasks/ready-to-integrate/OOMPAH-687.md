@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-687
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Isolate branch-gate runtime from task worktree environments
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T23:00:54.291962Z'
-updated_at: '2026-08-01T23:18:49.564618Z'
+updated_at: '2026-08-01T23:19:24.740214Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -86,6 +86,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-687
     source_sha: 3d50e86c334e8a6318b767b281bc254fa6d93cc2
     completed_at: '2026-08-01T23:04:16.030188+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-687
+  head_sha: 046ad1f71ec16c0a4ead58ef6a10e3020c0a0031
+  submitted_at: '2026-08-01T23:19:22.009948+00:00'
+  updated_at: '2026-08-01T23:19:22.009948+00:00'
 ---
 ## Summary
 
@@ -143,5 +151,15 @@ author: oompah
 created: 2026-08-01 23:18
 ---
 Verification: focused suites passed (419 tests across setup/auth/quality-gate/task-handoff/agent/ACP/API coverage, then 155 final directly affected tests). Wrapper, symlink, and interpreter-resolution regressions fail before uv; poisoned editable mapping returns infrastructure_error without candidate execution or CI-fix status. make test-setup was also attempted and stopped in the host astral-uv snap with a DBus transient-scope error before project setup ran.
+---
+author: oompah
+created: 2026-08-01 23:19
+---
+Completion: committed and pushed 046ad1f71. Task workers now use workspace-private .oompah/task-venv environments with stripped inherited runtime selectors and explicit uv --python targeting; Make rejects wrapper/symlink/foreign-prefix venvs. Branch gates validate editable source roots, project only validated roots into the immutable candidate snapshot, and classify poisoned mappings as infrastructure_error without running candidate CI or applying ci-fix. Focused tests pass; branch is clean and up to date with origin.
+---
+author: oompah
+created: 2026-08-01 23:19
+---
+Isolated task-private worker environments and validated branch-gate editable runtimes; focused tests pass and branch pushed.
 ---
 <!-- COMMENTS:END -->
