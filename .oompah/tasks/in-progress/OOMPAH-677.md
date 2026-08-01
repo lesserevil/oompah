@@ -13,7 +13,7 @@ labels:
 - focus-complete:chore
 assignee: null
 created_at: '2026-08-01T11:56:19.836343Z'
-updated_at: '2026-08-01T14:41:58.090833Z'
+updated_at: '2026-08-01T14:48:50.734526Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -257,5 +257,10 @@ author: oompah
 created: 2026-08-01 14:41
 ---
 **Discovery**: Implemented GitLab URL parser (gitlab_owner_repo_from_url) and _resolve_owner_identity helper that derives project owners from repo_url and tracker configuration. Updated ProjectStore.create to resolve owner identity before creating dispatchable projects (rejecting if ownerless). Updated ProjectStore.update to prevent clearing owner fields for active projects without an alternative owner derivable from config.
+---
+author: oompah
+created: 2026-08-01 14:48
+---
+**Implementation**: Added gitlab_owner_repo_from_url() for GitLab URL parsing, _resolve_owner_identity() helper for deriving owners from repo_url/config, and validation in create() before git clone (fail early) and update() to prevent clearing owner on active projects. Comprehensive test coverage with 31 new tests for GitLab URLs, owner resolution, and NodeVirt regression scenario. All 157 existing project CRUD tests + 31 new tests pass.
 ---
 <!-- COMMENTS:END -->
