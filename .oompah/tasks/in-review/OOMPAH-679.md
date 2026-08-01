@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-679
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 0
 title: Reset activity panel identity when a task starts a new agent run
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T12:05:24.382952Z'
-updated_at: '2026-08-01T15:40:28.226283Z'
+updated_at: '2026-08-01T15:41:11.862104Z'
 work_branch: OOMPAH-679
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/641
