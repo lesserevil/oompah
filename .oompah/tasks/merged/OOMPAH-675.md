@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-675
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Keep the parallel pytest gate stable when workers terminate
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T04:59:55.163807Z'
-updated_at: '2026-08-01T06:23:55.845255Z'
+updated_at: '2026-08-01T06:25:14.536780Z'
 work_branch: OOMPAH-675
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/639
@@ -115,6 +115,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-541cd6d55efe: '2026-08-01T06:23:32.905318+00:00'
+    attempt-084f7ac8d3a7: '2026-08-01T06:25:10.919769+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-675
@@ -125,6 +126,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-01T06:23:32.905332+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-675
+    target_state: Merged
+    evidence_fingerprint: 34b9ef2b3b09ec3e0ba42be1cca1d6482f7dc60a317c202ffde1cfd40b5f6bfb
+    audit_ids:
+    - audit-4b7b622193d1
+    kind: result
+    applied: true
+    retired_at: '2026-08-01T06:25:10.919791+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-675
@@ -138,6 +148,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-01T06:23:32.905352+00:00'
     applied_at: '2026-08-01T06:23:36.077269+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-675
+    audit_id: audit-4b7b622193d1
+    attempt_id: attempt-084f7ac8d3a7
+    target_state: Merged
+    evidence_fingerprint: 34b9ef2b3b09ec3e0ba42be1cca1d6482f7dc60a317c202ffde1cfd40b5f6bfb
+    status: Merged
+    audit_ids:
+    - audit-4b7b622193d1
+    applied: false
+    created_at: '2026-08-01T06:25:10.919818+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -179,7 +200,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-675
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -188,7 +209,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-084f7ac8d3a7
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -198,13 +219,16 @@ oompah.terminal_audit:
       model: sonnet
       started_at: '2026-08-01T06:23:51.239502+00:00'
       branch_key: OOMPAH-675
+      verdict: pass
+      completed_at: '2026-08-01T06:25:10.919577+00:00'
+      ended_at: '2026-08-01T06:25:10.919577+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-01T06:20:49.253937+00:00'
-    updated_at: '2026-08-01T06:23:51.239502+00:00'
+    updated_at: '2026-08-01T06:25:10.919577+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-541cd6d55efe
@@ -475,5 +499,24 @@ author: oompah
 created: 2026-08-01 06:23
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-01 06:25
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- head_commit: d13a33d342e917c1ecb660e629a5e585724f2c11
+- pyproject_timeout_method: signal (pyproject.toml:139)
+- run_tests_sh_max_worker_restart: --max-worker-restart=0 (scripts/run-tests.sh:92)
+- test_pytest_timeout_config_result: 2/2 passed
+- test_pytest_parallel_result: 15/15 passed (including test_runner_bounds_worker_restart_to_prevent_scheduler_replacement_crash)
+- test_pytest_worker_survives_timeout_result: 3/3 passed (4.72s)
+- pr_merged: PR #639 merged per task comment 2026-08-01 06:20
+- pytest_version: 9.0.2
+- xdist_version: 3.8.0
+- timeout_plugin_version: 2.4.0
 ---
 <!-- COMMENTS:END -->
