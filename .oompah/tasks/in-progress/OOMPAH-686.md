@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T22:19:41.486806Z'
-updated_at: '2026-08-01T22:22:50.009016Z'
+updated_at: '2026-08-01T22:23:58.216585Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -132,5 +132,26 @@ EXOCOMP-145 escalated to Needs Human due to a spawned worker failing with 'Faile
 6. Add comprehensive tests: environment construction, EXOCOMP-145 regression, cleanup/secrets, provider tests
 
 This task involves infrastructure/runtime setup which is outside my Callback Auth Validation specialty. I'll investigate the code and likely hand off to a more appropriate focus (devops/infrastructure) if the issue requires deep container/runtime expertise beyond auth/integration aspects.
+---
+author: oompah
+created: 2026-08-01 22:23
+---
+**Discovery: Key Code & Root Cause**
+
+Found the worker environment setup code:
+
+**Core function:** `oompah/client_auth.py:agent_environment()` - sanitizes inherited environment by removing client auth secrets. Called from:
+- `oompah/agent.py:359` - AgentSession.start()
+- `oompah/acp_backends/claude.py:362` - Claude ACP backend
+- `oompah/acp_backends/codex.py:592`, `opencode.py:342` - Other ACP backends
+
+**Root cause:** When a worker's sandbox inherits a read-only /run/user/\$uid/libpod directory (from the host), podman fails with 'Failed to obtain podman configuration: set sticky bit on: chmod /run/user/1000/libpod: read-only file system'.
+
+**Solution approach:**
+1. Extend `agent_environment()` to detect read-only XDG_RUNTIME_DIR
+2. When read-only, create private writable temp directory and override XDG_RUNTIME_DIR
+3. Add cleanup logic to remove temp dir after worker exits
+4. Distinguish infrastructure failures from code failures via preflight check
+5. Implement comprehensive tests for environment construction + regression test for EXOCOMP-145
 ---
 <!-- COMMENTS:END -->
