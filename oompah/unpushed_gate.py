@@ -34,6 +34,8 @@ import subprocess
 from dataclasses import dataclass, field
 from typing import Any
 
+from oompah.projects import remove_generated_worktree_helpers
+
 logger = logging.getLogger(__name__)
 
 # Timeout for git operations inside the gate check.
@@ -109,6 +111,14 @@ def _check_unpushed(
     # its dirty state would be a false positive for this branch's check.
     if worktree_path and os.path.isdir(worktree_path):
         try:
+            removed_helpers = remove_generated_worktree_helpers(worktree_path)
+            if removed_helpers:
+                logger.info(
+                    "submission cleanliness excluded generated helpers "
+                    "worktree=%s helpers=%s",
+                    worktree_path,
+                    sorted(removed_helpers),
+                )
             status_result = subprocess.run(
                 ["git", "status", "--porcelain"],
                 cwd=worktree_path,

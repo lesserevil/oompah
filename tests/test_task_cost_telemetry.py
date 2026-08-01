@@ -853,6 +853,37 @@ class TestTerminateRunningWritesCostRecord:
             )
         ]
 
+    def test_late_termination_cannot_clean_newer_worker_generation(self, tmp_path):
+        """A replacement generation keeps ownership after old cleanup yields."""
+        orch, entry = self._make_orchestrator_with_running(tmp_path)
+        entry.issue.project_id = "project-1"
+        entry.workspace_path = str(tmp_path / "task-worktree")
+        replacement = MagicMock()
+        remove_calls = []
+
+        class RecoveryStore:
+            def worktree_path_for(self, _project_id, _identifier):
+                return entry.workspace_path
+
+            def preserve_worktree_changes(self, *_args):
+                # Simulate a retry dispatch winning while the old snapshot
+                # callback is in flight. The old path must not remove it.
+                orch.state.running[entry.identifier] = replacement
+                return {"recovery_ref": "refs/recovery/new", "snapshot_head": "new"}
+
+            def remove_worktree(self, *args):
+                remove_calls.append(args)
+
+        orch.project_store = RecoveryStore()
+        orch._fire_task_cost_record = MagicMock()
+        orch._fire_telemetry_comment = MagicMock()
+
+        assert asyncio.run(
+            orch._terminate_running(entry.identifier, cleanup_workspace=True)
+        ) is True
+        assert orch.state.running[entry.identifier] is replacement
+        assert remove_calls == []
+
     def test_snapshot_failure_holds_task_for_human_reconciliation(self, tmp_path):
         """Recovery errors remove retry eligibility and preserve the task state."""
         orch, entry = self._make_orchestrator_with_running(tmp_path)
