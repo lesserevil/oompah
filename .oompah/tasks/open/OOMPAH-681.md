@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-681
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Reject interactive Git commands before they can deadlock worker slots
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T17:34:02.400338Z'
-updated_at: '2026-08-01T17:34:02.400338Z'
+updated_at: '2026-08-01T17:41:13.373909Z'
 work_branch: null
 target_branch: null
 review_url: null
