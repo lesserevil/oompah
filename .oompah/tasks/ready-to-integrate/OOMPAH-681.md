@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-681
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Reject interactive Git commands before they can deadlock worker slots
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T17:34:02.400338Z'
-updated_at: '2026-08-01T19:07:44.159353Z'
+updated_at: '2026-08-01T19:08:12.390691Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -83,6 +83,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-681
     source_sha: 7fd628c2d9aeaa33898ada3e40fff89f261f2d98
     completed_at: '2026-08-01T19:00:00.365414+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-681
+  head_sha: 5f555e4194a01a2686d7f71f83a411ed207f285c
+  submitted_at: '2026-08-01T19:08:08.760770+00:00'
+  updated_at: '2026-08-01T19:08:08.760770+00:00'
 ---
 ## Summary
 
@@ -219,5 +227,10 @@ created: 2026-08-01 19:07
 - tests/test_exocomp_140_regression.py (NEW: 78 lines)
 
 Branch pushed to origin/OOMPAH-681
+---
+author: oompah
+created: 2026-08-01 19:08
+---
+Interactive git command rejection implemented at worker boundary
 ---
 <!-- COMMENTS:END -->
