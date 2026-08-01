@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T23:00:54.291962Z'
-updated_at: '2026-08-01T23:04:36.150663Z'
+updated_at: '2026-08-01T23:04:52.314065Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -128,5 +128,10 @@ author: oompah
 created: 2026-08-01 23:04
 ---
 Focus: Callback Auth Validation Specialist
+---
+author: oompah
+created: 2026-08-01 23:04
+---
+Understanding: I will isolate task-worktree setup from the service-owned venv, audit Makefile/worktree/provider runtime discovery and branch-gate binds, add source-mapping validation with safe diagnostics, and cover the poisoned/concurrent setup regressions with focused tests.
 ---
 <!-- COMMENTS:END -->

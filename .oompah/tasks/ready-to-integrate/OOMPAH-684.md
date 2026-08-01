@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T21:44:29.390457Z'
-updated_at: '2026-08-01T23:03:58.305687Z'
+updated_at: '2026-08-01T23:04:55.102245Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -92,9 +92,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-684
-  head_sha: bfcd6f1999dc6739d37c28ef481bce29aee08527
-  submitted_at: '2026-08-01T22:47:56.761772+00:00'
-  updated_at: '2026-08-01T22:47:56.761772+00:00'
+  head_sha: 7b160731233e51d6bea57fe65095a6ffa09e760b
+  submitted_at: '2026-08-01T23:04:52.785027+00:00'
+  updated_at: '2026-08-01T23:04:52.785027+00:00'
 ---
 ## Summary
 
@@ -298,5 +298,10 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Codex/
 - Cost: $0.0000
 - Exit: terminated, Duration: 1m 26s
 - Log: OOMPAH-684__20260801T230235Z.jsonl
+---
+author: oompah
+created: 2026-08-01 23:04
+---
+Empty recovery commit refreshes the exact-head gate key after restoring the trusted service runtime. Source tree is unchanged from bfcd6f199, which passed 32 focused and 14859 full tests.
 ---
 <!-- COMMENTS:END -->
