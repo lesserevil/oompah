@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T23:31:12.705782Z'
-updated_at: '2026-08-01T01:42:10.709183Z'
+updated_at: '2026-08-01T01:42:21.424867Z'
 work_branch: OOMPAH-671
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/634
@@ -123,6 +123,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-01T01:36:37.428513+00:00'
     branch_key: OOMPAH-671
+oompah.task_costs:
+  total_input_tokens: 51
+  total_output_tokens: 10290
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 51
+      output_tokens: 10290
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 51
+    output_tokens: 10290
+    cost_usd: 0.0
+    recorded_at: '2026-08-01T01:42:19.318700+00:00'
 ---
 ## Summary
 
@@ -207,5 +223,15 @@ Safe evidence:
 - interfaces_tests: 58 passed
 - terminal_audit_broad: 166 passed
 - auditor_broad: 162 passed
+---
+author: oompah
+created: 2026-08-01 01:42
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 55, Tool calls: 45
+- Tokens: 51 in / 10.3K out [10.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 5m 41s
+- Log: OOMPAH-671__20260801T013642Z.jsonl
 ---
 <!-- COMMENTS:END -->
