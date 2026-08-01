@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T22:19:41.486806Z'
-updated_at: '2026-08-01T22:54:20.405103Z'
+updated_at: '2026-08-01T22:57:21.837691Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -507,5 +507,10 @@ author: oompah
 created: 2026-08-01 22:54
 ---
 Understanding: I am handling the current branch-gate failure only: diagnose the eight installed CLI smoke-test failures from the actual CI evidence, reproduce them locally where possible, apply the smallest deterministic fix with focused coverage, then commit, push, and submit the repaired OOMPAH-686 head.
+---
+author: oompah
+created: 2026-08-01 22:57
+---
+Discovery: The eight failures are a quality-gate sandbox projection bug, not the worker runtime fallback. The trusted test venv's editable oompah metadata currently points at a prior worktree, while _sandbox_command only projects the venv parent checkout. Direct imports succeed from the candidate cwd, but console-script subprocesses resolve the stale editable source path, hidden by bwrap. I will project the trusted oompah distribution's declared editable source path to the candidate snapshot and cover this mapping.
 ---
 <!-- COMMENTS:END -->
