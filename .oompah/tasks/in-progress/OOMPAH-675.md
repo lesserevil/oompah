@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T04:59:55.163807Z'
-updated_at: '2026-08-01T05:37:39.498832Z'
+updated_at: '2026-08-01T05:53:43.602487Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -218,5 +218,17 @@ created: 2026-08-01 05:37
 3. tests/test_pytest_timeout_config.py: updated regression to assert signal method.
 4. tests/test_pytest_parallel.py: added regression that the runner has --max-worker-restart=0 with loadgroup.
 5. tests/test_pytest_worker_survives_timeout.py: new subprocess-driven coverage that runs pytest+xdist with a slow test and asserts (a) responsible test is named in the failure, (b) worker survives to run neighbouring tests, (c) 'Not properly terminated' / 'replacing crashed worker' / 'INTERNALERROR' never appear, (d) a genuine os._exit(1) crash is reported with --max-worker-restart=0 without a scheduler replacement crash.
+---
+author: oompah
+created: 2026-08-01 05:53
+---
+**Verification**: Ran the full parallel gate twice through scripts/run-tests.sh (OOMPAH_PYTEST_WORKERS=4, 388s and 387s).
+
+Run 1: 14737 passed, 7 skipped, 1 xfailed, 0 failed. No 'Not properly terminated', no 'replacing crashed worker', no INTERNALERROR.
+Run 2: 14736 passed, 7 skipped, 1 xfailed, 1 failed. The single failure was tests/test_orchestrator_handlers.py::TestMaintenanceLaneNonBlocking::test_tick_does_not_await_maintenance_heal — a preexisting flake previously stabilized under OOMPAH-670/OOMPAH-589 (asyncio.wait_for latency race). It passes in isolation and in the whole test_orchestrator_handlers.py module (277 tests, 55s). Not related to OOMPAH-675 — the responsible test was surfaced by name (which is exactly the property this task requires). Notably, the pre-fix behaviour would have killed the worker via os._exit(1) from pytest-timeout's thread mode and lost the identity entirely.
+
+Focused sanity: tests/test_pytest_worker_survives_timeout.py (3 new subprocess-driven tests), tests/test_pytest_timeout_config.py, tests/test_pytest_parallel.py, tests/test_agent.py, tests/test_lifespan_abort.py, tests/test_granian_bootstrap.py, tests/test_granian_e2e.py, tests/test_granian_parity.py, tests/test_makefile_restart_wait.py, tests/test_lifecycle_cli_sync_integration.py, tests/test_checkpoint_coalescing.py, tests/test_task_cost_telemetry.py, tests/test_api_agent_budget.py — all pass.
+
+**Completion**: Delivered pyproject.toml timeout_method='signal', scripts/run-tests.sh --max-worker-restart=0, updated tests/test_pytest_timeout_config.py assertion, added tests/test_pytest_parallel.py runner assertion, and new tests/test_pytest_worker_survives_timeout.py subprocess coverage. Pushed as commit d13a33d34 to origin/OOMPAH-675.
 ---
 <!-- COMMENTS:END -->
