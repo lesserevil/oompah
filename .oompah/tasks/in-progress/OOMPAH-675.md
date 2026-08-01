@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T04:59:55.163807Z'
-updated_at: '2026-08-01T05:12:24.023454Z'
+updated_at: '2026-08-01T05:14:38.451318Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -120,5 +120,27 @@ created: 2026-08-01 05:12
 6. Add regression tests for worker failure scenarios
 
 **Scope**: Makefile, run-tests.sh, pytest.ini/conftest, process lifecycle tests
+---
+author: oompah
+created: 2026-08-01 05:14
+---
+**Discovery**: Reviewed pytest configuration and worker isolation:
+
+- pytest configured with 5s timeout using thread method (pyproject.toml)
+- Worker isolation plugin (_pytest_worker_isolation.py) gives each xdist worker isolated HOME/TMPDIR/cache
+- Process-global tests (test_agent.py, test_granian_*.py, test_makefile_restart_wait.py) marked with xdist_group to serialize
+- Issue: Some tests may be inadvertently killing their pytest worker process via:
+  1. Signals (SIGTERM/SIGKILL) affecting parent pytest process
+  2. Timeouts killing the entire pytest worker thread instead of just the test
+  3. Process group termination without proper identity verification
+
+**Key files**:
+- Makefile (test target with PYTEST_WORKERS=4, --dist loadgroup)
+- scripts/run-tests.sh (pytest invocation)
+- pyproject.toml (timeout=5, timeout_method=thread)
+- tests/pytest_worker_isolation.py (per-worker filesystem isolation)
+- tests/process_lifecycle.py (process lifecycle management helpers)
+
+**Next**: Will reproduce the issue with 4-worker run and identify which test terminates workers.
 ---
 <!-- COMMENTS:END -->
