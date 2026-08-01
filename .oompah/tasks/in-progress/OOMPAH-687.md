@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T23:00:54.291962Z'
-updated_at: '2026-08-01T23:07:02.161720Z'
+updated_at: '2026-08-01T23:18:49.564618Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -138,5 +138,10 @@ author: oompah
 created: 2026-08-01 23:07
 ---
 Discovery: current gate code derives its runtime from the service process sys.prefix and projects editable source metadata, while worker environments inherit VIRTUAL_ENV/UV_* selectors. Makefile setup then lets uv honor those selectors, so a task worktree can rewrite the service venv's direct_url editable mapping. Existing gate validation only checks launcher path shape and maps any declared source; it does not prove the trusted runtime's import root or classify poisoned metadata as infrastructure corruption.
+---
+author: oompah
+created: 2026-08-01 23:18
+---
+Verification: focused suites passed (419 tests across setup/auth/quality-gate/task-handoff/agent/ACP/API coverage, then 155 final directly affected tests). Wrapper, symlink, and interpreter-resolution regressions fail before uv; poisoned editable mapping returns infrastructure_error without candidate execution or CI-fix status. make test-setup was also attempted and stopped in the host astral-uv snap with a DBus transient-scope error before project setup ran.
 ---
 <!-- COMMENTS:END -->
