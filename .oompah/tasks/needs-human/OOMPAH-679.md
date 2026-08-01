@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-679
 type: bug
-status: In Validation
+status: Needs Human
 priority: 0
 title: Reset activity panel identity when a task starts a new agent run
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T12:05:24.382952Z'
-updated_at: '2026-08-01T16:27:47.798615Z'
+updated_at: '2026-08-01T16:28:01.048430Z'
 work_branch: OOMPAH-679
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/641
@@ -173,6 +173,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-4cb5c0a64622: '2026-08-01T16:17:33.006061+00:00'
+    infrastructure-exhausted-audit-b1375f6be9f8-1: '2026-08-01T16:27:56.350125+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-679
@@ -183,6 +184,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-01T16:17:33.006071+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-679
+    target_state: Merged
+    evidence_fingerprint: 3b6f79304129fbf181aa3e54c58e68ce4375d0a6cc9f5184b65db1dadd238aee
+    audit_ids:
+    - audit-b1375f6be9f8
+    kind: result
+    applied: true
+    retired_at: '2026-08-01T16:27:56.350136+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-679
@@ -196,6 +206,18 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-01T16:17:33.006087+00:00'
     applied_at: '2026-08-01T16:17:36.286646+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-679
+    audit_id: audit-b1375f6be9f8
+    attempt_id: infrastructure-exhausted-audit-b1375f6be9f8-1
+    target_state: Merged
+    evidence_fingerprint: 3b6f79304129fbf181aa3e54c58e68ce4375d0a6cc9f5184b65db1dadd238aee
+    status: Needs Human
+    audit_ids:
+    - audit-b1375f6be9f8
+    applied: true
+    created_at: '2026-08-01T16:27:56.350149+00:00'
+    applied_at: '2026-08-01T16:27:59.864309+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -237,7 +259,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-679
     target_state: Merged
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -260,13 +282,25 @@ oompah.terminal_audit:
       ended_at: '2026-08-01T16:27:39.440244+00:00'
       failure_reason: normal
       next_retry_at: '2026-08-01T16:27:49.440206+00:00'
+    - version: 1
+      attempt_id: infrastructure-exhausted-audit-b1375f6be9f8-1
+      target_state: Merged
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 3b6f79304129fbf181aa3e54c58e68ce4375d0a6cc9f5184b65db1dadd238aee
+      verdict: needs_human
+      failure_classification: infrastructure_error
+      created_at: '2026-08-01T16:27:56.350051+00:00'
+      completed_at: '2026-08-01T16:27:56.350051+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-01T15:49:11.551264+00:00'
-    updated_at: '2026-08-01T16:27:39.440244+00:00'
+    updated_at: '2026-08-01T16:27:56.350051+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-4cb5c0a64622
@@ -624,5 +658,12 @@ author: oompah
 created: 2026-08-01 16:27
 ---
 Auditor attempt ended: auditor exited (normal) without a result. A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-08-01 16:27
+---
+Needs Human — Merged audit requires operator input.
+
+Independent auditor launches exhausted their retry budget because the audit workspace or transport failed before review began. Restore the audit infrastructure, then have a project owner rearm this terminal audit; do not reopen implementation work.
 ---
 <!-- COMMENTS:END -->
