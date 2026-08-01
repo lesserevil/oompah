@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-673
 type: bug
-status: In Review
+status: In Validation
 priority: 2
 title: Make canonical CLI mismatch recovery unambiguous across upgrades
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T02:34:24.348580Z'
-updated_at: '2026-08-01T02:49:27.224482Z'
+updated_at: '2026-08-01T02:57:41.992566Z'
 work_branch: OOMPAH-673
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/636
@@ -91,6 +91,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/636
 oompah.review_number: '636'
 oompah.work_branch: OOMPAH-673
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-f5ebccabf987
+    project_id: proj-14849f1b
+    task_id: OOMPAH-673
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d155dfab198a6d48d8569da85f715abab9db9a43bc947d98d5c3296a7fd0ea24
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-01T02:57:36.451604+00:00'
+  - version: 1
+    audit_id: audit-89792911edfa
+    project_id: proj-14849f1b
+    task_id: OOMPAH-673
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d155dfab198a6d48d8569da85f715abab9db9a43bc947d98d5c3296a7fd0ea24
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-01T02:57:36.451604+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -208,5 +247,15 @@ author: oompah
 created: 2026-08-01 02:49
 ---
 Branch quality gate passed for `b792568ef85d4b46a2e5607305a3dc3549a95860` using `make test` in 386.0s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-01 02:57
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-01 02:57
+---
+YOLO: merged PR #636.
 ---
 <!-- COMMENTS:END -->
