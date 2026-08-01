@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-670
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Dashboard authenticated mutations must omit client-supplied actor identities
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T22:56:06.058439Z'
-updated_at: '2026-07-31T23:53:57.678968Z'
+updated_at: '2026-08-01T01:11:37.123748Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -356,5 +356,10 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Claude
 - Cost: $0.0000
 - Exit: normal, Duration: 10m 47s
 - Log: OOMPAH-670__20260731T234308Z.jsonl
+---
+author: oompah
+created: 2026-08-01 01:11
+---
+Branch quality gate passed for `ace5b944ec513acce4dab1c289c3b891fc4cfc4e` using `make test` in 384.8s. Review creation may proceed.
 ---
 <!-- COMMENTS:END -->
