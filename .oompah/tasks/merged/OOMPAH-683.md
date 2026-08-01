@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-683
 type: task
-status: In Validation
+status: Merged
 priority: 0
 title: Make retry recovery snapshots tolerate generated hooks and in-progress rebases
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T21:41:35.163259Z'
-updated_at: '2026-08-01T23:48:24.845107Z'
+updated_at: '2026-08-01T23:52:13.023487Z'
 work_branch: OOMPAH-683
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/646
@@ -114,6 +114,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-bdd80e91c875: '2026-08-01T23:47:49.065137+00:00'
+    attempt-92619412b6b8: '2026-08-01T23:52:09.917726+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-683
@@ -124,6 +125,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-01T23:47:49.065149+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-683
+    target_state: Merged
+    evidence_fingerprint: 9f6add4f8616b075fdd058b77ae0b012dc438047855fdcecb7add06aaef94601
+    audit_ids:
+    - audit-06fb8603071f
+    kind: result
+    applied: true
+    retired_at: '2026-08-01T23:52:09.917742+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-683
@@ -137,6 +147,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-01T23:47:49.065164+00:00'
     applied_at: '2026-08-01T23:47:52.813289+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-683
+    audit_id: audit-06fb8603071f
+    attempt_id: attempt-92619412b6b8
+    target_state: Merged
+    evidence_fingerprint: 9f6add4f8616b075fdd058b77ae0b012dc438047855fdcecb7add06aaef94601
+    status: Merged
+    audit_ids:
+    - audit-06fb8603071f
+    applied: false
+    created_at: '2026-08-01T23:52:09.917761+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -178,7 +199,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-683
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -187,7 +208,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-92619412b6b8
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -197,13 +218,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-01T23:48:18.967533+00:00'
       branch_key: OOMPAH-683
+      verdict: pass
+      completed_at: '2026-08-01T23:52:09.917514+00:00'
+      ended_at: '2026-08-01T23:52:09.917514+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Progress
     created_at: '2026-08-01T23:36:33.440885+00:00'
-    updated_at: '2026-08-01T23:48:18.967533+00:00'
+    updated_at: '2026-08-01T23:52:09.917514+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-bdd80e91c875
@@ -562,5 +586,29 @@ author: oompah
 created: 2026-08-01 23:48
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-01 23:52
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- origin_main_head: e613933ec
+- merge_commit: e613933ec Merge pull request #646 from lesserevil/OOMPAH-683
+- impl_commit: bdc4cf5d1 preserve retry worktrees across Git operations
+- ci_fix_commit: a82bb0c32 isolate dashboard snapshot test state
+- gate_evidence_commit: abc69ba5a refresh gate evidence after runtime repair
+- impl_stat: 824 insertions across oompah/orchestrator.py, oompah/projects.py, oompah/unpushed_gate.py, tests/test_dashboard_task_display_identifier.py, tests/test_projects.py, tests/test_task_cost_telemetry.py, tests/test_unpushed_gate.py
+- branch_gate_result: make test passed for abc69ba5a in 399.4s per branch quality gate comment
+- focused_tests_local: 181 passed in 17.12s (tests/test_projects.py, tests/test_unpushed_gate.py, tests/test_task_cost_telemetry.py)
+- dashboard_snapshot_tests: 6 passed in 0.92s (tests/test_dashboard_task_display_identifier.py)
+- acceptance_ignored_helper: test_projects.py TestExistingWorktreeBranchValidation dirty-snapshot suite passing
+- acceptance_detached_rebase: test_paused_rebase_checkpoint_preserves_branch_index_and_todo passing (tests/test_projects.py:925)
+- acceptance_helper_absent_submission: test_generated_helper_is_removed_before_submission_cleanliness_check passing (tests/test_unpushed_gate.py:358)
+- acceptance_race_safety: test_late_termination_cannot_clean_newer_worker_generation passing (tests/test_task_cost_telemetry.py:856)
+- acceptance_no_interactive_git: _recovery_git_env used at ~19 call sites in oompah/projects.py for all recovery Git invocations
+- remote_branch_status: origin/OOMPAH-683 absent (typical post-merge deletion)
 ---
 <!-- COMMENTS:END -->
