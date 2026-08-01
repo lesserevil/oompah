@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-686
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Keep worker container-runtime failures out of Needs Human
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T22:19:41.486806Z'
-updated_at: '2026-08-01T22:41:15.230660Z'
+updated_at: '2026-08-01T22:41:24.635362Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -93,11 +93,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-686
-  base_branch: main
-  base_sha: 3d50e86c334e8a6318b767b281bc254fa6d93cc2
-  head_sha: 72a5ce1d6b0be15ea758513b86d7ff3b9f1bd182
-  submitted_at: '2026-08-01T22:29:46.728175+00:00'
-  updated_at: '2026-08-01T22:30:06.202039+00:00'
+  head_sha: 19f4f3f9c976cc8c9143880706611c8e448638f6
+  submitted_at: '2026-08-01T22:41:21.022835+00:00'
+  updated_at: '2026-08-01T22:41:21.022835+00:00'
 ---
 ## Summary
 
@@ -386,5 +384,10 @@ author: oompah
 created: 2026-08-01 22:41
 ---
 Completion: Pushed 19f4f3f9c to OOMPAH-686. The branch-gate failure is repaired by isolating the maintenance-future regression from unrelated release-addendum tracker I/O; no production runtime fallback code was changed.
+---
+author: oompah
+created: 2026-08-01 22:41
+---
+Stabilized the maintenance lane regression test by isolating unrelated release-addendum recovery I/O
 ---
 <!-- COMMENTS:END -->
