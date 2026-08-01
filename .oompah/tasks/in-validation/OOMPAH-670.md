@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-670
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Dashboard authenticated mutations must omit client-supplied actor identities
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T22:56:06.058439Z'
-updated_at: '2026-08-01T01:11:42.823763Z'
+updated_at: '2026-08-01T01:19:42.409481Z'
 work_branch: OOMPAH-670
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/633
@@ -102,6 +102,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/633
 oompah.review_number: '633'
 oompah.work_branch: OOMPAH-670
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-80f9895cf229
+    project_id: proj-14849f1b
+    task_id: OOMPAH-670
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ebb62edd59354b2c0092c7167c45acaecc859e6e34901141a6d26646bbc04aaa
+    attempts: []
+    requested_by:
+      version: 1
+      identity: yolo-merge
+      source: oompah
+    previous_state: In Review
+    created_at: '2026-08-01T01:19:36.788158+00:00'
+  - version: 1
+    audit_id: audit-74350c59e5ec
+    project_id: proj-14849f1b
+    task_id: OOMPAH-670
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ebb62edd59354b2c0092c7167c45acaecc859e6e34901141a6d26646bbc04aaa
+    attempts: []
+    requested_by:
+      version: 1
+      identity: yolo-merge
+      source: oompah
+    previous_state: In Review
+    created_at: '2026-08-01T01:19:36.788158+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -365,5 +404,15 @@ author: oompah
 created: 2026-08-01 01:11
 ---
 Branch quality gate passed for `ace5b944ec513acce4dab1c289c3b891fc4cfc4e` using `make test` in 384.8s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-01 01:19
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-01 01:19
+---
+YOLO: merged PR #633.
 ---
 <!-- COMMENTS:END -->
