@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-686
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Keep worker container-runtime failures out of Needs Human
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T22:19:41.486806Z'
-updated_at: '2026-08-01T23:01:26.576420Z'
+updated_at: '2026-08-01T23:02:11.455139Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -111,11 +111,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-686
-  base_branch: main
-  base_sha: 3d50e86c334e8a6318b767b281bc254fa6d93cc2
-  head_sha: 19f4f3f9c976cc8c9143880706611c8e448638f6
-  submitted_at: '2026-08-01T22:41:21.022835+00:00'
-  updated_at: '2026-08-01T22:41:37.049525+00:00'
+  head_sha: 9c83678db3cada35e49e5cde1393c7772e4f0317
+  submitted_at: '2026-08-01T23:01:55.925801+00:00'
+  updated_at: '2026-08-01T23:01:55.925801+00:00'
 ---
 ## Summary
 
@@ -522,5 +520,25 @@ author: oompah
 created: 2026-08-01 23:01
 ---
 Verification: python3 -m pytest -n 4 -q tests/test_quality_gate.py tests/test_installed_cli_smoke.py tests/test_makefile_setup.py passed (83 passed, 5 skipped). python3 -m ruff check oompah/quality_gate.py and git diff --check passed. make test-setup remains blocked locally by the host uv/DBus transient-scope confinement before pytest starts; the full gate will rerun on the pushed head.
+---
+author: oompah
+created: 2026-08-01 23:01
+---
+Completion: Pushed 9c83678db to OOMPAH-686. The gate now projects the editable oompah source declared by the trusted venv, so installed CLI subprocesses use the candidate snapshot rather than a hidden old worktree. Focused verification passed (83 passed, 5 skipped). GitHub has no PR or Actions run for this branch; the configured branch gate will rerun for the submitted head.
+---
+author: oompah
+created: 2026-08-01 23:02
+---
+Project editable CLI sources into the isolated quality-gate snapshot
+---
+author: oompah
+created: 2026-08-01 23:02
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Codex/gpt-5.6-terra]
+- Turns: 0, Tool calls: 37
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 8m 7s
+- Log: OOMPAH-686__20260801T225407Z.jsonl
 ---
 <!-- COMMENTS:END -->

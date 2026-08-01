@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T21:44:29.390457Z'
-updated_at: '2026-08-01T23:00:56.193064Z'
+updated_at: '2026-08-01T23:02:12.405812Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -263,5 +263,15 @@ See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warn
   warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))
 make: *** [Makefile:388: test] Error 1
 ```
+---
+author: oompah
+created: 2026-08-01 23:01
+---
+Infrastructure recovery: the failed branch gate was caused by the trusted service venv's editable source mapping being rewritten to another task worktree, not by bfcd6f199. The service runtime now points back to /home/shedwards/src/oompah; the installed CLI smoke suite passes 13/13. OOMPAH-687 tracks permanent isolation. Reasserting the already clean, pushed, full-gate-passing head for delivery.
+---
+author: oompah
+created: 2026-08-01 23:01
+---
+Resubmitted clean head bfcd6f199 after repairing the shared branch-gate runtime mapping. Source validation remains 32 focused and 14859 full tests passing; OOMPAH-687 tracks permanent runtime isolation.
 ---
 <!-- COMMENTS:END -->

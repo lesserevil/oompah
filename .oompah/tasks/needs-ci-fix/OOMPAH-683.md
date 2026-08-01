@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-683
 type: task
-status: Ready to Integrate
+status: Needs CI Fix
 priority: null
 title: Make retry recovery snapshots tolerate generated hooks and in-progress rebases
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T21:41:35.163259Z'
-updated_at: '2026-08-01T22:58:19.364040Z'
+updated_at: '2026-08-01T23:02:06.800001Z'
 work_branch: null
 target_branch: null
 review_url: null
