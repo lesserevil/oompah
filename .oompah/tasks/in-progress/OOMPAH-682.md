@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T18:07:47.349822Z'
-updated_at: '2026-08-01T19:03:57.960926Z'
+updated_at: '2026-08-01T19:05:19.671701Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -133,5 +133,21 @@ author: oompah
 created: 2026-08-01 19:03
 ---
 Focus: Callback Auth Validation Specialist
+---
+author: oompah
+created: 2026-08-01 19:05
+---
+**Understanding**: This issue addresses duplicate-preflight recovery regression where:
+
+1. **Owner resolutions not honored**: When owners review tasks and set 'no duplicate' verdict, the retry_count is not reset, causing immediate retry as attempt N+1
+2. **Missing investigator corpus**: Duplicate Investigator agents lack read-only access to current project tasks for comparison
+3. **Verdict injection vulnerability**: Unstructured verdicts in comments can be forged by non-owners; need authenticated, machine-readable format
+4. **Retry semantics broken**: retry_count should reflect attempts since latest rearm, not lifetime failures
+
+My approach as Callback Auth Validation Specialist:
+- Add explicit owner-controlled resolution/rearm API that resets retry_count with authenticated audit trail
+- Implement read-only task-corpus access for investigators (via MCP or task context)
+- Enforce structured verdict parsing with claim_id binding to prevent comment injection
+- Add tests for owner auth, non-owner rejection, and race-safe concurrent updates
 ---
 <!-- COMMENTS:END -->
