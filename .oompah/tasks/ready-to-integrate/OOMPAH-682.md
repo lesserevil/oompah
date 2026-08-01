@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-682
 type: task
-status: Needs Human
+status: Ready to Integrate
 priority: null
 title: Make duplicate-preflight recovery authoritative and self-sufficient
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T18:07:47.349822Z'
-updated_at: '2026-08-01T20:16:22.098694Z'
+updated_at: '2026-08-01T21:35:08.016465Z'
 work_branch: OOMPAH-682
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/645
@@ -90,9 +90,10 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-682
-  head_sha: 4978bf801cf8cbf43e4566403969e8e95b10c381
-  submitted_at: '2026-08-01T19:12:55.039828+00:00'
-  updated_at: '2026-08-01T19:12:55.039828+00:00'
+  base_branch: main
+  head_sha: 71f87859fe5fcab892dccb14c1f01546583f3a26
+  submitted_at: '2026-08-01T21:35:03.722053+00:00'
+  updated_at: '2026-08-01T21:35:03.722053+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/645
 oompah.review_number: '645'
 oompah.work_branch: OOMPAH-682
@@ -420,5 +421,10 @@ Oompah could not durably preserve this worker's task worktree before retry. The 
 .oompah-no-hooks
 hint: Use -f if you really want to add them.
 hint: Disable this message with "git config set advice.addIgnoredFile false"
+---
+author: oompah
+created: 2026-08-01 21:35
+---
+Recovered the preserved post-review fixes after snapshot staging failed. Added authenticated revision-bound owner resolution, retry reset, authoritative tracker-backed duplicate corpus, structured-verdict-first parsing from current run activity only, late-claim race fencing, corrected recovery UI/docs, and regression coverage. Focused duplicate-screening/API/prompt/dashboard suites: 225 passed.
 ---
 <!-- COMMENTS:END -->
