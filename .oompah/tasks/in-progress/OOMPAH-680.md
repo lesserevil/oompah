@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T17:31:44.735248Z'
-updated_at: '2026-08-01T18:51:13.854548Z'
+updated_at: '2026-08-01T18:51:41.891123Z'
 work_branch: OOMPAH-680
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/643
@@ -482,5 +482,10 @@ author: oompah
 created: 2026-08-01 18:51
 ---
 Focus: Callback Auth Validation Specialist
+---
+author: oompah
+created: 2026-08-01 18:51
+---
+Understanding: the prior implementation covered tracker/state checkpoint paths but the completion audit found remaining managed Git network callers in projects.py, integration_executor.py, cherry_pick_pr_creator.py, and repo_map_generator.py. I will trace those call graphs, apply project-scoped ephemeral forge credentials without URL/config/log leakage, add focused regression tests, verify, and hand off the completed branch.
 ---
 <!-- COMMENTS:END -->
