@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-682
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Make duplicate-preflight recovery authoritative and self-sufficient
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T18:07:47.349822Z'
-updated_at: '2026-08-01T18:07:47.349822Z'
+updated_at: '2026-08-01T18:07:56.918513Z'
 work_branch: null
 target_branch: null
 review_url: null
