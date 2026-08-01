@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-686
 type: task
-status: Needs CI Fix
+status: In Progress
 priority: null
 title: Keep worker container-runtime failures out of Needs Human
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T22:19:41.486806Z'
-updated_at: '2026-08-01T22:53:26.010416Z'
+updated_at: '2026-08-01T22:54:06.730063Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -47,7 +47,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 532b2bc5-a57b-4077-b904-0dbbc93eaf95
+oompah.agent_run_id: e41a228a-1cbd-4d13-9fd2-b458cbaba96c
 oompah.task_costs:
   total_input_tokens: 1295670
   total_output_tokens: 35348
@@ -492,5 +492,15 @@ FAILED tests/test_installed_cli_smoke.py::TestCurrentInstallSmoke::test_oompah_p
 
 make: *** [Makefile:388: test] Error 1
 ```
+---
+author: oompah
+created: 2026-08-01 22:54
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-08-01 22:54
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
