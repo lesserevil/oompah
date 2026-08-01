@@ -10,9 +10,10 @@ blocked_by: []
 start_blocked_by: []
 labels:
 - focus-complete:frontend
+- focus-complete:chore
 assignee: null
 created_at: '2026-08-01T11:56:19.836343Z'
-updated_at: '2026-08-01T14:36:00.517266Z'
+updated_at: '2026-08-01T14:36:25.661419Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -199,5 +200,14 @@ author: oompah
 created: 2026-08-01 14:36
 ---
 Understanding (chore focus): the remaining work described in the previous frontend handoff — shared owner-identity resolution/validation for project create+update (covering GitLab and oompah_md, not just GitHub), extending the transition_gate owner check for GitLab configurations, repairing/flagging existing ownerless projects, and adding regression tests for the NodeVirt configuration — is backend feature scope, not maintenance. The current maintenance-engineer role explicitly forbids scope expansion and refactors. The task's needs:feature label already requests the correct next specialist; this dispatch to chore appears to be a routing skip. Handing off to feature.
+---
+author: oompah
+created: 2026-08-01 14:36
+---
+Focus handoff: chore
+1. Outcome: no code changes. This dispatch to the maintenance-engineer role is out of scope — the remaining work is backend feature scope (shared owner-identity resolution/validation on project create+update, GitLab and oompah_md coverage, transition_gate GitLab wiring, ownerless-project repair/flagging, and NodeVirt-shaped regression tests), and the chore role is explicitly forbidden from expanding scope or refactoring surrounding code.
+2. Relevant files/evidence: oompah/projects.py (create ~L918, update UPDATABLE_FIELDS ~L1160 and validators ~L1290-1420 — no owner identity resolution/validation for GitLab or oompah_md; only GitHub owner is inferred from repo URL for GitHub-backed trackers around L1091-1103), oompah/actor_mapping.py (server principal → project actor login mapping, healthy for reuse), oompah/transition_gate.py (is_project_owner + check_intake_transition — logic is tracker-agnostic but the callers/config surface still assume GitHub owners; verify GitLab coverage during implementation), oompah/intake_promotion.py, oompah/gitlab_tracker.py, oompah/github_tracker.py. Previous UI work is committed as 95371a0da on origin/OOMPAH-677 and 106 focused UI tests plus 157 project CRUD tests were green.
+3. Remaining work/risks: (a) add a shared _resolve_owner_identity helper used by ProjectStore.create and ProjectStore.update that derives status_actor_login from the repo_url or authenticated tracker credentials for GitHub, GitLab, and native Markdown (when github_issue_intake_enabled is False the derivation must still succeed for the operator's forge or fall back to the authenticated server principal), and rejects a dispatchable project that would end up ownerless — never trusting client-supplied actor fields; (b) at update time, block clearing status_actor_login/status_label_authorized_logins/tracker_owner if the project would become ownerless while paused=False, and surface a structured error with error.authenticated_actor and error.project_owner_config that the dashboard already tolerates; (c) run a one-shot repair on load that marks any pre-existing ownerless project with a health flag consumed by projects.html (already renders it); (d) confirm the transition_gate protected-owner set covers GitLab configurations (add unit tests where the project has forge_kind=gitlab and only status_actor_login set); (e) regression tests reproducing NodeVirt (tracker_kind=oompah_md, no status_actor_login/tracker_owner/status_label_authorized_logins) that prove: creation is now rejected or the project is created paused-with-warning, update to un-pause without owner is rejected, authenticated owner promotes Backlog→Open successfully, non-owner is still rejected. Preserve server-side authenticated actor binding via oompah.actor_mapping.ActorMap.resolve; do not authorize from client actor fields.
+4. Recommended next focus: feature (backend). The task already carries needs:feature.
 ---
 <!-- COMMENTS:END -->
