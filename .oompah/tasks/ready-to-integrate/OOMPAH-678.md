@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-678
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Do not flag intentional cross-task handoff denials as auth failures
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T12:01:06.107132Z'
-updated_at: '2026-08-01T14:44:49.720223Z'
+updated_at: '2026-08-01T14:45:01.311617Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -82,6 +82,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-678
     source_sha: 62ca0ca696d08b754e03a200d7227455786da960
     completed_at: '2026-08-01T14:31:18.033726+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-678
+  head_sha: f4e334dc5545267d6b143858ee09f95972f13641
+  submitted_at: '2026-08-01T14:44:56.184638+00:00'
+  updated_at: '2026-08-01T14:44:56.184638+00:00'
 ---
 ## Summary
 
@@ -149,5 +157,10 @@ author: oompah
 created: 2026-08-01 14:44
 ---
 Completion: pushed f4e334dc5. Intentional verified live-peer 403s remain rejected but are informational policy events, no longer degrade worker auth health or trigger handoff-failure holding, and direct workers to coordination peers/inbox. Genuine mismatched scope/auth failures remain actionable; UI, docs, propagation, and regression tests are included.
+---
+author: oompah
+created: 2026-08-01 14:45
+---
+Classify intentional live-peer task-handoff denials as informational policy events while preserving genuine auth-scope alerts; add propagation, dashboard guidance, docs, and regression coverage.
 ---
 <!-- COMMENTS:END -->
