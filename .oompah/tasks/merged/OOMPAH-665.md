@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-665
 type: task
-status: In Validation
+status: Merged
 priority: 0
 title: Retire legacy no-auditor alerts after terminal task completion
 parent: null
@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T16:04:07.401588Z'
-updated_at: '2026-08-01T00:33:31.893749Z'
+updated_at: '2026-08-01T00:35:30.864700Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -165,6 +165,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-a46d5580cb51: '2026-08-01T00:33:08.035993+00:00'
+    attempt-7dd0979b7f9e: '2026-08-01T00:35:27.331561+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-665
@@ -175,6 +176,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-01T00:33:08.036005+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-665
+    target_state: Merged
+    evidence_fingerprint: 08587e11ed8008f31ea43053a9d571eb65e49661aa65834013fcb94ff62d4649
+    audit_ids:
+    - audit-80812b27e5b6
+    kind: result
+    applied: true
+    retired_at: '2026-08-01T00:35:27.331582+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-665
@@ -188,6 +198,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-01T00:33:08.036023+00:00'
     applied_at: '2026-08-01T00:33:11.530254+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-665
+    audit_id: audit-80812b27e5b6
+    attempt_id: attempt-7dd0979b7f9e
+    target_state: Merged
+    evidence_fingerprint: 08587e11ed8008f31ea43053a9d571eb65e49661aa65834013fcb94ff62d4649
+    status: Merged
+    audit_ids:
+    - audit-80812b27e5b6
+    applied: false
+    created_at: '2026-08-01T00:35:27.331604+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -229,7 +250,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-665
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -238,7 +259,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-7dd0979b7f9e
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -248,13 +269,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-01T00:33:27.822533+00:00'
       branch_key: OOMPAH-665
+      verdict: pass
+      completed_at: '2026-08-01T00:35:27.331390+00:00'
+      ended_at: '2026-08-01T00:35:27.331390+00:00'
     requested_by:
       version: 1
       identity: oompah-cli
       source: api
     previous_state: Ready to Integrate
     created_at: '2026-08-01T00:24:07.729145+00:00'
-    updated_at: '2026-08-01T00:33:27.822533+00:00'
+    updated_at: '2026-08-01T00:35:27.331390+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-a46d5580cb51
@@ -867,5 +891,23 @@ author: oompah
 created: 2026-08-01 00:33
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-01 00:35
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: 04d681f1033fb34e61cb9a00647d87ef879b90da
+- branch_head_on_main: true
+- focused_tests_terminal_audit_observability: 18 passed
+- focused_tests_terminal_transition_coordinator: 116 passed
+- retirement_paths_implemented: retirement_row, legacy_override, later_pass, canonical_tracker_terminal_state
+- fail_closed_paths: fetch_issue_detail read failure, MetadataQuarantine, mismatched retirement fingerprint/target
+- prior_full_gate: make test passed at 04d681f10 in 386.4s (per task comment 2026-08-01 00:23)
+- commits_delivered_on_main: 0ce87c6ec, 04d681f10
+- working_tree_state: clean; branch up to date with origin/OOMPAH-665
 ---
 <!-- COMMENTS:END -->
