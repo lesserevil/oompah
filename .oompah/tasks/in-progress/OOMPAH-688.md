@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T23:11:33.946132Z'
-updated_at: '2026-08-01T23:19:55.884220Z'
+updated_at: '2026-08-01T23:24:53.352489Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -127,5 +127,10 @@ author: oompah
 created: 2026-08-01 23:19
 ---
 Discovery: Root cause confirmed. The _tick() method in oompah/orchestrator.py uses 11 direct calls to time.monotonic() (lines 5031, 5080, 5091, 5096, 5098, 5113, 5122, 5126, 5152, 5170, 5172) to measure elapsed time, then checks if total_ms > 2000 to emit a slow-tick warning. The test test_no_slow_tick_warning_for_fast_ticks runs _tick() with all sub-handlers mocked but relies on real wall-clock time; under parallel CI load, the 2-second window can be exceeded. Fix: add a self._monotonic_clock = time.monotonic instance attribute to Orchestrator.__init__(), replace the 11 time.monotonic() calls in _tick() with self._monotonic_clock(), and update the three slow-tick tests to inject controlled clocks instead of using time.sleep().
+---
+author: oompah
+created: 2026-08-01 23:24
+---
+Implementation: Two files changed.\n\n1. oompah/orchestrator.py:\n   - Added self._monotonic_clock = time.monotonic to Orchestrator.__init__() as a replaceable clock seam (near the _last_tick_timings init block, ~line 1444).\n   - Replaced all 12 time.monotonic() calls in _tick() with self._monotonic_clock(). This covers t0, t1, t2, t3_start, t3, t4, _t_watchdog, watchdog_ms calculation, _t_maintenance, heal_ms calculation, t4b, and the terminal audit timestamp check. Production behavior is unchanged — default is time.monotonic.\n\n2. tests/test_orchestrator_tick_telemetry.py:\n   - Added two clock helper functions: _make_fast_tick_clock() (1ms per call, guarantees total_ms << 2000) and _make_slow_tick_clock() (t0=0.0, all subsequent=3.0, guarantees total_ms=3000ms > 2000).\n   - Rewrote test_slow_tick_log_includes_dispatch_substep_names: removed time.sleep(2.1), uses _make_slow_tick_clock() instead.\n   - Rewrote test_slow_tick_log_includes_watchdog_and_heal: removed time.sleep(2.1) slow_watchdog, uses _make_slow_tick_clock() instead.\n   - Rewrote test_no_slow_tick_warning_for_fast_ticks: added orch._monotonic_clock = _make_fast_tick_clock() — eliminates wall-clock sensitivity.\n   - Added new test test_no_slow_tick_warning_for_fast_ticks_repeated: runs the fast-tick check twice to verify no state leaks between clock instances.\n   - Total: 35 tests (1 added, 3 updated). All pass in 15s serial, 7s parallel (-n 4).
 ---
 <!-- COMMENTS:END -->
