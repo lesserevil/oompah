@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-681
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Reject interactive Git commands before they can deadlock worker slots
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T17:34:02.400338Z'
-updated_at: '2026-08-01T19:29:30.500289Z'
+updated_at: '2026-08-01T19:31:56.390794Z'
 work_branch: OOMPAH-681
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/644
@@ -125,6 +125,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-753d045aa991: '2026-08-01T19:27:48.992301+00:00'
+    attempt-c24f2cd4cc50: '2026-08-01T19:31:53.086028+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-681
@@ -135,6 +136,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-01T19:27:48.992313+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-681
+    target_state: Merged
+    evidence_fingerprint: 1fdb3119ec60fa6e0f79941acdb979e50adeff98c09aaed1391181b92323dd3d
+    audit_ids:
+    - audit-7192ec116636
+    kind: result
+    applied: true
+    retired_at: '2026-08-01T19:31:53.086045+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-681
@@ -148,6 +158,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-01T19:27:48.992330+00:00'
     applied_at: '2026-08-01T19:27:52.342854+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-681
+    audit_id: audit-7192ec116636
+    attempt_id: attempt-c24f2cd4cc50
+    target_state: Merged
+    evidence_fingerprint: 1fdb3119ec60fa6e0f79941acdb979e50adeff98c09aaed1391181b92323dd3d
+    status: Merged
+    audit_ids:
+    - audit-7192ec116636
+    applied: false
+    created_at: '2026-08-01T19:31:53.086064+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -189,7 +210,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-681
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -198,7 +219,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-c24f2cd4cc50
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -208,13 +229,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-01T19:29:25.516659+00:00'
       branch_key: OOMPAH-681
+      verdict: pass
+      completed_at: '2026-08-01T19:31:53.085793+00:00'
+      ended_at: '2026-08-01T19:31:53.085793+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-01T19:24:33.187545+00:00'
-    updated_at: '2026-08-01T19:29:25.516659+00:00'
+    updated_at: '2026-08-01T19:31:53.085793+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-753d045aa991
@@ -464,5 +488,27 @@ author: oompah
 created: 2026-08-01 19:29
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-01 19:31
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: 5f555e4194a01a2686d7f71f83a411ed207f285c
+- merge_commit: ed72fc2aa38372a16f712134e191e7c0f36290e1
+- pr_number: 644
+- focused_tests_git_command_validation: 38 passed in 0.46s (bundled with exocomp regression)
+- focused_tests_exocomp_140_regression: 5 passed (part of 43-test run)
+- focused_tests_tool_liveness: 17 passed in 2.79s
+- focused_tests_git_noninteractive: 18 passed in 0.62s
+- branch_quality_gate: make test passed 422.5s per tracker comment 2026-08-01 19:15
+- validation_module: oompah/git_command_validation.py exports validate_git_command_is_noninteractive with patterns for git rebase -i, git add -p, bare git commit, git cherry-pick -i, git merge/revert without --no-edit
+- boundary_integration: oompah/api_agent.py:30-31 imports validation and NONINTERACTIVE_GIT_ENV; line 557 validates before subprocess; line 570 applies noninteractive env to git command env
+- process_tree_kill: oompah/api_agent.py _terminate_process_tree (line 572) uses start_new_session on posix (line 612) with os.killpg SIGTERM (575) and SIGKILL (585) against worker's own pgid
+- exocomp_140_reproduction_blocked: tests/test_exocomp_140_regression.py::test_exocomp_140_exact_reproduction_blocked asserts git rebase -i b1a07ccf returns error citing git rebase -i and GIT_SEQUENCE_EDITOR
+- worker_slot_bound: test_worker_slot_cannot_be_blocked_by_editor_spawn asserts elapsed < 1.0s for interactive rebase attempt
 ---
 <!-- COMMENTS:END -->
