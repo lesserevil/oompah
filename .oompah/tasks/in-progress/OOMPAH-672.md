@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-672
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Preserve logging format placeholders during secret redaction
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T00:18:06.952783Z'
-updated_at: '2026-08-01T00:20:24.514506Z'
+updated_at: '2026-08-01T00:20:37.564627Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -95,7 +95,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: b2f50d07-b637-4af3-aa0f-e3391b92c6b8
+oompah.agent_run_id: 8d72b422-9130-465c-b9f5-990ac6ca3df0
 oompah.task_costs:
   total_input_tokens: 146
   total_output_tokens: 5345
@@ -159,5 +159,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 50s
 - Log: OOMPAH-672__20260801T001834Z.jsonl
+---
+author: oompah
+created: 2026-08-01 00:20
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-01 00:20
+---
+Focus: Event Api Redaction Specialist
 ---
 <!-- COMMENTS:END -->
