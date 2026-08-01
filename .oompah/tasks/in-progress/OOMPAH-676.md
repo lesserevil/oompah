@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T05:18:04.532392Z'
-updated_at: '2026-08-01T05:48:43.613086Z'
+updated_at: '2026-08-01T05:48:57.813201Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -290,5 +290,15 @@ author: oompah
 created: 2026-08-01 05:48
 ---
 Implementation: updated _ServerWithMismatchedLauncher test mock in tests/test_cli_mismatch_recovery.py with 6 lines. Added self.quiesced=False attribute, handler for POST /api/v1/orchestrator/quiesce that sets quiesced=True, 'quiesced' field in GET /api/v1/state response, and cleared quiesced on resume. No production code changes needed — the mock simply wasn't updated when the DevOps agent changed graceful_cutover to use /quiesce instead of /pause.
+---
+author: oompah
+created: 2026-08-01 05:48
+---
+Verification: all 7 tests in tests/test_cli_mismatch_recovery.py pass (3 were failing, 4 were already passing). Adjacent suites tests/test_lifecycle_cli_sync_integration.py (26 tests), tests/test_makefile_restart_wait.py (42 tests), tests/test_orchestrator_pause.py (17 tests), and tests/test_orchestrator_handlers.py (277 tests) all pass. Pushed f9f1463a0 to OOMPAH-676.
+---
+author: oompah
+created: 2026-08-01 05:48
+---
+Completion: CI gate failure fixed. Root cause was that _ServerWithMismatchedLauncher test mock in tests/test_cli_mismatch_recovery.py didn't handle the new POST /api/v1/orchestrator/quiesce endpoint introduced by the graceful-drain implementation. Fixed with 6-line addition to the mock class (quiesced state tracking, quiesce handler, state response field, resume clear). Branch f9f1463a0 pushed and clean.
 ---
 <!-- COMMENTS:END -->
