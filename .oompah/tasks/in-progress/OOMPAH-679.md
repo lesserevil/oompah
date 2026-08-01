@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T12:05:24.382952Z'
-updated_at: '2026-08-01T15:39:14.740271Z'
+updated_at: '2026-08-01T15:39:50.658119Z'
 work_branch: OOMPAH-679
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/641
@@ -359,5 +359,10 @@ author: oompah
 created: 2026-08-01 15:39
 ---
 Discovery: only failing job on MR #641 is test (3.11) with tests/test_duplicate_names.py::test_no_duplicate_test_names_in_test_files timing out at >5s while ast-parsing tests/test_webhooks.py. Neither the test nor the target file was modified on this branch. Locally the full pass is ~1s (measured across 370 files). The default per-test timeout is 5s; existing tests already override it with @pytest.mark.timeout when the default is unrealistic (7 existing overrides in tests/). Implementation: added @pytest.mark.timeout(60) to test_no_duplicate_test_names_in_test_files with an explanatory comment citing MR #641. No other code changed.
+---
+author: oompah
+created: 2026-08-01 15:39
+---
+Verification: scripts/run-tests.sh serial tests/test_duplicate_names.py tests/test_default_first_dispatch.py tests/test_duplicate_preflight.py tests/test_activity_run_identity.py — 112 passed in 30.01s. The formerly-flaky test now runs under the raised @pytest.mark.timeout(60) ceiling (measured ~1.87s locally). No other changes.
 ---
 <!-- COMMENTS:END -->
