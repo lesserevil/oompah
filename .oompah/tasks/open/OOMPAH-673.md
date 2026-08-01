@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-673
 type: bug
-status: Backlog
+status: Open
 priority: 2
 title: Make canonical CLI mismatch recovery unambiguous across upgrades
 parent: null
@@ -11,12 +11,27 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T02:34:24.348580Z'
-updated_at: '2026-08-01T02:34:24.348580Z'
+updated_at: '2026-08-01T02:34:40.134127Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 6c063c0ee4af6e852f42b593bd42f90fa12c1aac379cb9da31e2685cd7dca129
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 4a8430de-54d5-4d51-8855-a7772bb44942
+  claim_owner: c9040198-12fd-44df-a501-638d565273c9
+  claimed_at: '2026-08-01T02:34:33.510149+00:00'
+  claim_expires_at: '2026-08-01T03:04:33.510149+00:00'
+  retry_count: 0
+  retry_after: null
+oompah.agent_run_id: c07d8fba-3989-414e-8dc4-8c25fd3deb7a
 ---
 ## Summary
 
@@ -30,3 +45,21 @@ Reproduce the safe-restart recovery trap when the running service is revision A,
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-01 02:34
+---
+Accepted follow-up from the OOMPAH-672 production cutover; ready for normal bug dispatch.
+---
+author: oompah
+created: 2026-08-01 02:34
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-01 02:34
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
