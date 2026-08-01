@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T05:18:04.532392Z'
-updated_at: '2026-08-01T05:44:24.817194Z'
+updated_at: '2026-08-01T05:48:43.613086Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -285,5 +285,10 @@ author: oompah
 created: 2026-08-01 05:44
 ---
 Discovery: root cause confirmed. The 3 failing tests all use _ServerWithMismatchedLauncher, a test mock that handles /api/v1/orchestrator/pause but NOT /api/v1/orchestrator/quiesce. The previous DevOps agent changed graceful_cutover to call POST /api/v1/orchestrator/quiesce instead of pause, so the mock raises AssertionError('unexpected request: POST /api/v1/orchestrator/quiesce'). Fix: update _ServerWithMismatchedLauncher in tests/test_cli_mismatch_recovery.py to (1) track quiesced state, (2) handle POST /api/v1/orchestrator/quiesce, and (3) include 'quiesced' in GET /api/v1/state response. Minimal change — no production code changes needed.
+---
+author: oompah
+created: 2026-08-01 05:48
+---
+Implementation: updated _ServerWithMismatchedLauncher test mock in tests/test_cli_mismatch_recovery.py with 6 lines. Added self.quiesced=False attribute, handler for POST /api/v1/orchestrator/quiesce that sets quiesced=True, 'quiesced' field in GET /api/v1/state response, and cleared quiesced on resume. No production code changes needed — the mock simply wasn't updated when the DevOps agent changed graceful_cutover to use /quiesce instead of /pause.
 ---
 <!-- COMMENTS:END -->
