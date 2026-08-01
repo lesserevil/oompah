@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T12:05:24.382952Z'
-updated_at: '2026-08-01T15:13:24.488400Z'
+updated_at: '2026-08-01T15:15:50.519044Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -285,5 +285,15 @@ author: oompah
 created: 2026-08-01 15:13
 ---
 Discovery: the gate failures reproduce exactly. Dispatch now invokes _run_worker(..., run_id=<generated>), but 18 default-first-dispatch test doubles and one duplicate-preflight test double still define the former three-argument coroutine signature, so every failure is TypeError: unexpected keyword argument 'run_id' before assertions. Production behavior is not failing; the minimal repair is to update those focused test doubles and assert the propagated ID matches RunningEntry.run_id.
+---
+author: oompah
+created: 2026-08-01 15:15
+---
+Implementation: updated the 19 strict dispatch test doubles to accept the new keyword-only run_id contract. The duplicate-preflight test now also records the worker run_id and asserts it matches the registered RunningEntry, preserving coverage of the identity propagation that caused the signature change. No production or workflow code changed in this CI repair.
+---
+author: oompah
+created: 2026-08-01 15:15
+---
+Verification: scripts/run-tests.sh serial tests/test_default_first_dispatch.py tests/test_duplicate_preflight.py tests/test_activity_run_identity.py passed: 111 passed in 27.93s. This includes every one of the 19 tests named by the failed branch gate plus the run-identity regression suite.
 ---
 <!-- COMMENTS:END -->
