@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-684
 type: task
-status: In Progress
+status: Needs Human
 priority: null
 title: Prevent stale retry dispatch after operator task resubmission
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T21:44:29.390457Z'
-updated_at: '2026-08-01T22:15:16.786767Z'
+updated_at: '2026-08-01T22:23:50.870932Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -168,5 +168,13 @@ author: oompah
 created: 2026-08-01 22:15
 ---
 Implementation: operator submission now shares the per-task transition lock with retry dispatch, revokes exact retry/running generations, clears claimed placeholders and stale assignment metadata, and quarantines workers that cross the acceptance boundary. Workspace/integration setup mutations are authority-guarded; withdrawn shared claims are conditionally removed by run ID. Added deterministic tests for setup cancellation, running-worker quarantine, claim cleanup, and same-head resubmission.
+---
+author: oompah
+created: 2026-08-01 22:23
+---
+Oompah could not durably preserve this worker's task worktree before retry. The worktree was left in place and no reset, clean, or retry was started. Reconcile the workspace and recovery evidence manually before resuming the task. Error: could not stage recovery snapshot for OOMPAH-684: The following paths are ignored by one of your .gitignore files:
+.oompah-no-hooks
+hint: Use -f if you really want to add them.
+hint: Disable this message with "git config set advice.addIgnoredFile false"
 ---
 <!-- COMMENTS:END -->
