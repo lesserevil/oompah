@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-688
 type: task
-status: Needs CI Fix
+status: In Progress
 priority: null
 title: Make slow-tick telemetry tests deterministic under load
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T23:11:33.946132Z'
-updated_at: '2026-08-01T23:44:34.110484Z'
+updated_at: '2026-08-01T23:45:04.667849Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -49,7 +49,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 9235e26e-6956-416d-9ec3-0d18130c6708
+oompah.agent_run_id: a24af9f9-4715-4727-8969-a44a0a12d2c0
 oompah.task_costs:
   total_input_tokens: 471157
   total_output_tokens: 4804
@@ -242,5 +242,15 @@ FAILED tests/test_orchestrator_handlers.py::TestMaintenanceLaneNonBlocking::test
 
 make: *** [Makefile:388: test] Error 1
 ```
+---
+author: oompah
+created: 2026-08-01 23:45
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-08-01 23:45
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
