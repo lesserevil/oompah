@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-671
 type: task
-status: Needs Human
+status: Ready to Integrate
 priority: null
 title: Recover terminal audits when historical work branches were deleted
 parent: null
@@ -11,12 +11,20 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T23:31:12.705782Z'
-updated_at: '2026-07-31T23:47:04.320430Z'
+updated_at: '2026-08-01T00:04:07.962798Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-671
+  head_sha: 6d34fc1adb6ca08a60d807b76eb2d982d5837cb4
+  submitted_at: '2026-08-01T00:04:04.596518+00:00'
+  updated_at: '2026-08-01T00:04:04.596518+00:00'
 ---
 ## Summary
 
@@ -44,5 +52,15 @@ author: oompah
 created: 2026-07-31 23:47
 ---
 Implementation progress: terminal auditors now resolve a detached, attempt-scoped checkout from persisted immutable revision evidence; legacy Merged-to-Archived records may fall back to the fetched default branch only when no immutable SHA exists, while unreachable immutable evidence fails closed. Infrastructure retry exhaustion is no longer mislabeled as no-independent-candidate. Added an owner-authorized, idempotent audit-rearm path that preserves/supersedes the failed record and restores In Validation without reopening implementation. Focused workspace, coordinator, API, CLI, cleanup, and dispatch tests pass (469 passed); the broader terminal-audit suite is running.
+---
+author: oompah
+created: 2026-08-01 00:04
+---
+Direct operator implementation is complete on pushed head 6d34fc1adb6ca08a60d807b76eb2d982d5837cb4. Verification: full make test before rebase passed (14,558 passed, 7 skipped, 1 xfailed); after rebasing onto current origin/main, the 849 focused terminal-audit, workspace, API/CLI, ACP, and candidate-failover tests passed. Terminal mutation scan and git diff --check passed.
+---
+author: oompah
+created: 2026-08-01 00:04
+---
+Recover terminal audits after source branch cleanup with detached evidence worktrees, fail-closed revision resolution, infrastructure-aware exhaustion, and an owner-authorized audit rearm path. Pushed head 6d34fc1adb6ca08a60d807b76eb2d982d5837cb4; full and focused gates pass.
 ---
 <!-- COMMENTS:END -->
