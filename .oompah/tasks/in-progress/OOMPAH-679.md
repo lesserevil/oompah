@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T12:05:24.382952Z'
-updated_at: '2026-08-01T15:11:30.884808Z'
+updated_at: '2026-08-01T15:13:24.488400Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -280,5 +280,10 @@ author: oompah
 created: 2026-08-01 15:11
 ---
 Understanding: I am repairing the existing OOMPAH-679 review head only. I will sync the same branch, inspect the branch-gate/GitHub check evidence for the 19 dispatch and duplicate-preflight failures, reproduce the focused suites, and apply the smallest tested fix before pushing and resubmitting.
+---
+author: oompah
+created: 2026-08-01 15:13
+---
+Discovery: the gate failures reproduce exactly. Dispatch now invokes _run_worker(..., run_id=<generated>), but 18 default-first-dispatch test doubles and one duplicate-preflight test double still define the former three-argument coroutine signature, so every failure is TypeError: unexpected keyword argument 'run_id' before assertions. Production behavior is not failing; the minimal repair is to update those focused test doubles and assert the propagated ID matches RunningEntry.run_id.
 ---
 <!-- COMMENTS:END -->
