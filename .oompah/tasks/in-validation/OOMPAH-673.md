@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T02:34:24.348580Z'
-updated_at: '2026-08-01T02:58:55.624866Z'
+updated_at: '2026-08-01T03:02:40.270875Z'
 work_branch: OOMPAH-673
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/636
@@ -93,6 +93,31 @@ oompah.work_branch: OOMPAH-673
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-33ffa8237c83: '2026-08-01T03:02:36.247447+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-673
+    target_state: Done
+    evidence_fingerprint: d155dfab198a6d48d8569da85f715abab9db9a43bc947d98d5c3296a7fd0ea24
+    audit_ids:
+    - audit-f5ebccabf987
+    kind: result
+    applied: true
+    retired_at: '2026-08-01T03:02:36.247462+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-673
+    audit_id: audit-f5ebccabf987
+    attempt_id: attempt-33ffa8237c83
+    target_state: Done
+    evidence_fingerprint: d155dfab198a6d48d8569da85f715abab9db9a43bc947d98d5c3296a7fd0ea24
+    status: In Validation
+    audit_ids:
+    - audit-f5ebccabf987
+    applied: true
+    created_at: '2026-08-01T03:02:36.247481+00:00'
+    applied_at: '2026-08-01T03:02:39.387617+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -100,7 +125,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-673
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -109,7 +134,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-33ffa8237c83
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -119,13 +144,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-01T02:58:51.364160+00:00'
       branch_key: OOMPAH-673
+      verdict: pass
+      completed_at: '2026-08-01T03:02:36.247254+00:00'
+      ended_at: '2026-08-01T03:02:36.247254+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-01T02:57:36.451604+00:00'
-    updated_at: '2026-08-01T02:58:51.364160+00:00'
+    updated_at: '2026-08-01T03:02:36.247254+00:00'
   - version: 1
     audit_id: audit-89792911edfa
     project_id: proj-14849f1b
@@ -294,5 +322,23 @@ author: oompah
 created: 2026-08-01 02:58
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-01 03:02
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- merged_commit: b792568ef85d4b46a2e5607305a3dc3549a95860
+- merge_commit: f64c1c9b3
+- pr_number: 636
+- recovery_tests: 7/7 pass
+- lifecycle_tests: 25/25 pass
+- canonical_cli_sync_tests: 18/18 pass
+- branch_gate: make test passed in 386.0s on merged head
+- files_changed: scripts/sync_canonical_cli.py, scripts/canonical_cli_cutover.py, docs/cli-install.md, tests/test_cli_mismatch_recovery.py (479 lines added)
+- approach: auto-repair during graceful cutover (per task alternative)
 ---
 <!-- COMMENTS:END -->
