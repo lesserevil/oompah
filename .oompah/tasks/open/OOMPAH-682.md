@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T18:07:47.349822Z'
-updated_at: '2026-08-01T19:48:34.282515Z'
+updated_at: '2026-08-01T19:48:49.273966Z'
 work_branch: OOMPAH-682
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/645
@@ -44,13 +44,17 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: 65463141-215e-47b3-bd4f-ce2415da2caa
 oompah.task_costs:
-  total_input_tokens: 4704692
-  total_output_tokens: 8892
+  total_input_tokens: 4704779
+  total_output_tokens: 27459
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 4704692
       output_tokens: 8892
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 87
+      output_tokens: 18567
       cost_usd: 0.0
   runs:
   - profile: default
@@ -65,6 +69,12 @@ oompah.task_costs:
     output_tokens: 350
     cost_usd: 0.0
     recorded_at: '2026-08-01T19:13:16.629447+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 87
+    output_tokens: 18567
+    cost_usd: 0.0
+    recorded_at: '2026-08-01T19:48:47.457747+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-682__20260801T190014Z
@@ -367,5 +377,15 @@ created: 2026-08-01 19:48
 Audit FAIL — incomplete. Routing task to Open.
 
 [REDACTED]
+---
+author: oompah
+created: 2026-08-01 19:48
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 98, Tool calls: 81
+- Tokens: 87 in / 18.6K out [18.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 8m 0s
+- Log: OOMPAH-682__20260801T194051Z.jsonl
 ---
 <!-- COMMENTS:END -->
