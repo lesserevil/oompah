@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-678
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Do not flag intentional cross-task handoff denials as auth failures
 parent: null
@@ -11,10 +11,10 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T12:01:06.107132Z'
-updated_at: '2026-08-01T14:53:28.349076Z'
+updated_at: '2026-08-01T14:53:38.356571Z'
 work_branch: null
 target_branch: null
-review_url: null
+review_url: https://github.com/lesserevil/oompah/pull/640
 review_number: null
 merged_at: null
 oompah.duplicate_screening:
@@ -106,6 +106,7 @@ oompah.integration:
   head_sha: f4e334dc5545267d6b143858ee09f95972f13641
   submitted_at: '2026-08-01T14:44:56.184638+00:00'
   updated_at: '2026-08-01T14:45:25.407259+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/640
 ---
 ## Summary
 
