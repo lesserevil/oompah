@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-676
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Make graceful CLI cutover drain workers before restart
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T05:18:04.532392Z'
-updated_at: '2026-08-01T05:56:13.695578Z'
+updated_at: '2026-08-01T06:04:21.093702Z'
 work_branch: OOMPAH-676
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/638
@@ -120,6 +120,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/638
 oompah.review_number: '638'
 oompah.work_branch: OOMPAH-676
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-e79b9631ed9f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-676
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a2b47ef5d5f03107e321acad1889bb215846e9673336f71c2eafe9437b9a99d6
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-01T06:04:15.796051+00:00'
+  - version: 1
+    audit_id: audit-45c1e7847e18
+    project_id: proj-14849f1b
+    task_id: OOMPAH-676
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a2b47ef5d5f03107e321acad1889bb215846e9673336f71c2eafe9437b9a99d6
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-01T06:04:15.796051+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -332,5 +371,15 @@ author: oompah
 created: 2026-08-01 05:56
 ---
 Branch quality gate passed for `f9f1463a06f1236fba60722393bab132b6018de2` using `make test` in 396.4s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-01 06:04
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-01 06:04
+---
+YOLO: merged PR #638.
 ---
 <!-- COMMENTS:END -->
