@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T22:19:41.486806Z'
-updated_at: '2026-08-01T22:40:37.613815Z'
+updated_at: '2026-08-01T22:41:02.038441Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -371,5 +371,10 @@ author: oompah
 created: 2026-08-01 22:40
 ---
 Implementation: Stabilized the reported maintenance-lane regression test by mocking release-addendum recovery, matching neighboring tick tests. This keeps the test focused on whether a completed maintenance future permits exactly one new maintenance submission and removes unrelated tracker I/O from the five-second parallel-CI timeout path.
+---
+author: oompah
+created: 2026-08-01 22:41
+---
+Verification: `python3 -m pytest -n 4 -q tests/test_orchestrator_handlers.py::TestMaintenanceLaneNonBlocking` passed (4 passed, 2.14s), and the same class passed serially (4 passed, 3.36s). `make test-setup` could not create the local uv transient scope because of the host DBus/snap confinement error, so no full local branch gate was attempted; the configured gate should run on pushed head 19f4f3f9c. GitHub still reports no PR or Actions run for this branch, so there is no original check to observe re-running.
 ---
 <!-- COMMENTS:END -->
