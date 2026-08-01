@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-679
 type: bug
-status: Ready to Integrate
+status: Needs CI Fix
 priority: 1
 title: Reset activity panel identity when a task starts a new agent run
 parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- ci-fix
 assignee: null
 created_at: '2026-08-01T12:05:24.382952Z'
-updated_at: '2026-08-01T14:54:13.076232Z'
+updated_at: '2026-08-01T15:09:38.362155Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -204,5 +205,65 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 19m 37s
 - Log: OOMPAH-679__20260801T143439Z.jsonl
+---
+author: oompah
+created: 2026-08-01 15:09
+---
+Branch quality gate blocked review creation.
+
+Branch: `OOMPAH-679`
+Target: `main`
+Head: `df28f501739ec456e061966015317545b02a7616`
+Command: `make test`
+Result: `failed`
+
+Required: run the command in the task worktree, fix the failure, commit and push the repair, then leave the task in Done. Oompah will rerun the gate for the new head before creating the PR/MR.
+
+Output tail:
+```text
+Traceback (most recent call last):
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 126, in __del__
+      self.close()
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 104, in close
+      proto.pipe.close()
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 568, in close
+      self._close(None)
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 592, in _close
+      self._loop.call_soon(self._call_connection_lost, exc)
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 799, in call_soon
+      self._check_closed()
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 545, in _check_closed
+      raise RuntimeError('Event loop is closed')
+  RuntimeError: Event loop is closed
+  
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_default_first_dispatch.py::TestDispatchWithDefaultFirstDispatch::test_flag_off_bug_dispatches_deep_profile
+FAILED tests/test_default_first_dispatch.py::TestDispatchWithDefaultFirstDispatch::test_flag_on_bug_dispatches_default_profile_first
+FAILED tests/test_default_first_dispatch.py::TestDispatchWithDefaultFirstDispatch::test_flag_on_needs_label_bypasses_default_first
+FAILED tests/test_default_first_dispatch.py::TestDispatchWithDefaultFirstDispatch::test_flag_on_retry_does_not_override_profile
+FAILED tests/test_default_first_dispatch.py::TestDispatchWithDefaultFirstDispatch::test_flag_on_override_profile_bypasses_default_first
+FAILED tests/test_default_first_dispatch.py::TestDispatchWithDefaultFirstDispatch::test_flag_on_merge_conflict_label_bypasses_default_first
+FAILED tests/test_default_first_dispatch.py::TestDispatchWithDefaultFirstDispatch::test_flag_on_epic_keeps_natural_routing
+FAILED tests/test_default_first_dispatch.py::TestDispatchWithDefaultFirstDispatch::test_flag_on_ci_fix_label_bypasses_default_first
+FAILED tests/test_default_first_dispatch.py::TestDispatchWithDefaultFirstDispatch::test_flag_on_merge_conflict_keyword_bypasses_default_first
+FAILED tests/test_default_first_dispatch.py::TestDispatchWithDefaultFirstDispatch::test_flag_on_unrelated_bug_is_unaffected
+FAILED tests/test_default_first_dispatch.py::TestSafetyCriticalAcpRouting::test_carve_out_with_merge_conflict_label
+FAILED tests/test_default_first_dispatch.py::TestSafetyCriticalAcpRouting::test_carve_out_with_acp_natural_unchanged
+FAILED tests/test_default_first_dispatch.py::TestSafetyCriticalAcpRouting::test_carve_out_with_no_acp_profile_falls_through
+FAILED tests/test_default_first_dispatch.py::TestSafetyCriticalAcpRouting::test_carve_out_with_non_acp_natural_swaps_to_acp
+FAILED tests/test_default_first_dispatch.py::TestSafetyCriticalAcpRouting::test_carve_out_skipped_when_default_first_dispatch_off
+FAILED tests/test_default_first_dispatch.py::TestSafetyCriticalAcpRouting::test_non_carved_out_task_is_unaffected
+FAILED tests/test_default_first_dispatch.py::TestSafetyCriticalAcpRouting::test_explicit_handoff_label_skips_swap
+FAILED tests/test_default_first_dispatch.py::TestSafetyCriticalAcpRouting::test_retry_does_not_swap_to_acp
+FAILED tests/test_duplicate_preflight.py::test_dispatch_preflight_does_not_move_task_in_progress
+= 19 failed, 14731 passed, 8 skipped, 1 xfailed, 45 warnings in 393.15s (0:06:33) =
+
+make: *** [Makefile:388: test] Error 1
+```
 ---
 <!-- COMMENTS:END -->
