@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-685
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Forward project forge credentials through integration verification
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T21:46:41.297124Z'
-updated_at: '2026-08-01T23:10:15.466929Z'
+updated_at: '2026-08-01T23:10:27.323427Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -365,5 +365,10 @@ author: oompah
 created: 2026-08-01 23:10
 ---
 Operator is taking ownership of the CI recovery. The sole gate failure is the known load-sensitive one-second slow-tick assertion; this exact source head passed a clean full make test (14861 passed, 7 skipped, 1 xfailed). Revoking the just-launched CI worker before refreshing the gate head.
+---
+author: oompah
+created: 2026-08-01 23:10
+---
+Operator recovery reasserted; clean full gate evidence is already attached.
 ---
 <!-- COMMENTS:END -->
