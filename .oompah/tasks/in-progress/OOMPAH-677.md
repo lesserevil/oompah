@@ -13,7 +13,7 @@ labels:
 - focus-complete:chore
 assignee: null
 created_at: '2026-08-01T11:56:19.836343Z'
-updated_at: '2026-08-01T14:39:12.881531Z'
+updated_at: '2026-08-01T14:41:58.090833Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -252,5 +252,10 @@ Implementation approach:
 4. Extend transition_gate.is_project_owner to cover GitLab tracker_owner
 5. One-shot repair on load for pre-existing ownerless projects
 6. Regression tests for NodeVirt (oompah_md, no owner) configuration
+---
+author: oompah
+created: 2026-08-01 14:41
+---
+**Discovery**: Implemented GitLab URL parser (gitlab_owner_repo_from_url) and _resolve_owner_identity helper that derives project owners from repo_url and tracker configuration. Updated ProjectStore.create to resolve owner identity before creating dispatchable projects (rejecting if ownerless). Updated ProjectStore.update to prevent clearing owner fields for active projects without an alternative owner derivable from config.
 ---
 <!-- COMMENTS:END -->
