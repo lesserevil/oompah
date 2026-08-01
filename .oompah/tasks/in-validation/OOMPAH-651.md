@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-651
 type: bug
-status: In Review
+status: In Validation
 priority: 0
 title: Redact secrets from agent tool inputs, outputs, and JSONL event logs
 parent: null
@@ -19,7 +19,7 @@ labels:
 - needs-rebase
 assignee: null
 created_at: '2026-07-31T08:57:13.236209Z'
-updated_at: '2026-08-01T00:07:07.345440Z'
+updated_at: '2026-08-01T00:15:17.180374Z'
 work_branch: OOMPAH-651
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/630
@@ -252,6 +252,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/630
 oompah.review_number: '630'
 oompah.work_branch: OOMPAH-651
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-e254e219a2ba
+    project_id: proj-14849f1b
+    task_id: OOMPAH-651
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6c4b3b2fd3745a53f9ce4a45bbb3ca017726449e46c918c5d62cb7c2ad39f56b
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-01T00:15:11.881745+00:00'
+  - version: 1
+    audit_id: audit-5f488e748a5c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-651
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6c4b3b2fd3745a53f9ce4a45bbb3ca017726449e46c918c5d62cb7c2ad39f56b
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-01T00:15:11.881745+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -1448,5 +1487,15 @@ author: oompah
 created: 2026-08-01 00:06
 ---
 Branch quality gate passed for `62328ae2881b05346ed02c0bef2a25cd57380567` using `make test` in 400.4s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-01 00:15
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-01 00:15
+---
+YOLO: merged PR #630.
 ---
 <!-- COMMENTS:END -->
