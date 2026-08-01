@@ -2572,7 +2572,11 @@ def _on_orchestrator_change(snapshot: dict) -> None:
     _schedule_api_coro(_throttled_broadcast_issues)
 
 
-def _on_agent_activity(identifier: str, entry) -> None:
+def _on_agent_activity(
+    identifier: str,
+    entry,
+    run_id: str | None = None,
+) -> None:
     """Called by orchestrator on each agent activity entry. Push to WS clients."""
     if not _ws_clients:
         return
@@ -2581,6 +2585,7 @@ def _on_agent_activity(identifier: str, entry) -> None:
             {
                 "type": "activity",
                 "identifier": identifier,
+                "run_id": run_id,
                 "entry": entry.to_dict()
                 if hasattr(entry, "to_dict")
                 else str(entry),
@@ -11773,6 +11778,7 @@ async def api_agent_activity(identifier: str):
                         pass
                 payload: dict[str, Any] = {
                     "identifier": identifier,
+                    "run_id": getattr(entry, "run_id", None),
                     "profile": entry.agent_profile_name,
                     "provider_name": entry.provider_name,
                     "model_name": entry.model_name,
@@ -11790,7 +11796,7 @@ async def api_agent_activity(identifier: str):
                 if terminal_audit_summary is not None:
                     payload["terminal_audit_summary"] = terminal_audit_summary
                 return JSONResponse(payload)
-        return JSONResponse({"identifier": identifier, "activity": []})
+        return JSONResponse({"identifier": identifier, "run_id": None, "activity": []})
     except Exception as exc:
         return JSONResponse({"error": str(exc)}, status_code=500)
 
