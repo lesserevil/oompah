@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T17:31:44.735248Z'
-updated_at: '2026-08-01T17:49:34.764691Z'
+updated_at: '2026-08-01T17:54:50.996201Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -190,5 +190,50 @@ Gaps identified in credential-less git network operations:
 - **CWE-798**: Operations fail when token required, but no safe fallback
 
 **Next step:** Implement credential environment propagation into all _git methods and network callsites. Will add forge_kind/access_token parameters and use git_credential_environment context manager.
+---
+author: oompah
+created: 2026-08-01 17:54
+---
+**IMPLEMENTATION: Core infrastructure updates**
+
+Made these security-critical changes to support forge credentials for all managed Git network operations:
+
+**oompah/oompah_md_tracker.py**
+- Added import: git_credentials (git_credential_environment, redact_git_output)
+- Added __init__ parameters: access_token (str|None), forge_kind (str = 'github')
+- Store credentials as _access_token, _forge_kind (both redacted in logs)
+- Enhanced _git() method:
+  - Detects network ops (push/fetch/ls-remote) to route through credential env
+  - Uses git_credential_environment() context manager for ephemeral creds
+  - Redacts output via redact_git_output() to prevent token leakage
+  - Raises TrackerError with redacted message on timeout/failure
+  - Never exposes token in exception messages, stderr, or logs
+
+**oompah/orchestrator.py**
+- Updated _new_tracker_for_project() in oompah_md branch:
+  - Passes access_token from project if configured
+  - Passes forge_kind from project (GitHub/GitLab)
+  - Mirrors behavior of github_issues tracker credential handling
+
+**oompah/project_bootstrap/__init__.py**
+- Added apply_project_bootstrap_updates() parameters: access_token, forge_kind
+- Updated git push operation to use git_credential_environment
+- Wrapped credential_env push in context manager
+- Applies redaction to both stdout/stderr
+
+**Design adherence:**
+✓ Tokens only in ephemeral subprocess env (via GIT_ASKPASS)
+✓ No tokens in URLs, config, argv, stdout/stderr, exceptions, logs
+✓ Comprehensive redaction with redact_git_output()
+✓ Forge-aware (GitHub oauth2 vs GitLab oauth2)
+✓ Project-scoped isolation (each tracker has own credentials)
+✓ Noninteractive failures preserved with actionable diagnostics
+
+**Remaining work:**
+- Update cherry_pick_pr_creator.py, integration_executor.py (may need refactor)
+- Update issue_template_refresh.py, repo_map_generator.py
+- Add comprehensive tests for private GitLab repos
+- Test concurrent project isolation
+- Verify worktree inheritance
 ---
 <!-- COMMENTS:END -->
