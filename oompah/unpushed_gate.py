@@ -35,6 +35,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from oompah.projects import remove_generated_worktree_helpers
+from oompah.git_credentials import git_credential_environment
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +78,8 @@ def _check_unpushed(
     branch: str,
     base_branch: str,
     worktree_path: str = "",
+    access_token: str | None = None,
+    forge_kind: str = "github",
 ) -> tuple[bool, int, list[str], str]:
     """Check for unpushed commits and uncommitted work.
 
@@ -137,13 +140,18 @@ def _check_unpushed(
     # --- 2. Check for unpushed commits on the branch ---
     # Fetch to get the latest remote state (quick, never fails)
     try:
-        subprocess.run(
-            ["git", "fetch", "origin", "--quiet"],
-            cwd=repo_path,
-            capture_output=True,
-            text=True,
-            timeout=_GIT_TIMEOUT_S,
-        )
+        with git_credential_environment(
+            forge_kind=forge_kind,
+            access_token=access_token,
+        ) as env:
+            subprocess.run(
+                ["git", "fetch", "origin", "--quiet"],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                timeout=_GIT_TIMEOUT_S,
+                env=env,
+            )
     except (subprocess.TimeoutExpired, OSError, FileNotFoundError):
         pass  # Non-fatal — we fall back to local tracking ref
 
@@ -210,6 +218,8 @@ def check_unpushed_gate(
     entry_profile: str = "",
     entry_focus: str = "",
     entry_attempt: int = 0,
+    access_token: str | None = None,
+    forge_kind: str = "github",
 ) -> UnpushedGateResult:
     """Run the unpushed gate check.
 
@@ -256,8 +266,21 @@ def check_unpushed_gate(
     # ------------------------------------------------------------------
     # Git check
     # ------------------------------------------------------------------
+    check_kwargs: dict[str, object] = {"worktree_path": worktree_path}
+    # Preserve the established call shape for callers without a project
+    # credential context. Credential-bearing callers opt into the additional
+    # parameters without forcing older integrations/mocks to know about the
+    # new boundary.
+    if access_token is not None or forge_kind != "github":
+        check_kwargs.update(
+            access_token=access_token,
+            forge_kind=forge_kind,
+        )
     has_uncommitted, commits_ahead, commit_lines, git_error = _check_unpushed(
-        repo_path, branch, base_branch, worktree_path=worktree_path,
+        repo_path,
+        branch,
+        base_branch,
+        **check_kwargs,
     )
 
     if git_error:

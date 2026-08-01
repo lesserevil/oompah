@@ -29,6 +29,54 @@ def forge_display_name(forge_kind: str | None) -> str:
     return "GitLab" if str(forge_kind or "").strip().lower() == "gitlab" else "GitHub"
 
 
+_GIT_AUTH_FAILURE_MARKERS = (
+    "authentication failed",
+    "authentication required",
+    "access denied",
+    "http basic: access denied",
+    "invalid username or password",
+    "invalid credentials",
+    "not authorized",
+    "unauthorized",
+    "terminal prompts disabled",
+    "could not read username",
+    "could not read password",
+    "repository not found",
+    "403",
+    "401",
+)
+
+
+def git_authentication_failure(
+    *,
+    forge_kind: str | None,
+    access_token: str | None,
+    output: str | None,
+    operation: str = "Git operation",
+) -> str | None:
+    """Return a safe, actionable message for an authenticated Git failure.
+
+    Git deliberately emits similar non-interactive errors for an absent
+    credential and a rejected credential.  Keep that distinction at the
+    managed-project boundary so operators know whether to configure a token
+    or rotate/check its scopes.  The returned message never includes output or
+    credential material.
+    """
+    lowered = str(output or "").lower()
+    if not any(marker in lowered for marker in _GIT_AUTH_FAILURE_MARKERS):
+        return None
+    forge = forge_display_name(forge_kind)
+    if not str(access_token or "").strip():
+        return (
+            f"{forge} project forge credential is missing for {operation}; "
+            "configure the project's access_token before integrating a private repository"
+        )
+    return (
+        f"{forge} project forge credential was rejected during {operation}; "
+        "verify the token, expiry, and repository scope"
+    )
+
+
 def redact_git_output(text: str | None, secrets: tuple[str, ...] = ()) -> str:
     """Remove tokens and credential-bearing URL userinfo from Git output."""
     redacted = str(text or "")

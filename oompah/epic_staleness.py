@@ -32,6 +32,8 @@ import logging
 import subprocess
 from dataclasses import dataclass
 
+from oompah.git_credentials import git_credential_environment, redact_git_output
+
 logger = logging.getLogger(__name__)
 
 
@@ -65,6 +67,8 @@ def check_epic_branch_staleness(
     threshold_commits: int = 5,
     *,
     timeout: int = 30,
+    access_token: str | None = None,
+    forge_kind: str = "github",
 ) -> StalenessResult:
     """Check whether ``epic_branch`` is stale relative to ``target_branch``.
 
@@ -82,13 +86,30 @@ def check_epic_branch_staleness(
     """
 
     def _git(args: list[str]) -> subprocess.CompletedProcess[str]:
-        return subprocess.run(
-            ["git", *args],
-            cwd=repo_path,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-        )
+        if args and args[0] == "fetch":
+            with git_credential_environment(
+                forge_kind=forge_kind,
+                access_token=access_token,
+            ) as env:
+                result = subprocess.run(
+                    ["git", *args],
+                    cwd=repo_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout,
+                    env=env,
+                )
+        else:
+            result = subprocess.run(
+                ["git", *args],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+            )
+        result.stdout = redact_git_output(result.stdout, (access_token or "",))
+        result.stderr = redact_git_output(result.stderr, (access_token or "",))
+        return result
 
     # ------------------------------------------------------------------
     # 1. Compute merge-base between epic branch and target branch.

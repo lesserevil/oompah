@@ -16,6 +16,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from fnmatch import fnmatchcase
 from urllib.parse import urlsplit
 
+from oompah.git_credentials import git_credential_environment, redact_git_output
 from oompah.git_hooks import hook_path as _bundled_hook_path
 from oompah.git_noninteractive import NONINTERACTIVE_GIT_ENV
 from oompah.models import Project
@@ -1317,6 +1318,40 @@ class ProjectStore:
                 self._project_locks[project_id] = threading.RLock()
             return self._project_locks[project_id]
 
+    @staticmethod
+    def _run_network_git(
+        project: Project,
+        args: list[str],
+        *,
+        cwd: str | None = None,
+        timeout: float = 60,
+    ) -> subprocess.CompletedProcess[str]:
+        """Run one managed network Git operation with project credentials.
+
+        The project token is held only by the child environment while Git is
+        running.  Callers receive redacted output, and the command/remote
+        remain credential-free.
+        """
+        token = getattr(project, "access_token", None)
+        forge_kind = getattr(project, "forge_kind", "github")
+        with git_credential_environment(
+            forge_kind=forge_kind,
+            access_token=token,
+            base_env=_recovery_git_env(),
+        ) as env:
+            result = subprocess.run(
+                args,
+                cwd=cwd or project.repo_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=timeout,
+                env=env,
+            )
+        result.stdout = redact_git_output(result.stdout, (token or "",))
+        result.stderr = redact_git_output(result.stderr, (token or "",))
+        return result
+
     def create(
         self,
         repo_url: str,
@@ -1421,35 +1456,51 @@ class ProjectStore:
 
         # Clone into ~/.oompah/repos/<name>/
         repo_path = os.path.join(self.repos_root, _sanitize_identifier(name))
+        bootstrap_project = Project(
+            id="project-bootstrap",
+            name=name,
+            repo_url=repo_url,
+            repo_path=repo_path,
+            default_branch=default_branch,
+            access_token=access_token,
+            forge_kind=forge_kind_norm,
+        )
 
         if os.path.isdir(repo_path):
             # Already cloned — pull latest
             logger.info("Repo already cloned at %s, pulling latest", repo_path)
             try:
-                subprocess.run(
+                fetched = self._run_network_git(
+                    bootstrap_project,
                     ["git", "fetch", "--all"],
-                    cwd=repo_path,
-                    capture_output=True,
-                    text=True,
-                    check=True,
                     timeout=120,
                 )
-            except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
-                logger.warning("git fetch failed for %s: %s", repo_path, exc)
+                if fetched.returncode != 0:
+                    logger.warning(
+                        "git fetch failed for %s: %s",
+                        repo_path,
+                        fetched.stderr.strip()[:500],
+                    )
+            except (OSError, subprocess.TimeoutExpired) as exc:
+                logger.warning(
+                    "git fetch failed for %s: %s", repo_path, type(exc).__name__
+                )
         else:
             os.makedirs(os.path.dirname(repo_path), exist_ok=True)
             try:
-                subprocess.run(
+                clone = self._run_network_git(
+                    bootstrap_project,
                     ["git", "clone", "--branch", default_branch, repo_url, repo_path],
-                    capture_output=True,
-                    text=True,
-                    check=True,
                     timeout=300,
                 )
-            except subprocess.CalledProcessError as exc:
-                stderr = exc.stderr.strip()[:500] if exc.stderr else ""
-                raise ProjectError(f"git clone failed: {stderr}")
+                if clone.returncode != 0:
+                    shutil.rmtree(repo_path, ignore_errors=True)
+                    raise ProjectError(f"git clone failed: {clone.stderr.strip()[:500]}")
+            except OSError as exc:
+                shutil.rmtree(repo_path, ignore_errors=True)
+                raise ProjectError(f"git clone failed: {type(exc).__name__}") from exc
             except subprocess.TimeoutExpired:
+                shutil.rmtree(repo_path, ignore_errors=True)
                 raise ProjectError("git clone timed out")
 
         # Validate clone
@@ -2141,12 +2192,10 @@ class ProjectStore:
                 raise ProjectError("terminal audit requires a revision")
 
             try:
-                subprocess.run(
+                self._run_network_git(
+                    project,
                     ["git", "fetch", "origin"],
                     cwd=project.repo_path,
-                    capture_output=True,
-                    text=True,
-                    check=False,
                     timeout=60,
                 )
                 resolved = subprocess.run(
@@ -2282,7 +2331,8 @@ class ProjectStore:
         )
         with self.project_write_lock(project_id):
             self._remove_worktree_locked(project_id, child_identifier)
-            remote = subprocess.run(
+            remote = self._run_network_git(
+                project,
                 [
                     "git",
                     "ls-remote",
@@ -2291,10 +2341,6 @@ class ProjectStore:
                     "origin",
                     branch,
                 ],
-                cwd=project.repo_path,
-                check=False,
-                capture_output=True,
-                text=True,
                 timeout=30,
             )
             if remote.returncode not in {0, 2}:
@@ -2304,12 +2350,9 @@ class ProjectStore:
                 )
             existed = remote.returncode == 0
             if existed:
-                deleted = subprocess.run(
+                deleted = self._run_network_git(
+                    project,
                     ["git", "push", "origin", "--delete", branch],
-                    cwd=project.repo_path,
-                    check=False,
-                    capture_output=True,
-                    text=True,
                     timeout=60,
                 )
                 if deleted.returncode != 0:
@@ -3077,12 +3120,9 @@ class ProjectStore:
         # push fails, a later pass can retry without losing the submitted head.
         if remote_exists:
             try:
-                deleted = subprocess.run(
+                deleted = self._run_network_git(
+                    project,
                     ["git", "push", "origin", "--delete", branch_name],
-                    cwd=project.repo_path,
-                    check=False,
-                    capture_output=True,
-                    text=True,
                     timeout=60,
                 )
             except (OSError, subprocess.TimeoutExpired) as exc:
@@ -3171,6 +3211,20 @@ class ProjectStore:
                 check: bool = False,
             ) -> subprocess.CompletedProcess:
                 try:
+                    if args and args[0] in {"fetch", "pull", "push", "ls-remote"}:
+                        result = self._run_network_git(
+                            project,
+                            ["git", "-C", wt_path, *args],
+                            timeout=timeout,
+                        )
+                        if check and result.returncode != 0:
+                            raise subprocess.CalledProcessError(
+                                result.returncode,
+                                ["git", "-C", wt_path, *args],
+                                output=result.stdout,
+                                stderr=result.stderr,
+                            )
+                        return result
                     return subprocess.run(
                         ["git", "-C", wt_path, *args],
                         capture_output=True,
@@ -3271,11 +3325,9 @@ class ProjectStore:
         # Fetch latest from remote before creating the worktree so we
         # pick up an existing remote epic branch from a prior session.
         try:
-            subprocess.run(
+            self._run_network_git(
+                project,
                 ["git", "fetch", "origin"],
-                cwd=project.repo_path,
-                capture_output=True,
-                text=True,
                 timeout=60,
             )
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
@@ -3386,13 +3438,36 @@ class ProjectStore:
         """
 
         def _run(cmd: list[str], **kw) -> subprocess.CompletedProcess:
+            timeout = kw.pop("timeout", 30)
+            check = kw.pop("check", False)
+            if len(cmd) > 1 and cmd[1] in {
+                "fetch",
+                "pull",
+                "push",
+                "ls-remote",
+            }:
+                result = self._run_network_git(
+                    project,
+                    cmd,
+                    cwd=wt_path,
+                    timeout=timeout,
+                )
+                if check and result.returncode != 0:
+                    raise subprocess.CalledProcessError(
+                        result.returncode,
+                        cmd,
+                        output=result.stdout,
+                        stderr=result.stderr,
+                    )
+                return result
             kw.setdefault("env", _recovery_git_env())
             return subprocess.run(
                 cmd,
                 cwd=wt_path,
                 capture_output=True,
                 text=True,
-                timeout=30,
+                timeout=timeout,
+                check=check,
                 **kw,
             )
 
@@ -3589,11 +3664,9 @@ class ProjectStore:
 
         # Fetch latest from remote before creating worktree
         try:
-            subprocess.run(
+            self._run_network_git(
+                project,
                 ["git", "fetch", "origin"],
-                cwd=project.repo_path,
-                capture_output=True,
-                text=True,
                 timeout=60,
             )
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
@@ -3682,13 +3755,36 @@ class ProjectStore:
         """Reuse an existing task worktree without discarding task-owned work."""
 
         def _run(cmd: list[str], **kw) -> subprocess.CompletedProcess:
+            timeout = kw.pop("timeout", 30)
+            check = kw.pop("check", False)
+            if len(cmd) > 1 and cmd[1] in {
+                "fetch",
+                "pull",
+                "push",
+                "ls-remote",
+            }:
+                result = self._run_network_git(
+                    project,
+                    cmd,
+                    cwd=wt_path,
+                    timeout=timeout,
+                )
+                if check and result.returncode != 0:
+                    raise subprocess.CalledProcessError(
+                        result.returncode,
+                        cmd,
+                        output=result.stdout,
+                        stderr=result.stderr,
+                    )
+                return result
             kw.setdefault("env", _recovery_git_env())
             return subprocess.run(
                 cmd,
                 cwd=wt_path,
                 capture_output=True,
                 text=True,
-                timeout=30,
+                timeout=timeout,
+                check=check,
                 **kw,
             )
 
