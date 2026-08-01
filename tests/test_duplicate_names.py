@@ -9,6 +9,8 @@ import ast
 import sys
 from pathlib import Path
 
+import pytest
+
 
 def check_file_for_duplicate_test_names(filepath: str) -> list[str]:
     """Check a test file for duplicate test method names within classes.
@@ -55,6 +57,13 @@ def check_file_for_duplicate_test_names(filepath: str) -> list[str]:
     return errors
 
 
+# The default per-test timeout is 5s, but this test AST-parses every
+# tests/test_*.py file in the repository (hundreds of files, tens of MB of
+# source). On a lightly loaded machine that runs in ~1s, but under CI xdist
+# contention it has repeatedly pushed past 5s and caused flaky failures
+# (see MR #641). Raise the ceiling to a value that still catches a genuine
+# runaway parse but does not race the CI scheduler.
+@pytest.mark.timeout(60)
 def test_no_duplicate_test_names_in_test_files():
     """Ensure no test file has shadowed test names."""
     tests_dir = Path(__file__).parent
