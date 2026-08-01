@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-674
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Include authenticated state in dashboard WebSocket bootstrap
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T04:42:35.189136Z'
-updated_at: '2026-08-01T04:51:21.788935Z'
+updated_at: '2026-08-01T04:51:57.202431Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -62,6 +62,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-674
     source_sha: f64c1c9b35d46b4028d323697eb75287f60d04a7
     completed_at: '2026-08-01T04:46:09.867194+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-674
+  head_sha: 15eea17a142a79a33d69464d6e6c608c23e1eac4
+  submitted_at: '2026-08-01T04:51:55.470195+00:00'
+  updated_at: '2026-08-01T04:51:55.470195+00:00'
 ---
 ## Summary
 
@@ -171,5 +179,27 @@ All tests pass, including:
 - Existing dashboard authenticated mutations tests: 13/13 ✓
 - Existing server auth tests: 73/73 ✓
 - Existing state API responsiveness tests: 19/19 ✓
+---
+author: oompah
+created: 2026-08-01 04:51
+---
+Verification: All tests passing (119 total)
+
+Test results:
+✓ test_websocket_authenticated_bootstrap.py: 14/14 - WebSocket auth bootstrap tests
+✓ test_server_auth.py: 73/73 - HTTP Basic authentication tests
+✓ test_dashboard_authenticated_mutations.py: 13/13 - Dashboard mutation auth behavior
+✓ test_state_api_responsiveness.py: 19/19 - State API caching and responsiveness
+
+Implementation verified:
+✓ WebSocket bootstrap includes http_auth.enabled
+✓ WebSocket refresh includes http_auth.enabled
+✓ REST and WebSocket metadata is consistent
+✓ No credentials leak in payloads
+✓ Backward compatibility preserved (unauthenticated mode)
+✓ Authenticated dashboards can now do drag/drop and status changes without actor_mismatch
+✓ Build ID and service instance ID included for both REST and WebSocket
+
+Branch ready for integration.
 ---
 <!-- COMMENTS:END -->
