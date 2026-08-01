@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T12:01:06.107132Z'
-updated_at: '2026-08-01T14:45:01.311617Z'
+updated_at: '2026-08-01T14:45:26.291333Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -57,13 +57,13 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: b4477585-ed1a-46af-bc44-9bf2f59b337c
 oompah.task_costs:
-  total_input_tokens: 202
-  total_output_tokens: 5974
+  total_input_tokens: 10685887
+  total_output_tokens: 39763
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 202
-      output_tokens: 5974
+      input_tokens: 10685887
+      output_tokens: 39763
       cost_usd: 0.0
   runs:
   - profile: default
@@ -72,6 +72,12 @@ oompah.task_costs:
     output_tokens: 5974
     cost_usd: 0.0
     recorded_at: '2026-08-01T14:31:18.021105+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 10685685
+    output_tokens: 33789
+    cost_usd: 0.0
+    recorded_at: '2026-08-01T14:45:20.342453+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-678__20260801T142816Z
@@ -82,14 +88,24 @@ oompah.work_contributors:
     source_branch: OOMPAH-678
     source_sha: 62ca0ca696d08b754e03a200d7227455786da960
     completed_at: '2026-08-01T14:31:18.033726+00:00'
+  - run_id: OOMPAH-678__20260801T143147Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: frontend
+    source_branch: OOMPAH-678
+    source_sha: f4e334dc5545267d6b143858ee09f95972f13641
+    completed_at: '2026-08-01T14:45:20.346560+00:00'
 oompah.integration:
   version: 2
   state: ready
   attempts: 0
   task_branch: OOMPAH-678
+  base_branch: main
+  base_sha: 62ca0ca696d08b754e03a200d7227455786da960
   head_sha: f4e334dc5545267d6b143858ee09f95972f13641
   submitted_at: '2026-08-01T14:44:56.184638+00:00'
-  updated_at: '2026-08-01T14:44:56.184638+00:00'
+  updated_at: '2026-08-01T14:45:25.407259+00:00'
 ---
 ## Summary
 
@@ -162,5 +178,20 @@ author: oompah
 created: 2026-08-01 14:45
 ---
 Classify intentional live-peer task-handoff denials as informational policy events while preserving genuine auth-scope alerts; add propagation, dashboard guidance, docs, and regression coverage.
+---
+author: oompah
+created: 2026-08-01 14:45
+---
+Agent completed successfully in 818s (10719474 tokens)
+---
+author: oompah
+created: 2026-08-01 14:45
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 104
+- Tokens: 10.7M in / 33.8K out [10.7M total]
+- Cost: $0.0000
+- Exit: normal, Duration: 13m 38s
+- Log: OOMPAH-678__20260801T143147Z.jsonl
 ---
 <!-- COMMENTS:END -->
