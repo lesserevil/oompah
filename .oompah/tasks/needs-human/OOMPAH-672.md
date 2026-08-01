@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T00:18:06.952783Z'
-updated_at: '2026-08-01T00:32:45.771504Z'
+updated_at: '2026-08-01T00:35:18.723229Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -182,5 +182,10 @@ Oompah could not durably preserve this worker's task worktree before retry. The 
 .oompah-no-hooks
 hint: Use -f if you really want to add them.
 hint: Disable this message with "git config set advice.addIgnoredFile false"
+---
+author: oompah
+created: 2026-08-01 00:35
+---
+Direct operator takeover after recovery snapshot failed on the ignored .oompah-no-hooks path. The worker is stopped; its worktree is intact and has only staged changes to oompah/secrets.py and tests/test_secrets.py. I am reviewing and validating that partial implementation in place; keep Needs Human as the scheduler hold.
 ---
 <!-- COMMENTS:END -->
