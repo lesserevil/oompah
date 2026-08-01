@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-686
 type: task
-status: Needs CI Fix
+status: In Progress
 priority: null
 title: Keep worker container-runtime failures out of Needs Human
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T22:19:41.486806Z'
-updated_at: '2026-08-01T22:37:34.821415Z'
+updated_at: '2026-08-01T22:38:18.218712Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -47,7 +47,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 1f4ac41c-38b4-4a1d-8bdb-90cd83a49885
+oompah.agent_run_id: 532b2bc5-a57b-4077-b904-0dbbc93eaf95
 oompah.task_costs:
   total_input_tokens: 226885
   total_output_tokens: 29071
@@ -341,5 +341,15 @@ FAILED tests/test_orchestrator_handlers.py::TestMaintenanceLaneNonBlocking::test
 
 make: *** [Makefile:388: test] Error 1
 ```
+---
+author: oompah
+created: 2026-08-01 22:38
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-08-01 22:38
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->

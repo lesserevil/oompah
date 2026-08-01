@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-683
 type: task
-status: Needs Human
+status: Ready to Integrate
 priority: null
 title: Make retry recovery snapshots tolerate generated hooks and in-progress rebases
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T21:41:35.163259Z'
-updated_at: '2026-08-01T22:17:55.767659Z'
+updated_at: '2026-08-01T22:38:08.866868Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -65,6 +65,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-683
     source_sha: 3d50e86c334e8a6318b767b281bc254fa6d93cc2
     completed_at: '2026-08-01T21:47:17.738461+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-683
+  head_sha: bdc4cf5d1fa259b7fa155c1f02aabda34749a103
+  submitted_at: '2026-08-01T22:38:03.729346+00:00'
+  updated_at: '2026-08-01T22:38:03.729346+00:00'
 ---
 ## Summary
 
@@ -151,5 +159,15 @@ Oompah could not durably preserve this worker's task worktree before retry. The 
 .oompah-no-hooks
 hint: Use -f if you really want to add them.
 hint: Disable this message with "git config set advice.addIgnoredFile false"
+---
+author: oompah
+created: 2026-08-01 22:38
+---
+Operator-owned recovery complete. The preserved implementation was reviewed, the generated .oompah-no-hooks helper was removed, and the exact task tree was committed and pushed as bdc4cf5d1fa259b7fa155c1f02aabda34749a103.\n\nValidation:\n- Focused recovery/submission/race suite: 181 passed in 28.81s.\n- Full make test: 14857 passed, 7 skipped, 1 xfailed in 402.78s.\n- The first full run had one unrelated one-second tick-lane timeout while another repository-wide gate was contending for resources; that exact test passed alone, the competing gate ended, and the complete make test rerun passed.\n- git diff --check passed.\n- Branch is clean and matches origin/OOMPAH-683.\n\nThis task is itself the canonical fix for the ignored-helper recovery failure that moved it to Needs Human, so no duplicate follow-up was filed.
+---
+author: oompah
+created: 2026-08-01 22:38
+---
+Operator recovery complete at bdc4cf5d1: ignored generated helpers are excluded, active Git operations receive durable noninteractive checkpoints, stale cleanup is generation-fenced, focused tests pass 181/181, and full make test passes 14857 tests.
 ---
 <!-- COMMENTS:END -->
