@@ -548,6 +548,35 @@ async def test_api_pause_enqueues_ipc_command(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_api_quiesce_enqueues_ipc_command(tmp_path):
+    """API-only lifecycle cutover enqueues the non-destructive gate."""
+    from oompah import server as server_module
+
+    db_path = str(tmp_path / "quiesce_ipc.db")
+    test_ipc = OrchestratorIPC(db_path)
+
+    original_orch = server_module._orchestrator
+    original_ipc = server_module._ipc
+    try:
+        server_module._orchestrator = None
+        server_module._ipc = test_ipc
+
+        import json as _json
+        response = await server_module.api_orchestrator_quiesce()
+        data = _json.loads(response.body)
+
+        assert data["ok"] is True
+        assert data["quiesced"] is True
+        commands = test_ipc.poll_commands()
+        assert len(commands) == 1
+        assert commands[0]["command"] == "quiesce"
+    finally:
+        server_module._orchestrator = original_orch
+        server_module._ipc = original_ipc
+        test_ipc.close()
+
+
+@pytest.mark.asyncio
 async def test_api_resume_enqueues_ipc_command(tmp_path):
     """api_orchestrator_resume() enqueues 'unpause' when orchestrator is absent."""
     from oompah import server as server_module
@@ -638,6 +667,46 @@ def test_process_ipc_commands_pause(tmp_path):
     conn.close()
     assert row[0] == "processed"
 
+    test_ipc.close()
+
+
+def test_process_ipc_commands_quiesce_preserves_running_state(tmp_path):
+    """The scheduler applies quiesce without terminating a running entry."""
+    from datetime import datetime, timezone
+
+    from oompah.config import ServiceConfig
+    from oompah.models import Issue, RunningEntry
+    from oompah.orchestrator import Orchestrator
+
+    db_path = str(tmp_path / "cmd_quiesce.db")
+    test_ipc = OrchestratorIPC(db_path)
+    orch = Orchestrator(
+        ServiceConfig(),
+        workflow_path=str(tmp_path / "WORKFLOW.md"),
+        ipc=test_ipc,
+        state_path=str(tmp_path / "state.json"),
+    )
+    issue_id = "quiesce-running"
+    orch.state.running[issue_id] = RunningEntry(
+        worker_task=None,
+        identifier=issue_id,
+        issue=Issue(
+            id=issue_id,
+            identifier=issue_id,
+            title="Still running",
+            state="In Progress",
+        ),
+        session=None,
+        retry_attempt=0,
+        started_at=datetime.now(timezone.utc),
+    )
+
+    test_ipc.enqueue_command("quiesce")
+    orch._process_ipc_commands()
+
+    assert orch._quiesced is True
+    assert orch._paused is False
+    assert issue_id in orch.state.running
     test_ipc.close()
 
 

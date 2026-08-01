@@ -68,6 +68,7 @@ class _ServerWithMismatchedLauncher:
         self.old_instance = "old-instance"
         self.new_instance = "new-instance"
         self.paused = False
+        self.quiesced = False
         self.committed = False
         self.resumed = False
         self.stopped = False
@@ -91,6 +92,7 @@ class _ServerWithMismatchedLauncher:
             revision = self.new_revision if self.committed else self.service_revision
             return {
                 "paused": self.paused,
+                "quiesced": self.quiesced,
                 "counts": {"running": 0},
                 "service_instance_id": instance,
                 "build_id": {"revision": revision},
@@ -99,8 +101,12 @@ class _ServerWithMismatchedLauncher:
         if path == "/api/v1/orchestrator/pause":
             self.paused = True
             return {"ok": True, "paused": True}
+        if path == "/api/v1/orchestrator/quiesce":
+            self.quiesced = True
+            return {"ok": True, "quiesced": True}
         if path == "/api/v1/orchestrator/resume":
             self.paused = False
+            self.quiesced = False
             self.resumed = True
             return {"ok": True, "paused": False}
         if path == "/api/v1/orchestrator/restart":

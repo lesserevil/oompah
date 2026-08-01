@@ -837,7 +837,7 @@ class TestMakefileAuthSecurity:
         helper = Path(__file__).resolve().parents[1] / "scripts" / "canonical_cli_cutover.py"
         helper_text = helper.read_text()
         assert 'request("GET", "/api/v1/state"' in helper_text
-        assert 'request("POST", "/api/v1/orchestrator/pause"' in helper_text
+        assert 'request("POST", "/api/v1/orchestrator/quiesce"' in helper_text
 
     def test_status_surfaces_state_auth_failure(self):
         content = self._read_makefile()

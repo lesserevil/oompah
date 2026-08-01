@@ -1163,6 +1163,10 @@ class Orchestrator:
         # Bug fix: load persisted paused state from disk so it survives
         # service restarts. Previously _paused was always initialized to False.
         self._paused = self._load_paused_state()
+        # ``_quiesced`` is a transient dispatch gate used by lifecycle
+        # cutovers.  Unlike an operator pause it never terminates workers and
+        # is deliberately not persisted as user intent across a restart.
+        self._quiesced = False
         self._restore_budget_state()
         self._service_instance_id = str(uuid.uuid4())
         self._restart_requested = False
@@ -2790,6 +2794,27 @@ class Orchestrator:
         self.event_bus.emit(EventType.ORCHESTRATOR_PAUSED, {})
         self._notify_observers()
 
+    def quiesce(self) -> None:
+        """Stop new dispatch while allowing running workers to finish.
+
+        This is the lifecycle-cutover counterpart to :meth:`pause`.  It is a
+        transient gate: the restart transaction owns the drain and the next
+        process starts from the persisted explicit pause state.  In
+        particular, quiescing must never call ``_terminate_all_running``.
+        """
+        self._quiesced = True
+        self._notify_observers()
+        logger.info("Orchestrator quiesced — new dispatch stopped for lifecycle drain")
+
+    def _dispatch_is_blocked(self) -> bool:
+        """Return whether ordinary or retry dispatch is currently blocked."""
+        # ``getattr`` keeps lightweight ``Orchestrator.__new__`` test doubles
+        # and older embedders compatible while the transient field is new.
+        return bool(
+            getattr(self, "_paused", False)
+            or getattr(self, "_quiesced", False)
+        )
+
     async def _terminate_all_running(self) -> None:
         """Terminate all running agents without cleaning workspaces."""
         for issue_id in list(self.state.running.keys()):
@@ -2799,6 +2824,7 @@ class Orchestrator:
     def unpause(self) -> None:
         """Resume dispatching — agents will be re-dispatched on next tick."""
         self._paused = False
+        self._quiesced = False
         self._save_paused_state()
         logger.info("Orchestrator unpaused")
         # Post a REFRESH_REQUESTED event so the dispatch loop wakes immediately.
@@ -2852,6 +2878,7 @@ class Orchestrator:
         # we should respect the user's pre-existing intent — overwriting
         # paused=False unconditionally would silently undo a user-set pause.
         was_user_paused = self._paused
+        self._quiesced = True
         self._paused = True
         self._notify_observers()
 
@@ -5202,6 +5229,7 @@ class Orchestrator:
     # Supported IPC command types and their handlers.
     _IPC_COMMAND_HANDLERS: dict[str, str] = {
         "pause": "_ipc_cmd_pause",
+        "quiesce": "_ipc_cmd_quiesce",
         "unpause": "_ipc_cmd_unpause",
         "request_refresh": "_ipc_cmd_request_refresh",
         "dispatch_issue": "_ipc_cmd_dispatch_issue",
@@ -5269,6 +5297,10 @@ class Orchestrator:
     def _ipc_cmd_pause(self, _payload: dict) -> None:
         """IPC: pause the orchestrator."""
         self.pause()
+
+    def _ipc_cmd_quiesce(self, _payload: dict) -> None:
+        """IPC: stop new dispatch while preserving running workers."""
+        self.quiesce()
 
     def _ipc_cmd_unpause(self, _payload: dict) -> None:
         """IPC: resume the orchestrator."""
@@ -5613,7 +5645,7 @@ class Orchestrator:
 
         started = time.monotonic()
         metrics = self._audit_metrics
-        if self._paused or self._is_rate_limited():
+        if self._dispatch_is_blocked() or self._is_rate_limited():
             return {"audit_dispatch": 0.0, "audit_scan": 0.0}
         if self._available_slots() <= 0:
             return {"audit_dispatch": 0.0, "audit_scan": 0.0}
@@ -10169,7 +10201,7 @@ class Orchestrator:
         - It is not already running, claimed, retrying, or completed
         - Standard guards (paused, budget, slots) pass
         """
-        if self._paused:
+        if self._dispatch_is_blocked():
             return False
         # Per-project pause also blocks epic planning for that project.
         if self._is_project_paused(issue.project_id):
@@ -13965,8 +13997,8 @@ class Orchestrator:
                 logger.debug("Dispatch reject %s: %s", issue.identifier, reason)
             return False
 
-        if self._paused:
-            return _reject("paused")
+        if self._dispatch_is_blocked():
+            return _reject("paused" if self._paused else "quiesced")
         # Per-project pause composes with the global pause: dispatch
         # is allowed only if NEITHER is set. This lets an operator
         # quiet one repo (CI flaking, PR backlog review, forge outage)
@@ -23644,14 +23676,16 @@ class Orchestrator:
         # (_on_retry_timer -> _dispatch) bypasses that check. Reject here
         # too so a retry that was already in flight when pause() was
         # called can't silently re-dispatch.
-        if self._paused:
+        if self._dispatch_is_blocked():
             logger.info(
-                "Skipping dispatch of %s: orchestrator paused",
+                "Skipping dispatch of %s: orchestrator dispatch blocked",
                 issue.identifier,
             )
             self.state.claimed.discard(issue.id)
             self.state.claimed_issues.pop(issue.id, None)
-            await _release_preflight("dispatch aborted because orchestrator is paused")
+            await _release_preflight(
+                "dispatch aborted because orchestrator dispatch is blocked"
+            )
             if auditor_plan:
                 self._release_audit_branch_claim(
                     auditor_plan.branch_key,
@@ -30436,6 +30470,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         return {
             "generated_at": now.isoformat(),
             "paused": self._paused,
+            "quiesced": getattr(self, "_quiesced", False),
             "config": {
                 "default_first_dispatch": self.config.default_first_dispatch,
                 "parallel_epic_children_enabled": (

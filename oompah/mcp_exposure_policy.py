@@ -19,7 +19,7 @@ Design decisions
    - ``WEBHOOK_INGESTION`` — requires HMAC/token validation at the HTTP layer
      that is meaningless over MCP transport.
    - ``ORCHESTRATOR_CONTROL`` — high-privilege lifecycle operations (restart,
-     pause, resume, dispatch) that must not be agent-accessible.
+     pause, quiesce, resume, dispatch) that must not be agent-accessible.
    - ``RELEASE_DELIVERY`` — git-state and external-delivery mutations.
    - ``UNKNOWN`` — fail-closed catch-all.
 
@@ -86,7 +86,7 @@ class RouteCategory(str, Enum):
     #: HMAC/token signature validation that is meaningless over MCP transport.
     WEBHOOK_INGESTION = "webhook_ingestion"
 
-    #: Orchestrator lifecycle control: pause, resume, restart, manual dispatch.
+    #: Orchestrator lifecycle control: pause, quiesce, resume, restart, manual dispatch.
     #: Denied — high-privilege operations that affect the oompah service itself.
     #: ``POST /api/v1/orchestrator/restart`` is especially sensitive.
     ORCHESTRATOR_CONTROL = "orchestrator_control"
@@ -189,6 +189,7 @@ def _build_rules() -> list[_RouteRule]:  # noqa: PLR0915  (long but intentional)
         # ----------------------------------------------------------------
         ("POST", "/api/v1/orchestrator/restart", RouteCategory.ORCHESTRATOR_CONTROL),
         ("POST", "/api/v1/orchestrator/pause", RouteCategory.ORCHESTRATOR_CONTROL),
+        ("POST", "/api/v1/orchestrator/quiesce", RouteCategory.ORCHESTRATOR_CONTROL),
         ("POST", "/api/v1/orchestrator/resume", RouteCategory.ORCHESTRATOR_CONTROL),
         ("POST", "/api/v1/orchestrator/dispatch/{identifier}", RouteCategory.ORCHESTRATOR_CONTROL),
 

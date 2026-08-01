@@ -87,8 +87,8 @@ rollback or quarantine, and immutable-root pruning. Concurrent lifecycle
 commands therefore serialize before either can capture a rollback journal or
 replace the canonical launcher.
 
-For a running service, the lifecycle helper pauses dispatch and waits for the
-old service to drain without executing a restart. It then stages the exact
+For a running service, the lifecycle helper quiesces dispatch and waits for the
+old service to drain without terminating active workers. It then stages the exact
 clean, pushed `HEAD` revision in isolated UV directories, verifies the staged
 launcher, and publishes its tool environment under an immutable
 revision-addressed directory. One atomic replacement of
@@ -98,7 +98,7 @@ The helper then requests the server cutover and commits the activation only
 after the new health and authenticated state surfaces report the same non-null
 service instance and exact revision. A service
 that was explicitly paused before the command remains paused after success or
-rollback; a service paused only for the cutover is resumed after a verified
+rollback; a service quiesced only for the cutover is resumed after a verified
 pair is established.
 
 Published environments live below UV's `.oompah-revisions` directory. The

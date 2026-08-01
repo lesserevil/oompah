@@ -336,6 +336,7 @@ class TestClassifyRouteOrchestratorControl:
         [
             ("POST", "/api/v1/orchestrator/restart"),
             ("POST", "/api/v1/orchestrator/pause"),
+            ("POST", "/api/v1/orchestrator/quiesce"),
             ("POST", "/api/v1/orchestrator/resume"),
             ("POST", "/api/v1/orchestrator/dispatch/{identifier}"),
         ],
@@ -348,6 +349,7 @@ class TestClassifyRouteOrchestratorControl:
         [
             ("POST", "/api/v1/orchestrator/restart"),
             ("POST", "/api/v1/orchestrator/pause"),
+            ("POST", "/api/v1/orchestrator/quiesce"),
             ("POST", "/api/v1/orchestrator/resume"),
             ("POST", "/api/v1/orchestrator/dispatch/{identifier}"),
         ],
@@ -665,6 +667,7 @@ class TestIsRouteExposed:
         [
             ("POST", "/api/v1/orchestrator/restart", "restart orchestrator"),
             ("POST", "/api/v1/orchestrator/pause", "pause orchestrator"),
+            ("POST", "/api/v1/orchestrator/quiesce", "quiesce orchestrator"),
             ("POST", "/api/v1/orchestrator/dispatch/{identifier}", "manual dispatch"),
             ("POST", "/api/v1/webhooks/github", "github webhook"),
             ("POST", "/api/v1/webhooks/gitlab", "gitlab webhook"),

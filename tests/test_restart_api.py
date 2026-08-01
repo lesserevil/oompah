@@ -1,7 +1,7 @@
 """API contracts for coalesced, configurable graceful restarts (OOMPAH-507)."""
 
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 from fastapi.testclient import TestClient
 
@@ -71,3 +71,19 @@ def test_restart_api_rejects_invalid_timeout():
 
     assert response.status_code == 400
     assert "non-negative" in response.json()["error"]
+
+
+def test_quiesce_api_preserves_running_workers():
+    """Lifecycle quiesce is separate from destructive operator pause."""
+    original = server._orchestrator
+    fake = _fake_orchestrator()
+    fake.quiesce = MagicMock()
+    server._orchestrator = fake
+    try:
+        response = TestClient(app).post("/api/v1/orchestrator/quiesce", json={})
+    finally:
+        server._orchestrator = original
+
+    assert response.status_code == 200
+    assert response.json()["quiesced"] is True
+    fake.quiesce.assert_called_once_with()
