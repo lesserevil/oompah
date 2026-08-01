@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-31T21:19:38.816688Z'
-updated_at: '2026-08-01T01:05:01.358267Z'
+updated_at: '2026-08-01T01:06:20.614565Z'
 work_branch: OOMPAH-666
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/632
@@ -116,6 +116,31 @@ oompah.work_branch: OOMPAH-666
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-e7d6c4359460: '2026-08-01T01:06:16.154153+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-666
+    target_state: Done
+    evidence_fingerprint: 7201b3bb98283a820ee65523eb2be11b3dff18bf7866dfb70e8792506035f80b
+    audit_ids:
+    - audit-bb3c2315b724
+    kind: result
+    applied: true
+    retired_at: '2026-08-01T01:06:16.154162+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-666
+    audit_id: audit-bb3c2315b724
+    attempt_id: attempt-e7d6c4359460
+    target_state: Done
+    evidence_fingerprint: 7201b3bb98283a820ee65523eb2be11b3dff18bf7866dfb70e8792506035f80b
+    status: In Validation
+    audit_ids:
+    - audit-bb3c2315b724
+    applied: true
+    created_at: '2026-08-01T01:06:16.154175+00:00'
+    applied_at: '2026-08-01T01:06:19.663737+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -123,7 +148,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-666
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -132,7 +157,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-e7d6c4359460
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -142,13 +167,16 @@ oompah.terminal_audit:
       model: sonnet
       started_at: '2026-08-01T01:04:56.674398+00:00'
       branch_key: OOMPAH-666
+      verdict: pass
+      completed_at: '2026-08-01T01:06:16.154039+00:00'
+      ended_at: '2026-08-01T01:06:16.154039+00:00'
     requested_by:
       version: 1
       identity: yolo-merge
       source: oompah
     previous_state: In Review
     created_at: '2026-08-01T01:03:43.049834+00:00'
-    updated_at: '2026-08-01T01:04:56.674398+00:00'
+    updated_at: '2026-08-01T01:06:16.154039+00:00'
   - version: 1
     audit_id: audit-b774ed8bcd47
     project_id: proj-14849f1b
@@ -451,5 +479,19 @@ author: oompah
 created: 2026-08-01 01:05
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-01 01:06
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- head_on_main: 8bac16ed4 Merge pull request #632 from lesserevil/OOMPAH-666
+- branch_ahead_of_main: 0 commits (fully merged)
+- regression_tests: tests/test_dashboard_vertical_scroll.py: 4 passed in 0.13s
+- dashboard_fix_presence: min-height: 0 found at 4 locations in oompah/templates/dashboard.html
+- full_gate_result: 14544 passed, 8 skipped, 1 xfailed at head 5741f6a05613dd038d49c25e03a01eb37b04e71f
 ---
 <!-- COMMENTS:END -->
