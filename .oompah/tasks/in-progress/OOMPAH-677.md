@@ -13,7 +13,7 @@ labels:
 - focus-complete:chore
 assignee: null
 created_at: '2026-08-01T11:56:19.836343Z'
-updated_at: '2026-08-01T14:48:50.734526Z'
+updated_at: '2026-08-01T14:50:23.237730Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -262,5 +262,10 @@ author: oompah
 created: 2026-08-01 14:48
 ---
 **Implementation**: Added gitlab_owner_repo_from_url() for GitLab URL parsing, _resolve_owner_identity() helper for deriving owners from repo_url/config, and validation in create() before git clone (fail early) and update() to prevent clearing owner on active projects. Comprehensive test coverage with 31 new tests for GitLab URLs, owner resolution, and NodeVirt regression scenario. All 157 existing project CRUD tests + 31 new tests pass.
+---
+author: oompah
+created: 2026-08-01 14:50
+---
+**Verification**: All tests passing - 307 comprehensive tests (test_projects.py:150, test_projects_crud.py:157, test_transition_gate.py:17, test_oompah_677_ownerless_projects.py:31). Verified: (1) Dispatchable GitHub/GitLab projects derive owners from URLs, (2) Paused projects can be created without owner, (3) Update validates owner preservation on active projects, (4) NodeVirt regression scenario (oompah_md ownerless) is rejected on create/update, (5) Transition gate allows only owners to promote Backlog→Open.
 ---
 <!-- COMMENTS:END -->
