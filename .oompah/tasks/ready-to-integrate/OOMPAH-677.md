@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-677
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Prevent ownerless projects from deadlocking intake promotion
 parent: null
@@ -13,7 +13,7 @@ labels:
 - focus-complete:chore
 assignee: null
 created_at: '2026-08-01T11:56:19.836343Z'
-updated_at: '2026-08-01T14:50:23.237730Z'
+updated_at: '2026-08-01T14:50:37.619364Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -109,6 +109,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-677
     source_sha: 95371a0da020a1f82bd0e4fb48c2202e8a8a91d6
     completed_at: '2026-08-01T14:33:41.269262+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-677
+  head_sha: 5c34c716e7cc522081824e94da4be47208ac155d
+  submitted_at: '2026-08-01T14:50:34.461208+00:00'
+  updated_at: '2026-08-01T14:50:34.461208+00:00'
 ---
 ## Summary
 
@@ -267,5 +275,10 @@ author: oompah
 created: 2026-08-01 14:50
 ---
 **Verification**: All tests passing - 307 comprehensive tests (test_projects.py:150, test_projects_crud.py:157, test_transition_gate.py:17, test_oompah_677_ownerless_projects.py:31). Verified: (1) Dispatchable GitHub/GitLab projects derive owners from URLs, (2) Paused projects can be created without owner, (3) Update validates owner preservation on active projects, (4) NodeVirt regression scenario (oompah_md ownerless) is rejected on create/update, (5) Transition gate allows only owners to promote Backlog→Open.
+---
+author: oompah
+created: 2026-08-01 14:50
+---
+Implemented owner-identity resolution for all tracker types (GitHub Issues, GitLab Issues, oompah_md) to prevent ownerless projects from deadlocking intake promotion. Added validation in create() before git clone (fail early) and update() to preserve owner on active projects. Comprehensive regression tests for NodeVirt scenario. All 307 related tests passing.
 ---
 <!-- COMMENTS:END -->
