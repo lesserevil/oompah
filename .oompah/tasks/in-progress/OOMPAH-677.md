@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-677
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Prevent ownerless projects from deadlocking intake promotion
 parent: null
@@ -13,7 +13,7 @@ labels:
 - focus-complete:chore
 assignee: null
 created_at: '2026-08-01T11:56:19.836343Z'
-updated_at: '2026-08-01T14:37:00.968034Z'
+updated_at: '2026-08-01T14:37:13.537899Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -58,7 +58,7 @@ oompah.duplicate_screening:
   claim_expires_at: null
   retry_count: 0
   retry_after: null
-oompah.agent_run_id: 31b6c5ff-f494-4de0-9a0d-b142fe528fc8
+oompah.agent_run_id: 30e120f9-5112-4a01-bebc-1495eb7f7590
 oompah.task_costs:
   total_input_tokens: 3543882
   total_output_tokens: 20808
