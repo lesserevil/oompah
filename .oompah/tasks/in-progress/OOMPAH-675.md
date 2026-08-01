@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T04:59:55.163807Z'
-updated_at: '2026-08-01T05:14:38.451318Z'
+updated_at: '2026-08-01T05:15:32.698163Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,13 +38,13 @@ oompah.duplicate_screening:
   retry_after: null
 oompah.agent_run_id: a491585b-73cd-4e7b-8a5a-16f264ae4cad
 oompah.task_costs:
-  total_input_tokens: 348763
-  total_output_tokens: 2085
+  total_input_tokens: 349329
+  total_output_tokens: 2219
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 348763
-      output_tokens: 2085
+      input_tokens: 349329
+      output_tokens: 2219
       cost_usd: 0.0
   runs:
   - profile: default
@@ -53,6 +53,12 @@ oompah.task_costs:
     output_tokens: 2085
     cost_usd: 0.0
     recorded_at: '2026-08-01T05:11:47.900532+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 566
+    output_tokens: 134
+    cost_usd: 0.0
+    recorded_at: '2026-08-01T05:15:30.851060+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-675__20260801T051057Z
@@ -142,5 +148,15 @@ created: 2026-08-01 05:14
 - tests/process_lifecycle.py (process lifecycle management helpers)
 
 **Next**: Will reproduce the issue with 4-worker run and identify which test terminates workers.
+---
+author: oompah
+created: 2026-08-01 05:15
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 34
+- Tokens: 566 in / 134 out [700 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 3m 25s
+- Log: OOMPAH-675__20260801T051209Z.jsonl
 ---
 <!-- COMMENTS:END -->
