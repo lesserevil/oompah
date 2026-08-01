@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-683
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Make retry recovery snapshots tolerate generated hooks and in-progress rebases
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T21:41:35.163259Z'
-updated_at: '2026-08-01T22:57:51.847293Z'
+updated_at: '2026-08-01T22:58:03.745327Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -270,5 +270,10 @@ author: oompah
 created: 2026-08-01 22:57
 ---
 Operator takeover: do not modify, reset, rebase, commit, or push OOMPAH-683. The exact head bdc4cf5d1 already passed the full gate locally and is clean/pushed. I am investigating the branch gate's installed-CLI environment contamination directly; preserve the worktree and exit without changes.
+---
+author: oompah
+created: 2026-08-01 22:58
+---
+Operator reassertion of accepted clean head bdc4cf5d1. Do not dispatch implementation work; the branch-source gate passes locally and the observed installed-CLI smoke failure is an executor-isolation issue under investigation.
 ---
 <!-- COMMENTS:END -->
