@@ -219,14 +219,14 @@ class TestWebSocketRefreshIncludesAuth:
                 # Receive refreshed state and issues (order may vary)
                 msg1 = ws.receive_json()
                 msg2 = ws.receive_json()
-                
+
                 # Find the state message
                 state_msg = None
                 for msg in [msg1, msg2]:
                     if msg.get("type") == "state":
                         state_msg = msg
                         break
-                
+
                 assert state_msg is not None, f"Expected at least one 'state' message in {[msg1, msg2]}"
                 data = state_msg.get("data", {})
                 assert "http_auth" in data, "refreshed state must include http_auth"
@@ -245,24 +245,24 @@ class TestRESTWebSocketConsistency:
         client = TestClient(app, raise_server_exceptions=False)
         with _auth_enabled(), _ws_isolation():
             auth_header = {"Authorization": _basic("admin", "secret")}
-            
+
             # Get REST state
             rest_resp = client.get("/api/v1/state", headers=auth_header)
             assert rest_resp.status_code == 200
             rest_data = rest_resp.json()
             rest_http_auth = rest_data.get("http_auth")
-            
+
             # Get WebSocket state
             auth = _basic("admin", "secret")
             with client.websocket_connect("/ws", headers={"Authorization": auth}) as ws:
                 ws_msg = ws.receive_json()
                 ws_data = ws_msg.get("data", {})
                 ws_http_auth = ws_data.get("http_auth")
-            
+
             # Both should have http_auth
             assert rest_http_auth is not None, "REST must include http_auth"
             assert ws_http_auth is not None, "WebSocket must include http_auth"
-            
+
             # Both should have enabled = True
             assert rest_http_auth.get("enabled") is True
             assert ws_http_auth.get("enabled") is True
@@ -276,13 +276,13 @@ class TestRESTWebSocketConsistency:
             assert rest_resp.status_code == 200
             rest_data = rest_resp.json()
             rest_build_id = rest_data.get("build_id")
-            
+
             # Get WebSocket state
             with client.websocket_connect("/ws") as ws:
                 ws_msg = ws.receive_json()
                 ws_data = ws_msg.get("data", {})
                 ws_build_id = ws_data.get("build_id")
-            
+
             # Both should have build_id
             assert rest_build_id is not None
             assert ws_build_id is not None
@@ -298,13 +298,13 @@ class TestRESTWebSocketConsistency:
             rest_resp = client.get("/api/v1/state")
             rest_data = rest_resp.json()
             rest_instance_id = rest_data.get("service_instance_id")
-            
+
             # Get WebSocket state
             with client.websocket_connect("/ws") as ws:
                 ws_msg = ws.receive_json()
                 ws_data = ws_msg.get("data", {})
                 ws_instance_id = ws_data.get("service_instance_id")
-            
+
             # Both should have service_instance_id
             assert rest_instance_id is not None
             assert ws_instance_id is not None
@@ -331,7 +331,7 @@ class TestWebSocketCredentialsRedaction:
                 msg = ws.receive_json()
                 import json
                 payload_str = json.dumps(msg)
-                
+
                 # Must not leak any credential material
                 assert "testsecret" not in payload_str, "Password must not appear in payload"
                 assert "testuser" not in payload_str, "Username must not appear in payload"
@@ -348,7 +348,7 @@ class TestWebSocketCredentialsRedaction:
                 ws.receive_json()  # issues
                 ws.send_json({"action": "refresh"})
                 msg = ws.receive_json()
-                
+
                 import json
                 payload_str = json.dumps(msg)
                 assert "mypassword" not in payload_str
