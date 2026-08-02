@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T21:46:41.297124Z'
-updated_at: '2026-08-02T04:50:00.990829Z'
+updated_at: '2026-08-02T04:50:24.623733Z'
 work_branch: OOMPAH-685
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/653
@@ -110,8 +110,8 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: null
 oompah.task_costs:
-  total_input_tokens: 274
-  total_output_tokens: 9286
+  total_input_tokens: 331
+  total_output_tokens: 18925
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -121,6 +121,10 @@ oompah.task_costs:
     sonnet:
       input_tokens: 22
       output_tokens: 277
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 57
+      output_tokens: 9639
       cost_usd: 0.0
   runs:
   - profile: default
@@ -141,6 +145,12 @@ oompah.task_costs:
     output_tokens: 277
     cost_usd: 0.0
     recorded_at: '2026-08-01T23:10:42.473834+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 57
+    output_tokens: 9639
+    cost_usd: 0.0
+    recorded_at: '2026-08-02T04:50:18.032652+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-685__20260801T215316Z
@@ -239,18 +249,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-685
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: d6b77dae5aeeec2f1d545b8bb96c8ad96cab0f3b438f882f99a62f8178b00cc2
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-232a45a7863b
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: d6b77dae5aeeec2f1d545b8bb96c8ad96cab0f3b438f882f99a62f8178b00cc2
+      created_at: '2026-08-02T04:50:20.330859+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-02T04:50:20.330859+00:00'
+      branch_key: OOMPAH-685
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-02T04:45:42.534667+00:00'
+    updated_at: '2026-08-02T04:50:20.330859+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-25850d3b59e7
@@ -264,6 +288,19 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: opus
     started_at: '2026-08-02T04:45:57.716851+00:00'
+    branch_key: OOMPAH-685
+  - version: 1
+    attempt_id: attempt-232a45a7863b
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d6b77dae5aeeec2f1d545b8bb96c8ad96cab0f3b438f882f99a62f8178b00cc2
+    created_at: '2026-08-02T04:50:20.330859+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-02T04:50:20.330859+00:00'
     branch_key: OOMPAH-685
 ---
 ## Summary
@@ -674,5 +711,25 @@ Safe evidence:
 - [REDACTED-credential-key]: integration_executor.py + orchestrator.py (4) + landing_gate.py + epic_staleness.py + unpushed_gate.py + projects.py._run_network_git (12 call sites)
 - forge_kind_handling: gitlab->oauth2, github->x-access-token
 - pr_merged: PR #653 merged
+---
+author: oompah
+created: 2026-08-02 04:50
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 62, Tool calls: 51
+- Tokens: 57 in / 9.6K out [9.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 4m 19s
+- Log: OOMPAH-685__20260802T044603Z.jsonl
+---
+author: oompah
+created: 2026-08-02 04:50
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-02 04:50
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
