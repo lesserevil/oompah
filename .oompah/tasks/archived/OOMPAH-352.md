@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-352
 type: task
-status: In Validation
+status: Archived
 priority: 2
 title: Add stall diagnostics and wedge recovery telemetry
 parent: OOMPAH-348
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-22T00:56:40.490026Z'
-updated_at: '2026-08-02T01:24:00.633350Z'
+updated_at: '2026-08-02T01:42:02.035490Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -21,6 +21,30 @@ review_number: null
 merged_at: null
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-2aa8a1ee9440: '2026-08-02T01:41:58.569843+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-352
+    target_state: Archived
+    evidence_fingerprint: 23c0de360f05807fc40ed3e25c3c2f76395ee4f97d6ca0047f87f5fc67e9339a
+    audit_ids:
+    - audit-2cb86c46bcdd
+    kind: result
+    applied: true
+    retired_at: '2026-08-02T01:41:58.569850+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-352
+    audit_id: audit-2cb86c46bcdd
+    attempt_id: attempt-2aa8a1ee9440
+    target_state: Archived
+    evidence_fingerprint: 23c0de360f05807fc40ed3e25c3c2f76395ee4f97d6ca0047f87f5fc67e9339a
+    status: Archived
+    audit_ids:
+    - audit-2cb86c46bcdd
+    applied: false
+    created_at: '2026-08-02T01:41:58.569861+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -28,7 +52,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-352
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -37,7 +61,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-2aa8a1ee9440
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -47,13 +71,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-02T01:23:47.956854+00:00'
       branch_key: OOMPAH-352
+      verdict: pass
+      completed_at: '2026-08-02T01:41:58.569721+00:00'
+      ended_at: '2026-08-02T01:41:58.569721+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-02T01:12:39.526691+00:00'
-    updated_at: '2026-08-02T01:23:47.956854+00:00'
+    updated_at: '2026-08-02T01:41:58.569721+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-2aa8a1ee9440
@@ -119,5 +146,26 @@ author: oompah
 created: 2026-08-02 01:24
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-02 01:42
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- delivery_commit: 6dd2cdfcf889304fa4b84fad63fe4634bd69f6b7
+- delivery_commit_date: 2026-07-22 01:15:33 +0000
+- commit_on_origin_main: yes (git branch -r --contains lists origin/main)
+- previous_state: Merged
+- target_state: Archived
+- merge_age_days_vs_today_2026_08_02: ~11
+- auto_archive_threshold_days: 7
+- impl_files: oompah/orchestrator.py (check_and_recover_dispatch_loop L4043, _dump_stale_dispatch_threads L4075), oompah/config.py, oompah/server.py, oompah/__main__.py
+- test_files: tests/test_dispatch_loop_heartbeat.py (850 lines, 42 test_ functions), tests/test_stall_to_dispatch_recovery.py, tests/test_orchestrator_tick_telemetry.py
+- operator_docs: docs/tick-latency-diagnostics.md (Scenario 3 covers dispatch-loop stall detection and recovery)
+- tracker_state_now: In Validation (Archived audit in progress)
+- handoff_or_conflict_signals: none observed
 ---
 <!-- COMMENTS:END -->
