@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-690
 type: task
-status: Backlog
+status: In Progress
 priority: null
 title: Restore reliable automatic dashboard updates
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T00:37:18.141681Z'
-updated_at: '2026-08-02T00:37:18.141681Z'
+updated_at: '2026-08-02T00:37:28.330835Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -51,3 +51,11 @@ Acceptance criteria:
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-02 00:37
+---
+Operator claimed this live dashboard-refresh regression for direct implementation.
+---
+<!-- COMMENTS:END -->
