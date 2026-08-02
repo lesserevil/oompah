@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-685
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Forward project forge credentials through integration verification
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T21:46:41.297124Z'
-updated_at: '2026-08-02T03:14:15.758245Z'
+updated_at: '2026-08-02T03:14:25.827107Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -164,9 +164,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-685
-  head_sha: ae6d482665a589d09c113edeb452ad34960e25b8
-  submitted_at: '2026-08-01T23:11:53.613646+00:00'
-  updated_at: '2026-08-01T23:11:53.613646+00:00'
+  head_sha: 610dd7ccf4518857ca24a586511ca80aa830a57a
+  submitted_at: '2026-08-02T03:14:14.776834+00:00'
+  updated_at: '2026-08-02T03:14:14.776834+00:00'
 ---
 ## Summary
 
@@ -517,5 +517,20 @@ author: oompah
 created: 2026-08-02 03:14
 ---
 Completion: pushed rebased CI repair at 610dd7ccf. The branch now includes the merged deterministic OOMPAH-688 test stabilization while preserving project credential forwarding and noninteractive recovery behavior. GitHub has no PR or Actions workflow for this branch; submission will queue Oompah's branch gate for this exact clean head.
+---
+author: oompah
+created: 2026-08-02 03:14
+---
+Rebased onto current main to inherit deterministic CI repair; focused regressions pass
+---
+author: oompah
+created: 2026-08-02 03:14
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Codex/gpt-5.6-terra]
+- Turns: 0, Tool calls: 38
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 5m 10s
+- Log: OOMPAH-685__20260802T030920Z.jsonl
 ---
 <!-- COMMENTS:END -->
