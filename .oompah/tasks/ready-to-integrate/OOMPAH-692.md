@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-692
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Version authoritative dashboard state in the WebSocket protocol
 parent: OOMPAH-691
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:46.836436Z'
-updated_at: '2026-08-02T02:49:54.253085Z'
+updated_at: '2026-08-02T02:50:03.839975Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-692
 target_branch: null
 review_url: null
@@ -45,12 +45,12 @@ oompah.agent_run_id: b9c01d79-197f-4861-920c-5fbf07e12e4d
 oompah.work_branch: epic-OOMPAH-691--task-OOMPAH-692
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-691--task-OOMPAH-692
-  base_branch: epic-OOMPAH-691
-  base_sha: 6252b5434f392b74de9703a9fc8dca1951dfeaca
-  updated_at: '2026-08-02T02:39:37.054806+00:00'
+  head_sha: 6b149fc850e339c128f760f28dd3f681aecd838f
+  submitted_at: '2026-08-02T02:50:00.592295+00:00'
+  updated_at: '2026-08-02T02:50:00.592295+00:00'
 oompah.task_costs:
   total_input_tokens: 14733068
   total_output_tokens: 48530
@@ -366,5 +366,10 @@ author: oompah
 created: 2026-08-02 02:49
 ---
 Verification: Quality gate failure investigated. The failing test (test_tick_does_not_await_maintenance_heal) is a timing-sensitive test that passed locally and under parallel load. Root cause: my branch was behind origin/main by 4 commits (OOMPAH-684), and the combined-tree gate auto-merged them. Resolved by rebasing branch onto origin/main. After rebase, all 277 orchestrator handler tests pass (4-way parallel), all 99 focused tests pass (ws_lifecycle, websocket_bootstrap, retry_authority, worker_submission). Branch pushed as 6b149fc85.
+---
+author: oompah
+created: 2026-08-02 02:50
+---
+Rebased onto origin/main (OOMPAH-684), resolving the combined-tree quality gate failure. WebSocket protocol v1 versioning (epoch, per-connection delivery_seq, state/issue revisions, trailing-edge coalescing, plans/websocket-state-versioning.md) remains intact. All focused tests pass (99 tests) and all orchestrator handler tests pass (277 tests).
 ---
 <!-- COMMENTS:END -->
