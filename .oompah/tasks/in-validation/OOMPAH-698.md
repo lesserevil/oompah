@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T18:20:27.192609Z'
-updated_at: '2026-08-02T20:26:30.243060Z'
+updated_at: '2026-08-02T20:26:46.198172Z'
 work_branch: OOMPAH-698
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/659
@@ -108,7 +108,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-5054436c41f8
       target_state: Merged
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -118,13 +118,29 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-02T20:12:30.196311+00:00'
       branch_key: OOMPAH-698
+      ended_at: '2026-08-02T20:26:38.400819+00:00'
+      failure_reason: auditor session abandoned; no live worker owns the attempt
+    - version: 1
+      attempt_id: attempt-ee4ff94d8899
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 28b1bcdbb3ca3e48d1bdccf2d0eef9685f93745f8cc23f1c5f2fc72b9ca2af97
+      created_at: '2026-08-02T20:26:40.473629+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-02T20:26:40.473629+00:00'
+      branch_key: OOMPAH-698
+      candidate_rotation_count: 1
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-02T19:58:01.589885+00:00'
-    updated_at: '2026-08-02T20:12:30.196311+00:00'
+    updated_at: '2026-08-02T20:26:40.473629+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-5e5fef3d478e
@@ -142,7 +158,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-5054436c41f8
     target_state: Merged
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -152,6 +168,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-02T20:12:30.196311+00:00'
     branch_key: OOMPAH-698
+    ended_at: '2026-08-02T20:26:38.400819+00:00'
+    failure_reason: auditor session abandoned; no live worker owns the attempt
+  - version: 1
+    attempt_id: attempt-ee4ff94d8899
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 28b1bcdbb3ca3e48d1bdccf2d0eef9685f93745f8cc23f1c5f2fc72b9ca2af97
+    created_at: '2026-08-02T20:26:40.473629+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-02T20:26:40.473629+00:00'
+    branch_key: OOMPAH-698
+    candidate_rotation_count: 1
 oompah.task_costs:
   total_input_tokens: 43
   total_output_tokens: 7270
@@ -312,5 +344,15 @@ author: oompah
 created: 2026-08-02 20:26
 ---
 Owner reconciliation after the restart: PR #659 is merged at 3a7835ebdee4b051764a3e4d62ffda6e1dec277f, the exact task head is contained in origin/main, and the prior auditor recorded PASS. Re-requesting the canonical Merged transition after restart recovery incorrectly reopened the task.
+---
+author: oompah
+created: 2026-08-02 20:26
+---
+Auditor dispatched (attempt #2, candidate: prov-651d553c/sonnet)
+---
+author: oompah
+created: 2026-08-02 20:26
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
