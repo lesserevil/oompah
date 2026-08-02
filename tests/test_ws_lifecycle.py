@@ -1143,13 +1143,23 @@ class TestWebSocketRefreshAction:
 
                 ws.send_json({"action": "refresh"})
 
-                # Collect messages; the refresh sends state then broadcast_issues
-                # which may send issues — order is not guaranteed.
+                # The refresh handler unconditionally sends state, then invokes
+                # broadcast_issues() which may or may not produce an "issues"
+                # message (throttled/coalesced/empty paths can suppress it).
+                # A background issues broadcast from the initial connect's
+                # _ensure_issues_snapshot_refresh(broadcast=True) may also race
+                # in front of the refresh state.  Read up to two messages,
+                # breaking as soon as "state" is seen — both reads are backed
+                # by messages the server is guaranteed to deliver, so this
+                # bounded loop cannot hang under CI load.
                 refresh_msgs: list[dict] = []
-                for _ in range(3):
+                for _ in range(2):
                     try:
-                        refresh_msgs.append(ws.receive_json())
+                        msg = ws.receive_json()
                     except Exception:
+                        break
+                    refresh_msgs.append(msg)
+                    if msg.get("type") == "state":
                         break
 
                 refresh_types = {m.get("type") for m in refresh_msgs}
