@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-687
 type: task
-status: Needs CI Fix
+status: In Progress
 priority: null
 title: Isolate branch-gate runtime from task worktree environments
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T23:00:54.291962Z'
-updated_at: '2026-08-02T02:32:18.921282Z'
+updated_at: '2026-08-02T02:33:00.959226Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -60,7 +60,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 89180087-e905-4739-845b-876cb2720e7c
+oompah.agent_run_id: 0c0cb285-8144-4d67-9255-6f137df7dd46
 oompah.task_costs:
   total_input_tokens: 14354819
   total_output_tokens: 54141
@@ -404,5 +404,15 @@ FAILED tests/test_quality_gate.py::test_sandbox_command_uses_an_empty_root_and_p
 
 make: *** [Makefile:401: test] Error 1
 ```
+---
+author: oompah
+created: 2026-08-02 02:32
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-08-02 02:33
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
