@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-692
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Version authoritative dashboard state in the WebSocket protocol
 parent: OOMPAH-691
@@ -12,7 +12,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-08-02T02:01:46.836436Z'
-updated_at: '2026-08-02T02:50:21.001364Z'
+updated_at: '2026-08-02T02:50:38.790414Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-692
 target_branch: null
 review_url: null
@@ -42,16 +42,16 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: b9c01d79-197f-4861-920c-5fbf07e12e4d
+oompah.agent_run_id: 0e560dd4-b918-4c85-b811-59af3e1eade7
 oompah.work_branch: epic-OOMPAH-691--task-OOMPAH-692
 oompah.integration:
   version: 2
-  state: ready
+  state: working
   attempts: 0
   task_branch: epic-OOMPAH-691--task-OOMPAH-692
-  head_sha: 6b149fc850e339c128f760f28dd3f681aecd838f
-  submitted_at: '2026-08-02T02:50:00.592295+00:00'
-  updated_at: '2026-08-02T02:50:00.592295+00:00'
+  base_branch: epic-OOMPAH-691
+  base_sha: 6252b5434f392b74de9703a9fc8dca1951dfeaca
+  updated_at: '2026-08-02T02:50:35.843818+00:00'
 oompah.task_costs:
   total_input_tokens: 14733137
   total_output_tokens: 65354
@@ -406,5 +406,15 @@ author: oompah
 created: 2026-08-02 02:50
 ---
 Focus handoff from `frontend` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-08-02 02:50
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-02 02:50
+---
+Focus: Technical Writer
 ---
 <!-- COMMENTS:END -->
