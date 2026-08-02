@@ -5277,6 +5277,11 @@ class Orchestrator:
             if future.done():
                 try:
                     future.result()
+                except asyncio.CancelledError:
+                    # A caller may cancel a synthetic or superseded
+                    # maintenance future during shutdown. It is already
+                    # quiescent and needs no further draining.
+                    continue
                 except Exception:  # noqa: BLE001 -- maintenance failure is logged
                     logger.exception("Background maintenance failed during shutdown")
                 continue
