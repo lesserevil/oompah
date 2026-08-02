@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-691
 type: epic
-status: Open
+status: In Progress
 priority: 1
 title: Make dashboard WebSocket state provably convergent
 parent: null
@@ -15,7 +15,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T02:00:17.265294Z'
-updated_at: '2026-08-02T02:04:18.713638Z'
+updated_at: '2026-08-02T02:07:07.683646Z'
 work_branch: null
 target_branch: null
 review_url: null
