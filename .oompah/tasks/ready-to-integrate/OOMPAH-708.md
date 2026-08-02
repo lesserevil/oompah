@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T22:20:11.202634Z'
-updated_at: '2026-08-02T22:22:52.623007Z'
+updated_at: '2026-08-02T22:31:49.315214Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -49,5 +49,23 @@ author: oompah
 created: 2026-08-02 22:22
 ---
 Replaced the nonexistent orchestrator project lookup with ProjectStore.get, added fail-closed missing-project handling, and added endpoint regressions. Focused tests: 5 passed. Secret scan passed.
+---
+author: oompah
+created: 2026-08-02 22:31
+---
+Branch quality gate blocked review creation.
+
+Branch: `OOMPAH-708`
+Target: `main`
+Head: `b965154dbf216ffb3587f59c2eb30aa681c73796`
+Command: `make test`
+Result: `infrastructure_error`
+
+Infrastructure action required: repair or replace the operator-owned quality-gate runtime. No candidate CI-fix status was applied because the candidate command did not run.
+
+Output tail:
+```text
+Trusted quality-gate runtime corruption detected; candidate CI was not run: trusted editable source mapping is inconsistent: expected one of ['/home/shedwards/src/oompah'] or immutable candidate /home/shedwards/.oompah/tmp/oompah-quality-gate-2k_flxi5/workspace; actual /home/shedwards/.oompah/worktrees/oompah/OOMPAH-701. Repair or replace the service test runtime before rerunning the branch gate.
+```
 ---
 <!-- COMMENTS:END -->
