@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-702
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Synchronize merged-webhook tests with background terminal staging
 parent: null
@@ -11,13 +11,31 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T20:34:49.621752Z'
-updated_at: '2026-08-02T20:34:49.621752Z'
+updated_at: '2026-08-02T21:51:31.316990Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 031f38c6c40dcf1b0bd78f2318d6a4ac10df34ecdd776a048fd70f5a39cdebbd
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 1c77241c-a4c6-4c8e-b18b-ac97fca83556
+  claim_owner: 0b22eab2-a2d1-4082-a6c8-404ec37650a4
+  claimed_at: '2026-08-02T21:51:24.556912+00:00'
+  claim_expires_at: '2026-08-02T22:21:24.556912+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
+oompah.agent_run_id: fafa039e-a50e-4082-ba7f-7fd92918c9fe
 ---
 ## Summary
 
@@ -31,3 +49,16 @@ Production CI reproduction on PR #660, run 30765374167: Python 3.11 failed tests
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-02 21:51
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-02 21:51
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->

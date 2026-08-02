@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-705
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Fetch an accepted submission head before standalone review gating
 parent: null
@@ -11,13 +11,31 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T21:30:29.609691Z'
-updated_at: '2026-08-02T21:30:29.609691Z'
+updated_at: '2026-08-02T21:51:40.860383Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 9022b41abb779a660b1286993c3e62e509999d8ccc4856fcec48a9ffbcd1a4a8
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 253e9696-abbe-40da-9c53-1db159b6d476
+  claim_owner: 0b22eab2-a2d1-4082-a6c8-404ec37650a4
+  claimed_at: '2026-08-02T21:51:36.474572+00:00'
+  claim_expires_at: '2026-08-02T22:21:36.474572+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
+oompah.agent_run_id: 3c09c281-63ea-4db7-a10f-52faf4d9efcd
 ---
 ## Summary
 

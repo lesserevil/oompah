@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-701
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Retire hidden provider processes when task ownership is revoked
 parent: null
@@ -11,13 +11,31 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T20:20:26.676545Z'
-updated_at: '2026-08-02T21:10:40.478747Z'
+updated_at: '2026-08-02T21:51:25.582647Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 601e266c07016cf60e471433d3ea1f76693a2e97d1a05d44d8da537e676a3f84
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: d3eec2b3-83b2-40f1-a97b-c8ab05b0b9e9
+  claim_owner: 0b22eab2-a2d1-4082-a6c8-404ec37650a4
+  claimed_at: '2026-08-02T21:51:18.709922+00:00'
+  claim_expires_at: '2026-08-02T22:21:18.709922+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
+oompah.agent_run_id: 9957ac77-6629-41c8-b45c-55f935fa46b3
 ---
 ## Summary
 
@@ -42,5 +60,15 @@ author: oompah
 created: 2026-08-02 21:10
 ---
 Additional production reproduction from OOMPAH-700 on 2026-08-02: after PR #661 merged, auto-update began graceful shutdown and closed port 8090, but PID 3339192 remained alive. During that shutdown window the old process created detached audit worktree OOMPAH-700--terminal-audit-attempt-5f093d4b47fb and launched a Sonnet completion auditor, leaving health unavailable for more than 40 seconds. make force-restart was required to cut over to merge 39d1f2ec; owner override then cleared the stale persisted audit. Acceptance coverage must include preventing any new provider launch once shutdown/drain starts and ensuring the old PID cannot retain child transports after HTTP shutdown.
+---
+author: oompah
+created: 2026-08-02 21:51
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-02 21:51
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
