@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-489
 type: task
-status: Done
+status: Merged
 priority: 1
 title: Validate nested epic auditing, repair planning, races, and cross-tracker behavior
 parent: OOMPAH-460
@@ -16,7 +16,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:28.198709Z'
-updated_at: '2026-07-31T04:20:24.891927Z'
+updated_at: '2026-08-02T18:32:06.843435Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-489
 target_branch: null
 review_url: null
@@ -168,6 +168,25 @@ oompah.terminal_audit:
       with the recovered content. This override closes bookkeeping only and does not
       waive code verification.'
     created_at: '2026-07-31T03:57:24.408336+00:00'
+  - version: 1
+    override_id: override-f895e321c327
+    project_id: proj-14849f1b
+    task_id: OOMPAH-489
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 826b49f6999a2bcc193b0008e8773eb9d0fe713397f352bb1ad004d29fc6ea80
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reconciliation: OOMPAH-460''s terminal audit records that this
+      implementation was recovered into main by PR #603 / landing commit 15c96dac6,
+      even though the superseded epic branch itself was Archived. OOMPAH-699 tracks
+      automatic convergence.'
+    created_at: '2026-08-02T18:32:02.671077+00:00'
+    applied: false
   queued_comment_posted: true
   applied_result_attempts:
     attempt-43399ec755b0: '2026-07-31T04:19:45.447367+00:00'
@@ -598,5 +617,12 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 2m 53s
 - Log: OOMPAH-489__20260731T041735Z.jsonl
+---
+author: oompah
+created: 2026-08-02 18:32
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner reconciliation: OOMPAH-460's terminal audit records that this implementation was recovered into main by PR #603 / landing commit 15c96dac6, even though the superseded epic branch itself was Archived. OOMPAH-699 tracks automatic convergence.
 ---
 <!-- COMMENTS:END -->
