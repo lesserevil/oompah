@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-698
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Recover legacy stale reviews without persisted review-head metadata
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T18:20:27.192609Z'
-updated_at: '2026-08-02T20:26:46.198172Z'
+updated_at: '2026-08-02T20:31:19.476662Z'
 work_branch: OOMPAH-698
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/659
@@ -58,6 +58,26 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-02T20:10:43.003487+00:00'
     applied_at: '2026-08-02T20:10:47.026071+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-20f4b9971971
+    project_id: proj-14849f1b
+    task_id: OOMPAH-698
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 28b1bcdbb3ca3e48d1bdccf2d0eef9685f93745f8cc23f1c5f2fc72b9ca2af97
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'PR #659 is merged at 3a7835ebdee4b051764a3e4d62ffda6e1dec277f; exact
+      task head 6de721ae2f44a8ce0d3c21fcf660cc332a996e1b is contained in origin/main;
+      audit audit-d2f370513491 previously recorded PASS, but restart recovery reopened
+      the task and replacement read-only auditors entered repeated denied-tool loops.'
+    created_at: '2026-08-02T20:31:16.098174+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -354,5 +374,12 @@ author: oompah
 created: 2026-08-02 20:26
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-02 20:31
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: PR #659 is merged at 3a7835ebdee4b051764a3e4d62ffda6e1dec277f; exact task head 6de721ae2f44a8ce0d3c21fcf660cc332a996e1b is contained in origin/main; audit audit-d2f370513491 previously recorded PASS, but restart recovery reopened the task and replacement read-only auditors entered repeated denied-tool loops.
 ---
 <!-- COMMENTS:END -->
