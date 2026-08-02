@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-704
 type: bug
-status: Open
+status: Ready to Integrate
 priority: 1
 title: Fence graceful-restart redispatch against terminal state changes
 parent: null
@@ -12,13 +12,21 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T21:11:44.479316Z'
-updated_at: '2026-08-02T21:19:22.782160Z'
+updated_at: '2026-08-02T21:28:21.877050Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-704
+  head_sha: 5640fc49e3036e552d4c047c9c35b6509e94e8cd
+  submitted_at: '2026-08-02T21:28:17.786334+00:00'
+  updated_at: '2026-08-02T21:28:17.786334+00:00'
 ---
 ## Summary
 
@@ -48,5 +56,10 @@ author: oompah
 created: 2026-08-02 21:19
 ---
 Implemented the restart/override race repair in the task worktree. Restart recovery now acquires the shared per-task transition lock, re-reads canonical tracker state, and only reopens a genuine In Progress implementation; Merged, Archived, In Validation, Needs Human, Open, and unavailable states are never overwritten. Applied owner-override replay now refreshes tracker state and reasserts its already-authorized terminal target if a stale writer regressed it, without adding another override record. Deterministic focused coverage: 8 new/targeted tests passed; broader event-loop, terminal coordinator, override, and enforcement suites: 250 passed.
+---
+author: oompah
+created: 2026-08-02 21:28
+---
+Fenced graceful-restart redispatch against newer terminal/audit state and made idempotent owner overrides repair regressed tracker status. Focused restart/terminal suites: 250 passed. Complete make test: 15,010 passed, 7 skipped, 1 xfailed. make check-secrets and git diff --check passed.
 ---
 <!-- COMMENTS:END -->
