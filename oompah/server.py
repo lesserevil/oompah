@@ -3339,6 +3339,7 @@ async def websocket_endpoint(ws: WebSocket):
                     # needs a single coherent snapshot it can use to restart
                     # incremental processing.  Coalesces duplicates per
                     # connection; returns a retryable error on failure.
+                    _ws_sync_record_gap()  # Client signaled gap detection
                     await _handle_full_sync(ws, orch)
                 elif msg.get("type") == "console_input":
                     # Per-project ACP console (oompah-zlz_2-ebwe).
@@ -3422,8 +3423,11 @@ async def _handle_full_sync(ws: "WebSocket", orch: Any) -> None:
                 "epoch": epoch,
             },
         )
+        # Full sync message sent successfully; record success
+        _ws_sync_record_success()
     except Exception as exc:
         logger.debug("full_sync assembly failed for connection: %s", exc)
+        _ws_sync_record_failure()
         try:
             await _send_ws(
                 ws,
