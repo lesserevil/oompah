@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-696
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Honor integrated SHA evidence after epic child branches are pruned
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T16:18:38.337420Z'
-updated_at: '2026-08-02T17:18:41.680479Z'
+updated_at: '2026-08-02T17:22:44.429775Z'
 work_branch: OOMPAH-696
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/655
@@ -113,6 +113,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-d8d0429888a0: '2026-08-02T17:17:00.931487+00:00'
+    attempt-e85e83d0d5e9: '2026-08-02T17:22:40.979833+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-696
@@ -123,6 +124,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-02T17:17:00.931496+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-696
+    target_state: Merged
+    evidence_fingerprint: 2dda3e90a70ac443ca71d2ad8e935ef6cd4fe341cc2be595c66229508c8f3f12
+    audit_ids:
+    - audit-ef09e9e90f6d
+    kind: result
+    applied: true
+    retired_at: '2026-08-02T17:22:40.979847+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-696
@@ -136,6 +146,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-02T17:17:00.931509+00:00'
     applied_at: '2026-08-02T17:17:05.302316+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-696
+    audit_id: audit-ef09e9e90f6d
+    attempt_id: attempt-e85e83d0d5e9
+    target_state: Merged
+    evidence_fingerprint: 2dda3e90a70ac443ca71d2ad8e935ef6cd4fe341cc2be595c66229508c8f3f12
+    status: Merged
+    audit_ids:
+    - audit-ef09e9e90f6d
+    applied: false
+    created_at: '2026-08-02T17:22:40.979863+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -177,7 +198,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-696
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -186,7 +207,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-e85e83d0d5e9
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -196,13 +217,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-02T17:18:36.337370+00:00'
       branch_key: OOMPAH-696
+      verdict: pass
+      completed_at: '2026-08-02T17:22:40.979688+00:00'
+      ended_at: '2026-08-02T17:22:40.979688+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-02T17:10:51.618988+00:00'
-    updated_at: '2026-08-02T17:18:36.337370+00:00'
+    updated_at: '2026-08-02T17:22:40.979688+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-d8d0429888a0
@@ -524,5 +548,31 @@ author: oompah
 created: 2026-08-02 17:18
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-02 17:22
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- head_sha: 0d4f3d9932b2773cbdf904d9443def0ed0d1c0a2
+- origin_main_head: 8cb4891c1
+- merge_commit: 8cb4891c1d023b2c7f314654af55edb9662000a9
+- merge_pr: 655
+- merge_parents: b7fdf2b3f 0d4f3d993
+- log_main_to_head_empty: true
+- log_head_to_main_only_merge_commit: true
+- orchestrator_helper_line: oompah/orchestrator.py:11333 _child_has_durable_landing_evidence
+- orchestrator_caller_line: oompah/orchestrator.py:18732 _mark_epic_merged bypass
+- test_pruned_branch_line: tests/test_epic_strategy.py:5023 test_done_child_with_pruned_branch_and_integrated_sha_is_promoted
+- test_idempotent_line: tests/test_epic_strategy.py:5144 test_durable_landing_evidence_is_idempotent
+- test_unreachable_line: tests/test_epic_strategy.py:5277 test_unreachable_integrated_sha_falls_back_to_normal_checks
+- focused_test_result: 222 passed in 62.44s (tests/test_epic_strategy.py)
+- focused_scoped_result: 3 passed (durable/pruned/unreachable filter)
+- quality_gate_isolation_test: tests/test_quality_gate.py::test_sandbox_command_projects_declared_editable_source_to_candidate passed in 0.41s
+- branch_gate: PASS reported by orchestrator for 0d4f3d993 in 393.2s
+- merge_stat: oompah/orchestrator.py +82, tests/test_epic_strategy.py +374, tests/test_quality_gate.py +5
 ---
 <!-- COMMENTS:END -->
