@@ -13,7 +13,7 @@ labels:
 - needs:ci
 assignee: null
 created_at: '2026-07-29T15:11:56.176459Z'
-updated_at: '2026-08-02T18:36:08.821128Z'
+updated_at: '2026-08-02T18:36:11.866673Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,7 +38,17 @@ oompah.terminal_audit:
       merged in PR #577 at 7b7341201 after the recorded full local gate and green
       replacement CI. OOMPAH-699 tracks automatic convergence.'
     created_at: '2026-08-02T18:36:05.268397+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-544
+    target_state: Merged
+    evidence_fingerprint: 9a0f975899bcad1796fc5af499e82c3573bf67615735409e8c101f7396b4c9d9
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-02T18:36:10.629678+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []

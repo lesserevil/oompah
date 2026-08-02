@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-656
 type: task
-status: Done
+status: Merged
 priority: null
 title: Rebase epic-OOMPAH-619 onto main
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:41:57.043640Z'
-updated_at: '2026-07-31T13:40:46.364761Z'
+updated_at: '2026-08-02T18:36:18.304542Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -119,6 +119,25 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-69a000478301: '2026-07-31T11:02:45.443023+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-69a88c84a760
+    project_id: proj-14849f1b
+    task_id: OOMPAH-656
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0730a451878799e01bd6e3d75afc41fd75b5eeb2bef6391c90cda72aa7bd899c
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reconciliation: the audited rebase result was published into epic
+      OOMPAH-619, whose accepted rollup is Merged; the topology work is therefore
+      delivered. OOMPAH-699 tracks automatic convergence.'
+    created_at: '2026-08-02T18:36:14.247929+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -457,5 +476,12 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 45s
 - Log: OOMPAH-656__20260731T110116Z.jsonl
+---
+author: oompah
+created: 2026-08-02 18:36
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner reconciliation: the audited rebase result was published into epic OOMPAH-619, whose accepted rollup is Merged; the topology work is therefore delivered. OOMPAH-699 tracks automatic convergence.
 ---
 <!-- COMMENTS:END -->
