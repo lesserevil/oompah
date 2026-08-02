@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-484
 type: feature
-status: Done
+status: Merged
 priority: 1
 title: Expose safe terminal-audit state in project, task, and activity APIs
 parent: OOMPAH-460
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:23.210919Z'
-updated_at: '2026-07-31T03:56:48.081498Z'
+updated_at: '2026-08-02T18:30:56.184251Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-484
 target_branch: null
 review_url: null
@@ -152,6 +152,25 @@ oompah.terminal_audit:
       with the recovered content. This override closes bookkeeping only and does not
       waive code verification.'
     created_at: '2026-07-31T03:56:41.720017+00:00'
+  - version: 1
+    override_id: override-3508cc4420f1
+    project_id: proj-14849f1b
+    task_id: OOMPAH-484
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 12a2b58296ba6b45dff8dd4c7a0946ac56cacf7a598d4cad5fe1c2c015f900f7
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reconciliation: OOMPAH-460''s terminal audit records that this
+      implementation was recovered into main by PR #603 / landing commit 15c96dac6,
+      even though the superseded epic branch itself was Archived. OOMPAH-699 tracks
+      automatic convergence.'
+    created_at: '2026-08-02T18:30:52.088215+00:00'
+    applied: false
   version: 1
   pending_chain: []
   attempt_history: []
@@ -424,5 +443,12 @@ author: oompah
 created: 2026-07-31 03:56
 ---
 Delivered through the verified OOMPAH-597 linearized recovery head 44e5c5579; stale original delivery row reconciled.
+---
+author: oompah
+created: 2026-08-02 18:30
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner reconciliation: OOMPAH-460's terminal audit records that this implementation was recovered into main by PR #603 / landing commit 15c96dac6, even though the superseded epic branch itself was Archived. OOMPAH-699 tracks automatic convergence.
 ---
 <!-- COMMENTS:END -->
