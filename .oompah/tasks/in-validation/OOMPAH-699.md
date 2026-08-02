@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-699
 type: bug
-status: In Review
+status: In Validation
 priority: 0
 title: Converge historical Done records after parent terminalization
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T18:20:28.879414Z'
-updated_at: '2026-08-02T20:36:15.374049Z'
+updated_at: '2026-08-02T20:41:27.396006Z'
 work_branch: OOMPAH-699
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/660
@@ -31,6 +31,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/660
 oompah.review_number: '660'
 oompah.work_branch: OOMPAH-699
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-a3058aacab06
+    project_id: proj-14849f1b
+    task_id: OOMPAH-699
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 043cdbd60febedffde56219f648403ba1b9a712bc26c7d55977a78822b8dabbc
+    attempts: []
+    requested_by:
+      version: 1
+      identity: yolo-merge
+      source: oompah
+    previous_state: In Review
+    created_at: '2026-08-02T20:41:20.031456+00:00'
+  - version: 1
+    audit_id: audit-13caa8418e58
+    project_id: proj-14849f1b
+    task_id: OOMPAH-699
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 043cdbd60febedffde56219f648403ba1b9a712bc26c7d55977a78822b8dabbc
+    attempts: []
+    requested_by:
+      version: 1
+      identity: yolo-merge
+      source: oompah
+    previous_state: In Review
+    created_at: '2026-08-02T20:41:20.031456+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -107,5 +146,15 @@ author: oompah
 created: 2026-08-02 20:35
 ---
 PR #660 CI failed only on the background-thread race in test_pr_merged_stages_task_merged under Python 3.11; Python 3.13 passed, Python 3.12 was canceled by fail-fast, and the exact failing test passed on immediate local rerun. Filed OOMPAH-702 for deterministic webhook-test synchronization and reran the failed matrix jobs. No OOMPAH-699 implementation failure was found.
+---
+author: oompah
+created: 2026-08-02 20:41
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-02 20:41
+---
+YOLO: merged PR #660.
 ---
 <!-- COMMENTS:END -->
