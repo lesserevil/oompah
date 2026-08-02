@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T16:21:00.027506Z'
-updated_at: '2026-08-02T16:23:23.813451Z'
+updated_at: '2026-08-02T16:23:54.546803Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -132,5 +132,28 @@ author: oompah
 created: 2026-08-02 16:23
 ---
 Focus: Callback Auth Validation Specialist
+---
+author: oompah
+created: 2026-08-02 16:23
+---
+## Understanding
+
+**Issue Summary:** Tasks remain in 'In Review' state with zero active forge reviews when:
+1. A PR merged successfully (e.g., PR #643 for OOMPAH-680)
+2. The task branch later advances by a new commit (head changed from old SHA to new SHA)
+3. Task metadata still holds the old (merged) review_url/review_number
+4. Reconciliation wrongly treats this stale review as active and keeps task in In Review instead of requeuing
+
+**Root Cause:** Current code treats reviews by branch name only, not by the exact head/generation they reviewed. Once the branch head advances past what was reviewed, the old review is obsolete but still blocks integration.
+
+**Planned Approach:**
+1. Explore orchestrator.py to understand current review binding logic
+2. Find where review metadata is persisted and checked
+3. Modify review evidence binding to include exact head/generation
+4. Update reconciliation to detect when current head exceeds reviewed head
+5. Clear stale review metadata and restore task to Ready when needed
+6. Add tests reproducing OOMPAH-680 scenario and confirming recovery behavior
+
+**My Focus:** As Callback Auth specialist, I'll pay attention to event handling idempotency, webhook race conditions, and proper state consistency in recovery paths.
 ---
 <!-- COMMENTS:END -->
