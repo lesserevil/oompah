@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-422
 type: bug
-status: Merged
+status: In Validation
 priority: 1
 title: Require actionable handoffs for Needs Human transitions
 parent: null
@@ -10,12 +10,34 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-23T20:10:29.633604Z'
-updated_at: '2026-07-26T00:28:44.953852Z'
+updated_at: '2026-08-02T01:13:43.095448Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-f05e417ec06e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-422
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a30bc12eef642fb1bfa4550424fc867c90465f95e43f5ca133a9a7c1ae9a1bca
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-02T01:13:39.528291+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -48,5 +70,10 @@ author: oompah
 created: 2026-07-26 00:28
 ---
 Verified delivered on origin/main in 296895829 and reconciled stale Done state.
+---
+author: oompah
+created: 2026-08-02 01:13
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
