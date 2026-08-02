@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-703
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Make backlog refresh invalidation tests wait for completion deterministically
 parent: null
@@ -11,10 +11,10 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T20:59:10.197769Z'
-updated_at: '2026-08-02T22:20:19.418277Z'
+updated_at: '2026-08-02T22:20:30.628921Z'
 work_branch: null
 target_branch: null
-review_url: null
+review_url: https://github.com/lesserevil/oompah/pull/663
 review_number: null
 review_head: null
 merged_at: null
@@ -87,6 +87,7 @@ oompah.integration:
   head_sha: 26b3f2ea9a99038870bc1f5d46a29157ee9be512
   submitted_at: '2026-08-02T22:12:54.173205+00:00'
   updated_at: '2026-08-02T22:12:54.173205+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/663
 ---
 ## Summary
 
