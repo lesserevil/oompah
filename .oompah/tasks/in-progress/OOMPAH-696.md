@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T16:18:38.337420Z'
-updated_at: '2026-08-02T16:48:00.527701Z'
+updated_at: '2026-08-02T16:52:12.172706Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -292,5 +292,10 @@ author: oompah
 created: 2026-08-02 16:48
 ---
 Understanding: The feature fix is already on branch OOMPAH-696; the complete branch gate failed only in tests/test_quality_gate.py::test_sandbox_command_projects_declared_editable_source_to_candidate. I will inspect the exact branch state and GitHub check output, reproduce that test, identify whether the failure is code, fixture, or environment-sensitive, apply the smallest covered fix on this same branch, run focused neighboring tests, then push and resubmit.
+---
+author: oompah
+created: 2026-08-02 16:52
+---
+Discovery: The complete gate's full cached output in .oompah/quality_gates.json shows the exact failure: this unit test invoked real _validate_trusted_runtime_source(), whose gate runtime reported sys.prefix under the immutable gate snapshot but editable metadata still named /home/shedwards/src/oompah, so it raised _TrustedRuntimeCorruption before the bind assertion. The test passes locally because that metadata path is trusted there. Neighboring _sandbox_command unit tests already mock this environment-validation boundary (OOMPAH-687); the new test added later omitted the mock. This is a test-isolation defect, not a production failure.
 ---
 <!-- COMMENTS:END -->
