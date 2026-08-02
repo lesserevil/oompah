@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-708
 type: task
-status: Needs CI Fix
+status: Open
 priority: 0
 title: Repair duplicate-screening owner-resolution project lookup
 parent: null
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T22:20:11.202634Z'
-updated_at: '2026-08-02T22:51:32.032763Z'
+updated_at: '2026-08-02T22:52:11.531000Z'
 work_branch: OOMPAH-708
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/664
@@ -123,5 +123,17 @@ author: oompah
 created: 2026-08-02 22:51
 ---
 PR #664 Python 3.11 CI failure is unrelated to this endpoint patch: tests/test_agent.py::test_stop_kills_spawned_descendant timed out waiting 1 second for a shell child PID file; the other 15,013 tests passed, and Python 3.12/3.13 matrices passed. The failed GitHub Actions job has been rerun. Retaining the exact submitted head and human-only ownership fence pending the rerun.
+---
+author: oompah
+created: 2026-08-02 22:52
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #4)
+
+**State audited:** `Needs CI Fix`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** Recent comment indicates CI is now passing or PR has been merged; safe to reopen for dispatch.
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
 ---
 <!-- COMMENTS:END -->
