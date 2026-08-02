@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-352
 type: task
-status: Merged
+status: In Validation
 priority: 2
 title: Add stall diagnostics and wedge recovery telemetry
 parent: OOMPAH-348
@@ -13,12 +13,34 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-22T00:56:40.490026Z'
-updated_at: '2026-07-26T00:27:37.676936Z'
+updated_at: '2026-08-02T01:12:43.086846Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-2cb86c46bcdd
+    project_id: proj-14849f1b
+    task_id: OOMPAH-352
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 23c0de360f05807fc40ed3e25c3c2f76395ee4f97d6ca0047f87f5fc67e9339a
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-02T01:12:39.526691+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -55,5 +77,10 @@ author: oompah
 created: 2026-07-26 00:27
 ---
 Verified delivered on origin/main in 6dd2cdfcf and reconciled stale Done state.
+---
+author: oompah
+created: 2026-08-02 01:12
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
