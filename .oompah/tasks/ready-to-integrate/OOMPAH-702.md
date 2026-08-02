@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T20:34:49.621752Z'
-updated_at: '2026-08-02T22:18:48.359958Z'
+updated_at: '2026-08-02T22:19:10.729633Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,13 +40,17 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: ece7fba5-e97e-4717-a75c-507a57912dc0
 oompah.task_costs:
-  total_input_tokens: 50596
-  total_output_tokens: 545
+  total_input_tokens: 50668
+  total_output_tokens: 13769
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 50596
       output_tokens: 545
+      cost_usd: 0.0
+    opus:
+      input_tokens: 72
+      output_tokens: 13224
       cost_usd: 0.0
   runs:
   - profile: default
@@ -55,6 +59,12 @@ oompah.task_costs:
     output_tokens: 545
     cost_usd: 0.0
     recorded_at: '2026-08-02T21:52:02.835725+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 72
+    output_tokens: 13224
+    cost_usd: 0.0
+    recorded_at: '2026-08-02T22:19:00.993471+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-702__20260802T215139Z
@@ -65,14 +75,24 @@ oompah.work_contributors:
     source_branch: OOMPAH-702
     source_sha: 366129d0a5046c5ed7caed4acf26cd8cd2a3fbdd
     completed_at: '2026-08-02T21:52:02.871153+00:00'
+  - run_id: OOMPAH-702__20260802T221118Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: opus
+    focus: test
+    source_branch: OOMPAH-702
+    source_sha: c3c4698482dd2f8260758a381c8329e30f5b5ed2
+    completed_at: '2026-08-02T22:19:01.014275+00:00'
 oompah.integration:
   version: 2
   state: ready
   attempts: 0
   task_branch: OOMPAH-702
+  base_branch: main
+  base_sha: 366129d0a5046c5ed7caed4acf26cd8cd2a3fbdd
   head_sha: c3c4698482dd2f8260758a381c8329e30f5b5ed2
   submitted_at: '2026-08-02T22:18:43.834814+00:00'
-  updated_at: '2026-08-02T22:18:43.834814+00:00'
+  updated_at: '2026-08-02T22:19:09.239294+00:00'
 ---
 ## Summary
 
@@ -162,5 +182,20 @@ author: oompah
 created: 2026-08-02 22:18
 ---
 Added _WebhookThreadHarness autouse fixture that captures all daemon threads spawned by webhook handling, joins them deterministically at test teardown, and surfaces uncaught worker exceptions so a background failure cannot silently satisfy the completion barrier. Converted every start-thread-then-assert webhook test (tracked-branch sync, In Review marking, merged PR staging, merge-group staging, status label revert, backfill paths) from time.sleep polling to webhook_threads.wait(). test_pr_merged_stages_task_merged now gates request_terminal_transition behind threading.Events to prove both prompt HTTP acknowledgement and deterministic completion. Added test_background_exception_is_surfaced_by_completion_barrier to prove worker failures propagate through the barrier and test_merge_group_stages_task_merged for the merge_group path. Production oompah/server.py behavior is untouched. Verified 132/132 tests pass on Python 3.11, 3.12, and 3.13 with 50 repeated runs of the merged regression per version.
+---
+author: oompah
+created: 2026-08-02 22:19
+---
+Agent completed successfully in 467s (13296 tokens)
+---
+author: oompah
+created: 2026-08-02 22:19
+---
+Run #2 [attempt=2, profile=deep, role=deep -> Claude/opus]
+- Turns: 97, Tool calls: 66
+- Tokens: 72 in / 13.2K out [13.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 7m 47s
+- Log: OOMPAH-702__20260802T221118Z.jsonl
 ---
 <!-- COMMENTS:END -->
