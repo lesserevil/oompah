@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T00:13:22.222984Z'
-updated_at: '2026-08-02T00:15:29.174468Z'
+updated_at: '2026-08-02T00:15:50.897807Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -143,5 +143,10 @@ author: oompah
 created: 2026-08-02 00:15
 ---
 Focus: Callback Auth Validation Specialist
+---
+author: oompah
+created: 2026-08-02 00:15
+---
+Understanding: verified workers must keep non-running cross-task views fail-closed (403) while treating them as informational; own-task handoff failures and security-relevant mismatches must remain actionable. I will inspect server classification, task-handoff recording, and orchestrator exit reconciliation, then add regression coverage for target states and forbidden mutations.
 ---
 <!-- COMMENTS:END -->
