@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T20:20:26.676545Z'
-updated_at: '2026-08-02T21:53:33.770139Z'
+updated_at: '2026-08-02T21:54:09.510842Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -25,25 +25,25 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: 4b9a535e-33f1-472c-a596-0bdf1965fb63
-  claim_owner: 0b22eab2-a2d1-4082-a6c8-404ec37650a4
-  claimed_at: '2026-08-02T21:53:26.419629+00:00'
-  claim_expires_at: '2026-08-02T22:23:26.419629+00:00'
-  retry_count: 1
-  retry_after: null
+  evidence: Duplicate-screening worker exited with reason normal.
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
+  retry_count: 2
+  retry_after: '2026-08-02T21:56:04.107049+00:00'
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
 oompah.agent_run_id: 9358e6fd-e4b1-46b2-9c75-dc43574182fc
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 1514
+  total_input_tokens: 20
+  total_output_tokens: 3189
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 10
-      output_tokens: 1514
+      input_tokens: 20
+      output_tokens: 3189
       cost_usd: 0.0
   runs:
   - profile: default
@@ -52,6 +52,12 @@ oompah.task_costs:
     output_tokens: 1514
     cost_usd: 0.0
     recorded_at: '2026-08-02T21:51:56.244095+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 10
+    output_tokens: 1675
+    cost_usd: 0.0
+    recorded_at: '2026-08-02T21:54:04.104962+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-701__20260802T215133Z
@@ -62,6 +68,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-701
     source_sha: 366129d0a5046c5ed7caed4acf26cd8cd2a3fbdd
     completed_at: '2026-08-02T21:51:56.256868+00:00'
+  - run_id: OOMPAH-701__20260802T215336Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: duplicate_detector
+    source_branch: OOMPAH-701
+    source_sha: 366129d0a5046c5ed7caed4acf26cd8cd2a3fbdd
+    completed_at: '2026-08-02T21:54:04.122274+00:00'
 ---
 ## Summary
 
@@ -116,5 +130,15 @@ author: oompah
 created: 2026-08-02 21:53
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-02 21:54
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 2, Tool calls: 0
+- Tokens: 10 in / 1.7K out [1.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 33s
+- Log: OOMPAH-701__20260802T215336Z.jsonl
 ---
 <!-- COMMENTS:END -->
