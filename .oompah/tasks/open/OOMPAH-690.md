@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T00:37:18.141681Z'
-updated_at: '2026-08-02T00:39:03.709373Z'
+updated_at: '2026-08-02T00:39:09.811176Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -34,6 +34,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
+oompah.agent_run_id: 74c1716f-c359-4342-aa2a-37e73b80d1de
 ---
 ## Summary
 
@@ -74,5 +75,15 @@ author: oompah
 created: 2026-08-02 00:37
 ---
 Operator claimed this live dashboard-refresh regression for direct implementation.
+---
+author: oompah
+created: 2026-08-02 00:39
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-02 00:39
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
