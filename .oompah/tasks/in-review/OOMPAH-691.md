@@ -16,7 +16,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T02:00:17.265294Z'
-updated_at: '2026-08-02T07:11:15.161176Z'
+updated_at: '2026-08-02T07:11:40.931131Z'
 work_branch: epic-OOMPAH-691
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/654
@@ -78,5 +78,10 @@ author: oompah
 created: 2026-08-02 07:10
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-08-02 07:11
+---
+Understanding: CI failed only on Python 3.12 and 3.13 (3.11 passed) on the same test: \`tests/test_ws_lifecycle.py::TestWebSocketRefreshAction::test_refresh_action_sends_state_back\` — pytest-timeout at 5s while receiving the 3rd message after sending {action: refresh}. This is a WS lifecycle test in the epic's convergence work. Plan: reproduce locally, inspect refresh handler on the server, and either loosen the read loop or ensure the refresh reliably drives the expected number of messages within the timeout.
 ---
 <!-- COMMENTS:END -->
