@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-688
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Make slow-tick telemetry tests deterministic under load
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T23:11:33.946132Z'
-updated_at: '2026-08-02T00:04:41.057247Z'
+updated_at: '2026-08-02T00:05:19.054722Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -93,9 +93,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-688
-  head_sha: dbb50c914cc8fc683420a716ad98974d58036498
-  submitted_at: '2026-08-01T23:52:47.206345+00:00'
-  updated_at: '2026-08-01T23:52:47.206345+00:00'
+  head_sha: 818653a948776b17728e111a03181e3a5beba3b2
+  submitted_at: '2026-08-02T00:05:15.487303+00:00'
+  updated_at: '2026-08-02T00:05:15.487303+00:00'
 ---
 ## Summary
 
@@ -398,5 +398,15 @@ author: oompah
 created: 2026-08-02 00:04
 ---
 Verification: Focused four-worker xdist run passed: 40 tests in 19.17s — TestMaintenanceLaneNonBlocking, all 35 tests in test_orchestrator_tick_telemetry.py (including the repeated fast-tick regression), and test_process_global_gate_keeps_preexisting_sentinel_alive with its nested isolated gate. The full make test gate is intentionally left to Oompah for the exact pushed head per project policy.
+---
+author: oompah
+created: 2026-08-02 00:05
+---
+Completion: Pushed 818653a94 to the existing OOMPAH-688 branch. It isolates the last maintenance-lane regression fixture from unrelated tracker I/O and keeps slow-tick dispatch formatting deterministic under contention. Focused four-worker verification passed (40 tests). GitHub has no PR or Actions run for this branch; Oompah will run the managed full gate for the pushed head.
+---
+author: oompah
+created: 2026-08-02 00:05
+---
+CI repair pushed: isolate the remaining maintenance-lane telemetry fixture from tracker I/O
 ---
 <!-- COMMENTS:END -->
