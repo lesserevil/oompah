@@ -796,6 +796,7 @@ class TestReconcileStaleInReviewTasks:
             target_branch="main",
             created_at="2026-01-01",
             updated_at="2026-01-02",
+            head_sha="a" * 40,
         )
         mock_detect.return_value = provider
 
@@ -852,6 +853,7 @@ class TestReconcileStaleInReviewTasks:
             target_branch="main",
             created_at="2026-01-01",
             updated_at="2026-01-02",
+            head_sha="a" * 40,
         )
         mock_detect.return_value = provider
 
@@ -1327,6 +1329,150 @@ class TestReconcileStaleInReviewTasks:
         orch.terminal_transition_coordinator.request_transition.assert_called_once()
         call_args = orch.terminal_transition_coordinator.request_transition.call_args
         assert call_args[1]['requested_target'] == TargetState.MERGED
+
+    @patch("oompah.orchestrator.extract_repo_slug")
+    @patch("oompah.orchestrator.detect_provider")
+    def test_recovers_legacy_review_head_and_requeues_advanced_branch(
+        self,
+        mock_detect,
+        mock_slug,
+        tmp_path,
+    ):
+        project = _make_project()
+        project.repo_path = str(tmp_path)
+        project.default_branch = "main"
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._reviews_cache = {project.id: []}
+        orch._merged_branches = set()
+
+        old_head = "a" * 40
+        current_head = "b" * 40
+        provider = MagicMock()
+        provider.find_pr_for_branch.return_value = ReviewRequest(
+            id="643",
+            title="old",
+            url="https://github.com/org/repo/pull/643",
+            author="alice",
+            state="merged",
+            source_branch="TASK-1",
+            target_branch="main",
+            created_at="",
+            updated_at="",
+            head_sha=old_head,
+        )
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+
+        issue = _make_issue("TASK-1", state="In Review")
+        issue.review_number = "643"
+        issue.review_url = "https://github.com/org/repo/pull/643"
+        issue.review_head = None
+        tracker = MagicMock()
+        tracker.fetch_issues_by_states.return_value = [issue]
+        orch._project_trackers[project.id] = tracker
+        orch._get_branch_head_sha = MagicMock(return_value=current_head)
+
+        orch._reconcile_stale_in_review_tasks()
+        orch._reconcile_stale_in_review_tasks()
+
+        assert tracker.set_metadata_field.call_args_list[0].args == (
+            "TASK-1",
+            "oompah.review_head",
+            old_head,
+        )
+        tracker.add_comment.assert_called_once()
+        assert old_head in tracker.add_comment.call_args.args[1]
+        tracker.update_issue.assert_called_once_with(
+            "TASK-1", status=READY_TO_INTEGRATE
+        )
+        orch.terminal_transition_coordinator.request_transition.assert_not_called()
+
+    @patch("oompah.close_gate._count_commits_ahead")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    @patch("oompah.orchestrator.detect_provider")
+    def test_legacy_merged_review_without_head_uses_git_containment(
+        self,
+        mock_detect,
+        mock_slug,
+        mock_count,
+        tmp_path,
+    ):
+        project = _make_project()
+        project.repo_path = str(tmp_path)
+        project.default_branch = "main"
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._reviews_cache = {project.id: []}
+        orch._merged_branches = set()
+        provider = MagicMock()
+        provider.find_pr_for_branch.return_value = ReviewRequest(
+            id="643",
+            title="old",
+            url="u",
+            author="alice",
+            state="merged",
+            source_branch="TASK-1",
+            target_branch="main",
+            created_at="",
+            updated_at="",
+        )
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+        issue = _make_issue("TASK-1", state="In Review")
+        issue.review_head = None
+        tracker = MagicMock()
+        tracker.fetch_issues_by_states.return_value = [issue]
+        orch._project_trackers[project.id] = tracker
+        orch._get_branch_head_sha = MagicMock(return_value="b" * 40)
+        mock_count.return_value = (0, [], "")
+
+        orch._reconcile_stale_in_review_tasks()
+
+        orch.terminal_transition_coordinator.request_transition.assert_called_once()
+        tracker.update_issue.assert_not_called()
+
+    @patch("oompah.close_gate._count_commits_ahead")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    @patch("oompah.orchestrator.detect_provider")
+    def test_legacy_merged_review_without_head_fails_closed_on_git_error(
+        self,
+        mock_detect,
+        mock_slug,
+        mock_count,
+        tmp_path,
+    ):
+        project = _make_project()
+        project.repo_path = str(tmp_path)
+        project.default_branch = "main"
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._reviews_cache = {project.id: []}
+        orch._merged_branches = set()
+        provider = MagicMock()
+        provider.find_pr_for_branch.return_value = ReviewRequest(
+            id="643",
+            title="old",
+            url="u",
+            author="alice",
+            state="merged",
+            source_branch="TASK-1",
+            target_branch="main",
+            created_at="",
+            updated_at="",
+        )
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+        issue = _make_issue("TASK-1", state="In Review")
+        issue.review_head = None
+        tracker = MagicMock()
+        tracker.fetch_issues_by_states.return_value = [issue]
+        orch._project_trackers[project.id] = tracker
+        orch._get_branch_head_sha = MagicMock(return_value=None)
+        mock_count.return_value = (0, [], "fetch failed")
+
+        orch._reconcile_stale_in_review_tasks()
+
+        orch.terminal_transition_coordinator.request_transition.assert_not_called()
+        tracker.mark_needs_human.assert_called_once()
+        assert "fetch failed" in tracker.mark_needs_human.call_args.args[1]
 
 
 class TestFetchAllMergedBranches:

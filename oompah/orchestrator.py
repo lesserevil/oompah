@@ -17404,6 +17404,8 @@ class Orchestrator:
                             exc,
                         )
 
+                self._recover_legacy_review_head(tracker, issue, review)
+
                 # Check if the review is stale (branch advanced past reviewed head)
                 # OOMPAH-697: treat stale reviews as historical evidence, never as
                 # active reviews for newer branch heads
@@ -17418,6 +17420,36 @@ class Orchestrator:
                 if review_state == "open":
                     continue
                 if review_state == "merged":
+                    # Legacy records created before review_head was persisted may
+                    # also come from a provider payload that cannot expose the
+                    # historical head SHA.  Never let that absence make an old
+                    # merged review authoritative for a newer reused branch.
+                    if not self._stored_review_head(issue):
+                        target_branch = self._review_target_branch(project, review)
+                        ahead, _commit_lines, commit_error = (
+                            self._count_review_branch_ahead(
+                                project,
+                                target_branch,
+                                branch,
+                            )
+                        )
+                        if commit_error:
+                            self._mark_stale_in_review_needs_human(
+                                tracker,
+                                issue,
+                                branch,
+                                target_branch,
+                                commit_error,
+                            )
+                            continue
+                        if ahead > 0:
+                            self._clear_stale_review_and_requeue(
+                                tracker,
+                                issue,
+                                branch,
+                                target_branch,
+                            )
+                            continue
                     self._mark_stale_in_review_merged(tracker, issue, branch)
                     continue
 
@@ -17859,11 +17891,7 @@ class Orchestrator:
         advanced with new commits (OOMPAH-697).
         """
         # Get the stored review head SHA from metadata
-        stored_review_head = getattr(issue, "review_head", None)
-        if not stored_review_head or not isinstance(stored_review_head, str):
-            return False  # No stored review head, cannot determine staleness
-
-        stored_review_head = stored_review_head.strip()
+        stored_review_head = self._stored_review_head(issue)
         if not stored_review_head:
             return False
 
@@ -17882,6 +17910,58 @@ class Orchestrator:
                 current_head[:7],
             )
         return is_stale
+
+    @staticmethod
+    def _stored_review_head(issue: Issue) -> str:
+        """Return a normalized persisted review head, if one is usable."""
+        value = getattr(issue, "review_head", None)
+        if not isinstance(value, str):
+            return ""
+        value = value.strip()
+        return value if len(value) >= 7 else ""
+
+    def _recover_legacy_review_head(
+        self,
+        tracker: TrackerProtocol,
+        issue: Issue,
+        review: ReviewRequest | None,
+    ) -> str:
+        """Recover missing legacy review-head metadata from forge evidence.
+
+        The review object describes the historical PR/MR, so its ``head_sha``
+        is authoritative even when the source branch has since advanced.
+        Persist it before staleness evaluation and mirror it on the in-memory
+        issue so the same reconciliation pass uses the recovered value.
+        """
+        existing = self._stored_review_head(issue)
+        if existing or review is None:
+            return existing
+        value = getattr(review, "head_sha", "")
+        if not isinstance(value, str):
+            return ""
+        value = value.strip()
+        if len(value) < 7:
+            return ""
+        try:
+            tracker.set_metadata_field(
+                issue.identifier,
+                "oompah.review_head",
+                value,
+            )
+        except Exception as exc:  # noqa: BLE001 - Git fallback remains safe
+            logger.debug(
+                "Failed to persist recovered review head for %s: %s",
+                issue.identifier,
+                exc,
+            )
+        issue.review_head = value
+        logger.info(
+            "Recovered legacy review head for %s from review #%s: %s",
+            issue.identifier,
+            getattr(review, "id", "") or "unknown",
+            value[:7],
+        )
+        return value
 
     def _clear_stale_review_and_requeue(
         self,
@@ -17908,6 +17988,26 @@ class Orchestrator:
                 (str(getattr(issue, "review_head", "")) or "unknown")[:7],
             )
 
+            review_url = str(getattr(issue, "review_url", "") or "").strip()
+            review_head = self._stored_review_head(issue)
+            history_comment = (
+                "Superseded review preserved during stale-review recovery.\n\n"
+                f"Review: {review_url or ('#' + str(review_id) if review_id else 'unknown')}\n"
+                f"Reviewed head: `{review_head or 'unavailable'}`\n"
+                f"Current branch: `{branch}`\n"
+                f"Target branch: `{target_branch}`\n\n"
+                "The branch contains newer unreviewed work and is returning to "
+                "Ready to Integrate for an exact-head review."
+            )
+            try:
+                tracker.add_comment(issue.identifier, history_comment)
+            except Exception as exc:  # noqa: BLE001 - status recovery continues
+                logger.debug(
+                    "Failed to preserve stale review history for %s: %s",
+                    issue.identifier,
+                    exc,
+                )
+
             # Remove stale review metadata so the task won't stay In Review
             for field in [
                 "oompah.review_url",
@@ -17930,6 +18030,9 @@ class Orchestrator:
                 tracker.update_issue(
                     issue.identifier, status=READY_TO_INTEGRATE
                 )
+                # Keep the fetched object coherent for overlapping/repeated
+                # maintenance passes that may still hold this instance.
+                issue.state = READY_TO_INTEGRATE
                 logger.info(
                     "Restored %s to Ready to Integrate after clearing stale review",
                     issue.identifier,
