@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T23:17:45.073003Z'
-updated_at: '2026-08-02T23:30:28.205742Z'
+updated_at: '2026-08-02T23:30:39.379635Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -182,5 +182,15 @@ author: oompah
 created: 2026-08-02 23:26
 ---
 Review finding before commit: _TEST_ORCHESTRATORS is a weakref.WeakSet, but its comment and correctness require strong reachability until fixture teardown. Once a test frame releases its local orch, refcount/GC may remove it from the WeakSet before the fixture resumes, defeating the drain and preserving this race. Use a fixture-scoped strong collection (or yield/register helper) that is always cleared, and add focused proof that cleanup still runs after the test body releases its local reference. Also ensure expected background exceptions are consumed without masking the original test, then run repeated xdist coverage.
+---
+author: oompah
+created: 2026-08-02 23:30
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 48
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 10m 12s
+- Log: OOMPAH-709__20260802T232035Z.jsonl
 ---
 <!-- COMMENTS:END -->
