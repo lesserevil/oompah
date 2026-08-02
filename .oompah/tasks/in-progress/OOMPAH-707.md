@@ -13,7 +13,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-08-02T22:19:11.796639Z'
-updated_at: '2026-08-02T23:13:14.098716Z'
+updated_at: '2026-08-02T23:13:46.632743Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,7 +40,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 191a71af-a1d6-480a-8320-6b111e78fd59
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 50726
   total_output_tokens: 23662
@@ -448,5 +448,10 @@ author: oompah
 created: 2026-08-02 23:13
 ---
 Verification: 8 owner-claim tests and 37 adjacent orchestrator/config/lock tests pass. The isolated full suite ran 15,020 passed / 1 failed (existing watchdog delegation flake); that one test passes on immediate serial rerun. make check-secrets, terminal mutation scan, compileall, and git diff --check pass. make test setup is blocked by this container's uv/DBus sandbox before pytest starts.
+---
+author: oompah
+created: 2026-08-02 23:13
+---
+Completion: delivered and pushed 6e9584168. Direct owner claims now persist with bounded TTLs, serialize with orphan recovery, expose API/dashboard evidence, and release/expiry re-enters normal recovery. Added owner-claim, expiry/release, scheduler, race, API, and configuration tests.
 ---
 <!-- COMMENTS:END -->
