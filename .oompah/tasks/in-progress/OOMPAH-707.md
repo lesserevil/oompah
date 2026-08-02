@@ -12,7 +12,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-08-02T22:19:11.796639Z'
-updated_at: '2026-08-02T22:45:43.329373Z'
+updated_at: '2026-08-02T22:48:35.231577Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -312,5 +312,32 @@ Examined the relevant code. No owner-claim implementation exists yet on this bra
 - Race serialization: claim set/release acquires same per-project write lock as orphan reset
 
 Writing design plan now.
+---
+author: oompah
+created: 2026-08-02 22:48
+---
+**Implementation** (Technical Writer focus)
+
+Wrote design documentation and operator-facing guidance for the owner-claim mechanism:
+
+**`plans/owner-claim.md`** (new) — Internal design document covering:
+- Root cause analysis: `_reset_orphaned_in_progress()` has no awareness of direct owner intent
+- `OwnerClaim` dataclass design with fields: `claim_id`, `issue_id`, `project_id`, `owner_login`, `claimed_at`, `expires_at`, `renewable`
+- Integration with `OrchestratorState.owner_claims: dict[str, OwnerClaim]`
+- Persistence via existing `_save_state()` / `.oompah/service_state.json` path
+- Watchdog guard: check and skip reset when a live (non-expired) claim exists, under the existing per-project write lock
+- Three REST endpoints: `POST`, `GET`, `DELETE` `/api/v1/projects/{pid}/tasks/{id}/owner-claim`
+- Race serialization: both the watchdog reset and claim grant/release hold `project_store.project_write_lock()` — no TOCTOU window
+- Expiry/abandonment policy: 48-hour default TTL, auto-purge on next watchdog tick
+- Full implementation map (which files to touch) and required tests (5 scenarios)
+
+**`docs/operator-runbook.md`** (modified) — Added section 6.8 'Direct owner work reset to Open by the watchdog':
+- Short-term workaround: add `human-only` label before marking In Progress
+- Permanent fix: `POST /api/v1/projects/<pid>/tasks/<id>/owner-claim`
+- How to check claim status, release it, and understand expiry/recovery behavior
+- Note about dashboard visibility via `GET /api/v1/state` → `owner_claims`
+- Old section 6.8 renumbered to 6.9
+
+**`docs/task-epic-workflow.md`** (modified) — Added note on direct-owner work after the dispatch table, explaining owner claims and linking to the runbook section.
 ---
 <!-- COMMENTS:END -->
