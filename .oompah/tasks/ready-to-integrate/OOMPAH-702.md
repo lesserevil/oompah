@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-702
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Synchronize merged-webhook tests with background terminal staging
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T20:34:49.621752Z'
-updated_at: '2026-08-02T22:18:05.672624Z'
+updated_at: '2026-08-02T22:18:48.359958Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -65,6 +65,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-702
     source_sha: 366129d0a5046c5ed7caed4acf26cd8cd2a3fbdd
     completed_at: '2026-08-02T21:52:02.871153+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-702
+  head_sha: c3c4698482dd2f8260758a381c8329e30f5b5ed2
+  submitted_at: '2026-08-02T22:18:43.834814+00:00'
+  updated_at: '2026-08-02T22:18:43.834814+00:00'
 ---
 ## Summary
 
@@ -149,5 +157,10 @@ author: oompah
 created: 2026-08-02 22:18
 ---
 Verification: 132/132 tests in test_server_webhooks.py pass on Python 3.11, 3.12, and 3.13. 50/50 repeated runs of test_pr_merged_stages_task_merged pass deterministically (Python 3.11 and 3.12). The delayed-transition regression proves HTTP acknowledgement precedes terminal staging while the join barrier synchronizes assertions. The background-exception regression proves worker failures propagate through the barrier and cannot false-pass. Neighboring webhook suites (tests/test_webhooks.py, test_gitlab_webhook_url.py, test_orchestrator_webhook_health.py) all pass together (379 tests).
+---
+author: oompah
+created: 2026-08-02 22:18
+---
+Added _WebhookThreadHarness autouse fixture that captures all daemon threads spawned by webhook handling, joins them deterministically at test teardown, and surfaces uncaught worker exceptions so a background failure cannot silently satisfy the completion barrier. Converted every start-thread-then-assert webhook test (tracked-branch sync, In Review marking, merged PR staging, merge-group staging, status label revert, backfill paths) from time.sleep polling to webhook_threads.wait(). test_pr_merged_stages_task_merged now gates request_terminal_transition behind threading.Events to prove both prompt HTTP acknowledgement and deterministic completion. Added test_background_exception_is_surfaced_by_completion_barrier to prove worker failures propagate through the barrier and test_merge_group_stages_task_merged for the merge_group path. Production oompah/server.py behavior is untouched. Verified 132/132 tests pass on Python 3.11, 3.12, and 3.13 with 50 repeated runs of the merged regression per version.
 ---
 <!-- COMMENTS:END -->
