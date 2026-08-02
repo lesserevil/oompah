@@ -19,6 +19,7 @@ from oompah.statuses import (
     MERGED,
     NEEDS_CI_FIX,
     NEEDS_REBASE,
+    READY_TO_INTEGRATE,
 )
 from oompah.terminal_audit import TargetState
 from oompah.terminal_transition_coordinator import TransitionResult
@@ -1180,6 +1181,152 @@ class TestReconcileStaleInReviewTasks:
 
         mock_tracker.update_issue.assert_not_called()
         mock_tracker.add_comment.assert_not_called()
+
+    @patch("oompah.orchestrator.extract_repo_slug")
+    @patch("oompah.orchestrator.detect_provider")
+    def test_clears_stale_review_when_branch_advances_after_merge(
+        self,
+        mock_detect,
+        mock_slug,
+        tmp_path,
+    ):
+        """OOMPAH-697: When a branch advances past a merged review, requeue it.
+
+        - Old PR merged successfully (e.g., PR #643)
+        - Branch later advanced by new commit (head changed)
+        - Task metadata still holds old review_number and review_head
+        - Reconciliation detects mismatch between stored and current head
+        - Reconciliation clears stale metadata and restores to READY_TO_INTEGRATE
+        """
+        project = _make_project()
+        project.repo_path = str(tmp_path)
+        project.default_branch = "main"
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._reviews_cache = {project.id: []}
+        orch._merged_branches = set()
+
+        provider = MagicMock()
+        # find_pr_for_branch returns the old merged PR
+        provider.find_pr_for_branch.return_value = ReviewRequest(
+            id="643",
+            title="TASK-1: Feature",
+            url="https://github.com/org/repo/pull/643",
+            author="alice",
+            state="merged",
+            source_branch="TASK-1",
+            target_branch="main",
+            created_at="2026-01-01",
+            updated_at="2026-01-02",
+        )
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+
+        # Create issue with stored review_head from the old merged PR
+        issue = _make_issue("TASK-1", state="In Review")
+        # Simulate stored metadata: old head from when PR was created
+        issue.review_number = "643"
+        issue.review_url = "https://github.com/org/repo/pull/643"
+        issue.review_head = "d08a8da59"  # Old head that was reviewed/merged
+
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_issues_by_states.return_value = [issue]
+        orch._project_trackers[project.id] = mock_tracker
+
+        # Mock _get_branch_head_sha to return current (advanced) head
+        original_get_branch_head = orch._get_branch_head_sha
+        call_count = [0]
+
+        def mock_get_branch_head_sha(project, branch):
+            call_count[0] += 1
+            # Return current (different) head - branch has advanced
+            return "71f8785" + str(call_count[0])
+
+        orch._get_branch_head_sha = mock_get_branch_head_sha
+
+        orch._reconcile_stale_in_review_tasks()
+
+        # Verify that stale review was detected and cleared
+        provider.find_pr_for_branch.assert_called_once_with("org/repo", "TASK-1")
+
+        # Verify metadata was cleared (3 set_metadata_field calls for review_url, review_number, review_head)
+        assert mock_tracker.set_metadata_field.call_count == 3
+        calls = mock_tracker.set_metadata_field.call_args_list
+        fields_cleared = {call[0][1] for call in calls}
+        assert "oompah.review_url" in fields_cleared
+        assert "oompah.review_number" in fields_cleared
+        assert "oompah.review_head" in fields_cleared
+
+        # Verify task was restored to READY_TO_INTEGRATE (not marked as Merged)
+        mock_tracker.update_issue.assert_called_once_with(
+            "TASK-1", status=READY_TO_INTEGRATE
+        )
+
+    @patch("oompah.close_gate._count_commits_ahead")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    @patch("oompah.orchestrator.detect_provider")
+    def test_keeps_merged_review_in_review_when_head_matches(
+        self,
+        mock_detect,
+        mock_slug,
+        mock_count,
+        tmp_path,
+    ):
+        """OOMPAH-697: When review_head matches current head and PR is merged, mark Merged.
+
+        - Old PR merged successfully
+        - Branch head has NOT advanced (same as review_head)
+        - Task metadata has review_head matching current head
+        - Reconciliation recognizes review is not stale
+        - Reconciliation marks task as Merged
+        """
+        project = _make_project()
+        project.repo_path = str(tmp_path)
+        project.default_branch = "main"
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._reviews_cache = {project.id: []}
+        orch._merged_branches = set()
+
+        provider = MagicMock()
+        provider.find_pr_for_branch.return_value = ReviewRequest(
+            id="643",
+            title="TASK-1: Feature",
+            url="https://github.com/org/repo/pull/643",
+            author="alice",
+            state="merged",
+            source_branch="TASK-1",
+            target_branch="main",
+            created_at="2026-01-01",
+            updated_at="2026-01-02",
+        )
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+        mock_count.return_value = (0, [], "")
+
+        # Create issue with review_head matching current head
+        issue = _make_issue("TASK-1", state="In Review")
+        issue.review_number = "643"
+        issue.review_url = "https://github.com/org/repo/pull/643"
+        issue.review_head = "d08a8da59"  # Exact head that was reviewed
+
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_issues_by_states.return_value = [issue]
+        orch._project_trackers[project.id] = mock_tracker
+
+        # Mock _get_branch_head_sha to return SAME head as stored review_head
+        orch._get_branch_head_sha = MagicMock(return_value="d08a8da59")
+
+        orch._reconcile_stale_in_review_tasks()
+
+        # Verify find_pr_for_branch was called
+        provider.find_pr_for_branch.assert_called_once_with("org/repo", "TASK-1")
+
+        # Verify metadata was NOT cleared (review is not stale)
+        mock_tracker.set_metadata_field.assert_not_called()
+
+        # Verify task was marked as Merged (not kept in review)
+        orch.terminal_transition_coordinator.request_transition.assert_called_once()
+        call_args = orch.terminal_transition_coordinator.request_transition.call_args
+        assert call_args[1]['requested_target'] == TargetState.MERGED
 
 
 class TestFetchAllMergedBranches:

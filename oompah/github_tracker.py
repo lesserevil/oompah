@@ -1343,6 +1343,7 @@ def _gh_issue_to_issue(gh_issue: dict[str, Any], owner: str, repo: str) -> Issue
     review_number: str | None = (
         meta.get("review_number") or meta.get("oompah.review_number")
     )
+    review_head: str | None = meta.get("review_head") or meta.get("oompah.review_head")
     intake = meta.get("intake") or meta.get("oompah.intake")
     if not isinstance(intake, dict):
         intake = None
@@ -1392,6 +1393,7 @@ def _gh_issue_to_issue(gh_issue: dict[str, Any], owner: str, repo: str) -> Issue
         work_branch=work_branch,
         review_url=review_url,
         review_number=review_number,
+        review_head=review_head,
         backports=meta.get("backports", meta.get("oompah.backports")),
         backport_of=meta.get("backport_of", meta.get("oompah.backport_of")),
         release_pick_metadata_loaded=True,

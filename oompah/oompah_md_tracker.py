@@ -724,6 +724,7 @@ class OompahMarkdownTracker:
                 "target_branch": None,
                 "review_url": None,
                 "review_number": None,
+                "review_head": None,
                 "merged_at": None,
             }
             body = self._initial_body(description)
@@ -957,6 +958,7 @@ class OompahMarkdownTracker:
             "target_branch",
             "review_url",
             "review_number",
+            "review_head",
             "merged_at",
         ):
             if key in meta and meta[key] is not None:
@@ -1244,6 +1246,9 @@ class OompahMarkdownTracker:
         elif key_norm == "review-number":
             meta["review_number"] = str(value) if value else None
             meta["oompah.review_number"] = str(value) if value else None
+        elif key_norm == "review-head":
+            meta["review_head"] = str(value) if value else None
+            meta["oompah.review_head"] = str(value) if value else None
         elif str(key).startswith("oompah."):
             meta[str(key)] = value
             compat_key = str(key).removeprefix("oompah.")
@@ -1252,6 +1257,7 @@ class OompahMarkdownTracker:
                 "target_branch",
                 "review_url",
                 "review_number",
+                "review_head",
                 "merged_at",
             }:
                 meta[compat_key] = value
@@ -1332,6 +1338,9 @@ class OompahMarkdownTracker:
             ),
             review_number=_optional_str(
                 meta.get("review_number") or meta.get("oompah.review_number")
+            ),
+            review_head=_optional_str(
+                meta.get("review_head") or meta.get("oompah.review_head")
             ),
             merged_at=_optional_str(
                 meta.get("merged_at") or meta.get("oompah.merged_at")
