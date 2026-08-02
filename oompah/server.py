@@ -2564,13 +2564,16 @@ def _on_orchestrator_change(snapshot: dict) -> None:
     _invalidate_issue_caches(schedule_broadcast=False)
     if not _ws_clients:
         return
+    # Issue changes have their own throttle.  Schedule that refresh before
+    # applying the state-message throttle: a recent activity/state push must
+    # never suppress the board snapshot that reflects this change.
+    _schedule_api_coro(_throttled_broadcast_issues)
     now = time.monotonic() * 1000
     if now - _last_state_broadcast < _STATE_THROTTLE_MS:
         return
     _last_state_broadcast = now
     enriched_snapshot = _enrich_state_snapshot(snapshot)
     _schedule_api_coro(lambda: _broadcast({"type": "state", "data": enriched_snapshot}))
-    _schedule_api_coro(_throttled_broadcast_issues)
 
 
 def _on_agent_activity(
@@ -2941,6 +2944,11 @@ async def websocket_endpoint(ws: WebSocket):
                         )
                     )
                     await broadcast_issues()
+                elif msg.get("action") == "ping":
+                    # Browsers cannot send protocol-level WebSocket pings.
+                    # Reply to the application-level heartbeat so clients can
+                    # distinguish a live socket from a silently severed proxy.
+                    await ws.send_text(json.dumps({"type": "pong"}))
                 elif msg.get("type") == "console_input":
                     # Per-project ACP console (oompah-zlz_2-ebwe).
                     # Operator typed something in the dashboard's console

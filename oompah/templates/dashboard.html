@@ -2538,19 +2538,116 @@ let _cardElementCache = new Map();  // identifier -> {fp: string, el: HTMLElemen
 // --- WebSocket connection ---
 let ws = null;
 let wsReconnectTimer = null;
+let wsHeartbeatTimer = null;
+let wsReconnectAttempt = 0;
+let wsLastFreshAt = 0;
+let wsShouldReconnect = true;
+
+// Browser WebSocket objects do not expose protocol-level ping/pong methods.
+// Use an application-level ping and require a recent inbound message so a
+// half-open proxy connection cannot remain displayed as Connected forever.
+const WS_HEARTBEAT_INTERVAL_MS = 10000;
+const WS_STALE_TIMEOUT_MS = 30000;
+const WS_RECONNECT_BASE_DELAY_MS = 1000;
+const WS_RECONNECT_MAX_DELAY_MS = 15000;
+
+function setWebSocketStatus(text) {
+  const status = document.getElementById('status-text');
+  if (status) status.textContent = text;
+}
+
+function clearWebSocketReconnectTimer() {
+  if (wsReconnectTimer !== null) {
+    clearTimeout(wsReconnectTimer);
+    wsReconnectTimer = null;
+  }
+}
+
+function clearWebSocketHeartbeat() {
+  if (wsHeartbeatTimer !== null) {
+    clearInterval(wsHeartbeatTimer);
+    wsHeartbeatTimer = null;
+  }
+}
+
+function scheduleWebSocketReconnect() {
+  if (!wsShouldReconnect || wsReconnectTimer !== null) return;
+  const delay = Math.min(
+    WS_RECONNECT_MAX_DELAY_MS,
+    WS_RECONNECT_BASE_DELAY_MS * Math.pow(2, wsReconnectAttempt),
+  );
+  wsReconnectAttempt = Math.min(wsReconnectAttempt + 1, 5);
+  setWebSocketStatus('Reconnecting...');
+  wsReconnectTimer = setTimeout(() => {
+    wsReconnectTimer = null;
+    connectWebSocket();
+  }, delay);
+}
+
+function closeWebSocket({reconnect = false} = {}) {
+  wsShouldReconnect = reconnect;
+  clearWebSocketHeartbeat();
+  clearWebSocketReconnectTimer();
+  const socket = ws;
+  ws = null;
+  if (socket && (socket.readyState === WebSocket.OPEN ||
+                 socket.readyState === WebSocket.CONNECTING)) {
+    socket.close();
+  }
+}
+
+function checkWebSocketLiveness() {
+  const socket = ws;
+  if (!socket || socket.readyState !== WebSocket.OPEN) return;
+  if (Date.now() - wsLastFreshAt >= WS_STALE_TIMEOUT_MS) {
+    setWebSocketStatus('Reconnecting...');
+    clearWebSocketHeartbeat();
+    socket.close();
+    return;
+  }
+  try {
+    socket.send(JSON.stringify({action: 'ping'}));
+  } catch (e) {
+    setWebSocketStatus('Reconnecting...');
+    socket.close();
+  }
+}
 
 function connectWebSocket() {
+  if (!wsShouldReconnect) return;
+  clearWebSocketReconnectTimer();
+  if (ws && (ws.readyState === WebSocket.CONNECTING ||
+             ws.readyState === WebSocket.OPEN ||
+             ws.readyState === WebSocket.CLOSING)) return;
+  clearWebSocketHeartbeat();
+  setWebSocketStatus('Connecting...');
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  ws = new WebSocket(proto + '//' + location.host + '/ws');
+  const socket = new WebSocket(proto + '//' + location.host + '/ws');
+  ws = socket;
 
   ws.onopen = () => {
-    document.getElementById('status-text').textContent = 'Connected';
-    if (wsReconnectTimer) { clearTimeout(wsReconnectTimer); wsReconnectTimer = null; }
+    if (ws !== socket) return;
+    setWebSocketStatus('Connected');
+    clearWebSocketReconnectTimer();
+    wsReconnectAttempt = 0;
+    wsLastFreshAt = Date.now();
+    clearWebSocketHeartbeat();
+    wsHeartbeatTimer = setInterval(checkWebSocketLiveness, WS_HEARTBEAT_INTERVAL_MS);
     // Force a full board rebuild after reconnect so stale snapshot state
     // doesn't suppress the first incoming 'issues' push.
     _lastRenderedSnapshot = null;
     _lastRenderedRenderKey = null;
     _cardElementCache.clear();
+    // The server also sends the bootstrap pair on open.  Request one more
+    // authenticated backfill so reconnects cannot miss a transition that
+    // raced the socket handshake.
+    try {
+      socket.send(JSON.stringify({action: 'refresh'}));
+    } catch (e) {
+      setWebSocketStatus('Reconnecting...');
+      socket.close();
+      return;
+    }
     // Console WS reconnect backfill — pick up events that landed while
     // we were disconnected before the live stream resumes. Only for
     // the currently-active project; other projects refresh next time
@@ -2561,6 +2658,8 @@ function connectWebSocket() {
   };
 
   ws.onmessage = (event) => {
+    if (ws !== socket) return;
+    wsLastFreshAt = Date.now();
     try {
       const msg = JSON.parse(event.data);
       if (msg.type === 'state') {
@@ -2578,6 +2677,8 @@ function connectWebSocket() {
         if (_openDetailIdentifier && msg.identifier === _openDetailIdentifier) {
           refreshOpenDetailPanel();
         }
+      } else if (msg.type === 'pong') {
+        // wsLastFreshAt is updated above for both pong and normal data.
       } else if (msg.type === 'console_event') {
         handleConsoleEvent(msg.project_id, msg.event);
       }
@@ -2585,15 +2686,29 @@ function connectWebSocket() {
   };
 
   ws.onclose = () => {
-    document.getElementById('status-text').textContent = 'Reconnecting...';
+    if (ws !== socket) return;
+    clearWebSocketHeartbeat();
     ws = null;
-    wsReconnectTimer = setTimeout(connectWebSocket, 2000);
+    scheduleWebSocketReconnect();
   };
 
   ws.onerror = () => {
-    if (ws) ws.close();
+    if (ws !== socket) return;
+    setWebSocketStatus('Reconnecting...');
+    socket.close();
   };
 }
+
+// Do not leave a reconnect timer or a live socket behind during navigation.
+window.addEventListener('pagehide', () => closeWebSocket({reconnect: false}));
+// A page restored from the browser back/forward cache has run pagehide but
+// keeps this JavaScript heap.  Re-enable the socket when that page is shown.
+window.addEventListener('pageshow', () => {
+  if (!wsShouldReconnect) {
+    wsShouldReconnect = true;
+    connectWebSocket();
+  }
+});
 
 function selectedProjectFilterValue() {
   const sel = document.getElementById('project-filter');
