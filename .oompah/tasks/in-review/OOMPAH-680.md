@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-680
 type: task
-status: Ready to Integrate
+status: In Review
 priority: 0
 title: Use project forge credentials for all managed Git network operations
 parent: null
@@ -12,7 +12,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-08-01T17:31:44.735248Z'
-updated_at: '2026-08-02T18:51:39.513258Z'
+updated_at: '2026-08-02T18:51:47.263045Z'
 work_branch: OOMPAH-680
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/657
