@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-685
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Forward project forge credentials through integration verification
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T21:46:41.297124Z'
-updated_at: '2026-08-02T04:36:52.877684Z'
+updated_at: '2026-08-02T04:45:48.056528Z'
 work_branch: OOMPAH-685
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/653
@@ -171,6 +171,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/653
 oompah.review_number: '653'
 oompah.work_branch: OOMPAH-685
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-74cf7ac94f7e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-685
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d6b77dae5aeeec2f1d545b8bb96c8ad96cab0f3b438f882f99a62f8178b00cc2
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-02T04:45:42.534667+00:00'
+  - version: 1
+    audit_id: audit-96ff0bc12f92
+    project_id: proj-14849f1b
+    task_id: OOMPAH-685
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d6b77dae5aeeec2f1d545b8bb96c8ad96cab0f3b438f882f99a62f8178b00cc2
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-02T04:45:42.534667+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -541,5 +580,15 @@ author: oompah
 created: 2026-08-02 04:36
 ---
 Branch quality gate passed for `610dd7ccf4518857ca24a586511ca80aa830a57a` using `make test` in 396.7s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-02 04:45
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-02 04:45
+---
+YOLO: merged PR #653.
 ---
 <!-- COMMENTS:END -->
