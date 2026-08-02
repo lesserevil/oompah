@@ -12,7 +12,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-08-02T02:01:46.836436Z'
-updated_at: '2026-08-02T07:30:50.771915Z'
+updated_at: '2026-08-02T07:31:29.050639Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-692
 target_branch: null
 review_url: null
@@ -670,5 +670,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: terminated, Duration: 1m 31s
 - Log: OOMPAH-692__20260802T072929Z.jsonl
+---
+author: oompah
+created: 2026-08-02 07:31
+---
+The parent epic OOMPAH-691 merged from epic-OOMPAH-691, but this task was Needs Human with work branch epic-OOMPAH-691--task-OOMPAH-692. Its work is not proven to be in the merged epic. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
 ---
 <!-- COMMENTS:END -->
