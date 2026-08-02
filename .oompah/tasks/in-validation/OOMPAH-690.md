@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T00:37:18.141681Z'
-updated_at: '2026-08-02T01:07:34.343206Z'
+updated_at: '2026-08-02T01:09:45.250081Z'
 work_branch: OOMPAH-690
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/649
@@ -99,6 +99,31 @@ oompah.work_branch: OOMPAH-690
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-b95554bbaf0a: '2026-08-02T01:09:40.600646+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-690
+    target_state: Done
+    evidence_fingerprint: c9d3b10e69b10f4843eea0560bdad610fe48e89d02695fe47c314c1446d8de65
+    audit_ids:
+    - audit-13ffd4016256
+    kind: result
+    applied: true
+    retired_at: '2026-08-02T01:09:40.600658+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-690
+    audit_id: audit-13ffd4016256
+    attempt_id: attempt-b95554bbaf0a
+    target_state: Done
+    evidence_fingerprint: c9d3b10e69b10f4843eea0560bdad610fe48e89d02695fe47c314c1446d8de65
+    status: In Validation
+    audit_ids:
+    - audit-13ffd4016256
+    applied: true
+    created_at: '2026-08-02T01:09:40.600674+00:00'
+    applied_at: '2026-08-02T01:09:44.240101+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -106,7 +131,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-690
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -115,7 +140,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-b95554bbaf0a
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -125,13 +150,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-02T01:07:29.756958+00:00'
       branch_key: OOMPAH-690
+      verdict: pass
+      completed_at: '2026-08-02T01:09:40.600467+00:00'
+      ended_at: '2026-08-02T01:09:40.600467+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-02T01:07:02.181150+00:00'
-    updated_at: '2026-08-02T01:07:29.756958+00:00'
+    updated_at: '2026-08-02T01:09:40.600467+00:00'
   - version: 1
     audit_id: audit-e6ffcaf668af
     project_id: proj-14849f1b
@@ -298,5 +326,21 @@ author: oompah
 created: 2026-08-02 01:07
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-02 01:09
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- head_commit: cac4b5141dcbe43217f4a3848e6bd7ac226a8f42
+- merge_commit_on_main: 6252b5434f392b74de9703a9fc8dca1951dfeaca
+- pr_number: 649
+- server_change_summary: issues broadcast scheduled before state throttle; explicit ping/pong reply
+- dashboard_change_summary: heartbeat + stale-close + bounded backoff + singleton guards + pagehide/pageshow + refresh backfill + preserved ws/wss and console backfill
+- focused_tests: test_dashboard_websocket_liveness.py 4/4; test_ws_lifecycle.py 44/44; test_websocket_authenticated_bootstrap.py + test_granian_bootstrap.py + test_granian_e2e.py + test_granian_parity.py 83/83; test_dashboard_refresh.py + test_dashboard_board_reconciliation.py + test_console.py 80/80
+- branch_gate: make test passed for cac4b5141 in 395.0s (per tracker record)
 ---
 <!-- COMMENTS:END -->
