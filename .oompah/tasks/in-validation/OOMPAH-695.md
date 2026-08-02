@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:52.297786Z'
-updated_at: '2026-08-02T06:19:19.227549Z'
+updated_at: '2026-08-02T06:19:45.703454Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-695
 target_branch: null
 review_url: null
@@ -222,18 +222,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-695
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: f8f9d51f4f1224eb226b8d5e5deea678a616aae050609634e71a7565f07623fc
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-19e1c36dff9e
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: f8f9d51f4f1224eb226b8d5e5deea678a616aae050609634e71a7565f07623fc
+      created_at: '2026-08-02T06:19:41.436647+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-02T06:19:41.436647+00:00'
+      branch_key: epic-OOMPAH-691--task-OOMPAH-695
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-08-02T06:19:17.215268+00:00'
+    updated_at: '2026-08-02T06:19:41.436647+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-f7901f6eb210
@@ -247,6 +261,19 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: opus
     started_at: '2026-08-02T05:26:57.235549+00:00'
+    branch_key: epic-OOMPAH-691--task-OOMPAH-695
+  - version: 1
+    attempt_id: attempt-19e1c36dff9e
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f8f9d51f4f1224eb226b8d5e5deea678a616aae050609634e71a7565f07623fc
+    created_at: '2026-08-02T06:19:41.436647+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-02T06:19:41.436647+00:00'
     branch_key: epic-OOMPAH-691--task-OOMPAH-695
 ---
 ## Summary
@@ -693,5 +720,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 8m 59s
 - Log: OOMPAH-695__20260802T060359Z.jsonl
+---
+author: oompah
+created: 2026-08-02 06:19
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-02 06:19
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
