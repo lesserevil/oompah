@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-682
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Make duplicate-preflight recovery authoritative and self-sufficient
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T18:07:47.349822Z'
-updated_at: '2026-08-02T18:21:48.393932Z'
+updated_at: '2026-08-02T18:44:31.375859Z'
 work_branch: OOMPAH-682
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/645
@@ -544,5 +544,10 @@ author: oompah
 created: 2026-08-02 18:21
 ---
 Owner recovered stale historical-review metadata; requeueing current exact head for automated gate and review.
+---
+author: oompah
+created: 2026-08-02 18:44
+---
+Owner recovery verification: exact remote head 71f87859fe5fcab892dccb14c1f01546583f3a26 passed the complete project gate: 14,864 passed, 7 skipped, 1 xfailed in 379.65s. Opening a fresh review because PR #645 covered only the older branch generation; OOMPAH-698 tracks the automated recovery bug.
 ---
 <!-- COMMENTS:END -->
