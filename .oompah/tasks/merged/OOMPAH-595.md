@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-595
 type: feature
-status: Done
+status: Merged
 priority: 1
 title: Expose separate operator and worker task-auth health signals
 parent: OOMPAH-586
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:56.897824Z'
-updated_at: '2026-07-31T01:10:05.672327Z'
+updated_at: '2026-08-02T18:25:18.215341Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-595
 target_branch: null
 review_url: null
@@ -149,6 +149,25 @@ oompah.terminal_audit:
     attempt-05f1dc64fc23: '2026-07-31T00:44:24.685225+00:00'
     attempt-744e4c989d95: '2026-07-31T00:50:15.225713+00:00'
     attempt-1cc40a1916d3: '2026-07-31T01:09:41.702411+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-8d7405b54f1a
+    project_id: proj-14849f1b
+    task_id: OOMPAH-595
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b79f9f90892f170eccc0e50932b396ffe934f9fd573cfe56488e6e8e7ba93606
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reconciliation: parent OOMPAH-586 is Merged and its accepted rollup
+      contains this previously audited Done child; durable integration-queue/rollup
+      evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.'
+    created_at: '2026-08-02T18:25:14.283736+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -792,5 +811,12 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 6m 13s
 - Log: OOMPAH-595__20260731T010358Z.jsonl
+---
+author: oompah
+created: 2026-08-02 18:25
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner reconciliation: parent OOMPAH-586 is Merged and its accepted rollup contains this previously audited Done child; durable integration-queue/rollup evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.
 ---
 <!-- COMMENTS:END -->
