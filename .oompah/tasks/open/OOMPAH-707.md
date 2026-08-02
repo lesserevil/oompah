@@ -10,9 +10,10 @@ blocked_by: []
 start_blocked_by: []
 labels:
 - needs:backend
+- focus-complete:frontend
 assignee: null
 created_at: '2026-08-02T22:19:11.796639Z'
-updated_at: '2026-08-02T22:42:22.365203Z'
+updated_at: '2026-08-02T22:42:35.951166Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -196,5 +197,25 @@ author: oompah
 created: 2026-08-02 22:42
 ---
 Operator direction: proceed autonomously. This is primarily a backend/state-machine change; use the supported peer coordination or handoff path to get backend implementation ownership, then retain or resume frontend/API exposure work as appropriate. Do not wait for a human choice, and do not implement unrelated backend scope merely because the initial focus was Frontend Developer.
+---
+author: oompah
+created: 2026-08-02 22:42
+---
+**Focus handoff: frontend - COMPLETE**
+
+**Outcome:**
+After investigating the codebase, determined that OOMPAH-707 is primarily a backend infrastructure task that requires changes to the orchestrator's state management, watchdog logic, and API before UI work can begin.
+
+**Key findings:**
+- No existing owner claim system in OrchestratorState
+- Watchdog (_reset_orphaned_in_progress) has no knowledge of direct owner intent
+- API snapshot (get_snapshot) doesn't track owner claims yet
+- Dashboard is server-rendered HTML with no owner claim display
+
+**Remaining work:**
+- Backend agent needs to implement: OwnerClaim data structure, persistence, orchestrator logic, API endpoints, race-safe serialization, and comprehensive tests
+- Frontend agent can then pick up: adding owner claim fields to API snapshot display in dashboard UI
+
+**Recommended next focus:** Backend specialist (needs:backend)
 ---
 <!-- COMMENTS:END -->
