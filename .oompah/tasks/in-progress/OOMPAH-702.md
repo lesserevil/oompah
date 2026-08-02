@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T20:34:49.621752Z'
-updated_at: '2026-08-02T23:21:42.037179Z'
+updated_at: '2026-08-02T23:24:43.987670Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -316,5 +316,10 @@ author: oompah
 created: 2026-08-02 23:21
 ---
 Operator scope: the branch-gate failure in TestTickDelegation::test_tick_handler_order is a cross-branch scheduler-test race also reproduced by OOMPAH-707; OOMPAH-709 owns that root fix. Do not rewrite the OOMPAH-702 webhook implementation or absorb unrelated tick-delegation production/test changes into this branch. Reproduce the exact failure, verify it passes in isolation/retry, and resubmit the unchanged feature head if clean; coordinate evidence with OOMPAH-709.
+---
+author: oompah
+created: 2026-08-02 23:24
+---
+The live retry worktree currently differs from pushed head only by 37 added uv.lock lines caused during test setup. This is not part of OOMPAH-702. Restore uv.lock to the pushed branch version before resubmitting; do not commit environment-lock noise or any OOMPAH-709 scheduler-test repair here.
 ---
 <!-- COMMENTS:END -->
