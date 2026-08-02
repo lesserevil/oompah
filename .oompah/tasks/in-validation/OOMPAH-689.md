@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T00:13:22.222984Z'
-updated_at: '2026-08-02T00:57:29.354973Z'
+updated_at: '2026-08-02T00:57:43.089561Z'
 work_branch: OOMPAH-689
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/648
@@ -54,13 +54,17 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: 4175bc24-7883-4cc9-ae35-68cb69c32439
 oompah.task_costs:
-  total_input_tokens: 18049056
-  total_output_tokens: 40431
+  total_input_tokens: 18049089
+  total_output_tokens: 46948
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 18049056
       output_tokens: 40431
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 33
+      output_tokens: 6517
       cost_usd: 0.0
   runs:
   - profile: default
@@ -75,6 +79,12 @@ oompah.task_costs:
     output_tokens: 35998
     cost_usd: 0.0
     recorded_at: '2026-08-02T00:31:34.385291+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 33
+    output_tokens: 6517
+    cost_usd: 0.0
+    recorded_at: '2026-08-02T00:57:40.731608+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-689__20260802T001348Z
@@ -344,5 +354,15 @@ Safe evidence:
 - [REDACTED-credential-key]: test_wrong_token_targeting_assigned_task_remains_auth_failure asserts scope alert + actionable failure
 - cross_project_denial_preserved: test_wrong_project_token_returns_403 asserts scope alert + actionable failure
 - commit_trailer: canonical oompah trailer, no model attribution
+---
+author: oompah
+created: 2026-08-02 00:57
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 35, Tool calls: 27
+- Tokens: 33 in / 6.5K out [6.5K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 5m 49s
+- Log: OOMPAH-689__20260802T005155Z.jsonl
 ---
 <!-- COMMENTS:END -->
