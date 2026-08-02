@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-445
 type: task
-status: Merged
+status: In Validation
 priority: null
 title: Keep shared-epic prompt branch aligned with allocated workspace
 parent: null
@@ -10,12 +10,34 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-25T20:24:30.180505Z'
-updated_at: '2026-07-26T00:29:25.635731Z'
+updated_at: '2026-08-02T01:14:20.971545Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-32c1cbfc0fe8
+    project_id: proj-14849f1b
+    task_id: OOMPAH-445
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c375243984516dfccbd6efde7567266647de54288455eec2b34234f7e096704d
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-02T01:14:17.349708+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -48,5 +70,10 @@ author: oompah
 created: 2026-07-26 00:29
 ---
 Verified delivered on origin/main in 7a7da7704 and reconciled stale Done state.
+---
+author: oompah
+created: 2026-08-02 01:14
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
