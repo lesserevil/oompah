@@ -12,7 +12,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-08-02T22:19:11.796639Z'
-updated_at: '2026-08-02T22:43:22.802017Z'
+updated_at: '2026-08-02T22:45:43.329373Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -278,5 +278,39 @@ My role is to document the owner-claim mechanism. However, the backend implement
 3. If it doesn't exist, document the design for the backend agent to implement, then hand off
 
 Starting codebase exploration now.
+---
+author: oompah
+created: 2026-08-02 22:45
+---
+**Discovery** (Technical Writer focus)
+
+Examined the relevant code. No owner-claim implementation exists yet on this branch — it is at the same commit as main. Summary of findings for documentation:
+
+**Current orphan-watchdog behavior:**
+- `_reset_orphaned_in_progress()` in `oompah/orchestrator.py` (~line 15228) resets any In Progress issue where `issue.id` is absent from `state.running`, `state.retry_attempts`, and `state.claimed`
+- `state.claimed` holds issue IDs that the scheduler has issued dispatch claims for (pre-RunningEntry window only)
+- There is no mechanism for a human operator/owner to register a direct-work claim
+- A human setting a task to In Progress directly has no representation in `OrchestratorState`, so the watchdog treats it as an orphan
+
+**Key data structures:**
+- `OrchestratorState` (models.py ~1460): holds `running`, `claimed`, `retry_attempts`, `completed`
+- `RunningEntry` (models.py ~1378): scheduler-owned agent dispatch record
+- `_save_state()` / `_load_state()` persist to `.oompah/service_state.json` atomically with `_state_io_lock`
+- Per-project write locks from `project_store.project_write_lock()` already serialize tracker writes in orphan reset path
+
+**Relevant existing guards:**
+- `human-only` label prevents dispatch (line 14654) but does NOT protect from orphan reset
+- `status_actor_login` identifies the project owner for label auth but is not used in orphan reset
+- `_watchdog_orphan_loops()` alerts on repeated resets (≥3 times) but still resets
+
+**What the documentation should design:**
+- `OwnerClaim` dataclass: `(claim_id, owner_login, claimed_at, expires_at, issue_id, project_id, renewable)`
+- Addition to `OrchestratorState.owner_claims: dict[str, OwnerClaim]` (keyed by issue_id)
+- Guard in `_reset_orphaned_in_progress()`: skip reset if live (non-expired) owner claim exists
+- API endpoints for create/get/release claim
+- Persistence via `_save_state(owner_claims=...)`
+- Race serialization: claim set/release acquires same per-project write lock as orphan reset
+
+Writing design plan now.
 ---
 <!-- COMMENTS:END -->
