@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-449
 type: task
-status: Merged
+status: In Validation
 priority: null
 title: Do not merge a newly updated PR before its CI checks register
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-26T04:35:24.362802Z'
-updated_at: '2026-07-26T18:59:09.039633Z'
+updated_at: '2026-08-02T19:02:06.459069Z'
 work_branch: OOMPAH-449
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/556
@@ -50,6 +50,28 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/556
 oompah.review_number: '556'
 oompah.work_branch: OOMPAH-449
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-8a7dec0e5ce2
+    project_id: proj-14849f1b
+    task_id: OOMPAH-449
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 17a8ed19deb9912281a00176d74ac84d87cd856be7d71e046276b63b76202405
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-02T19:02:02.396173+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -366,5 +388,10 @@ author: oompah
 created: 2026-07-26 18:59
 ---
 YOLO: merged PR #556.
+---
+author: oompah
+created: 2026-08-02 19:02
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
