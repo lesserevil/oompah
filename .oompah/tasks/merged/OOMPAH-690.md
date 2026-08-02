@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-690
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Restore reliable automatic dashboard updates
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T00:37:18.141681Z'
-updated_at: '2026-08-02T01:11:15.305420Z'
+updated_at: '2026-08-02T01:15:27.188890Z'
 work_branch: OOMPAH-690
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/649
@@ -111,6 +111,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-b95554bbaf0a: '2026-08-02T01:09:40.600646+00:00'
+    attempt-c3b4f540268e: '2026-08-02T01:15:24.144337+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-690
@@ -121,6 +122,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-02T01:09:40.600658+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-690
+    target_state: Merged
+    evidence_fingerprint: c9d3b10e69b10f4843eea0560bdad610fe48e89d02695fe47c314c1446d8de65
+    audit_ids:
+    - audit-e6ffcaf668af
+    kind: result
+    applied: true
+    retired_at: '2026-08-02T01:15:24.144349+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-690
@@ -134,6 +144,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-02T01:09:40.600674+00:00'
     applied_at: '2026-08-02T01:09:44.240101+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-690
+    audit_id: audit-e6ffcaf668af
+    attempt_id: attempt-c3b4f540268e
+    target_state: Merged
+    evidence_fingerprint: c9d3b10e69b10f4843eea0560bdad610fe48e89d02695fe47c314c1446d8de65
+    status: Merged
+    audit_ids:
+    - audit-e6ffcaf668af
+    applied: false
+    created_at: '2026-08-02T01:15:24.144362+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -175,7 +196,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-690
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -184,7 +205,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-c3b4f540268e
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -194,13 +215,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-02T01:11:10.609256+00:00'
       branch_key: OOMPAH-690
+      verdict: pass
+      completed_at: '2026-08-02T01:15:24.144198+00:00'
+      ended_at: '2026-08-02T01:15:24.144198+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-02T01:07:02.181150+00:00'
-    updated_at: '2026-08-02T01:11:10.609256+00:00'
+    updated_at: '2026-08-02T01:15:24.144198+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-b95554bbaf0a
@@ -399,5 +423,24 @@ author: oompah
 created: 2026-08-02 01:11
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-02 01:15
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- head_commit: cac4b5141dcbe43217f4a3848e6bd7ac226a8f42
+- merge_commit_on_main: 6252b5434f392b74de9703a9fc8dca1951dfeaca
+- pr_number: 649
+- merge_commit_parents: 431d472825a0dc7eeb75a9489ef4f91e9599db15 cac4b5141dcbe43217f4a3848e6bd7ac226a8f42
+- server_change: oompah/server.py: _throttled_broadcast_issues scheduled before state-throttle return; explicit ping->pong reply added to websocket_endpoint
+- dashboard_change: oompah/templates/dashboard.html: heartbeat + stale-close + bounded backoff + singleton guards + pagehide/pageshow + on-open refresh backfill; ws/wss URL + console backfill preserved
+- changed_files_stat: oompah/server.py 10; oompah/templates/dashboard.html 127; tests/test_dashboard_websocket_liveness.py 68 (new); tests/test_ws_lifecycle.py 108
+- test_coverage: test_dashboard_websocket_liveness.py: 4 source-contract tests; test_ws_lifecycle.py includes test_issue_refresh_is_not_suppressed_by_state_throttle, test_rapid_issue_changes_arm_one_deferred_refresh, test_application_ping_receives_pong, TestWebSocketRefreshAction
+- branch_containment: cac4b5141 is on branches OOMPAH-690 and main
+- branch_gate: make test passed for cac4b5141 in 395.0s per prior tracker record
 ---
 <!-- COMMENTS:END -->
