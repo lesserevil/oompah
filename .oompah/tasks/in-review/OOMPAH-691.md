@@ -2,7 +2,7 @@
 id: OOMPAH-691
 type: epic
 status: In Review
-priority: 1
+priority: 0
 title: Make dashboard WebSocket state provably convergent
 parent: null
 children:
@@ -12,10 +12,11 @@ children:
 - OOMPAH-695
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- ci-fix
 assignee: null
 created_at: '2026-08-02T02:00:17.265294Z'
-updated_at: '2026-08-02T07:01:32.172415Z'
+updated_at: '2026-08-02T07:09:30.920550Z'
 work_branch: epic-OOMPAH-691
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/654
@@ -61,5 +62,10 @@ author: oompah
 created: 2026-08-02 07:01
 ---
 Branch quality gate passed for `1edd55f7c62f43448dd1d485e069cf3b61efd25b` using `make test` in 390.3s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-02 07:09
+---
+YOLO: CI tests failed on MR #654. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
 ---
 <!-- COMMENTS:END -->
