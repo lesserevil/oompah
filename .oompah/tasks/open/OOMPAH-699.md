@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T18:20:28.879414Z'
-updated_at: '2026-08-02T18:43:01.067994Z'
+updated_at: '2026-08-02T19:06:05.581834Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,5 +38,10 @@ author: oompah
 created: 2026-08-02 18:43
 ---
 Promoted by the project owner: the bug report is actionable and ready for implementation.
+---
+author: oompah
+created: 2026-08-02 19:06
+---
+Production mitigation completed on 2026-08-02: all 69 historical Done records were reconciled through canonical owner-audit transitions using parent terminal state, retained integration/recovery evidence, and explicit archival evidence for obsolete helpers. The current Done backlog is empty. This task remains Open for the idempotent maintenance/backfill implementation so the backlog cannot recur.
 ---
 <!-- COMMENTS:END -->
