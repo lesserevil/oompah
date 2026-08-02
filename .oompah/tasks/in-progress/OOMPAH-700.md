@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T19:52:39.323644Z'
-updated_at: '2026-08-02T19:57:20.082784Z'
+updated_at: '2026-08-02T19:57:38.295473Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -127,5 +127,10 @@ author: oompah
 created: 2026-08-02 19:57
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-08-02 19:57
+---
+Understanding: OOMPAH-700 must decouple exact-head review gating from discovery of a surviving canonical checkout. I will inspect the existing OOMPAH-700 branch and CI logs, reproduce the failure, then minimally materialize trusted submitted evidence from the managed repository while preserving stale-head checks, sandbox cleanliness, cancellation/cache idempotency, and infrastructure-vs-CI classification. Regression tests will cover non-canonical submission, unavailable evidence, stale branch movement, and repeated recovery.
 ---
 <!-- COMMENTS:END -->
