@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-694
 type: feature
-status: Ready to Integrate
+status: In Progress
 priority: 1
 title: Detect WebSocket gaps and self-heal the dashboard state
 parent: OOMPAH-691
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:50.443759Z'
-updated_at: '2026-08-02T04:17:27.704591Z'
+updated_at: '2026-08-02T04:24:40.292865Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-694
 target_branch: null
 review_url: null
@@ -43,16 +43,16 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: null
+oompah.agent_run_id: 718fb403-8fd9-425c-9e44-79bf734d00e3
 oompah.work_branch: epic-OOMPAH-691--task-OOMPAH-694
 oompah.integration:
   version: 2
-  state: ready
+  state: working
   attempts: 0
   task_branch: epic-OOMPAH-691--task-OOMPAH-694
-  head_sha: e84581658277e203a81532ff0d3db729eda59296
-  submitted_at: '2026-08-02T04:17:16.583960+00:00'
-  updated_at: '2026-08-02T04:17:16.583960+00:00'
+  base_branch: epic-OOMPAH-691
+  base_sha: cf5f3cecede5a3344922345e2fcbc3f042c982c9
+  updated_at: '2026-08-02T04:24:39.370962+00:00'
 oompah.task_costs:
   total_input_tokens: 415198
   total_output_tokens: 2198
@@ -184,5 +184,70 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 11m 1s
 - Log: OOMPAH-694__20260802T040633Z.jsonl
+---
+author: oompah
+created: 2026-08-02 04:24
+---
+The combined-tree quality gate failed on `epic-OOMPAH-691--task-OOMPAH-694`. Fix the failure on that private branch, run the full configured quality gate, push, and `oompah task submit` it again.
+
+Gate output:
+```
+py::TestVerifyPassword::test_wrong_apr1_password
+tests/test_http_auth.py::TestLoadHtpasswdFile::test_valid_multiple_entries
+tests/test_http_auth.py::TestVerifierCallable::test_multiple_users
+  /home/shedwards/.oompah/tmp/oompah-quality-gate-ngfrotqa/workspace/tests/test_http_auth.py:49: DeprecationWarning: the method passlib.context.CryptContext.encrypt() is deprecated as of Passlib 1.7, and will be removed in Passlib 2.0, use CryptContext.hash() instead.
+    return ctx.encrypt("password")
+
+tests/test_mcp_gateway.py::test_authenticated_mcp_client_can_initialize_list_and_call_protected_api
+tests/test_mcp_gateway.py::test_mcp_client_can_initialize_list_allowed_tools_and_call_state
+  /home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/contextlib.py:105: DeprecationWarning: Use `streamable_http_client` instead.
+    self.gen = func(*args, **kwds)
+
+tests/test_sdk_install_guards.py::TestClaudeSessionMcpServerGuard::test_no_tool_catalog_skips_mcp_server_path
+  /home/shedwards/.oompah/tmp/oompah-quality-gate-ngfrotqa/workspace/oompah/acp_backends/claude.py:501: RuntimeWarning: coroutine 'AsyncMockMixin._execute_mock_call' was never awaited
+    async for msg in client.receive_response():
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_server_release_picks.py::TestPatchReleasePicksEndpoint::test_returns_400_on_invalid_json
+tests/test_server_release_picks.py::TestPostApplyReleasePicksToAllChildren::test_returns_400_on_invalid_json
+  /home/shedwards/.oompah/tmp/oompah-quality-gate-ngfrotqa/workspace/.venv/lib/python3.12/site-packages/httpx/_models.py:408: DeprecationWarning: Use 'content=<...>' to upload raw bytes/text content.
+    headers, stream = encode_request(
+
+tests/test_work_contributors.py::TestBuildWorkContributorRecord::test_unknown_model_names_all_yield_none_model_id
+  /home/shedwards/.oompah/tmp/oompah-quality-gate-ngfrotqa/workspace/.venv/lib/python3.12/site-packages/_pytest/unraisableexception.py:67: PytestUnraisableExceptionWarning: Exception ignored in: <function BaseSubprocessTransport.__del__ at 0x7f54eb0af9c0>
+  
+  Traceback (most recent call last):
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 126, in __del__
+      self.close()
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 104, in close
+      proto.pipe.close()
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 568, in close
+      self._close(None)
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 592, in _close
+      self._loop.call_soon(self._call_connection_lost, exc)
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 799, in call_soon
+      self._check_closed()
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 545, in _check_closed
+      raise RuntimeError('Event loop is closed')
+  RuntimeError: Event loop is closed
+  
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_dashboard_tracker_state_reconciliation.py::TestDashboardStaleBannerUI::test_ws_issues_handler_clears_stale_banner
+= 1 failed, 14907 passed, 8 skipped, 1 xfailed, 43 warnings in 381.47s (0:06:21) =
+
+make: *** [Makefile:388: test] Error 1
+
+```
+---
+author: oompah
+created: 2026-08-02 04:24
+---
+Agent dispatched (profile: standard)
 ---
 <!-- COMMENTS:END -->
