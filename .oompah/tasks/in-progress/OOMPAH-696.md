@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T16:18:38.337420Z'
-updated_at: '2026-08-02T16:52:12.172706Z'
+updated_at: '2026-08-02T16:52:29.327395Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -297,5 +297,10 @@ author: oompah
 created: 2026-08-02 16:52
 ---
 Discovery: The complete gate's full cached output in .oompah/quality_gates.json shows the exact failure: this unit test invoked real _validate_trusted_runtime_source(), whose gate runtime reported sys.prefix under the immutable gate snapshot but editable metadata still named /home/shedwards/src/oompah, so it raised _TrustedRuntimeCorruption before the bind assertion. The test passes locally because that metadata path is trusted there. Neighboring _sandbox_command unit tests already mock this environment-validation boundary (OOMPAH-687); the new test added later omitted the mock. This is a test-isolation defect, not a production failure.
+---
+author: oompah
+created: 2026-08-02 16:52
+---
+Implementation: Updated only tests/test_quality_gate.py. The failing sandbox-command test now stubs _validate_trusted_runtime_source() to return the same synthetic prior worktree used by its editable-source stub. This makes the fixture internally consistent and keeps the unit test focused on bind construction without weakening production runtime validation.
 ---
 <!-- COMMENTS:END -->
