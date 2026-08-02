@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-482
 type: feature
-status: Done
+status: Merged
 priority: 1
 title: Dispatch one repair-planner run for an epic that fails audit
 parent: OOMPAH-459
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:30.191340Z'
-updated_at: '2026-07-30T00:55:25.727610Z'
+updated_at: '2026-08-02T18:23:41.114945Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-482
 target_branch: null
 review_url: null
@@ -116,6 +116,25 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-9cc927e41823: '2026-07-30T00:50:01.588007+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-c96b790fea10
+    project_id: proj-14849f1b
+    task_id: OOMPAH-482
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 3b86846c7f817cd5129a802b3aeb84f2c340c576505a0317ae27e7cc79f4ad8c
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reconciliation: parent OOMPAH-459 is Merged and its accepted rollup
+      contains this previously audited Done child; durable integration-queue/rollup
+      evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.'
+    created_at: '2026-08-02T18:23:37.188633+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -560,5 +579,12 @@ Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 40m 27s
 - Log: OOMPAH-482__20260730T001504Z.jsonl
+---
+author: oompah
+created: 2026-08-02 18:23
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner reconciliation: parent OOMPAH-459 is Merged and its accepted rollup contains this previously audited Done child; durable integration-queue/rollup evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.
 ---
 <!-- COMMENTS:END -->
