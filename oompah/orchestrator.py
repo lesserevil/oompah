@@ -27,6 +27,7 @@ from oompah.agent import (
     AgentError,
     AgentEvent,
     AgentSession,
+    ProcessIdentity,
     capture_workspace_processes,
     terminate_captured_processes,
 )
@@ -1539,6 +1540,7 @@ class Orchestrator:
         # Prevent a cancelled worker's finally block from racing the forced
         # termination path and reporting a normal exit before shutdown finishes.
         self._terminating_worker_ids: set[str] = set()
+        self._scheduled_termination_ids: set[str] = set()
 
     # --- Bounded per-project refresh helpers (TASK-467.2) ---
 
@@ -2835,6 +2837,184 @@ class Orchestrator:
             or getattr(self, "_quiesced", False)
         )
 
+    def _persist_restart_issue(self, issue: Issue) -> None:
+        """Durably remember work fenced immediately before provider launch."""
+
+        restart_entry = {
+            "issue_id": issue.id,
+            "identifier": issue.identifier,
+            "project_id": issue.project_id,
+        }
+        with self._state_io_lock:
+            existing = self._load_state().get("restart_issues", [])
+            existing = list(existing) if isinstance(existing, list) else []
+            if not any(item.get("issue_id") == issue.id for item in existing):
+                existing.append(restart_entry)
+                self._save_state(restart_issues=existing)
+
+    def _provider_launch_blocked(self, issue: Issue, run_id: str | None) -> bool:
+        """Fence the last launch boundary once lifecycle drain has begun.
+
+        Dispatch setup performs blocking tracker and worktree work.  A restart
+        can quiesce the service while that work is in flight, after the lane's
+        initial gate but before the provider is created.  Persisting the task
+        here makes the interrupted dispatch recover exactly once on the next
+        boot without allowing a new child transport in the old process.
+        """
+
+        if not (getattr(self, "_quiesced", False) or self._stopping):
+            return False
+        entry = self.state.running.get(issue.id)
+        current_run = entry is not None and self._is_current_run(issue.id, run_id)
+        if current_run:
+            entry.retirement_pending = True
+            if entry.is_auditor:
+                entry.forced_exit_reason = "lifecycle_drain_before_launch"
+                entry.forced_exit_error = (
+                    "lifecycle drain began before auditor provider launch"
+                )
+            else:
+                entry.authority_revoked = True
+                entry.authority_revocation_reason = (
+                    "lifecycle drain began before provider launch"
+                )
+        if current_run and not entry.is_auditor:
+            if not getattr(entry, "duplicate_preflight", False):
+                self._persist_restart_issue(issue)
+        logger.info(
+            "Provider launch fenced by lifecycle drain issue_id=%s "
+            "identifier=%s run_id=%s",
+            issue.id,
+            issue.identifier,
+            run_id,
+        )
+        return True
+
+    @staticmethod
+    def _managed_processes(entry: RunningEntry) -> dict[int, ProcessIdentity]:
+        """Merge fresh workspace descendants into a run's durable evidence."""
+
+        captured = dict(getattr(entry, "managed_processes", {}) or {})
+        workspace_path = getattr(entry, "workspace_path", None)
+        if isinstance(workspace_path, str) and workspace_path:
+            try:
+                observed = capture_workspace_processes(workspace_path)
+                if captured:
+                    captured.update(observed)
+                else:
+                    captured = observed
+            except Exception as exc:  # noqa: BLE001 - observation is best effort
+                logger.warning(
+                    "Managed process capture failed issue_identifier=%s "
+                    "workspace=%s error=%s",
+                    entry.identifier,
+                    workspace_path,
+                    exc,
+                )
+        entry.managed_processes = captured
+        return captured
+
+    def _schedule_running_termination(
+        self,
+        issue_id: str,
+        *,
+        cleanup_workspace: bool = False,
+        task_name_prefix: str = "terminate-worker",
+    ) -> None:
+        """Schedule worker retirement on the loop that owns provider sessions."""
+
+        dispatch_loop = self._dispatch_loop
+
+        def _schedule() -> None:
+            if (
+                issue_id not in self.state.running
+                or issue_id in self._scheduled_termination_ids
+                or issue_id in self._terminating_worker_ids
+            ):
+                return
+            self._scheduled_termination_ids.add(issue_id)
+            task = asyncio.create_task(
+                self._terminate_running(issue_id, cleanup_workspace),
+                name=f"{task_name_prefix}-{issue_id}",
+            )
+
+            def _finished(completed: asyncio.Task) -> None:
+                self._scheduled_termination_ids.discard(issue_id)
+                try:
+                    completed.result()
+                except asyncio.CancelledError:
+                    pass
+                except Exception:
+                    logger.exception(
+                        "Scheduled worker termination failed issue_id=%s",
+                        issue_id,
+                    )
+
+            task.add_done_callback(_finished)
+
+        if dispatch_loop is not None and dispatch_loop.is_running():
+            if self._running_loop() is dispatch_loop:
+                _schedule()
+            else:
+                dispatch_loop.call_soon_threadsafe(_schedule)
+            return
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            logger.warning(
+                "Worker termination requested without an available event loop "
+                "issue_id=%s",
+                issue_id,
+            )
+            return
+        _schedule()
+
+    def _record_auditor_policy_denial(
+        self,
+        issue_id: str,
+        run_id: str | None,
+        denial: str,
+    ) -> None:
+        """Bound a model loop that repeatedly requests forbidden mutations."""
+
+        def _record() -> None:
+            entry = self.state.running.get(issue_id)
+            if (
+                entry is None
+                or not entry.is_auditor
+                or not self._is_current_run(issue_id, run_id)
+            ):
+                return
+            entry.policy_denial_count += 1
+            if entry.policy_denial_count < 3:
+                self._notify_state_only()
+                return
+            entry.retirement_pending = True
+            entry.forced_exit_reason = "auditor_policy_denial_exhausted"
+            entry.forced_exit_error = (
+                "read-only auditor exceeded the policy-denial limit (3): "
+                f"{str(denial)[:300]}"
+            )
+            logger.warning(
+                "Auditor policy-denial limit reached issue_id=%s "
+                "identifier=%s run_id=%s",
+                issue_id,
+                entry.identifier,
+                run_id,
+            )
+            self._notify_observers()
+            self._schedule_running_termination(
+                issue_id,
+                cleanup_workspace=False,
+                task_name_prefix="retire-policy-loop",
+            )
+
+        loop = self._dispatch_loop
+        if loop is not None and loop.is_running() and self._running_loop() is not loop:
+            loop.call_soon_threadsafe(_record)
+        else:
+            _record()
+
     async def _terminate_all_running(self) -> None:
         """Terminate all running agents without cleaning workspaces."""
         for issue_id in list(self.state.running.keys()):
@@ -3898,7 +4078,40 @@ class Orchestrator:
         return cleaned
 
     async def startup_cleanup(self) -> None:
-        """Remove workspaces/worktrees for issues in terminal states."""
+        """Recover leases and reap provider children inherited across exec."""
+        # A graceful-restart exec keeps the service PID.  Any SDK provider
+        # child that escaped the old instance therefore remains a descendant of
+        # the new process, but has no in-memory RunningEntry.  Before recovery
+        # can dispatch replacement generations, kill only descendants whose cwd
+        # or argv is rooted in Oompah's managed workspace tree.  Persist the
+        # result so an operator can distinguish successful orphan recovery from
+        # an unexplained disappearance.
+        inherited = capture_workspace_processes(self.config.workspace_root)
+        inherited_survivors: set[int] = set()
+        if inherited:
+            timeout_s = max(self.config.worker_termination_timeout_ms, 0) / 1000
+            inherited_survivors = await asyncio.get_running_loop().run_in_executor(
+                self._tick_pool,
+                lambda: terminate_captured_processes(
+                    inherited,
+                    timeout_s=timeout_s if timeout_s > 0 else 1.0,
+                ),
+            )
+            log = logger.error if inherited_survivors else logger.warning
+            log(
+                "Startup inherited-provider cleanup captured=%d survivors=%s "
+                "workspace_root=%s",
+                len(inherited),
+                sorted(inherited_survivors),
+                self.config.workspace_root,
+            )
+        orphan_recovery = {
+            "checked_at": datetime.now(timezone.utc).isoformat(),
+            "captured_count": len(inherited),
+            "survivor_pids": sorted(inherited_survivors),
+        }
+        self._save_state(orphan_process_recovery=orphan_recovery)
+
         # Recover abandoned integrating leases from the previous service instance.
         # This ensures an operator never waits for the hour-long lease after restart.
         abandoned = self.integration_queue.recover_abandoned()
@@ -3907,12 +4120,12 @@ class Orchestrator:
                 "Recovered %d abandoned integration lease(s) at startup", abandoned
             )
         
-        projects = self.project_store.list_all()
         self._maintenance_status["startup_cleanup"] = {
             "last_run_at": datetime.now(timezone.utc).isoformat(),
             "worktree_cleanup_deferred": True,
             "delay_seconds": self.config.maintenance_startup_delay_seconds,
             "abandoned_leases_recovered": abandoned,
+            "orphan_process_recovery": orphan_recovery,
         }
 
     async def _recover_restart_issues(self) -> None:
@@ -26537,6 +26750,15 @@ class Orchestrator:
                     }
 
             api_tool_liveness = ToolLivenessMonitor()
+            api_policy_denial_handler = None
+            if focus.name.lower() == AUDITOR_FOCUS_NAME:
+
+                def api_policy_denial_handler(denial: str) -> None:
+                    self._record_auditor_policy_denial(
+                        issue.id,
+                        run_id,
+                        denial,
+                    )
             session = ApiAgentSession(
                 base_url=provider.base_url,
                 api_key=provider.api_key,
@@ -26584,6 +26806,7 @@ class Orchestrator:
                 task_identifier=issue.identifier,
                 action_policy=action_policy,
                 tool_liveness=api_tool_liveness,
+                policy_denial_handler=api_policy_denial_handler,
             )
             logger.info(
                 "Agent log for %s -> %s",
@@ -26659,6 +26882,13 @@ class Orchestrator:
                     pass
                 return False
 
+            if self._provider_launch_blocked(issue, run_id):
+                exit_reason = "interrupted"
+                error_msg = "lifecycle drain began before API provider launch"
+                return
+            provider_entry = self.state.running.get(issue.id)
+            if provider_entry is not None and self._is_current_run(issue.id, run_id):
+                provider_entry.provider_started = True
             result = await session.run_task(
                 prompt, on_activity=_on_activity, is_cancelled=_is_cancelled
             )
@@ -27100,6 +27330,15 @@ class Orchestrator:
                         "reason": outcome.reason,
                     }
 
+            policy_denial_handler = None
+            if focus.name.lower() == AUDITOR_FOCUS_NAME:
+
+                def policy_denial_handler(denial: str) -> None:
+                    self._record_auditor_policy_denial(
+                        issue.id,
+                        run_id,
+                        denial,
+                    )
             tool_catalog = build_tool_catalog(
                 workspace_path,
                 tool_liveness=(
@@ -27119,6 +27358,7 @@ class Orchestrator:
                 auditor=focus.name.lower() == AUDITOR_FOCUS_NAME,
                 audit_target=audit_target,
                 audit_result_handler=_acp_audit_handler,
+                policy_denial_handler=policy_denial_handler,
                 action_policy=(
                     auditor_policy(
                         task_identifier=issue.identifier,
@@ -27147,6 +27387,18 @@ class Orchestrator:
                     # The SDK may deliver a queued event after the worker was
                     # replaced. Do not persist, append, or broadcast it.
                     return
+
+                # Capture the provider transport while its ancestry is still
+                # intact.  The SDK can report completion before tool children
+                # exit; retaining these exact PID/start-time identities lets
+                # worker retirement reap them after the parent disappears.
+                if ev.event in {
+                    "acp_session_start",
+                    "acp_tool_use",
+                    "acp_tool_result",
+                    "acp_result",
+                }:
+                    self._managed_processes(current_entry)
 
                 # SECURITY: Redact all payloads before JSONL/state use.
                 # This is the central fan-out boundary for ACP events.
@@ -27372,6 +27624,7 @@ class Orchestrator:
                     if focus.name.lower() == AUDITOR_FOCUS_NAME
                     else action_policy
                 ),
+                policy_denial_handler=policy_denial_handler,
                 task_handoff_token=handoff_token,
                 comment_queue=_comment_queue,
                 tool_liveness=(
@@ -27389,6 +27642,13 @@ class Orchestrator:
             self._acp_agent_sessions[issue.id] = session
 
             try:
+                if self._provider_launch_blocked(issue, run_id):
+                    exit_reason = "interrupted"
+                    error_msg = "lifecycle drain began before ACP provider launch"
+                    return
+                provider_entry = self.state.running.get(issue.id)
+                if provider_entry is not None and self._is_current_run(issue.id, run_id):
+                    provider_entry.provider_started = True
                 status = await session.run_task()
             finally:
                 if self._acp_agent_sessions.get(issue.id) is session:
@@ -27603,7 +27863,16 @@ class Orchestrator:
                     else None
                 ),
             )
+            if self._provider_launch_blocked(issue, run_id):
+                exit_reason = "interrupted"
+                error_msg = "lifecycle drain began before CLI provider launch"
+                return
+            provider_entry = self.state.running.get(issue.id)
+            if provider_entry is not None and self._is_current_run(issue.id, run_id):
+                provider_entry.provider_started = True
             await session.start()
+            if provider_entry is not None and self._is_current_run(issue.id, run_id):
+                self._managed_processes(provider_entry)
             self._cli_agent_sessions[issue.id] = session
 
             try:
@@ -27839,6 +28108,8 @@ class Orchestrator:
         entry = self.state.running.get(issue_id)
         if not entry or not entry.session:
             return
+
+        self._managed_processes(entry)
 
         entry.session.last_event = event.event
         entry.session.last_timestamp = datetime.fromtimestamp(
@@ -29014,26 +29285,11 @@ class Orchestrator:
         if generation:
             with self._retry_authority_lock:
                 revoked = revoked or generation in self._revoked_authority_generations
-        if revoked:
-            # Accepted submission/lifecycle state owns this task.  Do not run
-            # normal completion/failure handling: it can write integration
-            # metadata or schedule a fresh retry after the accepted head.
-            self.state.running.pop(issue_id, None)
-            self.state.claimed.discard(issue_id)
-            self.state.claimed_issues.pop(issue_id, None)
-            revoke_task_handoff_token(getattr(entry, "task_handoff_token", None))
-            logger.info(
-                "Quarantined revoked implementation worker issue_id=%s "
-                "identifier=%s generation=%s reason=%s",
-                issue_id,
-                entry.identifier,
-                generation[:16] if generation else "unknown",
-                getattr(entry, "authority_revocation_reason", None)
-                or self._authority_revocation_reason(generation or "")
-                or "authority changed",
-            )
-            self._notify_observers()
-            return
+
+        forced_exit_reason = getattr(entry, "forced_exit_reason", None)
+        if forced_exit_reason:
+            reason = forced_exit_reason
+            error = getattr(entry, "forced_exit_error", None) or error
 
         # A provider may report completion while one of its tool subprocesses
         # is still running.  Capture and reap the exact workspace descendants
@@ -29043,37 +29299,83 @@ class Orchestrator:
         # it never broadcasts to a process group that could contain the
         # service or another worker.
         workspace_path = getattr(entry, "workspace_path", None)
-        if isinstance(workspace_path, str) and workspace_path:
-            captured_processes = capture_workspace_processes(workspace_path)
-            if captured_processes:
-                cleanup_timeout_s = max(
-                    self.config.worker_termination_timeout_ms,
-                    0,
-                ) / 1000
-                survivors = await asyncio.get_running_loop().run_in_executor(
-                    self._tick_pool,
-                    lambda: terminate_captured_processes(
-                        captured_processes,
-                        timeout_s=cleanup_timeout_s if cleanup_timeout_s > 0 else 1.0,
-                    ),
+        captured_processes = self._managed_processes(entry)
+        if captured_processes:
+            cleanup_timeout_s = max(
+                self.config.worker_termination_timeout_ms,
+                0,
+            ) / 1000
+            survivors = await asyncio.get_running_loop().run_in_executor(
+                self._tick_pool,
+                lambda: terminate_captured_processes(
+                    captured_processes,
+                    timeout_s=cleanup_timeout_s if cleanup_timeout_s > 0 else 1.0,
+                ),
+            )
+            if survivors:
+                entry.managed_processes = {
+                    pid: captured_processes[pid]
+                    for pid in survivors
+                    if pid in captured_processes
+                }
+                entry.retirement_pending = True
+                logger.error(
+                    "Worker exited with managed subprocesses still alive; "
+                    "retaining visible runtime issue_identifier=%s pids=%s workspace=%s",
+                    entry.identifier,
+                    sorted(survivors),
+                    workspace_path,
                 )
-                if survivors:
-                    logger.error(
-                        "Worker exited with managed subprocesses still alive "
-                        "issue_identifier=%s pids=%s workspace=%s",
-                        entry.identifier,
-                        sorted(survivors),
-                        workspace_path,
-                    )
-                    reason = "abnormal"
-                    cleanup_error = (
-                        "managed tool subprocesses survived bounded cleanup: "
-                        + ", ".join(str(pid) for pid in sorted(survivors))
-                    )
-                    error = f"{error}; {cleanup_error}" if error else cleanup_error
+                self._notify_observers()
+                self._schedule_running_termination(
+                    issue_id,
+                    cleanup_workspace=False,
+                    task_name_prefix="retry-process-retirement",
+                )
+                return
+        entry.managed_processes.clear()
+        entry.retirement_pending = False
 
         # Do not remove a replacement runtime installed while cleanup yielded.
         if self.state.running.get(issue_id) is not entry:
+            return
+
+        if revoked:
+            # Accepted submission/lifecycle state owns this task.  Quarantine
+            # its worker only after every captured provider identity is gone;
+            # otherwise the dashboard would hide a process that can still edit.
+            self.state.running.pop(issue_id, None)
+            self.state.claimed.discard(issue_id)
+            self.state.claimed_issues.pop(issue_id, None)
+            revoke_task_handoff_token(getattr(entry, "task_handoff_token", None))
+            if (
+                getattr(entry, "duplicate_preflight", False)
+                and entry.duplicate_preflight_claim_id
+            ):
+                try:
+                    await asyncio.to_thread(
+                        self._clear_duplicate_preflight_claim,
+                        entry.issue,
+                        entry.duplicate_preflight_claim_id,
+                        reason="Duplicate screening stopped during lifecycle drain.",
+                    )
+                except Exception as exc:  # noqa: BLE001 - quarantine must finish
+                    logger.warning(
+                        "Failed to clear revoked duplicate-preflight claim for %s: %s",
+                        entry.identifier,
+                        exc,
+                    )
+            logger.info(
+                "Quarantined revoked implementation worker after provider exit "
+                "issue_id=%s identifier=%s generation=%s reason=%s",
+                issue_id,
+                entry.identifier,
+                generation[:16] if generation else "unknown",
+                getattr(entry, "authority_revocation_reason", None)
+                or self._authority_revocation_reason(generation or "")
+                or "authority changed",
+            )
+            self._notify_observers()
             return
         self.state.running.pop(issue_id, None)
         # The task-handoff registry contains only actionable failures of the
@@ -30720,8 +31022,9 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     )
                 running_entry.authority_revoked = True
                 running_entry.authority_revocation_reason = reason
-                self.state.claimed.discard(running_id)
-                self.state.claimed_issues.pop(running_id, None)
+                # Keep the runtime claim visible until bounded provider cleanup
+                # succeeds.  Releasing it here lets another generation start in
+                # the same workspace while the old provider can still edit.
                 terminate_ids.add(running_id)
         if cancelled:
             logger.info(
@@ -30741,19 +31044,10 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 self._notify_observers()
 
         for running_id in terminate_ids:
-            try:
-                loop = asyncio.get_running_loop()
-            except RuntimeError:
-                logger.warning(
-                    "Authority revoked for running worker but no event loop is "
-                    "available for termination issue_id=%s",
-                    running_id,
-                )
-                continue
-            self._terminating_worker_ids.add(running_id)
-            loop.create_task(
-                self._terminate_running(running_id, cleanup_workspace=False),
-                name=f"quarantine-worker-{running_id}",
+            self._schedule_running_termination(
+                running_id,
+                cleanup_workspace=False,
+                task_name_prefix="quarantine-worker",
             )
         return cancelled
 
@@ -31193,6 +31487,17 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         await self._reconcile_retry_authority()
         # Part A: Stall detection
         for issue_id, entry in list(self.state.running.items()):
+            if entry.authority_revoked or entry.retirement_pending:
+                logger.info(
+                    "Reconciling retiring worker issue_id=%s identifier=%s "
+                    "authority_revoked=%s managed_processes=%d",
+                    issue_id,
+                    entry.identifier,
+                    entry.authority_revoked,
+                    len(entry.managed_processes),
+                )
+                await self._terminate_running(issue_id, cleanup_workspace=False)
+                continue
             protected_by_tool, tool_timeout_reason = self._tool_stall_status(entry)
             if protected_by_tool:
                 logger.debug(
@@ -31624,16 +31929,13 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         """
         entry = self.state.running.get(issue_id)
         if not entry:
+            self._terminating_worker_ids.discard(issue_id)
             return True
 
         self._terminating_worker_ids.add(issue_id)
         try:
             timeout_s = max(self.config.worker_termination_timeout_ms, 0) / 1000
-            captured_processes = (
-                capture_workspace_processes(entry.workspace_path)
-                if entry.workspace_path
-                else {}
-            )
+            captured_processes = self._managed_processes(entry)
             waitables: set[asyncio.Future] = set()
             worker_task = entry.worker_task
             if worker_task and not worker_task.done():
@@ -31720,6 +32022,10 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                                 exc,
                             )
 
+            # Session shutdown can launch or reveal a late tool child. Merge a
+            # second workspace observation before signalling the exact process
+            # identities retained by this run.
+            captured_processes.update(self._managed_processes(entry))
             survivors: set[int] = set()
             if captured_processes:
                 force_timeout_s = timeout_s if timeout_s > 0 else 1.0
@@ -31731,6 +32037,12 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     ),
                 )
             if survivors:
+                entry.managed_processes = {
+                    pid: captured_processes[pid]
+                    for pid in survivors
+                    if pid in captured_processes
+                }
+                entry.retirement_pending = True
                 logger.error(
                     "Refusing to forget worker while managed processes survive "
                     "issue_identifier=%s pids=%s workspace=%s",
@@ -31738,7 +32050,10 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     sorted(survivors),
                     entry.workspace_path,
                 )
+                self._notify_observers()
                 return False
+            entry.managed_processes.clear()
+            entry.retirement_pending = False
 
             # A retry may reuse the exact task worktree. Snapshot its dirty
             # state after all worker processes are stopped but before the
@@ -31854,6 +32169,22 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             # distinguish from natural exits. See task oompah-zlz_2-y3fy.
             self._fire_telemetry_comment(entry, "terminated", elapsed)
 
+            if entry.is_auditor and getattr(entry, "forced_exit_reason", None):
+                ended = await asyncio.to_thread(
+                    self._finish_audit_attempt,
+                    entry,
+                    entry.forced_exit_reason or "terminated",
+                    entry.forced_exit_error,
+                )
+                await asyncio.to_thread(self._remove_audit_workspace, entry)
+                if ended:
+                    self._post_comment(
+                        entry.identifier,
+                        "Auditor attempt was stopped after repeated policy denials; "
+                        "a different independent candidate will be tried.",
+                        project_id=project_id,
+                    )
+
             self.state.claimed.discard(issue_id)
             self.state.claimed_issues.pop(issue_id, None)
             if entry.is_auditor:
@@ -31912,6 +32243,18 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 issue_id,
                 entry.identifier,
                 cleanup_workspace,
+            )
+            self._notify_observers()
+            self._post_event(
+                DispatchEvent(
+                    event_type=DispatchEventType.WORKER_EXIT,
+                    issue_id=issue_id,
+                    payload={
+                        "reason": getattr(entry, "forced_exit_reason", None)
+                        or "terminated",
+                        "auditor": entry.is_auditor,
+                    },
+                )
             )
             return True
         finally:
@@ -31997,6 +32340,17 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 "is_auditor": entry.is_auditor,
                 "audit_id": entry.audit_id,
                 "audit_attempt_id": entry.audit_attempt_id,
+                "retiring": bool(getattr(entry, "retirement_pending", False)),
+                "authority_revoked": bool(
+                    getattr(entry, "authority_revoked", False)
+                ),
+                "managed_process_count": len(
+                    getattr(entry, "managed_processes", {}) or {}
+                ),
+                "provider_started": bool(getattr(entry, "provider_started", False)),
+                "policy_denial_count": int(
+                    getattr(entry, "policy_denial_count", 0) or 0
+                ),
                 "provider_name": entry.provider_name,
                 "model_name": entry.model_name,
                 "turn_count": 0,

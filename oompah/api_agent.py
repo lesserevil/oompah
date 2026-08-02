@@ -780,6 +780,7 @@ def _execute_tool(
     audit_target: Any = None,
     audit_result_handler: Any = None,
     tool_liveness: Any = None,
+    policy_denial_handler: Any = None,
 ) -> str:
     """Execute a tool call and return its string result.
 
@@ -836,6 +837,11 @@ def _execute_tool(
                 action_policy, str(args.get("command") or "")
             )
             if shell_denial is not None:
+                if callable(policy_denial_handler):
+                    try:
+                        policy_denial_handler(shell_denial)
+                    except Exception:  # noqa: BLE001 - denial stays fail-closed
+                        logger.exception("Policy-denial observer failed")
                 return shell_denial
             # API workers execute inside the oompah process. Route their task
             # handoff command through the active tracker instead of allowing
@@ -1168,6 +1174,7 @@ class ApiAgentSession:
         audit_target: Any = None,
         audit_result_handler: Any = None,
         tool_liveness: Any = None,
+        policy_denial_handler: Any = None,
     ):
         # Validate before joining.  In particular, an absent base must never
         # turn into the relative path ``/chat/completions``.  This constructor
@@ -1226,6 +1233,7 @@ class ApiAgentSession:
         self.audit_target = audit_target
         self.audit_result_handler = audit_result_handler
         self.tool_liveness = tool_liveness
+        self.policy_denial_handler = policy_denial_handler
         self._ssl_ctx = _build_ssl_context()
 
     def _log_event(self, kind: str, **fields: Any) -> None:
@@ -1590,6 +1598,7 @@ class ApiAgentSession:
                             self.audit_target,
                             self.audit_result_handler,
                             self.tool_liveness,
+                            self.policy_denial_handler,
                         )
 
                     tool_failed = result_str.startswith("Error")

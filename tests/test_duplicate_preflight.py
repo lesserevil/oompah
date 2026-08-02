@@ -1063,6 +1063,8 @@ async def test_forced_termination_clears_only_its_exact_preflight_claim():
     orch._tick_pool = ThreadPoolExecutor(max_workers=1)
     orch._fire_task_cost_record = MagicMock()
     orch._fire_telemetry_comment = MagicMock()
+    orch._notify_observers = MagicMock()
+    orch._post_event = MagicMock()
 
     try:
         result = await orch._terminate_running(
@@ -1078,6 +1080,8 @@ async def test_forced_termination_clears_only_its_exact_preflight_claim():
     assert issue.id not in orch.state.running
     assert issue.id not in orch.state.claimed
     assert issue.id not in orch.state.claimed_issues
+    orch._notify_observers.assert_called_once_with()
+    orch._post_event.assert_called_once()
 
 
 def test_normal_implementation_gate_requires_current_model_pass():

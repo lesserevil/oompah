@@ -110,6 +110,7 @@ class AcpAgentSession:
         coordination_service: Any = None,
         task_identifier: str | None = None,
         action_policy: Any = None,
+        policy_denial_handler: Callable[[str], None] | None = None,
         task_handoff_token: str | None = None,
         terminal_transition_coordinator: Any = None,
         comment_queue: Any = None,
@@ -141,6 +142,7 @@ class AcpAgentSession:
         self.coordination_service = coordination_service
         self.task_identifier = task_identifier
         self.action_policy = action_policy
+        self.policy_denial_handler = policy_denial_handler
         self.task_handoff_token = task_handoff_token
         # These values are intentionally passed to selected backend
         # environments.  Register them before the backend can emit a startup
@@ -280,6 +282,7 @@ class AcpAgentSession:
             coordination_service=self.coordination_service,
             task_identifier=self.task_identifier,
             action_policy=self.action_policy,
+            policy_denial_handler=self.policy_denial_handler,
             task_handoff_token=self.task_handoff_token,
             terminal_transition_coordinator=self.terminal_transition_coordinator,
             comment_queue=self.comment_queue,
