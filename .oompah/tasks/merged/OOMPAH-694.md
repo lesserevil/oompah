@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:50.443759Z'
-updated_at: '2026-08-02T16:22:01.250280Z'
+updated_at: '2026-08-02T16:22:04.192529Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-694
 target_branch: null
 review_url: null
@@ -158,8 +158,9 @@ oompah.terminal_audit:
     status: Merged
     audit_ids:
     - audit-f686d73b61b1
-    applied: false
+    applied: true
     created_at: '2026-08-02T16:21:57.979147+00:00'
+    applied_at: '2026-08-02T16:22:03.158789+00:00'
   version: 1
   pending_chain:
   - version: 1
