@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-702
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Synchronize merged-webhook tests with background terminal staging
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T20:34:49.621752Z'
-updated_at: '2026-08-02T23:32:04.330112Z'
+updated_at: '2026-08-02T23:32:51.171251Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -89,11 +89,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-702
-  base_branch: main
-  base_sha: 366129d0a5046c5ed7caed4acf26cd8cd2a3fbdd
-  head_sha: c3c4698482dd2f8260758a381c8329e30f5b5ed2
-  submitted_at: '2026-08-02T22:18:43.834814+00:00'
-  updated_at: '2026-08-02T22:19:09.239294+00:00'
+  head_sha: d1097b3ba91fd281bb9c8ab937bfb3e82ce9a21a
+  submitted_at: '2026-08-02T23:32:46.880481+00:00'
+  updated_at: '2026-08-02T23:32:46.880481+00:00'
 ---
 ## Summary
 
@@ -336,5 +334,10 @@ author: oompah
 created: 2026-08-02 23:32
 ---
 Implementation: Applied the OOMPAH-667 isolation pattern to test_tick_calls_all_handlers and test_tick_handler_order in tests/test_orchestrator_handlers.py. Added MagicMock stubs for _maybe_run_watchdog, _run_step5b_maintenance, _run_step5c_epic_maintenance, and _recover_release_addendum_leases on both tests so the auxiliary lanes cannot slow the tick past the 5s pytest-timeout or perturb the observed handler sequence. Verification: 5/5 back-to-back runs pass locally, and all 277 tests in test_orchestrator_handlers.py still pass together under xdist -n 4. The 132 test_server_webhooks.py tests from the prior branch work continue to pass. Committed as d1097b3ba and pushed to origin/OOMPAH-702.
+---
+author: oompah
+created: 2026-08-02 23:32
+---
+Isolated the fire-and-forget maintenance lanes (_maybe_run_watchdog, _run_step5b_maintenance, _run_step5c_epic_maintenance, _recover_release_addendum_leases) in TestTickDelegation::test_tick_handler_order and test_tick_calls_all_handlers with the same MagicMock isolation pattern OOMPAH-667 applied to the neighboring _notify_observers tests. That is the auxiliary-lane flake that took down the Python 3.12 branch gate on top of the webhook synchronization work. Verified locally with repeated runs and the full test_orchestrator_handlers.py + test_server_webhooks.py suites under xdist.
 ---
 <!-- COMMENTS:END -->
