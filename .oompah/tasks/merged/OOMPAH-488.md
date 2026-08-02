@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-488
 type: task
-status: Done
+status: Merged
 priority: 1
 title: Validate the complete task Done-Merged-Archived audit lifecycle
 parent: OOMPAH-460
@@ -19,7 +19,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:27.238658Z'
-updated_at: '2026-07-31T04:20:39.617110Z'
+updated_at: '2026-08-02T18:31:57.172004Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-488
 target_branch: null
 review_url: null
@@ -166,6 +166,25 @@ oompah.terminal_audit:
       14,098-test branch gate and an independent 376-test audit. The old blocked row
       must not replay duplicate commits.'
     created_at: '2026-07-31T04:20:30.003150+00:00'
+  - version: 1
+    override_id: override-7d550d84d321
+    project_id: proj-14849f1b
+    task_id: OOMPAH-488
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f4ea19f27227489fc49fb710346d9981d171066b0ea0bf195054e7c5491a4ce9
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reconciliation: OOMPAH-460''s terminal audit records that this
+      implementation was recovered into main by PR #603 / landing commit 15c96dac6,
+      even though the superseded epic branch itself was Archived. OOMPAH-699 tracks
+      automatic convergence.'
+    created_at: '2026-08-02T18:31:53.239865+00:00'
+    applied: false
   version: 1
   pending_chain: []
   attempt_history: []
@@ -536,5 +555,12 @@ author: oompah
 created: 2026-07-31 04:20
 ---
 Owner reconciliation after stale queue replay; verified implementation is preserved in OOMPAH-597.
+---
+author: oompah
+created: 2026-08-02 18:31
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner reconciliation: OOMPAH-460's terminal audit records that this implementation was recovered into main by PR #603 / landing commit 15c96dac6, even though the superseded epic branch itself was Archived. OOMPAH-699 tracks automatic convergence.
 ---
 <!-- COMMENTS:END -->
