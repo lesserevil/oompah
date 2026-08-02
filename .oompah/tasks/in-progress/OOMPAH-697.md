@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T16:21:00.027506Z'
-updated_at: '2026-08-02T17:29:20.914083Z'
+updated_at: '2026-08-02T17:30:17.317259Z'
 work_branch: OOMPAH-697
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/656
@@ -471,5 +471,15 @@ author: oompah
 created: 2026-08-02 17:29
 ---
 Discovery: GitHub Actions run 30758603273 shows Python 3.13 alone failed tests/test_ws_fault_injection.py::TestMetricsWiredIntoRealPaths::test_refresh_action_increments_full_sync_requests. The test reads only the refresh handler's first state frame, then immediately closes the WebSocket. The handler records successful_reconciliations only after awaiting broadcast_issues(), so under CI scheduling the close cancels/interrupts the handler before that metric is recorded. Python 3.12 passes locally, confirming the race is timing-sensitive. I will keep the socket open behind an explicit success-recording synchronization barrier before asserting metrics; production code and OOMPAH-697 feature logic remain unchanged.
+---
+author: oompah
+created: 2026-08-02 17:30
+---
+Implementation: Updated only tests/test_ws_fault_injection.py. The failing refresh metrics test now wraps the real _ws_sync_record_success call with a threading.Event and waits for that completion signal while the WebSocket remains open. This removes the close-before-handler-completion race without changing server behavior, workflows, or the OOMPAH-697 feature.
+---
+author: oompah
+created: 2026-08-02 17:30
+---
+Verification: GitHub Actions failure was confirmed from run 30758603273/job 91525023892 (Python 3.13). Local focused test passed, then tests/test_ws_fault_injection.py plus tests/test_ws_lifecycle.py passed serially: 65 passed. git diff --check also passed. Per CI-fixer guidance I did not repeat the already-passed full make test gate.
 ---
 <!-- COMMENTS:END -->
