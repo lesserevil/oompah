@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:52.297786Z'
-updated_at: '2026-08-02T02:13:58.555526Z'
+updated_at: '2026-08-02T02:15:21.356586Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-695
 target_branch: null
 review_url: null
@@ -176,5 +176,34 @@ created: 2026-08-02 02:13
 6. Verify all tests pass including the critical observed failure scenario
 
 Starting with codebase exploration.
+---
+author: oompah
+created: 2026-08-02 02:15
+---
+**Discovery**: Explored WebSocket implementation and test patterns:
+
+1. **Current WebSocket behavior** (oompah/server.py):
+   - _broadcast() sends to all connected clients, prunes dead clients
+   - _on_orchestrator_change() throttles state broadcasts (100ms)
+   - _on_state_only_change() for activity-only pushes (state throttle)
+   - websocket_endpoint accepts 'refresh' action for manual full resync
+   - No built-in sequence tracking, gap detection, or sync failure metrics
+   - No deduplication or reorder handling
+
+2. **Existing test infrastructure** (tests/test_ws_lifecycle.py):
+   - Covers broadcast fan-out, client lifecycle, throttling, cross-loop safety
+   - Uses AsyncMock for isolated client testing
+   - No fault injection or message loss scenarios
+
+3. **Key gaps to implement**:
+   - Message sequence tracking with revision/epoch counters
+   - Bounded metrics: gaps_detected, full_sync_requests, successes, failures, last_reconciliation_ts
+   - Alert logic for repeated unrecovered failures
+   - Deterministic test harness for fault injection scenarios
+   - Tests for dropped/duplicated/delayed/reordered message handling
+
+4. **Blocking task dependencies**: Tasks OOMPAH-692/693/694 are not yet created but don't block this work.
+
+Next: Building the fault injection test harness and metrics infrastructure.
 ---
 <!-- COMMENTS:END -->
