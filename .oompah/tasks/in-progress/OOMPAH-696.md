@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T16:18:38.337420Z'
-updated_at: '2026-08-02T16:24:57.170568Z'
+updated_at: '2026-08-02T16:26:38.688405Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -143,5 +143,10 @@ author: oompah
 created: 2026-08-02 16:24
 ---
 Understanding: This bug occurs when an epic's child tasks have been integrated (their commits are in main), but their private branches have been pruned. The reconciliation logic fails to recognize successful integration and incorrectly moves Done children to Needs Human. I need to fix _child_landing_evidence_block_reason and related logic in orchestrator.py to check durable integration records (integrated_sha) before requiring live branch refs. The fix must preserve fail-closed behavior when SHAs are unreachable but suppress churn when landing is proven.
+---
+author: oompah
+created: 2026-08-02 16:26
+---
+Discovery: Found the root cause in _mark_epic_merged (line 18671). When a Done child's private branch is pruned, _child_landing_evidence_block_reason fails closed because the branch refs no longer exist. However, there's an integration record (accessible via child.integration) that shows integrated_sha and state. The fix is to check this durable integration record BEFORE calling _child_landing_evidence_block_reason. If the record shows state='integrated' and integrated_sha is reachable from the container/target branches, that's affirmative evidence and landing_reason should remain None.
 ---
 <!-- COMMENTS:END -->
