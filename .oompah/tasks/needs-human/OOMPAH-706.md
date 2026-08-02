@@ -8,10 +8,11 @@ parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- human-only
 assignee: null
 created_at: '2026-08-02T21:55:47.761417Z'
-updated_at: '2026-08-02T22:12:15.788127Z'
+updated_at: '2026-08-02T22:19:32.528171Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -190,5 +191,10 @@ author: oompah
 created: 2026-08-02 22:12
 ---
 Duplicate screening was inconclusive 3 times. Human action required: a project owner must review the authoritative task corpus and use the authenticated duplicate-screening owner-resolution action (POST /api/v1/issues/OOMPAH-706/duplicate-screening/owner-resolution) with a conclusive verdict and reason. This records the owner decision, resets the retry budget, and returns no_duplicate tasks to Open (or routes a verified duplicate to Duplicate Candidate). A plain verdict comment is not authoritative.
+---
+author: oompah
+created: 2026-08-02 22:19
+---
+Owner-resolved the failed duplicate screening as no_duplicate after reviewing active tasks. Claimed for direct implementation immediately after OOMPAH-701; human-only fences further duplicate-preflight retries. OOMPAH-707 tracks the watchdog defect that currently prevents direct owner work from remaining visibly In Progress without a scheduler RunningEntry.
 ---
 <!-- COMMENTS:END -->
