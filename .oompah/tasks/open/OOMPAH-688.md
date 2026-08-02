@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-688
 type: task
-status: Needs CI Fix
+status: Open
 priority: null
 title: Make slow-tick telemetry tests deterministic under load
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T23:11:33.946132Z'
-updated_at: '2026-08-02T00:00:03.195506Z'
+updated_at: '2026-08-02T00:00:29.530435Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -356,5 +356,17 @@ FAILED tests/test_orchestrator_handlers.py::TestMaintenanceLaneNonBlocking::test
 
 make: *** [Makefile:388: test] Error 1
 ```
+---
+author: oompah
+created: 2026-08-02 00:00
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #35)
+
+**State audited:** `Needs CI Fix`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** Recent comment indicates CI is now passing or PR has been merged; safe to reopen for dispatch.
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
 ---
 <!-- COMMENTS:END -->
