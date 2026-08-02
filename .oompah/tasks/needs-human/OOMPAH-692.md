@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-692
 type: feature
-status: Done
+status: Needs Human
 priority: 1
 title: Version authoritative dashboard state in the WebSocket protocol
 parent: OOMPAH-691
@@ -12,7 +12,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-08-02T02:01:46.836436Z'
-updated_at: '2026-08-02T07:26:32.402613Z'
+updated_at: '2026-08-02T07:28:35.851963Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-692
 target_branch: null
 review_url: null
@@ -620,5 +620,10 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: normal, Duration: 8m 31s
 - Log: OOMPAH-692__20260802T032207Z.jsonl
+---
+author: oompah
+created: 2026-08-02 07:28
+---
+The parent epic OOMPAH-691 merged from epic-OOMPAH-691, but this task was Done with work branch epic-OOMPAH-691--task-OOMPAH-692. Its work is not proven to be in the merged epic. Git evidence: OOMPAH-692 records epic-OOMPAH-691--task-OOMPAH-692, expected epic-OOMPAH-691, but that branch cannot be verified. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
 ---
 <!-- COMMENTS:END -->

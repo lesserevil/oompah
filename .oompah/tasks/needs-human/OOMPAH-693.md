@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-693
 type: feature
-status: Done
+status: Needs Human
 priority: 1
 title: Provide a coherent full dashboard resynchronization response
 parent: OOMPAH-691
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:48.499285Z'
-updated_at: '2026-08-02T07:26:36.084804Z'
+updated_at: '2026-08-02T07:28:38.938935Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-693
 target_branch: null
 review_url: null
@@ -374,5 +374,10 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 11m 36s
 - Log: OOMPAH-693__20260802T035507Z.jsonl
+---
+author: oompah
+created: 2026-08-02 07:28
+---
+The parent epic OOMPAH-691 merged from epic-OOMPAH-691, but this task was Done with work branch epic-OOMPAH-691--task-OOMPAH-693. Its work is not proven to be in the merged epic. Git evidence: OOMPAH-693 records epic-OOMPAH-691--task-OOMPAH-693, expected epic-OOMPAH-691, but that branch cannot be verified. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
 ---
 <!-- COMMENTS:END -->
