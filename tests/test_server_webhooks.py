@@ -16,6 +16,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import threading
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -26,6 +27,63 @@ from oompah.events import EventBus, EventType
 from oompah.models import Project
 from oompah.terminal_audit import TargetState
 from oompah.terminal_transition_coordinator import TransitionResult
+
+
+_REAL_THREAD = threading.Thread
+
+
+class _ObservableWebhookThread(_REAL_THREAD):
+    """Thread that records uncaught webhook-worker exceptions for the test."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.background_exception = None
+
+    def run(self):
+        try:
+            super().run()
+        except BaseException as exc:  # noqa: BLE001 - re-raised by the barrier
+            self.background_exception = exc
+
+
+class _WebhookThreadHarness:
+    """Capture and deterministically join threads started by webhook handling."""
+
+    def __init__(self):
+        self.threads = []
+        self._reported_exceptions = set()
+
+    def create(self, *args, **kwargs):
+        thread = _ObservableWebhookThread(*args, **kwargs)
+        self.threads.append(thread)
+        return thread
+
+    def wait(self, timeout=1.0):
+        """Wait for all captured workers and surface their failures."""
+        index = 0
+        while index < len(self.threads):
+            thread = self.threads[index]
+            thread.join(timeout=timeout)
+            if thread.is_alive():
+                raise AssertionError(
+                    f"webhook worker {thread.name!r} did not complete"
+                )
+            if (
+                thread.background_exception is not None
+                and thread not in self._reported_exceptions
+            ):
+                self._reported_exceptions.add(thread)
+                raise thread.background_exception
+            index += 1
+
+
+@pytest.fixture(autouse=True)
+def webhook_threads(monkeypatch):
+    """Make every webhook worker test-visible without changing production code."""
+    harness = _WebhookThreadHarness()
+    monkeypatch.setattr("oompah.server.threading.Thread", harness.create)
+    yield harness
+    harness.wait()
 
 
 # ---------------------------------------------------------------------------
@@ -196,7 +254,9 @@ class TestGitHubWebhookEndpoint:
             source_branch="feat-branch",
         )
 
-    def test_pr_merged_to_tracked_branch_triggers_sync(self, client_no_secret):
+    def test_pr_merged_to_tracked_branch_triggers_sync(
+        self, client_no_secret, webhook_threads
+    ):
         """A merged PR whose base is the project's tracked branch should
         trigger source sync — the merge advanced origin/main."""
         client, orch = client_no_secret
@@ -210,14 +270,10 @@ class TestGitHubWebhookEndpoint:
             },
         )
         assert resp.status_code == 200
-        import time
-        for _ in range(50):
-            if orch.project_store.sync_project_sources.called:
-                break
-            time.sleep(0.02)
+        webhook_threads.wait()
         orch.project_store.sync_project_sources.assert_called_once_with("proj-gh1")
 
-    def test_pr_opened_does_not_trigger_sync(self, client_no_secret):
+    def test_pr_opened_does_not_trigger_sync(self, client_no_secret, webhook_threads):
         """An opened PR doesn't change origin/main yet — no sync needed."""
         client, orch = client_no_secret
         payload = _github_pr_payload(action="opened", merged=False)
@@ -230,8 +286,7 @@ class TestGitHubWebhookEndpoint:
             },
         )
         assert resp.status_code == 200
-        import time
-        time.sleep(0.1)
+        webhook_threads.wait()
         orch.project_store.sync_project_sources.assert_not_called()
 
     def test_valid_signature(self, client_with_secret):
@@ -267,7 +322,9 @@ class TestGitHubWebhookEndpoint:
         assert "Invalid signature" in resp.json().get("error", "")
         orch.request_refresh.assert_not_called()
 
-    def test_push_event_to_tracked_branch_triggers_sync(self, client_no_secret):
+    def test_push_event_to_tracked_branch_triggers_sync(
+        self, client_no_secret, webhook_threads
+    ):
         """Push to project's tracked branch (main) should fire a project-scoped
         source sync — that's the whole point of the webhook integration."""
         client, orch = client_no_secret
@@ -287,15 +344,10 @@ class TestGitHubWebhookEndpoint:
         assert resp.status_code == 200
         # Refresh fires regardless of branch.
         orch.request_refresh.assert_called()
-        # Sync starts in a thread; poll briefly for it to land.
-        import time
-        for _ in range(50):
-            if orch.project_store.sync_project_sources.called:
-                break
-            time.sleep(0.02)
+        webhook_threads.wait()
         orch.project_store.sync_project_sources.assert_called_once_with("proj-gh1")
 
-    def test_push_event_to_other_branch_no_sync(self, client_no_secret):
+    def test_push_event_to_other_branch_no_sync(self, client_no_secret, webhook_threads):
         client, orch = client_no_secret
         resp = client.post(
             "/api/v1/webhooks/github",
@@ -310,9 +362,7 @@ class TestGitHubWebhookEndpoint:
             },
         )
         assert resp.status_code == 200
-        # Give any spawned thread a moment to run, then assert it didn't.
-        import time
-        time.sleep(0.1)
+        webhook_threads.wait()
         orch.project_store.sync_project_sources.assert_not_called()
 
     def test_ping_event_ignored(self, client_no_secret):
@@ -1613,9 +1663,8 @@ class TestWebhookInReviewReconciliation:
 
         return orch, mock_tracker, mock_issue
 
-    def test_pr_opened_marks_task_in_review(self):
+    def test_pr_opened_marks_task_in_review(self, webhook_threads):
         """A pull_request opened event triggers In Review marking."""
-        import time
         from oompah.server import app, _api_cache
 
         orch, mock_tracker, mock_issue = self._make_orch_with_task(
@@ -1638,20 +1687,15 @@ class TestWebhookInReviewReconciliation:
             )
 
         assert resp.status_code == 200
-        # Give the background thread a moment to run
-        for _ in range(50):
-            if mock_tracker.update_issue.called:
-                break
-            time.sleep(0.02)
+        webhook_threads.wait()
 
         from oompah.statuses import IN_REVIEW
         mock_tracker.update_issue.assert_called_once_with(
             "feat-branch", status=IN_REVIEW
         )
 
-    def test_pr_reopened_marks_task_in_review(self):
+    def test_pr_reopened_marks_task_in_review(self, webhook_threads):
         """A pull_request reopened event triggers In Review marking."""
-        import time
         from oompah.server import app, _api_cache
 
         orch, mock_tracker, mock_issue = self._make_orch_with_task(
@@ -1672,19 +1716,15 @@ class TestWebhookInReviewReconciliation:
             )
 
         assert resp.status_code == 200
-        for _ in range(50):
-            if mock_tracker.update_issue.called:
-                break
-            time.sleep(0.02)
+        webhook_threads.wait()
 
         from oompah.statuses import IN_REVIEW
         mock_tracker.update_issue.assert_called_once_with(
             "feat-branch", status=IN_REVIEW
         )
 
-    def test_pr_closed_unmerged_does_not_mark_in_review(self):
+    def test_pr_closed_unmerged_does_not_mark_in_review(self, webhook_threads):
         """A closed (unmerged) PR does not trigger In Review marking."""
-        import time
         from oompah.server import app, _api_cache
 
         orch, mock_tracker, mock_issue = self._make_orch_with_task(
@@ -1707,15 +1747,16 @@ class TestWebhookInReviewReconciliation:
             )
 
         assert resp.status_code == 200
-        time.sleep(0.1)
+        webhook_threads.wait()
         # No In Review update — closed without merge should not re-open
         for call in mock_tracker.update_issue.call_args_list:
             from oompah.statuses import IN_REVIEW
             assert call.kwargs.get("status") != IN_REVIEW
 
-    def test_pr_opened_already_in_review_skips_status_update_but_writes_metadata(self):
+    def test_pr_opened_already_in_review_skips_status_update_but_writes_metadata(
+        self, webhook_threads
+    ):
         """PR opened for a task already In Review skips status update but still writes metadata."""
-        import time
         from oompah.server import app, _api_cache
         from unittest.mock import patch as _patch
 
@@ -1738,7 +1779,7 @@ class TestWebhookInReviewReconciliation:
             )
 
         assert resp.status_code == 200
-        time.sleep(0.1)
+        webhook_threads.wait()
         # Status update must NOT be called (already In Review)
         mock_tracker.update_issue.assert_not_called()
         # Metadata writes ARE still expected
@@ -1791,11 +1832,27 @@ class TestWebhookMergedReconciliation:
 
         return orch, mock_tracker
 
-    def test_pr_merged_stages_task_merged(self):
-        """A pull_request closed+merged event stages the task as Merged."""
+    def test_pr_merged_stages_task_merged(self, webhook_threads):
+        """Merged staging completes before assertions without blocking POST."""
         from oompah.server import app, _api_cache
 
         orch, mock_tracker = self._make_orch_with_task("feat-branch", "In Review")
+        transition_started = threading.Event()
+        allow_transition = threading.Event()
+        transition_finished = threading.Event()
+
+        async def delayed_transition(*args, **kwargs):
+            transition_started.set()
+            if not allow_transition.wait(timeout=1.0):
+                raise AssertionError("test did not release terminal staging")
+            transition_finished.set()
+            return TransitionResult(
+                success=True,
+                audit_id="audit-webhook-1",
+                queued_targets=[TargetState.MERGED],
+            )
+
+        orch.request_terminal_transition.side_effect = delayed_transition
         with patch("oompah.server._orchestrator", orch):
             _api_cache.invalidate("reviews:all")
             _api_cache.invalidate("issues:all")
@@ -1813,6 +1870,13 @@ class TestWebhookMergedReconciliation:
             )
 
         assert resp.status_code == 200
+        assert transition_started.wait(timeout=1.0)
+        assert not transition_finished.is_set(), (
+            "the webhook response must not wait for terminal staging"
+        )
+        allow_transition.set()
+        webhook_threads.wait()
+        assert transition_finished.is_set()
         orch.request_terminal_transition.assert_awaited_once()
         assert (
             orch.request_terminal_transition.await_args.kwargs["requested_target"]
@@ -1820,9 +1884,73 @@ class TestWebhookMergedReconciliation:
         )
         mock_tracker.update_issue.assert_not_called()
 
-    def test_pr_already_merged_skips_update(self):
+    def test_merge_group_stages_task_merged(self, webhook_threads):
+        """A successful merge_group webhook joins before checking staging."""
+        from oompah.server import app, _api_cache
+
+        orch, mock_tracker = self._make_orch_with_task("feat-branch", "In Review")
+        with patch("oompah.server._orchestrator", orch):
+            _api_cache.invalidate("reviews:all")
+            _api_cache.invalidate("issues:all")
+            client = TestClient(app)
+            payload = {
+                "action": "destroyed",
+                "merge_group": {
+                    "head_ref": "gh-readonly-queue/main/pr-42-feat-branch",
+                    "base_ref": "main",
+                },
+                "repository": {"full_name": "org/repo"},
+                "reason": "merged",
+            }
+            resp = client.post(
+                "/api/v1/webhooks/github",
+                content=json.dumps(payload),
+                headers={
+                    "X-GitHub-Event": "merge_group",
+                    "Content-Type": "application/json",
+                },
+            )
+
+        assert resp.status_code == 200
+        webhook_threads.wait()
+        orch.request_terminal_transition.assert_awaited_once()
+        assert (
+            orch.request_terminal_transition.await_args.kwargs["requested_target"]
+            is TargetState.MERGED
+        )
+        mock_tracker.update_issue.assert_not_called()
+
+    def test_background_exception_is_surfaced_by_completion_barrier(
+        self, webhook_threads
+    ):
+        """A failed worker cannot silently satisfy the completion barrier."""
+        from oompah.server import app, _api_cache
+
+        orch, _mock_tracker = self._make_orch_with_task("feat-branch", "In Review")
+        with patch("oompah.server._label_task_merged_from_pr") as worker:
+            worker.side_effect = RuntimeError("terminal staging exploded")
+            with patch("oompah.server._orchestrator", orch):
+                _api_cache.invalidate("reviews:all")
+                _api_cache.invalidate("issues:all")
+                client = TestClient(app)
+                payload = _github_pr_payload(
+                    action="closed", source="feat-branch", merged=True
+                )
+                resp = client.post(
+                    "/api/v1/webhooks/github",
+                    content=json.dumps(payload),
+                    headers={
+                        "X-GitHub-Event": "pull_request",
+                        "Content-Type": "application/json",
+                    },
+                )
+
+        assert resp.status_code == 200
+        with pytest.raises(RuntimeError, match="terminal staging exploded"):
+            webhook_threads.wait()
+
+    def test_pr_already_merged_skips_update(self, webhook_threads):
         """PR merged webhook for an already-Merged task is a no-op."""
-        import time
         from oompah.server import app, _api_cache
 
         orch, mock_tracker = self._make_orch_with_task("feat-branch", "Merged")
@@ -1843,12 +1971,11 @@ class TestWebhookMergedReconciliation:
             )
 
         assert resp.status_code == 200
-        time.sleep(0.1)
+        webhook_threads.wait()
         mock_tracker.update_issue.assert_not_called()
 
-    def test_pr_closed_without_merge_does_not_mark_merged(self):
+    def test_pr_closed_without_merge_does_not_mark_merged(self, webhook_threads):
         """PR closed without merge does not trigger a Merged update."""
-        import time
         from oompah.server import app, _api_cache
 
         orch, mock_tracker = self._make_orch_with_task("feat-branch", "In Review")
@@ -1869,7 +1996,7 @@ class TestWebhookMergedReconciliation:
             )
 
         assert resp.status_code == 200
-        time.sleep(0.1)
+        webhook_threads.wait()
         from oompah.statuses import MERGED
         for call in mock_tracker.update_issue.call_args_list:
             assert call.kwargs.get("status") != MERGED
@@ -2042,9 +2169,8 @@ class TestUnauthorizedStatusLabelRevert:
         orch._tracker_for_project = MagicMock(return_value=mock_tracker)
         return orch, mock_tracker, project
 
-    def test_unauthorized_labeled_triggers_revert(self):
+    def test_unauthorized_labeled_triggers_revert(self, webhook_threads):
         """An unauthorized actor applying oompah:status:open triggers a revert."""
-        import time
         from oompah.server import app, _api_cache
         from unittest.mock import patch as mpatch
 
@@ -2072,14 +2198,7 @@ class TestUnauthorizedStatusLabelRevert:
                 )
 
         assert resp.status_code == 200
-        # Wait for background thread to complete
-        for _ in range(100):
-            if (
-                mock_tracker._set_status_label.called
-                or mock_tracker.add_comment.called
-            ):
-                break
-            time.sleep(0.02)
+        webhook_threads.wait()
 
         # The revert thread should have attempted to set status back or add comment
         assert (
@@ -2092,9 +2211,10 @@ class TestUnauthorizedStatusLabelRevert:
         comment_body = comment_call_args[0][1]
         assert "unauthorized" in comment_body.lower() or "Unauthorized" in comment_body
 
-    def test_gitlab_unauthorized_status_label_triggers_shared_revert(self):
+    def test_gitlab_unauthorized_status_label_triggers_shared_revert(
+        self, webhook_threads
+    ):
         """GitLab Issue Hooks enforce the same status-label guard as GitHub."""
-        import time
         from oompah.server import app, _api_cache
         from unittest.mock import patch as mpatch
 
@@ -2136,10 +2256,7 @@ class TestUnauthorizedStatusLabelRevert:
             )
 
         assert resp.status_code == 200
-        for _ in range(100):
-            if mock_tracker.add_comment.called:
-                break
-            time.sleep(0.02)
+        webhook_threads.wait()
 
         assert mock_tracker.add_comment.called
         mock_tracker.record_untrusted_status_label_change.assert_called_once_with(
@@ -2174,9 +2291,8 @@ class TestUnauthorizedStatusLabelRevert:
 
         assert _status_before_label_event(object(), event, "Backlog") == "Proposed"
 
-    def test_authorized_bot_labeled_does_not_trigger_revert(self):
+    def test_authorized_bot_labeled_does_not_trigger_revert(self, webhook_threads):
         """The oompah bot applying a status label is authorized — no revert."""
-        import time
         from oompah.server import app, _api_cache
         from unittest.mock import patch as mpatch
 
@@ -2204,15 +2320,15 @@ class TestUnauthorizedStatusLabelRevert:
                 )
 
         assert resp.status_code == 200
-        # Give enough time for any (incorrect) background thread to run
-        time.sleep(0.15)
+        webhook_threads.wait()
         # No revert should have been triggered
         mock_tracker._set_status_label.assert_not_called()
         mock_tracker.add_comment.assert_not_called()
 
-    def test_authorized_owner_in_allowlist_does_not_trigger_revert(self):
+    def test_authorized_owner_in_allowlist_does_not_trigger_revert(
+        self, webhook_threads
+    ):
         """A project owner in the allowlist applying a status label is authorized."""
-        import time
         from oompah.server import app, _api_cache
         from unittest.mock import patch as mpatch
 
@@ -2240,13 +2356,14 @@ class TestUnauthorizedStatusLabelRevert:
                 )
 
         assert resp.status_code == 200
-        time.sleep(0.15)
+        webhook_threads.wait()
         mock_tracker._set_status_label.assert_not_called()
         mock_tracker.add_comment.assert_not_called()
 
-    def test_tracker_owner_labeled_records_trusted_status_without_revert(self):
+    def test_tracker_owner_labeled_records_trusted_status_without_revert(
+        self, webhook_threads
+    ):
         """The tracker owner can apply status labels and updates the trusted ledger."""
-        import time
         from oompah.server import app, _api_cache
         from unittest.mock import patch as mpatch
 
@@ -2274,7 +2391,7 @@ class TestUnauthorizedStatusLabelRevert:
                 )
 
         assert resp.status_code == 200
-        time.sleep(0.15)
+        webhook_threads.wait()
         mock_tracker._set_status_label.assert_not_called()
         mock_tracker.add_comment.assert_not_called()
         mock_tracker.record_trusted_status.assert_called_once_with(42, "Open")
@@ -2288,10 +2405,9 @@ class TestUnauthorizedStatusLabelRevert:
         ],
     )
     def test_oompah_owned_backfill_label_event_does_not_trigger_revert(
-        self, label_name, status
+        self, label_name, status, webhook_threads
     ):
         """Known oompah-owned backfill events bypass unauthorized handling."""
-        import time
         from oompah.server import app, _api_cache
         from unittest.mock import patch as mpatch
 
@@ -2320,15 +2436,14 @@ class TestUnauthorizedStatusLabelRevert:
                 )
 
         assert resp.status_code == 200
-        time.sleep(0.15)
+        webhook_threads.wait()
         mock_tracker._set_status_label.assert_not_called()
         mock_tracker.add_comment.assert_not_called()
         mock_tracker.record_untrusted_status_label_change.assert_not_called()
         mock_tracker.record_trusted_status.assert_called_once_with(42, status)
 
-    def test_oompah_owned_backfill_label_event_is_idempotent(self):
+    def test_oompah_owned_backfill_label_event_is_idempotent(self, webhook_threads):
         """Repeated delivery of a correlated webhook stays quiet."""
-        import time
         from oompah.server import app, _api_cache
         from unittest.mock import patch as mpatch
 
@@ -2358,15 +2473,16 @@ class TestUnauthorizedStatusLabelRevert:
                     )
                     assert resp.status_code == 200
 
-        time.sleep(0.15)
+        webhook_threads.wait()
         mock_tracker._set_status_label.assert_not_called()
         mock_tracker.add_comment.assert_not_called()
         mock_tracker.record_untrusted_status_label_change.assert_not_called()
         assert mock_tracker.record_trusted_status.call_count == 2
 
-    def test_external_status_label_mismatch_still_triggers_revert(self):
+    def test_external_status_label_mismatch_still_triggers_revert(
+        self, webhook_threads
+    ):
         """A different status than the ledger remains an unauthorized edit."""
-        import time
         from oompah.server import app, _api_cache
         from unittest.mock import patch as mpatch
 
@@ -2395,10 +2511,7 @@ class TestUnauthorizedStatusLabelRevert:
                 )
 
         assert resp.status_code == 200
-        for _ in range(100):
-            if mock_tracker.add_comment.called:
-                break
-            time.sleep(0.02)
+        webhook_threads.wait()
 
         assert mock_tracker.add_comment.called
         mock_tracker.record_untrusted_status_label_change.assert_called_once_with(
@@ -2409,9 +2522,8 @@ class TestUnauthorizedStatusLabelRevert:
         )
         mock_tracker.record_trusted_status.assert_not_called()
 
-    def test_non_status_label_does_not_trigger_revert(self):
+    def test_non_status_label_does_not_trigger_revert(self, webhook_threads):
         """Non-oompah:status:* label changes do not trigger authorization checks."""
-        import time
         from oompah.server import app, _api_cache
         from unittest.mock import patch as mpatch
 
@@ -2436,13 +2548,12 @@ class TestUnauthorizedStatusLabelRevert:
             )
 
         assert resp.status_code == 200
-        time.sleep(0.15)
+        webhook_threads.wait()
         mock_tracker._set_status_label.assert_not_called()
         mock_tracker.add_comment.assert_not_called()
 
-    def test_unlabeled_unauthorized_triggers_revert(self):
+    def test_unlabeled_unauthorized_triggers_revert(self, webhook_threads):
         """Unauthorized removal of oompah:status:* label triggers revert."""
-        import time
         from oompah.server import app, _api_cache
         from unittest.mock import patch as mpatch
 
@@ -2470,10 +2581,7 @@ class TestUnauthorizedStatusLabelRevert:
                 )
 
         assert resp.status_code == 200
-        for _ in range(100):
-            if mock_tracker.add_comment.called:
-                break
-            time.sleep(0.02)
+        webhook_threads.wait()
 
         assert mock_tracker.add_comment.called
 
