@@ -797,6 +797,70 @@ def test_gate_reports_poisoned_runtime_without_running_candidate(tmp_path):
     assert not (tmp_path / "quality.json").exists()
 
 
+@pytest.mark.parametrize(
+    "metadata_payload",
+    [
+        {"url": "https://example.test/oompah", "dir_info": {"editable": True}},
+        {"url": "file:///missing", "dir_info": {"editable": True}},
+        {"url": "file:///tmp/oompah", "dir_info": {"editable": False}},
+        {"dir_info": {"editable": True}},
+        {"url": "file:///tmp/oompah", "dir_info": []},
+        [],
+    ],
+)
+def test_editable_oompah_source_ignores_unusable_metadata(
+    metadata_payload, monkeypatch
+):
+    """Only an existing local editable source is safe to project."""
+
+    class Distribution:
+        def read_text(self, _filename):
+            return json.dumps(metadata_payload)
+
+    monkeypatch.setattr(
+        quality_gate.metadata, "distribution", lambda _name: Distribution()
+    )
+
+    assert _editable_oompah_source() is None
+
+
+def test_sandbox_command_projects_declared_editable_source_to_candidate(
+    tmp_path, monkeypatch
+):
+    """Console scripts import the candidate when the venv points at another worktree."""
+    snapshot = tmp_path / "snapshot"
+    snapshot.mkdir()
+    prior_worktree = tmp_path / "prior-worktree"
+    prior_worktree.mkdir()
+    run_root = BranchQualityGate._gate_run_root()
+    try:
+        monkeypatch.setattr(shutil, "which", lambda _name: "/usr/bin/bwrap")
+        monkeypatch.setattr(
+            subprocess,
+            "run",
+            lambda args, **_kwargs: subprocess.CompletedProcess(args, 0),
+        )
+        monkeypatch.setattr(
+            quality_gate, "_editable_oompah_source", lambda: prior_worktree
+        )
+
+        command = BranchQualityGate._sandbox_command("true", str(snapshot), run_root)
+
+        bind_pairs = [
+            (command[index + 1], command[index + 2])
+            for index in range(len(command) - 2)
+            if command[index] == "--bind"
+        ]
+        runtime_prefix = Path(sys.prefix).resolve()
+        if runtime_prefix != Path(sys.base_prefix).resolve():
+            assert (
+                str(snapshot.resolve()),
+                str(prior_worktree.resolve()),
+            ) in bind_pairs
+    finally:
+        BranchQualityGate._cleanup_gate_run_root(run_root)
+
+
 def test_default_boundary_blocks_literal_host_pid_and_localhost_attack(tmp_path):
     """A capable sandbox protects a live host sentinel while candidate code runs."""
     repo = _git_repo(tmp_path)
@@ -1741,11 +1805,11 @@ def test_preflight_rejects_old_branch_without_oompah652_ancestor(tmp_path):
         cwd=repo,
         check=True,
     )
-    
+
     # Create an orphan branch that does not contain OOMPAH-652 commit in ancestry.
     # This simulates an old preserved branch from before the safety commit.
     subprocess.run(["git", "checkout", "--orphan", "old-branch"], cwd=repo, check=True)
-    
+
     # Create a Makefile without OOMPAH-652 safety head in ancestry
     old_makefile = repo / "Makefile"
     old_makefile.write_text(
@@ -1797,7 +1861,7 @@ def test_preflight_git_ancestry_check_is_primary(tmp_path):
         cwd=repo,
         check=True,
     )
-    
+
     subprocess.run(["git", "checkout", "--orphan", "orphan-branch"], cwd=repo, check=True)
     
     # No Makefile at all - just create a minimal commit
@@ -1805,7 +1869,7 @@ def test_preflight_git_ancestry_check_is_primary(tmp_path):
     source.write_text("content\n", encoding="utf-8")
     subprocess.run(["git", "add", "source.txt"], cwd=repo, check=True)
     subprocess.run(["git", "commit", "-q", "-m", "first"], cwd=repo, check=True)
-    
+
     gate = BranchQualityGate(str(tmp_path / "quality.json"))
     result = _run(gate, repo, "true")
 
@@ -1833,12 +1897,12 @@ def test_spoofed_markers_without_oompah652_ancestor_is_rejected(tmp_path):
         cwd=repo,
         check=True,
     )
-    
+
     # Create orphan branch simulating an old preserved branch from before OOMPAH-652
     subprocess.run(["git", "checkout", "--orphan", "old-branch"], cwd=repo, check=True)
     # In an orphan branch, the working directory may already be empty or have content.
     # We just need to ensure the branch doesn't descend from safety_head.
-    
+
     # Create a Makefile with spoofed markers to prove substring matching would fail
     # but WITH hostile code that tries to discover the operator service.
     # If preflight is bypassed, this command WILL create a sentinel file.

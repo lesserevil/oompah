@@ -18,6 +18,7 @@ import asyncio
 import contextlib
 import logging
 import os
+import shutil
 import tempfile
 import time
 from dataclasses import dataclass
@@ -165,6 +166,8 @@ class ClaudeAcpBackendSession(AcpBackendSession):
         # "pending" is the pre-run sentinel — protocol consumers should
         # only read ``status`` AFTER run_turn() has returned.
         self._status: str = "pending"
+        # Track temporary worker runtime directory for cleanup (OOMPAH-686)
+        self._worker_runtime_dir: str | None = None
 
     # ---- AcpBackendSession protocol property accessors ----
 
@@ -363,6 +366,9 @@ class ClaudeAcpBackendSession(AcpBackendSession):
             {**os.environ, **(self._options.env or {})},
             workspace_path=self._options.workspace_path,
         )
+        # Track temporary worker runtime directory for cleanup (OOMPAH-686)
+        self._worker_runtime_dir = agent_env.get("OOMPAH_WORKER_RUNTIME_DIR")
+        
         if self._options.task_handoff_token and self._options.task_identifier:
             agent_env[TASK_HANDOFF_TASK_ENV] = self._options.task_identifier
 
@@ -659,6 +665,39 @@ class ClaudeAcpBackendSession(AcpBackendSession):
                 with contextlib.suppress(OSError):
                     os.remove(self._sysprompt_file)
                 self._sysprompt_file = None
+            # Clean up temporary worker runtime directory if one was created (OOMPAH-686)
+            self._cleanup_worker_runtime_dir()
+
+    def _cleanup_worker_runtime_dir(self) -> None:
+        """Remove the temporary worker runtime directory created in run_turn().
+
+        This is called from run_turn()'s finally block after the session ends.
+        The directory may contain podman/container artifacts that cannot be
+        cleaned up from inside the sandbox (it's read-only), so cleanup happens
+        from the orchestrator process. Failures are logged but not fatal.
+        """
+        if not self._worker_runtime_dir:
+            return
+
+        try:
+            if os.path.isdir(self._worker_runtime_dir):
+                shutil.rmtree(self._worker_runtime_dir, ignore_errors=True)
+                logger.debug(
+                    "Cleaned up temporary worker runtime directory: %s",
+                    self._worker_runtime_dir,
+                )
+            else:
+                logger.debug(
+                    "Worker runtime directory already removed: %s",
+                    self._worker_runtime_dir,
+                )
+        except Exception as exc:
+            logger.warning(
+                "Failed to clean up worker runtime directory %s: %s; "
+                "administrator may need to manually remove",
+                self._worker_runtime_dir,
+                exc,
+            )
 
 
 class ClaudeAcpBackend(AcpBackend):

@@ -24,6 +24,7 @@ import asyncio
 import json
 import logging
 import os
+import shutil
 import time
 from dataclasses import dataclass
 from typing import Any, AsyncIterator, TYPE_CHECKING
@@ -132,6 +133,8 @@ class OpencodeAcpBackendSession(AcpBackendSession):
         self._killed_by_close: bool = False
         # The subprocess handle. Populated lazily on first run_turn.
         self._proc: Any = None
+        # Track temporary worker runtime directory for cleanup (OOMPAH-686)
+        self._worker_runtime_dir: str | None = None
 
     # ---- AcpBackendSession protocol property accessors ----
 
@@ -343,6 +346,9 @@ class OpencodeAcpBackendSession(AcpBackendSession):
             {**os.environ, **(self._options.env or {})},
             workspace_path=self._options.workspace_path,
         )
+        # Track temporary worker runtime directory for cleanup (OOMPAH-686)
+        self._worker_runtime_dir = agent_env.get("OOMPAH_WORKER_RUNTIME_DIR")
+        
         if self._options.task_handoff_token:
             agent_env[TASK_HANDOFF_TOKEN_ENV] = self._options.task_handoff_token
             if self._options.project_id:
@@ -528,6 +534,39 @@ class OpencodeAcpBackendSession(AcpBackendSession):
                 with __import__("contextlib").suppress(Exception):
                     self._proc.terminate()
                 self._proc = None
+            # Clean up temporary worker runtime directory if one was created (OOMPAH-686)
+            self._cleanup_worker_runtime_dir()
+
+    def _cleanup_worker_runtime_dir(self) -> None:
+        """Remove the temporary worker runtime directory created in run_turn().
+
+        This is called from run_turn()'s finally block after the session ends.
+        The directory may contain podman/container artifacts that cannot be
+        cleaned up from inside the sandbox (it's read-only), so cleanup happens
+        from the orchestrator process. Failures are logged but not fatal.
+        """
+        if not self._worker_runtime_dir:
+            return
+
+        try:
+            if os.path.isdir(self._worker_runtime_dir):
+                shutil.rmtree(self._worker_runtime_dir, ignore_errors=True)
+                logger.debug(
+                    "Cleaned up temporary worker runtime directory: %s",
+                    self._worker_runtime_dir,
+                )
+            else:
+                logger.debug(
+                    "Worker runtime directory already removed: %s",
+                    self._worker_runtime_dir,
+                )
+        except Exception as exc:
+            logger.warning(
+                "Failed to clean up worker runtime directory %s: %s; "
+                "administrator may need to manually remove",
+                self._worker_runtime_dir,
+                exc,
+            )
 
     # ---- Internal: message translation ----
 
