@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:48.499285Z'
-updated_at: '2026-08-02T03:30:46.730218Z'
+updated_at: '2026-08-02T03:32:12.887450Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-693
 target_branch: null
 review_url: null
@@ -163,5 +163,10 @@ author: oompah
 created: 2026-08-02 03:30
 ---
 UNDERSTANDING: This task requires implementing client-side dashboard resynchronization. Based on prior work (OOMPAH-692), the server has versioned WebSocket state, per-connection sequencing, and epoch reset semantics. As a frontend developer, I need to: (1) Add frontend logic to detect sequence/revision gaps, (2) Implement full-sync request handling via WebSocket, (3) Replace dashboard state atomically from the response while preserving revision watermarks, (4) Ensure accessibility and consistency with existing UI patterns. Starting code exploration now.
+---
+author: oompah
+created: 2026-08-02 03:32
+---
+DISCOVERY: Reviewed OOMPAH-692 implementation. Server now has: (1) Versioned WebSocket protocol v1 with envelope fields (protocol_version, epoch, delivery_seq, state_revision, issue_revision), (2) Per-connection delivery sequences to detect transport gaps, (3) Monotonic state/issue revisions within epochs, (4) Trailing-edge state coalescing. Planning document in plans/websocket-state-versioning.md clarifies protocol contract. Current refresh action sends state+issues. Next: Implement browser-side gap detection and full-sync request handling.
 ---
 <!-- COMMENTS:END -->
