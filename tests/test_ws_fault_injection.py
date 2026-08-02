@@ -15,9 +15,11 @@ Scope (OOMPAH-695):
 
 from __future__ import annotations
 
+import asyncio
+import json
 import time
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -83,6 +85,50 @@ def _drain_initial_messages(ws, timeout_seconds=1.0):
                 break
         except Exception:
             break
+
+
+def _receive_message_type(ws, message_type: str, limit: int = 8) -> dict[str, Any]:
+    """Receive messages until *message_type* arrives, returning that message."""
+    for _ in range(limit):
+        message = ws.receive_json()
+        if message.get("type") == message_type:
+            return message
+    raise AssertionError(f"did not receive WebSocket message type {message_type!r}")
+
+
+def _state_with_running(running: list[dict[str, Any]]) -> dict[str, Any]:
+    """Build the smallest authoritative state snapshot used by chip rendering."""
+    return {
+        "running": running,
+        "counts": {"running": len(running), "retrying": 0},
+    }
+
+
+def _wire_fault_injector(original_send_ws, predicate, captured=None):
+    """Return a real ``_send_ws`` wrapper that faults after envelope creation.
+
+    ``_send_ws`` receives the un-enveloped application payload.  Replacing the
+    socket's ``send_text`` for the duration of the original call lets tests
+    inspect/drop/replay the actual protocol envelope, including its sequence.
+    """
+    async def patched_send_ws(ws, msg):
+        original_send_text = ws.send_text
+
+        async def send_text(raw_text):
+            envelope = json.loads(raw_text)
+            if captured is not None:
+                captured.append(envelope)
+            if predicate(envelope):
+                return
+            await original_send_text(raw_text)
+
+        ws.send_text = send_text
+        try:
+            await original_send_ws(ws, msg)
+        finally:
+            ws.send_text = original_send_text
+
+    return patched_send_ws
 
 
 # ---------------------------------------------------------------------------
@@ -289,6 +335,92 @@ class TestFailureRecovery:
         finally:
             server_module._orchestrator = prior_orch
 
+    def test_repeated_full_sync_failures_emit_alert_in_state_payload(self, mock_orch):
+        """The live endpoint records failures and exposes one actionable alert."""
+        _reset_ws_sync_metrics()
+        prior_orch = server_module._orchestrator
+        server_module._orchestrator = mock_orch
+        try:
+            client = TestClient(app, raise_server_exceptions=False)
+            with client.websocket_connect("/ws") as ws:
+                _drain_initial_messages(ws)
+                # Fail only the full-sync wait.  The initial connection does not
+                # call this helper, so the endpoint itself remains healthy while
+                # the production _handle_full_sync error path is exercised.
+                with patch.object(
+                    server_module,
+                    "_ensure_issues_snapshot_refresh",
+                    new_callable=AsyncMock,
+                ), patch.object(
+                    server_module,
+                    "_wait_for_issues_snapshot_refresh",
+                    new_callable=AsyncMock,
+                    side_effect=[
+                        RuntimeError("injected snapshot failure")
+                        for _ in range(server_module._WS_SYNC_ALERT_THRESHOLD)
+                    ],
+                ):
+                    for _ in range(server_module._WS_SYNC_ALERT_THRESHOLD):
+                        ws.send_json({"action": "full_sync"})
+                        error = _receive_message_type(ws, "full_sync_error")
+                        assert error["retryable"] is True
+
+            metrics = _get_ws_sync_metrics()
+            assert metrics["failed_reconciliations"] == server_module._WS_SYNC_ALERT_THRESHOLD
+            assert metrics["consecutive_failures"] >= server_module._WS_SYNC_ALERT_THRESHOLD
+            alert = _get_ws_sync_alert()
+            assert alert is not None
+            assert alert["alert_type"] == "unrecovered_synchronization_failure"
+            assert "refresh" in alert["message"].lower()
+
+            state_message = server_module._current_state_message()
+            state_alert = state_message["data"].get("ws_sync_alert")
+            assert state_alert is not None
+            assert state_alert["timestamp"] == alert["timestamp"]
+            assert "contact support" in state_alert["message"]
+        finally:
+            server_module._orchestrator = prior_orch
+
+    def test_successful_full_sync_clears_alert_after_live_failures(self, mock_orch):
+        """A later live full_sync clears the alert and failure streak."""
+        _reset_ws_sync_metrics()
+        prior_orch = server_module._orchestrator
+        server_module._orchestrator = mock_orch
+        try:
+            client = TestClient(app, raise_server_exceptions=False)
+            with client.websocket_connect("/ws") as ws:
+                _drain_initial_messages(ws)
+                with patch.object(
+                    server_module,
+                    "_ensure_issues_snapshot_refresh",
+                    new_callable=AsyncMock,
+                ), patch.object(
+                    server_module,
+                    "_wait_for_issues_snapshot_refresh",
+                    new_callable=AsyncMock,
+                    side_effect=[
+                        RuntimeError("injected snapshot failure")
+                        for _ in range(server_module._WS_SYNC_ALERT_THRESHOLD)
+                    ] + [True],
+                ):
+                    for _ in range(server_module._WS_SYNC_ALERT_THRESHOLD):
+                        ws.send_json({"action": "full_sync"})
+                        _receive_message_type(ws, "full_sync_error")
+                    assert _get_ws_sync_alert() is not None
+
+                    ws.send_json({"action": "full_sync"})
+                    response = _receive_message_type(ws, "full_sync")
+                    assert response["state"] is not None
+                    assert response["issues"] is not None
+
+            metrics = _get_ws_sync_metrics()
+            assert metrics["consecutive_failures"] == 0
+            assert metrics["successful_reconciliations"] == 1
+            assert _get_ws_sync_alert() is None
+            assert "ws_sync_alert" not in server_module._current_state_message()["data"]
+        finally:
+            server_module._orchestrator = prior_orch
+
 
 class TestDisconnectReconnect:
     """Test disconnect and reconnect scenarios."""
@@ -417,26 +549,20 @@ class TestFaultInjectionWithRealProtocol:
     def test_dropped_messages_require_full_sync_recovery(self, mock_orch):
         """When messages are dropped, full_sync recovers the authoritative state."""
         _reset_ws_sync_metrics()
-
-        # Track which sequences are sent and received
-        sent_sequences: list[int] = []
-        received_sequences: list[int] = []
-        drop_seq_numbers = {1, 2}  # Drop sequences 1 and 2
-
+        dropped_envelopes: list[dict[str, Any]] = []
         original_send_ws = server_module._send_ws
 
-        async def patched_send_ws(ws, msg):
-            """Intercept sends and drop certain sequences."""
-            seq = msg.get("delivery_seq", -1)
-            sent_sequences.append(seq)
+        def drop_issues(envelope):
+            # This predicate runs after _send_ws has stamped the real
+            # protocol envelope, unlike the old pre-envelope test patch.
+            should_drop = envelope.get("type") == "issues"
+            if should_drop:
+                dropped_envelopes.append(envelope)
+            return should_drop
 
-            if seq in drop_seq_numbers:
-                # Drop this message
-                return
-
-            # Send it
-            received_sequences.append(seq)
-            await original_send_ws(ws, msg)
+        patched_send_ws = _wire_fault_injector(
+            original_send_ws, drop_issues
+        )
 
         with patch.object(server_module, "_send_ws", patched_send_ws):
             prior_orch = server_module._orchestrator
@@ -444,28 +570,17 @@ class TestFaultInjectionWithRealProtocol:
             try:
                 client = TestClient(app, raise_server_exceptions=False)
                 with client.websocket_connect("/ws") as ws:
-                    # Receive initial state (seq 0)
                     msg = ws.receive_json()
                     assert msg.get("type") == "state"
+                    # The issues message is dropped on the wire, leaving a
+                    # genuine delivery sequence gap for the browser.
+                    assert dropped_envelopes
+                    assert all("delivery_seq" in msg for msg in dropped_envelopes)
 
-                    # The next issues message would be seq 1 (dropped)
-                    # Then seq 2 (dropped)
-                    # Then when seq 3 arrives, client detects gap and requests full_sync
-
-                    # For this test, we can't easily receive the dropped messages,
-                    # but we can verify that when the client requests full_sync,
-                    # the server records the gap and attempts recovery
                     ws.send_json({"action": "full_sync"})
-
-                    # Should receive full_sync response
-                    try:
-                        msg = ws.receive_json()
-                        assert msg.get("type") in [
-                            "full_sync",
-                            "full_sync_error",
-                        ], "full_sync should respond"
-                    except Exception:
-                        pass
+                    response = _receive_message_type(ws, "full_sync")
+                    assert response["state"] is not None
+                    assert response["issues"] is not None
 
             finally:
                 server_module._orchestrator = prior_orch
@@ -473,38 +588,215 @@ class TestFaultInjectionWithRealProtocol:
         # Verify metrics recorded the gap and recovery
         metrics = _get_ws_sync_metrics()
         assert metrics["gaps_detected"] >= 1, "Gap should be detected via full_sync"
+        assert metrics["successful_reconciliations"] >= 1
 
     def test_duplicate_messages_idempotent_with_delivery_seq(self, mock_orch):
-        """Duplicated messages have unique delivery_seq and are idempotent."""
+        """A duplicate envelope cannot regress the client's applied snapshot."""
         _reset_ws_sync_metrics()
-
-        duplicate_count = 0
         original_send_ws = server_module._send_ws
+        duplicated = False
+        server_ws = None
+        first_issue_raw = None
 
         async def patched_send_ws(ws, msg):
-            """Send normally but track duplicates."""
-            nonlocal duplicate_count
-            # Just track that we sent it
-            await original_send_ws(ws, msg)
+            nonlocal duplicated, server_ws, first_issue_raw
+            server_ws = ws
+            original_send_text = ws.send_text
+
+            async def duplicate_issue_envelope(raw_text):
+                nonlocal duplicated, first_issue_raw
+                envelope = json.loads(raw_text)
+                if envelope.get("type") == "issues" and first_issue_raw is None:
+                    first_issue_raw = raw_text
+                await original_send_text(raw_text)
+                if envelope.get("type") == "issues" and not duplicated:
+                    duplicated = True
+                    # Replay precisely the same wire envelope.  Calling the
+                    # underlying send twice (rather than _send_ws twice)
+                    # preserves the original delivery_seq.
+                    await original_send_text(raw_text)
+
+            ws.send_text = duplicate_issue_envelope
+            try:
+                await original_send_ws(ws, msg)
+            finally:
+                ws.send_text = original_send_text
 
         with patch.object(server_module, "_send_ws", patched_send_ws):
             prior_orch = server_module._orchestrator
             server_module._orchestrator = mock_orch
             try:
-                client = TestClient(app, raise_server_exceptions=False)
-                with client.websocket_connect("/ws") as ws:
-                    # Get initial messages
-                    for _ in range(2):
-                        try:
-                            ws.receive_json()
-                        except Exception:
-                            break
+                with patch.object(
+                    server_module,
+                    "_ensure_issues_snapshot_refresh",
+                    new_callable=AsyncMock,
+                ):
+                    client = TestClient(app, raise_server_exceptions=False)
+                    with client.websocket_connect("/ws") as ws:
+                        first_state = _receive_message_type(ws, "state")
+                        first_issues = _receive_message_type(ws, "issues")
+                        duplicate_issues = _receive_message_type(ws, "issues")
+
+                        assert duplicated is True
+                        assert duplicate_issues["delivery_seq"] == first_issues["delivery_seq"]
+                        assert duplicate_issues["issue_revision"] == first_issues["issue_revision"]
+                        assert duplicate_issues["data"] == first_issues["data"]
+
+                        # Model the dashboard's delivery watermark at the commit
+                        # boundary: the replay is at or below the applied
+                        # sequence, so the authoritative client-visible board
+                        # remains the first snapshot.
+                        applied_issues = first_issues["data"]
+                        last_delivery_seq = first_issues["delivery_seq"]
+                        if duplicate_issues["delivery_seq"] > last_delivery_seq:
+                            applied_issues = duplicate_issues["data"]
+                        assert applied_issues == first_issues["data"]
+                        assert first_state["type"] == "state"
+
+                        # Deliver a newer issue snapshot, then replay the older
+                        # captured envelope.  The wire order is intentionally
+                        # wrong, but the older delivery watermark cannot replace
+                        # the newer client-visible board.
+                        asyncio.run(server_module._broadcast({
+                            "type": "issues",
+                            "data": {"Open": [{"identifier": "TASK-new"}]},
+                            "issue_revision": first_issues["issue_revision"] + 1,
+                        }))
+                        newer_issues = _receive_message_type(ws, "issues")
+                        assert newer_issues["data"] == {"Open": [{"identifier": "TASK-new"}]}
+                        assert server_ws is not None
+                        assert first_issue_raw is not None
+                        replay_send_text = server_ws.send_text
+                        asyncio.run(replay_send_text(first_issue_raw))
+                        replayed_issues = _receive_message_type(ws, "issues")
+
+                        assert first_issues["delivery_seq"] < newer_issues["delivery_seq"]
+                        assert replayed_issues["delivery_seq"] == first_issues["delivery_seq"]
+                        applied_issues = newer_issues["data"]
+                        if replayed_issues["delivery_seq"] > newer_issues["delivery_seq"]:
+                            applied_issues = replayed_issues["data"]
+                        assert applied_issues == newer_issues["data"]
 
             finally:
                 server_module._orchestrator = prior_orch
 
-        # If we got here without error, duplicate handling worked
-        assert True
+
+class TestLiveDashboardConvergence:
+    """Exercise the real /ws endpoint with authoritative state transitions."""
+
+    def test_four_completion_snapshots_converge_to_zero_running_chips(self):
+        """Dropped auditor completions are removed by one authoritative full sync."""
+        _reset_ws_sync_metrics()
+        completed_auditors = [
+            {
+                "issue_identifier": f"TASK-{index}",
+                "run_id": f"run-{index}",
+                "agent_profile": "auditor",
+            }
+            for index in range(1, 5)
+        ]
+        dropped: list[dict[str, Any]] = []
+        original_send_ws = server_module._send_ws
+        prior_orch = server_module._orchestrator
+        server_module._orchestrator = _make_mock_orch()
+
+        def drop_completion_states(envelope):
+            data = envelope.get("data")
+            running = data.get("running") if isinstance(data, dict) else None
+            if envelope.get("type") == "state" and isinstance(running, list):
+                # The initial state has all four chips; only drop the four
+                # subsequent completion snapshots (4→3→2→1→0).
+                if len(running) in {0, 1, 2, 3}:
+                    dropped.append(envelope)
+                    return True
+            return False
+
+        patched_send_ws = _wire_fault_injector(
+            original_send_ws, drop_completion_states
+        )
+        try:
+            server_module._update_state_snapshot(_state_with_running(completed_auditors))
+            with patch.object(server_module, "_send_ws", patched_send_ws):
+                client = TestClient(app, raise_server_exceptions=False)
+                with client.websocket_connect("/ws") as ws:
+                    initial = _receive_message_type(ws, "state")
+                    assert initial["data"]["running"] == completed_auditors
+
+                    # Each transition is sent through the actual broadcast →
+                    # _send_ws → enveloped WebSocket path.  The injector drops
+                    # only the four completion envelopes.
+                    for remaining in range(3, -1, -1):
+                        snapshot = _state_with_running(completed_auditors[:remaining])
+                        server_module._update_state_snapshot(snapshot)
+                        asyncio.run(server_module._broadcast(server_module._current_state_message()))
+
+                    assert len(dropped) == 4
+                    assert [message["delivery_seq"] for message in dropped] == sorted(
+                        message["delivery_seq"] for message in dropped
+                    )
+
+                    # This is the browser's gap-recovery action.  The response
+                    # is one coherent full_sync payload, not four incremental
+                    # snapshots, and must remove every stale running chip.
+                    ws.send_json({"action": "full_sync"})
+                    full_sync = _receive_message_type(ws, "full_sync")
+                    assert full_sync["state"]["running"] == []
+                    assert not {
+                        item["issue_identifier"] for item in full_sync["state"]["running"]
+                    }.intersection(
+                        item["issue_identifier"] for item in completed_auditors
+                    )
+
+            metrics = _get_ws_sync_metrics()
+            assert metrics["gaps_detected"] >= 1
+            assert metrics["full_sync_requests"] >= 1
+            assert metrics["successful_reconciliations"] >= 1
+        finally:
+            server_module._orchestrator = prior_orch
+
+    @pytest.mark.asyncio
+    async def test_full_sync_burst_coalesces_snapshot_work(self):
+        """A burst shares one in-flight assembly and emits one response."""
+        ws = MagicMock()
+        ws.send_text = AsyncMock()
+        orch = _make_mock_orch()
+        release_assembly = asyncio.Event()
+        assembly_started = asyncio.Event()
+
+        async def slow_refresh(*args, **kwargs):
+            assembly_started.set()
+            await release_assembly.wait()
+
+        with patch.object(server_module, "_read_state_snapshot_with_revision",
+                          return_value=({"running": []}, 7)), \
+             patch.object(server_module, "_ensure_issues_snapshot_refresh",
+                          side_effect=slow_refresh) as refresh_mock, \
+             patch.object(server_module, "_wait_for_issues_snapshot_refresh",
+                          new_callable=AsyncMock, return_value=True), \
+             patch.object(server_module, "_issues_snapshot_payload_with_revision",
+                          return_value=({"Open": []}, 11)):
+            server_module._register_ws(ws)
+            try:
+                requests = [
+                    asyncio.create_task(server_module._handle_full_sync(ws, orch))
+                    for _ in range(20)
+                ]
+                await asyncio.wait_for(assembly_started.wait(), timeout=1)
+                await asyncio.sleep(0)
+
+                # All other requests observe the per-connection pending flag
+                # while the first assembly is blocked in the real handler.
+                assert refresh_mock.await_count == 1
+                release_assembly.set()
+                await asyncio.gather(*requests)
+            finally:
+                server_module._unregister_ws(ws)
+
+        assert ws.send_text.await_count == 1
+        payload = json.loads(ws.send_text.call_args.args[0])
+        assert payload["type"] == "full_sync"
+        assert payload["state_revision"] == 7
+        assert payload["issue_revision"] == 11
 
 
 # Ensure metrics are reset after each test

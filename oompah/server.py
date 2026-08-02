@@ -3340,6 +3340,7 @@ async def websocket_endpoint(ws: WebSocket):
                     # incremental processing.  Coalesces duplicates per
                     # connection; returns a retryable error on failure.
                     _ws_sync_record_gap()  # Client signaled gap detection
+                    _ws_sync_record_full_sync_request()
                     await _handle_full_sync(ws, orch)
                 elif msg.get("type") == "console_input":
                     # Per-project ACP console (oompah-zlz_2-ebwe).
