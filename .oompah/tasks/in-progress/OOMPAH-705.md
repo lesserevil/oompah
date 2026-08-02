@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T21:30:29.609691Z'
-updated_at: '2026-08-02T22:01:57.317744Z'
+updated_at: '2026-08-02T22:14:06.772144Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -141,5 +141,10 @@ author: oompah
 created: 2026-08-02 22:01
 ---
 Implementation: Standalone delivery now compares the live remote branch tip with the accepted integration.head_sha before review lookup, so a newer tip cannot replace submitted evidence. Review gating resolves the persisted submission head, uses the project-scoped credential path for a 30-second exact branch-ref fetch into the stale managed clone, verifies the fetched tip equals the accepted SHA, reuses an already materialized exact ref idempotently, and classifies unavailable/fetch failures as infrastructure_error without CI-fix mutation. Added stale-clone, newer-tip, unavailable-head, idempotence, and standalone admission regressions.
+---
+author: oompah
+created: 2026-08-02 22:14
+---
+Verification: PASS — 96/96 quality-gate + standalone delivery tests; 13/13 submit-focused worker/CLI tests; terminal mutation scan 6/6 allowlisted. Full isolated xdist run: 15,013 passed, 7 skipped, 1 expected xfail, with one unrelated parallel-only failure in test_pr_merged_stages_task_merged; that test passes alone and the complete tests/test_server_webhooks.py file passes 130/130. The make targets themselves could not bootstrap because the host Snap uv wrapper fails in DBus before setup, so the same Makefile runner and scanner were executed directly with the provisioned interpreter.
 ---
 <!-- COMMENTS:END -->
