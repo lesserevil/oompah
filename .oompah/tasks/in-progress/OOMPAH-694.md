@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:50.443759Z'
-updated_at: '2026-08-02T04:06:32.147062Z'
+updated_at: '2026-08-02T04:06:52.233930Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-694
 target_branch: null
 review_url: null
@@ -144,5 +144,10 @@ author: oompah
 created: 2026-08-02 04:06
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-08-02 04:06
+---
+Understanding: implement browser-side convergence around epoch, delivery sequence, state/issue revisions, and heartbeat watermarks; trigger one bounded full-sync flow on stale signals, preserve local UI state, and add focused recovery tests.
 ---
 <!-- COMMENTS:END -->
