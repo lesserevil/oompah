@@ -13,7 +13,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-08-02T22:19:11.796639Z'
-updated_at: '2026-08-02T22:50:47.076054Z'
+updated_at: '2026-08-02T23:02:34.984394Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -433,5 +433,15 @@ author: oompah
 created: 2026-08-02 22:50
 ---
 Understanding: I will implement a persisted, bounded direct-owner lease; serialize claim mutations with the orphan watchdog; expose source/expiry in state and dashboard; and cover live, expired/released, scheduler, and race paths with focused tests.
+---
+author: oompah
+created: 2026-08-02 23:02
+---
+Discovery: the orphan reset already serializes tracker writes with project_write_lock, but its ownership decision occurred without any direct-owner state. I added a project-scoped persisted lease and moved the final claim check inside that same lock to close the watchdog/API TOCTOU window.
+---
+author: oompah
+created: 2026-08-02 23:02
+---
+Implementation: added OwnerClaim persistence and bounded TTL configuration; atomic authorized POST/GET/DELETE claim APIs; watchdog expiry/recovery protection; owner-claim source/age/expiry in state; and dashboard owner badges. The claim route atomically transitions direct work to In Progress under the shared project lock.
 ---
 <!-- COMMENTS:END -->
