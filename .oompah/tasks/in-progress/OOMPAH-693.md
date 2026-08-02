@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:48.499285Z'
-updated_at: '2026-08-02T03:45:31.928750Z'
+updated_at: '2026-08-02T03:46:46.119069Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-693
 target_branch: null
 review_url: null
@@ -173,5 +173,10 @@ author: oompah
 created: 2026-08-02 03:45
 ---
 IMPLEMENTATION: Added full dashboard resynchronization. Server changes (oompah/server.py): (1) _ws_fullsync_pending set + _ws_fullsync_lock for per-connection coalescing, (2) _handle_full_sync() function that atomically assembles state+issues with revision watermarks, returns full_sync_error with retryable:true on failure, (3) full_sync action handler in websocket_endpoint. Client changes (dashboard.html): (1) Protocol envelope tracking (wsEpoch, wsDeliverySeq, wsFullSyncPending), (2) _requestFullSync() helper, (3) Gap detection in ws.onmessage - detects epoch changes and delivery_seq gaps, (4) full_sync message handler for atomic state+issues replacement, (5) full_sync_error handler with auto-retry. Tests (tests/test_ws_full_sync.py): 22 tests covering response structure, revision watermarks, coalescing, race safety, error handling, auth isolation, and multi-client isolation. All tests pass.
+---
+author: oompah
+created: 2026-08-02 03:46
+---
+VERIFICATION: All focused tests pass. Results: test_ws_full_sync.py (22/22), test_ws_lifecycle.py (49/49), test_websocket_authenticated_bootstrap.py (14/14). Total: 85 tests pass, 0 failures. Branch pushed: epic-OOMPAH-691--task-OOMPAH-693 at cf5f3cece.
 ---
 <!-- COMMENTS:END -->
