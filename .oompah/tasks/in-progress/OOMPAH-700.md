@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-700
 type: bug
-status: Backlog
+status: In Progress
 priority: 1
 title: Gate accepted submissions without a canonical task worktree
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T19:52:39.323644Z'
-updated_at: '2026-08-02T20:25:16.700335Z'
+updated_at: '2026-08-02T20:25:32.063125Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -183,5 +183,20 @@ author: oompah
 created: 2026-08-02 20:24
 ---
 Understanding: Resume the preserved exact-head gating fix and validate it against OOMPAH-700's acceptance criteria. I will inspect the existing recovery snapshot without replacing it, identify any incomplete test coverage or CI failures, make only the necessary changes, run focused Makefile-backed checks, then commit, push OOMPAH-700, and submit the task.
+---
+author: oompah
+created: 2026-08-02 20:25
+---
+Run #1 [attempt=1, profile=deep, role=deep -> Codex/gpt-5.6-sol]
+- Turns: 0, Tool calls: 10
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 56s
+- Log: OOMPAH-700__20260802T202434Z.jsonl
+---
+author: oompah
+created: 2026-08-02 20:25
+---
+Marked human-only and reclaimed for direct owner implementation after restart recovery incorrectly launched a concurrent worker.
 ---
 <!-- COMMENTS:END -->
