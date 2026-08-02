@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:50.443759Z'
-updated_at: '2026-08-02T04:28:29.288531Z'
+updated_at: '2026-08-02T04:28:44.418969Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-694
 target_branch: null
 review_url: null
@@ -50,17 +50,19 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: epic-OOMPAH-691--task-OOMPAH-694
+  base_branch: main
+  base_sha: d4607b78ba919a1f14efb12ff8d9f2059a59f6fb
   head_sha: a8fc3fff5d4b889672cfd2ddfbf33ecf6371560b
   submitted_at: '2026-08-02T04:28:26.712895+00:00'
-  updated_at: '2026-08-02T04:28:26.712895+00:00'
+  updated_at: '2026-08-02T04:28:42.569554+00:00'
 oompah.task_costs:
-  total_input_tokens: 415198
-  total_output_tokens: 2198
+  total_input_tokens: 415223
+  total_output_tokens: 11692
   total_cost_usd: 0.0
   by_model:
     sonnet:
-      input_tokens: 415198
-      output_tokens: 2198
+      input_tokens: 415223
+      output_tokens: 11692
       cost_usd: 0.0
   runs:
   - profile: standard
@@ -69,6 +71,12 @@ oompah.task_costs:
     output_tokens: 2198
     cost_usd: 0.0
     recorded_at: '2026-08-02T02:10:27.689432+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 25
+    output_tokens: 9494
+    cost_usd: 0.0
+    recorded_at: '2026-08-02T04:28:36.643214+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-694__20260802T020920Z
@@ -79,6 +87,14 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-691--task-OOMPAH-694
     source_sha: 6252b5434f392b74de9703a9fc8dca1951dfeaca
     completed_at: '2026-08-02T02:10:27.762886+00:00'
+  - run_id: OOMPAH-694__20260802T042445Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: sonnet
+    focus: frontend
+    source_branch: epic-OOMPAH-691--task-OOMPAH-694
+    source_sha: a8fc3fff5d4b889672cfd2ddfbf33ecf6371560b
+    completed_at: '2026-08-02T04:28:36.649522+00:00'
 ---
 ## Summary
 
@@ -279,5 +295,20 @@ author: oompah
 created: 2026-08-02 04:28
 ---
 Fixed the one failing quality-gate test: test_ws_issues_handler_clears_stale_banner. Root cause: the test regex extracted the msg.type === 'issues' handler block and stopped at the closing } before else, so only '_applyIssuesMessage(msg)' was visible — not the _setTrackerStaleBanner(false) call that existed inside the helper function. Fix: added an explicit _setTrackerStaleBanner(false) call directly in the handler block after _applyIssuesMessage(msg). All 182 focused dashboard/reconciliation/console tests pass.
+---
+author: oompah
+created: 2026-08-02 04:28
+---
+Agent completed successfully in 242s (9519 tokens)
+---
+author: oompah
+created: 2026-08-02 04:28
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 41, Tool calls: 22
+- Tokens: 25 in / 9.5K out [9.5K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 4m 2s
+- Log: OOMPAH-694__20260802T042445Z.jsonl
 ---
 <!-- COMMENTS:END -->
