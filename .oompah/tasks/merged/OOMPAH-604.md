@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-604
 type: bug
-status: Done
+status: Merged
 priority: 1
 title: Allow owner overrides after terminal-audit evidence supersession
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T17:07:44.032640Z'
-updated_at: '2026-07-30T18:27:07.151861Z'
+updated_at: '2026-08-02T18:26:58.295820Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-604
 target_branch: null
 review_url: null
@@ -114,6 +114,25 @@ oompah.terminal_audit:
   applied_result_attempts:
     no-auditor-audit-c55cdf449369-1: '2026-07-30T18:13:33.817963+00:00'
     attempt-4abb7df16260: '2026-07-30T18:26:01.660530+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-55b734b4f72a
+    project_id: proj-14849f1b
+    task_id: OOMPAH-604
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 34f58520a2b73227f592ca447a9e5b66be178fb90218ca3efdd0d057f3a2c9dd
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reconciliation: parent OOMPAH-585 is Merged and its accepted rollup
+      contains this previously audited Done child; durable integration-queue/rollup
+      evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.'
+    created_at: '2026-08-02T18:26:54.871497+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -412,5 +431,12 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> InferenceAPI/nvidia/nvidia/n
 - Cost: $0.0000
 - Exit: normal, Duration: 8m 41s
 - Log: OOMPAH-604__20260730T181834Z.jsonl
+---
+author: oompah
+created: 2026-08-02 18:26
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner reconciliation: parent OOMPAH-585 is Merged and its accepted rollup contains this previously audited Done child; durable integration-queue/rollup evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.
 ---
 <!-- COMMENTS:END -->
