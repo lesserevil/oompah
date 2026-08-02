@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-701
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Retire hidden provider processes when task ownership is revoked
 parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- human-only
 assignee: null
 created_at: '2026-08-02T20:20:26.676545Z'
-updated_at: '2026-08-02T21:54:09.510842Z'
+updated_at: '2026-08-02T21:56:10.130650Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -140,5 +141,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 33s
 - Log: OOMPAH-701__20260802T215336Z.jsonl
+---
+author: oompah
+created: 2026-08-02 21:56
+---
+Claimed for direct project-owner implementation after two duplicate-preflight contract/truncation retries. Added human-only to fence further scheduler dispatch; OOMPAH-706 tracks the duplicate-screening cause.
 ---
 <!-- COMMENTS:END -->
