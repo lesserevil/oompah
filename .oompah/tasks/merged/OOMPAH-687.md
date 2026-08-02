@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-687
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Isolate branch-gate runtime from task worktree environments
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T23:00:54.291962Z'
-updated_at: '2026-08-02T02:57:44.474431Z'
+updated_at: '2026-08-02T02:58:17.221981Z'
 work_branch: OOMPAH-687
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/651
@@ -153,6 +153,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-506adfbeb992: '2026-08-02T02:57:23.199885+00:00'
+    attempt-d8a3c85f6e32: '2026-08-02T02:58:13.655768+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-687
@@ -163,6 +164,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-02T02:57:23.199898+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-687
+    target_state: Merged
+    evidence_fingerprint: eed7014fc73d6808dd078065de4cca49b56cd75f09128275398b4c2f8d415219
+    audit_ids:
+    - audit-82599dc4ad04
+    kind: result
+    applied: true
+    retired_at: '2026-08-02T02:58:13.655785+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-687
@@ -176,6 +186,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-02T02:57:23.199914+00:00'
     applied_at: '2026-08-02T02:57:26.836012+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-687
+    audit_id: audit-82599dc4ad04
+    attempt_id: attempt-d8a3c85f6e32
+    target_state: Merged
+    evidence_fingerprint: eed7014fc73d6808dd078065de4cca49b56cd75f09128275398b4c2f8d415219
+    status: Merged
+    audit_ids:
+    - audit-82599dc4ad04
+    applied: false
+    created_at: '2026-08-02T02:58:13.655806+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -217,7 +238,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-687
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -226,7 +247,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-d8a3c85f6e32
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -236,13 +257,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-02T02:57:39.437865+00:00'
       branch_key: OOMPAH-687
+      verdict: pass
+      completed_at: '2026-08-02T02:58:13.655604+00:00'
+      ended_at: '2026-08-02T02:58:13.655604+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-02T02:56:24.475682+00:00'
-    updated_at: '2026-08-02T02:57:39.437865+00:00'
+    updated_at: '2026-08-02T02:58:13.655604+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-506adfbeb992
@@ -662,5 +686,20 @@ author: oompah
 created: 2026-08-02 02:57
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-02 02:58
+---
+Audit PASS — Merged
+
+Branch OOMPAH-687 head 17a1f43eb passed the branch quality gate (make test, 394.8s) and PR #651 was merged into main as 99c46aa06. All three OOMPAH-687 commits (046ad1f71, 9dfa372d7, 17a1f43eb) are present on origin/main. Working tree is clean. Transition to Merged is supported.
+
+Safe evidence:
+- branch_head: 17a1f43eb80b345072178b15722e6849ae5db9dd
+- merge_commit_on_main: 99c46aa06
+- pr_number: 651
+- branch_gate_result: passed (make test, 394.8s)
+- working_tree: clean
+- commits_on_main: 046ad1f71, 9dfa372d7, 17a1f43eb
 ---
 <!-- COMMENTS:END -->
