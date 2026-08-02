@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-591
 type: task
-status: Done
+status: Merged
 priority: 1
 title: Reconcile the pending audit backlog and stale In Validation tasks
 parent: OOMPAH-585
@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:26.620047Z'
-updated_at: '2026-07-31T00:07:10.991190Z'
+updated_at: '2026-08-02T18:24:27.401647Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-591
 target_branch: null
 review_url: null
@@ -163,6 +163,25 @@ oompah.terminal_audit:
     no-auditor-audit-37099e414d25-3: '2026-07-30T19:43:55.856470+00:00'
     attempt-03cc29dbf171: '2026-07-30T22:38:42.932141+00:00'
     attempt-4757deb0494f: '2026-07-31T00:06:54.147334+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-6af39dcb0ebd
+    project_id: proj-14849f1b
+    task_id: OOMPAH-591
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 1c37dc5efc6e850138b02899f52969a9e0f079db0733ab4b6a352219acffc4ac
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reconciliation: parent OOMPAH-585 is Merged and its accepted rollup
+      contains this previously audited Done child; durable integration-queue/rollup
+      evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.'
+    created_at: '2026-08-02T18:24:23.505274+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -1008,5 +1027,12 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 3m 11s
 - Log: OOMPAH-591__20260731T000400Z.jsonl
+---
+author: oompah
+created: 2026-08-02 18:24
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner reconciliation: parent OOMPAH-585 is Merged and its accepted rollup contains this previously audited Done child; durable integration-queue/rollup evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.
 ---
 <!-- COMMENTS:END -->
