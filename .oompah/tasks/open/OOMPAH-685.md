@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-685
 type: task
-status: Needs CI Fix
+status: Open
 priority: null
 title: Forward project forge credentials through integration verification
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T21:46:41.297124Z'
-updated_at: '2026-08-02T03:08:03.221009Z'
+updated_at: '2026-08-02T03:09:05.145378Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -470,5 +470,17 @@ FAILED tests/test_orchestrator_handlers.py::TestTickDelegation::test_tick_handle
 
 make: *** [Makefile:388: test] Error 1
 ```
+---
+author: oompah
+created: 2026-08-02 03:09
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #2)
+
+**State audited:** `Needs CI Fix`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** Recent comment indicates CI is now passing or PR has been merged; safe to reopen for dispatch.
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
 ---
 <!-- COMMENTS:END -->
