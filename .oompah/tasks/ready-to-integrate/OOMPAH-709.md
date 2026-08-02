@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-709
 type: task
-status: Open
+status: Ready to Integrate
 priority: null
 title: Make tick-delegation tests deterministic under parallel full-suite execution
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T23:17:45.073003Z'
-updated_at: '2026-08-02T23:31:31.558511Z'
+updated_at: '2026-08-02T23:50:28.901718Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -66,6 +66,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-709
     source_sha: 26ce120b9c48621161e4447866163f035b57d83a
     completed_at: '2026-08-02T23:18:27.145198+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-709
+  head_sha: 0b14dec5438f6a29317c31b0341744c8c1c4e007
+  submitted_at: '2026-08-02T23:50:24.472111+00:00'
+  updated_at: '2026-08-02T23:50:24.472111+00:00'
 ---
 ## Summary
 
@@ -197,5 +205,15 @@ author: oompah
 created: 2026-08-02 23:31
 ---
 Direct project-owner repair claimed after the delegated draft expanded into production shutdown behavior and failed its own full handler-module run. I will keep this test-isolation bug scoped, repair the committed draft, verify repeated parallel execution plus the full gate, and submit the corrected head.
+---
+author: oompah
+created: 2026-08-02 23:50
+---
+Direct repair complete at pushed head 0b14dec5438f6a29317c31b0341744c8c1c4e007. Root cause was deterministic: under full-suite load, the tick crossed its 2-second diagnostic threshold and the tests' invalid None dispatch-timing return failed only on that slow path. The tests now force that path, honor the mapping contract, await exact maintenance futures, consume background exceptions, and shut down each helper-owned tick pool. Production scheduler semantics are unchanged. Verification: exact regressions 2 passed; TestTickDelegation passed five consecutive 4-worker runs; full handler module 277 passed under xdist; check-secrets completed; branch clean and pushed.
+---
+author: oompah
+created: 2026-08-02 23:50
+---
+Made tick-delegation tests deterministic without production scheduler changes. Forced slow telemetry reproduces the former load-only path, exact background completion is awaited, executor teardown is test-scoped, and background failures remain observable. Pushed head 0b14dec5438f6a29317c31b0341744c8c1c4e007; focused module 277 passed plus five repeated parallel delegation runs.
 ---
 <!-- COMMENTS:END -->
