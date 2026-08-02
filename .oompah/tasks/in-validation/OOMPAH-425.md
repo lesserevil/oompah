@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-425
 type: feature
-status: Merged
+status: In Validation
 priority: 1
 title: Auto-scale agent concurrency when configured as zero
 parent: null
@@ -10,12 +10,34 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-23T20:45:34.887827Z'
-updated_at: '2026-07-26T00:28:55.268714Z'
+updated_at: '2026-08-02T01:13:54.116643Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-a916a08af396
+    project_id: proj-14849f1b
+    task_id: OOMPAH-425
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: bc78b0c30049e7a69db5da871fa1a272fa36cf432110ad8d3a046859c7babf46
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-02T01:13:50.532180+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -48,5 +70,10 @@ author: oompah
 created: 2026-07-26 00:28
 ---
 Verified delivered on origin/main in ad8db8419 and reconciled stale Done state.
+---
+author: oompah
+created: 2026-08-02 01:13
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
