@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T20:59:10.197769Z'
-updated_at: '2026-08-02T22:39:33.419042Z'
+updated_at: '2026-08-02T22:39:48.159819Z'
 work_branch: OOMPAH-703
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/663
@@ -147,8 +147,9 @@ oompah.terminal_audit:
     status: Merged
     audit_ids:
     - audit-3990a0e653f5
-    applied: false
+    applied: true
     created_at: '2026-08-02T22:39:27.705674+00:00'
+    applied_at: '2026-08-02T22:39:35.548493+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -433,5 +434,15 @@ Safe evidence:
 - sleep_replacements: 5 invalidate tests + thread-safety cleanup switched from asyncio.sleep to wait_for_completion
 - new_test_class: TestRefreshManagerCompletion (no-job, success, failure)
 - prior_make_test_gate: pass (395.2s on branch head, per orchestrator gate comment)
+---
+author: oompah
+created: 2026-08-02 22:39
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 33, Tool calls: 27
+- Tokens: 33 in / 5.1K out [5.2K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 3m 34s
+- Log: OOMPAH-703__20260802T223617Z.jsonl
 ---
 <!-- COMMENTS:END -->
