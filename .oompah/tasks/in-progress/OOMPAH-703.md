@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T20:59:10.197769Z'
-updated_at: '2026-08-02T21:54:33.974599Z'
+updated_at: '2026-08-02T21:55:55.475574Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -148,5 +148,10 @@ author: oompah
 created: 2026-08-02 21:54
 ---
 Understanding: I will inspect BacklogRefreshManager and its invalidation tests, replace wall-clock completion assumptions with deterministic synchronization, add regression coverage for one subsequent refresh and stale-while-revalidate behavior, then run focused checks and the required Makefile validation.
+---
+author: oompah
+created: 2026-08-02 21:55
+---
+Discovery: refresh jobs already own an asyncio.Task, and _run records terminal complete/failed state before the task finishes; however, tests cannot await that task through the public API. I will add a narrowly scoped wait_for_completion(project_id, branch) method that shields the refresh task from caller cancellation and returns the terminal RefreshStatus, then use it in the invalidate tests. This preserves stale-while-revalidate and normal refresh behavior while making completion synchronization explicit.
 ---
 <!-- COMMENTS:END -->
