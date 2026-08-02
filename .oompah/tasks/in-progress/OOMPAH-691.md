@@ -16,7 +16,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T02:00:17.265294Z'
-updated_at: '2026-08-02T07:17:58.768781Z'
+updated_at: '2026-08-02T07:18:06.566366Z'
 work_branch: epic-OOMPAH-691
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/654
@@ -88,5 +88,10 @@ author: oompah
 created: 2026-08-02 07:16
 ---
 Discovery: The refresh test does \`for _ in range(3): ws.receive_json()\` with no per-call timeout. The server refresh handler synchronously sends state, then calls \`broadcast_issues()\`. Under CI load, \`broadcast_issues\` may (a) never emit if the throttled/coalesced payload is None or (b) emit after >5s. If fewer than 3 messages arrive before the 5s pytest-timeout, \`receive_json\` blocks indefinitely and the whole test times out. The assertion only requires 'state' to be in the received types. Also there's a possible race with the initial connect's background \`_ensure_issues_snapshot_refresh(orch, broadcast=True)\` broadcasting one extra 'issues' before the refresh state. Bounded, early-exit fix: receive at most 2 messages, break as soon as 'state' is seen (state is guaranteed by the server refresh handler).
+---
+author: oompah
+created: 2026-08-02 07:18
+---
+Implementation: Bounded the post-refresh receive loop in \`tests/test_ws_lifecycle.py::TestWebSocketRefreshAction::test_refresh_action_sends_state_back\` to at most 2 messages with an early break on 'state'. Both reads are backed by messages the server is guaranteed to deliver (refresh-handler state; plus at most one background issues broadcast from initial-connect's \`_ensure_issues_snapshot_refresh(broadcast=True)\` that can race in front). Assertion unchanged. This removes the unbounded 3rd/2nd \`receive_json\` that hung past 5s under CI load when \`broadcast_issues\` coalesced/suppressed its emit. Verification: 133 focused WebSocket/dashboard-convergence tests pass locally (test_ws_lifecycle.py 49, test_ws_full_sync.py 22, test_ws_fault_injection.py 16, test_dashboard_websocket_liveness.py 9, test_websocket_authenticated_bootstrap.py 14, test_orchestrator_full_sync.py 23). Pushed as dd300faf5.
 ---
 <!-- COMMENTS:END -->
