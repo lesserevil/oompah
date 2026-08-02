@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:50.443759Z'
-updated_at: '2026-08-02T04:16:28.849479Z'
+updated_at: '2026-08-02T04:16:36.666862Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-694
 target_branch: null
 review_url: null
@@ -159,5 +159,10 @@ author: oompah
 created: 2026-08-02 04:16
 ---
 Implementation: replaced the dashboard's gap-only WebSocket handling with epoch/contiguous-sequence tracking, applied state/issue revision guards, pong watermark detection, stale/reconciling status, bounded retry/backoff, and a single full-sync commit boundary. Incrementals are bounded-buffered during recovery; old deliveries are dropped by the full-sync watermark and newer buffered deliveries replay in order. Full-sync rendering suppresses intermediate optimistic board renders and preserves existing edit/drag/filter/detail/console behavior; active console history is backfilled.
+---
+author: oompah
+created: 2026-08-02 04:16
+---
+Verification: focused dashboard/console suites pass (153 tests); adjacent WebSocket full-sync/lifecycle suites pass (71 tests); extracted dashboard JavaScript passes Node syntax validation; git diff --check is clean.
 ---
 <!-- COMMENTS:END -->
