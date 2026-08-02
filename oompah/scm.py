@@ -1613,6 +1613,13 @@ class GitHubProvider(SCMProvider):
         author = pr.get("user", {})
         author_login = author.get("login", "") if isinstance(author, dict) else str(author)
 
+        if pr.get("merged_at"):
+            state = "merged"
+        elif pr.get("state") == "closed":
+            state = "closed"
+        else:
+            state = "open"
+
         merge_state_raw = pr.get("mergeable_state") or ""
         # Two paths can mark a PR as auto-merge-enabled:
         #   1. ``auto_merge`` non-null — the auto-merge feature is on
@@ -1638,7 +1645,7 @@ class GitHubProvider(SCMProvider):
             title=pr.get("title", ""),
             url=pr.get("html_url", ""),
             author=author_login,
-            state="open",
+            state=state,
             source_branch=pr.get("head", {}).get("ref", ""),
             target_branch=pr.get("base", {}).get("ref", ""),
             created_at=pr.get("created_at", ""),
@@ -1650,6 +1657,7 @@ class GitHubProvider(SCMProvider):
             deletions=pr.get("deletions", 0),
             auto_merge_enabled=auto_merge_enabled,
             mergeable_state=merge_state_raw,
+            head_sha=str(pr.get("head", {}).get("sha", "") or ""),
         )
 
     def create_review(
@@ -2252,12 +2260,20 @@ class GitLabProvider(SCMProvider):
         author = mr.get("author", {})
         author_name = author.get("username", author.get("name", "")) if isinstance(author, dict) else str(author)
 
+        raw_state = str(mr.get("state", "") or "").lower()
+        if raw_state == "merged":
+            state = "merged"
+        elif raw_state == "closed":
+            state = "closed"
+        else:
+            state = "open"
+
         return ReviewRequest(
             id=str(mr.get("iid", mr.get("id", ""))),
             title=mr.get("title", ""),
             url=mr.get("web_url", ""),
             author=author_name,
-            state="open",
+            state=state,
             source_branch=mr.get("source_branch", ""),
             target_branch=mr.get("target_branch", ""),
             created_at=mr.get("created_at", ""),
@@ -2265,6 +2281,11 @@ class GitLabProvider(SCMProvider):
             description=_truncate(mr.get("description", "") or "", 500),
             labels=mr.get("labels") or [],
             draft=mr.get("draft", False) or mr.get("work_in_progress", False),
+            head_sha=str(
+                mr.get("sha")
+                or (mr.get("diff_refs") or {}).get("head_sha")
+                or ""
+            ),
         )
 
     def create_review(
