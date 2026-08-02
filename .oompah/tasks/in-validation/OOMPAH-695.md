@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-695
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Prove dashboard convergence with fault injection and health telemetry
 parent: OOMPAH-691
@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:52.297786Z'
-updated_at: '2026-08-02T06:12:57.849226Z'
+updated_at: '2026-08-02T06:19:19.227549Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-695
 target_branch: null
 review_url: null
@@ -66,14 +66,19 @@ oompah.agent_run_id: 3c941a0b-0ed5-40c4-a8b7-83639bbb2078
 oompah.work_branch: epic-OOMPAH-691--task-OOMPAH-695
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-691--task-OOMPAH-695
-  base_branch: main
-  base_sha: c84a5febeb433640292e91790dfaa17613c1a3a0
+  base_branch: epic-OOMPAH-691
+  base_sha: 1293a2f3c548d450447a44b57dc839fd8860606d
   head_sha: 6897f3093f86fc9d6961b915c1b51504b30e9f5b
+  integrated_sha: 6897f3093f86fc9d6961b915c1b51504b30e9f5b
   submitted_at: '2026-08-02T06:12:29.549536+00:00'
-  updated_at: '2026-08-02T06:12:56.899649+00:00'
+  updated_at: '2026-08-02T06:19:15.352459+00:00'
+  dependency_heads:
+    OOMPAH-692: 23d108b20c132b03c5dd450c1cb8ac97d4f0ffac
+    OOMPAH-693: cf5f3cecede5a3344922345e2fcbc3f042c982c9
+    OOMPAH-694: 5d9186d6d63e368e4f97934354f4d28e5ea2a93f
 oompah.task_costs:
   total_input_tokens: 751
   total_output_tokens: 58653
@@ -182,7 +187,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-695
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -212,6 +217,23 @@ oompah.terminal_audit:
     previous_state: Ready to Integrate
     created_at: '2026-08-02T05:26:32.059637+00:00'
     updated_at: '2026-08-02T06:03:07.211768+00:00'
+  - version: 1
+    audit_id: audit-f57bcbb9815d
+    project_id: proj-14849f1b
+    task_id: OOMPAH-695
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f8f9d51f4f1224eb226b8d5e5deea678a616aae050609634e71a7565f07623fc
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-08-02T06:19:17.215268+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-f7901f6eb210
