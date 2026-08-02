@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-705
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Fetch an accepted submission head before standalone review gating
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T21:30:29.609691Z'
-updated_at: '2026-08-02T22:15:35.851956Z'
+updated_at: '2026-08-02T22:15:55.010346Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -55,7 +55,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 4c73c16a-d212-40ce-bdf4-62d267ace265
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 6
   total_output_tokens: 664
@@ -82,6 +82,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-705
     source_sha: 366129d0a5046c5ed7caed4acf26cd8cd2a3fbdd
     completed_at: '2026-08-02T21:52:05.571231+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-705
+  head_sha: 73e20b64c99a542bbbab3c84237af916193b1a7c
+  submitted_at: '2026-08-02T22:15:43.215768+00:00'
+  updated_at: '2026-08-02T22:15:43.215768+00:00'
 ---
 ## Summary
 
@@ -151,5 +159,20 @@ author: oompah
 created: 2026-08-02 22:15
 ---
 Completion: Delivered commit 73e20b64c on pushed branch OOMPAH-705. Accepted standalone submission heads are now remote-verified, credential-fetched into stale managed clones, exact-tip checked before CI, and protected from newer-head substitution; infrastructure fetch failures do not create CI-fix state. Regression coverage includes stale-clone recovery, repeated idempotence, advanced remote tips, unavailable commits, and standalone pre-gate fencing.
+---
+author: oompah
+created: 2026-08-02 22:15
+---
+Fetched and fenced accepted standalone submission heads before review quality gating, with stale-clone and infrastructure regression coverage.
+---
+author: oompah
+created: 2026-08-02 22:15
+---
+Run #1 [attempt=1, profile=deep, role=deep -> Codex/gpt-5.6-sol]
+- Turns: 0, Tool calls: 77
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 23m 18s
+- Log: OOMPAH-705__20260802T215243Z.jsonl
 ---
 <!-- COMMENTS:END -->
