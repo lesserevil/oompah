@@ -1,8 +1,8 @@
 ---
 id: OOMPAH-684
 type: task
-status: In Review
-priority: null
+status: Needs CI Fix
+priority: 0
 title: Prevent stale retry dispatch after operator task resubmission
 parent: null
 children: []
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T21:44:29.390457Z'
-updated_at: '2026-08-02T01:18:20.395249Z'
+updated_at: '2026-08-02T01:26:55.979624Z'
 work_branch: OOMPAH-684
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/650
@@ -312,5 +312,10 @@ author: oompah
 created: 2026-08-02 01:18
 ---
 Branch quality gate passed for `7b160731233e51d6bea57fe65095a6ffa09e760b` using `make test` in 392.9s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-02 01:26
+---
+YOLO: CI tests failed on MR #650. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
 ---
 <!-- COMMENTS:END -->
