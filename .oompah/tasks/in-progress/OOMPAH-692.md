@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:46.836436Z'
-updated_at: '2026-08-02T02:29:10.027049Z'
+updated_at: '2026-08-02T02:29:42.640195Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-692
 target_branch: null
 review_url: null
@@ -252,5 +252,10 @@ author: oompah
 created: 2026-08-02 02:29
 ---
 Verification: 49 focused WebSocket tests pass; neighboring issue-cache/state/auth/build suites pass (119 tests). Full scripts/run-tests.sh parallel gate passed: 14877 passed, 7 skipped, 1 xfailed, 45 warnings in 396.13s. make test setup itself was blocked by the environment uv DBus transient-scope error; the repository runner completed the full pytest suite with the provisioned interpreter.
+---
+author: oompah
+created: 2026-08-02 02:29
+---
+Completion: delivered and pushed d27274909. WebSocket protocol v1 now carries epoch, contiguous per-connection delivery sequence, and authoritative state/issue revisions across bootstrap, state, issues, activity, pong, console/error control paths; state delivery coalesces on the trailing edge; restart/reconnect semantics are documented; focused and full test gates are green. Branch is clean and up to date with origin.
 ---
 <!-- COMMENTS:END -->
