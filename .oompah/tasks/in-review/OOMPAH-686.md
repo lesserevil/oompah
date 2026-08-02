@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-686
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Keep worker container-runtime failures out of Needs Human
 parent: null
@@ -12,10 +12,10 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T22:19:41.486806Z'
-updated_at: '2026-08-01T23:02:11.455139Z'
+updated_at: '2026-08-02T03:14:52.020671Z'
 work_branch: null
 target_branch: null
-review_url: null
+review_url: https://github.com/lesserevil/oompah/pull/652
 review_number: null
 merged_at: null
 oompah.duplicate_screening:
@@ -114,6 +114,7 @@ oompah.integration:
   head_sha: 9c83678db3cada35e49e5cde1393c7772e4f0317
   submitted_at: '2026-08-01T23:01:55.925801+00:00'
   updated_at: '2026-08-01T23:01:55.925801+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/652
 ---
 ## Summary
 
@@ -540,5 +541,10 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Codex/
 - Cost: $0.0000
 - Exit: terminated, Duration: 8m 7s
 - Log: OOMPAH-686__20260801T225407Z.jsonl
+---
+author: oompah
+created: 2026-08-02 03:14
+---
+Branch quality gate passed for `9c83678db3cada35e49e5cde1393c7772e4f0317` using `make test` in 396.6s. Review creation may proceed.
 ---
 <!-- COMMENTS:END -->
