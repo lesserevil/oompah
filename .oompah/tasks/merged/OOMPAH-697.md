@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T16:21:00.027506Z'
-updated_at: '2026-08-02T17:47:27.277194Z'
+updated_at: '2026-08-02T17:47:38.275398Z'
 work_branch: OOMPAH-697
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/656
@@ -41,8 +41,8 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: null
 oompah.task_costs:
-  total_input_tokens: 632139
-  total_output_tokens: 48294
+  total_input_tokens: 632158
+  total_output_tokens: 52967
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -54,8 +54,8 @@ oompah.task_costs:
       output_tokens: 10149
       cost_usd: 0.0
     unknown:
-      input_tokens: 25
-      output_tokens: 6622
+      input_tokens: 44
+      output_tokens: 11295
       cost_usd: 0.0
   runs:
   - profile: default
@@ -82,6 +82,12 @@ oompah.task_costs:
     output_tokens: 6622
     cost_usd: 0.0
     recorded_at: '2026-08-02T17:43:55.908446+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 19
+    output_tokens: 4673
+    cost_usd: 0.0
+    recorded_at: '2026-08-02T17:47:35.158390+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-697__20260802T162155Z
@@ -734,5 +740,15 @@ Safe evidence:
 - test_orchestrator_merged: 162/162 passed
 - key_test_1: test_clears_stale_review_when_branch_advances_after_merge PASSED
 - key_test_2: test_keeps_merged_review_in_review_when_head_matches PASSED
+---
+author: oompah
+created: 2026-08-02 17:47
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 42, Tool calls: 23
+- Tokens: 19 in / 4.7K out [4.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 3m 30s
+- Log: OOMPAH-697__20260802T174412Z.jsonl
 ---
 <!-- COMMENTS:END -->
