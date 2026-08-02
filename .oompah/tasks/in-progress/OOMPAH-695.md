@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:52.297786Z'
-updated_at: '2026-08-02T06:04:36.054582Z'
+updated_at: '2026-08-02T06:05:45.238724Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-695
 target_branch: null
 review_url: null
@@ -550,5 +550,24 @@ created: 2026-08-02 06:04
 - Rewrite tests to use real protocol interception
 - Add end-to-end integration tests
 - Verify all metrics counters and alerts work in production code paths
+---
+author: oompah
+created: 2026-08-02 06:05
+---
+**Discovery**: Found the issue - the metrics functions exist but aren't wired into real code paths:
+
+Current state:
+- _ws_sync_record_success() is called in refresh handler (line 3330)
+- _ws_sync_record_gap() and _ws_sync_record_failure() are defined but NEVER called
+- Tests use mock WebSocketMessageInterceptor instead of patching real _send_ws
+
+What needs to be done:
+1. Wire _ws_sync_record_gap() into full_sync request handler (indicates client detected a gap)
+2. Wire _ws_sync_record_failure() into full_sync failure path
+3. Rewrite tests to patch oompah.server._send_ws to inject faults into real protocol
+4. Add integration tests against real /ws endpoint
+5. Add assertions that metrics increment and alerts appear in state payload
+
+Key insight: Client detects gaps via delivery_seq or revision jumps and signals server via full_sync request. Server should record this.
 ---
 <!-- COMMENTS:END -->
