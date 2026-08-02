@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-684
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Prevent stale retry dispatch after operator task resubmission
 parent: null
@@ -12,10 +12,10 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T21:44:29.390457Z'
-updated_at: '2026-08-02T01:18:00.622178Z'
+updated_at: '2026-08-02T01:18:11.912670Z'
 work_branch: null
 target_branch: null
-review_url: null
+review_url: https://github.com/lesserevil/oompah/pull/650
 review_number: null
 merged_at: null
 oompah.duplicate_screening:
@@ -95,6 +95,7 @@ oompah.integration:
   head_sha: 7b160731233e51d6bea57fe65095a6ffa09e760b
   submitted_at: '2026-08-01T23:04:52.785027+00:00'
   updated_at: '2026-08-01T23:04:52.785027+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/650
 ---
 ## Summary
 
