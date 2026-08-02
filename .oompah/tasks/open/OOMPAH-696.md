@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-696
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Honor integrated SHA evidence after epic child branches are pruned
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T16:18:38.337420Z'
-updated_at: '2026-08-02T16:18:38.337420Z'
+updated_at: '2026-08-02T16:21:34.965445Z'
 work_branch: null
 target_branch: null
 review_url: null

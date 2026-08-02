@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-697
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Requeue branches that advance after their recorded review merges
 parent: null
@@ -11,12 +11,30 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T16:21:00.027506Z'
-updated_at: '2026-08-02T16:21:00.027506Z'
+updated_at: '2026-08-02T16:21:47.181024Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 3d4dcd1225d01ef9a3fa6c3277b48ee6432c055f7096368737892a5afa9b5bf8
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: c64df9cb-e0d1-4521-ac31-dfff8a0115aa
+  claim_owner: 8ed25388-a2c2-4d5e-b302-5705d6f379a6
+  claimed_at: '2026-08-02T16:21:38.795718+00:00'
+  claim_expires_at: '2026-08-02T16:51:38.795718+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
+oompah.agent_run_id: 786244c4-3519-4523-887c-92983dee0d6a
 ---
 ## Summary
 
@@ -53,3 +71,16 @@ Acceptance criteria:
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-02 16:21
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-02 16:21
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
