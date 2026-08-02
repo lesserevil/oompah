@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-706
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Make duplicate-preflight verdict delivery truncation-proof
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T21:55:47.761417Z'
-updated_at: '2026-08-02T21:55:47.761417Z'
+updated_at: '2026-08-02T22:06:38.843089Z'
 work_branch: null
 target_branch: null
 review_url: null
