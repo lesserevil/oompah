@@ -202,6 +202,9 @@ def test_non_gate_setup_rejects_a_thin_venv_wrapper_before_uv(tmp_path):
     )
     fake_uv.chmod(0o755)
     environment = os.environ.copy()
+    # This fixture verifies the normal setup branch even when pytest itself is
+    # running inside a quality gate, whose environment enables gate mode.
+    environment["OOMPAH_PYTEST_GATE"] = "0"
     environment["PATH"] = f"{tmp_path}:/usr/bin:/bin"
     result = subprocess.run(
         [
@@ -240,6 +243,8 @@ def test_non_gate_setup_rejects_a_symlinked_service_venv_before_uv(tmp_path):
     )
     fake_uv.chmod(0o755)
     environment = os.environ.copy()
+    # Keep this explicitly non-gate test independent of its outer runner.
+    environment["OOMPAH_PYTEST_GATE"] = "0"
     environment["PATH"] = f"{tmp_path}:/usr/bin:/bin"
     result = subprocess.run(
         [
