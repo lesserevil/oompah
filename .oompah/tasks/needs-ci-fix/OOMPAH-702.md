@@ -1,8 +1,8 @@
 ---
 id: OOMPAH-702
 type: bug
-status: In Progress
-priority: 1
+status: Needs CI Fix
+priority: 0
 title: Synchronize merged-webhook tests with background terminal staging
 parent: null
 children: []
@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T20:34:49.621752Z'
-updated_at: '2026-08-02T23:39:24.265176Z'
+updated_at: '2026-08-02T23:40:04.573713Z'
 work_branch: null
 target_branch: null
 review_url: null
