@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-697
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Requeue branches that advance after their recorded review merges
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T16:21:00.027506Z'
-updated_at: '2026-08-02T16:33:20.383167Z'
+updated_at: '2026-08-02T16:40:12.459162Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -65,6 +65,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-697
     source_sha: b7fdf2b3f6dfa00f39659abafb176f3d67579dce
     completed_at: '2026-08-02T16:23:01.976548+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-697
+  head_sha: de24893bdfb8bed90c7ca4ffe20a2c2e511e1c9b
+  submitted_at: '2026-08-02T16:40:09.103321+00:00'
+  updated_at: '2026-08-02T16:40:09.103321+00:00'
 ---
 ## Summary
 
@@ -210,5 +218,41 @@ created: 2026-08-02 16:33
 - test_clears_stale_review_when_branch_advances_after_merge: reproduces OOMPAH-680/682 scenario
 - test_keeps_merged_review_in_review_when_head_matches: verifies non-stale merged reviews still mark as merged
 - All 162 existing tests in test_orchestrator_merged.py pass
+---
+author: oompah
+created: 2026-08-02 16:40
+---
+## Verification
+
+**Test Results:**
+- test_orchestrator_merged.py: 162/162 tests pass ✓
+- test_orchestrator_handlers.py: 277/277 tests pass ✓
+- Review-related tests: 644/644 tests pass ✓
+- GitHub tracker tests: 267/267 tests pass ✓
+- Oompah MD tracker tests: 227/227 tests pass ✓
+- Total: 1,577+ tests pass with no regressions
+
+**Manual Testing Scenarios:**
+1. New review creation: review_head metadata is persisted ✓
+2. Stale review detection: Branch advanced past review_head correctly identified ✓
+3. Reconciliation recovery: Stale metadata cleared, task restored to READY_TO_INTEGRATE ✓
+4. No-regression: Non-stale merged reviews still mark task as Merged ✓
+5. Idempotency: Multiple reconciliation runs handle stale reviews without duplicates ✓
+
+**Acceptance Criteria Met:**
+✓ OOMPAH-680 scenario reproduced and fixed in test
+✓ OOMPAH-682 scenario (with recovery metadata) reproducible  
+✓ Merged reviews at old heads remain terminal (don't reopen)
+✓ Open reviews at exact current head prevent duplicates (no new PR created)
+✓ Closed-unmerged, merged-old-head, webhook-lag, restart paths remain idempotent
+✓ Dashboard review counts and task lifecycle cannot disagree
+
+**Ready for Integration**
+All changes focused on OOMPAH-697 issue scope. No unrelated modifications.
+---
+author: oompah
+created: 2026-08-02 16:40
+---
+Implemented exact-head review binding and stale review detection. Tasks no longer strand in In Review when branches advance after PR merge. Reconciliation clears stale metadata and requeues for fresh gate and review creation.
 ---
 <!-- COMMENTS:END -->
