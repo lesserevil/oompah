@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T21:11:44.479316Z'
-updated_at: '2026-08-02T21:15:36.638676Z'
+updated_at: '2026-08-02T21:19:22.782160Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -43,5 +43,10 @@ author: oompah
 created: 2026-08-02 21:14
 ---
 Claimed for direct owner implementation; human-only prevents scheduler dispatch while the live recovery race is repaired.
+---
+author: oompah
+created: 2026-08-02 21:19
+---
+Implemented the restart/override race repair in the task worktree. Restart recovery now acquires the shared per-task transition lock, re-reads canonical tracker state, and only reopens a genuine In Progress implementation; Merged, Archived, In Validation, Needs Human, Open, and unavailable states are never overwritten. Applied owner-override replay now refreshes tracker state and reasserts its already-authorized terminal target if a stale writer regressed it, without adding another override record. Deterministic focused coverage: 8 new/targeted tests passed; broader event-loop, terminal coordinator, override, and enforcement suites: 250 passed.
 ---
 <!-- COMMENTS:END -->
