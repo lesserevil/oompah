@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:24.220262Z'
-updated_at: '2026-08-02T18:31:06.713737Z'
+updated_at: '2026-08-02T18:31:10.030618Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-485
 target_branch: null
 review_url: null
@@ -218,7 +218,17 @@ oompah.terminal_audit:
       even though the superseded epic branch itself was Archived. OOMPAH-699 tracks
       automatic convergence.'
     created_at: '2026-08-02T18:31:02.954203+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-485
+    target_state: Merged
+    evidence_fingerprint: 2a29f5772a031f5006eb50b5b2b1fdaeab96ab58177878d12849d62cb0ac349c
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-02T18:31:08.641879+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []

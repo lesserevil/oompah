@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-486
 type: feature
-status: Done
+status: Merged
 priority: 1
 title: Add terminal-audit metrics, maintenance health, and actionable alerts
 parent: OOMPAH-460
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:25.195304Z'
-updated_at: '2026-07-30T05:27:02.766039Z'
+updated_at: '2026-08-02T18:31:16.749962Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-486
 target_branch: null
 review_url: null
@@ -139,6 +139,26 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-6863d2d088df: '2026-07-30T05:26:47.037390+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-7ce6db97b87c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-486
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a033460c5cf9bf4e163174be089e1baefaafa6bac9d37de171a3d26ff968b359
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reconciliation: OOMPAH-460''s terminal audit records that this
+      implementation was recovered into main by PR #603 / landing commit 15c96dac6,
+      even though the superseded epic branch itself was Archived. OOMPAH-699 tracks
+      automatic convergence.'
+    created_at: '2026-08-02T18:31:13.532828+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -485,5 +505,12 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 8m 14s
 - Log: OOMPAH-486__20260730T051853Z.jsonl
+---
+author: oompah
+created: 2026-08-02 18:31
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner reconciliation: OOMPAH-460's terminal audit records that this implementation was recovered into main by PR #603 / landing commit 15c96dac6, even though the superseded epic branch itself was Archived. OOMPAH-699 tracks automatic convergence.
 ---
 <!-- COMMENTS:END -->
