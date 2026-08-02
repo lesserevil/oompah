@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-701
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Retire hidden provider processes when task ownership is revoked
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T20:20:26.676545Z'
-updated_at: '2026-08-02T23:28:16.607338Z'
+updated_at: '2026-08-02T23:37:15.626449Z'
 work_branch: OOMPAH-701
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/665
@@ -89,6 +89,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/665
 oompah.review_number: '665'
 oompah.work_branch: OOMPAH-701
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-c05a51f9c48e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-701
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 3ffccdccadddc3e7c3185cc51cd8dbdce2c47023b32f832158721ad41edf4385
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-02T23:37:08.506986+00:00'
+  - version: 1
+    audit_id: audit-c521d3856622
+    project_id: proj-14849f1b
+    task_id: OOMPAH-701
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 3ffccdccadddc3e7c3185cc51cd8dbdce2c47023b32f832158721ad41edf4385
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-02T23:37:08.506986+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -173,5 +212,15 @@ author: oompah
 created: 2026-08-02 23:27
 ---
 Branch quality gate passed for `455cde3b1a393b869240dc32404a17022d77cc8c` using `make test` in 434.1s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-02 23:37
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-02 23:37
+---
+YOLO: merged PR #665.
 ---
 <!-- COMMENTS:END -->
