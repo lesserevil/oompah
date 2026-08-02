@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-689
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Do not poison successful handoff after expected non-running peer reads
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T00:13:22.222984Z'
-updated_at: '2026-08-02T00:15:15.565378Z'
+updated_at: '2026-08-02T00:15:29.174468Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -52,7 +52,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 5d3368f2-12ac-4d9d-a9cc-3eba0d94ee28
+oompah.agent_run_id: 4175bc24-7883-4cc9-ae35-68cb69c32439
 oompah.task_costs:
   total_input_tokens: 154
   total_output_tokens: 4433
@@ -133,5 +133,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 26s
 - Log: OOMPAH-689__20260802T001348Z.jsonl
+---
+author: oompah
+created: 2026-08-02 00:15
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-02 00:15
+---
+Focus: Callback Auth Validation Specialist
 ---
 <!-- COMMENTS:END -->
