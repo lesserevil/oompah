@@ -11330,6 +11330,64 @@ class Orchestrator:
 
         return True, None
 
+    def _child_has_durable_landing_evidence(
+        self,
+        child: Issue,
+        *,
+        container_branches: tuple[str, ...],
+        repo_path: str,
+    ) -> bool:
+        """Check if child has durable integration evidence via integrated_sha.
+        
+        Returns True if:
+        - Child has an integration record with state="integrated"
+        - The integrated_sha is reachable from one of the container branches
+        
+        This evidence persists even after the child's private branch is pruned.
+        """
+        record = getattr(child, "integration", None)
+        if record is None or record.state != "integrated":
+            return False
+        
+        integrated_sha = str(
+            getattr(record, "integrated_sha", "") or ""
+        ).strip()
+        if not integrated_sha:
+            return False
+        
+        if not repo_path or not container_branches:
+            return False
+        
+        # Check if integrated_sha is reachable from any container branch
+        for container_branch in container_branches:
+            container_refs = self._resolve_git_branch_refs(repo_path, container_branch)
+            if not container_refs:
+                continue
+            
+            for container_ref in container_refs:
+                try:
+                    result = subprocess.run(
+                        [
+                            "git",
+                            "-C",
+                            repo_path,
+                            "merge-base",
+                            "--is-ancestor",
+                            integrated_sha,
+                            container_ref,
+                        ],
+                        check=False,
+                        capture_output=True,
+                        text=True,
+                        timeout=10,
+                    )
+                    if result.returncode == 0:
+                        return True
+                except (OSError, subprocess.TimeoutExpired):
+                    continue
+        
+        return False
+
     def _child_landing_evidence_block_reason(
         self,
         epic: Issue,
@@ -18668,12 +18726,28 @@ class Orchestrator:
                         epic.identifier,
                     )
                     continue
-                landing_reason = self._child_landing_evidence_block_reason(
-                    epic,
+                # Check for durable integration evidence before requiring live branch ref.
+                # A child's branch may be pruned after successful integration; the
+                # integration record's integrated_sha is durable proof of landing.
+                if self._child_has_durable_landing_evidence(
                     child,
-                    expected_work_branch=epic_branch,
                     container_branches=containment_targets,
-                )
+                    repo_path=repo_path,
+                ):
+                    logger.info(
+                        "Epic child %s has durable landing evidence (integrated_sha "
+                        "reachable from %s); promoting despite pruned work branch",
+                        child.identifier,
+                        ", ".join(containment_targets),
+                    )
+                    landing_reason = None
+                else:
+                    landing_reason = self._child_landing_evidence_block_reason(
+                        epic,
+                        child,
+                        expected_work_branch=epic_branch,
+                        container_branches=containment_targets,
+                    )
             if child_status == IN_VALIDATION:
                 logger.info(
                     "Leaving epic child %s In Validation while its terminal "

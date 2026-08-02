@@ -10,12 +10,14 @@ from __future__ import annotations
 
 import fnmatch
 import subprocess
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch, call
 
 import pytest
 
 from oompah.config import ServiceConfig
 from oompah.duplicate_screening import new_claim_record
+from oompah.integration import IntegrationRecord
 from oompah.models import BlockerRef, Issue, Project, RunningEntry
 from oompah.orchestrator import Orchestrator
 from oompah.projects import ProjectError, ProjectStore
@@ -50,6 +52,7 @@ def _make_issue(
     work_branch: str | None = None,
     review_url: str | None = None,
     review_number: str | None = None,
+    integration: Any | None = None,
 ) -> Issue:
     return Issue(
         id=identifier,
@@ -65,6 +68,7 @@ def _make_issue(
         work_branch=work_branch,
         review_url=review_url,
         review_number=review_number,
+        integration=integration,
     )
 
 
@@ -5015,6 +5019,127 @@ class TestLabelMergedEpics:
         }
         # Verify that the coordinator was called for Merged transitions
         assert orch.terminal_transition_coordinator.request_transition.call_count >= 1
+
+    def test_done_child_with_pruned_branch_and_integrated_sha_is_promoted(self, tmp_path):
+        """A Done child with pruned private branch but proven integration is promoted."""
+        # Setup: Git repo with main branch and integrated child commit
+        repo_path = tmp_path / "repo"
+        repo_path.mkdir()
+        subprocess.run(
+            ["git", "init", "-b", "main"],
+            cwd=repo_path,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.email", "test@example.com"],
+            cwd=repo_path,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "Test User"],
+            cwd=repo_path,
+            check=True,
+            capture_output=True,
+        )
+        
+        # Create initial commit on main
+        (repo_path / "file.txt").write_text("main content\n")
+        subprocess.run(
+            ["git", "add", "file.txt"],
+            cwd=repo_path,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "Initial commit"],
+            cwd=repo_path,
+            check=True,
+            capture_output=True,
+        )
+        
+        # Create a new commit that represents the child's work
+        (repo_path / "child_feature.txt").write_text("child work\n")
+        subprocess.run(
+            ["git", "add", "child_feature.txt"],
+            cwd=repo_path,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "Child feature"],
+            cwd=repo_path,
+            check=True,
+            capture_output=True,
+        )
+        
+        integrated_sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=repo_path,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        
+        # Now setup the test
+        proj = _make_project_record(epic_strategy="shared")
+        proj.repo_path = str(repo_path)
+        proj.default_branch = "main"
+        
+        orch = _make_orch(tmp_path / "orch", projects=[proj])
+        
+        epic = _make_issue(
+            identifier="epic-1",
+            issue_type="epic",
+            state="Merged",
+            work_branch="epic-1",
+        )
+        
+        # Child with Done state, pruned work branch (deleted), but integration record
+        child = _make_issue(
+            identifier="c1",
+            state="Done",
+            parent_id="epic-1",
+            work_branch="epic-1--c1",  # This branch is pruned (doesn't exist)
+            integration=IntegrationRecord(
+                state="integrated",
+                task_branch="epic-1--c1",
+                integrated_sha=integrated_sha,
+            ),
+        )
+        
+        tracker = MagicMock()
+        tracker.fetch_all_issues.return_value = [epic, child]
+        
+        with (
+            patch.object(orch, "_tracker_for_project", return_value=tracker),
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(orch, "_epic_branch_for_issue", return_value="epic-1"),
+            patch.object(orch, "_resolve_epic_target_branch", return_value="main"),
+        ):
+            orch._mark_epic_merged(epic, epic_branch="epic-1")
+        
+        # Verify that the coordinator was called for Merged transition (not Needs Human)
+        coordinator_calls = orch.terminal_transition_coordinator.request_transition.call_args_list
+        assert len(coordinator_calls) >= 1
+        
+        # Verify _mark_needs_human was NOT called for the child
+        # Check that update_issue was not called with Needs Human status
+        update_calls = [
+            call_obj for call_obj in tracker.method_calls
+            if "update_issue" in str(call_obj)
+        ]
+        # Child should be promoted to Merged, not moved to Needs Human
+        child_updates = [
+            call_obj for call_obj in update_calls
+            if "c1" in str(call_obj)
+        ]
+        # If any, they should not be setting state to Needs Human
+        for update_call in child_updates:
+            # Verify the child is not being set to Needs Human
+            assert "needs_human" not in str(update_call).lower()
 
     @patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo")
     @patch("oompah.orchestrator.detect_provider")
