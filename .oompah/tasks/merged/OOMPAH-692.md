@@ -12,7 +12,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-08-02T02:01:46.836436Z'
-updated_at: '2026-08-02T16:22:33.361154Z'
+updated_at: '2026-08-02T16:22:36.625030Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-692
 target_branch: null
 review_url: null
@@ -192,8 +192,9 @@ oompah.terminal_audit:
     status: Merged
     audit_ids:
     - audit-ff093565657d
-    applied: false
+    applied: true
     created_at: '2026-08-02T16:22:29.016096+00:00'
+    applied_at: '2026-08-02T16:22:35.384200+00:00'
   version: 1
   pending_chain:
   - version: 1
