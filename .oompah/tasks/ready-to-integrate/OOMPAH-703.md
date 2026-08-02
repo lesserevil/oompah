@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-703
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Make backlog refresh invalidation tests wait for completion deterministically
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T20:59:10.197769Z'
-updated_at: '2026-08-02T22:12:47.070001Z'
+updated_at: '2026-08-02T22:13:05.794023Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,7 +38,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: d3a84912-b6d8-4191-bfce-6cfbb56d0fad
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 50524
   total_output_tokens: 1662
@@ -79,6 +79,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-703
     source_sha: 366129d0a5046c5ed7caed4acf26cd8cd2a3fbdd
     completed_at: '2026-08-02T21:53:57.596053+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-703
+  head_sha: 26b3f2ea9a99038870bc1f5d46a29157ee9be512
+  submitted_at: '2026-08-02T22:12:54.173205+00:00'
+  updated_at: '2026-08-02T22:12:54.173205+00:00'
 ---
 ## Summary
 
@@ -168,5 +176,20 @@ author: oompah
 created: 2026-08-02 22:12
 ---
 Completion: pushed commit 26b3f2ea9a99038870bc1f5d46a29157ee9be512. BacklogRefreshManager now exposes deterministic wait_for_completion() status synchronization; invalidate, stale-while-revalidate, regression, thread-safety, and completion tests no longer infer background completion from fixed sleeps. Required make test and make check-secrets gates passed, and the branch is clean/up to date.
+---
+author: oompah
+created: 2026-08-02 22:13
+---
+Added deterministic refresh completion synchronization and updated backlog invalidation regression tests.
+---
+author: oompah
+created: 2026-08-02 22:13
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 69
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 18m 50s
+- Log: OOMPAH-703__20260802T215421Z.jsonl
 ---
 <!-- COMMENTS:END -->
