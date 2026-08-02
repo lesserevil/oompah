@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:46.836436Z'
-updated_at: '2026-08-02T02:09:26.758545Z'
+updated_at: '2026-08-02T02:20:31.406673Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-692
 target_branch: null
 review_url: null
@@ -237,5 +237,10 @@ author: oompah
 created: 2026-08-02 02:09
 ---
 Understanding: implement the server-side WebSocket freshness contract. I will trace envelope construction, snapshot invalidation, and throttle paths; add concurrency-safe epoch/revision/delivery metadata with trailing-edge state coalescing; document reconnect/reset semantics; add focused lifecycle tests; then verify, commit, push, and submit.
+---
+author: oompah
+created: 2026-08-02 02:20
+---
+Discovery: server.py is the single WebSocket fan-out authority. State callbacks cache snapshots before throttling; issue invalidation/rebuild already has a freshness fence; direct ws.send_text calls existed for bootstrap, refresh, pong, and console errors. The leading-edge state throttle was the loss point, and global counters had no cross-thread protection. Added the protocol around these existing paths rather than changing orchestrator observer APIs.
 ---
 <!-- COMMENTS:END -->

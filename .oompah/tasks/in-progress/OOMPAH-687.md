@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T23:00:54.291962Z'
-updated_at: '2026-08-02T02:20:19.687953Z'
+updated_at: '2026-08-02T02:20:26.344857Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -60,7 +60,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 48514e94-4986-43f1-8bd9-e096dfb5a273
+oompah.agent_run_id: 89180087-e905-4739-845b-876cb2720e7c
 oompah.task_costs:
   total_input_tokens: 12839477
   total_output_tokens: 44798
@@ -260,5 +260,15 @@ created: 2026-08-02 02:19
 **Evidence:** Recent comment indicates CI is now passing or PR has been merged; safe to reopen for dispatch.
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-08-02 02:20
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-08-02 02:20
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
