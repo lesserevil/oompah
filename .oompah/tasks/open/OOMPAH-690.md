@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-690
 type: task
-status: In Progress
+status: Open
 priority: null
 title: Restore reliable automatic dashboard updates
 parent: null
@@ -11,12 +11,29 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T00:37:18.141681Z'
-updated_at: '2026-08-02T00:37:28.330835Z'
+updated_at: '2026-08-02T00:39:03.709373Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 4448eb9e9bf16ed805655767845203a2dd0fe95eded17aba4e22100a9a603172
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 71f15830-8dd8-4a5e-844e-bba46a828290
+  claim_owner: 9c8dda42-c87b-429a-bdb1-42da8ebebe7e
+  claimed_at: '2026-08-02T00:39:02.707027+00:00'
+  claim_expires_at: '2026-08-02T01:09:02.707027+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
 ---
 ## Summary
 
