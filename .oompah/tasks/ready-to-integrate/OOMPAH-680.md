@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-680
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 0
 title: Use project forge credentials for all managed Git network operations
 parent: null
@@ -12,7 +12,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-08-01T17:31:44.735248Z'
-updated_at: '2026-08-02T18:51:07.289065Z'
+updated_at: '2026-08-02T18:51:19.781616Z'
 work_branch: OOMPAH-680
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/657
@@ -103,10 +103,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-680
-  base_branch: main
-  head_sha: d08a8da59b0195cd3811f8adcc9935a156e68e36
-  submitted_at: '2026-08-01T19:29:28.176368+00:00'
-  updated_at: '2026-08-01T19:29:28.176368+00:00'
+  head_sha: db310ea4d8abfafaf973cf933e10596b4d80de3b
+  submitted_at: '2026-08-02T18:51:15.575300+00:00'
+  updated_at: '2026-08-02T18:51:15.575300+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/657
 oompah.review_number: '657'
 oompah.work_branch: OOMPAH-680
@@ -687,5 +686,10 @@ author: oompah
 created: 2026-08-02 18:51
 ---
 Verification: All focused tests pass. test_managed_git_credentials.py: 8/8 passed. test_integration_executor.py + test_landing_gate.py + test_unpushed_gate.py + test_projects.py: 157/157 passed. test_orchestrator_merged.py: 162/162 passed. test_quality_gate.py: 61/61 passed. Branch is up to date with origin/OOMPAH-680 at db310ea4d.
+---
+author: oompah
+created: 2026-08-02 18:51
+---
+Resolved merge conflicts on OOMPAH-680 branch by rebasing onto origin/main (327e37350). The single commit d08a8da59 conflicted with 6 files where subsequent OOMPAH-691/695/696/697 commits had already added overlapping credential infrastructure. Resolution preserved HEAD's more complete implementations (base_env for noninteractive git, cwd passthrough, precise type checks) while merging d08a8da59's unique additions (isinstance type validation in orchestrator, None guard, test_failed_authenticated_clone_removes_partial_checkout). Rebased head: db310ea4d. 388 focused tests pass.
 ---
 <!-- COMMENTS:END -->
