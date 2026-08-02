@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-694
 type: feature
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Detect WebSocket gaps and self-heal the dashboard state
 parent: OOMPAH-691
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:50.443759Z'
-updated_at: '2026-08-02T04:56:49.191553Z'
+updated_at: '2026-08-02T05:05:13.394773Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-694
 target_branch: null
 review_url: null
@@ -47,12 +47,15 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-691--task-OOMPAH-694
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 2
   task_branch: epic-OOMPAH-691--task-OOMPAH-694
+  base_branch: epic-OOMPAH-691
+  base_sha: cf5f3cecede5a3344922345e2fcbc3f042c982c9
   head_sha: 5d9186d6d63e368e4f97934354f4d28e5ea2a93f
+  integrated_sha: 5d9186d6d63e368e4f97934354f4d28e5ea2a93f
   submitted_at: '2026-08-02T04:56:35.371302+00:00'
-  updated_at: '2026-08-02T04:56:35.371302+00:00'
+  updated_at: '2026-08-02T05:05:09.131497+00:00'
 oompah.task_costs:
   total_input_tokens: 4043001
   total_output_tokens: 23610
@@ -99,6 +102,28 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-691--task-OOMPAH-694
     source_sha: a8fc3fff5d4b889672cfd2ddfbf33ecf6371560b
     completed_at: '2026-08-02T04:28:36.649522+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-7406cdc1d164
+    project_id: proj-14849f1b
+    task_id: OOMPAH-694
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: dd26516e743c1ce52501ddbc18aa2f12823d06707a634c504a3aa27833f955d7
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-08-02T05:05:10.695222+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -407,5 +432,10 @@ Run #1 [attempt=1, profile=standard, role=standard -> Codex/gpt-5.6-terra]
 - Cost: $0.0000
 - Exit: terminated, Duration: 12m 25s
 - Log: OOMPAH-694__20260802T044430Z.jsonl
+---
+author: oompah
+created: 2026-08-02 05:05
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
