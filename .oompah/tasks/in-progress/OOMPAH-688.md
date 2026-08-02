@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-688
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Make slow-tick telemetry tests deterministic under load
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T23:11:33.946132Z'
-updated_at: '2026-08-02T00:00:29.530435Z'
+updated_at: '2026-08-02T00:00:53.048881Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -49,7 +49,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: a24af9f9-4715-4727-8969-a44a0a12d2c0
+oompah.agent_run_id: 520c1e70-0304-4780-babf-72a86ee84bc0
 oompah.task_costs:
   total_input_tokens: 471232
   total_output_tokens: 7263
@@ -368,5 +368,15 @@ created: 2026-08-02 00:00
 **Evidence:** Recent comment indicates CI is now passing or PR has been merged; safe to reopen for dispatch.
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-08-02 00:00
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-08-02 00:00
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
