@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-660
 type: task
-status: Done
+status: Merged
 priority: 0
 title: Rebase epic-OOMPAH-619 onto main
 parent: OOMPAH-619
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T12:53:39.335817Z'
-updated_at: '2026-07-31T13:50:48.767663Z'
+updated_at: '2026-08-02T18:22:43.678022Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-660
 target_branch: null
 review_url: null
@@ -220,6 +220,24 @@ oompah.terminal_audit:
       applying the verified terminal transition to unblock epic OOMPAH-619.
     created_at: '2026-07-31T13:50:42.120929+00:00'
     applied: true
+  - version: 1
+    override_id: override-d9ab44234a19
+    project_id: proj-14849f1b
+    task_id: OOMPAH-660
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 62954f9b5fdcde9283f0c50a07f94d9234ba8307ec57b66d7f89475c1f68fd28
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reconciliation: parent OOMPAH-619 is Merged and its accepted rollup
+      contains this previously audited Done child; durable integration-queue/rollup
+      evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.'
+    created_at: '2026-08-02T18:22:36.702942+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -778,5 +796,12 @@ created: 2026-07-31 13:50
 Override by lesserevil: terminal transition to Done applied by project owner.
 
 Reason: The exact integrated head 793bcc7969d39634dab560ed0a10b9dcad7a9716 completed the requested rebase and test-isolation repair. Focused verification passed all 24 affected tests, and the integration ledger records head_sha equal to integrated_sha. The original terminal audit could not launch only because every configured auditor candidate contributed to this task; the project owner is applying the verified terminal transition to unblock epic OOMPAH-619.
+---
+author: oompah
+created: 2026-08-02 18:22
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner reconciliation: parent OOMPAH-619 is Merged and its accepted rollup contains this previously audited Done child; durable integration-queue/rollup evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.
 ---
 <!-- COMMENTS:END -->
