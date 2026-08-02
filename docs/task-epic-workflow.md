@@ -143,7 +143,9 @@ directly to handle it without an agent. When doing this, register an
 abandoned scheduler assignment and reset it to `Open`:
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/projects/<project_id>/tasks/PROJ-42/owner-claim
+curl -X POST http://localhost:8080/api/v1/projects/<project_id>/tasks/PROJ-42/owner-claim \
+  -H "Content-Type: application/json" \
+  -d '{"actor_login": "<your-login>"}'
 ```
 
 See [§ 6.8 of the Operator Runbook](operator-runbook.md#68-direct-owner-work-reset-to-open-by-the-watchdog)

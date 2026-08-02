@@ -754,7 +754,7 @@ watchdog that the task is under intentional direct-owner work:
 # Grant yourself a 48-hour claim (default TTL):
 curl -X POST http://localhost:8080/api/v1/projects/<project_id>/tasks/PROJ-42/owner-claim \
      -H "Content-Type: application/json" \
-     -d '{"ttl_hours": 48}'
+     -d '{"actor_login": "<your-login>", "ttl_hours": 48}'
 ```
 
 The response includes the claim ID, owner login, claimed-at timestamp, and
@@ -769,6 +769,7 @@ expiry time:
 }
 ```
 
+This request atomically marks the task `In Progress` and grants the claim.
 While the claim is active the watchdog skips the task; it will not be reset to
 Open regardless of how many maintenance ticks pass.
 
@@ -787,7 +788,9 @@ configured TTL (default 48 hours) and the watchdog resets the task on the next
 tick.
 
 ```bash
-curl -X DELETE http://localhost:8080/api/v1/projects/<project_id>/tasks/PROJ-42/owner-claim
+curl -X DELETE http://localhost:8080/api/v1/projects/<project_id>/tasks/PROJ-42/owner-claim \
+  -H "Content-Type: application/json" \
+  -d '{"actor_login": "<your-login>"}'
 ```
 
 **Claim expiry and abandoned-work recovery:**

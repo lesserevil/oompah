@@ -136,6 +136,7 @@ from oompah.auth_health import (
 )
 from oompah.projects import ProjectError, ProjectStore
 from oompah.integration_queue import IntegrationQueueStore
+from oompah.label_auth import is_authorized_status_actor
 from oompah.tracker import TrackerError, normalize_priority_int
 from oompah.providers import ProviderStore
 from oompah.roles import Candidate, RoleError, RoleStore, VALID_STRATEGIES, DEFAULT_STRATEGY
@@ -10409,6 +10410,227 @@ def _cancel_retry_for_authority_change(
             reason=("task status changed" if status_changed else "task work branch changed"),
         )
     return matching_retry_ids
+
+
+def _owner_claim_payload(orch, claim) -> dict[str, Any]:
+    """Return the public owner-claim projection used by all claim routes."""
+
+    return orch._owner_claim_snapshot(claim, now=time.time())
+
+
+async def _owner_claim_request_body(request: Request) -> tuple[dict[str, Any] | None, JSONResponse | None]:
+    """Parse an optional JSON owner-claim body without accepting invalid input."""
+
+    raw = await request.body()
+    if not raw:
+        return {}, None
+    try:
+        body = json.loads(raw)
+    except (json.JSONDecodeError, ValueError) as exc:
+        return None, JSONResponse(
+            {"error": {"code": "validation", "message": f"Invalid JSON: {exc}"}},
+            status_code=400,
+        )
+    if not isinstance(body, dict):
+        return None, JSONResponse(
+            {
+                "error": {
+                    "code": "validation",
+                    "message": "request body must be a JSON object",
+                }
+            },
+            status_code=400,
+        )
+    return body, None
+
+
+def _owner_claim_context(orch, project_id: str, identifier: str):
+    """Resolve the project-scoped tracker and issue for a claim operation."""
+
+    project = orch.project_store.get(project_id)
+    if project is None:
+        return None, None, None, JSONResponse(
+            {"error": {"code": "not_found", "message": "project not found"}},
+            status_code=404,
+        )
+    try:
+        tracker = orch._tracker_for_project(project_id)
+        identifier = _canonicalize_project_issue_identifier(tracker, identifier)
+        issue = tracker.fetch_issue_detail(identifier)
+    except Exception as exc:
+        logger.debug("Owner claim lookup failed for %s/%s: %s", project_id, identifier, exc)
+        issue = None
+        tracker = None
+    if tracker is None or issue is None:
+        return None, None, None, JSONResponse(
+            {
+                "error": {
+                    "code": "not_found",
+                    "message": f"issue {identifier!r} was not found in this project",
+                }
+            },
+            status_code=404,
+        )
+    issue.project_id = project_id
+    return project, tracker, issue, None
+
+
+def _owner_claim_authorize(body: dict[str, Any], request: Request, project):
+    """Require a trusted project status actor for direct-work ownership."""
+
+    actor_login, actor_error = _resolve_authorization_actor(body, request)
+    if actor_error is not None:
+        return "", actor_error
+    if not is_authorized_status_actor(actor_login, project):
+        return "", JSONResponse(
+            {
+                "error": {
+                    "code": "owner_claim_unauthorized",
+                    "message": "Only an authorized project status actor may claim direct work.",
+                }
+            },
+            status_code=403,
+        )
+    return actor_login, None
+
+
+async def _publish_owner_claim_state(orch) -> None:
+    """Refresh the cached/WebSocket state after a direct-owner lease changes."""
+
+    await _run_api_io(orch._notify_state_only)
+
+
+@app.post("/api/v1/projects/{project_id}/tasks/{identifier}/owner-claim")
+async def api_grant_owner_claim(project_id: str, identifier: str, request: Request):
+    """Atomically mark a task as direct owner work and grant its lease."""
+
+    orch = _get_orchestrator()
+    body, error = await _owner_claim_request_body(request)
+    if error is not None:
+        return error
+    assert body is not None
+    project, tracker, issue, error = _owner_claim_context(orch, project_id, identifier)
+    if error is not None:
+        return error
+    assert project is not None and tracker is not None and issue is not None
+    owner_login, error = _owner_claim_authorize(body, request, project)
+    if error is not None:
+        return error
+    if is_terminal_status(issue.state) or canonicalize_status(issue.state) == IN_VALIDATION:
+        return JSONResponse(
+            {
+                "error": {
+                    "code": "invalid_state",
+                    "message": "Direct-owner work cannot claim a terminal or In Validation task.",
+                }
+            },
+            status_code=409,
+        )
+
+    raw_ttl = body.get("ttl_hours")
+    ttl_hours: int | None = None
+    if raw_ttl is not None:
+        if isinstance(raw_ttl, bool):
+            return JSONResponse(
+                {"error": {"code": "validation", "message": "ttl_hours must be an integer"}},
+                status_code=400,
+            )
+        try:
+            ttl_hours = int(raw_ttl)
+        except (TypeError, ValueError):
+            return JSONResponse(
+                {"error": {"code": "validation", "message": "ttl_hours must be an integer"}},
+                status_code=400,
+            )
+        if not 1 <= ttl_hours <= orch.config.owner_claim_ttl_hours:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": (
+                            "ttl_hours must be between 1 and the configured "
+                            "owner-claim maximum"
+                        ),
+                    }
+                },
+                status_code=400,
+            )
+
+    # The project lock is shared with orphan recovery.  Grant the durable
+    # claim before moving state, then make the tracker transition while still
+    # locked, so either side of a watchdog/API race leaves a coherent result.
+    try:
+        with orch.project_store.project_write_lock(project_id):
+            claim = orch.grant_owner_claim(
+                issue_id=issue.id,
+                project_id=project_id,
+                owner_login=owner_login,
+                ttl_hours=ttl_hours,
+            )
+            if canonicalize_status(issue.state) != IN_PROGRESS:
+                try:
+                    tracker.update_issue(issue.identifier, status=IN_PROGRESS)
+                except Exception:
+                    orch.release_owner_claim(issue_id=issue.id, project_id=project_id)
+                    raise
+    except ValueError as exc:
+        return JSONResponse(
+            {"error": {"code": "scheduler_owned", "message": str(exc)}},
+            status_code=409,
+        )
+    except Exception as exc:
+        logger.warning("Owner claim grant failed for %s/%s: %s", project_id, identifier, exc)
+        return JSONResponse(
+            {"error": {"code": "owner_claim_failed", "message": str(exc)}},
+            status_code=503,
+        )
+
+    _api_cache.invalidate("issues:all")
+    _api_cache.invalidate_prefix(f"detail:{project_id}:{issue.identifier}")
+    await _publish_owner_claim_state(orch)
+    await broadcast_issues()
+    return JSONResponse({"active": True, **_owner_claim_payload(orch, claim)})
+
+
+@app.get("/api/v1/projects/{project_id}/tasks/{identifier}/owner-claim")
+async def api_get_owner_claim(project_id: str, identifier: str):
+    """Return direct-owner ownership and expiry evidence for one task."""
+
+    orch = _get_orchestrator()
+    _project, _tracker, issue, error = _owner_claim_context(orch, project_id, identifier)
+    if error is not None:
+        return error
+    assert issue is not None
+    claim = orch._owner_claim_for_issue(issue.id, project_id)
+    if claim is None:
+        return JSONResponse({"active": False, "ownership_source": None})
+    payload = _owner_claim_payload(orch, claim)
+    return JSONResponse({"active": not payload["is_expired"], **payload})
+
+
+@app.delete("/api/v1/projects/{project_id}/tasks/{identifier}/owner-claim")
+async def api_release_owner_claim(project_id: str, identifier: str, request: Request):
+    """Release a direct-owner lease; normal orphan recovery resumes next scan."""
+
+    orch = _get_orchestrator()
+    body, error = await _owner_claim_request_body(request)
+    if error is not None:
+        return error
+    assert body is not None
+    project, _tracker, issue, error = _owner_claim_context(orch, project_id, identifier)
+    if error is not None:
+        return error
+    assert project is not None and issue is not None
+    _owner_login, error = _owner_claim_authorize(body, request, project)
+    if error is not None:
+        return error
+
+    removed = orch.release_owner_claim(issue_id=issue.id, project_id=project_id)
+    _api_cache.invalidate("issues:all")
+    _api_cache.invalidate_prefix(f"detail:{project_id}:{issue.identifier}")
+    await _publish_owner_claim_state(orch)
+    await broadcast_issues()
+    return JSONResponse({"released": removed})
 
 
 @app.patch("/api/v1/issues/{identifier}")

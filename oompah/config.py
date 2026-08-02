@@ -620,6 +620,10 @@ class ServiceConfig:
     # Interval (seconds) between watchdog audit passes. Default 1800 (30 min).
     # Configurable via OOMPAH_STALLED_TASK_WATCHDOG_INTERVAL_SECONDS.
     stalled_task_watchdog_interval_seconds: int = 300
+    # Maximum age of an explicit direct-owner claim.  This remains an
+    # environment-only operational setting so a forgotten lease cannot strand
+    # work indefinitely.
+    owner_claim_ttl_hours: int = 48
     # Multi-process service split (TASK-469.5.1).
     # When set, the scheduler process publishes state/issues snapshots to this
     # SQLite database and the API process reads from it.  An empty string means
@@ -752,6 +756,7 @@ class ServiceConfig:
         self.worktree_cleanup_interval_seconds = max(
             int(self.worktree_cleanup_interval_seconds), 1
         )
+        self.owner_claim_ttl_hours = max(int(self.owner_claim_ttl_hours), 1)
         self.storage_cleanup_interval_seconds = max(
             int(self.storage_cleanup_interval_seconds), 60
         )
@@ -1183,6 +1188,9 @@ class ServiceConfig:
             ),
             stalled_task_watchdog_interval_seconds=_env_int(
                 "OOMPAH_STALLED_TASK_WATCHDOG_INTERVAL_SECONDS", None, 300
+            ),
+            owner_claim_ttl_hours=_parse_positive_env_int(
+                "OOMPAH_OWNER_CLAIM_TTL_HOURS", 48
             ),
             ipc_db_path=_env_str("OOMPAH_IPC_DB_PATH", None, ""),
             project_refresh_timeout_ms=_env_int(

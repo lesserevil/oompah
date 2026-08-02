@@ -478,6 +478,22 @@
       font-family: 'SF Mono', 'Fira Code', monospace;
     }
 
+    /* Direct-owner work is intentionally In Progress without an agent. */
+    .owner-claim-badge {
+      font-size: 0.6rem;
+      font-weight: 600;
+      padding: 0.1rem 0.35rem;
+      border-radius: 4px;
+      background: rgba(63, 185, 80, 0.15);
+      color: var(--green, #3fb950);
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      white-space: nowrap;
+    }
+    .owner-claim-badge.expired {
+      background: rgba(248, 81, 73, 0.18);
+      color: var(--red, #f85149);
+    }
+
     /* Branch-context badge for shared-epic children:
        distinguishes "Done on branch" from "Merged to target". */
     .branch-context-badge {
@@ -2519,6 +2535,7 @@ let userToggledSwimlanes = {};  // Tracks explicit user toggles (true = user ove
 let orchPaused = false;
 let lastRunningAgents = [];
 let currentProjects = [];
+let ownerClaimsByIssueKey = new Map();
 let httpAuthEnabled = false;  // HTTP Basic auth status from server state
 
 // --- Edit-state tracking ---
@@ -3582,6 +3599,7 @@ function handleStateUpdate(state) {
   currentProjects = projects;
 
   const running = state.running || [];
+  const ownerClaimsChanged = setOwnerClaims(state.owner_claims || []);
 
   // Optimistic dispatch update: when a state push contains a newly-running
   // agent, mark the matching issue as In Progress locally and re-render the
@@ -3619,9 +3637,10 @@ function handleStateUpdate(state) {
     // immediately. applyOptimisticOverrides() (called inside renderBoard)
     // moves the issue between columns and self-clears once the server
     // confirms via the next "issues" push.
-    if (!wsApplyingFullSync && boardData && Object.keys(boardData).length > 0) {
-      renderBoard(boardData);
-    }
+  }
+  if ((newDispatchAgents.length > 0 || ownerClaimsChanged) &&
+      !wsApplyingFullSync && boardData && Object.keys(boardData).length > 0) {
+    renderBoard(boardData);
   }
 
   lastRunningAgents = running;
@@ -4359,6 +4378,7 @@ function issueFingerprint(issue) {
     duplicate_screening: issue.duplicate_screening,
     terminal_audit: issue.terminal_audit || issue.terminal_audit_chain || issue.terminal_audit_summary,
     terminal_audit_summary: issue.terminal_audit_summary,
+    owner_claim: ownerClaimFor(issue),
     attachments: issue.attachments,
     labels: issue.labels,
     has_open_review: issue.has_open_review,
@@ -4805,6 +4825,35 @@ function displayIdentifierFor(identifier, projectId, projectName, displayIdentif
 function issueKey(i) { return (i.project_id || '') + ' ' + i.id; }
 function parentKeyOf(i) {
   return i.parent_id ? (i.project_id || '') + ' ' + i.parent_id : null;
+}
+
+function setOwnerClaims(claims) {
+  const next = new Map();
+  for (const claim of (claims || [])) {
+    if (!claim || !claim.issue_id) continue;
+    next.set((claim.project_id || '') + String.fromCharCode(0) + claim.issue_id, claim);
+  }
+  const changed = JSON.stringify(Array.from(next.entries())) !==
+    JSON.stringify(Array.from(ownerClaimsByIssueKey.entries()));
+  ownerClaimsByIssueKey = next;
+  return changed;
+}
+
+function ownerClaimFor(issue) {
+  return ownerClaimsByIssueKey.get(issueKey(issue)) || null;
+}
+
+function renderCardOwnerClaim(issue) {
+  const claim = ownerClaimFor(issue);
+  if (!claim) return '';
+  const expired = claim.is_expired === true ||
+    (claim.expires_at && Date.parse(claim.expires_at) <= Date.now());
+  const owner = String(claim.owner_login || 'owner');
+  const expiry = claim.expires_at ? new Date(claim.expires_at).toLocaleString() : 'unknown';
+  const label = expired ? 'owner claim expired' : 'owner: ' + owner;
+  const title = 'Direct owner work; owner ' + owner + '. Lease expires: ' + expiry + '.';
+  return ' <span class="owner-claim-badge' + (expired ? ' expired' : '') +
+    '" title="' + esc(title) + '">' + esc(label) + '</span>';
 }
 
 function issueDisplayIdentifier(issue) {
@@ -5419,6 +5468,7 @@ function createCard(issue) {
   const mergedBadgeHtml = columnKeyForStatus(issue.state || issue.tracker_state) === 'Merged'
     ? ' <span class="merged-badge">merged</span>'
     : '';
+  const ownerClaimHtml = renderCardOwnerClaim(issue);
 
   // Build branch-context badge for shared-epic children (Done on branch / Merged to target)
   let branchContextHtml = '';
@@ -5447,6 +5497,7 @@ function createCard(issue) {
         ${cardIdentifierHtml}${trackerLinkHtml}
         ${epicBadgeHtml}
         ${mergedBadgeHtml}
+        ${ownerClaimHtml}
         ${branchContextHtml}
       </span>
       <span class="priority-badge ${pClass}">P${issue.priority ?? 4}</span>

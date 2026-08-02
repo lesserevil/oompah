@@ -113,7 +113,7 @@ Grant a direct-owner claim. Requires the caller to be the `status_actor_login` o
 
 **Request body (optional):**
 ```json
-{ "ttl_hours": 24 }
+{ "actor_login": "alice", "ttl_hours": 24 }
 ```
 
 **Response:**
@@ -128,8 +128,10 @@ Grant a direct-owner claim. Requires the caller to be the `status_actor_login` o
 ```
 
 **Behavior:**
-- Creates `OwnerClaim` in `state.owner_claims[issue.id]`
+- Atomically moves the task to `In Progress` and creates `OwnerClaim` in
+  project-scoped `state.owner_claims`, eliminating the status-to-claim race
 - If a live claim already exists for this issue (same or different owner), replaces it and resets expiry
+- `ttl_hours` may shorten the lease but cannot exceed the configured maximum
 - Persists via `_save_state()`
 - Acquires per-project write lock (same lock as orphan-reset writes) to serialize with concurrent watchdog scans
 
@@ -137,7 +139,7 @@ Grant a direct-owner claim. Requires the caller to be the `status_actor_login` o
 
 Release a claim explicitly. The task returns to the normal dispatchable lifecycle on the next watchdog tick.
 
-**Response:** `204 No Content`
+**Response:** `{ "released": true }`
 
 **Behavior:**
 - Removes `state.owner_claims[issue.id]`
@@ -175,7 +177,7 @@ The watchdog and claim operations share the same per-project write lock (`projec
 
 For the unscoped (legacy) tracker path the lock is a `contextlib.nullcontext()`, matching the existing behavior for single-tracker deployments.
 
-The watchdog read of `state.owner_claims` and the subsequent conditional reset must both occur **inside** the acquired lock to eliminate the TOCTOU window:
+The watchdog read of `state.owner_claims` and the subsequent conditional reset must both occur **inside** the acquired lock to eliminate the TOCTOU window. The claim route performs its `In Progress` transition under the same lock, so callers should use the claim route instead of a separate status update followed by a claim:
 
 ```python
 _lock_ctx = (
