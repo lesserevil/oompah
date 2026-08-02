@@ -13,12 +13,36 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T16:23:24.105345Z'
-updated_at: '2026-07-29T18:28:30.014831Z'
+updated_at: '2026-08-02T18:34:50.991524Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-0fcc83182602
+    project_id: proj-14849f1b
+    task_id: OOMPAH-558
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: fdf62162a266122da430a800f2662fa1634fe077c3bf8a7055579b4e1ae11465
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reconciliation: the human-owned parallel coordination/integration
+      implementation was delivered by merged PR #579 at 31f8938b8, with full-gate
+      and live-deployment evidence recorded on the task family. OOMPAH-699 tracks
+      automatic convergence.'
+    created_at: '2026-08-02T18:34:49.659220+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
