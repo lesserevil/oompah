@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-24T16:07:22.198190Z'
-updated_at: '2026-08-02T01:24:11.975028Z'
+updated_at: '2026-08-02T01:24:55.384982Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -93,6 +93,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-02T01:16:39.459255+00:00'
     branch_key: OOMPAH-440
+oompah.task_costs:
+  total_input_tokens: 27
+  total_output_tokens: 4280
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 27
+      output_tokens: 4280
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 27
+    output_tokens: 4280
+    cost_usd: 0.0
+    recorded_at: '2026-08-02T01:24:51.159804+00:00'
 ---
 ## Summary
 
@@ -156,5 +172,15 @@ Safe evidence:
 - regression_test_same_epic_line: 877
 - regression_test_different_epic_line: 893
 - test_evidence_note: Prior delivery comment records make test 12,316 tests passing at time of merge
+---
+author: oompah
+created: 2026-08-02 01:24
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 27, Tool calls: 21
+- Tokens: 27 in / 4.3K out [4.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 8m 1s
+- Log: OOMPAH-440__20260802T011656Z.jsonl
 ---
 <!-- COMMENTS:END -->

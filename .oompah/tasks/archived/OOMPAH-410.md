@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T16:24:49.141548Z'
-updated_at: '2026-08-02T01:24:17.826512Z'
+updated_at: '2026-08-02T01:24:53.001293Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -93,6 +93,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-02T01:16:06.243263+00:00'
     branch_key: OOMPAH-410
+oompah.task_costs:
+  total_input_tokens: 30
+  total_output_tokens: 4779
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 30
+      output_tokens: 4779
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 30
+    output_tokens: 4779
+    cost_usd: 0.0
+    recorded_at: '2026-08-02T01:24:51.145762+00:00'
 ---
 ## Summary
 
@@ -161,5 +177,15 @@ Safe evidence:
 - diff_stats: oompah/orchestrator.py +94, tests/test_epic_strategy.py +56
 - previous_state: Merged
 - archive_reason: aged Merged auto-archive after 7-day threshold
+---
+author: oompah
+created: 2026-08-02 01:24
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 34, Tool calls: 24
+- Tokens: 30 in / 4.8K out [4.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 8m 41s
+- Log: OOMPAH-410__20260802T011616Z.jsonl
 ---
 <!-- COMMENTS:END -->
