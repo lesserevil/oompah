@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-699
 type: bug
-status: In Validation
+status: Merged
 priority: 0
 title: Converge historical Done records after parent terminalization
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T18:20:28.879414Z'
-updated_at: '2026-08-02T20:42:42.598515Z'
+updated_at: '2026-08-02T20:45:13.034759Z'
 work_branch: OOMPAH-699
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/660
@@ -33,6 +33,27 @@ oompah.work_branch: OOMPAH-699
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-ebb14870820e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-699
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 043cdbd60febedffde56219f648403ba1b9a712bc26c7d55977a78822b8dabbc
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'PR #660 is merged at 1418e3ba7f857082649bc906be2b33b0f548ea48; Python
+      3.11, 3.12, and 3.13 CI are green after rerunning the unrelated OOMPAH-702 webhook
+      test race; exact task head 46b708cb1d830f613f52ba3ef53610dda4ace32e passed the
+      branch gate and local full suite. The live completion auditor repeatedly requested
+      forbidden shell mutation tools, reproducing OOMPAH-701.'
+    created_at: '2026-08-02T20:45:09.644030+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -193,5 +214,12 @@ author: oompah
 created: 2026-08-02 20:42
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-02 20:45
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: PR #660 is merged at 1418e3ba7f857082649bc906be2b33b0f548ea48; Python 3.11, 3.12, and 3.13 CI are green after rerunning the unrelated OOMPAH-702 webhook test race; exact task head 46b708cb1d830f613f52ba3ef53610dda4ace32e passed the branch gate and local full suite. The live completion auditor repeatedly requested forbidden shell mutation tools, reproducing OOMPAH-701.
 ---
 <!-- COMMENTS:END -->
