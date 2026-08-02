@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:46.836436Z'
-updated_at: '2026-08-02T02:32:03.758323Z'
+updated_at: '2026-08-02T02:32:45.112890Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-692
 target_branch: null
 review_url: null
@@ -52,8 +52,8 @@ oompah.integration:
   submitted_at: '2026-08-02T02:29:51.348129+00:00'
   updated_at: '2026-08-02T02:29:51.348129+00:00'
 oompah.task_costs:
-  total_input_tokens: 852856
-  total_output_tokens: 7746
+  total_input_tokens: 14733068
+  total_output_tokens: 48530
   total_cost_usd: 0.0
   by_model:
     sonnet:
@@ -61,8 +61,8 @@ oompah.task_costs:
       output_tokens: 3464
       cost_usd: 0.0
     haiku:
-      input_tokens: 146
-      output_tokens: 4282
+      input_tokens: 13880358
+      output_tokens: 45066
       cost_usd: 0.0
   runs:
   - profile: standard
@@ -77,6 +77,12 @@ oompah.task_costs:
     output_tokens: 4282
     cost_usd: 0.0
     recorded_at: '2026-08-02T02:08:01.145734+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 13880212
+    output_tokens: 40784
+    cost_usd: 0.0
+    recorded_at: '2026-08-02T02:32:42.832477+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-692__20260802T020428Z
@@ -267,5 +273,15 @@ author: oompah
 created: 2026-08-02 02:32
 ---
 Coordination reviewed: HEAD d27274909 is clean and owns the WS envelope/revision/send interfaces. Sent OOMPAH-695 an interface checkpoint to rebase f77bb3e onto this head and keep its metrics additive. Running focused lifecycle verification before final handoff.
+---
+author: oompah
+created: 2026-08-02 02:32
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 98
+- Tokens: 13.9M in / 40.8K out [13.9M total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 23m 44s
+- Log: OOMPAH-692__20260802T020909Z.jsonl
 ---
 <!-- COMMENTS:END -->
