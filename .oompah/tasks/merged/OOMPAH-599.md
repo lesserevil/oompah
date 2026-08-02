@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-599
 type: task
-status: Done
+status: Merged
 priority: 1
 title: Verify zero stranded delivery states and close recovery epics
 parent: OOMPAH-587
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:31.072278Z'
-updated_at: '2026-07-31T05:20:51.453705Z'
+updated_at: '2026-08-02T18:26:08.431505Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-599
 target_branch: null
 review_url: null
@@ -109,6 +109,25 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-9e80dda6753b: '2026-07-31T04:45:29.862224+00:00'
     attempt-1e4d69c1f121: '2026-07-31T05:20:31.267952+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-547bab3e64e8
+    project_id: proj-14849f1b
+    task_id: OOMPAH-599
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: e216f95e2134e1f3d88b28098be22c0aaaeeecf86d1eca149633a6f6333b35c6
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reconciliation: parent OOMPAH-587 is Merged and its accepted rollup
+      contains this previously audited Done child; durable integration-queue/rollup
+      evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.'
+    created_at: '2026-08-02T18:26:03.967580+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -537,5 +556,12 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 8m 12s
 - Log: OOMPAH-599__20260731T051243Z.jsonl
+---
+author: oompah
+created: 2026-08-02 18:26
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner reconciliation: parent OOMPAH-587 is Merged and its accepted rollup contains this previously audited Done child; durable integration-queue/rollup evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.
 ---
 <!-- COMMENTS:END -->
