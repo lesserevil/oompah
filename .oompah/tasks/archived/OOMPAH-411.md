@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T21:26:04.166626Z'
-updated_at: '2026-08-02T01:29:55.786782Z'
+updated_at: '2026-08-02T01:30:21.460030Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -93,6 +93,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-02T01:16:16.416277+00:00'
     branch_key: OOMPAH-411
+oompah.task_costs:
+  total_input_tokens: 60
+  total_output_tokens: 2392
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 60
+      output_tokens: 2392
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 60
+    output_tokens: 2392
+    cost_usd: 0.0
+    recorded_at: '2026-08-02T01:30:19.606279+00:00'
 ---
 ## Summary
 
@@ -158,5 +174,15 @@ Safe evidence:
 - orchestrator_test: tests/test_orchestrator_merged.py::TestYoloReviewSerializationByProject::test_no_check_pr_is_merged_after_github_classifies_it_as_passed PASSED locally
 - aging_days: ~11 days between merge (2026-07-22) and archive request (2026-08-02)
 - audit_metadata_at_head: task file records audit_id audit-5545580be785, target_state Archived, previous_state Merged, digest 7159e5752aee10089ad9fb965b4df9d4dcce2c47f386f340af157ddf7c46fee2
+---
+author: oompah
+created: 2026-08-02 01:30
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 41
+- Tokens: 60 in / 2.4K out [2.5K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 14m 1s
+- Log: OOMPAH-411__20260802T011625Z.jsonl
 ---
 <!-- COMMENTS:END -->
