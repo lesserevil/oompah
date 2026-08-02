@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-692
 type: feature
-status: In Validation
+status: Done
 priority: 1
 title: Version authoritative dashboard state in the WebSocket protocol
 parent: OOMPAH-691
@@ -12,7 +12,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-08-02T02:01:46.836436Z'
-updated_at: '2026-08-02T03:22:05.451591Z'
+updated_at: '2026-08-02T03:30:15.693730Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-692
 target_branch: null
 review_url: null
@@ -135,6 +135,30 @@ oompah.work_contributors:
     completed_at: '2026-08-02T02:54:22.286384+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-516c4b5a5b7d: '2026-08-02T03:30:12.546282+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-692
+    target_state: Done
+    evidence_fingerprint: 443d0d0744941412f3a1b53cdb919c63401dd4805d82e1e815bcc608126cdeb9
+    audit_ids:
+    - audit-e8e382c35f09
+    kind: result
+    applied: true
+    retired_at: '2026-08-02T03:30:12.546296+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-692
+    audit_id: audit-e8e382c35f09
+    attempt_id: attempt-516c4b5a5b7d
+    target_state: Done
+    evidence_fingerprint: 443d0d0744941412f3a1b53cdb919c63401dd4805d82e1e815bcc608126cdeb9
+    status: Done
+    audit_ids:
+    - audit-e8e382c35f09
+    applied: false
+    created_at: '2026-08-02T03:30:12.546315+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -142,7 +166,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-692
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -151,7 +175,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-516c4b5a5b7d
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -161,13 +185,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-02T03:22:00.861667+00:00'
       branch_key: epic-OOMPAH-691--task-OOMPAH-692
+      verdict: pass
+      completed_at: '2026-08-02T03:30:12.546060+00:00'
+      ended_at: '2026-08-02T03:30:12.546060+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-08-02T03:21:41.001783+00:00'
-    updated_at: '2026-08-02T03:22:00.861667+00:00'
+    updated_at: '2026-08-02T03:30:12.546060+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-516c4b5a5b7d
@@ -537,5 +564,23 @@ author: oompah
 created: 2026-08-02 03:22
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-02 03:30
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- head_commit: 23d108b20c132b03c5dd450c1cb8ac97d4f0ffac
+- commits_on_branch: 849d5f752 (server.py + tests + plans), 23d108b20 (plans clarification)
+- focused_tests: 196 passed across ws_lifecycle/websocket_bootstrap/console/console_endpoints/server_issue_snapshot/dashboard_websocket_liveness/dashboard_refresh/http_auth
+- envelope_fields_present: protocol_version, epoch, delivery_seq, state_revision, issue_revision (WS_PROTOCOL_VERSION=1 at server.py:992)
+- concurrency_primitives: _ws_delivery_sequences_lock RLock, revision advance guarded, state acceptance monotonic on generated_at
+- trailing_edge_test: TestVersionedDashboardProtocol::test_coalesced_state_emits_latest_revision PASSED
+- epoch_reset_test: test_epoch_change_resets_revisions_deterministically PASSED
+- concurrency_test: test_concurrent_snapshot_callbacks_have_unique_monotonic_revisions PASSED
+- documentation: plans/websocket-state-versioning.md documents envelope, revision semantics, client gap handling, restart/reconnect
 ---
 <!-- COMMENTS:END -->
