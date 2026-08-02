@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-695
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Prove dashboard convergence with fault injection and health telemetry
 parent: OOMPAH-691
@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:52.297786Z'
-updated_at: '2026-08-02T06:41:48.951622Z'
+updated_at: '2026-08-02T06:42:06.864015Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-695
 target_branch: null
 review_url: null
@@ -62,16 +62,16 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 82fa5965-8d78-4f4e-8d13-e65809d24dd6
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-691--task-OOMPAH-695
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-691--task-OOMPAH-695
-  base_branch: epic-OOMPAH-691
-  base_sha: 6897f3093f86fc9d6961b915c1b51504b30e9f5b
-  updated_at: '2026-08-02T06:39:55.988464+00:00'
+  head_sha: 1edd55f7c62f43448dd1d485e069cf3b61efd25b
+  submitted_at: '2026-08-02T06:41:55.818987+00:00'
+  updated_at: '2026-08-02T06:41:55.818987+00:00'
 oompah.task_costs:
   total_input_tokens: 804
   total_output_tokens: 72369
@@ -844,5 +844,20 @@ author: oompah
 created: 2026-08-02 06:41
 ---
 Completion: Published recovery checkpoint 1edd55f7c to epic-OOMPAH-691--task-OOMPAH-695; git status confirms it is clean and up to date with origin. Focused validation is green (174 passed). Submitting this exact head for the orchestrated complete make test gate and integration.
+---
+author: oompah
+created: 2026-08-02 06:42
+---
+Implemented real protocol fault injection, full-sync telemetry, failure alert/recovery validation, four-auditor convergence, and coalescing coverage; 174 focused tests pass.
+---
+author: oompah
+created: 2026-08-02 06:42
+---
+Run #2 [attempt=2, profile=standard, role=standard -> Codex/gpt-5.6-terra]
+- Turns: 0, Tool calls: 26
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 2m 14s
+- Log: OOMPAH-695__20260802T063958Z.jsonl
 ---
 <!-- COMMENTS:END -->
