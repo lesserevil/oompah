@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-705
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Fetch an accepted submission head before standalone review gating
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T21:30:29.609691Z'
-updated_at: '2026-08-02T23:46:53.516601Z'
+updated_at: '2026-08-02T23:55:53.454878Z'
 work_branch: OOMPAH-705
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/666
@@ -94,6 +94,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/666
 oompah.review_number: '666'
 oompah.work_branch: OOMPAH-705
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-5afe11e5d803
+    project_id: proj-14849f1b
+    task_id: OOMPAH-705
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6eee60cd233a1743770b04898cd0283aa5702df57db747cecd99cd19db4a192e
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-02T23:55:45.912080+00:00'
+  - version: 1
+    audit_id: audit-01a9cb534a45
+    project_id: proj-14849f1b
+    task_id: OOMPAH-705
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6eee60cd233a1743770b04898cd0283aa5702df57db747cecd99cd19db4a192e
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-02T23:55:45.912080+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -201,5 +240,15 @@ author: oompah
 created: 2026-08-02 23:46
 ---
 Branch quality gate passed for `73e20b64c99a542bbbab3c84237af916193b1a7c` using `make test` in 423.0s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-02 23:55
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-02 23:55
+---
+YOLO: merged PR #666.
 ---
 <!-- COMMENTS:END -->
