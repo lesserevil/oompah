@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-624
 type: bug
-status: Done
+status: Merged
 priority: 1
 title: Bind owner authorization to the authenticated server principal
 parent: OOMPAH-619
@@ -12,7 +12,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-07-30T21:37:57.526368Z'
-updated_at: '2026-07-30T22:24:00.844679Z'
+updated_at: '2026-08-02T18:28:18.603564Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-624
 target_branch: null
 review_url: null
@@ -109,6 +109,25 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-a00b011df7b0: '2026-07-30T22:23:32.446666+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-13095a9da22e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-624
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 4887169c3a14e1ed876e6e08024086341f5ee54dfa27ffd818ed175c86d4b09a
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reconciliation: parent OOMPAH-619 is Merged and its accepted rollup
+      contains this previously audited Done child; durable integration-queue/rollup
+      evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.'
+    created_at: '2026-08-02T18:28:12.764064+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -367,5 +386,12 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: normal, Duration: 7m 29s
 - Log: OOMPAH-624__20260730T221636Z.jsonl
+---
+author: oompah
+created: 2026-08-02 18:28
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner reconciliation: parent OOMPAH-619 is Merged and its accepted rollup contains this previously audited Done child; durable integration-queue/rollup evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.
 ---
 <!-- COMMENTS:END -->
