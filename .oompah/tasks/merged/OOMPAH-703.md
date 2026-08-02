@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T20:59:10.197769Z'
-updated_at: '2026-08-02T22:39:48.159819Z'
+updated_at: '2026-08-02T22:39:50.994722Z'
 work_branch: OOMPAH-703
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/663
@@ -40,8 +40,8 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: null
 oompah.task_costs:
-  total_input_tokens: 50575
-  total_output_tokens: 11057
+  total_input_tokens: 50608
+  total_output_tokens: 16196
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -49,8 +49,8 @@ oompah.task_costs:
       output_tokens: 1662
       cost_usd: 0.0
     unknown:
-      input_tokens: 51
-      output_tokens: 9395
+      input_tokens: 84
+      output_tokens: 14534
       cost_usd: 0.0
   runs:
   - profile: default
@@ -71,6 +71,12 @@ oompah.task_costs:
     output_tokens: 9395
     cost_usd: 0.0
     recorded_at: '2026-08-02T22:36:00.887406+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 33
+    output_tokens: 5139
+    cost_usd: 0.0
+    recorded_at: '2026-08-02T22:39:46.067000+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-703__20260802T215147Z
