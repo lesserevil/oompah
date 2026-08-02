@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-356
 type: epic
-status: In Validation
+status: Archived
 priority: 1
 title: Reduce unfinished epic branch synchronization churn
 parent: null
@@ -15,7 +15,7 @@ labels:
 - workflow
 assignee: null
 created_at: '2026-07-22T01:23:32.887223Z'
-updated_at: '2026-08-02T01:30:53.827463Z'
+updated_at: '2026-08-02T01:43:52.268245Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -23,6 +23,30 @@ review_number: null
 merged_at: null
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-50c3d6991111: '2026-08-02T01:43:49.023643+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-356
+    target_state: Archived
+    evidence_fingerprint: afe4a724470fb72d93d5fc3e6ef18e8d543f1b54864f887b84c39a678efa8e3f
+    audit_ids:
+    - audit-609917f758c9
+    kind: result
+    applied: true
+    retired_at: '2026-08-02T01:43:49.023655+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-356
+    audit_id: audit-609917f758c9
+    attempt_id: attempt-50c3d6991111
+    target_state: Archived
+    evidence_fingerprint: afe4a724470fb72d93d5fc3e6ef18e8d543f1b54864f887b84c39a678efa8e3f
+    status: Archived
+    audit_ids:
+    - audit-609917f758c9
+    applied: false
+    created_at: '2026-08-02T01:43:49.023672+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -30,7 +54,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-356
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -39,7 +63,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-50c3d6991111
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -49,13 +73,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-02T01:30:43.014536+00:00'
       branch_key: OOMPAH-356
+      verdict: pass
+      completed_at: '2026-08-02T01:43:49.023480+00:00'
+      ended_at: '2026-08-02T01:43:49.023480+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-02T01:12:44.770084+00:00'
-    updated_at: '2026-08-02T01:30:43.014536+00:00'
+    updated_at: '2026-08-02T01:43:49.023480+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-50c3d6991111
@@ -112,5 +139,21 @@ author: oompah
 created: 2026-08-02 01:30
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-02 01:43
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- delivery_commit: 2ba37886b2f190fbfe84da6689e4a4f5877437fa
+- delivery_commit_on_main: yes
+- focused_tests_epic_rebase_state: 33 passed
+- focused_tests_orchestrator_handlers: 277 passed
+- children: OOMPAH-357, OOMPAH-358, OOMPAH-359 (all In Validation per parent listing)
+- merged_duration_days: ~7 (reconciled 2026-07-26, archive queued 2026-08-02)
+- archive_trigger: auto_archive (aged Merged)
 ---
 <!-- COMMENTS:END -->
