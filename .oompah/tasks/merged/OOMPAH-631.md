@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-631
 type: bug
-status: Done
+status: Merged
 priority: 1
 title: Restore validation ownership when terminal retries coalesce
 parent: OOMPAH-584
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:08:00.758352Z'
-updated_at: '2026-07-31T05:55:42.771992Z'
+updated_at: '2026-08-02T18:29:29.435691Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-631
 target_branch: null
 review_url: null
@@ -116,6 +116,24 @@ oompah.terminal_audit:
     reason: Restore previously audited Done after false post-merge landing regression;
       refreshed exact task ref is contained in main.
     created_at: '2026-07-31T05:55:21.568555+00:00'
+  - version: 1
+    override_id: override-12a80ba410ef
+    project_id: proj-14849f1b
+    task_id: OOMPAH-631
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 5dc1b7e1f2e952502cf6abc2ebf2559c5ce53a8cf383014734cf9b3f34c519d2
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reconciliation: parent OOMPAH-584 is Merged and its accepted rollup
+      contains this previously audited Done child; durable integration-queue/rollup
+      evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.'
+    created_at: '2026-08-02T18:29:25.333414+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -560,5 +578,12 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 1m 23s
 - Log: OOMPAH-631__20260731T055421Z.jsonl
+---
+author: oompah
+created: 2026-08-02 18:29
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner reconciliation: parent OOMPAH-584 is Merged and its accepted rollup contains this previously audited Done child; durable integration-queue/rollup evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.
 ---
 <!-- COMMENTS:END -->
