@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T18:20:28.879414Z'
-updated_at: '2026-08-02T20:45:16.657929Z'
+updated_at: '2026-08-02T20:45:30.578018Z'
 work_branch: OOMPAH-699
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/660
@@ -131,6 +131,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-02T20:42:37.426493+00:00'
     branch_key: OOMPAH-699
+oompah.task_costs:
+  total_input_tokens: 33
+  total_output_tokens: 1126
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 33
+      output_tokens: 1126
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 33
+    output_tokens: 1126
+    cost_usd: 0.0
+    recorded_at: '2026-08-02T20:45:28.277321+00:00'
 ---
 ## Summary
 
@@ -234,5 +250,15 @@ created: 2026-08-02 20:45
 Override by oompah-cli: terminal transition to Merged applied by project owner.
 
 Reason: PR #660 is merged at 1418e3ba7f857082649bc906be2b33b0f548ea48; Python 3.11, 3.12, and 3.13 CI are green after rerunning the unrelated OOMPAH-702 webhook test race; exact task head 46b708cb1d830f613f52ba3ef53610dda4ace32e passed the branch gate and local full suite. The live completion auditor repeatedly requested forbidden shell mutation tools, reproducing OOMPAH-701.
+---
+author: oompah
+created: 2026-08-02 20:45
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 18
+- Tokens: 33 in / 1.1K out [1.2K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 2m 49s
+- Log: OOMPAH-699__20260802T204244Z.jsonl
 ---
 <!-- COMMENTS:END -->
