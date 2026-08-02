@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-544
 type: task
-status: Done
+status: Merged
 priority: 1
 title: Bound individual pytest tests to five seconds in CI
 parent: null
@@ -13,12 +13,35 @@ labels:
 - needs:ci
 assignee: null
 created_at: '2026-07-29T15:11:56.176459Z'
-updated_at: '2026-07-29T15:30:04.457744Z'
+updated_at: '2026-08-02T18:36:08.821128Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-3d2398de29f9
+    project_id: proj-14849f1b
+    task_id: OOMPAH-544
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9a0f975899bcad1796fc5af499e82c3573bf67615735409e8c101f7396b4c9d9
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reconciliation: commit 3d72d2e69 implementing the timeout fix was
+      merged in PR #577 at 7b7341201 after the recorded full local gate and green
+      replacement CI. OOMPAH-699 tracks automatic convergence.'
+    created_at: '2026-08-02T18:36:05.268397+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
@@ -46,5 +69,12 @@ author: oompah
 created: 2026-07-29 15:30
 ---
 Added pytest-timeout and a global five-second per-test timeout, corrected three tests that leaked intentionally delayed background work, added configuration regression coverage, and verified make test locally (13,138 passed, 7 skipped) plus GitHub CI on Python 3.11, 3.12, and 3.13 (run 30465625633). Changes are committed and pushed as 3d72d2e69 on PR #577.
+---
+author: oompah
+created: 2026-08-02 18:36
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner reconciliation: commit 3d72d2e69 implementing the timeout fix was merged in PR #577 at 7b7341201 after the recorded full local gate and green replacement CI. OOMPAH-699 tracks automatic convergence.
 ---
 <!-- COMMENTS:END -->
