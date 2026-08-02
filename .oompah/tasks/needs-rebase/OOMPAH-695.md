@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-695
 type: task
-status: Ready to Integrate
+status: Needs Rebase
 priority: 1
 title: Prove dashboard convergence with fault injection and health telemetry
 parent: OOMPAH-691
@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:52.297786Z'
-updated_at: '2026-08-02T02:24:06.509524Z'
+updated_at: '2026-08-02T05:11:37.931803Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-695
 target_branch: null
 review_url: null
@@ -66,14 +66,32 @@ oompah.agent_run_id: f413da90-b5f6-4228-8395-978239abb5fd
 oompah.work_branch: epic-OOMPAH-691--task-OOMPAH-695
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: blocked
+  attempts: 1
   task_branch: epic-OOMPAH-691--task-OOMPAH-695
-  base_branch: main
-  base_sha: 917633fd9a199f5a456d6b091a72e1a1ad3633b5
+  base_branch: epic-OOMPAH-691
+  base_sha: 5d9186d6d63e368e4f97934354f4d28e5ea2a93f
   head_sha: f77bb3eff6041608ee98d52396e10c2d0d46a389
   submitted_at: '2026-08-02T02:23:05.669901+00:00'
-  updated_at: '2026-08-02T02:24:05.118185+00:00'
+  updated_at: '2026-08-02T05:11:34.661946+00:00'
+  last_error: 'Rebase onto the latest epic head conflicted: Rebasing (1/1)
+
+    error: could not apply f77bb3eff... OOMPAH-695: Add WebSocket synchronization
+    metrics and fault injection tests
+
+    hint: Resolve all conflicts manually, mark them as resolved with
+
+    hint: "git add/rm <conflicted_files>", then run "git rebase --continue".
+
+    hint: You can instead skip this commit: run "git rebase --skip".
+
+    hint: To abort and get back to the state before "git rebase", run "git rebase
+    --abort".
+
+    hint: Disable this message with "git config set advice.mergeConflict false"
+
+    Could not apply f77bb3eff... # OOMPAH-695: Add WebSocket synchronization metrics
+    and fault injection tests'
 oompah.task_costs:
   total_input_tokens: 30
   total_output_tokens: 5513
@@ -340,5 +358,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 10m 22s
 - Log: OOMPAH-695__20260802T021342Z.jsonl
+---
+author: oompah
+created: 2026-08-02 05:11
+---
+Integration found a rebase conflict on `epic-OOMPAH-691--task-OOMPAH-695`. Resolve it against `epic-OOMPAH-691`, run the required tests, push the same private branch, and `oompah task submit` it again.
 ---
 <!-- COMMENTS:END -->
