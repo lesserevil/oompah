@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T20:59:10.197769Z'
-updated_at: '2026-08-02T21:55:55.475574Z'
+updated_at: '2026-08-02T21:57:14.250795Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -153,5 +153,10 @@ author: oompah
 created: 2026-08-02 21:55
 ---
 Discovery: refresh jobs already own an asyncio.Task, and _run records terminal complete/failed state before the task finishes; however, tests cannot await that task through the public API. I will add a narrowly scoped wait_for_completion(project_id, branch) method that shields the refresh task from caller cancellation and returns the terminal RefreshStatus, then use it in the invalidate tests. This preserves stale-while-revalidate and normal refresh behavior while making completion synchronization explicit.
+---
+author: oompah
+created: 2026-08-02 21:57
+---
+Implementation: added BacklogRefreshManager.wait_for_completion(), which awaits the existing job task without cancelling refresh work and returns terminal complete/failed status (or None for an unknown key). Added success, failure, and no-job unit coverage. Reworked all applicable invalidate tests to await completion, strengthened stale-while-revalidate assertions to verify the old result is served then replaced, and kept the exact one-subsequent-call assertion.
 ---
 <!-- COMMENTS:END -->
