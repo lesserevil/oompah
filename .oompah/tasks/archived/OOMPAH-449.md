@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-449
 type: task
-status: In Validation
+status: Archived
 priority: null
 title: Do not merge a newly updated PR before its CI checks register
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-26T04:35:24.362802Z'
-updated_at: '2026-08-02T19:02:19.576372Z'
+updated_at: '2026-08-02T19:05:48.114341Z'
 work_branch: OOMPAH-449
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/556
@@ -52,6 +52,30 @@ oompah.work_branch: OOMPAH-449
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-a68d8fdee2e5: '2026-08-02T19:05:44.092053+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-449
+    target_state: Archived
+    evidence_fingerprint: 17a8ed19deb9912281a00176d74ac84d87cd856be7d71e046276b63b76202405
+    audit_ids:
+    - audit-8a7dec0e5ce2
+    kind: result
+    applied: true
+    retired_at: '2026-08-02T19:05:44.092066+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-449
+    audit_id: audit-8a7dec0e5ce2
+    attempt_id: attempt-a68d8fdee2e5
+    target_state: Archived
+    evidence_fingerprint: 17a8ed19deb9912281a00176d74ac84d87cd856be7d71e046276b63b76202405
+    status: Archived
+    audit_ids:
+    - audit-8a7dec0e5ce2
+    applied: false
+    created_at: '2026-08-02T19:05:44.092085+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -59,7 +83,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-449
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -68,7 +92,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-a68d8fdee2e5
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -78,13 +102,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-02T19:02:13.989822+00:00'
       branch_key: OOMPAH-449
+      verdict: pass
+      completed_at: '2026-08-02T19:05:44.091882+00:00'
+      ended_at: '2026-08-02T19:05:44.091882+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-02T19:02:02.396173+00:00'
-    updated_at: '2026-08-02T19:02:13.989822+00:00'
+    updated_at: '2026-08-02T19:05:44.091882+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-a68d8fdee2e5
@@ -430,5 +457,22 @@ author: oompah
 created: 2026-08-02 19:02
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-02 19:05
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit: 559e8720ed730ff234026472ac713ff669b0bbbe
+- impl_commits: bc3f6e876, 26272e5c7
+- main_head: 126422448bb23f19561533eebbdfc0a4aa4f9178
+- ci_sync_race_tests: 6 passed
+- scm_ci_selection_tests: 83 passed, 205 deselected
+- impl_files_present: oompah/scm.py, tests/test_ci_sync_race.py, tests/test_scm.py, .env.example
+- env_var: OOMPAH_CI_REGISTRATION_GRACE_SECONDS present in .env.example:360
+- worktree_state: clean; local main equals origin/main
 ---
 <!-- COMMENTS:END -->
