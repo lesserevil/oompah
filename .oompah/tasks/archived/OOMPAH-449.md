@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-26T04:35:24.362802Z'
-updated_at: '2026-08-02T19:05:48.114341Z'
+updated_at: '2026-08-02T19:05:51.082832Z'
 work_branch: OOMPAH-449
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/556
@@ -74,8 +74,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-8a7dec0e5ce2
-    applied: false
+    applied: true
     created_at: '2026-08-02T19:05:44.092085+00:00'
+    applied_at: '2026-08-02T19:05:50.062824+00:00'
   version: 1
   pending_chain:
   - version: 1
