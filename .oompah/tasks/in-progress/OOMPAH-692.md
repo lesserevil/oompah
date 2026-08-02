@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:46.836436Z'
-updated_at: '2026-08-02T02:06:34.427683Z'
+updated_at: '2026-08-02T02:07:31.519698Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-692
 target_branch: null
 review_url: null
@@ -154,5 +154,35 @@ created: 2026-08-02 02:06
 This appears to be primarily backend (server.py, orchestrator.py) and protocol work. As a Frontend Developer, I need to assess if there's a UI component or if this should be handed to a backend specialist.
 
 Starting codebase exploration now.
+---
+author: oompah
+created: 2026-08-02 02:07
+---
+HANDOFF: This task requires backend implementation, not frontend work.
+
+**Discovery:** Explored the codebase and found:
+- WebSocket communication is handled in oompah/server.py with global state (_ws_clients, throttles, snapshots)
+- Current messages have types: 'state', 'issues', 'pong', 'console_event'
+- Existing fields include http_auth, build_id, service_instance_id
+- Tests are in tests/test_ws_lifecycle.py
+
+**What needs doing (backend):**
+1. Add protocol version, epoch, delivery_seq, state_revision, issue_revision to message envelopes
+2. Advance state_revision on state snapshot updates via _update_state_snapshot
+3. Advance issue_revision on issue snapshot invalidation/rebuild
+4. Make counters concurrency-safe across observer threads and API loop
+5. Replace leading-edge dropping with trailing-edge coalescing
+6. Update protocol documentation in plans/
+7. Add tests for: monotonic revisions, contiguous sequences, epoch reset, concurrent callbacks
+
+**Relevant code locations:**
+- oompah/server.py: _broadcast(), _on_orchestrator_change(), _on_state_only_change(), _throttled_broadcast_issues(), message construction
+- oompah/orchestrator.py: notification paths and state snapshot updates
+- tests/test_ws_lifecycle.py: existing lifecycle tests
+- plans/: protocol documentation (needs creation/update)
+
+**Why not frontend:** All implementation is server-side protocol work. Dashboard.tsx will eventually consume the versioned data, but no UI changes are required for this phase.
+
+**Recommended next focus:** Backend developer to implement protocol versioning and freshness contract.
 ---
 <!-- COMMENTS:END -->
