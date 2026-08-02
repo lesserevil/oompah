@@ -775,6 +775,10 @@ class ProviderStartupError(Exception):
         self.reason = reason
 
 
+class DispatchAuthorityRevoked(RuntimeError):
+    """Raised when an accepted lifecycle change withdraws a worker run."""
+
+
 @dataclass
 class DispatchTarget:
     """A resolved provider/model candidate for a single dispatch attempt.
@@ -1121,6 +1125,11 @@ class Orchestrator:
         # lock so those two authorities cannot both launch work.
         self._retry_authority_lock = threading.RLock()
         self._retry_dispatching: dict[str, RetryEntry] = {}
+        # Generation tombstones close the gap after a retry has been selected
+        # or a worker has been registered but before its provider/workspace
+        # setup completes.  They are process-local by design: accepted
+        # tracker state is the durable authority across restart.
+        self._revoked_authority_generations: dict[str, str] = {}
         self._persisted_retry_entries: list[RetryEntry] = []
         # Legacy single tracker (used when no projects are configured).  In
         # managed-project mode the native factory makes this tracker
@@ -3192,6 +3201,57 @@ class Orchestrator:
         """Return the event-loop lock for dispatch/audit ownership of a task."""
 
         return self._issue_transition_locks.setdefault(issue_id, asyncio.Lock())
+
+    def _worker_authority_current(
+        self,
+        issue: Issue,
+        run_id: str | None = None,
+    ) -> bool:
+        """Return whether a worker may continue into setup or provider code.
+
+        This is intentionally synchronous because workspace setup runs in the
+        bounded thread pool.  The retry authority lock protects the generation
+        tombstone and the running-entry identity from an operator submission
+        racing that setup.
+        """
+        with self._retry_authority_lock:
+            entry = self.state.running.get(issue.id)
+            if entry is None:
+                return False
+            if run_id is not None and getattr(entry, "run_id", None) != run_id:
+                return False
+            if getattr(entry, "authority_revoked", False):
+                return False
+            generation = getattr(entry, "authority_generation", None)
+            return not generation or generation not in self._revoked_authority_generations
+
+    def _workspace_authority_check(self, issue: Issue, run_id: str | None):
+        """Return a setup callback, preserving direct worker-test call sites."""
+        if issue.id not in self.state.running:
+            return None
+        return lambda: self._worker_authority_current(issue, run_id)
+
+    def _authority_guarded_call(
+        self,
+        authority_check: Any,
+        func: Any,
+        /,
+        *args: Any,
+        **kwargs: Any,
+    ) -> Any:
+        """Run setup mutation while the dispatch generation is still live."""
+        if authority_check is None:
+            return func(*args, **kwargs)
+        with self._retry_authority_lock:
+            if not authority_check():
+                raise DispatchAuthorityRevoked(
+                    "implementation authority was revoked during setup"
+                )
+            return func(*args, **kwargs)
+
+    def _authority_revocation_reason(self, generation: str) -> str | None:
+        with self._retry_authority_lock:
+            return self._revoked_authority_generations.get(generation)
 
     def _request_terminal_transition_from_maintenance(self, **kwargs: Any):
         """Bridge a synchronous maintenance observation to terminal auditing.
@@ -11615,6 +11675,7 @@ class Orchestrator:
         issue: Issue,
         *,
         persist_dispatch_metadata: bool = True,
+        authority_check: Any = None,
     ) -> tuple[str, Issue | None]:
         """Resolve and create the workspace path used to dispatch ``issue``.
 
@@ -11626,6 +11687,12 @@ class Orchestrator:
         read-only view of already-integrated evidence, not a new implementation
         attempt.
         """
+        def _assert_authority() -> None:
+            if authority_check is not None and not authority_check():
+                raise DispatchAuthorityRevoked(
+                    f"implementation authority revoked for {issue.identifier}"
+                )
+
         def _finish_workspace(path: str, epic: Issue | None) -> tuple[str, Issue | None]:
             # Recovery refs survive orchestrator restarts even when tracker
             # metadata was not written before a worker was terminated.
@@ -11649,11 +11716,20 @@ class Orchestrator:
             return path, epic
 
         if not issue.project_id:
-            workspace = self.workspace_mgr.create_for_issue(issue.identifier)
-            self.workspace_mgr.run_before_run(workspace.path)
+            workspace = self._authority_guarded_call(
+                authority_check,
+                self.workspace_mgr.create_for_issue,
+                issue.identifier,
+            )
+            self._authority_guarded_call(
+                authority_check,
+                self.workspace_mgr.run_before_run,
+                workspace.path,
+            )
             return workspace.path, None
 
         if self._is_epic_review_repair_issue(issue):
+            _assert_authority()
             default_epic_branch = self.project_store.epic_branch_name(
                 issue.identifier
             )
@@ -11665,12 +11741,16 @@ class Orchestrator:
             issue.work_branch = work_branch
             issue.branch_name = work_branch
             if work_branch == default_epic_branch:
-                wp = self.project_store.create_epic_worktree(
+                wp = self._authority_guarded_call(
+                    authority_check,
+                    self.project_store.create_epic_worktree,
                     issue.project_id,
                     issue.identifier,
                 )
                 return _finish_workspace(wp, issue)
-            wp = self.project_store.create_worktree(
+            wp = self._authority_guarded_call(
+                authority_check,
+                self.project_store.create_worktree,
                 issue.project_id,
                 issue.identifier,
                 base_branch=issue.target_branch,
@@ -11681,6 +11761,7 @@ class Orchestrator:
         parent_epic = self._resolve_parent_epic(issue)
         if parent_epic is not None:
             if self.config.parallel_epic_children_enabled:
+                _assert_authority()
                 epic_branch = self._epic_branch_for_issue(parent_epic)
                 private_branch = self.project_store.epic_child_branch_name(
                     parent_epic.identifier,
@@ -11691,21 +11772,25 @@ class Orchestrator:
                 # Integration and dispatch share this lock, so the epic head
                 # cannot move between synchronization and private branching.
                 with self.project_store.project_write_lock(issue.project_id):
-                    _, base_sha = (
-                        self.project_store.prepare_epic_branch_for_private_dispatch(
-                            issue.project_id,
-                            parent_epic.identifier,
-                        )
+                    _, base_sha = self._authority_guarded_call(
+                        authority_check,
+                        self.project_store.prepare_epic_branch_for_private_dispatch,
+                        issue.project_id,
+                        parent_epic.identifier,
                     )
                     if persist_dispatch_metadata:
                         try:
                             tracker = self._tracker_for_issue(issue)
-                            tracker.set_metadata_field(
+                            self._authority_guarded_call(
+                                authority_check,
+                                tracker.set_metadata_field,
                                 issue.identifier,
                                 "oompah.work_branch",
                                 private_branch,
                             )
-                            tracker.set_metadata_field(
+                            self._authority_guarded_call(
+                                authority_check,
+                                tracker.set_metadata_field,
                                 issue.identifier,
                                 "oompah.integration",
                                 IntegrationRecord(
@@ -11721,7 +11806,9 @@ class Orchestrator:
                                 f"Could not persist private branch for "
                                 f"{issue.identifier}: {exc}"
                             ) from exc
-                    wp = self.project_store.create_worktree(
+                    wp = self._authority_guarded_call(
+                        authority_check,
+                        self.project_store.create_worktree,
                         issue.project_id,
                         issue.identifier,
                         base_branch=epic_branch,
@@ -11754,7 +11841,9 @@ class Orchestrator:
                 # orchestrator restarts.  Failures must not block dispatch.
                 try:
                     tracker = self._tracker_for_issue(issue)
-                    tracker.set_metadata_field(
+                    self._authority_guarded_call(
+                        authority_check,
+                        tracker.set_metadata_field,
                         issue.identifier, "oompah.work_branch", epic_branch
                     )
                 except Exception as _exc:  # noqa: BLE001
@@ -11763,7 +11852,9 @@ class Orchestrator:
                         issue.identifier,
                         _exc,
                     )
-            wp = self.project_store.create_epic_worktree(
+            wp = self._authority_guarded_call(
+                authority_check,
+                self.project_store.create_epic_worktree,
                 issue.project_id,
                 parent_epic.identifier,
             )
@@ -11789,6 +11880,7 @@ class Orchestrator:
             if persisted_branch == expected_epic_branch:
                 issue.work_branch = expected_epic_branch
                 issue.branch_name = expected_epic_branch
+                _assert_authority()
                 logger.warning(
                     "Parent epic %s for %s could not be resolved; reusing "
                     "canonical shared epic workspace from persisted branch %s",
@@ -11796,7 +11888,9 @@ class Orchestrator:
                     issue.identifier,
                     persisted_branch,
                 )
-                wp = self.project_store.create_epic_worktree(
+                wp = self._authority_guarded_call(
+                    authority_check,
+                    self.project_store.create_epic_worktree,
                     issue.project_id,
                     parent_id,
                 )
@@ -11824,11 +11918,15 @@ class Orchestrator:
                 issue.branch_name = work_branch
                 try:
                     tracker = self._tracker_for_issue(issue)
-                    tracker.set_metadata_field(
+                    self._authority_guarded_call(
+                        authority_check,
+                        tracker.set_metadata_field,
                         issue.identifier, "oompah.work_branch", work_branch
                     )
                     if issue.target_branch:
-                        tracker.set_metadata_field(
+                        self._authority_guarded_call(
+                            authority_check,
+                            tracker.set_metadata_field,
                             issue.identifier,
                             "oompah.target_branch",
                             issue.target_branch,
@@ -11840,7 +11938,9 @@ class Orchestrator:
                         _exc,
                     )
 
-        wp = self.project_store.create_worktree(
+        wp = self._authority_guarded_call(
+            authority_check,
+            self.project_store.create_worktree,
             issue.project_id,
             issue.identifier,
             base_branch=issue.target_branch,
@@ -23992,6 +24092,23 @@ class Orchestrator:
                 # snapshots.  Repeat it while holding the ownership lock so a
                 # concurrent non-terminal UI move also cannot be overwritten
                 # between that read and the In Progress write.
+                if retry_entry is not None:
+                    with self._retry_authority_lock:
+                        retry_still_owned = (
+                            not retry_entry.cancelled
+                            and self._retry_dispatching.get(issue.id) is retry_entry
+                        )
+                    if not retry_still_owned:
+                        logger.info(
+                            "Aborting retry dispatch before In Progress write "
+                            "issue_id=%s identifier=%s generation=%s reason=revoked",
+                            issue.id,
+                            issue.identifier,
+                            (retry_entry.authority_generation or "unknown")[:16],
+                        )
+                        self.state.claimed.discard(issue.id)
+                        self.state.claimed_issues.pop(issue.id, None)
+                        return
                 if issue.id in self.state.completed:
                     logger.info(
                         "Aborting implementation dispatch of %s before tracker "
@@ -24053,6 +24170,31 @@ class Orchestrator:
         # us, our run ID will have been overwritten and we abort rather than
         # starting a duplicate agent.
         claimed_assignment_id: str | None = None
+
+        async def _clear_dispatch_claim() -> None:
+            """Withdraw only the claim written by this dispatch attempt."""
+            if not claimed_assignment_id:
+                return
+            try:
+                claimed_meta = await asyncio.get_event_loop().run_in_executor(
+                    self._tick_pool,
+                    lambda: tracker.get_metadata(issue.identifier),
+                )
+                if claimed_meta.get("oompah.agent_run_id") != claimed_assignment_id:
+                    return
+                await asyncio.get_event_loop().run_in_executor(
+                    self._tick_pool,
+                    lambda: tracker.set_metadata_field(
+                        issue.identifier, "oompah.agent_run_id", None
+                    ),
+                )
+            except Exception as exc:  # noqa: BLE001 - cleanup is best effort
+                logger.debug(
+                    "Could not withdraw stale dispatch claim for %s: %s",
+                    issue.identifier,
+                    exc,
+                )
+
         if auditor_plan is None and (issue.tracker_kind or "").strip().lower() in {
             "github_issues",
             "oompah_md",
@@ -24158,6 +24300,7 @@ class Orchestrator:
                 self.state.claimed.discard(issue.id)
                 self.state.claimed_issues.pop(issue.id, None)
                 self.state.completed.add(issue.id)
+                await _clear_dispatch_claim()
                 self._cancel_retry_for_issue(
                     issue_id=issue.id,
                     identifier=issue.identifier,
@@ -24190,6 +24333,7 @@ class Orchestrator:
             )
             self.state.claimed.discard(issue.id)
             self.state.claimed_issues.pop(issue.id, None)
+            await _clear_dispatch_claim()
             return
 
         # Final compare-and-swap for a timer-driven implementation retry.  The
@@ -24236,6 +24380,7 @@ class Orchestrator:
                     )
                     self.state.claimed.discard(issue.id)
                     self.state.claimed_issues.pop(issue.id, None)
+                    await _clear_dispatch_claim()
                     return
                 self.state.retry_attempts.pop(issue.id, None)
                 self._retry_dispatching.pop(issue.id, None)
@@ -24640,6 +24785,23 @@ class Orchestrator:
         existing retry/escalation machinery handles them.
         """
         worker_identity = {"run_id": run_id} if run_id else {}
+        if issue.id in self.state.running and not self._worker_authority_current(
+            issue, run_id
+        ):
+            logger.info(
+                "Skipping revoked implementation worker before provider setup "
+                "issue_id=%s identifier=%s run_id=%s",
+                issue.id,
+                issue.identifier,
+                run_id,
+            )
+            await self._on_worker_exit(
+                issue.id,
+                "authority_revoked",
+                "implementation authority was withdrawn before provider setup",
+                **worker_identity,
+            )
+            return
         mode = (profile.mode if profile else "auto").lower()
 
         if mode == "cli":
@@ -24719,6 +24881,16 @@ class Orchestrator:
         skip_reasons: list[str] = []  # populated for both preflight and startup fails
         last_startup_error: ProviderStartupError | None = None
         for target in targets:
+            if issue.id in self.state.running and not self._worker_authority_current(
+                issue, run_id
+            ):
+                await self._on_worker_exit(
+                    issue.id,
+                    "authority_revoked",
+                    "implementation authority was withdrawn during provider setup",
+                    **worker_identity,
+                )
+                return
             # --- Preflight: check availability before starting the worker ---
             require_openai_endpoint = not (
                 mode == "acp"
@@ -25046,6 +25218,7 @@ class Orchestrator:
                     wp, _epic = self._create_workspace_for_issue(
                         issue,
                         persist_dispatch_metadata=not forced_auditor,
+                        authority_check=self._workspace_authority_check(issue, run_id),
                     )
 
                 self._post_comment(
@@ -25152,6 +25325,13 @@ class Orchestrator:
             workspace_path, prompt, attachment_paths, audit_target = await loop.run_in_executor(
                 self._tick_pool, _setup_worker
             )
+
+            if issue.id in self.state.running and not self._worker_authority_current(
+                issue, run_id
+            ):
+                exit_reason = "authority_revoked"
+                error_msg = "implementation authority was withdrawn before provider launch"
+                return
 
             # One-line summary of what made it into the prompt.
             if attachment_paths:
@@ -25592,6 +25772,7 @@ class Orchestrator:
                     wp, _epic = self._create_workspace_for_issue(
                         issue,
                         persist_dispatch_metadata=not forced_auditor,
+                        authority_check=self._workspace_authority_check(issue, run_id),
                     )
 
                 self._post_comment(
@@ -25695,6 +25876,13 @@ class Orchestrator:
                 self._tick_pool,
                 _setup_worker,
             )
+
+            if issue.id in self.state.running and not self._worker_authority_current(
+                issue, run_id
+            ):
+                exit_reason = "authority_revoked"
+                error_msg = "implementation authority was withdrawn before provider launch"
+                return
 
             running_entry = self.state.running.get(issue.id)
             if running_entry:
@@ -26279,7 +26467,10 @@ class Orchestrator:
             # Resolve workspace via the epic_strategy-aware helper:
             # under epic_strategy='shared' a child of an epic uses
             # the shared epic worktree; otherwise per-task path.
-            workspace_path, _epic = self._create_workspace_for_issue(issue)
+            workspace_path, _epic = self._create_workspace_for_issue(
+                issue,
+                authority_check=self._workspace_authority_check(issue, run_id),
+            )
             if issue.id in self.state.running:
                 self.state.running[issue.id].workspace_path = workspace_path
 
@@ -27698,6 +27889,32 @@ class Orchestrator:
                 run_id,
                 getattr(entry, "run_id", None),
             )
+            return
+
+        generation = getattr(entry, "authority_generation", None)
+        revoked = bool(getattr(entry, "authority_revoked", False))
+        if generation:
+            with self._retry_authority_lock:
+                revoked = revoked or generation in self._revoked_authority_generations
+        if revoked:
+            # Accepted submission/lifecycle state owns this task.  Do not run
+            # normal completion/failure handling: it can write integration
+            # metadata or schedule a fresh retry after the accepted head.
+            self.state.running.pop(issue_id, None)
+            self.state.claimed.discard(issue_id)
+            self.state.claimed_issues.pop(issue_id, None)
+            revoke_task_handoff_token(getattr(entry, "task_handoff_token", None))
+            logger.info(
+                "Quarantined revoked implementation worker issue_id=%s "
+                "identifier=%s generation=%s reason=%s",
+                issue_id,
+                entry.identifier,
+                generation[:16] if generation else "unknown",
+                getattr(entry, "authority_revocation_reason", None)
+                or self._authority_revocation_reason(generation or "")
+                or "authority changed",
+            )
+            self._notify_observers()
             return
 
         # A provider may report completion while one of its tool subprocesses
@@ -29301,6 +29518,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         identifier = str(identifier or "").strip() or None
         project_id = str(project_id or "").strip() or None
         cancelled = 0
+        terminate_ids: set[str] = set()
         with self._retry_authority_lock:
             candidates: list[tuple[str, RetryEntry]] = []
             for key, entry in list(self.state.retry_attempts.items()):
@@ -29322,6 +29540,19 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     candidates.append((key, entry))
             for key, entry in candidates:
                 entry.cancelled = True
+                if entry.authority_generation:
+                    self._revoked_authority_generations.setdefault(
+                        entry.authority_generation,
+                        reason,
+                    )
+                    logger.info(
+                        "Implementation authority generation revoked issue_id=%s "
+                        "identifier=%s generation=%s reason=%s",
+                        entry.issue_id,
+                        entry.identifier,
+                        entry.authority_generation[:16],
+                        reason,
+                    )
                 timer = entry.timer_handle
                 if timer is not None and not self._retry_timer_cancelled(timer):
                     try:
@@ -29332,7 +29563,46 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 if self._retry_dispatching.get(key) is entry:
                     self._retry_dispatching.pop(key, None)
                 self.state.claimed.discard(entry.issue_id)
+                self.state.claimed_issues.pop(entry.issue_id, None)
                 cancelled += 1
+
+            # A retry can win the final CAS and register a RunningEntry before
+            # the submission arrives.  Revoke that exact run as well; the
+            # asynchronous termination path will stop its provider/process
+            # tree without allowing the worker-exit handler to schedule a new
+            # retry or roll the accepted tracker state back.
+            running_items = list(self.state.running.items())
+            for running_id, running_entry in running_items:
+                running_issue = getattr(running_entry, "issue", None)
+                if issue_id and running_id != issue_id and getattr(
+                    running_issue, "id", None
+                ) != issue_id:
+                    continue
+                if identifier and identifier not in {
+                    running_id,
+                    getattr(running_entry, "identifier", None),
+                    getattr(running_issue, "identifier", None),
+                }:
+                    continue
+                running_project = getattr(running_issue, "project_id", None)
+                if project_id and running_project and running_project != project_id:
+                    continue
+                generation = getattr(running_entry, "authority_generation", None)
+                if generation:
+                    self._revoked_authority_generations.setdefault(generation, reason)
+                    logger.info(
+                        "Running implementation authority generation revoked "
+                        "issue_id=%s identifier=%s generation=%s reason=%s",
+                        running_id,
+                        getattr(running_entry, "identifier", ""),
+                        generation[:16],
+                        reason,
+                    )
+                running_entry.authority_revoked = True
+                running_entry.authority_revocation_reason = reason
+                self.state.claimed.discard(running_id)
+                self.state.claimed_issues.pop(running_id, None)
+                terminate_ids.add(running_id)
         if cancelled:
             logger.info(
                 "Cancelled %d implementation retry(s) reason=%s issue_id=%s identifier=%s project_id=%s",
@@ -29345,6 +29615,26 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             self._persist_retry_entries()
             if notify:
                 self._notify_observers()
+        elif terminate_ids:
+            self._persist_retry_entries()
+            if notify:
+                self._notify_observers()
+
+        for running_id in terminate_ids:
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                logger.warning(
+                    "Authority revoked for running worker but no event loop is "
+                    "available for termination issue_id=%s",
+                    running_id,
+                )
+                continue
+            self._terminating_worker_ids.add(running_id)
+            loop.create_task(
+                self._terminate_running(running_id, cleanup_workspace=False),
+                name=f"quarantine-worker-{running_id}",
+            )
         return cancelled
 
     def _arm_retry_entry(self, retry: RetryEntry, delay_ms: int) -> None:
@@ -29499,6 +29789,12 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             work_branch=work_branch,
             head_sha=head_sha,
         )
+        # An explicit post-rejection retry creates a fresh authority even if
+        # older tracker fields happen to reproduce the same digest.  Do not
+        # let a historical cancellation tombstone suppress that intentional
+        # retry forever.
+        with self._retry_authority_lock:
+            self._revoked_authority_generations.pop(authority_generation, None)
         retry_project_id = (
             project_id
             or getattr(failed_issue, "project_id", None)

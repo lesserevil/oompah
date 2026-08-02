@@ -12,7 +12,7 @@ import pytest
 from oompah.config import ServiceConfig
 from oompah.integration import IntegrationRecord
 from oompah.models import Issue, RetryEntry, RunningEntry
-from oompah.orchestrator import Orchestrator
+from oompah.orchestrator import DispatchAuthorityRevoked, Orchestrator
 from oompah.server import _cancel_retry_for_authority_change
 
 
@@ -81,6 +81,20 @@ def _schedule(orch: Orchestrator, issue: Issue, *, attempt: int = 1) -> RetryEnt
     return orch.state.retry_attempts[issue.id]
 
 
+def test_authority_guarded_setup_mutation_rejects_revoked_generation(tmp_path):
+    orch = _orchestrator(tmp_path)
+    mutated: list[str] = []
+
+    with pytest.raises(DispatchAuthorityRevoked):
+        orch._authority_guarded_call(
+            lambda: False,
+            mutated.append,
+            "stale setup",
+        )
+
+    assert mutated == []
+
+
 def test_submission_authority_cancellation_is_immediate_and_history_remains(
     tmp_path,
 ):
@@ -104,6 +118,102 @@ def test_submission_authority_cancellation_is_immediate_and_history_remains(
     # Cancellation only withdraws live authority; the failure text remains
     # available to the caller that already recorded it in task history.
     assert retry.error == "old divergence error"
+
+
+def test_submission_cancellation_clears_claim_placeholder(tmp_path):
+    orch = _orchestrator(tmp_path)
+    issue = _issue()
+    retry = _schedule(orch, issue)
+    orch.state.claimed.add(issue.id)
+    orch.state.claimed_issues[issue.id] = issue
+
+    orch._cancel_retry_for_issue(
+        issue_id=issue.id,
+        identifier=issue.identifier,
+        project_id=issue.project_id,
+        reason="task submitted for integration",
+    )
+
+    assert retry.cancelled is True
+    assert issue.id not in orch.state.claimed
+    assert issue.id not in orch.state.claimed_issues
+
+
+def test_revoked_running_submission_is_quarantined_without_retry(tmp_path):
+    async def scenario():
+        orch = _orchestrator(tmp_path)
+        issue = _issue()
+        worker = asyncio.create_task(asyncio.sleep(60))
+        entry = RunningEntry(
+            worker_task=worker,
+            identifier=issue.identifier,
+            issue=issue,
+            session=None,
+            retry_attempt=1,
+            started_at=datetime.now(timezone.utc),
+            assignment_id="assignment-1",
+            authority_generation="generation-running",
+        )
+        orch.state.running[issue.id] = entry
+        orch.state.claimed.add(issue.id)
+        orch.state.claimed_issues[issue.id] = issue
+
+        orch._cancel_retry_for_issue(
+            issue_id=issue.id,
+            identifier=issue.identifier,
+            project_id=issue.project_id,
+            reason="task submitted for integration",
+        )
+        for _ in range(20):
+            await asyncio.sleep(0)
+            if issue.id not in orch.state.running:
+                break
+
+        assert entry.authority_revoked is True
+        assert issue.id not in orch.state.running
+        assert issue.id not in orch.state.claimed
+        assert issue.id not in orch.state.claimed_issues
+        assert worker.done()
+
+    asyncio.run(scenario())
+
+
+def test_dispatch_setup_cancelled_before_status_write(tmp_path):
+    async def scenario():
+        orch = _orchestrator(tmp_path)
+        issue = _issue()
+        tracker = MagicMock()
+        tracker.fetch_issue_states_by_ids.return_value = [issue]
+        orch._tracker_for_issue = MagicMock(return_value=tracker)
+        profile = MagicMock(name="default")
+        profile.name = "default"
+        orch._match_agent_profile = MagicMock(return_value=profile)
+        orch._run_worker = AsyncMock()
+        retry = _schedule(orch, issue)
+        orch._retry_dispatching[issue.id] = retry
+        await orch.issue_transition_lock(issue.id).acquire()
+        dispatch = asyncio.create_task(
+            orch._dispatch(issue, attempt=retry.attempt, retry_entry=retry)
+        )
+        for _ in range(20):
+            await asyncio.sleep(0)
+            if issue.id in orch.state.claimed:
+                break
+        orch._cancel_retry_for_issue(
+            issue_id=issue.id,
+            identifier=issue.identifier,
+            project_id=issue.project_id,
+            reason="task submitted for integration",
+        )
+        orch.issue_transition_lock(issue.id).release()
+        await dispatch
+
+        tracker.update_issue.assert_not_called()
+        orch._run_worker.assert_not_awaited()
+        assert issue.id not in orch.state.claimed
+        assert issue.id not in orch.state.claimed_issues
+
+    asyncio.run(scenario())
 
 
 def test_status_change_cancels_only_matching_project_and_task(tmp_path):
