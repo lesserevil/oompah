@@ -836,6 +836,11 @@ def test_sandbox_command_projects_declared_editable_source_to_candidate(
     try:
         monkeypatch.setattr(shutil, "which", lambda _name: "/usr/bin/bwrap")
         monkeypatch.setattr(
+            quality_gate,
+            "_validate_trusted_runtime_source",
+            lambda _runtime_prefix, _candidate_snapshot: prior_worktree,
+        )
+        monkeypatch.setattr(
             subprocess,
             "run",
             lambda args, **_kwargs: subprocess.CompletedProcess(args, 0),
