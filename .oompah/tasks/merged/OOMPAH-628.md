@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-628
 type: bug
-status: Done
+status: Merged
 priority: 1
 title: Rearm explicitly resubmitted integrated queue rows
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T22:37:04.318940Z'
-updated_at: '2026-07-30T23:31:15.200924Z'
+updated_at: '2026-08-02T18:29:11.212386Z'
 work_branch: epic-OOMPAH-585
 target_branch: null
 review_url: null
@@ -32,6 +32,25 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-0aef35cc12c3: '2026-07-30T23:02:08.480330+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-8ce7c57923b4
+    project_id: proj-14849f1b
+    task_id: OOMPAH-628
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c7535256b90ab40432fa0e116cda3512dc6c83a2e7334610672d5c8f46e8b018
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reconciliation: parent OOMPAH-585 is Merged and its accepted rollup
+      contains this previously audited Done child; durable integration-queue/rollup
+      evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.'
+    created_at: '2026-08-02T18:29:05.492023+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -246,5 +265,12 @@ Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: normal, Duration: 3m 45s
 - Log: OOMPAH-628__20260730T225857Z.jsonl
+---
+author: oompah
+created: 2026-08-02 18:29
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner reconciliation: parent OOMPAH-585 is Merged and its accepted rollup contains this previously audited Done child; durable integration-queue/rollup evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.
 ---
 <!-- COMMENTS:END -->
