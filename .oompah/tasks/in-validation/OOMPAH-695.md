@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-695
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Prove dashboard convergence with fault injection and health telemetry
 parent: OOMPAH-691
@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:52.297786Z'
-updated_at: '2026-08-02T06:42:06.864015Z'
+updated_at: '2026-08-02T06:49:42.963353Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-695
 target_branch: null
 review_url: null
@@ -66,12 +66,19 @@ oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-691--task-OOMPAH-695
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-691--task-OOMPAH-695
+  base_branch: epic-OOMPAH-691
+  base_sha: 6897f3093f86fc9d6961b915c1b51504b30e9f5b
   head_sha: 1edd55f7c62f43448dd1d485e069cf3b61efd25b
+  integrated_sha: 1edd55f7c62f43448dd1d485e069cf3b61efd25b
   submitted_at: '2026-08-02T06:41:55.818987+00:00'
-  updated_at: '2026-08-02T06:41:55.818987+00:00'
+  updated_at: '2026-08-02T06:49:39.549249+00:00'
+  dependency_heads:
+    OOMPAH-692: 23d108b20c132b03c5dd450c1cb8ac97d4f0ffac
+    OOMPAH-693: cf5f3cecede5a3344922345e2fcbc3f042c982c9
+    OOMPAH-694: 5d9186d6d63e368e4f97934354f4d28e5ea2a93f
 oompah.task_costs:
   total_input_tokens: 804
   total_output_tokens: 72369
@@ -243,7 +250,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-695
     target_state: Done
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -273,6 +280,23 @@ oompah.terminal_audit:
     previous_state: Ready to Integrate
     created_at: '2026-08-02T06:19:17.215268+00:00'
     updated_at: '2026-08-02T06:23:58.313878+00:00'
+  - version: 1
+    audit_id: audit-086a1d6e8251
+    project_id: proj-14849f1b
+    task_id: OOMPAH-695
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 84cdfa826dca38d343bb68080c1aff8b5d88fa0efe4754d2aec3337b1eaf7f97
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-08-02T06:49:41.239977+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-f7901f6eb210
