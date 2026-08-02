@@ -61,6 +61,7 @@ from typing import Any
 
 import httpx
 
+from oompah.git_credentials import git_credential_environment, redact_git_output
 from oompah.models import Issue
 from oompah.statuses import DECOMPOSED, canonicalize_status
 
@@ -109,6 +110,8 @@ def check_landing_gate(
     base_branch: str,
     *,
     effective_branch: str | None = None,
+    access_token: str | None = None,
+    forge_kind: str = "github",
 ) -> LandingGateResult:
     """Check whether the agent completed without landing.
 
@@ -155,13 +158,20 @@ def check_landing_gate(
 
     # --- Step 1: does the branch exist on origin? ---
     try:
-        r = subprocess.run(
-            ["git", "ls-remote", "--heads", "origin", branch],
-            cwd=workspace_path,
-            capture_output=True,
-            text=True,
-            timeout=_GIT_TIMEOUT_S,
-        )
+        with git_credential_environment(
+            forge_kind=forge_kind,
+            access_token=access_token,
+        ) as env:
+            r = subprocess.run(
+                ["git", "ls-remote", "--heads", "origin", branch],
+                cwd=workspace_path,
+                capture_output=True,
+                text=True,
+                timeout=_GIT_TIMEOUT_S,
+                env=env,
+            )
+        r.stdout = redact_git_output(r.stdout, (access_token or "",))
+        r.stderr = redact_git_output(r.stderr, (access_token or "",))
         branch_on_origin = bool(r.stdout.strip())
     except (subprocess.TimeoutExpired, OSError) as exc:
         result.error = f"git ls-remote failed: {exc}"

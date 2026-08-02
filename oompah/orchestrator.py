@@ -65,6 +65,7 @@ from oompah.duplicate_screening import (
     save_record as save_duplicate_screening_record,
 )
 from oompah.integration import IntegrationRecord, classify_conflict_repair_failure
+from oompah.git_credentials import git_credential_environment, redact_git_output
 from oompah.integration_executor import (
     IntegrationExecutionResult,
     execute_integration,
@@ -2416,13 +2417,11 @@ class Orchestrator:
 
             # Fetch latest state of the shared branch so we see new commits.
             try:
-                subprocess.run(
+                self._run_project_network_git(
+                    project,
                     ["git", "fetch", "origin", evidence.branch],
                     cwd=repo_path,
-                    capture_output=True,
-                    text=True,
                     timeout=30.0,
-                    check=False,
                 )
             except (subprocess.TimeoutExpired, OSError) as exc:
                 logger.warning(
@@ -7522,12 +7521,11 @@ class Orchestrator:
                 default_ref = f"origin/{project.default_branch}"
                 try:
                     with self.project_store.project_write_lock(project_id):
-                        refreshed = subprocess.run(
+                        refreshed = self._run_project_network_git(
+                            project,
                             ["git", "-C", repo_path, "fetch", "origin"],
-                            check=False,
-                            capture_output=True,
-                            text=True,
                             timeout=60,
+                            cwd=repo_path,
                         )
                 except (OSError, subprocess.TimeoutExpired):
                     repo_path = None
@@ -7760,6 +7758,8 @@ class Orchestrator:
             quality_gate=self._branch_quality_gate,
             quality_command=self._quality_gate_command(project),
             repo_identity=project.repo_url or project.repo_path or project.id,
+            access_token=getattr(project, "access_token", None),
+            forge_kind=getattr(project, "forge_kind", "github"),
             retry_forced=item.retry_forced,
             gate_generation=(
                 f"integration:{item.project_id}:{item.task_id}:"
@@ -8088,12 +8088,11 @@ class Orchestrator:
                     return False
 
             with self.project_store.project_write_lock(project_id):
-                refreshed = subprocess.run(
+                refreshed = self._run_project_network_git(
+                    project,
                     ["git", "-C", project.repo_path, "fetch", "origin"],
-                    check=False,
-                    capture_output=True,
-                    text=True,
                     timeout=60,
+                    cwd=project.repo_path,
                 )
             if refreshed.returncode != 0:
                 return False
@@ -11150,6 +11149,9 @@ class Orchestrator:
     def _refresh_landing_evidence_target_refs(
         repo_path: str,
         branches: tuple[str, ...],
+        *,
+        access_token: str | None = None,
+        forge_kind: str = "github",
     ) -> tuple[bool, str | None]:
         """Refresh authoritative rollup targets before containment checks.
 
@@ -11189,21 +11191,26 @@ class Orchestrator:
 
             remote_ref = f"refs/remotes/origin/{branch}"
             try:
-                fetched = subprocess.run(
-                    [
-                        "git",
-                        "fetch",
-                        "--no-tags",
-                        "--quiet",
-                        "origin",
-                        f"+{full_ref}:{remote_ref}",
-                    ],
-                    cwd=repo_path,
-                    capture_output=True,
-                    text=True,
-                    timeout=15,
-                    check=False,
-                )
+                with git_credential_environment(
+                    forge_kind=forge_kind,
+                    access_token=access_token,
+                ) as env:
+                    fetched = subprocess.run(
+                        [
+                            "git",
+                            "fetch",
+                            "--no-tags",
+                            "--quiet",
+                            "origin",
+                            f"+{full_ref}:{remote_ref}",
+                        ],
+                        cwd=repo_path,
+                        capture_output=True,
+                        text=True,
+                        timeout=15,
+                        check=False,
+                        env=env,
+                    )
             except subprocess.TimeoutExpired:
                 return False, "fetch timed out"
             except OSError:
@@ -11217,6 +11224,9 @@ class Orchestrator:
     def _refresh_landing_evidence_candidate_refs(
         repo_path: str,
         branches: tuple[str, ...],
+        *,
+        access_token: str | None = None,
+        forge_kind: str = "github",
     ) -> tuple[bool, str | None]:
         """Refresh candidate branch refs before patch comparisons.
 
@@ -11258,21 +11268,26 @@ class Orchestrator:
 
             remote_ref = f"refs/remotes/origin/{branch}"
             try:
-                fetched = subprocess.run(
-                    [
-                        "git",
-                        "fetch",
-                        "--no-tags",
-                        "--quiet",
-                        "origin",
-                        f"+{full_ref}:{remote_ref}",
-                    ],
-                    cwd=repo_path,
-                    capture_output=True,
-                    text=True,
-                    timeout=15,
-                    check=False,
-                )
+                with git_credential_environment(
+                    forge_kind=forge_kind,
+                    access_token=access_token,
+                ) as env:
+                    fetched = subprocess.run(
+                        [
+                            "git",
+                            "fetch",
+                            "--no-tags",
+                            "--quiet",
+                            "origin",
+                            f"+{full_ref}:{remote_ref}",
+                        ],
+                        cwd=repo_path,
+                        capture_output=True,
+                        text=True,
+                        timeout=15,
+                        check=False,
+                        env=env,
+                    )
             except subprocess.TimeoutExpired:
                 return False, f"candidate branch {branch}: fetch timed out"
             except OSError:
@@ -11286,21 +11301,26 @@ class Orchestrator:
             # for a missing ref and a different nonzero status for transport
             # errors.
             try:
-                remote_probe = subprocess.run(
-                    [
-                        "git",
-                        "ls-remote",
-                        "--exit-code",
-                        "--heads",
-                        "origin",
-                        full_ref,
-                    ],
-                    cwd=repo_path,
-                    capture_output=True,
-                    text=True,
-                    timeout=15,
-                    check=False,
-                )
+                with git_credential_environment(
+                    forge_kind=forge_kind,
+                    access_token=access_token,
+                ) as env:
+                    remote_probe = subprocess.run(
+                        [
+                            "git",
+                            "ls-remote",
+                            "--exit-code",
+                            "--heads",
+                            "origin",
+                            full_ref,
+                        ],
+                        cwd=repo_path,
+                        capture_output=True,
+                        text=True,
+                        timeout=15,
+                        check=False,
+                        env=env,
+                    )
             except subprocess.TimeoutExpired:
                 return False, f"candidate branch {branch}: probe timed out"
             except OSError:
@@ -12414,6 +12434,8 @@ class Orchestrator:
                     epic_branch,
                     target_branch,
                     threshold_commits=threshold,
+                    access_token=getattr(project, "access_token", None),
+                    forge_kind=getattr(project, "forge_kind", "github"),
                 )
             except Exception as exc:
                 logger.debug(
@@ -13375,6 +13397,34 @@ class Orchestrator:
                 return True
         return False
 
+    @staticmethod
+    def _run_project_network_git(
+        project: Any | None,
+        args: list[str],
+        *,
+        cwd: str,
+        timeout: float,
+    ) -> subprocess.CompletedProcess[str]:
+        """Run a managed network Git command with project-scoped credentials."""
+        token = getattr(project, "access_token", None)
+        forge_kind = getattr(project, "forge_kind", "github")
+        with git_credential_environment(
+            forge_kind=forge_kind,
+            access_token=token,
+        ) as env:
+            result = subprocess.run(
+                args,
+                cwd=cwd,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                check=False,
+                env=env,
+            )
+        result.stdout = redact_git_output(result.stdout, (token or "",))
+        result.stderr = redact_git_output(result.stderr, (token or "",))
+        return result
+
     def _remote_epic_branch_has_unmerged_work(
         self,
         project: Any,
@@ -13393,13 +13443,11 @@ class Orchestrator:
         if not repo_path or not os.path.isdir(repo_path):
             return False
         try:
-            subprocess.run(
+            self._run_project_network_git(
+                project,
                 ["git", "fetch", "origin", epic_branch],
                 cwd=repo_path,
-                capture_output=True,
-                text=True,
                 timeout=60,
-                check=False,
             )
         except Exception:
             pass
@@ -13439,16 +13487,19 @@ class Orchestrator:
             return self._epic_branch_for_issue(parent_epic)
         return project.default_branch
 
-    def _remote_branch_exists(self, repo_path: str, branch: str) -> bool:
+    def _remote_branch_exists(
+        self,
+        repo_path: str,
+        branch: str,
+        project: Any | None = None,
+    ) -> bool:
         """Return True when ``origin`` already has ``branch``."""
         try:
-            result = subprocess.run(
+            result = self._run_project_network_git(
+                project,
                 ["git", "ls-remote", "--heads", "origin", branch],
                 cwd=repo_path,
-                capture_output=True,
-                text=True,
                 timeout=30,
-                check=False,
             )
         except Exception:
             return False
@@ -13507,17 +13558,22 @@ class Orchestrator:
             )
             return False
 
-        if self._remote_branch_exists(repo_path, target_branch):
+        if self._remote_branch_exists(repo_path, target_branch, project):
             return True
 
-        subprocess.run(
+        fetched = self._run_project_network_git(
+            project,
             ["git", "fetch", "origin", default_branch],
             cwd=repo_path,
-            capture_output=True,
-            text=True,
             timeout=60,
-            check=False,
         )
+        if fetched.returncode != 0:
+            logger.warning(
+                "Failed to fetch default branch while creating review target %s: %s",
+                target_branch,
+                fetched.stderr.strip()[:500],
+            )
+            return False
 
         if self._local_ref_exists(repo_path, f"refs/heads/{target_branch}"):
             source_ref = f"refs/heads/{target_branch}"
@@ -13535,7 +13591,8 @@ class Orchestrator:
             return False
 
         try:
-            result = subprocess.run(
+            result = self._run_project_network_git(
+                project,
                 [
                     "git",
                     "push",
@@ -13543,10 +13600,7 @@ class Orchestrator:
                     f"{source_ref}:refs/heads/{target_branch}",
                 ],
                 cwd=repo_path,
-                capture_output=True,
-                text=True,
                 timeout=60,
-                check=False,
             )
         except Exception as exc:
             logger.warning(
@@ -13571,15 +13625,14 @@ class Orchestrator:
         self,
         wt_path: str,
         epic_branch: str,
+        project: Any | None = None,
     ) -> None:
         """Fast-forward a clean shared epic worktree to its remote branch."""
-        fetch = subprocess.run(
+        fetch = self._run_project_network_git(
+            project,
             ["git", "fetch", "origin", epic_branch],
             cwd=wt_path,
-            capture_output=True,
-            text=True,
             timeout=60,
-            check=False,
         )
         if fetch.returncode != 0:
             logger.debug(
@@ -13651,18 +13704,24 @@ class Orchestrator:
                 self._fast_forward_shared_epic_worktree_if_clean(
                     wt_path,
                     epic_branch,
+                    project,
                 )
                 push_cwd = wt_path
                 push_cmd = ["git", "push", "origin", f"HEAD:{epic_branch}"]
 
-        subprocess.run(
+        result = self._run_project_network_git(
+            project,
             push_cmd,
             cwd=push_cwd,
-            capture_output=True,
-            text=True,
-            check=True,
             timeout=60,
         )
+        if result.returncode != 0:
+            raise subprocess.CalledProcessError(
+                result.returncode,
+                push_cmd,
+                output=result.stdout,
+                stderr=result.stderr,
+            )
 
     # ------------------------------------------------------------------
     # Epic rebase outcome tracking (oompah-zlz_2-82dr.3)
@@ -18483,6 +18542,8 @@ class Orchestrator:
             self._refresh_landing_evidence_target_refs(
                 repo_path,
                 containment_targets,
+                access_token=getattr(project, "access_token", None),
+                forge_kind=getattr(project, "forge_kind", "github"),
             )
         )
         if not landing_refs_fresh:
@@ -18546,6 +18607,8 @@ class Orchestrator:
                     self._refresh_landing_evidence_candidate_refs(
                         repo_path,
                         candidate_branches,
+                        access_token=getattr(project, "access_token", None),
+                        forge_kind=getattr(project, "forge_kind", "github"),
                     )
                 )
                 if not candidate_refs_fresh:
@@ -27028,6 +27091,8 @@ class Orchestrator:
             entry_profile=entry.agent_profile_name,
             entry_focus=entry.focus_name or "",
             entry_attempt=entry.retry_attempt or 0,
+            access_token=getattr(project, "access_token", None),
+            forge_kind=getattr(project, "forge_kind", "github"),
         )
 
         if result.allowed:
@@ -28354,6 +28419,8 @@ class Orchestrator:
                                     workspace_path=project.repo_path,
                                     base_branch=project.default_branch,
                                     effective_branch=lg_effective_branch,
+                                    access_token=getattr(project, "access_token", None),
+                                    forge_kind=getattr(project, "forge_kind", "github"),
                                 )
                                 if not lg_result.allowed:
                                     landing_gate_blocked = True

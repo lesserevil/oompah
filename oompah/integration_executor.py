@@ -3,10 +3,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from contextvars import ContextVar
+from functools import wraps
 import os
 import subprocess
-from typing import Callable, ContextManager
+from typing import Callable, ContextManager, ParamSpec, TypeVar
 
+from oompah.git_credentials import (
+    git_authentication_failure,
+    git_credential_environment,
+    redact_git_output,
+)
 from oompah.git_noninteractive import NONINTERACTIVE_GIT_ENV
 from oompah.quality_gate import BranchQualityGate, QualityGateResult
 
@@ -36,19 +43,75 @@ def _make_git_env() -> dict[str, str]:
     return env
 
 
+_PROJECT_CREDENTIALS: ContextVar[tuple[str | None, str] | None] = ContextVar(
+    "integration_project_credentials", default=None
+)
+_P = ParamSpec("_P")
+_R = TypeVar("_R")
+
+
+def _with_project_credentials(function: Callable[_P, _R]) -> Callable[_P, _R]:
+    """Scope every Git subprocess in one integration attempt to its project."""
+
+    @wraps(function)
+    def wrapped(
+        *args: _P.args,
+        access_token: str | None = None,
+        forge_kind: str = "github",
+        **kwargs: _P.kwargs,
+    ) -> _R:
+        marker = _PROJECT_CREDENTIALS.set((access_token, forge_kind))
+        try:
+            return function(*args, **kwargs)
+        finally:
+            _PROJECT_CREDENTIALS.reset(marker)
+
+    return wrapped
+
+
 def _git(
     repo_path: str,
     *args: str,
     timeout: int = 60,
 ) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["git", "-C", repo_path, *args],
-        check=False,
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-        env=_make_git_env(),
+    access_token, forge_kind = _PROJECT_CREDENTIALS.get() or (None, "github")
+    with git_credential_environment(
+        forge_kind=forge_kind,
+        access_token=access_token,
+        base_env=_make_git_env(),
+    ) as env:
+        result = subprocess.run(
+            ["git", "-C", repo_path, *args],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            env=env,
+        )
+    result.stdout = redact_git_output(result.stdout, (access_token or "",))
+    result.stderr = redact_git_output(result.stderr, (access_token or "",))
+    return result
+
+
+def _git_failure_message(
+    operation: str,
+    result: subprocess.CompletedProcess[str],
+) -> tuple[str, str | None]:
+    """Return a safe diagnostic and optional credential classification."""
+    access_token, forge_kind = _PROJECT_CREDENTIALS.get() or (None, "github")
+    output = result.stderr.strip() or result.stdout.strip()
+    auth_message = git_authentication_failure(
+        forge_kind=forge_kind,
+        access_token=access_token,
+        output=output,
+        operation=operation,
     )
+    if auth_message is not None:
+        return (
+            auth_message,
+            "authentication_failed" if str(access_token or "").strip() else "credential_missing",
+        )
+    return redact_git_output(output[:2000], (access_token or "",)), None
 
 
 def _sha(repo_path: str, ref: str) -> str | None:
@@ -82,6 +145,7 @@ def _dirty_worktree(repo_path: str) -> str | None:
     return "\n".join(dirty) if dirty else None
 
 
+@_with_project_credentials
 def execute_integration(
     *,
     project_lock: ContextManager[object],
@@ -153,9 +217,12 @@ def execute_integration(
             for worktree in (epic_worktree, task_worktree):
                 fetched = _git(worktree, "fetch", "--prune", "origin")
                 if fetched.returncode != 0:
+                    message, auth_status = _git_failure_message(
+                        "integration fetch", fetched
+                    )
                     return IntegrationExecutionResult(
-                        status="error",
-                        message=f"git fetch failed: {fetched.stderr.strip()[:1000]}",
+                        status=auth_status or "error",
+                        message=f"git fetch failed: {message}",
                     )
             remote_task_sha = _sha(task_worktree, f"origin/{task_branch}")
             if remote_task_sha is None:
@@ -261,11 +328,15 @@ def execute_integration(
                 f"HEAD:refs/heads/{task_branch}",
             )
             if pushed_task.returncode != 0:
+                message, auth_status = _git_failure_message(
+                    "task branch push", pushed_task
+                )
                 return IntegrationExecutionResult(
-                    status="task_push_race",
+                    status=auth_status or "task_push_race",
                     message=(
-                        "task branch changed while rebasing: "
-                        + pushed_task.stderr.strip()[-1000:]
+                        message
+                        if auth_status
+                        else "task branch changed while rebasing: " + message
                     ),
                     expected_epic_sha=expected_epic_sha,
                     rebased_task_sha=rebased_sha,
@@ -328,9 +399,12 @@ def execute_integration(
                 return authority_failure
             fetched = _git(epic_worktree, "fetch", "origin", epic_branch)
             if fetched.returncode != 0:
+                message, auth_status = _git_failure_message(
+                    "epic branch verification fetch", fetched
+                )
                 return IntegrationExecutionResult(
-                    status="error",
-                    message=fetched.stderr.strip()[-1000:],
+                    status=auth_status or "error",
+                    message=message,
                     expected_epic_sha=expected_epic_sha,
                     rebased_task_sha=rebased_sha,
                     quality=quality,
@@ -406,13 +480,17 @@ def execute_integration(
                 f"HEAD:refs/heads/{epic_branch}",
             )
             if pushed_epic.returncode != 0:
+                message, auth_status = _git_failure_message(
+                    "epic branch push", pushed_epic
+                )
                 _git(epic_worktree, "fetch", "origin", epic_branch)
                 _git(epic_worktree, "reset", "--hard", f"origin/{epic_branch}")
                 return IntegrationExecutionResult(
-                    status="epic_head_race",
+                    status=auth_status or "epic_head_race",
                     message=(
-                        "epic compare-and-swap push failed: "
-                        + pushed_epic.stderr.strip()[-1000:]
+                        message
+                        if auth_status
+                        else "epic compare-and-swap push failed: " + message
                     ),
                     expected_epic_sha=expected_epic_sha,
                     rebased_task_sha=rebased_sha,
