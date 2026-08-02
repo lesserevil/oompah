@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-699
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Converge historical Done records after parent terminalization
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T18:20:28.879414Z'
-updated_at: '2026-08-02T19:47:54.087543Z'
+updated_at: '2026-08-02T20:10:51.005761Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -53,5 +53,10 @@ author: oompah
 created: 2026-08-02 19:44
 ---
 Claimed for direct owner implementation. Building an idempotent historical Done reconciliation sweep around durable queue, parent-terminal, forge, Git, and terminal-audit evidence.
+---
+author: oompah
+created: 2026-08-02 20:10
+---
+Direct owner implementation is complete and fully validated; preparing the exact tested head for submission.
 ---
 <!-- COMMENTS:END -->

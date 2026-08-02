@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T18:20:27.192609Z'
-updated_at: '2026-08-02T19:58:23.730040Z'
+updated_at: '2026-08-02T20:10:48.133976Z'
 work_branch: OOMPAH-698
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/659
@@ -34,6 +34,31 @@ oompah.work_branch: OOMPAH-698
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-5e5fef3d478e: '2026-08-02T20:10:43.003464+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-698
+    target_state: Done
+    evidence_fingerprint: 28b1bcdbb3ca3e48d1bdccf2d0eef9685f93745f8cc23f1c5f2fc72b9ca2af97
+    audit_ids:
+    - audit-262d471400ee
+    kind: result
+    applied: true
+    retired_at: '2026-08-02T20:10:43.003474+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-698
+    audit_id: audit-262d471400ee
+    attempt_id: attempt-5e5fef3d478e
+    target_state: Done
+    evidence_fingerprint: 28b1bcdbb3ca3e48d1bdccf2d0eef9685f93745f8cc23f1c5f2fc72b9ca2af97
+    status: In Validation
+    audit_ids:
+    - audit-262d471400ee
+    applied: true
+    created_at: '2026-08-02T20:10:43.003487+00:00'
+    applied_at: '2026-08-02T20:10:47.026071+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -41,7 +66,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-698
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -50,7 +75,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-5e5fef3d478e
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -60,13 +85,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-02T19:58:18.100693+00:00'
       branch_key: OOMPAH-698
+      verdict: pass
+      completed_at: '2026-08-02T20:10:43.003334+00:00'
+      ended_at: '2026-08-02T20:10:43.003334+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-02T19:58:01.589885+00:00'
-    updated_at: '2026-08-02T19:58:18.100693+00:00'
+    updated_at: '2026-08-02T20:10:43.003334+00:00'
   - version: 1
     audit_id: audit-d2f370513491
     project_id: proj-14849f1b
@@ -197,5 +225,25 @@ author: oompah
 created: 2026-08-02 19:58
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-02 20:10
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: 6de721ae2f44a8ce0d3c21fcf660cc332a996e1b
+- merge_commit: 3a7835ebdee4b051764a3e4d62ffda6e1dec277f
+- merged_pr: 659
+- head_in_origin_main: true
+- commits_ahead_of_main: 0
+- focused_test_orchestrator_merged: 165 passed in 90.15s
+- focused_test_scm: 290 passed in 0.78s
+- oompah_698_specific_orchestrator_tests: 3 passed (recovers_legacy_review_head, git_containment, git_error_fails_closed)
+- oompah_698_specific_scm_tests: 2 passed (github + gitlab preserves_review_head_sha)
+- files_changed: oompah/orchestrator.py, oompah/scm.py, tests/test_orchestrator_merged.py, tests/test_scm.py (+310/-5)
+- prior_branch_gate: make test 14990 passed 7 skipped 1 xfailed 382.36s
 ---
 <!-- COMMENTS:END -->
