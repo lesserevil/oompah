@@ -11158,31 +11158,38 @@ class Orchestrator:
             preferred_path=preferred_path,
         )
         expected_head = self._quality_gate_branch_head(project, branch)
-        if not worktree:
+        source_requires_head_match = bool(worktree)
+        gate_source = worktree or str(project.repo_path or "")
+        if not expected_head:
             result = QualityGateResult(
-                status="error",
+                status="infrastructure_error",
                 head_sha="",
                 command=command,
                 output_tail=(
-                    "No existing worktree matched the review branch tip. "
-                    "Recreate the task worktree before retrying."
+                    "Candidate CI was not run because the submitted review "
+                    "branch tip is unavailable in the managed repository."
                 ),
             )
-        elif not expected_head:
+        elif not gate_source:
             result = QualityGateResult(
-                status="error",
-                head_sha="",
+                status="infrastructure_error",
+                head_sha=expected_head,
                 command=command,
-                output_tail="Could not resolve the review branch tip.",
+                output_tail=(
+                    "Candidate CI was not run because the project has no "
+                    "managed repository from which to materialize the "
+                    "submitted exact commit."
+                ),
             )
         else:
             result = self._branch_quality_gate.run(
-                repo_path=worktree,
+                repo_path=gate_source,
                 repo_identity=project.repo_url or project.repo_path or str(project.id),
                 target_branch=target_branch,
                 work_branch=branch,
                 command=command,
                 expected_head_sha=expected_head,
+                require_source_head_match=source_requires_head_match,
                 generation=authority.generation if authority is not None else None,
                 # Re-read task state/head throughout snapshot creation and
                 # command execution.  A Ready-to-Open rejection must stop a
