@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T21:44:29.390457Z'
-updated_at: '2026-08-02T01:44:07.306909Z'
+updated_at: '2026-08-02T01:45:27.713426Z'
 work_branch: OOMPAH-684
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/650
@@ -339,5 +339,10 @@ author: oompah
 created: 2026-08-02 01:44
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-08-02 01:45
+---
+Understanding: CI failures are in tests/test_installed_cli_smoke.py (8 tests: test_oompah_help_contains_usage, test_oompah_task_help_exits_zero, etc.). The branch quality gate blocked due to installed CLI smoke tests failing. Previous comments indicate these failures are a runtime/install isolation issue rather than a source code bug. I will look at the test file, run the failing tests locally, diagnose the root cause, and apply the minimal fix.
 ---
 <!-- COMMENTS:END -->
