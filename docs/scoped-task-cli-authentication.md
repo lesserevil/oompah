@@ -112,9 +112,10 @@ retried.
 Spawned workers also receive the non-secret `OOMPAH_TASK_HANDOFF_TASK_ID`
 assignment identifier. The endpoint uses it only for auth-health classification:
 when it matches a live running entry carrying the presented capability and the
-request targets a different live task, the rejected request is an intentional
-policy event. Authorization still fails closed. For read-only peer inspection,
-use `oompah task coordinate peers <task-id>` or
+request targets a different task, a rejected read-only `view` is an
+intentional policy event. The target is never resolved, so this applies even
+when it is non-running or unknown. Authorization still fails closed. For
+read-only peer inspection, use `oompah task coordinate peers <task-id>` or
 `oompah task coordinate inbox <task-id>`.
 
 ## Live least-privilege probe

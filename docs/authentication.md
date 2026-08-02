@@ -908,9 +908,11 @@ different project or task identifier.  Verify `OOMPAH_TASK_HANDOFF_PROJECT_ID`
 matches the project of the dispatched task.
 
 **Intentional peer-policy denials:** A running worker that intentionally asks
-for another live task through the scoped handoff route still receives `403`,
+to view another task through the scoped handoff route still receives `403`,
 but the server records it as an informational policy event when the assigned
-task identifier and capability match the server's running-entry record. These
+task identifier and capability match the server's live running-entry record.
+The target is not resolved, so this behavior is the same for Open,
+Ready-to-Integrate, terminal, non-running, and unknown identifiers. These
 events do not degrade auth health or hold the worker for human reconciliation.
 Use the approved read-only coordination surface instead:
 `oompah task coordinate peers <task-id>` and
