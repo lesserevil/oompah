@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T23:45:39.918535Z'
-updated_at: '2026-08-02T23:46:39.132491Z'
+updated_at: '2026-08-02T23:46:47.742355Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -25,17 +25,43 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: 0c30d255-a080-47eb-83aa-62d29909ea42
-  claim_owner: e66a0cec-af3d-4845-bbdc-4b14727350de
-  claimed_at: '2026-08-02T23:46:02.953718+00:00'
-  claim_expires_at: '2026-08-03T00:16:02.953718+00:00'
-  retry_count: 0
-  retry_after: null
+  evidence: Duplicate-screening worker exited with reason normal.
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
+  retry_count: 1
+  retry_after: '2026-08-02T23:47:36.308803+00:00'
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
 oompah.agent_run_id: ec2f0ad9-bcb8-4941-80f3-f57401c237c5
+oompah.task_costs:
+  total_input_tokens: 10
+  total_output_tokens: 1342
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 10
+      output_tokens: 1342
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 10
+    output_tokens: 1342
+    cost_usd: 0.0
+    recorded_at: '2026-08-02T23:46:36.307344+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-710__20260802T234610Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: duplicate_detector
+    source_branch: OOMPAH-710
+    source_sha: 3a231ee97337db95bb131abc0dd27ca12133c257
+    completed_at: '2026-08-02T23:46:36.314348+00:00'
 ---
 ## Summary
 
