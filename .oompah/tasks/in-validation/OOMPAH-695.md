@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:52.297786Z'
-updated_at: '2026-08-02T16:19:15.924102Z'
+updated_at: '2026-08-02T16:19:40.227492Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-695
 target_branch: null
 review_url: null
@@ -347,18 +347,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-695
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 96631c8bee5a210efe1e109639b69cff1902f3d31642c255d5bc3123db65dd87
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-ce58ed5026de
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 96631c8bee5a210efe1e109639b69cff1902f3d31642c255d5bc3123db65dd87
+      created_at: '2026-08-02T16:19:32.163720+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-02T16:19:32.163720+00:00'
+      branch_key: epic-OOMPAH-691--task-OOMPAH-695
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
       source: oompah
     previous_state: Done
     created_at: '2026-08-02T07:26:41.299111+00:00'
+    updated_at: '2026-08-02T16:19:32.163720+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-f7901f6eb210
@@ -398,6 +412,19 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: opus
     started_at: '2026-08-02T06:50:12.698943+00:00'
+    branch_key: epic-OOMPAH-691--task-OOMPAH-695
+  - version: 1
+    attempt_id: attempt-ce58ed5026de
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 96631c8bee5a210efe1e109639b69cff1902f3d31642c255d5bc3123db65dd87
+    created_at: '2026-08-02T16:19:32.163720+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-02T16:19:32.163720+00:00'
     branch_key: epic-OOMPAH-691--task-OOMPAH-695
 ---
 ## Summary
@@ -1013,5 +1040,15 @@ author: oompah
 created: 2026-08-02 16:19
 ---
 Operator ownership and recovery: verified recorded integrated head 1edd55f7c62f43448dd1d485e069cf3b61efd25b is an ancestor of origin/main b7fdf2b3f6dfa00f39659abafb176f3d67579dce (merged epic OOMPAH-691 / PR #654). The task audit previously passed. No missing code recovery is required; staging the child for its correct Merged state. Root cause is tracked by OOMPAH-696.
+---
+author: oompah
+created: 2026-08-02 16:19
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-02 16:19
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
