@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-592
 type: feature
-status: Done
+status: Merged
 priority: 1
 title: Alert on terminal-audit launch failures and backlog age
 parent: OOMPAH-585
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:28.755226Z'
-updated_at: '2026-07-30T23:53:02.977711Z'
+updated_at: '2026-08-02T18:24:37.267085Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-592
 target_branch: null
 review_url: null
@@ -112,6 +112,25 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-2b3803f5ac37: '2026-07-30T19:06:01.255993+00:00'
     attempt-04adcc5ea409: '2026-07-30T23:52:36.211664+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-5b95b98161b0
+    project_id: proj-14849f1b
+    task_id: OOMPAH-592
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 61c2cbc2a3efc33f8ca52ebffdcfe569c9bac1815e4009c6b41047dedb4a051d
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reconciliation: parent OOMPAH-585 is Merged and its accepted rollup
+      contains this previously audited Done child; durable integration-queue/rollup
+      evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.'
+    created_at: '2026-08-02T18:24:32.370125+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -460,5 +479,12 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 1m 51s
 - Log: OOMPAH-592__20260730T235115Z.jsonl
+---
+author: oompah
+created: 2026-08-02 18:24
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner reconciliation: parent OOMPAH-585 is Merged and its accepted rollup contains this previously audited Done child; durable integration-queue/rollup evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.
 ---
 <!-- COMMENTS:END -->
