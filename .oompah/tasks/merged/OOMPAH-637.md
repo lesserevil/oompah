@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-637
 type: task
-status: Done
+status: Merged
 priority: 0
 title: Rebase epic-OOMPAH-587 onto main
 parent: OOMPAH-587
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T02:48:10.674366Z'
-updated_at: '2026-07-31T02:57:05.522033Z'
+updated_at: '2026-08-02T18:22:30.629058Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-637
 target_branch: null
 review_url: null
@@ -67,6 +67,25 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-95810ea92b6f: '2026-07-31T02:56:50.537224+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-479468d3f9db
+    project_id: proj-14849f1b
+    task_id: OOMPAH-637
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 5ee3f9da414bb115536acac1792e45f8f019e6979a8b4211854eda76f8272e1f
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reconciliation: parent OOMPAH-587 is Merged and its accepted rollup
+      contains this previously audited Done child; durable integration-queue/rollup
+      evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.'
+    created_at: '2026-08-02T18:22:23.768564+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -240,5 +259,12 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: normal, Duration: 2m 8s
 - Log: OOMPAH-637__20260731T025459Z.jsonl
+---
+author: oompah
+created: 2026-08-02 18:22
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner reconciliation: parent OOMPAH-587 is Merged and its accepted rollup contains this previously audited Done child; durable integration-queue/rollup evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.
 ---
 <!-- COMMENTS:END -->
