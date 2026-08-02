@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T00:37:18.141681Z'
-updated_at: '2026-08-02T00:46:29.302544Z'
+updated_at: '2026-08-02T00:50:54.650545Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -175,5 +175,10 @@ author: oompah
 created: 2026-08-02 00:46
 ---
 Verification: focused WebSocket/dashboard suites pass (118 passed, 1 existing Starlette deprecation warning). Coverage now exercises issue refresh after a state-throttled activity event with a fresh issues payload, rapid issue coalescing, application ping/pong, and browser heartbeat/backoff/backfill/pagehide contracts.
+---
+author: oompah
+created: 2026-08-02 00:50
+---
+Implemented reliable automatic dashboard refresh: issue snapshot broadcasts no longer get dropped by the state throttle, and dashboard WebSockets now use application heartbeats, stale-connection recovery, bounded singleton reconnects, reconnect backfill, and navigation cleanup/revival. Focused dashboard/WebSocket suite: 207 passed. Full project run: 14,857 passed with one unrelated parallel-only watchdog failure; that test passed twice in isolation. make check-secrets passed.
 ---
 <!-- COMMENTS:END -->
