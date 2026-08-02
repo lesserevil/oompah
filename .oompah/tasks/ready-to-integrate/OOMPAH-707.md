@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-707
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Preserve explicit owner work from orphaned-In-Progress reset
 parent: null
@@ -13,7 +13,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-08-02T22:19:11.796639Z'
-updated_at: '2026-08-02T23:13:46.632743Z'
+updated_at: '2026-08-02T23:13:56.864498Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -99,6 +99,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-707
     source_sha: 7478a21663af93766eb0ac67d115cf8343deff9d
     completed_at: '2026-08-02T22:49:33.960670+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-707
+  head_sha: 6e9584168600320114f827e2644e6d3d926cef7a
+  submitted_at: '2026-08-02T23:13:45.346868+00:00'
+  updated_at: '2026-08-02T23:13:45.346868+00:00'
 ---
 ## Summary
 
@@ -453,5 +461,20 @@ author: oompah
 created: 2026-08-02 23:13
 ---
 Completion: delivered and pushed 6e9584168. Direct owner claims now persist with bounded TTLs, serialize with orphan recovery, expose API/dashboard evidence, and release/expiry re-enters normal recovery. Added owner-claim, expiry/release, scheduler, race, API, and configuration tests.
+---
+author: oompah
+created: 2026-08-02 23:13
+---
+Preserved explicit direct owner work through orphan recovery with durable leases, API/dashboard state, and race coverage.
+---
+author: oompah
+created: 2026-08-02 23:13
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Codex/gpt-5.6-terra]
+- Turns: 0, Tool calls: 107
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 23m 41s
+- Log: OOMPAH-707__20260802T225027Z.jsonl
 ---
 <!-- COMMENTS:END -->
