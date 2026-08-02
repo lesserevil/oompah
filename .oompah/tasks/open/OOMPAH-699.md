@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T18:20:28.879414Z'
-updated_at: '2026-08-02T20:32:00.594368Z'
+updated_at: '2026-08-02T20:35:06.966440Z'
 work_branch: OOMPAH-699
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/660
@@ -103,5 +103,10 @@ created: 2026-08-02 20:31
 **Evidence:** Recent comment indicates CI is now passing or PR has been merged; safe to reopen for dispatch.
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-08-02 20:35
+---
+PR #660 CI failed only on the background-thread race in test_pr_merged_stages_task_merged under Python 3.11; Python 3.13 passed, Python 3.12 was canceled by fail-fast, and the exact failing test passed on immediate local rerun. Filed OOMPAH-702 for deterministic webhook-test synchronization and reran the failed matrix jobs. No OOMPAH-699 implementation failure was found.
 ---
 <!-- COMMENTS:END -->
