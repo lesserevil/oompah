@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-687
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Isolate branch-gate runtime from task worktree environments
 parent: null
@@ -12,10 +12,10 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T23:00:54.291962Z'
-updated_at: '2026-08-02T02:46:29.607609Z'
+updated_at: '2026-08-02T02:46:40.620414Z'
 work_branch: null
 target_branch: null
-review_url: null
+review_url: https://github.com/lesserevil/oompah/pull/651
 review_number: null
 merged_at: null
 oompah.duplicate_screening:
@@ -135,6 +135,7 @@ oompah.integration:
   head_sha: 17a1f43eb80b345072178b15722e6849ae5db9dd
   submitted_at: '2026-08-02T02:38:27.506402+00:00'
   updated_at: '2026-08-02T02:38:43.854467+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/651
 ---
 ## Summary
 
