@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T05:18:51.142416Z'
-updated_at: '2026-08-02T01:28:06.277985Z'
+updated_at: '2026-08-02T01:28:46.179057Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -93,6 +93,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-02T01:15:45.384105+00:00'
     branch_key: OOMPAH-401
+oompah.task_costs:
+  total_input_tokens: 45
+  total_output_tokens: 7278
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 45
+      output_tokens: 7278
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 45
+    output_tokens: 7278
+    cost_usd: 0.0
+    recorded_at: '2026-08-02T01:28:44.444039+00:00'
 ---
 ## Summary
 
@@ -157,5 +173,15 @@ Safe evidence:
 - previous_state: Merged
 - aged_merged_reason: Auto-archive queued 2026-08-02 for task closed 2026-07-22 (>=7 days)
 - pytest_run_here: not-run: auditor policy blocked env-var-set invocation and pytest reported ImportPathMismatchError in this worktree layout; delivery commit's tests were validated at merge time
+---
+author: oompah
+created: 2026-08-02 01:28
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 52, Tool calls: 39
+- Tokens: 45 in / 7.3K out [7.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 12m 58s
+- Log: OOMPAH-401__20260802T011553Z.jsonl
 ---
 <!-- COMMENTS:END -->
