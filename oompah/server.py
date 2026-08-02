@@ -12284,7 +12284,18 @@ async def api_owner_resolve_duplicate_screening(identifier: str, request: Reques
 
         # Check authorization: actor must be project owner
         from oompah.transition_gate import is_project_owner
-        if not is_project_owner(actor_login, orch._get_project_by_id(project_id)):
+        project = orch.project_store.get(project_id)
+        if project is None:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "not_found",
+                        "message": f"Project {project_id} not found",
+                    }
+                },
+                status_code=404,
+            )
+        if not is_project_owner(actor_login, project):
             return JSONResponse(
                 {
                     "error": {
