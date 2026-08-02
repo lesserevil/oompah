@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:50.443759Z'
-updated_at: '2026-08-02T04:09:53.934507Z'
+updated_at: '2026-08-02T04:16:28.849479Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-694
 target_branch: null
 review_url: null
@@ -154,5 +154,10 @@ author: oompah
 created: 2026-08-02 04:09
 ---
 Discovery: dashboard.html has the OOMPAH-693 full_sync request/response path, but it only checks delivery gaps; it applies the gap message, resets epoch on reconnect, has no applied revision/watermark tracking, and allows incremental UI mutation during reconciliation. Server envelopes expose epoch, delivery_seq, state_revision, and issue_revision. The fix will add a stale/reconciling gate, payload revision guards, a full-sync commit boundary, and capped retry backoff while retaining renderBoard edit/drag deferral and console backfill.
+---
+author: oompah
+created: 2026-08-02 04:16
+---
+Implementation: replaced the dashboard's gap-only WebSocket handling with epoch/contiguous-sequence tracking, applied state/issue revision guards, pong watermark detection, stale/reconciling status, bounded retry/backoff, and a single full-sync commit boundary. Incrementals are bounded-buffered during recovery; old deliveries are dropped by the full-sync watermark and newer buffered deliveries replay in order. Full-sync rendering suppresses intermediate optimistic board renders and preserves existing edit/drag/filter/detail/console behavior; active console history is backfilled.
 ---
 <!-- COMMENTS:END -->
