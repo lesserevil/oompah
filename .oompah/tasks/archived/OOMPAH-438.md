@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-438
 type: task
-status: In Validation
+status: Archived
 priority: null
 title: Wake dispatch after a task becomes dispatchable
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-24T15:53:33.753602Z'
-updated_at: '2026-08-02T01:16:38.177002Z'
+updated_at: '2026-08-02T01:26:41.111971Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -18,6 +18,30 @@ review_number: null
 merged_at: null
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-cd33eeb154ba: '2026-08-02T01:26:37.829157+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-438
+    target_state: Archived
+    evidence_fingerprint: 9654dd2fb4c062d451bc916c2cea21fd200c285209ee453dcbfd7dc5d1d045ab
+    audit_ids:
+    - audit-d9afc59181c0
+    kind: result
+    applied: true
+    retired_at: '2026-08-02T01:26:37.829168+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-438
+    audit_id: audit-d9afc59181c0
+    attempt_id: attempt-cd33eeb154ba
+    target_state: Archived
+    evidence_fingerprint: 9654dd2fb4c062d451bc916c2cea21fd200c285209ee453dcbfd7dc5d1d045ab
+    status: Archived
+    audit_ids:
+    - audit-d9afc59181c0
+    applied: false
+    created_at: '2026-08-02T01:26:37.829185+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -25,7 +49,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-438
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -34,7 +58,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-cd33eeb154ba
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -44,13 +68,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-02T01:16:31.759948+00:00'
       branch_key: OOMPAH-438
+      verdict: pass
+      completed_at: '2026-08-02T01:26:37.828968+00:00'
+      ended_at: '2026-08-02T01:26:37.828968+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-02T01:14:06.743932+00:00'
-    updated_at: '2026-08-02T01:16:31.759948+00:00'
+    updated_at: '2026-08-02T01:26:37.828968+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-cd33eeb154ba
@@ -107,5 +134,23 @@ author: oompah
 created: 2026-08-02 01:16
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-02 01:26
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- delivery_commit: 609e0ea269f7b8bfd53fc8ff755ce26a482d11aa
+- commit_subject: Wake scheduler when tasks become dispatchable
+- commit_on_main: yes (git branch --contains lists main)
+- server_change_location: oompah/server.py:10357-10377 (api_update_issue post-status-update guard)
+- server_change_predicate: new_status is not None AND is_dispatchable_status(new_status) AND (existing_issue is None OR not is_dispatchable_status(existing_issue.state)) -> orch.request_refresh()
+- dispatchable_test: tests/test_server_epic_state.py:264 test_open_transition_requests_immediate_dispatch_refresh (Backlog->Open, request_refresh.assert_called_once())
+- non_dispatchable_test: tests/test_server_epic_state.py:282 test_non_dispatchable_transition_does_not_request_refresh (Open->Backlog, request_refresh.assert_not_called())
+- previous_state: Merged
+- archive_reason: Aged Merged auto-archive (closed 7 days ago)
 ---
 <!-- COMMENTS:END -->
