@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-695
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Prove dashboard convergence with fault injection and health telemetry
 parent: OOMPAH-691
@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:52.297786Z'
-updated_at: '2026-08-02T06:12:23.187726Z'
+updated_at: '2026-08-02T06:12:32.316684Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-695
 target_branch: null
 review_url: null
@@ -66,12 +66,12 @@ oompah.agent_run_id: 3c941a0b-0ed5-40c4-a8b7-83639bbb2078
 oompah.work_branch: epic-OOMPAH-691--task-OOMPAH-695
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-691--task-OOMPAH-695
-  base_branch: epic-OOMPAH-691
-  base_sha: 1293a2f3c548d450447a44b57dc839fd8860606d
-  updated_at: '2026-08-02T06:03:55.834353+00:00'
+  head_sha: 6897f3093f86fc9d6961b915c1b51504b30e9f5b
+  submitted_at: '2026-08-02T06:12:29.549536+00:00'
+  updated_at: '2026-08-02T06:12:29.549536+00:00'
 oompah.task_costs:
   total_input_tokens: 205
   total_output_tokens: 25194
@@ -635,5 +635,10 @@ created: 2026-08-02 06:12
   - Added end-to-end integration tests
 
 Ready to submit.
+---
+author: oompah
+created: 2026-08-02 06:12
+---
+Wired WebSocket sync metrics into real code paths and added comprehensive fault injection tests. Metrics now recorded when gaps detected (full_sync request), failures occur (exception handling), and recovery succeeds. Tests validate end-to-end behavior using real WebSocket endpoint with protocol-level fault injection. All 92 focused tests pass.
 ---
 <!-- COMMENTS:END -->
