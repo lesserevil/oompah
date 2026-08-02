@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-448
 type: task
-status: Merged
+status: In Validation
 priority: 0
 title: 'fix CI on PR #555 (OOMPAH-447-manual)'
 parent: null
@@ -11,7 +11,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-26T04:20:53.082551Z'
-updated_at: '2026-07-26T04:31:01.824518Z'
+updated_at: '2026-08-02T04:59:09.088132Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -34,6 +34,28 @@ oompah.task_costs:
     output_tokens: 721
     cost_usd: 0.0
     recorded_at: '2026-07-26T04:27:03.749630+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-f081d8d028e0
+    project_id: proj-14849f1b
+    task_id: OOMPAH-448
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b9a53dacda00e93e8a581a36a89da7281c540bf6a74a947389c719518f78238c
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-02T04:59:05.647874+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -76,5 +98,10 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Claude
 - Cost: $0.0000
 - Exit: terminated, Duration: 1m 10s
 - Log: OOMPAH-448__20260726T042555Z.jsonl
+---
+author: oompah
+created: 2026-08-02 04:59
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
