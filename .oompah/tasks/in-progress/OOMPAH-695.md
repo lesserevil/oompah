@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:52.297786Z'
-updated_at: '2026-08-02T06:32:55.623796Z'
+updated_at: '2026-08-02T06:33:03.014807Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-695
 target_branch: null
 review_url: null
@@ -799,5 +799,10 @@ author: oompah
 created: 2026-08-02 06:32
 ---
 Discovery: The prior fault injector inspected raw application messages before _send_ws stamped protocol_version/epoch/delivery_seq, so it never dropped the intended wire frames. The duplicate test also asserted only True. The real _handle_full_sync catch records failures when snapshot assembly/wait raises, and its pending set coalesces concurrent calls; the browser chips are sourced from state.running.
+---
+author: oompah
+created: 2026-08-02 06:33
+---
+Implementation: Added an envelope-level _send_ws fault injector and replaced the lossy/drop and duplicate no-op tests with assertions over real delivery sequences, including replay of an older envelope after a newer state. Added live /ws tests for thresholded full-sync failures exposing one actionable ws_sync_alert, successful recovery clearing alert/failure streak, four dropped auditor completion snapshots converging to an empty running-chip state, and a 20-request concurrent full-sync burst producing one assembly/response. Full-sync actions now increment full_sync_requests in oompah/server.py.
 ---
 <!-- COMMENTS:END -->
