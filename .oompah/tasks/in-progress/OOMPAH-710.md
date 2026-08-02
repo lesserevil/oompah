@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-710
 type: bug
-status: Needs Human
+status: In Progress
 priority: null
 title: Keep oversized auditor tool results inside the read-only authority boundary
 parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- human-only
 assignee: null
 created_at: '2026-08-02T23:45:39.918535Z'
-updated_at: '2026-08-02T23:51:43.777267Z'
+updated_at: '2026-08-02T23:51:58.342927Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -22,19 +23,25 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: f64744d5cece2f0044fdcdb2efdf7ceb2d7c11e4cc2e54b922d072574a454bd6
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-02T23:51:51.808644+00:00'
   matched_identifiers: []
-  evidence: Duplicate-screening worker exited with reason normal.
+  evidence: Project-owner review searched current Oompah tasks before creation; no
+    existing task covers provider-private oversized auditor output escaping the strict
+    read-only authority boundary. OOMPAH-701 records the live reproduction and OOMPAH-710
+    is the dedicated follow-up.
   claim_id: null
   claim_owner: null
   claimed_at: null
   claim_expires_at: null
-  retry_count: 3
-  retry_after: '2026-08-02T23:55:35.797470+00:00'
-  owner_resolved_at: null
-  owner_login: null
-  owner_resolution_reason: ''
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: '2026-08-02T23:51:51.808644+00:00'
+  owner_login: oompah-cli
+  owner_resolution_reason: Project-owner review searched current Oompah tasks before
+    creation; no existing task covers provider-private oversized auditor output escaping
+    the strict read-only authority boundary. OOMPAH-701 records the live reproduction
+    and OOMPAH-710 is the dedicated follow-up.
 oompah.agent_run_id: 590ba94c-4338-4d32-aa04-424cc8bacc37
 oompah.task_costs:
   total_input_tokens: 51468
