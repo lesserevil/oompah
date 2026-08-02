@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-701
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Retire hidden provider processes when task ownership is revoked
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T20:20:26.676545Z'
-updated_at: '2026-08-02T21:56:10.130650Z'
+updated_at: '2026-08-02T21:56:39.317895Z'
 work_branch: null
 target_branch: null
 review_url: null

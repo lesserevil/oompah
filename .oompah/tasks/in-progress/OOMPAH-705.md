@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T21:30:29.609691Z'
-updated_at: '2026-08-02T21:52:57.479492Z'
+updated_at: '2026-08-02T21:56:44.979615Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -131,5 +131,10 @@ author: oompah
 created: 2026-08-02 21:52
 ---
 Understanding: I will inspect the existing OOMPAH-705 review branch and its failing CI logs, reproduce the actual failure locally, then make the smallest tested correction to exact-head recovery/review gating, push the same branch, verify rerun state, and submit the task.
+---
+author: oompah
+created: 2026-08-02 21:56
+---
+Discovery: OOMPAH-700 lets BranchQualityGate archive an exact object from the managed clone, but _review_quality_gate_passes still derives expected_head only from local origin/<branch> or a local branch before any fetch. A clean external submission therefore persists integration.head_sha yet produces Head: unknown in a stale managed clone. The standalone authority already probes the live remote and fences advancement, so the correction must use the persisted integration head, materialize/verify its remote-tracking ref with authenticated bounded Git, and retain stale-head/infrastructure fail-closed routing.
 ---
 <!-- COMMENTS:END -->
