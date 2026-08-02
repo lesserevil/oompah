@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-696
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Honor integrated SHA evidence after epic child branches are pruned
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T16:18:38.337420Z'
-updated_at: '2026-08-02T16:39:07.102490Z'
+updated_at: '2026-08-02T16:39:19.250698Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -72,6 +72,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-696
     source_sha: b7fdf2b3f6dfa00f39659abafb176f3d67579dce
     completed_at: '2026-08-02T16:24:20.407899+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-696
+  head_sha: 05e5842a9e24301fd03d686cee5e652d10a64ccd
+  submitted_at: '2026-08-02T16:39:15.632666+00:00'
+  updated_at: '2026-08-02T16:39:15.632666+00:00'
 ---
 ## Summary
 
@@ -158,5 +166,14 @@ author: oompah
 created: 2026-08-02 16:39
 ---
 Verification: All tests pass. Three new tests added to cover: (1) Done child with pruned branch but valid integration is promoted, (2) Repeated reconciliation is idempotent with durable evidence, (3) Unreachable integrated_sha correctly falls back to normal checks. Total: 222 tests in test_epic_strategy.py all passing. Ready for submission.
+---
+author: oompah
+created: 2026-08-02 16:39
+---
+Honor integrated SHA evidence after epic child branches are pruned
+
+Added _child_has_durable_landing_evidence() method to check if a child's integration record shows the work is already integrated and reachable from the epic container. Modified _mark_epic_merged() to use this before calling _child_landing_evidence_block_reason(), preventing false Needs Human moves when branches are pruned after successful integration.
+
+Three new tests verify: (1) Done children with pruned branches are promoted when integration is proven, (2) repeated reconciliation is idempotent, (3) unreachable SHAs fall back to normal checks. All 222 epic_strategy tests pass.
 ---
 <!-- COMMENTS:END -->
