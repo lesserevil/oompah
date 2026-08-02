@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T23:17:45.073003Z'
-updated_at: '2026-08-02T23:18:52.493209Z'
+updated_at: '2026-08-02T23:19:05.119212Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -128,5 +128,28 @@ author: oompah
 created: 2026-08-02 23:18
 ---
 Focus: Test Engineer
+---
+author: oompah
+created: 2026-08-02 23:19
+---
+**Understanding & Plan:**
+
+OOMPAH-709 requires fixing non-deterministic test failures in TestTickDelegation (test_tick_handler_order and test_tick_runs_watchdog) that fail under parallel xdist execution but pass in serial reruns.
+
+**Root cause hypothesis:** Tests have inter-test timing leaks where:
+- Background handlers/futures from one test affect another
+- Orchestrator state (executors, maintenance callbacks) is not fully isolated
+- Tests rely on wall-clock timing instead of explicit completion barriers
+- Thread scheduling assumptions fail under parallel load
+
+**Planned approach:**
+1. Explore test_orchestrator_handlers.py to understand current test structure and failure modes
+2. Examine orchestrator.py tick delegation and handler scheduling logic
+3. Identify shared state and background maintenance that leaks between tests
+4. Replace time-based waits with explicit synchronization (events, barriers, or futures)
+5. Ensure each test fully teardown all background work before returning
+6. Run tests under repeated parallel execution to verify determinism
+
+**Target:** Tests pass reliably under parallel execution without changing production scheduler behavior.
 ---
 <!-- COMMENTS:END -->
