@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-686
 type: task
-status: Needs Rebase
+status: In Progress
 priority: 0
 title: Keep worker container-runtime failures out of Needs Human
 parent: null
@@ -13,7 +13,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-08-01T22:19:41.486806Z'
-updated_at: '2026-08-02T03:15:37.523900Z'
+updated_at: '2026-08-02T03:15:50.651994Z'
 work_branch: OOMPAH-686
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/652
@@ -48,7 +48,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: e41a228a-1cbd-4d13-9fd2-b458cbaba96c
+oompah.agent_run_id: 3501f1d2-f871-4130-83f9-e9324e467e53
 oompah.task_costs:
   total_input_tokens: 1295670
   total_output_tokens: 35348
@@ -555,5 +555,15 @@ author: oompah
 created: 2026-08-02 03:15
 ---
 YOLO: Merge conflict detected on MR #652. Rebase onto main and resolve conflicts.
+---
+author: oompah
+created: 2026-08-02 03:15
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-08-02 03:15
+---
+Focus: Merge Conflict Resolver
 ---
 <!-- COMMENTS:END -->
