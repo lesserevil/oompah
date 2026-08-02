@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-598
 type: bug
-status: Done
+status: Merged
 priority: 1
 title: Detect and deliver standalone Ready to Integrate tasks without PRs
 parent: OOMPAH-587
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:29.695490Z'
-updated_at: '2026-07-31T05:20:27.508732Z'
+updated_at: '2026-08-02T18:25:58.113390Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-598
 target_branch: null
 review_url: null
@@ -134,6 +134,25 @@ oompah.terminal_audit:
     attempt-0335e837a33d: '2026-07-31T02:00:26.360030+00:00'
     attempt-8afc0c625bc7: '2026-07-31T03:05:02.453265+00:00'
     attempt-0835e0e72499: '2026-07-31T05:20:07.398996+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-e559f77d5b81
+    project_id: proj-14849f1b
+    task_id: OOMPAH-598
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b72efc361746383734fb0d9cb325a92303f19595054954f441d7b7412982f211
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reconciliation: parent OOMPAH-587 is Merged and its accepted rollup
+      contains this previously audited Done child; durable integration-queue/rollup
+      evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.'
+    created_at: '2026-08-02T18:25:53.235851+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -837,5 +856,12 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 8m 5s
 - Log: OOMPAH-598__20260731T051231Z.jsonl
+---
+author: oompah
+created: 2026-08-02 18:25
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner reconciliation: parent OOMPAH-587 is Merged and its accepted rollup contains this previously audited Done child; durable integration-queue/rollup evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.
 ---
 <!-- COMMENTS:END -->
