@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T16:23:29.405626Z'
-updated_at: '2026-08-02T18:35:39.060041Z'
+updated_at: '2026-08-02T18:35:42.703349Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,7 +38,17 @@ oompah.terminal_audit:
       and live-deployment evidence recorded on the task family. OOMPAH-699 tracks
       automatic convergence.'
     created_at: '2026-08-02T18:35:32.721454+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-560
+    target_state: Merged
+    evidence_fingerprint: fe2edcbd2bca3c63f27e4c94bb0c6da5f377d3606e297e1718305bf8e07be9ca
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-02T18:35:41.379196+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
