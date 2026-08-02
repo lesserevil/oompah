@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:50.443759Z'
-updated_at: '2026-08-02T05:11:19.070511Z'
+updated_at: '2026-08-02T07:26:39.087977Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-694
 target_branch: null
 review_url: null
@@ -175,6 +175,23 @@ oompah.terminal_audit:
     previous_state: Ready to Integrate
     created_at: '2026-08-02T05:05:10.695222+00:00'
     updated_at: '2026-08-02T05:10:59.062741+00:00'
+  - version: 1
+    audit_id: audit-f686d73b61b1
+    project_id: proj-14849f1b
+    task_id: OOMPAH-694
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b0a0f76cbb1b0cb70a3edebe01dfec32476b12e5fb3a825c34727db372c208f9
+    attempts: []
+    requested_by:
+      version: 1
+      identity: epic-rollup-reconciliation
+      source: oompah
+    previous_state: Done
+    created_at: '2026-08-02T07:26:38.159221+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-eb9af8ac86f4
