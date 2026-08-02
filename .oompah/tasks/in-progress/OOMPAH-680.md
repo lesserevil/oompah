@@ -12,7 +12,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-08-01T17:31:44.735248Z'
-updated_at: '2026-08-02T18:43:57.885774Z'
+updated_at: '2026-08-02T18:51:07.289065Z'
 work_branch: OOMPAH-680
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/657
@@ -677,5 +677,15 @@ author: oompah
 created: 2026-08-02 18:43
 ---
 Discovery: 6 files with conflicts. Pattern: d08a8da59 added features that origin/main also added (via later commits that refined the same code). Resolution strategy: prefer HEAD (origin/main) for infrastructure improvements (base_env, cwd, type annotations, import organization) while keeping d08a8da59's unique additions. Key files: integration_executor.py, landing_gate.py, orchestrator.py, projects.py, unpushed_gate.py, tests/test_managed_git_credentials.py. Test file needs merge of HEAD's authentication diagnostics tests plus d08a8da59's unique test_failed_authenticated_clone_removes_partial_checkout.
+---
+author: oompah
+created: 2026-08-02 18:51
+---
+Implementation: Resolved 6 conflicted files. Key decisions: (1) integration_executor.py - kept HEAD's version which already had git_authentication_failure import and _git_failure_message function added by later commits; (2) projects.py - kept HEAD's _run_network_git with base_env=_recovery_git_env() and cwd=wt_path in _run helpers; (3) landing_gate.py - fixed duplicate import, kept HEAD's output redaction; (4) orchestrator.py - merged both sides: kept d08a8da59's type validation (isinstance checks) and None guard on project access; (5) unpushed_gate.py - kept HEAD's import and precise is not None condition; (6) tests/test_managed_git_credentials.py - combined HEAD's authentication diagnostics tests plus d08a8da59's unique test_failed_authenticated_clone_removes_partial_checkout. Rebased onto 327e37350 and force-pushed as db310ea4d.
+---
+author: oompah
+created: 2026-08-02 18:51
+---
+Verification: All focused tests pass. test_managed_git_credentials.py: 8/8 passed. test_integration_executor.py + test_landing_gate.py + test_unpushed_gate.py + test_projects.py: 157/157 passed. test_orchestrator_merged.py: 162/162 passed. test_quality_gate.py: 61/61 passed. Branch is up to date with origin/OOMPAH-680 at db310ea4d.
 ---
 <!-- COMMENTS:END -->
