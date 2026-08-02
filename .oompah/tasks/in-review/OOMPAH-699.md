@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-699
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Converge historical Done records after parent terminalization
 parent: null
@@ -12,11 +12,11 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T18:20:28.879414Z'
-updated_at: '2026-08-02T20:19:56.816747Z'
+updated_at: '2026-08-02T20:20:03.795675Z'
 work_branch: null
 target_branch: null
 review_url: https://github.com/lesserevil/oompah/pull/660
-review_number: null
+review_number: '660'
 review_head: null
 merged_at: null
 oompah.integration:
@@ -28,6 +28,7 @@ oompah.integration:
   submitted_at: '2026-08-02T20:12:04.109767+00:00'
   updated_at: '2026-08-02T20:12:04.109767+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/660
+oompah.review_number: '660'
 ---
 ## Summary
 
