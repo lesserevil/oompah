@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-690
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Restore reliable automatic dashboard updates
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T00:37:18.141681Z'
-updated_at: '2026-08-02T00:58:47.504382Z'
+updated_at: '2026-08-02T01:07:08.887232Z'
 work_branch: OOMPAH-690
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/649
@@ -97,6 +97,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/649
 oompah.review_number: '649'
 oompah.work_branch: OOMPAH-690
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-13ffd4016256
+    project_id: proj-14849f1b
+    task_id: OOMPAH-690
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c9d3b10e69b10f4843eea0560bdad610fe48e89d02695fe47c314c1446d8de65
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-02T01:07:02.181150+00:00'
+  - version: 1
+    audit_id: audit-e6ffcaf668af
+    project_id: proj-14849f1b
+    task_id: OOMPAH-690
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c9d3b10e69b10f4843eea0560bdad610fe48e89d02695fe47c314c1446d8de65
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-02T01:07:02.181150+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -212,5 +251,15 @@ author: oompah
 created: 2026-08-02 00:58
 ---
 Branch quality gate passed for `cac4b5141dcbe43217f4a3848e6bd7ac226a8f42` using `make test` in 395.0s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-02 01:07
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-02 01:07
+---
+YOLO: merged PR #649.
 ---
 <!-- COMMENTS:END -->
