@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:46.836436Z'
-updated_at: '2026-08-02T02:20:31.406673Z'
+updated_at: '2026-08-02T02:20:55.043753Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-692
 target_branch: null
 review_url: null
@@ -242,5 +242,10 @@ author: oompah
 created: 2026-08-02 02:20
 ---
 Discovery: server.py is the single WebSocket fan-out authority. State callbacks cache snapshots before throttling; issue invalidation/rebuild already has a freshness fence; direct ws.send_text calls existed for bootstrap, refresh, pong, and console errors. The leading-edge state throttle was the loss point, and global counters had no cross-thread protection. Added the protocol around these existing paths rather than changing orchestrator observer APIs.
+---
+author: oompah
+created: 2026-08-02 02:20
+---
+Implementation: added protocol version 1 envelopes to every WebSocket send path with epoch, per-connection delivery_seq, and state/issue revisions. State snapshot acceptance is locked and rejects older generated_at callbacks; issue invalidation/rebuild tracks the revision belonging to serialized data. Replaced leading-edge state suppression with one trailing-edge coalescing drain, synchronized throttle/counter access, routed bootstrap/refresh/pong/activity/console errors through the same sender, added lifecycle/concurrency/epoch tests, and documented the contract in plans/websocket-state-versioning.md.
 ---
 <!-- COMMENTS:END -->

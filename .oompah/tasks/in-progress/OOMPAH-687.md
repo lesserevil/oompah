@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T23:00:54.291962Z'
-updated_at: '2026-08-02T02:20:26.344857Z'
+updated_at: '2026-08-02T02:20:53.250719Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -270,5 +270,10 @@ author: oompah
 created: 2026-08-02 02:20
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-08-02 02:20
+---
+Understanding: I will repair the five reported branch-gate regressions on OOMPAH-687 without changing the runtime-isolation design. I will first reproduce the focused failures, align the Makefile and sandbox behavior with their tests, then run the affected suites, push the minimal fix, and submit the task.
 ---
 <!-- COMMENTS:END -->
