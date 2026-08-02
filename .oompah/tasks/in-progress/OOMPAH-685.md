@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T21:46:41.297124Z'
-updated_at: '2026-08-02T03:10:54.164594Z'
+updated_at: '2026-08-02T03:11:57.448872Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -502,5 +502,10 @@ author: oompah
 created: 2026-08-02 03:10
 ---
 Discovery: the recorded internal gate failure is a CI-only orchestrator flake. This branch predates merged OOMPAH-688, which makes tick telemetry deterministic and isolates unrelated maintenance I/O. The focused handler-order test passes locally; I will rebase OOMPAH-685 onto current main so it inherits the already-reviewed CI repair, preserving this task's credential changes.
+---
+author: oompah
+created: 2026-08-02 03:11
+---
+Implementation: rebased the existing OOMPAH-685 branch onto current main, inheriting merged OOMPAH-688 CI stabilization. I resolved the two overlaps by retaining project-scoped askpass forwarding alongside the upstream noninteractive Git recovery environment (including credentials for managed network calls). No unrelated production behavior was changed.
 ---
 <!-- COMMENTS:END -->
