@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-697
 type: bug
-status: Needs CI Fix
+status: In Progress
 priority: 0
 title: Requeue branches that advance after their recorded review merges
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T16:21:00.027506Z'
-updated_at: '2026-08-02T17:26:28.111403Z'
+updated_at: '2026-08-02T17:27:01.592488Z'
 work_branch: OOMPAH-697
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/656
@@ -39,7 +39,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: cd8c7169-cfeb-4ac6-821c-99a40c1e210c
+oompah.agent_run_id: 2441c0da-dc17-4c8c-a49c-1b386367aca2
 oompah.task_costs:
   total_input_tokens: 632114
   total_output_tokens: 41672
@@ -451,5 +451,15 @@ author: oompah
 created: 2026-08-02 17:26
 ---
 YOLO: CI tests failed on MR #656. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
+---
+author: oompah
+created: 2026-08-02 17:26
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-08-02 17:27
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
