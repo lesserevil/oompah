@@ -16,7 +16,7 @@ labels:
 - service-wedge
 assignee: null
 created_at: '2026-07-22T00:56:17.834972Z'
-updated_at: '2026-08-02T01:38:36.060628Z'
+updated_at: '2026-08-02T01:39:32.344139Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -99,6 +99,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-02T01:26:16.227144+00:00'
     branch_key: OOMPAH-348
+oompah.task_costs:
+  total_input_tokens: 6
+  total_output_tokens: 91
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 6
+      output_tokens: 91
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 6
+    output_tokens: 91
+    cost_usd: 0.0
+    recorded_at: '2026-08-02T01:39:30.213684+00:00'
 ---
 ## Summary
 
@@ -158,5 +174,15 @@ Safe evidence:
 - delivery_age_days_approx: 11
 - changed_paths_touched: .env.example, oompah/__main__.py, oompah/config.py, oompah/orchestrator.py, oompah/server.py, tests/test_dispatch_loop_heartbeat.py, tests/test_orchestrator_handlers.py, tests/test_task_cost_telemetry.py
 - config_knobs_added: project_refresh_timeout_ms, project_refresh_max_concurrent, project_stale_cache_ttl_ms, worker_termination_timeout_ms, dispatch_loop_stale_factor
+---
+author: oompah
+created: 2026-08-02 01:39
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 53, Tool calls: 36
+- Tokens: 6 in / 91 out [97 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 13m 6s
+- Log: OOMPAH-348__20260802T012631Z.jsonl
 ---
 <!-- COMMENTS:END -->
