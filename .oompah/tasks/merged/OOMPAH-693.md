@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-693
 type: feature
-status: In Validation
+status: Merged
 priority: 1
 title: Provide a coherent full dashboard resynchronization response
 parent: OOMPAH-691
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:48.499285Z'
-updated_at: '2026-08-02T16:19:22.882725Z'
+updated_at: '2026-08-02T16:21:23.570491Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-693
 target_branch: null
 review_url: null
@@ -131,6 +131,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-645487a41a0f: '2026-08-02T04:06:13.391119+00:00'
+    attempt-f88db1c603df: '2026-08-02T16:21:20.019310+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-693
@@ -141,6 +142,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-02T04:06:13.391127+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-693
+    target_state: Merged
+    evidence_fingerprint: dba42564a68fa29a07fe568873076d97e163274543686d3bc2ca82c55d8162d0
+    audit_ids:
+    - audit-b31cdff75df9
+    kind: result
+    applied: true
+    retired_at: '2026-08-02T16:21:20.019330+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-693
@@ -154,6 +164,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-02T04:06:13.391137+00:00'
     applied_at: '2026-08-02T04:06:18.602145+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-693
+    audit_id: audit-b31cdff75df9
+    attempt_id: attempt-f88db1c603df
+    target_state: Merged
+    evidence_fingerprint: dba42564a68fa29a07fe568873076d97e163274543686d3bc2ca82c55d8162d0
+    status: Merged
+    audit_ids:
+    - audit-b31cdff75df9
+    applied: false
+    created_at: '2026-08-02T16:21:20.019354+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -195,7 +216,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-693
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -204,7 +225,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-f88db1c603df
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -214,13 +235,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-02T16:19:14.454975+00:00'
       branch_key: epic-OOMPAH-691--task-OOMPAH-693
+      verdict: pass
+      completed_at: '2026-08-02T16:21:20.019114+00:00'
+      ended_at: '2026-08-02T16:21:20.019114+00:00'
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
       source: oompah
     previous_state: Done
     created_at: '2026-08-02T07:26:35.163105+00:00'
-    updated_at: '2026-08-02T16:19:14.454975+00:00'
+    updated_at: '2026-08-02T16:21:20.019114+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-645487a41a0f
@@ -443,5 +467,22 @@ author: oompah
 created: 2026-08-02 16:19
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-02 16:21
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- recorded_head_commit: cf5f3cecede5a3344922345e2fcbc3f042c982c9
+- origin_main_head: b7fdf2b3f6dfa00f39659abafb176f3d67579dce
+- merge_pr: #654 (epic-OOMPAH-691)
+- contains_check: git branch --contains cf5f3cec -a lists main and remotes/origin/main
+- task_commits_on_main: 8283f794b (server+client+tests +1000 lines), cf5f3cece (plan doc +47/-3 lines)
+- previous_audit_verdict: PASS -> Done
+- operator_note_reference: 2026-08-02 16:19 operator confirmed ancestry; root cause tracked as OOMPAH-696
+- prior_focused_tests: 22/22 test_ws_full_sync + 49/49 test_ws_lifecycle + 14/14 test_websocket_authenticated_bootstrap
 ---
 <!-- COMMENTS:END -->
