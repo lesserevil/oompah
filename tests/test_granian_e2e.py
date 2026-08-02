@@ -309,6 +309,7 @@ def test_http_root_and_state_contract() -> None:
 @pytest.mark.skipif(
     not _WEBSOCKETS_SYNC_AVAILABLE, reason="websockets.sync.client unavailable"
 )
+@pytest.mark.timeout(20)
 def test_ws_connection_and_initial_push() -> None:
     """WebSocket handshake accepted; initial push delivers state + issues messages.
 
