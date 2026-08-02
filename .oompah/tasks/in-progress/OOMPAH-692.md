@@ -12,7 +12,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-08-02T02:01:46.836436Z'
-updated_at: '2026-08-02T02:52:01.795353Z'
+updated_at: '2026-08-02T02:53:49.543408Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-692
 target_branch: null
 review_url: null
@@ -426,5 +426,10 @@ author: oompah
 created: 2026-08-02 02:52
 ---
 Discovery: the server routes all server-to-client sends through _send_ws, which assigns delivery_seq under a per-socket lock; state payloads carry the revision paired with the cached snapshot, while issue payloads carry data_revision under the issue-cache lock. The existing plan is accurate but underspecified for consumers: it needs a wire example, a clear rule that envelope counters on non-state/non-issues messages are observations rather than payload versions, and explicit client gap-handling guidance.
+---
+author: oompah
+created: 2026-08-02 02:53
+---
+Verification: the protocol JSON example parses successfully; git diff --check passes; focused WebSocket lifecycle and authenticated-bootstrap suites pass with the provisioned interpreter (63 passed in 1.10s). The initial .venv-local invocation was unavailable, and the default pytest plugin caused a cross-worktree import mismatch; rerunning with project addopts disabled used the correct worktree and passed.
 ---
 <!-- COMMENTS:END -->
