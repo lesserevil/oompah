@@ -18,6 +18,7 @@ from unittest.mock import MagicMock
 import pytest
 
 import oompah.quality_gate as quality_gate
+from oompah.integration import IntegrationRecord
 from oompah.models import Issue, Project
 from oompah.orchestrator import Orchestrator
 from oompah.quality_gate import (
@@ -107,6 +108,80 @@ test:
     subprocess.run(["git", "checkout", "-q", "-b", "work"], cwd=repo, check=True)
 
     return repo
+
+
+def _stale_managed_clone_with_submission(tmp_path):
+    """Return a clone made before ``work`` was pushed to its remote."""
+    source_root = tmp_path / "source-root"
+    source_root.mkdir()
+    source = _git_repo(source_root)
+    remote = tmp_path / "remote.git"
+    subprocess.run(
+        ["git", "init", "-q", "--bare", "-b", "main", str(remote)],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "remote", "add", "origin", str(remote)], cwd=source, check=True
+    )
+    subprocess.run(["git", "push", "-q", "origin", "main"], cwd=source, check=True)
+
+    managed = tmp_path / "managed"
+    subprocess.run(["git", "clone", "-q", str(remote), str(managed)], check=True)
+
+    (source / "source.txt").write_text("submitted\n", encoding="utf-8")
+    subprocess.run(["git", "add", "source.txt"], cwd=source, check=True)
+    subprocess.run(
+        ["git", "commit", "-q", "-m", "submitted candidate"],
+        cwd=source,
+        check=True,
+    )
+    submitted_head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=source,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    subprocess.run(["git", "push", "-q", "origin", "work"], cwd=source, check=True)
+    return source, managed, submitted_head
+
+
+def _submitted_gate_orchestrator(tmp_path, managed, submitted_head, *, branch="work"):
+    counter = tmp_path / "counter"
+    project = Project(
+        id="project-1",
+        name="project",
+        repo_url="https://example.test/org/repo",
+        repo_path=str(managed),
+        test_command=f"printf x >> {shlex.quote(str(counter))}",
+    )
+    issue = Issue(
+        id="task-1",
+        identifier="task-1",
+        title="Task",
+        project_id=project.id,
+        state=READY_TO_INTEGRATE,
+        work_branch=branch,
+        integration=IntegrationRecord(
+            state="ready",
+            task_branch=branch,
+            head_sha=submitted_head,
+        ),
+    )
+    tracker = MagicMock()
+    tracker.fetch_all_issues.return_value = [issue]
+    tracker.fetch_issue_detail.return_value = issue
+    project_store = MagicMock()
+    project_store.get.return_value = project
+    project_store.worktree_path_for.return_value = str(tmp_path / "missing")
+    orch = Orchestrator.__new__(Orchestrator)
+    orch.project_store = project_store
+    orch._issue_has_children = MagicMock(return_value=False)
+    orch._branch_quality_gate = _gate(tmp_path / "quality.json", managed)
+    orch._tracker_for_project = MagicMock(return_value=tracker)
+    orch._standalone_delivery_authority_lock = threading.RLock()
+    orch._standalone_delivery_authorities = {}
+    return orch, project, issue, tracker, counter
 
 
 def _run(gate, repo, command, **overrides):
@@ -1304,6 +1379,102 @@ def test_orchestrator_gates_remote_head_without_canonical_worktree(tmp_path):
     assert counter.read_text(encoding="utf-8") == "x"
     assert tracker.add_comment.call_count == 1
     assert candidate_head in tracker.add_comment.call_args.args[1]
+
+
+def test_orchestrator_fetches_accepted_head_into_stale_managed_clone(tmp_path):
+    source, managed, submitted_head = _stale_managed_clone_with_submission(tmp_path)
+    del source
+    orch, project, issue, tracker, counter = _submitted_gate_orchestrator(
+        tmp_path,
+        managed,
+        submitted_head,
+    )
+    network_git = orch._run_project_network_git
+    orch._run_project_network_git = MagicMock(side_effect=network_git)
+
+    assert (
+        subprocess.run(
+            [
+                "git",
+                "rev-parse",
+                "--verify",
+                "--quiet",
+                "refs/remotes/origin/work",
+            ],
+            cwd=managed,
+            check=False,
+        ).returncode
+        != 0
+    )
+    assert orch._review_quality_gate_passes(project, issue, "work", "main")
+    assert orch._review_quality_gate_passes(project, issue, "work", "main")
+
+    assert counter.read_text(encoding="utf-8") == "x"
+    assert orch._run_project_network_git.call_count == 1
+    assert (
+        orch._quality_gate_commit(str(managed), "refs/remotes/origin/work")
+        == submitted_head
+    )
+    assert tracker.update_issue.call_count == 0
+
+
+def test_orchestrator_does_not_gate_newer_remote_than_accepted_head(tmp_path):
+    source, managed, submitted_head = _stale_managed_clone_with_submission(tmp_path)
+    (source / "source.txt").write_text("newer\n", encoding="utf-8")
+    subprocess.run(["git", "add", "source.txt"], cwd=source, check=True)
+    subprocess.run(
+        ["git", "commit", "-q", "-m", "newer candidate"],
+        cwd=source,
+        check=True,
+    )
+    newer_head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=source,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    subprocess.run(["git", "push", "-q", "origin", "work"], cwd=source, check=True)
+    orch, project, issue, tracker, counter = _submitted_gate_orchestrator(
+        tmp_path,
+        managed,
+        submitted_head,
+    )
+
+    assert not orch._review_quality_gate_passes(project, issue, "work", "main")
+
+    assert not counter.exists()
+    assert (
+        orch._quality_gate_commit(str(managed), "refs/remotes/origin/work")
+        == newer_head
+    )
+    tracker.add_comment.assert_not_called()
+    tracker.update_issue.assert_not_called()
+
+
+def test_orchestrator_unavailable_submitted_head_is_infrastructure_only(tmp_path):
+    _source, managed, _submitted_head = _stale_managed_clone_with_submission(tmp_path)
+    missing_head = "a" * 40
+    orch, project, issue, tracker, counter = _submitted_gate_orchestrator(
+        tmp_path,
+        managed,
+        missing_head,
+        branch="deleted-work",
+    )
+
+    assert not orch._review_quality_gate_passes(
+        project,
+        issue,
+        "deleted-work",
+        "main",
+    )
+
+    assert not counter.exists()
+    tracker.update_issue.assert_not_called()
+    comment = tracker.add_comment.call_args.args[1].lower()
+    assert "candidate ci was not run" in comment
+    assert "could not be fetched" in comment
+    assert "no candidate ci-fix status was applied" in comment
 
 
 def test_orchestrator_missing_review_head_is_infrastructure_not_ci_fix(tmp_path):
