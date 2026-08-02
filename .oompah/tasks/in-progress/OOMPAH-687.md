@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T23:00:54.291962Z'
-updated_at: '2026-08-02T02:33:14.832799Z'
+updated_at: '2026-08-02T02:37:14.538225Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -419,5 +419,10 @@ author: oompah
 created: 2026-08-02 02:33
 ---
 Understanding: I will repair the remaining branch-gate sandbox test failures on the existing OOMPAH-687 branch. I will confirm the current branch and CI evidence, reproduce the affected tests, apply the minimal compatibility fix without weakening runtime isolation, run focused suites, push, and submit the exact repaired head.
+---
+author: oompah
+created: 2026-08-02 02:37
+---
+Discovery: GitHub has no PR/Actions run for OOMPAH-687; the oompah gate transcript is the CI evidence. The three remaining failures are sandbox-command unit tests running inside the outer gate's candidate-projected venv. Their direct_url metadata deliberately retains the service absolute source root, so the new trusted-runtime validator raises before the tests reach their bind assertions. Outer gate preflight already validates the runtime before candidate code starts; these command-construction tests must mock that independent validation boundary.
 ---
 <!-- COMMENTS:END -->
