@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T16:18:38.337420Z'
-updated_at: '2026-08-02T16:26:38.688405Z'
+updated_at: '2026-08-02T16:31:08.347758Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -148,5 +148,10 @@ author: oompah
 created: 2026-08-02 16:26
 ---
 Discovery: Found the root cause in _mark_epic_merged (line 18671). When a Done child's private branch is pruned, _child_landing_evidence_block_reason fails closed because the branch refs no longer exist. However, there's an integration record (accessible via child.integration) that shows integrated_sha and state. The fix is to check this durable integration record BEFORE calling _child_landing_evidence_block_reason. If the record shows state='integrated' and integrated_sha is reachable from the container/target branches, that's affirmative evidence and landing_reason should remain None.
+---
+author: oompah
+created: 2026-08-02 16:31
+---
+Implementation: Added _child_has_durable_landing_evidence() method to check if a child's integrated_sha is reachable from container branches. Modified _mark_epic_merged() to call this before _child_landing_evidence_block_reason(). When durable evidence exists, the child is promoted instead of moved to Needs Human. Changes: oompah/orchestrator.py (2 edits), tests/test_epic_strategy.py (1 new test). All 220 epic_strategy tests pass.
 ---
 <!-- COMMENTS:END -->
