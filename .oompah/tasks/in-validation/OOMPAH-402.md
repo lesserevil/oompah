@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-402
 type: task
-status: Merged
+status: In Validation
 priority: null
 title: Advance focus after completed agent handoffs
 parent: null
@@ -10,12 +10,34 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T05:27:02.143073Z'
-updated_at: '2026-07-26T00:28:15.566918Z'
+updated_at: '2026-08-02T01:13:16.159255Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-7ca8172a31f3
+    project_id: proj-14849f1b
+    task_id: OOMPAH-402
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c28cd5319bac2b11e945fe0c05ee5e25886b758250caec37db54974f4f07d033
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-02T01:13:12.552453+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -48,5 +70,10 @@ author: oompah
 created: 2026-07-26 00:28
 ---
 Verified delivered on origin/main in de48457e8 and reconciled stale Done state.
+---
+author: oompah
+created: 2026-08-02 01:13
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
