@@ -15,7 +15,7 @@ labels:
 - workflow
 assignee: null
 created_at: '2026-07-22T01:23:32.887223Z'
-updated_at: '2026-08-02T01:43:54.867856Z'
+updated_at: '2026-08-02T01:45:01.664741Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -98,6 +98,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-02T01:30:43.014536+00:00'
     branch_key: OOMPAH-356
+oompah.task_costs:
+  total_input_tokens: 6
+  total_output_tokens: 186
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 6
+      output_tokens: 186
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 6
+    output_tokens: 186
+    cost_usd: 0.0
+    recorded_at: '2026-08-02T01:44:57.873265+00:00'
 ---
 ## Summary
 
@@ -156,5 +172,15 @@ Safe evidence:
 - children: OOMPAH-357, OOMPAH-358, OOMPAH-359 (all In Validation per parent listing)
 - merged_duration_days: ~7 (reconciled 2026-07-26, archive queued 2026-08-02)
 - archive_trigger: auto_archive (aged Merged)
+---
+author: oompah
+created: 2026-08-02 01:45
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 45, Tool calls: 33
+- Tokens: 6 in / 186 out [192 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 14m 8s
+- Log: OOMPAH-356__20260802T013055Z.jsonl
 ---
 <!-- COMMENTS:END -->
