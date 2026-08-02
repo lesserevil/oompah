@@ -5,13 +5,17 @@ status: Backlog
 priority: 1
 title: Make dashboard WebSocket state provably convergent
 parent: null
-children: []
+children:
+- OOMPAH-692
+- OOMPAH-693
+- OOMPAH-694
+- OOMPAH-695
 blocked_by: []
 start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T02:00:17.265294Z'
-updated_at: '2026-08-02T02:00:17.265294Z'
+updated_at: '2026-08-02T02:01:52.769601Z'
 work_branch: null
 target_branch: null
 review_url: null
