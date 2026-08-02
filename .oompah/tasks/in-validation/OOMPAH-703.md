@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T20:59:10.197769Z'
-updated_at: '2026-08-02T22:28:51.278561Z'
+updated_at: '2026-08-02T22:31:17.082174Z'
 work_branch: OOMPAH-703
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/663
@@ -100,18 +100,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-703
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: f55c8ab7eae1ae9acff2b0164f275f9aebe7fafb215c1480a6604e9e4237964c
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-9ad9b59746a7
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: f55c8ab7eae1ae9acff2b0164f275f9aebe7fafb215c1480a6604e9e4237964c
+      created_at: '2026-08-02T22:31:11.810654+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-02T22:31:11.810654+00:00'
+      branch_key: OOMPAH-703
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-02T22:28:44.531536+00:00'
+    updated_at: '2026-08-02T22:31:11.810654+00:00'
   - version: 1
     audit_id: audit-3990a0e653f5
     project_id: proj-14849f1b
@@ -129,7 +143,20 @@ oompah.terminal_audit:
       source: forge
     previous_state: In Review
     created_at: '2026-08-02T22:28:44.531536+00:00'
-  attempt_history: []
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-9ad9b59746a7
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f55c8ab7eae1ae9acff2b0164f275f9aebe7fafb215c1480a6604e9e4237964c
+    created_at: '2026-08-02T22:31:11.810654+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-02T22:31:11.810654+00:00'
+    branch_key: OOMPAH-703
 ---
 ## Summary
 
@@ -249,5 +276,15 @@ author: oompah
 created: 2026-08-02 22:28
 ---
 YOLO: merged PR #663.
+---
+author: oompah
+created: 2026-08-02 22:31
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-02 22:31
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
