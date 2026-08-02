@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T21:55:47.761417Z'
-updated_at: '2026-08-02T22:19:32.528171Z'
+updated_at: '2026-08-02T23:07:33.666158Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -196,5 +196,10 @@ author: oompah
 created: 2026-08-02 22:19
 ---
 Owner-resolved the failed duplicate screening as no_duplicate after reviewing active tasks. Claimed for direct implementation immediately after OOMPAH-701; human-only fences further duplicate-preflight retries. OOMPAH-707 tracks the watchdog defect that currently prevents direct owner work from remaining visibly In Progress without a scheduler RunningEntry.
+---
+author: oompah
+created: 2026-08-02 23:07
+---
+Direct implementation complete at pushed head 0b78028a691b4c21935d9c9dc3b69d59f8448643. ACP backends now extract a bounded validated duplicate-screening envelope from the full provider response before the 2,000-character display/log cap; the orchestrator consumes that envelope through the existing current-run-only parser, while comments remain excluded. Regression coverage reproduces OOMPAH-701 long analysis followed by a valid verdict and covers Claude, Codex, OpenCode, conflicts, and end-to-end implementation eligibility. Verification: focused 188 passed; full make test 15,017 passed, 7 skipped, 1 xfailed; terminal mutation scan and check-secrets passed. Awaiting deployment of merged OOMPAH-708 solely to execute the authoritative owner-resolution transition out of Needs Human before submit.
 ---
 <!-- COMMENTS:END -->
