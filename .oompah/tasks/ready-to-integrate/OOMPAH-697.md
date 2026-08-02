@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-697
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 0
 title: Requeue branches that advance after their recorded review merges
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T16:21:00.027506Z'
-updated_at: '2026-08-02T17:30:17.317259Z'
+updated_at: '2026-08-02T17:31:07.508396Z'
 work_branch: OOMPAH-697
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/656
@@ -39,7 +39,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 2441c0da-dc17-4c8c-a49c-1b386367aca2
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 632114
   total_output_tokens: 41672
@@ -104,10 +104,9 @@ oompah.integration:
   attempts: 0
   task_branch: OOMPAH-697
   base_branch: main
-  base_sha: b7fdf2b3f6dfa00f39659abafb176f3d67579dce
-  head_sha: 0b0f2fd820fbff3307358f08d3fe4f969c93d71a
-  submitted_at: '2026-08-02T17:00:07.279004+00:00'
-  updated_at: '2026-08-02T17:00:26.844158+00:00'
+  head_sha: 58b400703a42ee1a4b7172ef78b2720283f3a6f3
+  submitted_at: '2026-08-02T17:30:55.139447+00:00'
+  updated_at: '2026-08-02T17:30:55.139447+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/656
 oompah.review_number: '656'
 oompah.work_branch: OOMPAH-697
@@ -481,5 +480,25 @@ author: oompah
 created: 2026-08-02 17:30
 ---
 Verification: GitHub Actions failure was confirmed from run 30758603273/job 91525023892 (Python 3.13). Local focused test passed, then tests/test_ws_fault_injection.py plus tests/test_ws_lifecycle.py passed serially: 65 passed. git diff --check also passed. Per CI-fixer guidance I did not repeat the already-passed full make test gate.
+---
+author: oompah
+created: 2026-08-02 17:30
+---
+Completion: Delivered commit 58b400703 on the existing OOMPAH-697 branch and pushed it to origin. MR #656 now points to that exact SHA, and GitHub Actions CI run 30759030581 was automatically queued for the new head. The worktree is clean and up to date; no follow-up work is required.
+---
+author: oompah
+created: 2026-08-02 17:31
+---
+Fixed MR #656's Python 3.13 websocket metrics race by waiting for the refresh handler's real success-recording callback before closing the test socket. Focused and neighboring websocket suites pass (65 tests); pushed 58b400703 and verified CI run 30759030581 queued for that head.
+---
+author: oompah
+created: 2026-08-02 17:31
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Codex/gpt-5.6-sol]
+- Turns: 0, Tool calls: 29
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 4m 7s
+- Log: OOMPAH-697__20260802T172704Z.jsonl
 ---
 <!-- COMMENTS:END -->
