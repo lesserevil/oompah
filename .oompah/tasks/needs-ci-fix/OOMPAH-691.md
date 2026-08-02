@@ -16,7 +16,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T02:00:17.265294Z'
-updated_at: '2026-08-02T07:09:56.986011Z'
+updated_at: '2026-08-02T07:10:33.231212Z'
 work_branch: epic-OOMPAH-691
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/654
@@ -26,6 +26,7 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/654
 oompah.review_number: '654'
 oompah.work_branch: epic-OOMPAH-691
 oompah.target_branch: main
+oompah.agent_run_id: 48308078-3dd3-40cc-b41b-72ca94d9324d
 ---
 ## Summary
 
@@ -67,5 +68,15 @@ author: oompah
 created: 2026-08-02 07:09
 ---
 YOLO: CI tests failed on MR #654. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
+---
+author: oompah
+created: 2026-08-02 07:10
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-08-02 07:10
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
