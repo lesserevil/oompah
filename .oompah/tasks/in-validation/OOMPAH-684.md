@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T21:44:29.390457Z'
-updated_at: '2026-08-02T02:13:09.031779Z'
+updated_at: '2026-08-02T02:19:27.701289Z'
 work_branch: OOMPAH-684
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/650
@@ -111,6 +111,31 @@ oompah.work_branch: OOMPAH-684
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-90a88fcf128f: '2026-08-02T02:19:22.350979+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-684
+    target_state: Done
+    evidence_fingerprint: 958c00bb5699374ae5b7c47ae06ca266f5d34415f36d256acfc32271cee6ea26
+    audit_ids:
+    - audit-6e5a10195354
+    kind: result
+    applied: true
+    retired_at: '2026-08-02T02:19:22.350991+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-684
+    audit_id: audit-6e5a10195354
+    attempt_id: attempt-90a88fcf128f
+    target_state: Done
+    evidence_fingerprint: 958c00bb5699374ae5b7c47ae06ca266f5d34415f36d256acfc32271cee6ea26
+    status: In Validation
+    audit_ids:
+    - audit-6e5a10195354
+    applied: true
+    created_at: '2026-08-02T02:19:22.351008+00:00'
+    applied_at: '2026-08-02T02:19:26.743308+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -118,7 +143,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-684
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -127,7 +152,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-90a88fcf128f
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -137,13 +162,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-02T02:13:04.201854+00:00'
       branch_key: OOMPAH-684
+      verdict: pass
+      completed_at: '2026-08-02T02:19:22.350788+00:00'
+      ended_at: '2026-08-02T02:19:22.350788+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Progress
     created_at: '2026-08-02T02:12:41.699584+00:00'
-    updated_at: '2026-08-02T02:13:04.201854+00:00'
+    updated_at: '2026-08-02T02:19:22.350788+00:00'
   - version: 1
     audit_id: audit-379a276e1265
     project_id: proj-14849f1b
@@ -465,5 +493,24 @@ author: oompah
 created: 2026-08-02 02:13
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-02 02:19
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- worktree_head: 7b160731233e51d6bea57fe65095a6ffa09e760b
+- branch_head_local: ce27cada4db1cd0d5df67925d40724264eed5439
+- origin_main_head: 917633fd9a199f5a456d6b091a72e1a1ad3633b5
+- merge_commit: 917633fd9 Merge pull request #650 from lesserevil/OOMPAH-684
+- core_fix_commit: bfcd6f199 OOMPAH-684: fence stale dispatch after task submission (5 files, 539+/49-)
+- ci_fix_commit: ce27cada4 OOMPAH-684: reset source_generations and invalidated in display-identifier snapshot fixture
+- focused_tests_retry_authority: 21 passed in 14.68s
+- focused_tests_worker_submission: 11 passed in 2.38s
+- focused_tests_dashboard_display: 6 passed in 0.72s
+- full_gate: make test passed for 7b160731 (14859 passed / 7 skipped / 1 xfailed in 392.9s)
 ---
 <!-- COMMENTS:END -->
