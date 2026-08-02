@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T16:18:38.337420Z'
-updated_at: '2026-08-02T16:23:30.554483Z'
+updated_at: '2026-08-02T16:24:26.992725Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -21,20 +21,57 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: afb70785550116c116dcb05d7957a4ee7909f9aac7e504fe0803f21f99c7e48f
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-02T16:24:20.395564+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 08e5d96b-b2a1-454e-91de-7e7b3be7fc18
-  claim_owner: 8ed25388-a2c2-4d5e-b302-5705d6f379a6
-  claimed_at: '2026-08-02T16:23:22.682810+00:00'
-  claim_expires_at: '2026-08-02T16:53:22.682810+00:00'
+  evidence: 'Focus handoff: duplicate_detector
+
+
+    Duplicate preflight verdict: no_duplicate
+
+
+    Matches: none
+
+
+    Evidence: Active tasks OOMPAH-281 and OOMPAH-282 are unrelated. Closest historical
+    tasks OOMPAH-162 and OOMPAH-219 are Archived and cover different landing scenarios,
+    so they are excluded as duplicate targets.'
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
 oompah.agent_run_id: bfdbef5f-5d9f-4ffe-af93-88c1840832ae
+oompah.task_costs:
+  total_input_tokens: 356919
+  total_output_tokens: 1867
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 356919
+      output_tokens: 1867
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 356919
+    output_tokens: 1867
+    cost_usd: 0.0
+    recorded_at: '2026-08-02T16:24:20.393623+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-696__20260802T162333Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: OOMPAH-696
+    source_sha: b7fdf2b3f6dfa00f39659abafb176f3d67579dce
+    completed_at: '2026-08-02T16:24:20.407899+00:00'
 ---
 ## Summary
 
@@ -81,5 +118,15 @@ author: oompah
 created: 2026-08-02 16:23
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-02 16:24
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 6
+- Tokens: 356.9K in / 1.9K out [358.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 53s
+- Log: OOMPAH-696__20260802T162333Z.jsonl
 ---
 <!-- COMMENTS:END -->
