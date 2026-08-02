@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-699
 type: bug
-status: Needs CI Fix
+status: Open
 priority: 0
 title: Converge historical Done records after parent terminalization
 parent: null
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T18:20:28.879414Z'
-updated_at: '2026-08-02T20:28:10.685757Z'
+updated_at: '2026-08-02T20:32:00.594368Z'
 work_branch: OOMPAH-699
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/660
@@ -91,5 +91,17 @@ author: oompah
 created: 2026-08-02 20:28
 ---
 YOLO: CI tests failed on MR #660. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
+---
+author: oompah
+created: 2026-08-02 20:31
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #2)
+
+**State audited:** `Needs CI Fix`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** Recent comment indicates CI is now passing or PR has been merged; safe to reopen for dispatch.
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
 ---
 <!-- COMMENTS:END -->
