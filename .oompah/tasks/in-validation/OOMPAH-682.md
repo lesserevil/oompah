@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-682
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Make duplicate-preflight recovery authoritative and self-sufficient
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T18:07:47.349822Z'
-updated_at: '2026-08-02T18:44:36.804941Z'
+updated_at: '2026-08-02T18:53:03.798144Z'
 work_branch: OOMPAH-682
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/658
@@ -212,7 +212,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-682
     target_state: Merged
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -242,6 +242,23 @@ oompah.terminal_audit:
     previous_state: Ready to Integrate
     created_at: '2026-08-01T21:38:05.840865+00:00'
     updated_at: '2026-08-01T22:04:36.169729+00:00'
+  - version: 1
+    audit_id: audit-d7d220566124
+    project_id: proj-14849f1b
+    task_id: OOMPAH-682
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 37ae2af318bcbf9da65fee30adc5810e979175af23da2a08f6db41965ac6b699
+    attempts: []
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-02T18:52:59.894536+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-f119a532f4e9
