@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-633
 type: bug
-status: Done
+status: Merged
 priority: 1
 title: Repair stale integration queues in nested epics
 parent: OOMPAH-584
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:54:49.391955Z'
-updated_at: '2026-07-31T05:56:24.409167Z'
+updated_at: '2026-08-02T18:30:00.272427Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-633
 target_branch: null
 review_url: null
@@ -141,6 +141,24 @@ oompah.terminal_audit:
     reason: Restore previously audited Done after false post-merge landing regression;
       refreshed exact task ref is contained in main.
     created_at: '2026-07-31T05:56:01.649334+00:00'
+  - version: 1
+    override_id: override-95fc3889d02a
+    project_id: proj-14849f1b
+    task_id: OOMPAH-633
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 15546c77d6e14fd810aeeab9f705c8de94c99b23f156827ab94be3a685d1c0e5
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reconciliation: parent OOMPAH-584 is Merged and its accepted rollup
+      contains this previously audited Done child; durable integration-queue/rollup
+      evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.'
+    created_at: '2026-08-02T18:29:56.720980+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -667,5 +685,12 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 1m 16s
 - Log: OOMPAH-633__20260731T055519Z.jsonl
+---
+author: oompah
+created: 2026-08-02 18:29
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner reconciliation: parent OOMPAH-584 is Merged and its accepted rollup contains this previously audited Done child; durable integration-queue/rollup evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.
 ---
 <!-- COMMENTS:END -->
