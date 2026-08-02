@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-601
 type: bug
-status: Done
+status: Merged
 priority: 1
 title: Aggregate branch-ownership cleanup skips without warning floods
 parent: OOMPAH-588
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:00.331568Z'
-updated_at: '2026-07-31T05:57:02.604821Z'
+updated_at: '2026-08-02T18:26:28.408300Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-601
 target_branch: null
 review_url: null
@@ -199,6 +199,24 @@ oompah.terminal_audit:
     reason: Restore previously audited Done after false post-merge landing regression;
       refreshed exact task ref is contained in main.
     created_at: '2026-07-31T05:56:58.441850+00:00'
+  - version: 1
+    override_id: override-61c339bb6f6b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-601
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 500f0a9b0cc3838fda21356ceed08439cd36fc47de013369930cc6330ebb0a3a
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reconciliation: parent OOMPAH-588 is Merged and its accepted rollup
+      contains this previously audited Done child; durable integration-queue/rollup
+      evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.'
+    created_at: '2026-08-02T18:26:24.035091+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -775,5 +793,12 @@ created: 2026-07-31 05:57
 Override by lesserevil: terminal transition to Done applied by project owner.
 
 Reason: Restore previously audited Done after false post-merge landing regression; refreshed exact task ref is contained in main.
+---
+author: oompah
+created: 2026-08-02 18:26
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner reconciliation: parent OOMPAH-588 is Merged and its accepted rollup contains this previously audited Done child; durable integration-queue/rollup evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.
 ---
 <!-- COMMENTS:END -->
