@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-695
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Prove dashboard convergence with fault injection and health telemetry
 parent: OOMPAH-691
@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:52.297786Z'
-updated_at: '2026-08-02T02:22:30.179254Z'
+updated_at: '2026-08-02T02:23:09.036603Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-695
 target_branch: null
 review_url: null
@@ -66,12 +66,12 @@ oompah.agent_run_id: f413da90-b5f6-4228-8395-978239abb5fd
 oompah.work_branch: epic-OOMPAH-691--task-OOMPAH-695
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-691--task-OOMPAH-695
-  base_branch: epic-OOMPAH-691
-  base_sha: 6252b5434f392b74de9703a9fc8dca1951dfeaca
-  updated_at: '2026-08-02T02:13:39.184585+00:00'
+  head_sha: f77bb3eff6041608ee98d52396e10c2d0d46a389
+  submitted_at: '2026-08-02T02:23:05.669901+00:00'
+  updated_at: '2026-08-02T02:23:05.669901+00:00'
 oompah.task_costs:
   total_input_tokens: 20
   total_output_tokens: 5025
@@ -276,5 +276,34 @@ created: 2026-08-02 02:22
    - ✓ Alert deduplication prevents alarm fatigue
 
 Ready for integration. Branch: epic-OOMPAH-691--task-OOMPAH-695
+---
+author: oompah
+created: 2026-08-02 02:23
+---
+**Completion**: WebSocket synchronization metrics and fault injection testing delivered.
+
+**Deliverables**:
+1. Comprehensive fault injection test harness (27 tests, 100% passing)
+2. Synchronization metrics infrastructure with bounded counters
+3. Alert system for unrecovered synchronization failures
+4. Metrics exposed safely in state payload without false alerts
+5. Integration with WebSocket refresh action and lifecycle
+
+**Files Changed**:
+- oompah/server.py: +70 lines (metrics globals, helpers, integration)
+- tests/test_ws_fault_injection.py: +966 lines (comprehensive test suite)
+
+**Quality**:
+- All 149 focused tests pass (lifecycle, fault injection, dashboard, full sync)
+- No regressions in existing functionality
+- Proper error handling and thread safety with locks
+- Code follows project conventions and trailer requirements
+
+Ready for branch review and merge.
+---
+author: oompah
+created: 2026-08-02 02:23
+---
+Implemented WebSocket synchronization metrics, fault injection tests, and alerts for dashboard convergence validation. 27 tests demonstrate resilience to dropped, duplicated, delayed, and reordered messages. Metrics safely exposed without false alerts on normal recovered gaps. Alerts triggered only for repeated unrecovered failures with deduplication.
 ---
 <!-- COMMENTS:END -->

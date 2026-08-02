@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T23:00:54.291962Z'
-updated_at: '2026-08-02T02:20:53.250719Z'
+updated_at: '2026-08-02T02:22:57.964979Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -275,5 +275,10 @@ author: oompah
 created: 2026-08-02 02:20
 ---
 Understanding: I will repair the five reported branch-gate regressions on OOMPAH-687 without changing the runtime-isolation design. I will first reproduce the focused failures, align the Makefile and sandbox behavior with their tests, then run the affected suites, push the minimal fix, and submit the task.
+---
+author: oompah
+created: 2026-08-02 02:22
+---
+Discovery: There is no GitHub Actions run/PR for this branch; reproducing under OOMPAH_PYTEST_GATE=1 matches the two Makefile failures. Their subprocess environments inherit the outer gate flag, so Make intentionally selects its gate-mode no-op setup and the non-gate assertions see exit 0. The fix is to remove that inherited flag in these explicitly non-gate test fixtures; sandbox assertions themselves currently pass with the repaired trusted runtime.
 ---
 <!-- COMMENTS:END -->
