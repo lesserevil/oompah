@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T16:21:00.027506Z'
-updated_at: '2026-08-02T17:00:10.881576Z'
+updated_at: '2026-08-02T17:00:28.306912Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -41,13 +41,17 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: cd8c7169-cfeb-4ac6-821c-99a40c1e210c
 oompah.task_costs:
-  total_input_tokens: 632071
-  total_output_tokens: 31523
+  total_input_tokens: 632114
+  total_output_tokens: 41672
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 632071
       output_tokens: 31523
+      cost_usd: 0.0
+    opus:
+      input_tokens: 43
+      output_tokens: 10149
       cost_usd: 0.0
   runs:
   - profile: default
@@ -62,6 +66,12 @@ oompah.task_costs:
     output_tokens: 29018
     cost_usd: 0.0
     recorded_at: '2026-08-02T16:40:27.583984+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 43
+    output_tokens: 10149
+    cost_usd: 0.0
+    recorded_at: '2026-08-02T17:00:20.745037+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-697__20260802T162155Z
@@ -80,14 +90,24 @@ oompah.work_contributors:
     source_branch: OOMPAH-697
     source_sha: de24893bdfb8bed90c7ca4ffe20a2c2e511e1c9b
     completed_at: '2026-08-02T16:40:27.588350+00:00'
+  - run_id: OOMPAH-697__20260802T165458Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: opus
+    focus: ci_fix
+    source_branch: OOMPAH-697
+    source_sha: 0b0f2fd820fbff3307358f08d3fe4f969c93d71a
+    completed_at: '2026-08-02T17:00:20.752941+00:00'
 oompah.integration:
   version: 2
   state: ready
   attempts: 0
   task_branch: OOMPAH-697
+  base_branch: main
+  base_sha: b7fdf2b3f6dfa00f39659abafb176f3d67579dce
   head_sha: 0b0f2fd820fbff3307358f08d3fe4f969c93d71a
   submitted_at: '2026-08-02T17:00:07.279004+00:00'
-  updated_at: '2026-08-02T17:00:07.279004+00:00'
+  updated_at: '2026-08-02T17:00:26.844158+00:00'
 ---
 ## Summary
 
@@ -402,5 +422,20 @@ author: oompah
 created: 2026-08-02 17:00
 ---
 CI fix: applied identical isolation patch as OOMPAH-696 to test_sandbox_command_projects_declared_editable_source_to_candidate. Head 0b0f2fd82.
+---
+author: oompah
+created: 2026-08-02 17:00
+---
+Agent completed successfully in 326s (10192 tokens)
+---
+author: oompah
+created: 2026-08-02 17:00
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Claude/opus]
+- Turns: 56, Tool calls: 37
+- Tokens: 43 in / 10.1K out [10.2K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 5m 26s
+- Log: OOMPAH-697__20260802T165458Z.jsonl
 ---
 <!-- COMMENTS:END -->
