@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-698
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Recover legacy stale reviews without persisted review-head metadata
 parent: null
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T18:20:27.192609Z'
-updated_at: '2026-08-02T19:49:35.960243Z'
+updated_at: '2026-08-02T19:58:08.827829Z'
 work_branch: OOMPAH-698
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/659
@@ -32,6 +32,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/659
 oompah.review_number: '659'
 oompah.work_branch: OOMPAH-698
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-262d471400ee
+    project_id: proj-14849f1b
+    task_id: OOMPAH-698
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 28b1bcdbb3ca3e48d1bdccf2d0eef9685f93745f8cc23f1c5f2fc72b9ca2af97
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-02T19:58:01.589885+00:00'
+  - version: 1
+    audit_id: audit-d2f370513491
+    project_id: proj-14849f1b
+    task_id: OOMPAH-698
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 28b1bcdbb3ca3e48d1bdccf2d0eef9685f93745f8cc23f1c5f2fc72b9ca2af97
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-02T19:58:01.589885+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -111,5 +150,15 @@ author: oompah
 created: 2026-08-02 19:49
 ---
 Branch quality gate passed for `6de721ae2f44a8ce0d3c21fcf660cc332a996e1b` using `make test` in 394.5s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-02 19:58
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-02 19:58
+---
+YOLO: merged PR #659.
 ---
 <!-- COMMENTS:END -->
