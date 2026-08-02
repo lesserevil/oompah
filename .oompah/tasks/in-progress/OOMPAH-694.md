@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:50.443759Z'
-updated_at: '2026-08-02T04:26:57.825479Z'
+updated_at: '2026-08-02T04:27:55.012395Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-694
 target_branch: null
 review_url: null
@@ -264,5 +264,10 @@ author: oompah
 created: 2026-08-02 04:26
 ---
 Discovery: The failing test (test_ws_issues_handler_clears_stale_banner) uses a regex to extract the 'msg.type === issues' handler block and checks that _setTrackerStaleBanner(false) appears within it. The call exists inside _applyIssuesMessage() (called from the handler) but the test regex stops at the closing } before else, so it only sees '_applyIssuesMessage(msg)' in the block — not the inner function's body. Fix: add _setTrackerStaleBanner(false) directly in the msg.type === 'issues' handler block (after the _applyIssuesMessage call). The existing call inside _applyIssuesMessage stays for revision-guarded paths; the new call in the handler makes the contract visible and explicit.
+---
+author: oompah
+created: 2026-08-02 04:27
+---
+Implementation: Added _setTrackerStaleBanner(false) directly in the msg.type === 'issues' WebSocket handler block in oompah/templates/dashboard.html (line ~2820). The call already existed inside _applyIssuesMessage() which is called from the handler, but the test regex extracts the handler block and stops at the closing } before else — so it only saw _applyIssuesMessage(msg) in the block, not the function's internals. Adding the explicit call at the handler level makes the contract visible and ensures the test can verify it. The existing call inside _applyIssuesMessage() is retained for revision-guarded paths.
 ---
 <!-- COMMENTS:END -->
