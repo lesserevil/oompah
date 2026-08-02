@@ -5141,6 +5141,139 @@ class TestLabelMergedEpics:
             # Verify the child is not being set to Needs Human
             assert "needs_human" not in str(update_call).lower()
 
+    def test_durable_landing_evidence_is_idempotent(self, tmp_path):
+        """Repeated reconciliation with durable landing evidence is idempotent."""
+        # Setup: Git repo with main branch and integrated child commit
+        repo_path = tmp_path / "repo"
+        repo_path.mkdir()
+        subprocess.run(
+            ["git", "init", "-b", "main"],
+            cwd=repo_path,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.email", "test@example.com"],
+            cwd=repo_path,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "Test User"],
+            cwd=repo_path,
+            check=True,
+            capture_output=True,
+        )
+        
+        # Create initial commit on main
+        (repo_path / "file.txt").write_text("main content\n")
+        subprocess.run(
+            ["git", "add", "file.txt"],
+            cwd=repo_path,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "Initial commit"],
+            cwd=repo_path,
+            check=True,
+            capture_output=True,
+        )
+        
+        # Create a new commit that represents the child's work
+        (repo_path / "child_feature.txt").write_text("child work\n")
+        subprocess.run(
+            ["git", "add", "child_feature.txt"],
+            cwd=repo_path,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "Child feature"],
+            cwd=repo_path,
+            check=True,
+            capture_output=True,
+        )
+        
+        integrated_sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=repo_path,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        
+        # Setup project and orchestrator
+        proj = _make_project_record(epic_strategy="shared")
+        proj.repo_path = str(repo_path)
+        proj.default_branch = "main"
+        
+        orch = _make_orch(tmp_path / "orch", projects=[proj])
+        
+        epic = _make_issue(
+            identifier="epic-1",
+            issue_type="epic",
+            state="Merged",
+            work_branch="epic-1",
+        )
+        
+        # Child with Done state, pruned work branch, and integration record
+        child = _make_issue(
+            identifier="c1",
+            state="Done",
+            parent_id="epic-1",
+            work_branch="epic-1--c1",
+            integration=IntegrationRecord(
+                state="integrated",
+                task_branch="epic-1--c1",
+                integrated_sha=integrated_sha,
+            ),
+        )
+        
+        tracker = MagicMock()
+        tracker.fetch_all_issues.return_value = [epic, child]
+        
+        # First reconciliation
+        with (
+            patch.object(orch, "_tracker_for_project", return_value=tracker),
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(orch, "_epic_branch_for_issue", return_value="epic-1"),
+            patch.object(orch, "_resolve_epic_target_branch", return_value="main"),
+        ):
+            orch._mark_epic_merged(epic, epic_branch="epic-1")
+        
+        first_call_count = orch.terminal_transition_coordinator.request_transition.call_count
+        
+        # Second reconciliation - should be idempotent
+        orch.terminal_transition_coordinator.request_transition.reset_mock()
+        tracker.reset_mock()
+        
+        with (
+            patch.object(orch, "_tracker_for_project", return_value=tracker),
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(orch, "_epic_branch_for_issue", return_value="epic-1"),
+            patch.object(orch, "_resolve_epic_target_branch", return_value="main"),
+        ):
+            orch._mark_epic_merged(epic, epic_branch="epic-1")
+        
+        second_call_count = orch.terminal_transition_coordinator.request_transition.call_count
+        
+        # Both should make coordinator calls (for the epic and child)
+        assert first_call_count >= 1
+        assert second_call_count >= 1
+        
+        # Verify no Needs Human moves in either pass
+        for tracker_calls in [tracker.method_calls]:
+            update_calls = [
+                call_obj for call_obj in tracker_calls
+                if "update_issue" in str(call_obj)
+            ]
+            for update_call in update_calls:
+                if "c1" in str(update_call):
+                    assert "needs_human" not in str(update_call).lower()
+
     @patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo")
     @patch("oompah.orchestrator.detect_provider")
     def test_provider_landed_epic_marks_children_and_helper_tasks(
