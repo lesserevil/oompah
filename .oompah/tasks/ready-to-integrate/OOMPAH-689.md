@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T00:13:22.222984Z'
-updated_at: '2026-08-02T00:31:05.657489Z'
+updated_at: '2026-08-02T00:31:36.144679Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -54,13 +54,13 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: 4175bc24-7883-4cc9-ae35-68cb69c32439
 oompah.task_costs:
-  total_input_tokens: 154
-  total_output_tokens: 4433
+  total_input_tokens: 18049056
+  total_output_tokens: 40431
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 154
-      output_tokens: 4433
+      input_tokens: 18049056
+      output_tokens: 40431
       cost_usd: 0.0
   runs:
   - profile: default
@@ -69,6 +69,12 @@ oompah.task_costs:
     output_tokens: 4433
     cost_usd: 0.0
     recorded_at: '2026-08-02T00:15:10.972539+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 18048902
+    output_tokens: 35998
+    cost_usd: 0.0
+    recorded_at: '2026-08-02T00:31:34.385291+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-689__20260802T001348Z
@@ -181,5 +187,15 @@ author: oompah
 created: 2026-08-02 00:31
 ---
 Preserve successful task handoff after informational non-running peer reads; added fail-closed/auth-health and exit-reconciliation regressions.
+---
+author: oompah
+created: 2026-08-02 00:31
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 107
+- Tokens: 18.0M in / 36.0K out [18.1M total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 16m 8s
+- Log: OOMPAH-689__20260802T001529Z.jsonl
 ---
 <!-- COMMENTS:END -->
