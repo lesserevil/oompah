@@ -973,6 +973,23 @@ _gitlab_event_dedup: Any = None
 # Connected WebSocket clients
 _ws_clients: set[WebSocket] = set()
 
+# Synchronization metrics for WebSocket resilience (OOMPAH-695)
+# Tracks health of incremental vs. full-sync recovery paths
+_ws_sync_metrics_lock = threading.Lock()
+_ws_sync_metrics = {
+    "gaps_detected": 0,  # Count of out-of-order/gap situations detected
+    "full_sync_requests": 0,  # Count of full resync requests sent
+    "successful_reconciliations": 0,  # Count of successful sync completions
+    "failed_reconciliations": 0,  # Count of failed sync attempts
+    "last_reconciliation_ts": 0.0,  # Timestamp of last successful sync
+    "last_failure_ts": 0.0,  # Timestamp of last failure
+    "consecutive_failures": 0,  # Count of consecutive failures for alerting
+}
+_ws_sync_alert: dict[str, Any] | None = None  # Set when unrecovered failures exceed threshold
+_ws_sync_alert_dedup_ts: float = 0.0  # Timestamp of last alert sent for deduplication
+_WS_SYNC_ALERT_THRESHOLD = 3  # Consecutive failures before alert
+_WS_SYNC_ALERT_DEDUP_WINDOW_S = 300  # 5 minutes: don't re-alert within this window
+
 # Per-project ACP console manager (oompah-zlz_2-ebwe). Constructed in
 # set_orchestrator() once the project/provider/role stores are wired,
 # then accessed by the WS handler and the GET /api/v1/console endpoints.
@@ -1010,6 +1027,79 @@ _ws_fullsync_pending: set["WebSocket"] = set()
 _ws_fullsync_lock = threading.RLock()
 
 _NATIVE_TASK_IDENTIFIER_RE = re.compile(r"^TASK-(\d+(?:\.\d+)*)$", re.IGNORECASE)
+
+
+# ---------------------------------------------------------------------------
+# WebSocket synchronization metrics management
+# ---------------------------------------------------------------------------
+
+def _ws_sync_record_gap() -> None:
+    """Record detection of a synchronization gap."""
+    global _ws_sync_metrics
+    with _ws_sync_metrics_lock:
+        _ws_sync_metrics["gaps_detected"] += 1
+
+
+def _ws_sync_record_success() -> None:
+    """Record a successful reconciliation, clearing failure streak."""
+    global _ws_sync_metrics, _ws_sync_alert
+    with _ws_sync_metrics_lock:
+        _ws_sync_metrics["successful_reconciliations"] += 1
+        _ws_sync_metrics["last_reconciliation_ts"] = time.monotonic()
+        _ws_sync_metrics["consecutive_failures"] = 0
+        _ws_sync_alert = None  # Clear alert on recovery
+
+
+def _ws_sync_record_failure() -> None:
+    """Record a failed reconciliation, incrementing failure streak."""
+    global _ws_sync_metrics, _ws_sync_alert, _ws_sync_alert_dedup_ts
+    with _ws_sync_metrics_lock:
+        _ws_sync_metrics["failed_reconciliations"] += 1
+        _ws_sync_metrics["last_failure_ts"] = time.monotonic()
+        _ws_sync_metrics["consecutive_failures"] += 1
+        
+        # Alert if threshold exceeded and not recently alerted
+        if (_ws_sync_metrics["consecutive_failures"] >= _WS_SYNC_ALERT_THRESHOLD and
+            (time.monotonic() - _ws_sync_alert_dedup_ts) > _WS_SYNC_ALERT_DEDUP_WINDOW_S):
+            
+            last_recon = _ws_sync_metrics.get("last_reconciliation_ts", 0.0)
+            if last_recon == 0.0:
+                recon_str = "Never"
+            else:
+                elapsed_s = time.monotonic() - last_recon
+                recon_str = f"{elapsed_s:.0f}s ago"
+            
+            _ws_sync_alert = {
+                "type": "sync_alert",
+                "alert_type": "unrecovered_synchronization_failure",
+                "consecutive_failures": _ws_sync_metrics["consecutive_failures"],
+                "message": (
+                    f"Dashboard lost synchronization {_ws_sync_metrics['consecutive_failures']} times. "
+                    f"Last successful sync: {recon_str}. "
+                    f"Try refreshing the page; if the problem persists, contact support."
+                ),
+                "timestamp": time.time(),
+            }
+            _ws_sync_alert_dedup_ts = time.monotonic()
+
+
+def _ws_sync_record_full_sync_request() -> None:
+    """Record a full synchronization request from the browser."""
+    global _ws_sync_metrics
+    with _ws_sync_metrics_lock:
+        _ws_sync_metrics["full_sync_requests"] += 1
+
+
+def _ws_sync_get_metrics_snapshot() -> dict[str, Any]:
+    """Return a copy of current synchronization metrics."""
+    with _ws_sync_metrics_lock:
+        return _ws_sync_metrics.copy()
+
+
+def _ws_sync_get_alert() -> dict[str, Any] | None:
+    """Return current alert if active, otherwise None."""
+    with _ws_sync_metrics_lock:
+        return _ws_sync_alert.copy() if _ws_sync_alert else None
 
 
 def _is_gitlab_project(project: Any) -> bool:
@@ -3232,8 +3322,12 @@ async def websocket_endpoint(ws: WebSocket):
             try:
                 msg = json.loads(data)
                 if msg.get("action") == "refresh":
+                    # Browser requested full resync (detected gap or manual refresh)
+                    _ws_sync_record_full_sync_request()
                     await _send_ws(ws, _current_state_message())
                     await broadcast_issues()
+                    # Full sync completes successfully
+                    _ws_sync_record_success()
                 elif msg.get("action") == "ping":
                     # Browsers cannot send protocol-level WebSocket pings.
                     # Reply to the application-level heartbeat so clients can
@@ -3708,18 +3802,18 @@ async def api_console_delete(project_id: str):
 
 
 def _enrich_state_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
-    """Enrich state snapshot with HTTP auth, build, and metrics metadata.
+    """Enrich state snapshot with HTTP auth, build, sync metrics, and alerts.
 
     This centralizes state enrichment so REST and WebSocket endpoints send
-    consistent redacted build, service, and auth metadata. Ensures no
-    credentials or secret material can enter the payload.
+    consistent redacted build, service, auth, and synchronization health
+    metadata. Ensures no credentials or secret material can enter the payload.
 
     Args:
         snapshot: A state snapshot dict from _cached_state_snapshot_or_unavailable()
 
     Returns:
         A new dict with the snapshot enriched with build_id, service_instance_id,
-        http_auth, and api_metrics fields.
+        http_auth, api_metrics, ws_sync_metrics, and ws_sync_alert fields.
     """
     # Create a copy to avoid mutating cached snapshots
     enriched = dict(snapshot)
@@ -3727,6 +3821,10 @@ def _enrich_state_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
     enriched["service_instance_id"] = _INSTANCE_ID
     enriched["http_auth"] = _http_auth_reload_status()
     enriched["api_metrics"] = _api_metrics_snapshot()
+    enriched["ws_sync_metrics"] = _ws_sync_get_metrics_snapshot()
+    alert = _ws_sync_get_alert()
+    if alert:
+        enriched["ws_sync_alert"] = alert
     return enriched
 
 
