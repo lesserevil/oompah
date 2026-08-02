@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T22:19:41.486806Z'
-updated_at: '2026-08-02T03:35:54.430513Z'
+updated_at: '2026-08-02T03:39:04.004178Z'
 work_branch: OOMPAH-686
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/652
@@ -136,6 +136,31 @@ oompah.work_branch: OOMPAH-686
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-cbdd601ff6b6: '2026-08-02T03:38:59.855309+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-686
+    target_state: Done
+    evidence_fingerprint: 6eb8fdcae9546e718eea23c788540947069e5bc98f1b169459e63958d4887df5
+    audit_ids:
+    - audit-f684d0da4477
+    kind: result
+    applied: true
+    retired_at: '2026-08-02T03:38:59.855321+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-686
+    audit_id: audit-f684d0da4477
+    attempt_id: attempt-cbdd601ff6b6
+    target_state: Done
+    evidence_fingerprint: 6eb8fdcae9546e718eea23c788540947069e5bc98f1b169459e63958d4887df5
+    status: In Validation
+    audit_ids:
+    - audit-f684d0da4477
+    applied: true
+    created_at: '2026-08-02T03:38:59.855336+00:00'
+    applied_at: '2026-08-02T03:39:03.181466+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -143,7 +168,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-686
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -152,7 +177,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-cbdd601ff6b6
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -162,13 +187,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-02T03:35:49.906897+00:00'
       branch_key: OOMPAH-686
+      verdict: pass
+      completed_at: '2026-08-02T03:38:59.855121+00:00'
+      ended_at: '2026-08-02T03:38:59.855121+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-02T03:35:33.681778+00:00'
-    updated_at: '2026-08-02T03:35:49.906897+00:00'
+    updated_at: '2026-08-02T03:38:59.855121+00:00'
   - version: 1
     audit_id: audit-081b5c455234
     project_id: proj-14849f1b
@@ -712,5 +740,22 @@ author: oompah
 created: 2026-08-02 03:35
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-02 03:39
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- main_tip_merge_commit: d4607b78b Merge pull request #652 from lesserevil/OOMPAH-686
+- branch_commits_on_main: 39980ddbc, 954bdcd68
+- focused_tests_oompah_686: 23 passed
+- focused_tests_client_auth_and_agent: 87 passed
+- known_local_env_artifact: tests/test_makefile_setup.py::test_non_gate_test_setup_still_installs_declared_dependencies fails locally because OOMPAH_TASK_VENV redirects test-venv path; passes in gate env
+- prior_branch_gate_result: Branch quality gate passed for 9c83678db3cada35e49e5cde1393c7772e4f0317 using make test in 396.6s
+- acceptance_criteria_regression_test_file: tests/test_oompah_686_worker_runtime.py
+- acceptance_criteria_impl_files: oompah/client_auth.py, oompah/agent.py, oompah/acp_backends/{claude,codex,opencode}.py
 ---
 <!-- COMMENTS:END -->
