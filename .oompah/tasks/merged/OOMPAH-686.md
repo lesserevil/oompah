@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-686
 type: task
-status: In Validation
+status: Merged
 priority: 0
 title: Keep worker container-runtime failures out of Needs Human
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T22:19:41.486806Z'
-updated_at: '2026-08-02T03:39:25.666668Z'
+updated_at: '2026-08-02T03:42:00.611554Z'
 work_branch: OOMPAH-686
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/652
@@ -148,6 +148,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-cbdd601ff6b6: '2026-08-02T03:38:59.855309+00:00'
+    attempt-2394c174c9b4: '2026-08-02T03:41:57.883468+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-686
@@ -158,6 +159,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-02T03:38:59.855321+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-686
+    target_state: Merged
+    evidence_fingerprint: 6eb8fdcae9546e718eea23c788540947069e5bc98f1b169459e63958d4887df5
+    audit_ids:
+    - audit-081b5c455234
+    kind: result
+    applied: true
+    retired_at: '2026-08-02T03:41:57.883486+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-686
@@ -171,6 +181,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-02T03:38:59.855336+00:00'
     applied_at: '2026-08-02T03:39:03.181466+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-686
+    audit_id: audit-081b5c455234
+    attempt_id: attempt-2394c174c9b4
+    target_state: Merged
+    evidence_fingerprint: 6eb8fdcae9546e718eea23c788540947069e5bc98f1b169459e63958d4887df5
+    status: Merged
+    audit_ids:
+    - audit-081b5c455234
+    applied: false
+    created_at: '2026-08-02T03:41:57.883509+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -212,7 +233,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-686
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -221,7 +242,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-2394c174c9b4
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -231,13 +252,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-02T03:39:19.596421+00:00'
       branch_key: OOMPAH-686
+      verdict: pass
+      completed_at: '2026-08-02T03:41:57.883251+00:00'
+      ended_at: '2026-08-02T03:41:57.883251+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-02T03:35:33.681778+00:00'
-    updated_at: '2026-08-02T03:39:19.596421+00:00'
+    updated_at: '2026-08-02T03:41:57.883251+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-cbdd601ff6b6
@@ -814,5 +838,25 @@ author: oompah
 created: 2026-08-02 03:39
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-02 03:41
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- main_tip_merge_commit: d4607b78b Merge pull request #652 from lesserevil/OOMPAH-686
+- branch_commits_on_main: 39980ddbc, 954bdcd68
+- head_matches_branch: OOMPAH-686 tip 954bdcd68 == PR #652 merged head
+- merge_stat_files_changed: acp_backends/claude.py, acp_backends/codex.py, acp_backends/opencode.py, agent.py, client_auth.py, tests/test_oompah_686_worker_runtime.py, tests/test_quality_gate.py
+- impl_symbols_present: _is_xdg_runtime_dir_writable, _create_worker_runtime_directory, OOMPAH_WORKER_RUNTIME_DIR, _cleanup_worker_runtime_dir
+- focused_tests_oompah_686: 23 passed in 0.64s
+- focused_tests_client_auth_and_agent: 87 passed in 0.86s
+- focused_tests_quality_gate_and_cli_smoke: 74 passed, 5 skipped in 4.99s
+- prior_branch_gate_result: Passed for 9c83678db3cada35e49e5cde1393c7772e4f0317 using make test in 396.6s
+- acceptance_criteria_regression_test_file: tests/test_oompah_686_worker_runtime.py
+- acceptance_criteria_impl_files: oompah/client_auth.py, oompah/agent.py, oompah/acp_backends/{claude,codex,opencode}.py
 ---
 <!-- COMMENTS:END -->
