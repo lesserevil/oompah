@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T01:23:49.686725Z'
-updated_at: '2026-08-02T01:42:23.282383Z'
+updated_at: '2026-08-02T01:43:35.572934Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -94,6 +94,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-02T01:32:55.857461+00:00'
     branch_key: OOMPAH-357
+oompah.task_costs:
+  total_input_tokens: 6
+  total_output_tokens: 152
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 6
+      output_tokens: 152
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 6
+    output_tokens: 152
+    cost_usd: 0.0
+    recorded_at: '2026-08-02T01:43:33.665281+00:00'
 ---
 ## Summary
 
@@ -170,5 +186,15 @@ Safe evidence:
 - focused_tests: tests/test_epic_rebase_state.py: 33 passed
 - reasons_emitted: main_advanced, epic_to_epic_prohibited, operator_requested, merge_blocking_conflict
 - previous_state: Merged (aged 7+ days)
+---
+author: oompah
+created: 2026-08-02 01:43
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 39, Tool calls: 30
+- Tokens: 6 in / 152 out [158 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 10m 26s
+- Log: OOMPAH-357__20260802T013312Z.jsonl
 ---
 <!-- COMMENTS:END -->

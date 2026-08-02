@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-22T01:23:53.416699Z'
-updated_at: '2026-08-02T01:42:47.131927Z'
+updated_at: '2026-08-02T01:43:30.163365Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -94,6 +94,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-02T01:35:58.524877+00:00'
     branch_key: OOMPAH-359
+oompah.task_costs:
+  total_input_tokens: 28
+  total_output_tokens: 5506
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 28
+      output_tokens: 5506
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 28
+    output_tokens: 5506
+    cost_usd: 0.0
+    recorded_at: '2026-08-02T01:43:27.943432+00:00'
 ---
 ## Summary
 
@@ -154,5 +170,15 @@ Safe evidence:
 - previous_state: Merged
 - archive_trigger: aged-merged-auto-archive-7d
 - reconciliation_comments_present: 2026-07-26 delivery reconciled and verified on origin/main in 2ba37886b
+---
+author: oompah
+created: 2026-08-02 01:43
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 30, Tool calls: 22
+- Tokens: 28 in / 5.5K out [5.5K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 7m 26s
+- Log: OOMPAH-359__20260802T013608Z.jsonl
 ---
 <!-- COMMENTS:END -->

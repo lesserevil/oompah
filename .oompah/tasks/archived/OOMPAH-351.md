@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T00:56:37.758720Z'
-updated_at: '2026-08-02T01:42:55.785984Z'
+updated_at: '2026-08-02T01:43:32.760017Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -93,6 +93,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-02T01:29:20.955728+00:00'
     branch_key: OOMPAH-351
+oompah.task_costs:
+  total_input_tokens: 42
+  total_output_tokens: 5859
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 42
+      output_tokens: 5859
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 42
+    output_tokens: 5859
+    cost_usd: 0.0
+    recorded_at: '2026-08-02T01:43:27.953044+00:00'
 ---
 ## Summary
 
@@ -162,5 +178,15 @@ Safe evidence:
 - focused_test_result: pytest -k 'terminate_does_not_wait_forever or terminate_kills_cli_tree or session_shutdown_failure or shutdown_timeout_logs_warning' => 4 passed
 - neighbor_suite_result: pytest tests/test_orchestrator_handlers.py => 277 passed
 - previous_state: Merged; auto-archive 7 days post-close per scheduler evidence
+---
+author: oompah
+created: 2026-08-02 01:43
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 41, Tool calls: 36
+- Tokens: 42 in / 5.9K out [5.9K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 13m 55s
+- Log: OOMPAH-351__20260802T012937Z.jsonl
 ---
 <!-- COMMENTS:END -->

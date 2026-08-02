@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-22T00:56:40.490026Z'
-updated_at: '2026-08-02T01:42:04.791491Z'
+updated_at: '2026-08-02T01:43:40.173326Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -96,6 +96,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-02T01:23:47.956854+00:00'
     branch_key: OOMPAH-352
+oompah.task_costs:
+  total_input_tokens: 6
+  total_output_tokens: 937
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 6
+      output_tokens: 937
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 6
+    output_tokens: 937
+    cost_usd: 0.0
+    recorded_at: '2026-08-02T01:43:38.251858+00:00'
 ---
 ## Summary
 
@@ -168,5 +184,15 @@ Safe evidence:
 - operator_docs: docs/tick-latency-diagnostics.md (Scenario 3 covers dispatch-loop stall detection and recovery)
 - tracker_state_now: In Validation (Archived audit in progress)
 - handoff_or_conflict_signals: none observed
+---
+author: oompah
+created: 2026-08-02 01:43
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 58
+- Tokens: 6 in / 937 out [943 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 19m 44s
+- Log: OOMPAH-352__20260802T012402Z.jsonl
 ---
 <!-- COMMENTS:END -->
