@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T20:34:49.621752Z'
-updated_at: '2026-08-02T22:00:02.715250Z'
+updated_at: '2026-08-02T22:10:57.222166Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -124,5 +124,15 @@ author: oompah
 created: 2026-08-02 22:00
 ---
 Implementation: tests/test_server_webhooks.py now uses an autouse _WebhookThreadHarness that captures webhook daemon threads, joins them, and re-raises uncaught worker exceptions. Replaced fixed sleeps/poll loops across tracked-branch sync, In Review, merged PR, merge-group, and status-label webhook cases. Added a delayed terminal-staging regression proving HTTP acknowledgement precedes completion, plus a worker-exception regression proving the barrier cannot false-pass.
+---
+author: oompah
+created: 2026-08-02 22:10
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 67
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 18m 27s
+- Log: OOMPAH-702__20260802T215236Z.jsonl
 ---
 <!-- COMMENTS:END -->
