@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T00:37:18.141681Z'
-updated_at: '2026-08-02T00:41:02.136609Z'
+updated_at: '2026-08-02T00:41:22.708810Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -155,5 +155,10 @@ author: oompah
 created: 2026-08-02 00:41
 ---
 Focus: Callback Auth Validation Specialist
+---
+author: oompah
+created: 2026-08-02 00:41
+---
+Understanding: the server currently couples state throttling to issue-refresh scheduling, so a task-changing event can be dropped after a recent state broadcast. I will separate those scheduling paths while preserving coalescing, then add bounded browser heartbeat/freshness detection, guarded reconnect lifecycle, and reconnect backfill with focused regression tests.
 ---
 <!-- COMMENTS:END -->
