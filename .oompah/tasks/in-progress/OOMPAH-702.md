@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T20:34:49.621752Z'
-updated_at: '2026-08-02T23:20:22.519725Z'
+updated_at: '2026-08-02T23:21:42.037179Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -311,5 +311,10 @@ author: oompah
 created: 2026-08-02 23:20
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-08-02 23:21
+---
+Operator scope: the branch-gate failure in TestTickDelegation::test_tick_handler_order is a cross-branch scheduler-test race also reproduced by OOMPAH-707; OOMPAH-709 owns that root fix. Do not rewrite the OOMPAH-702 webhook implementation or absorb unrelated tick-delegation production/test changes into this branch. Reproduce the exact failure, verify it passes in isolation/retry, and resubmit the unchanged feature head if clean; coordinate evidence with OOMPAH-709.
 ---
 <!-- COMMENTS:END -->
