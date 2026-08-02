@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-700
 type: bug
-status: In Validation
+status: Merged
 priority: 0
 title: Gate accepted submissions without a canonical task worktree
 parent: null
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T19:52:39.323644Z'
-updated_at: '2026-08-02T21:08:12.938059Z'
+updated_at: '2026-08-02T21:09:50.484978Z'
 work_branch: OOMPAH-700
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/661
@@ -99,6 +99,28 @@ oompah.work_branch: OOMPAH-700
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-41c2b65a97e8
+    project_id: proj-14849f1b
+    task_id: OOMPAH-700
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 217031b9e0cad87fc96b91b6ec3bff0cf1da42c75877514610d7557efd6105d2
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'PR #661 merged at 39d1f2ec1fb2eb5561e9f96859ee8a9f202e9aac; exact task
+      head 819f8516723772742fddfab4eba6c8d5666c1b7b is contained in origin/main; GitHub
+      CI is green on Python 3.11, 3.12, and 3.13; the exact head passed the complete
+      server branch gate and a clean local make test run (14,994 passed, 7 skipped,
+      1 xfailed). The terminal auditor was launched by the stale shutting-down process
+      and the hidden-provider shutdown/recovery defect is tracked by OOMPAH-701.'
+    created_at: '2026-08-02T21:09:47.010824+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -334,5 +356,12 @@ author: oompah
 created: 2026-08-02 21:08
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-02 21:09
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: PR #661 merged at 39d1f2ec1fb2eb5561e9f96859ee8a9f202e9aac; exact task head 819f8516723772742fddfab4eba6c8d5666c1b7b is contained in origin/main; GitHub CI is green on Python 3.11, 3.12, and 3.13; the exact head passed the complete server branch gate and a clean local make test run (14,994 passed, 7 skipped, 1 xfailed). The terminal auditor was launched by the stale shutting-down process and the hidden-provider shutdown/recovery defect is tracked by OOMPAH-701.
 ---
 <!-- COMMENTS:END -->
