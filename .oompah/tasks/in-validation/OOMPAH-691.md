@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-691
 type: epic
-status: In Review
+status: In Validation
 priority: 0
 title: Make dashboard WebSocket state provably convergent
 parent: null
@@ -16,7 +16,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T02:00:17.265294Z'
-updated_at: '2026-08-02T07:24:46.533009Z'
+updated_at: '2026-08-02T07:26:22.393379Z'
 work_branch: epic-OOMPAH-691
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/654
@@ -51,6 +51,45 @@ oompah.task_costs:
     output_tokens: 2572
     cost_usd: 0.0
     recorded_at: '2026-08-02T07:18:45.534424+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-73c6e018d434
+    project_id: proj-14849f1b
+    task_id: OOMPAH-691
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 57a700f225cb6392c51be53777ddc45e1e50fd927ceec7dbed185f7898613379
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-02T07:26:17.708600+00:00'
+  - version: 1
+    audit_id: audit-13c123393a84
+    project_id: proj-14849f1b
+    task_id: OOMPAH-691
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 57a700f225cb6392c51be53777ddc45e1e50fd927ceec7dbed185f7898613379
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-02T07:26:17.708600+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -142,5 +181,15 @@ author: oompah
 created: 2026-08-02 07:24
 ---
 Branch quality gate passed for `dd300faf519ca68652e60f9ed2a6465d9ceb0b9a` using `make test` in 391.3s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-02 07:26
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-02 07:26
+---
+YOLO: merged PR #654.
 ---
 <!-- COMMENTS:END -->
