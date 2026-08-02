@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-603
 type: feature
-status: Done
+status: Merged
 priority: 2
 title: Define and enforce repository hygiene health thresholds
 parent: OOMPAH-588
@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:03.538398Z'
-updated_at: '2026-07-31T05:57:20.334768Z'
+updated_at: '2026-08-02T18:30:29.098721Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-603
 target_branch: null
 review_url: null
@@ -173,6 +173,24 @@ oompah.terminal_audit:
     reason: Restore previously audited Done after false post-merge landing regression;
       refreshed exact task ref is contained in main.
     created_at: '2026-07-31T05:57:10.252425+00:00'
+  - version: 1
+    override_id: override-a42c7f8d5b2a
+    project_id: proj-14849f1b
+    task_id: OOMPAH-603
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: ebb102de069e767a013d9f6198e0d90c07b91ce98dc483d072659d2c15ca75d3
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reconciliation: parent OOMPAH-588 is Merged and its accepted rollup
+      contains this previously audited Done child; durable integration-queue/rollup
+      evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.'
+    created_at: '2026-08-02T18:30:25.229026+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -1001,5 +1019,12 @@ created: 2026-07-31 05:57
 Override by lesserevil: terminal transition to Done applied by project owner.
 
 Reason: Restore previously audited Done after false post-merge landing regression; refreshed exact task ref is contained in main.
+---
+author: oompah
+created: 2026-08-02 18:30
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner reconciliation: parent OOMPAH-588 is Merged and its accepted rollup contains this previously audited Done child; durable integration-queue/rollup evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.
 ---
 <!-- COMMENTS:END -->
