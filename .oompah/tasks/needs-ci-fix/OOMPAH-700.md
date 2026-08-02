@@ -1,8 +1,8 @@
 ---
 id: OOMPAH-700
 type: bug
-status: In Review
-priority: 1
+status: Needs CI Fix
+priority: 0
 title: Gate accepted submissions without a canonical task worktree
 parent: null
 children: []
@@ -10,9 +10,10 @@ blocked_by: []
 start_blocked_by: []
 labels:
 - human-only
+- ci-fix
 assignee: null
 created_at: '2026-08-02T19:52:39.323644Z'
-updated_at: '2026-08-02T20:49:46.131590Z'
+updated_at: '2026-08-02T20:57:42.634786Z'
 work_branch: OOMPAH-700
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/661
@@ -225,5 +226,10 @@ author: oompah
 created: 2026-08-02 20:49
 ---
 Branch quality gate passed for `819f8516723772742fddfab4eba6c8d5666c1b7b` using `make test` in 398.5s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-02 20:57
+---
+YOLO: CI tests failed on MR #661. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
 ---
 <!-- COMMENTS:END -->
