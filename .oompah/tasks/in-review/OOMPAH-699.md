@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-699
 type: bug
-status: Open
+status: In Review
 priority: 0
 title: Converge historical Done records after parent terminalization
 parent: null
@@ -10,10 +10,9 @@ blocked_by: []
 start_blocked_by: []
 labels:
 - human-only
-- ci-fix
 assignee: null
 created_at: '2026-08-02T18:20:28.879414Z'
-updated_at: '2026-08-02T20:35:06.966440Z'
+updated_at: '2026-08-02T20:36:15.374049Z'
 work_branch: OOMPAH-699
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/660
