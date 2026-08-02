@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-617
 type: bug
-status: Done
+status: Merged
 priority: 1
 title: Integrate wrong-checkout submission protection
 parent: OOMPAH-587
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T20:52:01.122820Z'
-updated_at: '2026-07-31T05:03:21.427137Z'
+updated_at: '2026-08-02T18:27:29.065453Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-617
 target_branch: null
 review_url: null
@@ -29,6 +29,25 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-8a965b580c4e: '2026-07-30T21:15:51.532400+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-2983271eb6fc
+    project_id: proj-14849f1b
+    task_id: OOMPAH-617
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 001b2658edcab54e88b8437d53e3c4a46b89e9de2bfbdff8376f59cd294043e2
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reconciliation: parent OOMPAH-587 is Merged and its accepted rollup
+      contains this previously audited Done child; durable integration-queue/rollup
+      evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.'
+    created_at: '2026-08-02T18:27:24.777976+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -172,5 +191,12 @@ author: oompah
 created: 2026-07-31 05:03
 ---
 Operator rebase bookkeeping: refreshed the terminal task branch from a678afc20 to its patch-equivalent rebased head b30aa99dd under an exact force-with-lease. The branch is now an ancestor of origin/epic-OOMPAH-587 (0 commits outside the epic); the newer wrong-worktree resolution remains preserved.
+---
+author: oompah
+created: 2026-08-02 18:27
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner reconciliation: parent OOMPAH-587 is Merged and its accepted rollup contains this previously audited Done child; durable integration-queue/rollup evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.
 ---
 <!-- COMMENTS:END -->
