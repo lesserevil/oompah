@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-689
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Do not poison successful handoff after expected non-running peer reads
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T00:13:22.222984Z'
-updated_at: '2026-08-02T00:30:20.816734Z'
+updated_at: '2026-08-02T00:31:05.657489Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -79,6 +79,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-689
     source_sha: e613933ecf228bc89afb98df63e584eab21a50a9
     completed_at: '2026-08-02T00:15:10.985196+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-689
+  head_sha: a5acdde6497e03bb83714ec585dff131b4b09398
+  submitted_at: '2026-08-02T00:31:02.843059+00:00'
+  updated_at: '2026-08-02T00:31:02.843059+00:00'
 ---
 ## Summary
 
@@ -163,5 +171,15 @@ author: oompah
 created: 2026-08-02 00:30
 ---
 Verification: focused handoff/auth/server suites pass: 171 passed, 1 deprecation warning. make check-secrets passes. The required full make test could not start because the environment's uv launcher fails to create a transient DBus scope; the direct project serial runner reached the full suite but exposed unrelated pre-existing ACP model-handoff failures before I stopped it. git diff --check is clean.
+---
+author: oompah
+created: 2026-08-02 00:30
+---
+Completion: delivered and pushed commit a5acdde6497e03bb83714ec585dff131b4b09398. Verified peer view denials remain HTTP 403 without target resolution or handoff-failure recording, while own comment/submit and exit reconciliation preserve Ready to Integrate; actionable auth and mutation paths remain covered. Focused suites and secret scan pass; full make test remains environment-blocked by the uv/DBus launcher failure noted above.
+---
+author: oompah
+created: 2026-08-02 00:31
+---
+Preserve successful task handoff after informational non-running peer reads; added fail-closed/auth-health and exit-reconciliation regressions.
 ---
 <!-- COMMENTS:END -->
