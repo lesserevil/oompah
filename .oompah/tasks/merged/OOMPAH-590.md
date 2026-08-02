@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-590
 type: bug
-status: Done
+status: Merged
 priority: 1
 title: Retry terminal audits after auditor launch or transport failure
 parent: OOMPAH-585
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:22.194798Z'
-updated_at: '2026-07-31T05:58:25.303085Z'
+updated_at: '2026-08-02T18:24:18.914735Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-590
 target_branch: null
 review_url: null
@@ -117,6 +117,24 @@ oompah.terminal_audit:
     reason: Restore prior Audit PASS Done after verifying exact task ref is contained
       in merged main.
     created_at: '2026-07-31T05:58:22.869765+00:00'
+  - version: 1
+    override_id: override-bfe5f5cdff8b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-590
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: c4960e8c5a8d0a52fe4da16af801beed1eefdf253da704b12c8535eb41e9421d
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reconciliation: parent OOMPAH-585 is Merged and its accepted rollup
+      contains this previously audited Done child; durable integration-queue/rollup
+      evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.'
+    created_at: '2026-08-02T18:24:14.913426+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -494,5 +512,12 @@ created: 2026-07-31 05:58
 Override by lesserevil: terminal transition to Done applied by project owner.
 
 Reason: Restore prior Audit PASS Done after verifying exact task ref is contained in merged main.
+---
+author: oompah
+created: 2026-08-02 18:24
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner reconciliation: parent OOMPAH-585 is Merged and its accepted rollup contains this previously audited Done child; durable integration-queue/rollup evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.
 ---
 <!-- COMMENTS:END -->
