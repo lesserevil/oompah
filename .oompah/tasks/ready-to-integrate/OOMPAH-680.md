@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-680
 type: task
-status: In Review
+status: Ready to Integrate
 priority: null
 title: Use project forge credentials for all managed Git network operations
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T17:31:44.735248Z'
-updated_at: '2026-08-01T20:15:51.740464Z'
+updated_at: '2026-08-02T18:21:43.627830Z'
 work_branch: OOMPAH-680
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/643
@@ -641,5 +641,15 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 41m 41s
 - Log: OOMPAH-680__20260801T193412Z.jsonl
+---
+author: oompah
+created: 2026-08-02 18:21
+---
+Owner recovery: #643 merged an older branch generation, while current remote head d08a8da59b0195cd3811f8adcc9935a156e68e36 is not in origin/main and has no open review. Returning this exact head to Ready to Integrate for the normal quality-gate and fresh-review path. OOMPAH-698 tracks the legacy missing-review_head reconciliation bug.
+---
+author: oompah
+created: 2026-08-02 18:21
+---
+Owner recovered stale historical-review metadata; requeueing current exact head for automated gate and review.
 ---
 <!-- COMMENTS:END -->

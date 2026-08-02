@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-682
 type: task
-status: In Review
+status: Ready to Integrate
 priority: null
 title: Make duplicate-preflight recovery authoritative and self-sufficient
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T18:07:47.349822Z'
-updated_at: '2026-08-01T22:04:53.138088Z'
+updated_at: '2026-08-02T18:21:48.393932Z'
 work_branch: OOMPAH-682
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/645
@@ -534,5 +534,15 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: normal, Duration: 24m 39s
 - Log: OOMPAH-682__20260801T214017Z.jsonl
+---
+author: oompah
+created: 2026-08-02 18:21
+---
+Owner recovery: #645 merged an older branch generation, while current remote head 71f87859fe5fcab892dccb14c1f01546583f3a26 is not in origin/main and has no open review. Returning this exact head to Ready to Integrate for the normal quality-gate and fresh-review path. OOMPAH-698 tracks the legacy missing-review_head reconciliation bug.
+---
+author: oompah
+created: 2026-08-02 18:21
+---
+Owner recovered stale historical-review metadata; requeueing current exact head for automated gate and review.
 ---
 <!-- COMMENTS:END -->
