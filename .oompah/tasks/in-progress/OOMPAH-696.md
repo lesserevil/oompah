@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T16:18:38.337420Z'
-updated_at: '2026-08-02T16:31:08.347758Z'
+updated_at: '2026-08-02T16:39:07.102490Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -153,5 +153,10 @@ author: oompah
 created: 2026-08-02 16:31
 ---
 Implementation: Added _child_has_durable_landing_evidence() method to check if a child's integrated_sha is reachable from container branches. Modified _mark_epic_merged() to call this before _child_landing_evidence_block_reason(). When durable evidence exists, the child is promoted instead of moved to Needs Human. Changes: oompah/orchestrator.py (2 edits), tests/test_epic_strategy.py (1 new test). All 220 epic_strategy tests pass.
+---
+author: oompah
+created: 2026-08-02 16:39
+---
+Verification: All tests pass. Three new tests added to cover: (1) Done child with pruned branch but valid integration is promoted, (2) Repeated reconciliation is idempotent with durable evidence, (3) Unreachable integrated_sha correctly falls back to normal checks. Total: 222 tests in test_epic_strategy.py all passing. Ready for submission.
 ---
 <!-- COMMENTS:END -->
