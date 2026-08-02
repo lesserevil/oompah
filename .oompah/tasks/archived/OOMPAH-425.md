@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-23T20:45:34.887827Z'
-updated_at: '2026-08-02T01:48:00.834247Z'
+updated_at: '2026-08-02T01:48:05.445329Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -93,6 +93,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-02T01:38:59.839326+00:00'
     branch_key: OOMPAH-425
+oompah.task_costs:
+  total_input_tokens: 46
+  total_output_tokens: 7168
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 46
+      output_tokens: 7168
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 46
+    output_tokens: 7168
+    cost_usd: 0.0
+    recorded_at: '2026-08-02T01:47:58.488001+00:00'
 ---
 ## Summary
 
