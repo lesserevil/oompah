@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-692
 type: feature
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Version authoritative dashboard state in the WebSocket protocol
 parent: OOMPAH-691
@@ -12,7 +12,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-08-02T02:01:46.836436Z'
-updated_at: '2026-08-02T03:00:26.733558Z'
+updated_at: '2026-08-02T03:21:45.911070Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-692
 target_branch: null
 review_url: null
@@ -46,15 +46,15 @@ oompah.agent_run_id: 0e560dd4-b918-4c85-b811-59af3e1eade7
 oompah.work_branch: epic-OOMPAH-691--task-OOMPAH-692
 oompah.integration:
   version: 2
-  state: ready
+  state: integrated
   attempts: 1
   task_branch: epic-OOMPAH-691--task-OOMPAH-692
   base_branch: epic-OOMPAH-691
   base_sha: 6252b5434f392b74de9703a9fc8dca1951dfeaca
   head_sha: 23d108b20c132b03c5dd450c1cb8ac97d4f0ffac
+  integrated_sha: 23d108b20c132b03c5dd450c1cb8ac97d4f0ffac
   submitted_at: '2026-08-02T02:54:11.237223+00:00'
-  updated_at: '2026-08-02T03:00:25.934229+00:00'
-  last_error: Combined-tree quality gate interrupted by service shutdown
+  updated_at: '2026-08-02T03:21:38.628759+00:00'
 oompah.task_costs:
   total_input_tokens: 16418312
   total_output_tokens: 75121
@@ -133,6 +133,28 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-691--task-OOMPAH-692
     source_sha: ac3b02e6693269566975ea310e18a81f79139649
     completed_at: '2026-08-02T02:54:22.286384+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-e8e382c35f09
+    project_id: proj-14849f1b
+    task_id: OOMPAH-692
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 443d0d0744941412f3a1b53cdb919c63401dd4805d82e1e815bcc608126cdeb9
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-08-02T03:21:41.001783+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -473,5 +495,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 3m 50s
 - Log: OOMPAH-692__20260802T025040Z.jsonl
+---
+author: oompah
+created: 2026-08-02 03:21
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
