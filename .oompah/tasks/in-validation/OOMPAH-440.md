@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-24T16:07:22.198190Z'
-updated_at: '2026-08-02T01:16:40.379216Z'
+updated_at: '2026-08-02T01:16:55.426911Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -97,5 +97,15 @@ author: oompah
 created: 2026-08-02 01:14
 ---
 Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
+---
+author: oompah
+created: 2026-08-02 01:16
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-02 01:16
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
