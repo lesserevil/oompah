@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-709
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Make tick-delegation tests deterministic under parallel full-suite execution
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T23:17:45.073003Z'
-updated_at: '2026-08-02T23:18:33.614468Z'
+updated_at: '2026-08-02T23:18:48.744551Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,7 +38,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 18549ea3-d20a-4581-94e7-dc82e7439f97
+oompah.agent_run_id: e57219ea-94f3-4c25-a984-b8e16ec04886
 oompah.task_costs:
   total_input_tokens: 50525
   total_output_tokens: 384
@@ -118,5 +118,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 18s
 - Log: OOMPAH-709__20260802T231813Z.jsonl
+---
+author: oompah
+created: 2026-08-02 23:18
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
