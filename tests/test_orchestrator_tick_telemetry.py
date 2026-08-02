@@ -419,6 +419,47 @@ class TestTickTimingsStorage:
 
 
 # ---------------------------------------------------------------------------
+# Deterministic clock helpers for slow-tick telemetry tests
+# ---------------------------------------------------------------------------
+
+
+def _make_fast_tick_clock():
+    """Monotonic clock that advances 1 ms per call.
+
+    Injected as Orchestrator._monotonic_clock in tests that must guarantee
+    total_ms << 2000 ms regardless of host load or scheduler jitter.
+    Replacing the real time.monotonic() removes the one-second timing
+    boundary that caused spurious CI failures (OOMPAH-688).
+    """
+    t = [0.0]
+
+    def _clock() -> float:
+        val = t[0]
+        t[0] += 0.001
+        return val
+
+    return _clock
+
+
+def _make_slow_tick_clock():
+    """Monotonic clock where t0 = 0.0 and every subsequent call returns 3.0.
+
+    Guarantees total_ms = (t4b - t0) * 1000 = 3000 ms > 2000 ms without
+    any real sleep, so the slow-tick warning path is exercised deterministically
+    even under parallel CI load.
+    """
+    first = [True]
+
+    def _clock() -> float:
+        if first[0]:
+            first[0] = False
+            return 0.0
+        return 3.0
+
+    return _clock
+
+
+# ---------------------------------------------------------------------------
 # Slow-tick log includes dispatch substep detail
 # ---------------------------------------------------------------------------
 
@@ -427,9 +468,11 @@ class TestSlowTickSubstepLogging:
     """When a tick is slow (>2000ms), the log includes per-substep dispatch timings."""
 
     def test_slow_tick_log_includes_dispatch_substep_names(self, tmp_path, caplog):
-        """A slow-tick log line includes dispatch substep names."""
-        import time
+        """A slow-tick log line includes dispatch substep names.
 
+        Uses a deterministic injected clock (_make_slow_tick_clock) so the
+        test is stable under parallel CI load without any real sleep.
+        """
         orch = _make_orchestrator(tmp_path)
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
@@ -454,14 +497,8 @@ class TestSlowTickSubstepLogging:
         }
         orch._handle_dispatch_needed = AsyncMock(return_value=substeps)
 
-        # Inject artificial delay so total_ms > 2000
-        original_dispatch = orch._handle_dispatch_needed
-
-        async def slow_dispatch():
-            time.sleep(2.1)  # make tick slow
-            return substeps
-
-        orch._handle_dispatch_needed = slow_dispatch
+        # Inject a deterministic clock: t0=0.0, t4b=3.0 → total_ms=3000 > 2000.
+        orch._monotonic_clock = _make_slow_tick_clock()
 
         with caplog.at_level(logging.WARNING, logger="oompah.orchestrator"):
             with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
@@ -477,15 +514,19 @@ class TestSlowTickSubstepLogging:
         )
 
     def test_slow_tick_log_includes_watchdog_and_heal(self, tmp_path, caplog):
-        """Slow-tick log includes watchdog_ms and heal_ms."""
-        import time
+        """Slow-tick log includes watchdog_ms and heal_ms.
 
+        Uses a deterministic injected clock so the test is stable under
+        parallel CI load without any real sleep.
+        """
         orch = _make_orchestrator(tmp_path)
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
         orch._handle_yolo_review = AsyncMock(return_value=(0.0, 0.0, 0.0))
         orch._handle_auto_update = AsyncMock()
         orch._notify_observers = MagicMock()
+        orch._maybe_run_watchdog = MagicMock()
+        orch._maybe_heal_repos = MagicMock()
 
         substeps: dict[str, float] = {
             "candidate_fetch": 0.0,
@@ -502,12 +543,8 @@ class TestSlowTickSubstepLogging:
         }
         orch._handle_dispatch_needed = AsyncMock(return_value=substeps)
 
-        # Inject delay via watchdog stub
-        def slow_watchdog():
-            time.sleep(2.1)
-
-        orch._maybe_run_watchdog = slow_watchdog
-        orch._maybe_heal_repos = MagicMock()
+        # Inject a deterministic clock: t0=0.0, t4b=3.0 → total_ms=3000 > 2000.
+        orch._monotonic_clock = _make_slow_tick_clock()
 
         with caplog.at_level(logging.WARNING, logger="oompah.orchestrator"):
             with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
@@ -525,7 +562,13 @@ class TestSlowTickSubstepLogging:
         )
 
     def test_no_slow_tick_warning_for_fast_ticks(self, tmp_path, caplog):
-        """No slow-tick warning is emitted for ticks that complete quickly."""
+        """No slow-tick warning is emitted for ticks that complete quickly.
+
+        Uses a deterministic injected clock advancing 1 ms per call so the
+        test never crosses the 2000 ms threshold regardless of host load
+        (OOMPAH-688: previously used real wall-clock, causing intermittent
+        failures in the parallel full branch gate).
+        """
         orch = _make_orchestrator(tmp_path)
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
@@ -536,12 +579,43 @@ class TestSlowTickSubstepLogging:
         orch._maybe_heal_repos = MagicMock()
         orch._handle_dispatch_needed = AsyncMock(return_value={})
 
+        # Inject a deterministic fast clock: all timing calls advance by 1 ms.
+        # With ~12 calls in _tick(), total_ms ≤ 12 ms, far below the 2000 ms
+        # slow-tick threshold.
+        orch._monotonic_clock = _make_fast_tick_clock()
+
         with caplog.at_level(logging.WARNING, logger="oompah.orchestrator"):
             with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
                 asyncio.run(orch._tick())
 
         warning_lines = [r.message for r in caplog.records if "Slow tick" in r.message]
         assert not warning_lines, f"Unexpected slow-tick warning for fast tick: {warning_lines}"
+
+    def test_no_slow_tick_warning_for_fast_ticks_repeated(self, tmp_path, caplog):
+        """Running test_no_slow_tick_warning_for_fast_ticks twice in the same
+        process is stable — ensures the clock helper is freshly constructed
+        each call and does not leak state between invocations."""
+        for _ in range(2):
+            orch = _make_orchestrator(tmp_path)
+            orch._handle_reconcile = AsyncMock()
+            orch._handle_review_check = AsyncMock()
+            orch._handle_yolo_review = AsyncMock(return_value=(0.0, 0.0, 0.0))
+            orch._handle_auto_update = AsyncMock()
+            orch._notify_observers = MagicMock()
+            orch._maybe_run_watchdog = MagicMock()
+            orch._maybe_heal_repos = MagicMock()
+            orch._handle_dispatch_needed = AsyncMock(return_value={})
+            orch._monotonic_clock = _make_fast_tick_clock()
+
+            with caplog.at_level(logging.WARNING, logger="oompah.orchestrator"):
+                with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
+                    asyncio.run(orch._tick())
+
+            warning_lines = [r.message for r in caplog.records if "Slow tick" in r.message]
+            assert not warning_lines, (
+                f"Unexpected slow-tick warning on iteration: {warning_lines}"
+            )
+            caplog.clear()
 
 
 # ---------------------------------------------------------------------------
