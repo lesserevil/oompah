@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-356
 type: epic
-status: Merged
+status: In Validation
 priority: 1
 title: Reduce unfinished epic branch synchronization churn
 parent: null
@@ -15,12 +15,34 @@ labels:
 - workflow
 assignee: null
 created_at: '2026-07-22T01:23:32.887223Z'
-updated_at: '2026-07-26T00:27:44.398430Z'
+updated_at: '2026-08-02T01:12:48.384022Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-609917f758c9
+    project_id: proj-14849f1b
+    task_id: OOMPAH-356
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: afe4a724470fb72d93d5fc3e6ef18e8d543f1b54864f887b84c39a678efa8e3f
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-02T01:12:44.770084+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -48,5 +70,10 @@ author: oompah
 created: 2026-07-26 00:27
 ---
 Verified delivered on origin/main in 2ba37886b and reconciled stale Done state.
+---
+author: oompah
+created: 2026-08-02 01:12
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
