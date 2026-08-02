@@ -39,7 +39,7 @@ def _setup_owner_endpoint(monkeypatch, *, actor: str, is_owner: bool):
         status_label_authorized_logins=[],
     )
     orch = MagicMock()
-    orch._get_project_by_id.return_value = project
+    orch.project_store.get.return_value = project
     orch._owner_resolve_duplicate_screening.return_value = True
 
     monkeypatch.setattr(server_module, "_get_orchestrator", lambda: orch)
@@ -87,6 +87,24 @@ def test_non_owner_cannot_apply_owner_resolution(monkeypatch):
     orch._owner_resolve_duplicate_screening.assert_not_called()
 
 
+def test_missing_managed_project_fails_closed_without_resolution(monkeypatch):
+    orch, _tracker = _setup_owner_endpoint(
+        monkeypatch,
+        actor="owner",
+        is_owner=True,
+    )
+    orch.project_store.get.return_value = None
+
+    response = TestClient(app, raise_server_exceptions=False).post(
+        "/api/v1/issues/TASK-1/duplicate-screening/owner-resolution",
+        json={"verdict": "no_duplicate", "reason": "Reviewed the corpus."},
+    )
+
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "not_found"
+    orch._owner_resolve_duplicate_screening.assert_not_called()
+
+
 def test_authenticated_owner_resolution_passes_revision_and_returns_rearm_state(
     monkeypatch,
 ):
@@ -108,6 +126,7 @@ def test_authenticated_owner_resolution_passes_revision_and_returns_rearm_state(
     assert response.status_code == 200
     assert response.json()["status"] == "Open"
     assert response.json()["retry_count"] == 0
+    orch.project_store.get.assert_called_once_with("proj-1")
     kwargs = orch._owner_resolve_duplicate_screening.call_args.kwargs
     assert kwargs["owner_login"] == "owner"
     assert kwargs["expected_fingerprint"] == "fingerprint-v2"
