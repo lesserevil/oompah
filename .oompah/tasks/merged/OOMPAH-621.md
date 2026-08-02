@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-621
 type: task
-status: Done
+status: Merged
 priority: 1
 title: Document and integration-test CLI credential precedence
 parent: OOMPAH-619
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:25:29.809048Z'
-updated_at: '2026-07-31T08:10:55.401821Z'
+updated_at: '2026-08-02T18:27:58.341977Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-621
 target_branch: null
 review_url: null
@@ -153,6 +153,25 @@ oompah.terminal_audit:
     attempt-8a79c55ddcf1: '2026-07-30T22:43:19.718125+00:00'
     attempt-52c9129eca9e: '2026-07-31T06:25:23.085292+00:00'
     attempt-8302129935eb: '2026-07-31T08:10:37.427107+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-0030466c9349
+    project_id: proj-14849f1b
+    task_id: OOMPAH-621
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7ee88aab4b7bf747bcacf00ce9a01ccd7ccdcdde8d57712e591c37457c8009f4
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reconciliation: parent OOMPAH-619 is Merged and its accepted rollup
+      contains this previously audited Done child; durable integration-queue/rollup
+      evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.'
+    created_at: '2026-08-02T18:27:53.129194+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -738,5 +757,12 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: normal, Duration: 7m 1s
 - Log: OOMPAH-621__20260731T080358Z.jsonl
+---
+author: oompah
+created: 2026-08-02 18:27
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner reconciliation: parent OOMPAH-619 is Merged and its accepted rollup contains this previously audited Done child; durable integration-queue/rollup evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.
 ---
 <!-- COMMENTS:END -->
