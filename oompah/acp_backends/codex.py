@@ -590,7 +590,8 @@ class CodexAcpBackendSession(AcpBackendSession):
         # process env; if the provider configured a custom api_key it
         # will already be in options.env.
         agent_env = agent_environment(
-            {**os.environ, **(self._options.env or {})}
+            {**os.environ, **(self._options.env or {})},
+            workspace_path=self._options.workspace_path,
         )
         # Push the api_key into the process env if present in options
         # so the SDK's default client picks it up.
@@ -783,7 +784,8 @@ class CodexAcpBackendSession(AcpBackendSession):
         # options.env overrides, but strip CODEX_API_KEY so the CLI's
         # OAuth login is used rather than a key.
         cli_env = agent_environment(
-            {**os.environ, **(self._options.env or {})}
+            {**os.environ, **(self._options.env or {})},
+            workspace_path=self._options.workspace_path,
         )
         if self._options.task_handoff_token:
             cli_env[TASK_HANDOFF_TOKEN_ENV] = self._options.task_handoff_token

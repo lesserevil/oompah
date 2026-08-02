@@ -562,7 +562,7 @@ def _exec_run_command(
     # command.  This applies even when no explicit overrides are supplied,
     # because ``env=None`` would otherwise inherit the server's full env.
     inherited_env = {**os.environ, **(env_overrides or {})}
-    env = agent_environment(inherited_env)
+    env = agent_environment(inherited_env, workspace_path=workspace)
     
     # Apply noninteractive git environment to all commands as defense-in-depth (OOMPAH-681).
     # This prevents git from spawning editors even if the command bypasses our validation.

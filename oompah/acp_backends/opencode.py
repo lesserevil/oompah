@@ -340,7 +340,8 @@ class OpencodeAcpBackendSession(AcpBackendSession):
         # process env; if the provider configured a custom api_key it
         # will already be in options.env.
         agent_env = agent_environment(
-            {**os.environ, **(self._options.env or {})}
+            {**os.environ, **(self._options.env or {})},
+            workspace_path=self._options.workspace_path,
         )
         if self._options.task_handoff_token:
             agent_env[TASK_HANDOFF_TOKEN_ENV] = self._options.task_handoff_token

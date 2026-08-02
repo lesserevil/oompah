@@ -1,4 +1,7 @@
-VENV := .venv
+# Managed task workers receive OOMPAH_TASK_VENV from the server.  Never let a
+# worker fall back to an inherited service VIRTUAL_ENV or a thin .venv wrapper;
+# the explicit path is both task-private and passed to uv below.
+VENV := $(if $(OOMPAH_TASK_VENV),$(OOMPAH_TASK_VENV),.venv)
 PYTHON := $(VENV)/bin/python
 # Keep the operator's command-resolution contract separate from the internal
 # tool path exported to recipes.  Exporting the latter is useful for Make's
@@ -128,7 +131,17 @@ setup: $(VENV)/.uv-setup
 
 $(VENV)/.uv-setup: pyproject.toml
 	@test -d $(VENV) || uv venv $(VENV)
-	uv pip install -e '.[server]'
+	@test ! -L "$(VENV)" && test -f "$(VENV)/pyvenv.cfg" || { \
+		echo "ERROR: $(VENV) is not a real task-private virtualenv; refusing to run uv against a wrapper or alias." >&2; \
+		exit 1; \
+	}
+	@expected_prefix=$$(cd "$(VENV)" && pwd -P); \
+	actual_prefix=$$($(PYTHON) -c 'import sys; print(sys.prefix)' 2>/dev/null || true); \
+	if [ "$$actual_prefix" != "$$expected_prefix" ]; then \
+		echo "ERROR: $(VENV) interpreter resolves to $$actual_prefix, not the task-private runtime $$expected_prefix; refusing to run uv." >&2; \
+		exit 1; \
+	fi
+	uv pip install --python "$(PYTHON)" -e '.[server]'
 	@touch $@
 	@echo "Setup complete. Run 'make start' to launch oompah."
 endif
@@ -147,7 +160,7 @@ ifeq ($(_PYTEST_GATE),)
 test-setup: $(VENV)/.uv-test-setup
 
 $(VENV)/.uv-test-setup: pyproject.toml $(VENV)/.uv-setup
-	uv pip install -e '.[dev]'
+	uv pip install --python "$(PYTHON)" -e '.[dev]'
 	@touch $@
 	@echo "Test dependencies installed."
 else

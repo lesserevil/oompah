@@ -21,7 +21,7 @@ def test_setup_installs_server_dependencies_only():
 
     assert "setup: $(VENV)/.uv-setup" in text
     assert "$(VENV)/.uv-setup: pyproject.toml" in text
-    assert "uv pip install -e '.[server]'" in text
+    assert "uv pip install --python \"$(PYTHON)\" -e '.[server]'" in text
     assert "start: setup" in text
     assert "ensure-" not in text
 
@@ -35,7 +35,7 @@ def test_test_targets_install_complete_dev_dependencies():
         "$(VENV)/.uv-test-setup: pyproject.toml $(VENV)/.uv-setup"
         in text
     )
-    assert "uv pip install -e '.[dev]'" in text
+    assert "uv pip install --python \"$(PYTHON)\" -e '.[dev]'" in text
     assert ".PHONY: help setup test-setup" in text
     assert "test: test-setup" in text
     assert "test-serial: test-setup" in text
@@ -178,8 +178,91 @@ def test_non_gate_test_setup_still_installs_declared_dependencies():
         check=True,
     )
 
-    assert "uv pip install -e '.[server]'" in result.stdout
-    assert "uv pip install -e '.[dev]'" in result.stdout
+    assert "uv pip install --python \".venv/bin/python\" -e '.[server]'" in result.stdout
+    assert "uv pip install --python \".venv/bin/python\" -e '.[dev]'" in result.stdout
+
+
+def test_non_gate_setup_rejects_a_thin_venv_wrapper_before_uv(tmp_path):
+    """A task checkout cannot use a wrapper that points at the service venv."""
+    venv = tmp_path / ".venv"
+    python = venv / "bin" / "python"
+    python.parent.mkdir(parents=True)
+    python.write_text(
+        "#!/bin/sh\nexec /operator/service/.venv/bin/python \"$@\"\n",
+        encoding="utf-8",
+    )
+    python.chmod(0o755)
+
+    fake_uv = tmp_path / "uv"
+    fake_uv.write_text(
+        "#!/bin/sh\n"
+        f"touch {tmp_path / 'uv-used'}\n"
+        "exit 0\n",
+        encoding="utf-8",
+    )
+    fake_uv.chmod(0o755)
+    environment = os.environ.copy()
+    # This fixture verifies the normal setup branch even when pytest itself is
+    # running inside a quality gate, whose environment enables gate mode.
+    environment["OOMPAH_PYTEST_GATE"] = "0"
+    environment["PATH"] = f"{tmp_path}:/usr/bin:/bin"
+    result = subprocess.run(
+        [
+            "/usr/bin/make",
+            "--no-print-directory",
+            "--always-make",
+            f"VENV={venv}",
+            "setup",
+        ],
+        cwd=ROOT,
+        env=environment,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode != 0
+    assert "not a real task-private virtualenv" in result.stderr
+    assert not (tmp_path / "uv-used").exists()
+
+
+def test_non_gate_setup_rejects_a_symlinked_service_venv_before_uv(tmp_path):
+    """A symlinked .venv cannot make the service runtime the install target."""
+    service_venv = tmp_path / "service" / ".venv"
+    service_venv.mkdir(parents=True)
+    (service_venv / "pyvenv.cfg").write_text("home = /operator/python\n", encoding="utf-8")
+    worktree_venv = tmp_path / "worktree" / ".venv"
+    worktree_venv.parent.mkdir()
+    worktree_venv.symlink_to(service_venv, target_is_directory=True)
+
+    fake_uv = tmp_path / "uv"
+    fake_uv.write_text(
+        "#!/bin/sh\n"
+        f"touch {tmp_path / 'uv-used'}\n"
+        "exit 0\n",
+        encoding="utf-8",
+    )
+    fake_uv.chmod(0o755)
+    environment = os.environ.copy()
+    # Keep this explicitly non-gate test independent of its outer runner.
+    environment["OOMPAH_PYTEST_GATE"] = "0"
+    environment["PATH"] = f"{tmp_path}:/usr/bin:/bin"
+    result = subprocess.run(
+        [
+            "/usr/bin/make",
+            "--no-print-directory",
+            "--always-make",
+            f"VENV={worktree_venv}",
+            "setup",
+        ],
+        cwd=ROOT,
+        env=environment,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode != 0
+    assert "not a real task-private virtualenv" in result.stderr
+    assert not (tmp_path / "uv-used").exists()
 
 
 def test_setup_does_not_install_external_tracker_cli():

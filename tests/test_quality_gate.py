@@ -17,6 +17,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+import oompah.quality_gate as quality_gate
 from oompah.models import Issue, Project
 from oompah.orchestrator import Orchestrator
 from oompah.quality_gate import (
@@ -24,6 +25,9 @@ from oompah.quality_gate import (
     QualityGateResult,
     _SANDBOX_RUN_ROOT,
     _SandboxUnavailable,
+    _TrustedRuntimeCorruption,
+    _editable_oompah_source,
+    _validate_trusted_runtime_source,
 )
 from oompah.statuses import OPEN, READY_TO_INTEGRATE
 
@@ -564,6 +568,11 @@ def test_sandbox_command_uses_an_empty_root_and_private_runtime_mounts(
     try:
         monkeypatch.setattr(shutil, "which", lambda _name: "/usr/bin/bwrap")
         monkeypatch.setattr(
+            quality_gate,
+            "_validate_trusted_runtime_source",
+            lambda _runtime_prefix, _candidate_snapshot: None,
+        )
+        monkeypatch.setattr(
             subprocess,
             "run",
             lambda args, **_kwargs: subprocess.CompletedProcess(args, 0),
@@ -618,6 +627,11 @@ def test_sandbox_command_overlays_writable_uv_sentinels_over_ro_venv(
     run_root = BranchQualityGate._gate_run_root()
     try:
         monkeypatch.setattr(shutil, "which", lambda _name: "/usr/bin/bwrap")
+        monkeypatch.setattr(
+            quality_gate,
+            "_validate_trusted_runtime_source",
+            lambda _runtime_prefix, _candidate_snapshot: None,
+        )
         monkeypatch.setattr(
             subprocess,
             "run",
@@ -676,6 +690,11 @@ def test_sandbox_command_binds_operator_venv_at_absolute_path_for_shebang_resolu
     try:
         monkeypatch.setattr(shutil, "which", lambda _name: "/usr/bin/bwrap")
         monkeypatch.setattr(
+            quality_gate,
+            "_validate_trusted_runtime_source",
+            lambda _runtime_prefix, _candidate_snapshot: None,
+        )
+        monkeypatch.setattr(
             subprocess,
             "run",
             lambda args, **_kwargs: subprocess.CompletedProcess(args, 0),
@@ -720,6 +739,62 @@ def test_sandbox_command_binds_operator_venv_at_absolute_path_for_shebang_resolu
             )
     finally:
         BranchQualityGate._cleanup_gate_run_root(run_root)
+
+
+def test_editable_source_mapping_is_read_from_trusted_distribution_metadata(
+    tmp_path, monkeypatch
+):
+    source = tmp_path / "service-checkout"
+    source.mkdir()
+
+    class Distribution:
+        def read_text(self, filename):
+            assert filename == "direct_url.json"
+            return json.dumps(
+                {"url": source.as_uri(), "dir_info": {"editable": True}}
+            )
+
+    monkeypatch.setattr(
+        quality_gate.metadata, "distribution", lambda _name: Distribution()
+    )
+
+    assert _editable_oompah_source() == source.resolve()
+
+
+def test_poisoned_editable_source_mapping_is_executor_corruption(tmp_path, monkeypatch):
+    runtime = tmp_path / "service" / ".venv"
+    candidate = tmp_path / "candidate"
+    wrong_worktree = tmp_path / "other-task"
+    monkeypatch.setattr(
+        quality_gate,
+        "_declared_editable_oompah_source",
+        lambda: wrong_worktree,
+    )
+
+    with pytest.raises(_TrustedRuntimeCorruption, match="expected .*actual"):
+        _validate_trusted_runtime_source(runtime, candidate)
+
+
+def test_gate_reports_poisoned_runtime_without_running_candidate(tmp_path):
+    repo = _git_repo(tmp_path)
+    marker = tmp_path / "candidate-ran"
+
+    def poisoned_launcher(_command, _repo_path, _run_root):
+        raise _TrustedRuntimeCorruption(
+            "expected /service or immutable candidate; actual /other-task"
+        )
+
+    gate = BranchQualityGate(
+        str(tmp_path / "quality.json"),
+        safety_head=_safety_head(repo),
+        sandbox_launcher=poisoned_launcher,
+    )
+    result = _run(gate, repo, f"touch {shlex.quote(str(marker))}")
+
+    assert result.status == "infrastructure_error"
+    assert "candidate CI was not run" in result.output_tail
+    assert not marker.exists()
+    assert not (tmp_path / "quality.json").exists()
 
 
 def test_default_boundary_blocks_literal_host_pid_and_localhost_attack(tmp_path):
@@ -999,6 +1074,37 @@ def test_orchestrator_routes_gate_needs_rebase_to_rebase_repair(tmp_path):
         **{"add-label": "needs-rebase"},
     )
     assert "rebase" in tracker.add_comment.call_args.args[1].lower()
+
+
+def test_orchestrator_reports_runtime_corruption_without_ci_fix(tmp_path):
+    issue = Issue(
+        id="task-1",
+        identifier="task-1",
+        title="Task",
+        project_id="project-1",
+        work_branch="work",
+    )
+    tracker = MagicMock()
+    orch = Orchestrator.__new__(Orchestrator)
+    orch._tracker_for_project = MagicMock(return_value=tracker)
+    orch._standalone_delivery_authorities = {}
+
+    orch._record_quality_gate_failure(
+        issue,
+        "project-1",
+        "work",
+        "main",
+        QualityGateResult(
+            status="infrastructure_error",
+            head_sha="a" * 40,
+            command="make test",
+            output_tail="candidate CI was not run",
+        ),
+    )
+
+    tracker.update_issue.assert_not_called()
+    assert "infrastructure action required" in tracker.add_comment.call_args.args[1].lower()
+    assert "no candidate ci-fix status" in tracker.add_comment.call_args.args[1].lower()
 
 
 def test_orchestrator_rejects_checkout_that_is_not_branch_tip(tmp_path):

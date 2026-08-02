@@ -10845,12 +10845,18 @@ class Orchestrator:
                     "leave the task in Done; Oompah will rerun the gate for "
                     "the new head before creating the PR/MR."
                 )
-            else:
+            elif result.status != "infrastructure_error":
                 lines.append(
                     "Required: run the command in the task worktree, fix the "
                     "failure, commit and push the repair, then leave the task "
                     "in Done. Oompah will rerun the gate for the new head "
                     "before creating the PR/MR."
+                )
+            if result.status == "infrastructure_error":
+                lines.append(
+                    "Infrastructure action required: repair or replace the "
+                    "operator-owned quality-gate runtime. No candidate CI-fix "
+                    "status was applied because the candidate command did not run."
                 )
             if output:
                 lines.extend(["", "Output tail:", "```text", output, "```"])
@@ -10867,6 +10873,8 @@ class Orchestrator:
                         return
                 else:
                     comment()
+            if result.status == "infrastructure_error":
+                return
             repair_status = (
                 NEEDS_REBASE if result.status == "needs_rebase" else NEEDS_CI_FIX
             )

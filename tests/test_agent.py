@@ -41,6 +41,7 @@ async def test_start_creates_dedicated_posix_session(tmp_path, monkeypatch):
     assert "OOMPAH_SERVER_USERNAME" not in child_env
     assert "OOMPAH_SERVER_PASSWORD" not in child_env
     assert "OOMPAH_SERVER_PASSWORD_FILE" not in child_env
+    assert child_env["OOMPAH_TASK_VENV"] == str(tmp_path / ".oompah" / "task-venv")
 
 
 @pytest.mark.asyncio
