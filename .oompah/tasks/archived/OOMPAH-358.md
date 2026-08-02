@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-358
 type: task
-status: In Validation
+status: Archived
 priority: 1
 title: Gate epic rebase scheduling on actionable conditions
 parent: OOMPAH-356
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-22T01:23:51.390755Z'
-updated_at: '2026-08-02T01:35:57.406192Z'
+updated_at: '2026-08-02T01:47:44.224366Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -19,6 +19,30 @@ review_number: null
 merged_at: null
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-82f090db2c15: '2026-08-02T01:47:41.051166+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-358
+    target_state: Archived
+    evidence_fingerprint: a95209a2e5e84d25e663b6c89792d61d9093b88b02f7b73fe663bca15169800e
+    audit_ids:
+    - audit-09c5d6e686c7
+    kind: result
+    applied: true
+    retired_at: '2026-08-02T01:47:41.051174+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-358
+    audit_id: audit-09c5d6e686c7
+    attempt_id: attempt-82f090db2c15
+    target_state: Archived
+    evidence_fingerprint: a95209a2e5e84d25e663b6c89792d61d9093b88b02f7b73fe663bca15169800e
+    status: Archived
+    audit_ids:
+    - audit-09c5d6e686c7
+    applied: false
+    created_at: '2026-08-02T01:47:41.051184+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -26,7 +50,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-358
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -35,7 +59,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-82f090db2c15
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -45,13 +69,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-02T01:35:46.804437+00:00'
       branch_key: OOMPAH-358
+      verdict: pass
+      completed_at: '2026-08-02T01:47:41.051069+00:00'
+      ended_at: '2026-08-02T01:47:41.051069+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-02T01:12:55.913861+00:00'
-    updated_at: '2026-08-02T01:35:46.804437+00:00'
+    updated_at: '2026-08-02T01:47:41.051069+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-82f090db2c15
@@ -108,5 +135,22 @@ author: oompah
 created: 2026-08-02 01:35
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-02 01:47
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- delivery_commit: 2ba37886b2f190fbfe84da6689e4a4f5877437fa
+- delivery_subject: Stop automatic synchronization of unfinished epics
+- origin_main_head: 6252b5434f392b74de9703a9fc8dca1951dfeaca
+- focused_tests_epic_rebase_state: 33 passed in 11.69s
+- focused_tests_orchestrator_handlers: 277 passed in 93.76s
+- previous_state: Merged
+- target_state: Archived
+- auto_archive_source: auto_archive requested_by oompah, aged 7 days after Merged
 ---
 <!-- COMMENTS:END -->
