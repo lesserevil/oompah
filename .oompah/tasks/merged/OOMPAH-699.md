@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T18:20:28.879414Z'
-updated_at: '2026-08-02T20:45:13.034759Z'
+updated_at: '2026-08-02T20:45:16.657929Z'
 work_branch: OOMPAH-699
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/660
@@ -53,7 +53,19 @@ oompah.terminal_audit:
       branch gate and local full suite. The live completion auditor repeatedly requested
       forbidden shell mutation tools, reproducing OOMPAH-701.'
     created_at: '2026-08-02T20:45:09.644030+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-699
+    target_state: Merged
+    evidence_fingerprint: 043cdbd60febedffde56219f648403ba1b9a712bc26c7d55977a78822b8dabbc
+    audit_ids:
+    - audit-a3058aacab06
+    - audit-13caa8418e58
+    kind: override
+    applied: true
+    retired_at: '2026-08-02T20:45:15.543426+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -61,7 +73,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-699
     target_state: Done
-    request_state: in_progress
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -86,13 +98,13 @@ oompah.terminal_audit:
       source: oompah
     previous_state: In Review
     created_at: '2026-08-02T20:41:20.031456+00:00'
-    updated_at: '2026-08-02T20:42:37.426493+00:00'
+    updated_at: '2026-08-02T20:45:15.543375+00:00'
   - version: 1
     audit_id: audit-13caa8418e58
     project_id: proj-14849f1b
     task_id: OOMPAH-699
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -104,6 +116,7 @@ oompah.terminal_audit:
       source: oompah
     previous_state: In Review
     created_at: '2026-08-02T20:41:20.031456+00:00'
+    updated_at: '2026-08-02T20:45:15.543406+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-65bbece6838f
