@@ -9,17 +9,43 @@ children: []
 blocked_by: []
 start_blocked_by: &id001
 - OOMPAH-692
-labels:
-- needs:backend
+labels: []
 assignee: null
 created_at: '2026-08-02T02:01:48.499285Z'
-updated_at: '2026-08-02T02:03:56.882667Z'
-work_branch: null
+updated_at: '2026-08-02T02:06:26.566022Z'
+work_branch: epic-OOMPAH-691--task-OOMPAH-693
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
 oompah.start_blocked_by: *id001
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 2b9546b2a408f9fde6a28c0895d88ee2692a4b540b9028f1290807fef0d01041
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: d8bc774a-6850-4bd4-a28f-63ec279130dc
+  claim_owner: a99e28f1-69ee-4f52-9672-996f40b2018d
+  claimed_at: '2026-08-02T02:06:11.261487+00:00'
+  claim_expires_at: '2026-08-02T02:36:11.261487+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
+oompah.agent_run_id: 665a3a30-6a9c-47d8-858a-f28193fb5b91
+oompah.work_branch: epic-OOMPAH-691--task-OOMPAH-693
+oompah.integration:
+  version: 2
+  state: working
+  attempts: 0
+  task_branch: epic-OOMPAH-691--task-OOMPAH-693
+  base_branch: epic-OOMPAH-691
+  base_sha: 6252b5434f392b74de9703a9fc8dca1951dfeaca
+  updated_at: '2026-08-02T02:06:21.447611+00:00'
 ---
 ## Summary
 
@@ -51,3 +77,16 @@ Acceptance criteria:
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-02 02:06
+---
+Duplicate screening dispatched (profile: standard, task remains Open)
+---
+author: oompah
+created: 2026-08-02 02:06
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
