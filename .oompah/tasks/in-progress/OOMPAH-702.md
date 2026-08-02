@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T20:34:49.621752Z'
-updated_at: '2026-08-02T21:56:01.161988Z'
+updated_at: '2026-08-02T22:00:02.715250Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -119,5 +119,10 @@ author: oompah
 created: 2026-08-02 21:56
 ---
 Discovery: _handle_webhook_event starts daemon threads for tracked-branch sync, merge-group labeling, In Review marking, and merged-PR staging; TestClient.post intentionally returns before those workers finish. Existing tests poll with time.sleep or assert immediately, causing the Python 3.11 race. I will add an autouse test harness that captures webhook threads, joins them, and surfaces uncaught worker exceptions; the merged regression will gate terminal staging with threading.Event to verify prompt HTTP acknowledgement plus deterministic completion.
+---
+author: oompah
+created: 2026-08-02 22:00
+---
+Implementation: tests/test_server_webhooks.py now uses an autouse _WebhookThreadHarness that captures webhook daemon threads, joins them, and re-raises uncaught worker exceptions. Replaced fixed sleeps/poll loops across tracked-branch sync, In Review, merged PR, merge-group, and status-label webhook cases. Added a delayed terminal-staging regression proving HTTP acknowledgement precedes completion, plus a worker-exception regression proving the barrier cannot false-pass.
 ---
 <!-- COMMENTS:END -->
