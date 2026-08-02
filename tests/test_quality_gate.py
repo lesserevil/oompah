@@ -306,6 +306,52 @@ def test_gate_rejects_a_worktree_that_is_not_the_recorded_head(tmp_path):
     assert not marker.exists()
 
 
+def test_gate_archives_exact_head_from_unrelated_managed_checkout(tmp_path):
+    repo = _git_repo(tmp_path)
+    (repo / "source.txt").write_text("candidate\n", encoding="utf-8")
+    subprocess.run(["git", "add", "source.txt"], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "commit", "-q", "-m", "candidate"], cwd=repo, check=True
+    )
+    candidate_head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    subprocess.run(["git", "checkout", "-q", "main"], cwd=repo, check=True)
+    (repo / "source.txt").write_text("dirty checkout\n", encoding="utf-8")
+
+    result = _run(
+        _gate(tmp_path / "quality.json", repo),
+        repo,
+        "test \"$(cat source.txt)\" = candidate",
+        expected_head_sha=candidate_head,
+        require_source_head_match=False,
+    )
+
+    assert result.passed
+    assert result.head_sha == candidate_head
+
+
+def test_gate_classifies_unavailable_exact_head_as_infrastructure(tmp_path):
+    repo = _git_repo(tmp_path)
+    marker = tmp_path / "must-not-run"
+
+    result = _run(
+        _gate(tmp_path / "quality.json", repo),
+        repo,
+        f"touch {shlex.quote(str(marker))}",
+        expected_head_sha="a" * 40,
+        require_source_head_match=False,
+    )
+
+    assert result.status == "infrastructure_error"
+    assert "exact commit is unavailable" in result.output_tail
+    assert not marker.exists()
+
+
 def test_generation_cancellation_does_not_stop_a_replacement_head_gate(tmp_path):
     repo = _git_repo(tmp_path)
     gate = _gate(tmp_path / "quality.json", repo)
@@ -1201,6 +1247,101 @@ def test_orchestrator_rejects_checkout_that_is_not_branch_tip(tmp_path):
     orch._issue_has_children = MagicMock(return_value=False)
 
     assert orch._quality_gate_worktree(project, issue, "work") == ""
+
+
+def test_orchestrator_gates_remote_head_without_canonical_worktree(tmp_path):
+    repo = _git_repo(tmp_path)
+    (repo / "source.txt").write_text("candidate\n", encoding="utf-8")
+    subprocess.run(["git", "add", "source.txt"], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "commit", "-q", "-m", "candidate"], cwd=repo, check=True
+    )
+    candidate_head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    subprocess.run(
+        ["git", "update-ref", "refs/remotes/origin/work", candidate_head],
+        cwd=repo,
+        check=True,
+    )
+    subprocess.run(["git", "checkout", "-q", "main"], cwd=repo, check=True)
+    subprocess.run(["git", "branch", "-D", "work"], cwd=repo, check=True)
+    counter = tmp_path / "counter"
+    command = f"printf x >> {shlex.quote(str(counter))}"
+    project = Project(
+        id="project-1",
+        name="project",
+        repo_url="https://example.test/org/repo",
+        repo_path=str(repo),
+        test_command=command,
+    )
+    issue = Issue(
+        id="task-1",
+        identifier="task-1",
+        title="Task",
+        project_id=project.id,
+        work_branch="work",
+    )
+    tracker = MagicMock()
+    project_store = MagicMock()
+    project_store.worktree_path_for.return_value = str(tmp_path / "missing")
+    orch = Orchestrator.__new__(Orchestrator)
+    orch.project_store = project_store
+    orch._issue_has_children = MagicMock(return_value=False)
+    orch._branch_quality_gate = _gate(tmp_path / "quality.json", repo)
+    orch._tracker_for_project = MagicMock(return_value=tracker)
+    orch._standalone_delivery_authority_lock = threading.RLock()
+    orch._standalone_delivery_authorities = {}
+
+    assert orch._quality_gate_worktree(project, issue, "work") == ""
+    assert orch._review_quality_gate_passes(project, issue, "work", "main")
+    assert orch._review_quality_gate_passes(project, issue, "work", "main")
+
+    assert counter.read_text(encoding="utf-8") == "x"
+    assert tracker.add_comment.call_count == 1
+    assert candidate_head in tracker.add_comment.call_args.args[1]
+
+
+def test_orchestrator_missing_review_head_is_infrastructure_not_ci_fix(tmp_path):
+    repo = _git_repo(tmp_path)
+    project = Project(
+        id="project-1",
+        name="project",
+        repo_url="https://example.test/org/repo",
+        repo_path=str(repo),
+        test_command="true",
+    )
+    issue = Issue(
+        id="task-1",
+        identifier="task-1",
+        title="Task",
+        project_id=project.id,
+        work_branch="missing",
+    )
+    tracker = MagicMock()
+    project_store = MagicMock()
+    project_store.worktree_path_for.return_value = str(tmp_path / "missing")
+    orch = Orchestrator.__new__(Orchestrator)
+    orch.project_store = project_store
+    orch._issue_has_children = MagicMock(return_value=False)
+    orch._branch_quality_gate = MagicMock()
+    orch._tracker_for_project = MagicMock(return_value=tracker)
+    orch._standalone_delivery_authority_lock = threading.RLock()
+    orch._standalone_delivery_authorities = {}
+
+    assert not orch._review_quality_gate_passes(
+        project, issue, "missing", "main"
+    )
+
+    orch._branch_quality_gate.run.assert_not_called()
+    tracker.update_issue.assert_not_called()
+    comment = tracker.add_comment.call_args.args[1].lower()
+    assert "infrastructure action required" in comment
+    assert "candidate ci was not run" in comment
 
 
 def test_orchestrator_discards_a_pass_when_the_branch_advances_during_gate(tmp_path):

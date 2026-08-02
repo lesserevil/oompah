@@ -372,7 +372,13 @@ class BranchQualityGate:
         )
         return result.stdout.strip()
 
-    def _verify_isolation_contract(self, repo_path: str) -> tuple[bool, str]:
+    def _verify_isolation_contract(
+        self,
+        repo_path: str,
+        head_sha: str,
+        *,
+        require_source_head_match: bool,
+    ) -> tuple[bool, str]:
         """Verify the candidate is based on the deployed lifecycle contract.
 
         The quality gate runs in a disposable worktree. Candidate code cannot be trusted
@@ -405,17 +411,18 @@ class BranchQualityGate:
             return False, "Not a git repository (required for ancestry verification)"
 
         try:
-            # Check if the safety head commit is an ancestor of HEAD in this
-            # repository.  This uses git merge-base --is-ancestor which is
-            # efficient and cannot be spoofed by Makefile marker text.
+            # Check the exact candidate commit, rather than the source
+            # checkout's HEAD.  Review gates may archive a verified remote
+            # commit directly from the managed repository when the original
+            # task checkout no longer exists.
             result = subprocess.run(
-                ["git", "merge-base", "--is-ancestor", safety_head, "HEAD"],
+                ["git", "merge-base", "--is-ancestor", safety_head, head_sha],
                 cwd=repo_path,
                 capture_output=True,
                 timeout=5,
             )
             # merge-base --is-ancestor exits 0 if ancestor exists, non-zero otherwise.
-            if result.returncode == 0:
+            if result.returncode == 0 and require_source_head_match:
                 dirty = subprocess.run(
                     [
                         "git",
@@ -438,6 +445,12 @@ class BranchQualityGate:
                         "Commit and push the repair before rerunning the exact "
                         "review-head gate.",
                     )
+                return True, ""
+            if result.returncode == 0:
+                # The candidate will be produced solely by ``git archive`` of
+                # ``head_sha``.  Untracked files and changes in the managed
+                # repository's unrelated checkout cannot enter that clean,
+                # immutable snapshot.
                 return True, ""
             return (
                 False,
@@ -492,7 +505,7 @@ class BranchQualityGate:
         """Archive the exact candidate head into a disposable gate workspace.
 
         A candidate command must never receive a writable bind of the service's
-        live worktree.  ``git archive`` takes only tracked files at ``HEAD``;
+        live worktree.  ``git archive`` takes only tracked files at ``head_sha``;
         this excludes operator .env/PID/log files and all other untracked
         state.  The archive is extracted with tar's data filter so a malicious
         symlink cannot escape the private run root.
@@ -1081,6 +1094,7 @@ class BranchQualityGate:
         command: str,
         retry_forced: bool = False,
         expected_head_sha: str | None = None,
+        require_source_head_match: bool = True,
         generation: str | None = None,
         is_current: Callable[[], bool] | None = None,
     ) -> QualityGateResult:
@@ -1120,13 +1134,21 @@ class BranchQualityGate:
         # be able to run concurrently so a replacement generation never waits
         # behind (or shares state with) an obsolete gate.
         try:
-            observed_head = self._head_sha(repo_path)
+            observed_head = (
+                self._head_sha(repo_path)
+                if require_source_head_match or not expected_head_sha
+                else ""
+            )
             head_sha = (
                 self._resolve_commit(repo_path, expected_head_sha)
                 if expected_head_sha
                 else observed_head
             )
-            if expected_head_sha and observed_head != head_sha:
+            if (
+                expected_head_sha
+                and require_source_head_match
+                and observed_head != head_sha
+            ):
                 if owned_generation is not None:
                     self._release_generation(owned_generation)
                 return QualityGateResult(
@@ -1142,16 +1164,23 @@ class BranchQualityGate:
             if owned_generation is not None:
                 self._release_generation(owned_generation)
             return QualityGateResult(
-                status="error",
+                status="infrastructure_error",
                 head_sha="",
                 command=command,
-                output_tail=f"Could not resolve branch HEAD: {exc}",
+                output_tail=(
+                    "Candidate CI was not run because the submitted exact "
+                    f"commit is unavailable in the managed repository: {exc}"
+                ),
             )
 
         # Fail closed before candidate code starts when the required lifecycle
         # isolation contract is absent, while retaining main's exact-head and
         # generation-aware launch sequencing.
-        is_compliant, reason = self._verify_isolation_contract(repo_path)
+        is_compliant, reason = self._verify_isolation_contract(
+            repo_path,
+            head_sha,
+            require_source_head_match=require_source_head_match,
+        )
         if not is_compliant:
             if owned_generation is not None:
                 self._release_generation(owned_generation)
