@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T16:21:00.027506Z'
-updated_at: '2026-08-02T16:25:50.426752Z'
+updated_at: '2026-08-02T16:33:20.383167Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -181,5 +181,34 @@ The current code binds reviews only to branch names, not the exact HEAD/SHA they
 - oompah/orchestrator.py: _ensure_review_exists (line 15477), _mark_task_in_review (line 15857), _write_review_metadata (line 15904), _reconcile_stale_in_review_tasks (line 17003), _reopen_stale_in_review_task (line 17519)
 - tests/test_orchestrator_merged.py: reconciliation tests
 - oompah/close_gate.py: git command execution patterns
+---
+author: oompah
+created: 2026-08-02 16:33
+---
+## Implementation
+
+**Changes Made:**
+1. Added \`review_head\` field to Issue model (oompah/models.py) to track the exact SHA when a review was created
+2. Created \`_get_branch_head_sha\` helper method in orchestrator to retrieve current branch HEAD from git
+3. Modified \`_write_review_metadata\` to accept and persist \`review_head\` as \`oompah.review_head\` metadata
+4. Updated \`_mark_task_in_review\` to capture current branch HEAD when marking task in review
+5. Added \`_is_review_stale\` method to detect when branch has advanced past stored review_head
+6. Added \`_clear_stale_review_and_requeue\` method to:
+   - Clear stale review metadata fields (review_url, review_number, review_head)
+   - Restore task from In Review to READY_TO_INTEGRATE (not OPEN)
+   - Allow automatic requeue through normal review flow
+7. Integrated stale review check into \`_reconcile_stale_in_review_tasks\` to detect and handle branch advancement
+8. Updated tracker adapters (github_tracker.py, oompah_md_tracker.py) to read/write review_head metadata
+
+**Key Design Decisions:**
+- Use READY_TO_INTEGRATE (not OPEN) when requeuing after stale review detection - allows automatic requeue without manual intervention
+- Store review_head as full SHA for precise matching but truncate to 7 chars in logs for readability
+- Best-effort git operations - failures in metadata write don't block reconciliation
+- Stale review check runs before merge state check - stale reviews treated as historical evidence, never active for newer heads
+
+**Tests Added:**
+- test_clears_stale_review_when_branch_advances_after_merge: reproduces OOMPAH-680/682 scenario
+- test_keeps_merged_review_in_review_when_head_matches: verifies non-stale merged reviews still mark as merged
+- All 162 existing tests in test_orchestrator_merged.py pass
 ---
 <!-- COMMENTS:END -->
