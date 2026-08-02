@@ -1,8 +1,8 @@
 ---
 id: OOMPAH-697
 type: bug
-status: In Review
-priority: 1
+status: Needs CI Fix
+priority: 0
 title: Requeue branches that advance after their recorded review merges
 parent: null
 children: []
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T16:21:00.027506Z'
-updated_at: '2026-08-02T17:19:21.253702Z'
+updated_at: '2026-08-02T17:26:28.111403Z'
 work_branch: OOMPAH-697
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/656
@@ -446,5 +446,10 @@ author: oompah
 created: 2026-08-02 17:19
 ---
 Branch quality gate passed for `0b0f2fd820fbff3307358f08d3fe4f969c93d71a` using `make test` in 396.4s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-02 17:26
+---
+YOLO: CI tests failed on MR #656. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
 ---
 <!-- COMMENTS:END -->
