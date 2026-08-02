@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-01T18:07:47.349822Z'
-updated_at: '2026-08-02T18:53:03.798144Z'
+updated_at: '2026-08-02T18:53:38.073082Z'
 work_branch: OOMPAH-682
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/658
@@ -247,18 +247,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-682
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 37ae2af318bcbf9da65fee30adc5810e979175af23da2a08f6db41965ac6b699
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-b849328da00e
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 37ae2af318bcbf9da65fee30adc5810e979175af23da2a08f6db41965ac6b699
+      created_at: '2026-08-02T18:53:33.268204+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-02T18:53:33.268204+00:00'
+      branch_key: OOMPAH-682
     requested_by:
       version: 1
       identity: NVShawn
       source: forge
     previous_state: In Review
     created_at: '2026-08-02T18:52:59.894536+00:00'
+    updated_at: '2026-08-02T18:53:33.268204+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-f119a532f4e9
@@ -285,6 +299,19 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: opus
     started_at: '2026-08-01T21:40:08.352349+00:00'
+    branch_key: OOMPAH-682
+  - version: 1
+    attempt_id: attempt-b849328da00e
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 37ae2af318bcbf9da65fee30adc5810e979175af23da2a08f6db41965ac6b699
+    created_at: '2026-08-02T18:53:33.268204+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-02T18:53:33.268204+00:00'
     branch_key: OOMPAH-682
 ---
 ## Summary
@@ -566,5 +593,15 @@ author: oompah
 created: 2026-08-02 18:44
 ---
 Owner recovery verification: exact remote head 71f87859fe5fcab892dccb14c1f01546583f3a26 passed the complete project gate: 14,864 passed, 7 skipped, 1 xfailed in 379.65s. Opening a fresh review because PR #645 covered only the older branch generation; OOMPAH-698 tracks the automated recovery bug.
+---
+author: oompah
+created: 2026-08-02 18:53
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-02 18:53
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
