@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-359
 type: task
-status: In Validation
+status: Archived
 priority: 1
 title: Expose epic branch staleness without synchronization churn
 parent: OOMPAH-356
@@ -11,7 +11,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-22T01:23:53.416699Z'
-updated_at: '2026-08-02T01:36:05.935422Z'
+updated_at: '2026-08-02T01:42:44.466087Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -19,6 +19,30 @@ review_number: null
 merged_at: null
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-7678c37b6b18: '2026-08-02T01:42:41.645570+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-359
+    target_state: Archived
+    evidence_fingerprint: 3ba4c95553617a563d8cdc69b6058ace9ab8b99ae451f9029faa16110a3d5629
+    audit_ids:
+    - audit-742227274b55
+    kind: result
+    applied: true
+    retired_at: '2026-08-02T01:42:41.645582+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-359
+    audit_id: audit-742227274b55
+    attempt_id: attempt-7678c37b6b18
+    target_state: Archived
+    evidence_fingerprint: 3ba4c95553617a563d8cdc69b6058ace9ab8b99ae451f9029faa16110a3d5629
+    status: Archived
+    audit_ids:
+    - audit-742227274b55
+    applied: false
+    created_at: '2026-08-02T01:42:41.645597+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -26,7 +50,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-359
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -35,7 +59,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-7678c37b6b18
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -45,13 +69,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-02T01:35:58.524877+00:00'
       branch_key: OOMPAH-359
+      verdict: pass
+      completed_at: '2026-08-02T01:42:41.645397+00:00'
+      ended_at: '2026-08-02T01:42:41.645397+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-02T01:13:01.207797+00:00'
-    updated_at: '2026-08-02T01:35:58.524877+00:00'
+    updated_at: '2026-08-02T01:42:41.645397+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-7678c37b6b18
@@ -108,5 +135,23 @@ author: oompah
 created: 2026-08-02 01:36
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-02 01:42
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- delivery_commit: 2ba37886b2f190fbfe84da6689e4a4f5877437fa
+- delivery_commit_on_main: true
+- delivery_commit_title: Stop automatic synchronization of unfinished epics
+- acceptance_criteria_met: observation-only-state=yes, actionable-reason-taxonomy=yes, no-silent-auto-sync=yes, stale-alert-preserved=yes
+- api_serialization_tests: tests/test_epic_rebase_state.py::TestSetEpicRebaseState::test_snapshot_marks_staleness_as_observation_only
+- policy_decision_tests: tests/test_epic_rebase_state.py::TestDispatchProactiveRebaseAgents::{test_main_advance_is_observed_but_not_dispatched,test_explicit_request_is_actionable,test_epic_to_epic_synchronization_is_prohibited}
+- previous_state: Merged
+- archive_trigger: aged-merged-auto-archive-7d
+- reconciliation_comments_present: 2026-07-26 delivery reconciled and verified on origin/main in 2ba37886b
 ---
 <!-- COMMENTS:END -->
