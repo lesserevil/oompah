@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-479
 type: feature
-status: Done
+status: Merged
 priority: 1
 title: Route webhook, YOLO, and merged-branch reconciliation through Merged audits
 parent: OOMPAH-459
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:27.240594Z'
-updated_at: '2026-07-30T02:19:06.780958Z'
+updated_at: '2026-08-02T18:23:02.514169Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-479
 target_branch: null
 review_url: null
@@ -125,6 +125,25 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-96784c9d8f70: '2026-07-30T02:17:47.650713+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-1e842902e5ff
+    project_id: proj-14849f1b
+    task_id: OOMPAH-479
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 46ed6610f639885ec9a640c1fe3048065a917af6d927a36c5134a64c1f4c71d3
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reconciliation: parent OOMPAH-459 is Merged and its accepted rollup
+      contains this previously audited Done child; durable integration-queue/rollup
+      evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.'
+    created_at: '2026-08-02T18:22:58.218708+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -610,5 +629,12 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 11m 20s
 - Log: OOMPAH-479__20260730T020751Z.jsonl
+---
+author: oompah
+created: 2026-08-02 18:23
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner reconciliation: parent OOMPAH-459 is Merged and its accepted rollup contains this previously audited Done child; durable integration-queue/rollup evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.
 ---
 <!-- COMMENTS:END -->
