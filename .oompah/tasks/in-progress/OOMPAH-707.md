@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-707
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Preserve explicit owner work from orphaned-In-Progress reset
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T22:19:11.796639Z'
-updated_at: '2026-08-02T22:39:11.825545Z'
+updated_at: '2026-08-02T22:39:31.861578Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,7 +38,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: a87ea440-19f6-47c6-826f-e75acc2dbc38
+oompah.agent_run_id: f1dfc558-8b09-4a7a-8956-ed39503796d9
 oompah.task_costs:
   total_input_tokens: 50340
   total_output_tokens: 904
@@ -102,5 +102,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 37s
 - Log: OOMPAH-707__20260802T223833Z.jsonl
+---
+author: oompah
+created: 2026-08-02 22:39
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->

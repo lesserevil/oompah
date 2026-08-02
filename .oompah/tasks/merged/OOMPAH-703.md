@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-703
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Make backlog refresh invalidation tests wait for completion deterministically
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T20:59:10.197769Z'
-updated_at: '2026-08-02T22:36:16.459515Z'
+updated_at: '2026-08-02T22:39:33.419042Z'
 work_branch: OOMPAH-703
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/663
@@ -105,6 +105,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-9ad9b59746a7: '2026-08-02T22:35:46.448566+00:00'
+    attempt-9f942b3ce3c7: '2026-08-02T22:39:27.705647+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-703
@@ -115,6 +116,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-02T22:35:46.448575+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-703
+    target_state: Merged
+    evidence_fingerprint: f55c8ab7eae1ae9acff2b0164f275f9aebe7fafb215c1480a6604e9e4237964c
+    audit_ids:
+    - audit-3990a0e653f5
+    kind: result
+    applied: true
+    retired_at: '2026-08-02T22:39:27.705659+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-703
@@ -128,6 +138,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-02T22:35:46.448589+00:00'
     applied_at: '2026-08-02T22:35:50.396009+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-703
+    audit_id: audit-3990a0e653f5
+    attempt_id: attempt-9f942b3ce3c7
+    target_state: Merged
+    evidence_fingerprint: f55c8ab7eae1ae9acff2b0164f275f9aebe7fafb215c1480a6604e9e4237964c
+    status: Merged
+    audit_ids:
+    - audit-3990a0e653f5
+    applied: false
+    created_at: '2026-08-02T22:39:27.705674+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -169,7 +190,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-703
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -178,7 +199,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-9f942b3ce3c7
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -188,13 +209,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-02T22:36:10.967063+00:00'
       branch_key: OOMPAH-703
+      verdict: pass
+      completed_at: '2026-08-02T22:39:27.705519+00:00'
+      ended_at: '2026-08-02T22:39:27.705519+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-02T22:28:44.531536+00:00'
-    updated_at: '2026-08-02T22:36:10.967063+00:00'
+    updated_at: '2026-08-02T22:39:27.705519+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-9ad9b59746a7
@@ -389,5 +413,25 @@ author: oompah
 created: 2026-08-02 22:36
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-02 22:39
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: 26b3f2ea9a99038870bc1f5d46a29157ee9be512
+- merge_commit: 53b14479d528381299b101f602dae6fae1161df9
+- merge_subject: Merge pull request #663 from lesserevil/OOMPAH-703
+- on_origin_main: yes
+- focused_module: tests/test_release_delivery_refresh.py 55/55 pass
+- focused_subset: TestBacklogRefreshManagerInvalidate 5/5 + TestRefreshManagerCompletion 3/3 + TestRefreshManagerThreadSafety 1/1 = 9/9 pass
+- repeated_target_test: test_invalidate_causes_next_get_or_start_to_refresh: 3 consecutive singleton runs pass
+- primitive_added: BacklogRefreshManager.wait_for_completion (oompah/release_delivery_refresh.py:228)
+- sleep_replacements: 5 invalidate tests + thread-safety cleanup switched from asyncio.sleep to wait_for_completion
+- new_test_class: TestRefreshManagerCompletion (no-job, success, failure)
+- prior_make_test_gate: pass (395.2s on branch head, per orchestrator gate comment)
 ---
 <!-- COMMENTS:END -->
