@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-685
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Forward project forge credentials through integration verification
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T21:46:41.297124Z'
-updated_at: '2026-08-02T03:09:05.145378Z'
+updated_at: '2026-08-02T03:09:19.167373Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -108,7 +108,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: d2a62e89-5c45-410a-a4a1-2be4637384ca
+oompah.agent_run_id: 95e4f171-fd62-436a-ad0a-fb02cc1e4d79
 oompah.task_costs:
   total_input_tokens: 274
   total_output_tokens: 9286
@@ -482,5 +482,15 @@ created: 2026-08-02 03:09
 **Evidence:** Recent comment indicates CI is now passing or PR has been merged; safe to reopen for dispatch.
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-08-02 03:09
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-08-02 03:09
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
