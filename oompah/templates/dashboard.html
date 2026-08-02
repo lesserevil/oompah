@@ -2543,6 +2543,15 @@ let wsReconnectAttempt = 0;
 let wsLastFreshAt = 0;
 let wsShouldReconnect = true;
 
+// Protocol v1 envelope tracking for gap detection and full-sync resync.
+// wsEpoch is null until the first enveloped message is received; a change
+// in epoch means the server restarted and all prior revisions are invalid.
+// wsDeliverySeq tracks the last contiguous sequence number; a gap triggers
+// a full-sync request instead of a reconnect.
+let wsEpoch = null;
+let wsDeliverySeq = 0;
+let wsFullSyncPending = false;
+
 // Browser WebSocket objects do not expose protocol-level ping/pong methods.
 // Use an application-level ping and require a recent inbound message so a
 // half-open proxy connection cannot remain displayed as Connected forever.
@@ -2613,6 +2622,23 @@ function checkWebSocketLiveness() {
   }
 }
 
+// Request a full dashboard resynchronization without reconnecting.
+// Coalesces duplicates: a second call while a request is in flight is
+// silently dropped.  The server returns either a {type:"full_sync"} message
+// with a unified coherent snapshot, or {type:"full_sync_error", retryable}
+// for transient failures.
+function _requestFullSync() {
+  if (wsFullSyncPending) return;
+  const socket = ws;
+  if (!socket || socket.readyState !== WebSocket.OPEN) return;
+  wsFullSyncPending = true;
+  try {
+    socket.send(JSON.stringify({action: 'full_sync'}));
+  } catch (e) {
+    wsFullSyncPending = false;
+  }
+}
+
 function connectWebSocket() {
   if (!wsShouldReconnect) return;
   clearWebSocketReconnectTimer();
@@ -2633,6 +2659,12 @@ function connectWebSocket() {
     wsLastFreshAt = Date.now();
     clearWebSocketHeartbeat();
     wsHeartbeatTimer = setInterval(checkWebSocketLiveness, WS_HEARTBEAT_INTERVAL_MS);
+    // Reset protocol envelope tracking on every (re)connect.  The server
+    // starts a new delivery sequence from 1 for each connection so prior
+    // seq/epoch values are irrelevant.
+    wsEpoch = null;
+    wsDeliverySeq = 0;
+    wsFullSyncPending = false;
     // Force a full board rebuild after reconnect so stale snapshot state
     // doesn't suppress the first incoming 'issues' push.
     _lastRenderedSnapshot = null;
@@ -2662,6 +2694,31 @@ function connectWebSocket() {
     wsLastFreshAt = Date.now();
     try {
       const msg = JSON.parse(event.data);
+
+      // ---- Protocol v1 envelope gap detection ----
+      // Every server message carries epoch and delivery_seq in the envelope.
+      // A non-contiguous sequence signals a transport gap; an epoch change
+      // signals a process restart.  In either case request a full sync
+      // instead of reconnecting, so the browser can resync without losing
+      // its WebSocket connection or clearing optimistic state in progress.
+      if (msg.epoch != null && typeof msg.delivery_seq === 'number') {
+        if (wsEpoch === null || wsEpoch !== msg.epoch) {
+          // First message for this epoch (new connection or server restart).
+          // Treat it as the baseline; no gap to report.
+          wsEpoch = msg.epoch;
+          wsDeliverySeq = msg.delivery_seq;
+          wsFullSyncPending = false;
+        } else if (msg.delivery_seq !== wsDeliverySeq + 1) {
+          // Sequence gap: one or more messages were dropped.  Accept the
+          // current sequence as the new baseline and request a full sync.
+          wsDeliverySeq = msg.delivery_seq;
+          _requestFullSync();
+        } else {
+          wsDeliverySeq = msg.delivery_seq;
+        }
+      }
+      // ---- End gap detection ----
+
       if (msg.type === 'state') {
         handleStateUpdate(msg.data);
       } else if (msg.type === 'issues') {
@@ -2671,6 +2728,34 @@ function connectWebSocket() {
           // A WS push means the server just refreshed; hide the stale banners.
           _setTrackerStaleBanner(false);
           _updateTaskStateStaleBanner(false);
+        }
+      } else if (msg.type === 'full_sync') {
+        // Coherent resynchronization snapshot (OOMPAH-693).  Both state and
+        // issues arrive in a single message so the dashboard can atomically
+        // replace all server-owned state and know the exact revision from
+        // which it may resume incremental processing.
+        wsFullSyncPending = false;
+        if (msg.state) {
+          handleStateUpdate(msg.state);
+        }
+        if (msg.issues) {
+          if (currentProjects.length > 0) {
+            renderBoard(filterByProject(msg.issues));
+          } else {
+            renderBoard(msg.issues);
+          }
+          refreshOpenDetailPanel();
+          _setTrackerStaleBanner(false);
+          _updateTaskStateStaleBanner(false);
+        }
+      } else if (msg.type === 'full_sync_error') {
+        // Transient failure assembling the snapshot.  Clear the pending flag
+        // so a follow-up request can be made.  If the error is retryable,
+        // schedule an automatic retry after a short backoff so the client
+        // eventually recovers without operator intervention.
+        wsFullSyncPending = false;
+        if (msg.retryable) {
+          setTimeout(_requestFullSync, 2000);
         }
       } else if (msg.type === 'activity') {
         handleActivityPush(msg.identifier, msg.run_id, msg.entry);

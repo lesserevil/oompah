@@ -1002,6 +1002,13 @@ _issue_revision = 0
 _ws_delivery_sequences: dict[WebSocket, int] = {}
 _ws_send_locks: dict[WebSocket, asyncio.Lock] = {}
 
+# Per-connection full-sync coalescing.  Prevents duplicate requests from
+# triggering multiple concurrent snapshot assemblies on the same connection.
+# Protected by _ws_fullsync_lock so observer callbacks on orchestrator threads
+# cannot race the endpoint's read/clear on the API event loop.
+_ws_fullsync_pending: set["WebSocket"] = set()
+_ws_fullsync_lock = threading.RLock()
+
 _NATIVE_TASK_IDENTIFIER_RE = re.compile(r"^TASK-(\d+(?:\.\d+)*)$", re.IGNORECASE)
 
 
@@ -3150,6 +3157,8 @@ def _unregister_ws(ws: WebSocket) -> None:
     with _ws_delivery_sequences_lock:
         _ws_delivery_sequences.pop(ws, None)
         _ws_send_locks.pop(ws, None)
+    with _ws_fullsync_lock:
+        _ws_fullsync_pending.discard(ws)
 
 
 async def _send_ws(ws: WebSocket, msg: dict[str, Any]) -> None:
@@ -3230,6 +3239,13 @@ async def websocket_endpoint(ws: WebSocket):
                     # Reply to the application-level heartbeat so clients can
                     # distinguish a live socket from a silently severed proxy.
                     await _send_ws(ws, {"type": "pong"})
+                elif msg.get("action") == "full_sync":
+                    # Full dashboard resynchronization (OOMPAH-693).
+                    # The client detected a delivery gap or revision jump and
+                    # needs a single coherent snapshot it can use to restart
+                    # incremental processing.  Coalesces duplicates per
+                    # connection; returns a retryable error on failure.
+                    await _handle_full_sync(ws, orch)
                 elif msg.get("type") == "console_input":
                     # Per-project ACP console (oompah-zlz_2-ebwe).
                     # Operator typed something in the dashboard's console
@@ -3245,6 +3261,89 @@ async def websocket_endpoint(ws: WebSocket):
     finally:
         _unregister_ws(ws)
         logger.info("WebSocket client disconnected (%d remaining)", len(_ws_clients))
+
+
+# ----------------------------------------------------------------------
+# Full-dashboard resynchronization (OOMPAH-693)
+# ----------------------------------------------------------------------
+
+
+async def _handle_full_sync(ws: "WebSocket", orch: Any) -> None:
+    """Assemble and send a coherent full-sync snapshot to one client.
+
+    Coalescing: a second ``full_sync`` request while one is already in
+    flight for the same connection is silently dropped.  This bounds
+    server-side snapshot work to one concurrent assembly per client.
+
+    Race safety: state and issues are each read with the revision that
+    belongs to the payload (not the global current revision).  A mutation
+    that races the read gets a new revision; the response never claims a
+    revision newer than its actual payload.
+
+    Errors are returned as a ``full_sync_error`` message with
+    ``retryable: true`` — the connection is never closed on failure.
+    """
+    with _ws_fullsync_lock:
+        if ws in _ws_fullsync_pending:
+            return
+        _ws_fullsync_pending.add(ws)
+    try:
+        # 1. Read state with its own revision (stale is acceptable for a
+        #    full sync — the client is replacing its whole cached state).
+        state_snapshot, state_revision = _read_state_snapshot_with_revision(
+            allow_stale=True
+        )
+        if state_snapshot is None:
+            state_snapshot = _cached_state_snapshot_or_unavailable()
+            _, state_revision, _ = _protocol_values()
+        state_data = _enrich_state_snapshot(state_snapshot)
+
+        # 2. Try to get a fresh issues snapshot before reading it.  Use a
+        #    short wait so the client is not blocked indefinitely on a slow
+        #    rebuild; stale data with allow_empty=True is still returned.
+        await _ensure_issues_snapshot_refresh(orch, broadcast=False)
+        await _wait_for_issues_snapshot_refresh(timeout_ms=3000)
+
+        # 3. Read issues + revision atomically.  The lock inside
+        #    _issues_snapshot_payload_with_revision ensures the payload and
+        #    its ``data_revision`` come from the same snapshot generation:
+        #    a concurrent invalidation cannot stamp the old board with the
+        #    new revision.
+        issues_payload, issue_revision = _issues_snapshot_payload_with_revision(
+            allow_empty=True, orch=orch
+        )
+
+        # 4. Stamp the current epoch so the client can verify the watermarks
+        #    belong to this process lifetime.
+        epoch, _, _ = _protocol_values()
+
+        await _send_ws(
+            ws,
+            {
+                "type": "full_sync",
+                "state": state_data,
+                "state_revision": state_revision,
+                "issues": issues_payload,
+                "issue_revision": issue_revision,
+                "epoch": epoch,
+            },
+        )
+    except Exception as exc:
+        logger.debug("full_sync assembly failed for connection: %s", exc)
+        try:
+            await _send_ws(
+                ws,
+                {
+                    "type": "full_sync_error",
+                    "code": "snapshot_unavailable",
+                    "retryable": True,
+                },
+            )
+        except Exception:
+            pass  # connection may already be dead; that's fine
+    finally:
+        with _ws_fullsync_lock:
+            _ws_fullsync_pending.discard(ws)
 
 
 # ----------------------------------------------------------------------
