@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T18:20:27.192609Z'
-updated_at: '2026-08-02T19:24:14.496919Z'
+updated_at: '2026-08-02T19:37:02.108151Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -48,5 +48,10 @@ author: oompah
 created: 2026-08-02 19:23
 ---
 Claimed for direct owner implementation; reproducing the legacy missing-review-head reconciliation path.
+---
+author: oompah
+created: 2026-08-02 19:37
+---
+Direct implementation complete at 6de721ae2f44a8ce0d3c21fcf660cc332a996e1b. Added forge-reported historical review-head recovery for GitHub/GitLab, Git-containment fallback when legacy payloads lack a head, fail-closed evidence errors, durable superseded-review comments, and repeated-pass idempotence. Focused: 455 passed. Full make test: 14,990 passed, 7 skipped, 1 xfailed in 382.36s. make check-secrets passed.
 ---
 <!-- COMMENTS:END -->
