@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-691
 type: epic
-status: In Review
+status: Needs CI Fix
 priority: 0
 title: Make dashboard WebSocket state provably convergent
 parent: null
@@ -16,7 +16,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T02:00:17.265294Z'
-updated_at: '2026-08-02T07:09:30.920550Z'
+updated_at: '2026-08-02T07:09:56.986011Z'
 work_branch: epic-OOMPAH-691
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/654
