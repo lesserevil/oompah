@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-692
 type: feature
-status: In Validation
+status: Merged
 priority: 1
 title: Version authoritative dashboard state in the WebSocket protocol
 parent: OOMPAH-691
@@ -12,7 +12,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-08-02T02:01:46.836436Z'
-updated_at: '2026-08-02T16:19:20.388071Z'
+updated_at: '2026-08-02T16:22:33.361154Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-692
 target_branch: null
 review_url: null
@@ -150,6 +150,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-516c4b5a5b7d: '2026-08-02T03:30:12.546282+00:00'
+    attempt-c41e62b40db3: '2026-08-02T16:22:29.016076+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-692
@@ -160,6 +161,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-02T03:30:12.546296+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-692
+    target_state: Merged
+    evidence_fingerprint: 06b30d8470c4f2ec01d04e168e620a2bf0817a123d88fcd8f73a1bae68c7a00a
+    audit_ids:
+    - audit-ff093565657d
+    kind: result
+    applied: true
+    retired_at: '2026-08-02T16:22:29.016085+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-692
@@ -173,6 +183,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-02T03:30:12.546315+00:00'
     applied_at: '2026-08-02T03:30:17.628663+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-692
+    audit_id: audit-ff093565657d
+    attempt_id: attempt-c41e62b40db3
+    target_state: Merged
+    evidence_fingerprint: 06b30d8470c4f2ec01d04e168e620a2bf0817a123d88fcd8f73a1bae68c7a00a
+    status: Merged
+    audit_ids:
+    - audit-ff093565657d
+    applied: false
+    created_at: '2026-08-02T16:22:29.016096+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -231,7 +252,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-692
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -240,7 +261,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-c41e62b40db3
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -250,13 +271,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-02T16:19:06.518701+00:00'
       branch_key: epic-OOMPAH-691--task-OOMPAH-692
+      verdict: pass
+      completed_at: '2026-08-02T16:22:29.015966+00:00'
+      ended_at: '2026-08-02T16:22:29.015966+00:00'
     requested_by:
       version: 1
       identity: oompah-cli
       source: api
     previous_state: Needs Human
     created_at: '2026-08-02T16:18:58.695264+00:00'
-    updated_at: '2026-08-02T16:19:06.518701+00:00'
+    updated_at: '2026-08-02T16:22:29.015966+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-516c4b5a5b7d
@@ -734,5 +758,23 @@ author: oompah
 created: 2026-08-02 16:19
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-02 16:22
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- head_commit: b7fdf2b3f6dfa00f39659abafb176f3d67579dce
+- epic_merge_commit: b7fdf2b3f Merge pull request #654 from lesserevil/epic-OOMPAH-691
+- task_commits_in_ancestry: 849d5f752 (server.py + tests + plans), 23d108b20 (plans clarification)
+- ancestry_path: 23d108b20..b7fdf2b3f contains only epic-OOMPAH-691 sibling commits (OOMPAH-693/694/695) plus the merge
+- envelope_fields_present: protocol_version, epoch, delivery_seq, state_revision, issue_revision (server.py:3226-3234)
+- concurrency_primitives: _ws_delivery_sequences_lock RLock (server.py:1702), _advance_state_revision() (1686-1691), monotonic state acceptance in _update_state_snapshot
+- documentation: plans/websocket-state-versioning.md present on HEAD
+- prior_audit_result: PASS at 2026-08-02 03:30 with 196 focused tests passed
+- operator_ownership_confirmation: 2026-08-02 16:18 verified 23d108b20 ancestor of b7fdf2b3f; no recovery required
 ---
 <!-- COMMENTS:END -->
