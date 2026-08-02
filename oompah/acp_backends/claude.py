@@ -530,9 +530,15 @@ class ClaudeAcpBackendSession(AcpBackendSession):
                             for block in msg.content or []:
                                 if isinstance(block, TextBlock):
                                     self._counters.last_event = "text"
+                                    from oompah.duplicate_screening import (
+                                        duplicate_preflight_text_payload,
+                                    )
+
                                     yield self._emit(
                                         "acp_text",
-                                        payload={"text": (block.text or "")[:2000]},
+                                        payload=duplicate_preflight_text_payload(
+                                            block.text or ""
+                                        ),
                                     )
                                 elif isinstance(block, ThinkingBlock):
                                     self._counters.last_event = "thinking"

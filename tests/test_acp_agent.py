@@ -215,6 +215,54 @@ class TestAcpAgentSession:
         assert "acp_session_start" in kinds
         assert "acp_result" in kinds
 
+    def test_claude_text_extracts_verdict_before_display_truncation(self):
+        pytest.importorskip("claude_agent_sdk")
+        from claude_agent_sdk import AssistantMessage, ResultMessage, TextBlock
+
+        text = (
+            ("analysis\n" * 300)
+            + "Duplicate preflight verdict: no_duplicate\n"
+            + "Matches: none\n"
+            + "Evidence: no active peer covers this work.\n"
+        )
+        assistant = AssistantMessage(
+            content=[TextBlock(text=text)],
+            model="claude-haiku",
+            parent_tool_use_id=None,
+            error=None,
+            usage=None,
+            message_id="m-result",
+            stop_reason=None,
+            session_id="s-result",
+            uuid="u-result",
+        )
+        result = ResultMessage(
+            subtype="success",
+            duration_ms=10,
+            duration_api_ms=5,
+            is_error=False,
+            num_turns=1,
+            session_id="s-result",
+            stop_reason="end_turn",
+            total_cost_usd=0.0,
+            usage=None,
+            result=None,
+            structured_output=None,
+            model_usage=None,
+            permission_denials=None,
+            errors=None,
+            uuid="u-result-terminal",
+        )
+
+        status, _session, events = self._run_session_sync([assistant, result])
+
+        assert status == "succeeded"
+        text_event = next(event for event in events if event.event == "acp_text")
+        assert len(text_event.payload["text"]) == 2000
+        assert text_event.payload["duplicate_preflight_result"]["verdict"] == (
+            "no_duplicate"
+        )
+
     def test_failed_path(self):
         pytest.importorskip('claude_agent_sdk')
         from claude_agent_sdk import ResultMessage

@@ -68,6 +68,33 @@ class TestCodexRegistration:
         assert "claude" in BACKENDS
         assert BACKENDS["claude"] is ClaudeAcpBackend
 
+
+def test_codex_completed_message_extracts_verdict_before_display_truncation():
+    text = (
+        ("analysis\n" * 300)
+        + "Duplicate preflight verdict: no_duplicate\n"
+        + "Matches: none\n"
+    )
+    session = CodexAcpBackendSession(
+        AcpBackendOptions(workspace_path="/tmp/ws", prompt="screen")
+    )
+
+    async def collect():
+        return [
+            event
+            async for event in session._translate_cli_item(
+                "item.completed",
+                types.SimpleNamespace(type="agent_message", text=text),
+            )
+        ]
+
+    events = asyncio.run(collect())
+
+    assert len(events[0].payload["text"]) == 2000
+    assert events[0].payload["duplicate_preflight_result"]["verdict"] == (
+        "no_duplicate"
+    )
+
     def test_registry_lists_both(self):
         """Both backends present so the /providers UI dropdown can
         offer the operator a real choice."""
