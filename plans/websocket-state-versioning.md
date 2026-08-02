@@ -66,6 +66,49 @@ are coalesced. A revision jump is therefore an authoritative-generation gap,
 not by itself a transport gap. State and issue revisions may advance
 independently.
 
+## Full-sync action (OOMPAH-693)
+
+A client that detects a delivery gap (non-contiguous `delivery_seq` within an
+epoch) or receives a new epoch may request a full, coherent resynchronization
+snapshot without reconnecting:
+
+```json
+{"action": "full_sync"}
+```
+
+The server assembles a single response containing the current state and the
+current issues board, each stamped with the revision that belongs to that
+payload (not a later revision from a concurrent mutation):
+
+```json
+{
+  "type": "full_sync",
+  "protocol_version": 1,
+  "epoch": "4d0a…",
+  "delivery_seq": 15,
+  "state": { … },
+  "state_revision": 18,
+  "issues": { … },
+  "issue_revision": 9
+}
+```
+
+The browser can atomically replace all server-owned dashboard state from this
+single message and resume incremental processing from the watermarks it
+carries. Project filtering remains a client concern; the `issues` board is
+unfiltered.
+
+Duplicate requests while one is in flight are silently coalesced: only one
+assembly runs per connection at a time. On a transient failure the server
+returns a retryable error instead of closing the connection:
+
+```json
+{"type": "full_sync_error", "code": "snapshot_unavailable", "retryable": true}
+```
+
+The client schedules a retry after a short delay and tries again on the same
+connection.
+
 ## Client recovery
 
 Clients should track `(epoch, delivery_seq)` for transport ordering and the
@@ -74,14 +117,15 @@ two revisions independently:
 1. On the first message for an epoch, record its epoch and sequence as the
    baseline.
 2. Within one epoch, a non-contiguous `delivery_seq` indicates a transport or
-   fan-out gap. Request a refresh or reconnect; do not infer a missing payload
-   from a revision alone.
+   fan-out gap. Send `{action: "full_sync"}` to resynchronize without
+   reconnecting; do not infer a missing payload from a revision alone.
 3. A contiguous message whose applicable payload revision skips a number
    indicates that one or more authoritative generations were coalesced or
    were not observed by this client. The payload is still labelled with the
    generation it contains, so it can be applied as the latest snapshot.
 4. If `epoch` changes, discard all sequence and revision comparisons from the
-   previous epoch and bootstrap again. Do not compare revisions across epochs.
+   previous epoch and bootstrap again. The first message in the new epoch
+   resets the baseline.
 
 ## Restart and reconnect semantics
 
