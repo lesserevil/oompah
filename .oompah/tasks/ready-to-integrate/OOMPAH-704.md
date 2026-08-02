@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T21:11:44.479316Z'
-updated_at: '2026-08-02T21:28:21.877050Z'
+updated_at: '2026-08-02T21:28:52.351283Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -61,5 +61,23 @@ author: oompah
 created: 2026-08-02 21:28
 ---
 Fenced graceful-restart redispatch against newer terminal/audit state and made idempotent owner overrides repair regressed tracker status. Focused restart/terminal suites: 250 passed. Complete make test: 15,010 passed, 7 skipped, 1 xfailed. make check-secrets and git diff --check passed.
+---
+author: oompah
+created: 2026-08-02 21:28
+---
+Branch quality gate blocked review creation.
+
+Branch: `OOMPAH-704`
+Target: `main`
+Head: `unknown`
+Command: `make test`
+Result: `infrastructure_error`
+
+Infrastructure action required: repair or replace the operator-owned quality-gate runtime. No candidate CI-fix status was applied because the candidate command did not run.
+
+Output tail:
+```text
+Candidate CI was not run because the submitted review branch tip is unavailable in the managed repository.
+```
 ---
 <!-- COMMENTS:END -->
