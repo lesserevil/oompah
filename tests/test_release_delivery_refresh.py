@@ -226,6 +226,44 @@ class TestRefreshManagerBasicState:
         assert manager.get_status("proj-a", "release/2.0") is None
 
 
+class TestRefreshManagerCompletion:
+    @pytest.mark.asyncio
+    async def test_wait_for_completion_returns_none_without_a_job(self):
+        """Waiting for an unknown cache key completes immediately."""
+        manager = BacklogRefreshManager()
+
+        assert await manager.wait_for_completion(_PROJECT_ID, _BRANCH) is None
+
+    @pytest.mark.asyncio
+    async def test_wait_for_completion_returns_terminal_success_status(self):
+        """Waiting observes the complete state after the result is cached."""
+        manager = BacklogRefreshManager()
+        svc = _make_service_mock(_make_backlog_result(), delay=0.01)
+
+        await manager.get_or_start(_PROJECT_ID, _BRANCH, service=svc)
+
+        status = await manager.wait_for_completion(_PROJECT_ID, _BRANCH)
+
+        assert status is not None
+        assert status.phase == "complete"
+        assert status.has_result is True
+        assert manager.get_cached_result(_PROJECT_ID, _BRANCH) is not None
+
+    @pytest.mark.asyncio
+    async def test_wait_for_completion_returns_terminal_failure_status(self):
+        """Waiting observes a failed refresh without raising its service error."""
+        manager = BacklogRefreshManager()
+        svc = _make_service_mock(error=RuntimeError("refresh failed"))
+
+        await manager.get_or_start(_PROJECT_ID, _BRANCH, service=svc)
+
+        status = await manager.wait_for_completion(_PROJECT_ID, _BRANCH)
+
+        assert status is not None
+        assert status.phase == "failed"
+        assert status.error == "refresh failed"
+
+
 # ---------------------------------------------------------------------------
 # BacklogRefreshManager: get_or_start
 # ---------------------------------------------------------------------------
@@ -1278,7 +1316,7 @@ class TestRefreshManagerThreadSafety:
             for _ in range(5)
         ])
 
-        await asyncio.sleep(0.2)  # Let the job complete
+        await manager.wait_for_completion(_PROJECT_ID, _BRANCH)
 
         # All calls returned a valid status
         for status, cached in results:
@@ -1312,7 +1350,7 @@ class TestBacklogRefreshManagerInvalidate:
 
         # Run initial refresh to completion
         await manager.get_or_start(_PROJECT_ID, _BRANCH, service=svc)
-        await asyncio.sleep(0.05)
+        await manager.wait_for_completion(_PROJECT_ID, _BRANCH)
 
         first_call_count = svc.get_backlog.call_count
         assert first_call_count == 1, "Expected exactly 1 get_backlog call after initial run"
@@ -1322,7 +1360,7 @@ class TestBacklogRefreshManagerInvalidate:
 
         # Next get_or_start should start a new refresh (TTL effectively reset)
         await manager.get_or_start(_PROJECT_ID, _BRANCH, service=svc)
-        await asyncio.sleep(0.05)
+        await manager.wait_for_completion(_PROJECT_ID, _BRANCH)
 
         assert svc.get_backlog.call_count == 2, (
             "Expected a second get_backlog call after invalidation"
@@ -1333,23 +1371,29 @@ class TestBacklogRefreshManagerInvalidate:
         """After invalidate(), the cached result is still returned to callers
         (stale-while-revalidate) until the new refresh completes."""
         manager = BacklogRefreshManager(result_ttl_s=300.0)
-        backlog = _make_backlog_result(n_items=3)
-        slow_svc = _make_service_mock(backlog, delay=0.2)  # slow refresh
+        initial_backlog = _make_backlog_result(n_items=3)
+        updated_backlog = _make_backlog_result(n_items=4)
+        slow_svc = _make_service_mock(updated_backlog, delay=0.2)  # slow refresh
 
         # Complete an initial refresh
-        fast_svc = _make_service_mock(backlog, delay=0.0)
+        fast_svc = _make_service_mock(initial_backlog, delay=0.0)
         await manager.get_or_start(_PROJECT_ID, _BRANCH, service=fast_svc)
-        await asyncio.sleep(0.05)
+        await manager.wait_for_completion(_PROJECT_ID, _BRANCH)
 
         manager.invalidate(_PROJECT_ID, _BRANCH)
 
         # get_or_start should return the stale cached result immediately
         status, cached = await manager.get_or_start(_PROJECT_ID, _BRANCH, service=slow_svc)
         assert cached is not None, "Stale cached result must be returned while refresh runs"
-        assert cached.total_commit_count == 0 or len(cached.items) == 3
-        # Do not leak the executor call into event-loop teardown.  Cancelling
-        # the asyncio task cannot interrupt time.sleep() in its worker thread.
-        await asyncio.sleep(0.3)
+        assert status.has_result is True
+        assert len(cached.items) == 3
+
+        await manager.wait_for_completion(_PROJECT_ID, _BRANCH)
+
+        refreshed = manager.get_cached_result(_PROJECT_ID, _BRANCH)
+        assert refreshed is not None
+        assert len(refreshed.items) == 4
+        assert slow_svc.get_backlog.call_count == 1
 
     def test_invalidate_noop_when_no_job(self):
         """invalidate() is a no-op when no job has run for the key."""
@@ -1373,6 +1417,7 @@ class TestBacklogRefreshManagerInvalidate:
         assert manager.is_running(_PROJECT_ID, _BRANCH), (
             "Running job must not be disrupted by invalidate()"
         )
+        await manager.wait_for_completion(_PROJECT_ID, _BRANCH)
 
     @pytest.mark.asyncio
     async def test_invalidate_regression_in_review_not_selected(self):
@@ -1410,7 +1455,7 @@ class TestBacklogRefreshManagerInvalidate:
         # Populate cache with the initial (not_selected) result
         initial_svc = _make_service_mock(initial_backlog, delay=0.0)
         await manager.get_or_start(_PROJECT_ID, branch, service=initial_svc)
-        await asyncio.sleep(0.05)
+        await manager.wait_for_completion(_PROJECT_ID, branch)
 
         # Verify: without invalidation, get_or_start returns cached (not_selected)
         _, cached = await manager.get_or_start(_PROJECT_ID, branch, service=initial_svc)
@@ -1426,7 +1471,8 @@ class TestBacklogRefreshManagerInvalidate:
         # Now get_or_start should trigger a new refresh with the updated service
         updated_svc = _make_service_mock(updated_backlog, delay=0.0)
         await manager.get_or_start(_PROJECT_ID, branch, service=updated_svc)
-        await asyncio.sleep(0.05)
+        await manager.wait_for_completion(_PROJECT_ID, branch)
+        assert updated_svc.get_backlog.call_count == 1
 
         _, fresh_cached = await manager.get_or_start(_PROJECT_ID, branch, service=updated_svc)
         assert fresh_cached is not None

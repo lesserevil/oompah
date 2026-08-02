@@ -225,6 +225,39 @@ class BacklogRefreshManager:
                 return False
             return job.is_running()
 
+    async def wait_for_completion(
+        self, project_id: str, branch: str
+    ) -> RefreshStatus | None:
+        """Wait for the refresh job currently associated with a cache key.
+
+        The job is allowed to finish successfully or fail before this method
+        returns; the terminal status distinguishes those outcomes.  If no job
+        exists for the key, ``None`` is returned immediately.
+
+        Waiting does not cancel the refresh if the caller is cancelled.  This
+        keeps the completion observer separate from the refresh lifecycle.
+        """
+        key = (project_id, branch)
+        with self._lock:
+            job = self._jobs.get(key)
+            task = job.task if job is not None else None
+
+        if job is None:
+            return None
+
+        if task is not None:
+            try:
+                await asyncio.shield(task)
+            except asyncio.CancelledError:
+                # A refresh can be cancelled by trigger_refresh(); report its
+                # terminal status instead of leaking that internal cancellation
+                # to a completion observer.  Preserve cancellation of the
+                # observer itself when the refresh is still running.
+                if not task.cancelled():
+                    raise
+
+        return job.get_status(lock=self._lock)
+
     def invalidate(self, project_id: str, branch: str) -> None:
         """Mark a cached result as expired so the next GET triggers a refresh.
 
