@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-589
 type: bug
-status: Done
+status: Merged
 priority: 1
 title: Validate auditor provider endpoints before candidate dispatch
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:20.256845Z'
-updated_at: '2026-07-30T18:29:04.466684Z'
+updated_at: '2026-08-02T18:24:09.181582Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-589
 target_branch: null
 review_url: null
@@ -188,6 +188,24 @@ oompah.terminal_audit:
       validation. OOMPAH-608 tracks that boundary bug; the exact implementation head
       passed the configured full gate and is deployed via OOMPAH-605.
     created_at: '2026-07-30T18:29:02.219103+00:00'
+  - version: 1
+    override_id: override-97530a623b11
+    project_id: proj-14849f1b
+    task_id: OOMPAH-589
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 2b959afecc8364c1ba6d011c4cdd65574554a802928e618edfd5f9385a6927bd
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reconciliation: parent OOMPAH-585 is Merged and its accepted rollup
+      contains this previously audited Done child; durable integration-queue/rollup
+      evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.'
+    created_at: '2026-08-02T18:24:05.209374+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -1091,5 +1109,12 @@ created: 2026-07-30 18:29
 Override by lesserevil: terminal transition to Done applied by project owner.
 
 Reason: Break-glass completion after the fresh independent audit reviewed the current evidence and concluded PASS, but its result could not be persisted because the credential-safety task triggered a deterministic false-positive in verdict-message validation. OOMPAH-608 tracks that boundary bug; the exact implementation head passed the configured full gate and is deployed via OOMPAH-605.
+---
+author: oompah
+created: 2026-08-02 18:24
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner reconciliation: parent OOMPAH-585 is Merged and its accepted rollup contains this previously audited Done child; durable integration-queue/rollup evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.
 ---
 <!-- COMMENTS:END -->
