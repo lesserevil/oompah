@@ -11527,56 +11527,103 @@ class Orchestrator:
         *,
         container_branches: tuple[str, ...],
         repo_path: str,
+        project_id: str | None = None,
     ) -> bool:
-        """Check if child has durable integration evidence via integrated_sha.
-        
-        Returns True if:
-        - Child has an integration record with state="integrated"
-        - The integrated_sha is reachable from one of the container branches
-        
-        This evidence persists even after the child's private branch is pruned.
+        """Check durable tracker/queue SHAs against a landed container ref.
+
+        Tracker metadata is the preferred source because it records the exact
+        post-rebase ``integrated_sha``.  Older cleanup and recovery paths could
+        reset that metadata while leaving the integration-queue row intact, so
+        the submitted queue head is also considered.  A queue row is never
+        sufficient by itself: its commit must be an ancestor of the container
+        or patch-equivalent to work already in it.  The latter covers a task
+        head that the executor rebased before integration.
         """
         record = getattr(child, "integration", None)
-        if record is None or record.state != "integrated":
-            return False
-        
-        integrated_sha = str(
-            getattr(record, "integrated_sha", "") or ""
-        ).strip()
-        if not integrated_sha:
-            return False
-        
         if not repo_path or not container_branches:
             return False
-        
-        # Check if integrated_sha is reachable from any container branch
+
+        candidate_shas: list[str] = []
+        if record is not None and record.state == "integrated":
+            for value in (record.integrated_sha, record.head_sha):
+                sha = str(value or "").strip()
+                if sha:
+                    candidate_shas.append(sha)
+
+        effective_project_id = str(
+            project_id or getattr(child, "project_id", None) or ""
+        ).strip()
+        if effective_project_id:
+            try:
+                queue_items = self.integration_queue.items(
+                    project_id=effective_project_id
+                )
+            except Exception as exc:  # noqa: BLE001 - evidence fallback only
+                logger.debug(
+                    "Historical integration evidence unavailable for %s: %s",
+                    child.identifier,
+                    exc,
+                )
+                queue_items = []
+            child_aliases = {
+                str(value).strip()
+                for value in (child.id, child.identifier)
+                if str(value or "").strip()
+            }
+            for item in queue_items:
+                if str(item.task_id).strip() not in child_aliases:
+                    continue
+                sha = str(item.head_sha or "").strip()
+                if sha:
+                    candidate_shas.append(sha)
+
+        candidate_shas = list(dict.fromkeys(candidate_shas))
+        if not candidate_shas:
+            return False
+
         for container_branch in container_branches:
             container_refs = self._resolve_git_branch_refs(repo_path, container_branch)
             if not container_refs:
                 continue
-            
             for container_ref in container_refs:
-                try:
-                    result = subprocess.run(
-                        [
-                            "git",
-                            "-C",
-                            repo_path,
-                            "merge-base",
-                            "--is-ancestor",
-                            integrated_sha,
-                            container_ref,
-                        ],
-                        check=False,
-                        capture_output=True,
-                        text=True,
-                        timeout=10,
-                    )
-                    if result.returncode == 0:
-                        return True
-                except (OSError, subprocess.TimeoutExpired):
-                    continue
-        
+                for candidate_sha in candidate_shas:
+                    try:
+                        result = subprocess.run(
+                            [
+                                "git",
+                                "merge-base",
+                                "--is-ancestor",
+                                candidate_sha,
+                                container_ref,
+                            ],
+                            cwd=repo_path,
+                            check=False,
+                            capture_output=True,
+                            text=True,
+                            timeout=10,
+                        )
+                        if result.returncode == 0:
+                            return True
+
+                        cherry = subprocess.run(
+                            ["git", "cherry", container_ref, candidate_sha],
+                            cwd=repo_path,
+                            check=False,
+                            capture_output=True,
+                            text=True,
+                            timeout=10,
+                        )
+                        if (
+                            cherry.returncode == 0
+                            and not any(
+                                line.startswith("+ ")
+                                for line in cherry.stdout.splitlines()
+                            )
+                        ):
+                            return True
+                    except (OSError, subprocess.TimeoutExpired):
+                        continue
+
         return False
 
     def _child_landing_evidence_block_reason(
@@ -16359,6 +16406,7 @@ class Orchestrator:
         sweeps = [
             ("label_merged_epics", self._label_merged_epics),
             ("reconcile_merged_epic_children", self._reconcile_merged_epic_children),
+            ("reconcile_historical_done_records", self._reconcile_historical_done_records),
             ("reconcile_independently_merged_children", self._reconcile_independently_merged_children),
             ("label_merged_issues", self._label_merged_issues),
             ("reconcile_in_review_pr_outcomes", self._reconcile_in_review_pr_outcomes),
@@ -18899,6 +18947,348 @@ class Orchestrator:
                 epic_branch = epic.identifier
             self._mark_epic_merged(epic, epic_branch=epic_branch)
 
+    @staticmethod
+    def _historical_done_alert_source(project_id: str, task_id: str) -> str:
+        return f"historical_done:{project_id}:{task_id}"
+
+    def _clear_historical_done_alert(self, project_id: str, task_id: str) -> None:
+        source = self._historical_done_alert_source(project_id, task_id)
+        self._alerts = [
+            alert for alert in self._alerts if alert.get("source") != source
+        ]
+
+    def _arm_historical_done_alert(
+        self,
+        tracker: TrackerProtocol,
+        project_id: str,
+        issue: Issue,
+        reason: str,
+    ) -> None:
+        """Publish one durable instruction and one replace-in-place alert."""
+        source = self._historical_done_alert_source(
+            project_id, issue.identifier
+        )
+        instruction = (
+            "Historical Done reconciliation could not prove a safe terminal "
+            f"outcome for {issue.identifier}: {reason}. Required: restore or "
+            "record authoritative merge/integration evidence, or explicitly "
+            "archive the task with a structured superseding disposition."
+        )
+        self._alerts = [
+            alert for alert in self._alerts if alert.get("source") != source
+        ]
+        self._alerts.append(
+            {
+                "level": "warning",
+                "source": source,
+                "message": instruction,
+            }
+        )
+        if self._tracker_comment_matches(
+            tracker, issue.identifier, instruction
+        ):
+            return
+        try:
+            tracker.add_comment(
+                issue.identifier,
+                instruction,
+                author="oompah",
+            )
+        except Exception as exc:  # noqa: BLE001 - alert remains actionable
+            logger.debug(
+                "Failed to post historical Done instruction for %s: %s",
+                issue.identifier,
+                exc,
+            )
+
+    def _historical_done_has_passed_merged_audit(
+        self,
+        issue: Issue,
+        tracker: TrackerProtocol,
+        project_id: str,
+    ) -> bool:
+        """Return True for a current-fingerprint historical Merged PASS."""
+        try:
+            document = TerminalAuditMetadataStore(
+                tracker,
+                self.project_store,
+                project_id,
+            ).read(issue.identifier)
+            current_fingerprint = compute_issue_evidence_fingerprint(
+                issue, project_id
+            )
+        except Exception as exc:  # noqa: BLE001 - optional evidence source
+            logger.debug(
+                "Historical terminal-audit evidence unavailable for %s: %s",
+                issue.identifier,
+                exc,
+            )
+            return False
+
+        for record in document.pending_chain:
+            if (
+                record.project_id != project_id
+                or record.task_id != issue.identifier
+                or record.target_state != TargetState.MERGED
+                or record.evidence_fingerprint != current_fingerprint
+                or record.request_state != RequestState.COMPLETED
+            ):
+                continue
+            if any(
+                attempt.verdict == Verdict.PASS
+                and attempt.request_state == RequestState.COMPLETED
+                for attempt in record.attempts
+            ):
+                return True
+        return False
+
+    @staticmethod
+    def _historical_done_parent_aliases(issue: Issue) -> set[str]:
+        return {
+            str(value).strip()
+            for value in (issue.id, issue.identifier)
+            if str(value or "").strip()
+        }
+
+    def _historical_done_merged_review_evidence(
+        self,
+        issue: Issue,
+        project: Project,
+    ) -> tuple[bool, str]:
+        """Validate a legacy task's persisted review against its forge."""
+        review_number = str(issue.review_number or "").strip()
+        if not review_number:
+            return False, "no persisted review number is available"
+        try:
+            provider = detect_provider(
+                project.repo_url,
+                access_token=getattr(project, "access_token", None),
+            )
+            repo_slug = extract_repo_slug(project.repo_url) if provider else ""
+        except Exception as exc:  # noqa: BLE001 - fail closed
+            return False, f"forge provider setup failed ({exc})"
+        if provider is None or not repo_slug:
+            return False, "no supported forge provider is available"
+        try:
+            review = provider.get_review(repo_slug, review_number)
+        except Exception as exc:  # noqa: BLE001 - fail closed
+            return False, f"persisted review could not be read ({exc})"
+        if review is None:
+            return False, f"persisted review #{review_number} is unavailable"
+        if str(review.state or "").strip().lower() != "merged":
+            return False, (
+                f"persisted review #{review_number} is "
+                f"{review.state or 'in an unknown state'}, not merged"
+            )
+
+        expected_target = str(
+            issue.target_branch or project.default_branch or "main"
+        ).strip()
+        if str(review.target_branch or "").strip() != expected_target:
+            return False, (
+                f"persisted review #{review_number} targeted "
+                f"{review.target_branch or 'an unknown branch'}, expected "
+                f"{expected_target}"
+            )
+        expected_source = str(
+            issue.work_branch or issue.branch_name or ""
+        ).strip()
+        if expected_source and str(review.source_branch or "").strip() != expected_source:
+            return False, (
+                f"persisted review #{review_number} used source "
+                f"{review.source_branch or 'an unknown branch'}, expected "
+                f"{expected_source}"
+            )
+        persisted_head = str(issue.review_head or "").strip()
+        review_head = str(getattr(review, "head_sha", "") or "").strip()
+        if persisted_head and review_head and persisted_head != review_head:
+            return False, (
+                f"persisted review head {persisted_head[:12]} does not match "
+                f"forge head {review_head[:12]}"
+            )
+        return True, f"forge review #{review_number} is merged to {expected_target}"
+
+    def _stage_historical_done_merged(
+        self,
+        issue: Issue,
+        project_id: str,
+    ) -> bool:
+        result = self._request_merged_via_coordinator(
+            issue,
+            project_id,
+            trigger_identity="historical-done-reconciliation",
+            trigger_source="oompah",
+        )
+        if result is None or not result.success:
+            return False
+        issue.state = IN_VALIDATION
+        self._clear_historical_done_alert(project_id, issue.identifier)
+        return True
+
+    def _reconcile_historical_done_records(self) -> None:
+        """Converge proven legacy Done records after terminal parent work.
+
+        This pass is deliberately evidence-driven.  A terminal parent is a
+        scope boundary, not proof that every child landed.  Delivery requires
+        a current Merged audit or a durable integration SHA contained in the
+        target.  Legacy human-only work may instead use its exact persisted
+        forge review.  Ambiguity remains non-terminal with one durable repair
+        instruction and one keyed alert.
+        """
+        for project in self.project_store.list_all():
+            if self._job_deadline_exceeded("merged_labels"):
+                return
+            project_id = str(project.id)
+            try:
+                tracker = self._tracker_for_project(project_id)
+                issues = list(tracker.fetch_all_issues())
+            except (ProjectError, TrackerError) as exc:
+                logger.debug(
+                    "Historical Done fetch failed for %s: %s",
+                    project_id,
+                    exc,
+                )
+                continue
+
+            issue_by_alias: dict[str, Issue] = {}
+            for candidate in issues:
+                candidate.project_id = project_id
+                for alias in self._historical_done_parent_aliases(candidate):
+                    issue_by_alias[alias] = candidate
+
+            refreshed_targets: dict[str, tuple[bool, str | None]] = {}
+            for issue in issues:
+                if self._job_deadline_exceeded("merged_labels"):
+                    return
+                if canonicalize_status(issue.state) != DONE:
+                    continue
+
+                labels = {
+                    str(label).strip().lower() for label in issue.labels or []
+                }
+
+                parent_id = str(issue.parent_id or "").strip()
+                parent = issue_by_alias.get(parent_id) if parent_id else None
+                parent_state = canonicalize_status(parent.state) if parent else ""
+
+                if parent is not None and parent_state in {MERGED, ARCHIVED}:
+                    try:
+                        target_branch = str(
+                            self._resolve_epic_target_branch(parent, project)
+                            or project.default_branch
+                            or "main"
+                        ).strip()
+                    except Exception:  # noqa: BLE001 - default is still explicit
+                        target_branch = str(project.default_branch or "main").strip()
+                    if target_branch not in refreshed_targets:
+                        refreshed_targets[target_branch] = (
+                            self._refresh_landing_evidence_target_refs(
+                                str(project.repo_path or ""),
+                                (target_branch,),
+                                access_token=getattr(project, "access_token", None),
+                                forge_kind=getattr(project, "forge_kind", "github"),
+                            )
+                        )
+                    refs_fresh, refresh_error = refreshed_targets[target_branch]
+
+                    delivered = self._historical_done_has_passed_merged_audit(
+                        issue, tracker, project_id
+                    )
+                    if refs_fresh and not delivered:
+                        delivered = self._child_has_durable_landing_evidence(
+                            issue,
+                            container_branches=(target_branch,),
+                            repo_path=str(project.repo_path or ""),
+                            project_id=project_id,
+                        )
+                    if not delivered and "human-only" in labels:
+                        delivered, _review_reason = (
+                            self._historical_done_merged_review_evidence(
+                                issue, project
+                            )
+                        )
+                    if delivered:
+                        if not self._stage_historical_done_merged(
+                            issue, project_id
+                        ):
+                            self._arm_historical_done_alert(
+                                tracker,
+                                project_id,
+                                issue,
+                                "proven delivery could not enter terminal audit",
+                            )
+                        continue
+
+                    if (
+                        parent_state == ARCHIVED
+                        and (
+                            self._is_epic_rebase_task(issue, parent.identifier)
+                            or self._done_review_child_is_completed_maintenance(issue)
+                        )
+                    ):
+                        reason = (
+                            f"Superseded maintenance helper after parent "
+                            f"{parent.identifier} was Archived; source "
+                            f"{parent.identifier}"
+                        )
+                        if request_archived_audit(
+                            issue,
+                            tracker,
+                            project_id,
+                            reason,
+                            project_store=self.project_store,
+                            trigger_source="historical_done_reconciliation",
+                        ):
+                            issue.state = IN_VALIDATION
+                            self._clear_historical_done_alert(
+                                project_id, issue.identifier
+                            )
+                        else:
+                            self._arm_historical_done_alert(
+                                tracker,
+                                project_id,
+                                issue,
+                                "superseding archive could not enter terminal audit",
+                            )
+                        continue
+
+                    evidence_reason = (
+                        f"parent {parent.identifier} is {parent_state}, but no "
+                        f"current-fingerprint Merged audit or durable integration "
+                        f"SHA is contained in {target_branch}"
+                    )
+                    if not refs_fresh:
+                        evidence_reason += (
+                            f"; authoritative target refresh failed "
+                            f"({refresh_error or 'unknown error'})"
+                        )
+                    self._arm_historical_done_alert(
+                        tracker, project_id, issue, evidence_reason
+                    )
+                    continue
+
+                if parent is None and "human-only" in labels:
+                    delivered = self._historical_done_has_passed_merged_audit(
+                        issue, tracker, project_id
+                    )
+                    review_reason = "current-fingerprint Merged audit passed"
+                    if not delivered:
+                        delivered, review_reason = (
+                            self._historical_done_merged_review_evidence(
+                                issue, project
+                            )
+                        )
+                    if delivered and self._stage_historical_done_merged(
+                        issue, project_id
+                    ):
+                        continue
+                    self._arm_historical_done_alert(
+                        tracker,
+                        project_id,
+                        issue,
+                        review_reason,
+                    )
+
     def _detect_independently_merged_children(
         self,
         epics: list[Issue],
@@ -19210,6 +19600,7 @@ class Orchestrator:
                     child,
                     container_branches=containment_targets,
                     repo_path=repo_path,
+                    project_id=child_project_id,
                 ):
                     logger.info(
                         "Epic child %s has durable landing evidence (integrated_sha "
@@ -19275,6 +19666,7 @@ class Orchestrator:
                         child.identifier,
                         instruction,
                     )
+                    child.state = NEEDS_HUMAN
                 except Exception as exc:  # noqa: BLE001 - reconciliation is best effort
                     logger.debug(
                         "Failed to mark child %s Needs Human: %s",
@@ -19312,6 +19704,7 @@ class Orchestrator:
                     result.reason if result else "coordinator error",
                 )
             else:
+                child.state = IN_VALIDATION
                 self._cleanup_landed_private_child_branch(epic, child)
                 logger.info(
                     "Staged epic child %s as Merged via coordinator (epic %s landed)",

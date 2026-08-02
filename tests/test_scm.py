@@ -1209,6 +1209,18 @@ class TestGitHubReviewQueueState:
         assert review.auto_merge_enabled is False
         assert review.mergeable_state == "clean"
 
+    def test_get_review_preserves_merged_state_and_exact_head(self):
+        pr = self._pr_payload(
+            state="closed",
+            merged_at="2026-05-02T00:00:00Z",
+            head={"ref": "feat", "sha": "a" * 40},
+        )
+        provider = self._provider(get_payload=pr)
+        review = provider.get_review("x/y", "11")
+        assert review is not None
+        assert review.state == "merged"
+        assert review.head_sha == "a" * 40
+
     # ------------------------------------------------------------------
     # Merge queue: when GitHub takes a PR over from auto-merge into the
     # repo merge queue, the REST ``auto_merge`` field is cleared back to
@@ -3976,6 +3988,20 @@ class TestGitLabGetReview:
         result = p.get_review("g/p", "42")
         assert result is not None
         assert result.draft is True
+
+    def test_merged_state_and_exact_head_are_preserved(self):
+        p = _GL.provider()
+        p._api = lambda m, path, **kw: _GL.r(
+            self._mr(
+                state="merged",
+                sha="b" * 40,
+                diff_refs={"head_sha": "c" * 40},
+            )
+        )
+        result = p.get_review("g/p", "42")
+        assert result is not None
+        assert result.state == "merged"
+        assert result.head_sha == "b" * 40
 
     def test_calls_correct_api_path(self):
         p = _GL.provider()

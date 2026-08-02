@@ -23,6 +23,7 @@ from oompah.orchestrator import Orchestrator
 from oompah.projects import ProjectError, ProjectStore
 from oompah.scm import ReviewRequest
 from oompah.statuses import (
+    ARCHIVED,
     DONE,
     IN_PROGRESS,
     IN_REVIEW,
@@ -196,6 +197,63 @@ def _make_landing_evidence_repo(tmp_path, *, land_child: bool):
         )
 
     return managed
+
+
+def _make_pruned_historical_landing_repo(tmp_path):
+    """Return a clone whose main contains a now-pruned task commit."""
+    remote = tmp_path / "historical-remote.git"
+    source = tmp_path / "historical-source"
+    managed = tmp_path / "historical-managed"
+    subprocess.run(["git", "init", "-q", "--bare", str(remote)], check=True)
+    subprocess.run(
+        ["git", "init", "-q", "--initial-branch=main", str(source)],
+        check=True,
+    )
+    subprocess.run(["git", "config", "user.name", "oompah"], cwd=source, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "lesserevil@users.noreply.github.com"],
+        cwd=source,
+        check=True,
+    )
+    (source / "base.txt").write_text("base\n")
+    subprocess.run(["git", "add", "base.txt"], cwd=source, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "base"], cwd=source, check=True)
+    subprocess.run(
+        ["git", "checkout", "-q", "-b", "historical-task"],
+        cwd=source,
+        check=True,
+    )
+    (source / "historical.txt").write_text("delivered\n")
+    subprocess.run(["git", "add", "historical.txt"], cwd=source, check=True)
+    subprocess.run(
+        ["git", "commit", "-q", "-m", "historical task"],
+        cwd=source,
+        check=True,
+    )
+    task_sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=source,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    subprocess.run(["git", "checkout", "-q", "main"], cwd=source, check=True)
+    subprocess.run(
+        ["git", "merge", "-q", "--ff-only", "historical-task"],
+        cwd=source,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "remote", "add", "origin", str(remote)],
+        cwd=source,
+        check=True,
+    )
+    subprocess.run(["git", "push", "-q", "origin", "main"], cwd=source, check=True)
+    subprocess.run(
+        ["git", "clone", "-q", "--branch", "main", str(remote), str(managed)],
+        check=True,
+    )
+    return managed, task_sha
 
 
 def _rewrite_landing_candidate(
@@ -5389,6 +5447,228 @@ class TestLabelMergedEpics:
         method_calls = tracker.method_calls
         # Just verify the mock was used and the test completes without error
         assert len(method_calls) >= 0
+
+    @pytest.mark.parametrize("parent_state", [MERGED, ARCHIVED])
+    def test_historical_done_uses_queue_row_after_branch_pruning(
+        self,
+        tmp_path,
+        parent_state,
+    ):
+        """A durable queue head plus target containment survives metadata loss."""
+        repo_path, task_sha = _make_pruned_historical_landing_repo(tmp_path)
+        project = _make_project_record(epic_strategy="shared")
+        project.repo_path = str(repo_path)
+        project.default_branch = "main"
+        orch = _make_orch(tmp_path / "orch", projects=[project])
+        parent = _make_issue(
+            identifier="epic-legacy",
+            issue_type="epic",
+            state=parent_state,
+        )
+        parent.target_branch = "main"
+        child = _make_issue(
+            identifier="child-legacy",
+            state=DONE,
+            parent_id=parent.identifier,
+            work_branch="historical-task",
+            integration=None,
+        )
+        tracker = MagicMock()
+        tracker.fetch_all_issues.return_value = [parent, child]
+        tracker.get_metadata.return_value = {}
+        tracker.fetch_comments.return_value = []
+        orch.integration_queue.enqueue(
+            project_id=project.id,
+            epic_id=parent.identifier,
+            task_id=child.identifier,
+            task_branch="historical-task",
+            head_sha=task_sha,
+        )
+        claimed = orch.integration_queue.claim_next(
+            project_id=project.id,
+            epic_id=parent.identifier,
+            lease_owner="test",
+            dependency_map={},
+            satisfied=set(),
+        )
+        assert claimed is not None
+        assert orch.integration_queue.complete(
+            project.id,
+            child.identifier,
+            lease_owner="test",
+        )
+
+        with patch.object(orch, "_tracker_for_project", return_value=tracker):
+            orch._reconcile_historical_done_records()
+
+        calls = orch.terminal_transition_coordinator.request_transition.call_args_list
+        assert len(calls) == 1
+        assert calls[0].kwargs["current_issue"].identifier == child.identifier
+        assert calls[0].kwargs["requested_target"] == TargetState.MERGED
+        assert child.state == "In Validation"
+        tracker.mark_needs_human.assert_not_called()
+
+    def test_historical_archived_parent_retires_superseded_helper(self, tmp_path):
+        project = _make_project_record(epic_strategy="shared")
+        project.repo_path = str(tmp_path / "missing-repo")
+        orch = _make_orch(tmp_path / "orch", projects=[project])
+        parent = _make_issue(
+            identifier="epic-retired",
+            issue_type="epic",
+            state=ARCHIVED,
+        )
+        helper = _make_issue(
+            identifier="rebase-helper",
+            title="Rebase epic-epic-retired onto main",
+            state=DONE,
+            parent_id=parent.identifier,
+        )
+        tracker = MagicMock()
+        tracker.fetch_all_issues.return_value = [parent, helper]
+        tracker.get_metadata.return_value = {}
+        tracker.fetch_comments.return_value = []
+
+        with (
+            patch.object(orch, "_tracker_for_project", return_value=tracker),
+            patch(
+                "oompah.orchestrator.request_archived_audit",
+                return_value=True,
+            ) as request_archive,
+        ):
+            orch._reconcile_historical_done_records()
+
+        request_archive.assert_called_once()
+        assert request_archive.call_args.args[0] is helper
+        assert parent.identifier in request_archive.call_args.args[3]
+        assert helper.state == "In Validation"
+        orch.terminal_transition_coordinator.request_transition.assert_not_called()
+
+    @pytest.mark.parametrize("with_parent", [False, True])
+    def test_historical_human_only_done_uses_merged_forge_review(
+        self,
+        tmp_path,
+        with_parent,
+    ):
+        project = _make_project_record(epic_strategy="flat")
+        orch = _make_orch(tmp_path / "orch", projects=[project])
+        parent = (
+            _make_issue(
+                identifier="legacy-parent",
+                issue_type="epic",
+                state=ARCHIVED,
+            )
+            if with_parent
+            else None
+        )
+        issue = _make_issue(
+            identifier="legacy-human",
+            state=DONE,
+            parent_id=parent.identifier if parent else None,
+            labels=["human-only"],
+            review_url="https://github.com/org/repo/pull/77",
+            review_number="77",
+        )
+        tracker = MagicMock()
+        tracker.fetch_all_issues.return_value = (
+            [parent, issue] if parent is not None else [issue]
+        )
+        tracker.get_metadata.return_value = {}
+        tracker.fetch_comments.return_value = []
+        provider = MagicMock()
+        provider.get_review.return_value = ReviewRequest(
+            id="77",
+            title="legacy-human",
+            url=issue.review_url or "",
+            author="owner",
+            state="merged",
+            source_branch="legacy-human",
+            target_branch="main",
+            created_at="",
+            updated_at="",
+            head_sha="a" * 40,
+        )
+
+        with (
+            patch.object(orch, "_tracker_for_project", return_value=tracker),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+        ):
+            orch._reconcile_historical_done_records()
+
+        provider.get_review.assert_called_once_with("org/repo", "77")
+        calls = orch.terminal_transition_coordinator.request_transition.call_args_list
+        assert len(calls) == 1
+        assert calls[0].kwargs["requested_target"] == TargetState.MERGED
+        assert issue.state == "In Validation"
+
+    def test_ambiguous_historical_done_is_nonterminal_and_deduplicated(self, tmp_path):
+        project = _make_project_record(epic_strategy="shared")
+        project.repo_path = str(tmp_path / "missing-repo")
+        orch = _make_orch(tmp_path / "orch", projects=[project])
+        parent = _make_issue(
+            identifier="epic-archived",
+            issue_type="epic",
+            state=ARCHIVED,
+        )
+        child = _make_issue(
+            identifier="ambiguous-child",
+            title="Implement unknown historical work",
+            state=DONE,
+            parent_id=parent.identifier,
+        )
+        tracker = MagicMock()
+        tracker.fetch_all_issues.return_value = [parent, child]
+        tracker.get_metadata.return_value = {}
+        tracker.fetch_comments.side_effect = [[], []]
+
+        with patch.object(orch, "_tracker_for_project", return_value=tracker):
+            orch._reconcile_historical_done_records()
+            first_comment = tracker.add_comment.call_args.args[1]
+            tracker.fetch_comments.side_effect = [[{"text": first_comment}]]
+            orch._reconcile_historical_done_records()
+
+        assert child.state == DONE
+        orch.terminal_transition_coordinator.request_transition.assert_not_called()
+        assert tracker.add_comment.call_count == 1
+        matching_alerts = [
+            alert
+            for alert in orch._alerts
+            if alert["source"]
+            == f"historical_done:{project.id}:{child.identifier}"
+        ]
+        assert len(matching_alerts) == 1
+
+    def test_successful_historical_done_pass_is_idempotent(self, tmp_path):
+        repo_path, task_sha = _make_pruned_historical_landing_repo(tmp_path)
+        project = _make_project_record(epic_strategy="shared")
+        project.repo_path = str(repo_path)
+        orch = _make_orch(tmp_path / "orch", projects=[project])
+        parent = _make_issue(
+            identifier="epic-idempotent",
+            issue_type="epic",
+            state=MERGED,
+        )
+        child = _make_issue(
+            identifier="child-idempotent",
+            state=DONE,
+            parent_id=parent.identifier,
+        )
+        tracker = MagicMock()
+        tracker.fetch_all_issues.return_value = [parent, child]
+        tracker.get_metadata.return_value = {}
+        orch.integration_queue.enqueue(
+            project_id=project.id,
+            epic_id=parent.identifier,
+            task_id=child.identifier,
+            task_branch="historical-task",
+            head_sha=task_sha,
+        )
+
+        with patch.object(orch, "_tracker_for_project", return_value=tracker):
+            orch._reconcile_historical_done_records()
+            orch._reconcile_historical_done_records()
+
+        assert orch.terminal_transition_coordinator.request_transition.call_count == 1
 
     @patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo")
     @patch("oompah.orchestrator.detect_provider")
