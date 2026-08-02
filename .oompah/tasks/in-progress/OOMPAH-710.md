@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-710
 type: bug
-status: Done
+status: In Progress
 priority: null
 title: Keep oversized auditor tool results inside the read-only authority boundary
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T23:45:39.918535Z'
-updated_at: '2026-08-02T23:52:43.909702Z'
+updated_at: '2026-08-02T23:57:59.056108Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -197,5 +197,10 @@ author: oompah
 created: 2026-08-02 23:51
 ---
 Duplicate screening was inconclusive 3 times. Human action required: a project owner must review the authoritative task corpus and use the authenticated duplicate-screening owner-resolution action (POST /api/v1/issues/OOMPAH-710/duplicate-screening/owner-resolution) with a conclusive verdict and reason. This records the owner decision, resets the retry budget, and returns no_duplicate tasks to Open (or routes a verified duplicate to Duplicate Candidate). A plain verdict comment is not authoritative.
+---
+author: oompah
+created: 2026-08-02 23:57
+---
+Reopened from premature Done: the authenticated owner-resolution raced the active third duplicate investigator, then direct owner work was moved to Done during its exit/deployment despite an uncommitted dirty worktree and no submission. Implementation remains actively owned here; a dedicated follow-up will cover that race.
 ---
 <!-- COMMENTS:END -->
