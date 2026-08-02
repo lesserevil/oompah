@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T15:25:36.632395Z'
-updated_at: '2026-08-02T01:38:22.760788Z'
+updated_at: '2026-08-02T01:38:41.124396Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -93,6 +93,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-02T01:15:56.083974+00:00'
     branch_key: OOMPAH-408
+oompah.task_costs:
+  total_input_tokens: 70
+  total_output_tokens: 2573
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 70
+      output_tokens: 2573
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 70
+    output_tokens: 2573
+    cost_usd: 0.0
+    recorded_at: '2026-08-02T01:38:39.188934+00:00'
 ---
 ## Summary
 
@@ -158,5 +174,15 @@ Safe evidence:
 - diff_shape: adds guard in _label_merged_epics + helper; 55/+58 lines in orchestrator/test
 - prior_verification: oompah 2026-07-22: make test passed; oompah 2026-07-26: reconciled delivered on origin/main
 - make_test_unread_reason: make test executed but output (3.4MB) was written outside worktree and auditor policy denied reading it; relying on prior verification and repo evidence
+---
+author: oompah
+created: 2026-08-02 01:38
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 48
+- Tokens: 70 in / 2.6K out [2.6K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 22m 42s
+- Log: OOMPAH-408__20260802T011602Z.jsonl
 ---
 <!-- COMMENTS:END -->

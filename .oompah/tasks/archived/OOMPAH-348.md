@@ -16,7 +16,7 @@ labels:
 - service-wedge
 assignee: null
 created_at: '2026-07-22T00:56:17.834972Z'
-updated_at: '2026-08-02T01:38:33.406103Z'
+updated_at: '2026-08-02T01:38:36.060628Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,8 +46,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-2977f93aea96
-    applied: false
+    applied: true
     created_at: '2026-08-02T01:38:30.631024+00:00'
+    applied_at: '2026-08-02T01:38:35.200640+00:00'
   version: 1
   pending_chain:
   - version: 1
