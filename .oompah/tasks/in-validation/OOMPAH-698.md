@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T18:20:27.192609Z'
-updated_at: '2026-08-02T20:10:48.133976Z'
+updated_at: '2026-08-02T20:11:03.832692Z'
 work_branch: OOMPAH-698
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/659
@@ -126,6 +126,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-02T19:58:18.100693+00:00'
     branch_key: OOMPAH-698
+oompah.task_costs:
+  total_input_tokens: 43
+  total_output_tokens: 7270
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 43
+      output_tokens: 7270
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 43
+    output_tokens: 7270
+    cost_usd: 0.0
+    recorded_at: '2026-08-02T20:11:00.739445+00:00'
 ---
 ## Summary
 
@@ -245,5 +261,15 @@ Safe evidence:
 - oompah_698_specific_scm_tests: 2 passed (github + gitlab preserves_review_head_sha)
 - files_changed: oompah/orchestrator.py, oompah/scm.py, tests/test_orchestrator_merged.py, tests/test_scm.py (+310/-5)
 - prior_branch_gate: make test 14990 passed 7 skipped 1 xfailed 382.36s
+---
+author: oompah
+created: 2026-08-02 20:11
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 47, Tool calls: 37
+- Tokens: 43 in / 7.3K out [7.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 12m 41s
+- Log: OOMPAH-698__20260802T195825Z.jsonl
 ---
 <!-- COMMENTS:END -->
