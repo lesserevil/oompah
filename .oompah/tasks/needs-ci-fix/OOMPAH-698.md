@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-698
 type: bug
-status: Ready to Integrate
+status: Needs CI Fix
 priority: 1
 title: Recover legacy stale reviews without persisted review-head metadata
 parent: null
@@ -10,9 +10,10 @@ blocked_by: []
 start_blocked_by: []
 labels:
 - human-only
+- ci-fix
 assignee: null
 created_at: '2026-08-02T18:20:27.192609Z'
-updated_at: '2026-08-02T19:37:16.248169Z'
+updated_at: '2026-08-02T19:37:52.831820Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -66,5 +67,23 @@ author: oompah
 created: 2026-08-02 19:37
 ---
 Recovered legacy review heads and safely requeued advanced branches; full gate and secret scan passed.
+---
+author: oompah
+created: 2026-08-02 19:37
+---
+Branch quality gate blocked review creation.
+
+Branch: `OOMPAH-698`
+Target: `main`
+Head: `unknown`
+Command: `make test`
+Result: `error`
+
+Required: run the command in the task worktree, fix the failure, commit and push the repair, then leave the task in Done. Oompah will rerun the gate for the new head before creating the PR/MR.
+
+Output tail:
+```text
+No existing worktree matched the review branch tip. Recreate the task worktree before retrying.
+```
 ---
 <!-- COMMENTS:END -->
