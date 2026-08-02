@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-700
 type: bug
-status: Open
+status: In Validation
 priority: 0
 title: Gate accepted submissions without a canonical task worktree
 parent: null
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T19:52:39.323644Z'
-updated_at: '2026-08-02T21:01:57.172650Z'
+updated_at: '2026-08-02T21:06:58.124037Z'
 work_branch: OOMPAH-700
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/661
@@ -97,6 +97,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/661
 oompah.review_number: '661'
 oompah.work_branch: OOMPAH-700
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-79284d825a2d
+    project_id: proj-14849f1b
+    task_id: OOMPAH-700
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 217031b9e0cad87fc96b91b6ec3bff0cf1da42c75877514610d7557efd6105d2
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-02T21:06:51.383233+00:00'
+  - version: 1
+    audit_id: audit-dee192504992
+    project_id: proj-14849f1b
+    task_id: OOMPAH-700
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 217031b9e0cad87fc96b91b6ec3bff0cf1da42c75877514610d7557efd6105d2
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-02T21:06:51.383233+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -248,5 +287,15 @@ created: 2026-08-02 21:01
 **Evidence:** Recent comment indicates CI is now passing or PR has been merged; safe to reopen for dispatch.
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-08-02 21:06
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-02 21:06
+---
+YOLO: merged PR #661.
 ---
 <!-- COMMENTS:END -->
