@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T19:52:39.323644Z'
-updated_at: '2026-08-02T19:57:38.295473Z'
+updated_at: '2026-08-02T20:01:29.162910Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -132,5 +132,10 @@ author: oompah
 created: 2026-08-02 19:57
 ---
 Understanding: OOMPAH-700 must decouple exact-head review gating from discovery of a surviving canonical checkout. I will inspect the existing OOMPAH-700 branch and CI logs, reproduce the failure, then minimally materialize trusted submitted evidence from the managed repository while preserving stale-head checks, sandbox cleanliness, cancellation/cache idempotency, and infrastructure-vs-CI classification. Regression tests will cover non-canonical submission, unavailable evidence, stale branch movement, and repeated recovery.
+---
+author: oompah
+created: 2026-08-02 20:01
+---
+Discovery: No OOMPAH-700 PR or Actions run exists; the branch is clean at origin/main, so this is the original bug implementation rather than repair of an existing check. Root cause is orchestrator.py::_review_quality_gate_passes/_quality_gate_worktree: review gating aborts unless a discovered checkout HEAD equals the locally resolved branch ref. BranchQualityGate already archives an explicit SHA, but run() rejects sources whose checkout HEAD differs. The fix will let the managed repository supply an exact committed snapshot, retain strict mode for reusable task/integration worktrees, bind standalone gates to submitted/verified remote evidence, and classify unavailable commit/ref materialization as infrastructure_error without ci-fix.
 ---
 <!-- COMMENTS:END -->
