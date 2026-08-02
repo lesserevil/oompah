@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-694
 type: feature
-status: Open
+status: In Progress
 priority: 1
 title: Detect WebSocket gaps and self-heal the dashboard state
 parent: OOMPAH-691
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:50.443759Z'
-updated_at: '2026-08-02T02:10:32.528741Z'
+updated_at: '2026-08-02T04:06:32.147062Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-694
 target_branch: null
 review_url: null
@@ -43,7 +43,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 5df36bf6-6196-4985-ae7e-c580bfe9c363
+oompah.agent_run_id: 4fddde2c-4359-4a0a-86fb-e025bb3cb89b
 oompah.work_branch: epic-OOMPAH-691--task-OOMPAH-694
 oompah.integration:
   version: 2
@@ -51,8 +51,8 @@ oompah.integration:
   attempts: 0
   task_branch: epic-OOMPAH-691--task-OOMPAH-694
   base_branch: epic-OOMPAH-691
-  base_sha: 6252b5434f392b74de9703a9fc8dca1951dfeaca
-  updated_at: '2026-08-02T02:09:13.137005+00:00'
+  base_sha: cf5f3cecede5a3344922345e2fcbc3f042c982c9
+  updated_at: '2026-08-02T04:06:29.653932+00:00'
 oompah.task_costs:
   total_input_tokens: 415198
   total_output_tokens: 2198
@@ -134,5 +134,15 @@ Run #1 [attempt=1, profile=standard, role=standard -> Codex/gpt-5.6-terra]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 20s
 - Log: OOMPAH-694__20260802T020920Z.jsonl
+---
+author: oompah
+created: 2026-08-02 04:06
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-02 04:06
+---
+Focus: Frontend Developer
 ---
 <!-- COMMENTS:END -->
