@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-705
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Fetch an accepted submission head before standalone review gating
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T21:30:29.609691Z'
-updated_at: '2026-08-02T21:52:19.539297Z'
+updated_at: '2026-08-02T21:52:41.556888Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -55,7 +55,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 3c09c281-63ea-4db7-a10f-52faf4d9efcd
+oompah.agent_run_id: 4c73c16a-d212-40ce-bdf4-62d267ace265
 oompah.task_costs:
   total_input_tokens: 6
   total_output_tokens: 664
@@ -116,5 +116,15 @@ Run #1 [attempt=1, profile=deep, role=deep -> Claude/opus]
 - Cost: $0.0000
 - Exit: normal, Duration: 23s
 - Log: OOMPAH-705__20260802T215147Z.jsonl
+---
+author: oompah
+created: 2026-08-02 21:52
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-08-02 21:52
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
