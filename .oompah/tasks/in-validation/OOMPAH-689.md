@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T00:13:22.222984Z'
-updated_at: '2026-08-02T00:51:55.043037Z'
+updated_at: '2026-08-02T00:57:29.354973Z'
 work_branch: OOMPAH-689
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/648
@@ -99,6 +99,31 @@ oompah.work_branch: OOMPAH-689
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-68276aa50ebb: '2026-08-02T00:57:25.104904+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-689
+    target_state: Done
+    evidence_fingerprint: 885db9c57a581ef3a742173d863ce064b260ce60f7b056161d52cafdbf9fa7b7
+    audit_ids:
+    - audit-b7a055e8c647
+    kind: result
+    applied: true
+    retired_at: '2026-08-02T00:57:25.104915+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-689
+    audit_id: audit-b7a055e8c647
+    attempt_id: attempt-68276aa50ebb
+    target_state: Done
+    evidence_fingerprint: 885db9c57a581ef3a742173d863ce064b260ce60f7b056161d52cafdbf9fa7b7
+    status: In Validation
+    audit_ids:
+    - audit-b7a055e8c647
+    applied: true
+    created_at: '2026-08-02T00:57:25.104930+00:00'
+    applied_at: '2026-08-02T00:57:28.447624+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -106,7 +131,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-689
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -115,7 +140,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-68276aa50ebb
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -125,13 +150,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-02T00:51:50.245041+00:00'
       branch_key: OOMPAH-689
+      verdict: pass
+      completed_at: '2026-08-02T00:57:25.104670+00:00'
+      ended_at: '2026-08-02T00:57:25.104670+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-02T00:51:24.042669+00:00'
-    updated_at: '2026-08-02T00:51:50.245041+00:00'
+    updated_at: '2026-08-02T00:57:25.104670+00:00'
   - version: 1
     audit_id: audit-a10f3199dad8
     project_id: proj-14849f1b
@@ -292,5 +320,29 @@ author: oompah
 created: 2026-08-02 00:51
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-02 00:57
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: a5acdde6497e03bb83714ec585dff131b4b09398
+- merge_commit: 431d472825a0dc7eeb75a9489ef4f91e9599db15
+- pr_number: 648
+- files_changed: docs/authentication.md, docs/scoped-task-cli-authentication.md, oompah/auth_health.py, oompah/orchestrator.py, oompah/server.py, oompah/task_handoff.py, tests/test_task_handoff.py
+- diff_stat: 7 files changed, 391 insertions(+), 24 deletions(-)
+- focused_tests_task_handoff: 68 passed in 10.62s
+- focused_tests_handoff_auth_server: 171 passed, 1 deprecation warning in 12.92s
+- focused_tests_orchestrator_handlers: 277 passed in 166.72s
+- branch_gate_make_test: passed in 391.4s (per branch quality gate comment)
+- regression_test_added: TestFailedHandoffLifecycle::test_informational_peer_read_does_not_poison_successful_submit (asserts Ready to Integrate preserved through exit reconciliation)
+- parametrized_peer_view_states: Open, Ready to Integrate, Done, Unknown (target never resolved; policy_denial_count == 1, recent_403_scope_count == 0)
+- parametrized_mutation_actionable: comment, submit (recent_403_scope_count == 1, policy_denial_count == 0, actionable failure recorded)
+- [REDACTED-credential-key]: test_wrong_token_targeting_assigned_task_remains_auth_failure asserts scope alert + actionable failure
+- cross_project_denial_preserved: test_wrong_project_token_returns_403 asserts scope alert + actionable failure
+- commit_trailer: canonical oompah trailer, no model attribution
 ---
 <!-- COMMENTS:END -->
