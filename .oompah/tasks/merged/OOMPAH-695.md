@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-695
 type: task
-status: In Validation
+status: Merged
 priority: 1
 title: Prove dashboard convergence with fault injection and health telemetry
 parent: OOMPAH-691
@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:52.297786Z'
-updated_at: '2026-08-02T16:19:40.227492Z'
+updated_at: '2026-08-02T16:22:47.586000Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-695
 target_branch: null
 review_url: null
@@ -171,6 +171,7 @@ oompah.terminal_audit:
     attempt-f7901f6eb210: '2026-08-02T06:03:07.211998+00:00'
     attempt-19e1c36dff9e: '2026-08-02T06:23:58.314128+00:00'
     attempt-a1c9de3bd676: '2026-08-02T06:54:34.138918+00:00'
+    attempt-ce58ed5026de: '2026-08-02T16:22:43.268962+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-695
@@ -199,6 +200,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-02T06:54:34.138931+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-695
+    target_state: Merged
+    evidence_fingerprint: 96631c8bee5a210efe1e109639b69cff1902f3d31642c255d5bc3123db65dd87
+    audit_ids:
+    - audit-43b99015d343
+    kind: result
+    applied: true
+    retired_at: '2026-08-02T16:22:43.268983+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-695
@@ -236,6 +246,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-02T06:54:34.138946+00:00'
     applied_at: '2026-08-02T06:54:38.952406+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-695
+    audit_id: audit-43b99015d343
+    attempt_id: attempt-ce58ed5026de
+    target_state: Merged
+    evidence_fingerprint: 96631c8bee5a210efe1e109639b69cff1902f3d31642c255d5bc3123db65dd87
+    status: Merged
+    audit_ids:
+    - audit-43b99015d343
+    applied: false
+    created_at: '2026-08-02T16:22:43.269006+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -347,7 +368,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-695
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -356,7 +377,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-ce58ed5026de
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -366,13 +387,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-02T16:19:32.163720+00:00'
       branch_key: epic-OOMPAH-691--task-OOMPAH-695
+      verdict: pass
+      completed_at: '2026-08-02T16:22:43.268795+00:00'
+      ended_at: '2026-08-02T16:22:43.268795+00:00'
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
       source: oompah
     previous_state: Done
     created_at: '2026-08-02T07:26:41.299111+00:00'
-    updated_at: '2026-08-02T16:19:32.163720+00:00'
+    updated_at: '2026-08-02T16:22:43.268795+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-f7901f6eb210
@@ -1050,5 +1074,23 @@ author: oompah
 created: 2026-08-02 16:19
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-02 16:22
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- recorded_head: 1edd55f7c62f43448dd1d485e069cf3b61efd25b
+- origin_main_head: b7fdf2b3f6dfa00f39659abafb176f3d67579dce
+- ancestor_check_log_origin_main_dot_dot_head: empty (0 commits ahead)
+- ancestor_check_log_head_dot_dot_origin_main_first: dd300faf5 OOMPAH-691: stabilize refresh-action WS lifecycle test
+- merge_commit: b7fdf2b3f Merge pull request #654 from lesserevil/epic-OOMPAH-691
+- oompah_695_commits_in_main: 1edd55f7c, 6897f3093, 984127960, 1293a2f3c
+- prior_done_audit: PASS with 174 focused tests green
+- recorded_branch: epic-OOMPAH-691--task-OOMPAH-695
+- operator_note: OOMPAH-696 tracks the branch-name recording root cause
 ---
 <!-- COMMENTS:END -->
