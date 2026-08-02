@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-440
 type: task
-status: Merged
+status: In Validation
 priority: null
 title: Count claimed shared-epic children in branch serialization
 parent: null
@@ -10,12 +10,34 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-24T16:07:22.198190Z'
-updated_at: '2026-07-26T00:29:19.833293Z'
+updated_at: '2026-08-02T01:14:15.594177Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-2df4dfc46584
+    project_id: proj-14849f1b
+    task_id: OOMPAH-440
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0c2d0c972091153ddfcabfa8f158cb9dbb77e09001c3e642d47a17138ab3e57e
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-02T01:14:12.083684+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -43,5 +65,10 @@ author: oompah
 created: 2026-07-26 00:29
 ---
 Verified delivered on origin/main in 0e5fb0632 and reconciled stale Done state.
+---
+author: oompah
+created: 2026-08-02 01:14
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
