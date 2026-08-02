@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-446
 type: task
-status: Merged
+status: In Validation
 priority: null
 title: Kill CLI agent process trees when worker cancellation times out
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-26T03:12:30.119065Z'
-updated_at: '2026-07-26T03:45:22.694240Z'
+updated_at: '2026-08-02T04:02:24.707266Z'
 work_branch: OOMPAH-446
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/554
@@ -38,6 +38,28 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/554
 oompah.review_number: '554'
 oompah.work_branch: OOMPAH-446
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-b06d89b302c4
+    project_id: proj-14849f1b
+    task_id: OOMPAH-446
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0bc3a5fe8eec4ad73cce478738998379b489a17fb4ddb2db78bc26ce7ecefc0f
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-02T04:02:21.848916+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -190,5 +212,10 @@ author: oompah
 created: 2026-07-26 03:45
 ---
 YOLO: merged PR #554.
+---
+author: oompah
+created: 2026-08-02 04:02
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
