@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-703
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Make backlog refresh invalidation tests wait for completion deterministically
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T20:59:10.197769Z'
-updated_at: '2026-08-02T22:20:36.722897Z'
+updated_at: '2026-08-02T22:28:51.278561Z'
 work_branch: OOMPAH-703
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/663
@@ -91,6 +91,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/663
 oompah.review_number: '663'
 oompah.work_branch: OOMPAH-703
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-b074ba92b861
+    project_id: proj-14849f1b
+    task_id: OOMPAH-703
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f55c8ab7eae1ae9acff2b0164f275f9aebe7fafb215c1480a6604e9e4237964c
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-02T22:28:44.531536+00:00'
+  - version: 1
+    audit_id: audit-3990a0e653f5
+    project_id: proj-14849f1b
+    task_id: OOMPAH-703
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f55c8ab7eae1ae9acff2b0164f275f9aebe7fafb215c1480a6604e9e4237964c
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-02T22:28:44.531536+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -200,5 +239,15 @@ author: oompah
 created: 2026-08-02 22:20
 ---
 Branch quality gate passed for `26b3f2ea9a99038870bc1f5d46a29157ee9be512` using `make test` in 395.2s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-02 22:28
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-02 22:28
+---
+YOLO: merged PR #663.
 ---
 <!-- COMMENTS:END -->
