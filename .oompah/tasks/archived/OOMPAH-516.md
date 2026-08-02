@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:52:20.003932Z'
-updated_at: '2026-08-02T18:21:03.076706Z'
+updated_at: '2026-08-02T18:21:05.905055Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -35,7 +35,17 @@ oompah.terminal_audit:
       comments and no merge artifact; terminal Archived is the truthful lifecycle
       state. OOMPAH-699 tracks automatic convergence.'
     created_at: '2026-08-02T18:20:58.865035+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-516
+    target_state: Archived
+    evidence_fingerprint: a4ce14582582a9a58f03f6d6b4d8ae0fd9ef7479629731815c0619b6bfb00f81
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-02T18:21:04.904014+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
