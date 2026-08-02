@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-684
 type: task
-status: In Progress
+status: In Validation
 priority: 0
 title: Prevent stale retry dispatch after operator task resubmission
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T21:44:29.390457Z'
-updated_at: '2026-08-02T02:04:37.391975Z'
+updated_at: '2026-08-02T02:12:47.054846Z'
 work_branch: OOMPAH-684
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/650
@@ -99,6 +99,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/650
 oompah.review_number: '650'
 oompah.work_branch: OOMPAH-684
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-6e5a10195354
+    project_id: proj-14849f1b
+    task_id: OOMPAH-684
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 958c00bb5699374ae5b7c47ae06ca266f5d34415f36d256acfc32271cee6ea26
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Progress
+    created_at: '2026-08-02T02:12:41.699584+00:00'
+  - version: 1
+    audit_id: audit-379a276e1265
+    project_id: proj-14849f1b
+    task_id: OOMPAH-684
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 958c00bb5699374ae5b7c47ae06ca266f5d34415f36d256acfc32271cee6ea26
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Progress
+    created_at: '2026-08-02T02:12:41.699584+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -359,5 +398,15 @@ author: oompah
 created: 2026-08-02 02:04
 ---
 Verification: Pushed fix to OOMPAH-684 branch (ce27cada4). CI checks are now running on PR #650. The fix: add 'source_generations': {} and 'invalidated': False to clear_api_state fixture's reset dict (both setup and teardown) in tests/test_dashboard_task_display_identifier.py. This prevents stale _issues_snapshot state from a previous test causing source_stale=True and an empty board response. Local tests: 6/6 pass in test_dashboard_task_display_identifier.py; 82/82 pass in test_retry_authority_generation.py and test_submit_queue_concurrency.py.
+---
+author: oompah
+created: 2026-08-02 02:12
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-02 02:12
+---
+YOLO: merged PR #650.
 ---
 <!-- COMMENTS:END -->
