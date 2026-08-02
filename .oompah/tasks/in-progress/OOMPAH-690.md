@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T00:37:18.141681Z'
-updated_at: '2026-08-02T00:41:22.708810Z'
+updated_at: '2026-08-02T00:42:05.359620Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -160,5 +160,10 @@ author: oompah
 created: 2026-08-02 00:41
 ---
 Understanding: the server currently couples state throttling to issue-refresh scheduling, so a task-changing event can be dropped after a recent state broadcast. I will separate those scheduling paths while preserving coalescing, then add bounded browser heartbeat/freshness detection, guarded reconnect lifecycle, and reconnect backfill with focused regression tests.
+---
+author: oompah
+created: 2026-08-02 00:42
+---
+Discovery: server.py uses one _last_state_broadcast gate for both state and issue notifications; issue refresh scheduling is below the early return. dashboard.html has a single fixed 2s reconnect timer, no heartbeat/freshness tracking, and only closes on error. Existing tests are concentrated in tests/test_ws_lifecycle.py plus dashboard source-contract suites.
 ---
 <!-- COMMENTS:END -->
