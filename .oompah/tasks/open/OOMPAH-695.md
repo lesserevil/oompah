@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-695
 type: task
-status: In Validation
+status: Open
 priority: 1
 title: Prove dashboard convergence with fault injection and health telemetry
 parent: OOMPAH-691
@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:52.297786Z'
-updated_at: '2026-08-02T06:19:45.703454Z'
+updated_at: '2026-08-02T06:24:03.368565Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-695
 target_branch: null
 review_url: null
@@ -157,6 +157,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-f7901f6eb210: '2026-08-02T06:03:07.211998+00:00'
+    attempt-19e1c36dff9e: '2026-08-02T06:23:58.314128+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-695
@@ -167,6 +168,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-02T06:03:07.212010+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-695
+    target_state: Done
+    evidence_fingerprint: f8f9d51f4f1224eb226b8d5e5deea678a616aae050609634e71a7565f07623fc
+    audit_ids:
+    - audit-f57bcbb9815d
+    kind: result
+    applied: true
+    retired_at: '2026-08-02T06:23:58.314144+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-695
@@ -180,6 +190,18 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-02T06:03:07.212027+00:00'
     applied_at: '2026-08-02T06:03:10.503017+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-695
+    audit_id: audit-f57bcbb9815d
+    attempt_id: attempt-19e1c36dff9e
+    target_state: Done
+    evidence_fingerprint: f8f9d51f4f1224eb226b8d5e5deea678a616aae050609634e71a7565f07623fc
+    status: Open
+    audit_ids:
+    - audit-f57bcbb9815d
+    applied: true
+    created_at: '2026-08-02T06:23:58.314163+00:00'
+    applied_at: '2026-08-02T06:24:02.331839+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -222,7 +244,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-695
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -231,7 +253,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-19e1c36dff9e
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -241,13 +263,17 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-02T06:19:41.436647+00:00'
       branch_key: epic-OOMPAH-691--task-OOMPAH-695
+      verdict: fail
+      failure_classification: missing_tests
+      completed_at: '2026-08-02T06:23:58.313878+00:00'
+      ended_at: '2026-08-02T06:23:58.313878+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-08-02T06:19:17.215268+00:00'
-    updated_at: '2026-08-02T06:19:41.436647+00:00'
+    updated_at: '2026-08-02T06:23:58.313878+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-f7901f6eb210
@@ -730,5 +756,19 @@ author: oompah
 created: 2026-08-02 06:19
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-02 06:24
+---
+Audit FAIL — missing tests. Routing task to Open.
+
+[REDACTED]
+
+Instructions:
+- Add a test that patches _handle_full_sync (or an inner call it makes) to raise an exception, drives >= _WS_SYNC_ALERT_THRESHOLD (3) consecutive full_sync failures via the real /ws endpoint, and asserts _ws_sync_metrics['consecutive_failures'] >= 3 AND _ws_sync_alert becomes non-None AND the ws_sync_alert appears in the enriched state payload returned by _current_state_message()/_enrich_state_snapshot().
+- Add a test that after the alert is emitted, a subsequent successful full_sync via the real code path clears _ws_sync_alert to None and resets consecutive_failures to 0, matching the 'clear after recovery' acceptance criterion.
+- Add an integration test that reproduces the observed 4-auditor completion snapshot failure end-to-end: seed 4 chip-affecting completion snapshots, drop those enveloped messages via a real _send_ws / _broadcast patch, drive a browser refresh action, and assert the client receives a full_sync payload that removes all four chips (assert on the message content, not just metric counters).
+- Replace test_duplicate_messages_idempotent_with_delivery_seq's 'assert True' with an actual assertion that duplicate/reordered enveloped messages cannot regress applied state (e.g., replay an older delivery_seq and assert the client-visible authoritative state is unchanged).
+- Add a burst test that fires many rapid full_sync requests within the coalescing window and asserts the number of full_sync responses / server-side full_sync_requests-worth-of-work remains bounded (i.e., the coalescing described in _handle_full_sync is exercised).
 ---
 <!-- COMMENTS:END -->
