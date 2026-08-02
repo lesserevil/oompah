@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T15:36:41.250138Z'
-updated_at: '2026-08-02T01:28:33.129535Z'
+updated_at: '2026-08-02T01:29:02.869870Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -93,6 +93,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-02T01:16:02.331290+00:00'
     branch_key: OOMPAH-409
+oompah.task_costs:
+  total_input_tokens: 57
+  total_output_tokens: 2234
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 57
+      output_tokens: 2234
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 57
+    output_tokens: 2234
+    cost_usd: 0.0
+    recorded_at: '2026-08-02T01:29:00.896839+00:00'
 ---
 ## Summary
 
@@ -161,5 +177,15 @@ Safe evidence:
 - test_focused_result: 7 passed, 56 deselected (0.55s)
 - new_regression_test: test_omits_missing_or_invalid_common_dir
 - commondir_safety_checks: os.path.isabs + normpath, os.path.realpath, os.path.isdir, dedup vs gitdir realpath
+---
+author: oompah
+created: 2026-08-02 01:29
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 39
+- Tokens: 57 in / 2.2K out [2.3K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 12m 56s
+- Log: OOMPAH-409__20260802T011612Z.jsonl
 ---
 <!-- COMMENTS:END -->
