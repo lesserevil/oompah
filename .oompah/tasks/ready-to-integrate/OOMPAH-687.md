@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-687
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Isolate branch-gate runtime from task worktree environments
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T23:00:54.291962Z'
-updated_at: '2026-08-02T02:38:06.461640Z'
+updated_at: '2026-08-02T02:38:31.568517Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -116,11 +116,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-687
-  base_branch: main
-  base_sha: 917633fd9a199f5a456d6b091a72e1a1ad3633b5
-  head_sha: 9dfa372d7d3588e4d3d98bc13f7245b7185985c3
-  submitted_at: '2026-08-02T02:24:40.663857+00:00'
-  updated_at: '2026-08-02T02:24:59.587805+00:00'
+  head_sha: 17a1f43eb80b345072178b15722e6849ae5db9dd
+  submitted_at: '2026-08-02T02:38:27.506402+00:00'
+  updated_at: '2026-08-02T02:38:27.506402+00:00'
 ---
 ## Summary
 
@@ -429,5 +427,15 @@ author: oompah
 created: 2026-08-02 02:38
 ---
 Implementation: Updated only the three sandbox-command bind-layout tests to stub _validate_trusted_runtime_source. Those tests now exercise mount construction independently; poisoned editable-mapping tests continue to exercise the validator and infrastructure_error classification. Verification: OOMPAH_PYTEST_GATE=1 python -m pytest -q tests/test_quality_gate.py (54 passed); tests/test_makefile_setup.py (14 passed); tests/test_installed_cli_smoke.py (13 passed, 5 skipped). make test-setup remains blocked before project setup by the host snap uv DBus transient-scope error, and the full make test gate is reserved for the orchestrator.
+---
+author: oompah
+created: 2026-08-02 02:38
+---
+Completion: Pushed 17a1f43eb to OOMPAH-687. The three nested sandbox bind-layout tests now isolate the preflight validation that the outer gate has already performed, while corruption detection coverage remains active. Focused gate-mode quality, Makefile setup, and installed CLI smoke suites pass; no GitHub PR or Actions run exists for this branch, so submission will request the normal oompah branch gate for this exact head.
+---
+author: oompah
+created: 2026-08-02 02:38
+---
+Fixed nested sandbox bind tests under the branch gate
 ---
 <!-- COMMENTS:END -->
