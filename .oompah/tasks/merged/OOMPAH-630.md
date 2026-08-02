@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-630
 type: task
-status: Done
+status: Merged
 priority: null
 title: Fetch rollup targets before judging child landing evidence
 parent: OOMPAH-584
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T23:37:58.090708Z'
-updated_at: '2026-07-31T05:55:24.076460Z'
+updated_at: '2026-08-02T18:30:47.629729Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-630
 target_branch: null
 review_url: null
@@ -107,6 +107,24 @@ oompah.terminal_audit:
     reason: Restore previously audited Done after false post-merge landing regression;
       refreshed exact task ref is contained in main.
     created_at: '2026-07-31T05:54:52.226868+00:00'
+  - version: 1
+    override_id: override-bbe6c2ca0f2f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-630
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: e904256754891680c750760d903269268dcd684922100d246eda5a2bc96c072c
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reconciliation: parent OOMPAH-584 is Merged and its accepted rollup
+      contains this previously audited Done child; durable integration-queue/rollup
+      evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.'
+    created_at: '2026-08-02T18:30:43.559316+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -464,5 +482,12 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 1m 20s
 - Log: OOMPAH-630__20260731T055406Z.jsonl
+---
+author: oompah
+created: 2026-08-02 18:30
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner reconciliation: parent OOMPAH-584 is Merged and its accepted rollup contains this previously audited Done child; durable integration-queue/rollup evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.
 ---
 <!-- COMMENTS:END -->
