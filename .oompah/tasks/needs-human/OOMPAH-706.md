@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-706
 type: bug
-status: Open
+status: Needs Human
 priority: 1
 title: Make duplicate-preflight verdict delivery truncation-proof
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T21:55:47.761417Z'
-updated_at: '2026-08-02T22:11:37.674410Z'
+updated_at: '2026-08-02T22:12:15.788127Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -25,25 +25,25 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: 8d15a3de-134a-492e-81b3-8c0db8903a48
-  claim_owner: 0b22eab2-a2d1-4082-a6c8-404ec37650a4
-  claimed_at: '2026-08-02T22:11:31.635025+00:00'
-  claim_expires_at: '2026-08-02T22:41:31.635025+00:00'
-  retry_count: 2
-  retry_after: null
+  evidence: Duplicate-screening worker exited with reason normal.
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
+  retry_count: 3
+  retry_after: '2026-08-02T22:16:07.080999+00:00'
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
 oompah.agent_run_id: aec8c7ea-8cf1-4b45-8e2c-1713e97345f6
 oompah.task_costs:
-  total_input_tokens: 110748
-  total_output_tokens: 3384
+  total_input_tokens: 110758
+  total_output_tokens: 4964
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 110748
-      output_tokens: 3384
+      input_tokens: 110758
+      output_tokens: 4964
       cost_usd: 0.0
   runs:
   - profile: default
@@ -58,6 +58,12 @@ oompah.task_costs:
     output_tokens: 2012
     cost_usd: 0.0
     recorded_at: '2026-08-02T22:09:19.796427+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 10
+    output_tokens: 1580
+    cost_usd: 0.0
+    recorded_at: '2026-08-02T22:12:07.079611+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-706__20260802T220658Z
@@ -76,6 +82,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-706
     source_sha: 366129d0a5046c5ed7caed4acf26cd8cd2a3fbdd
     completed_at: '2026-08-02T22:09:19.824930+00:00'
+  - run_id: OOMPAH-706__20260802T221139Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: duplicate_detector
+    source_branch: OOMPAH-706
+    source_sha: 366129d0a5046c5ed7caed4acf26cd8cd2a3fbdd
+    completed_at: '2026-08-02T22:12:07.094150+00:00'
 ---
 ## Summary
 
@@ -161,5 +175,20 @@ author: oompah
 created: 2026-08-02 22:11
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-02 22:12
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 2, Tool calls: 0
+- Tokens: 10 in / 1.6K out [1.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 32s
+- Log: OOMPAH-706__20260802T221139Z.jsonl
+---
+author: oompah
+created: 2026-08-02 22:12
+---
+Duplicate screening was inconclusive 3 times. Human action required: a project owner must review the authoritative task corpus and use the authenticated duplicate-screening owner-resolution action (POST /api/v1/issues/OOMPAH-706/duplicate-screening/owner-resolution) with a conclusive verdict and reason. This records the owner decision, resets the retry budget, and returns no_duplicate tasks to Open (or routes a verified duplicate to Duplicate Candidate). A plain verdict comment is not authoritative.
 ---
 <!-- COMMENTS:END -->
