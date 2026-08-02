@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-351
 type: bug
-status: In Validation
+status: Archived
 priority: 1
 title: Bound worker termination and service shutdown
 parent: OOMPAH-348
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T00:56:37.758720Z'
-updated_at: '2026-08-02T01:29:36.418343Z'
+updated_at: '2026-08-02T01:42:53.107370Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -18,6 +18,30 @@ review_number: null
 merged_at: null
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-1ad979eb0003: '2026-08-02T01:42:50.400595+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-351
+    target_state: Archived
+    evidence_fingerprint: 58bfffb8386f4adc09607947a3781fc0fa488a01f0ab1869baeb8c31fe1450b0
+    audit_ids:
+    - audit-5a7928ab9055
+    kind: result
+    applied: true
+    retired_at: '2026-08-02T01:42:50.400606+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-351
+    audit_id: audit-5a7928ab9055
+    attempt_id: attempt-1ad979eb0003
+    target_state: Archived
+    evidence_fingerprint: 58bfffb8386f4adc09607947a3781fc0fa488a01f0ab1869baeb8c31fe1450b0
+    status: Archived
+    audit_ids:
+    - audit-5a7928ab9055
+    applied: false
+    created_at: '2026-08-02T01:42:50.400622+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -25,7 +49,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-351
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -34,7 +58,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-1ad979eb0003
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -44,13 +68,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-02T01:29:20.955728+00:00'
       branch_key: OOMPAH-351
+      verdict: pass
+      completed_at: '2026-08-02T01:42:50.400416+00:00'
+      ended_at: '2026-08-02T01:42:50.400416+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-02T01:12:34.304931+00:00'
-    updated_at: '2026-08-02T01:29:20.955728+00:00'
+    updated_at: '2026-08-02T01:42:50.400416+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-1ad979eb0003
@@ -118,5 +145,21 @@ author: oompah
 created: 2026-08-02 01:29
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-02 01:42
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- delivery_commit: 6dd2cdfcf
+- config_env_var: OOMPAH_WORKER_TERMINATION_TIMEOUT_MS (default 10000ms) documented in .env.example:285 and oompah/config.py:658,1204
+- orchestrator_bounded_paths: oompah/orchestrator.py:27715 (managed subprocess cleanup) and 30213-30284 (_terminate_agent bounded asyncio.wait with warning + forced cancel)
+- regression_tests: tests/test_task_cost_telemetry.py: test_terminate_does_not_wait_forever_for_cancelled_worker, test_terminate_kills_cli_tree_when_worker_resists_cancel, test_session_shutdown_failure_is_observable_and_does_not_block_cleanup, test_shutdown_timeout_logs_warning_not_error
+- focused_test_result: pytest -k 'terminate_does_not_wait_forever or terminate_kills_cli_tree or session_shutdown_failure or shutdown_timeout_logs_warning' => 4 passed
+- neighbor_suite_result: pytest tests/test_orchestrator_handlers.py => 277 passed
+- previous_state: Merged; auto-archive 7 days post-close per scheduler evidence
 ---
 <!-- COMMENTS:END -->
