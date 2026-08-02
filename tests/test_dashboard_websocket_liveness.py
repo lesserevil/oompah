@@ -66,3 +66,62 @@ def test_authenticated_ws_url_and_console_backfill_are_preserved():
     assert "location.protocol === 'https:' ? 'wss:' : 'ws:'" in body
     assert "location.host + '/ws'" in body
     assert "_backfillConsoleTranscript(_activeConsoleProject)" in body
+
+
+def test_dashboard_tracks_epoch_delivery_and_applied_revisions():
+    script = _dashboard_script()
+
+    for name in (
+        "wsEpoch",
+        "wsDeliverySeq",
+        "wsLastAppliedStateRevision",
+        "wsLastAppliedIssueRevision",
+        "wsReconciling",
+        "wsBufferedMessages",
+    ):
+        assert name in script
+
+
+def test_gap_and_regression_gate_incremental_messages_before_rendering():
+    script = _dashboard_script()
+    body = _connect_function(script)
+
+    assert "_observeWebSocketEnvelope(msg)" in body
+    assert "_markWebSocketStale('delivery-gap')" in script
+    assert "_markWebSocketStale('sequence-regression')" in script
+    assert "if (wsReconciling && msg.type !== 'full_sync'" in body
+    assert "_bufferWebSocketMessage(msg)" in body
+    assert "_routeWebSocketMessage(msg)" in body
+
+
+def test_heartbeat_watermark_and_epoch_change_trigger_reconciliation():
+    script = _dashboard_script()
+    body = _connect_function(script)
+
+    assert "_heartbeatNeedsFullSync(msg)" in body
+    assert "_markWebSocketStale('heartbeat-watermark')" in body
+    assert "_markWebSocketStale('epoch-change')" in script
+    assert "current_state_revision" in script
+    assert "current_issue_revision" in script
+
+
+def test_full_sync_commits_revisions_and_delivery_watermark():
+    script = _dashboard_script()
+
+    body = script[script.index("function _applyFullSyncMessage("):]
+    assert "wsLastAppliedStateRevision = stateRevision" in body
+    assert "wsLastAppliedIssueRevision = issueRevision" in body
+    assert "wsLastFullSyncDeliverySeq = msg.delivery_seq" in body
+    assert "wsBufferedMessages = []" in body
+    assert "wsReconciling = false" in body
+    assert "clearFullSyncRetryTimer()" in body
+
+
+def test_full_sync_retry_is_bounded_and_coalesced():
+    script = _dashboard_script()
+
+    assert "WS_FULL_SYNC_RETRY_MAX_DELAY_MS" in script
+    assert "wsFullSyncRetryTimer !== null" in script
+    assert "if (!wsReconciling || wsFullSyncPending" in script
+    assert "_scheduleFullSyncRetry()" in script
+    assert "setTimeout(() =>" in script

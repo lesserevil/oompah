@@ -57,15 +57,80 @@ def _reset_throttles() -> Generator[None, None, None]:
     orig_state = server_module._last_state_broadcast
     orig_issues = server_module._last_issues_broadcast
     orig_pending = server_module._issues_broadcast_pending
+    orig_scheduled = server_module._state_broadcast_scheduled
+    orig_dirty = server_module._state_broadcast_dirty
+    orig_loop = server_module._state_broadcast_loop
     server_module._last_state_broadcast = 0.0
     server_module._last_issues_broadcast = 0.0
     server_module._issues_broadcast_pending = False
+    server_module._state_broadcast_scheduled = False
+    server_module._state_broadcast_dirty = False
+    server_module._state_broadcast_loop = None
     try:
         yield
     finally:
         server_module._last_state_broadcast = orig_state
         server_module._last_issues_broadcast = orig_issues
         server_module._issues_broadcast_pending = orig_pending
+        server_module._state_broadcast_scheduled = orig_scheduled
+        server_module._state_broadcast_dirty = orig_dirty
+        server_module._state_broadcast_loop = orig_loop
+
+
+@contextmanager
+def _reset_protocol_state() -> Generator[None, None, None]:
+    """Isolate protocol counters and caches for revision-focused tests."""
+    names = (
+        "_INSTANCE_ID",
+        "_protocol_epoch",
+        "_state_revision",
+        "_issue_revision",
+        "_state_snapshot",
+        "_state_snapshot_at",
+        "_state_snapshot_epoch",
+        "_state_snapshot_authority",
+        "_state_snapshot_signature",
+    )
+    saved = {name: getattr(server_module, name) for name in names}
+    with server_module._issues_snapshot_lock:
+        saved_issues = dict(server_module._issues_snapshot)
+    with server_module._ws_delivery_sequences_lock:
+        saved_sequences = dict(server_module._ws_delivery_sequences)
+        saved_locks = dict(server_module._ws_send_locks)
+        server_module._ws_delivery_sequences.clear()
+        server_module._ws_send_locks.clear()
+    server_module._INSTANCE_ID = "test-epoch"
+    server_module._protocol_epoch = "test-epoch"
+    server_module._state_revision = 0
+    server_module._issue_revision = 0
+    server_module._state_snapshot = None
+    server_module._state_snapshot_at = 0.0
+    server_module._state_snapshot_epoch = "test-epoch"
+    server_module._state_snapshot_authority = None
+    server_module._state_snapshot_signature = None
+    with server_module._issues_snapshot_lock:
+        server_module._issues_snapshot.update(
+            {
+                "data": None,
+                "orch_id": None,
+                "epoch": "test-epoch",
+                "data_revision": 0,
+                "invalidated": False,
+            }
+        )
+    try:
+        yield
+    finally:
+        for name, value in saved.items():
+            setattr(server_module, name, value)
+        with server_module._issues_snapshot_lock:
+            server_module._issues_snapshot.clear()
+            server_module._issues_snapshot.update(saved_issues)
+        with server_module._ws_delivery_sequences_lock:
+            server_module._ws_delivery_sequences.clear()
+            server_module._ws_delivery_sequences.update(saved_sequences)
+            server_module._ws_send_locks.clear()
+            server_module._ws_send_locks.update(saved_locks)
 
 
 def _make_ws_mock(send_side_effect=None) -> MagicMock:
@@ -73,6 +138,11 @@ def _make_ws_mock(send_side_effect=None) -> MagicMock:
     ws = MagicMock()
     ws.send_text = AsyncMock(side_effect=send_side_effect)
     return ws
+
+
+def _sent_payload(ws: MagicMock) -> dict:
+    """Decode the one protocol-enveloped payload sent to a fake socket."""
+    return json.loads(ws.send_text.call_args.args[0])
 
 
 # ---------------------------------------------------------------------------
@@ -92,10 +162,12 @@ class TestBroadcastFanOut:
         with _isolated_ws_clients(ws1, ws2, ws3):
             asyncio.run(server_module._broadcast(msg))
 
-        expected = json.dumps(msg, default=str)
-        ws1.send_text.assert_awaited_once_with(expected)
-        ws2.send_text.assert_awaited_once_with(expected)
-        ws3.send_text.assert_awaited_once_with(expected)
+        for ws in (ws1, ws2, ws3):
+            payload = _sent_payload(ws)
+            assert payload["type"] == msg["type"]
+            assert payload["data"] == msg["data"]
+            assert payload["delivery_seq"] == 1
+            assert payload["protocol_version"] == server_module.WS_PROTOCOL_VERSION
 
     def test_broadcast_no_op_when_no_clients(self):
         """_broadcast returns immediately without error when _ws_clients is empty."""
@@ -124,9 +196,11 @@ class TestBroadcastFanOut:
         with _isolated_ws_clients(*clients):
             asyncio.run(server_module._broadcast(msg))
 
-        expected = json.dumps(msg, default=str)
         for ws in clients:
-            ws.send_text.assert_awaited_once_with(expected)
+            payload = _sent_payload(ws)
+            assert payload["type"] == msg["type"]
+            assert payload["data"] == msg["data"]
+            assert payload["delivery_seq"] == 1
 
 
 class TestBroadcastDeadClientCleanup:
@@ -154,9 +228,10 @@ class TestBroadcastDeadClientCleanup:
         with _isolated_ws_clients(dead, alive1, alive2):
             asyncio.run(server_module._broadcast(msg))
 
-        expected = json.dumps(msg, default=str)
-        alive1.send_text.assert_awaited_once_with(expected)
-        alive2.send_text.assert_awaited_once_with(expected)
+        for ws in (alive1, alive2):
+            payload = _sent_payload(ws)
+            assert payload["type"] == msg["type"]
+            assert payload["data"] == msg["data"]
 
     def test_all_dead_clients_pruned_in_one_pass(self):
         """When all clients fail, all are pruned and _ws_clients becomes empty."""
@@ -312,7 +387,10 @@ class TestOnOrchestratorChange:
             for message in broadcast_messages
             if message.get("type") == "issues"
         ]
-        assert issue_messages == [{"type": "issues", "data": fresh_board}]
+        assert len(issue_messages) == 1
+        assert issue_messages[0]["type"] == "issues"
+        assert issue_messages[0]["data"] == fresh_board
+        assert "issue_revision" in issue_messages[0]
 
     @pytest.mark.asyncio
     async def test_rapid_issue_changes_arm_one_deferred_refresh(self):
@@ -450,6 +528,110 @@ class TestOnStateOnlyChange:
                     after_second = call_count
 
                 assert after_second == after_first  # throttled
+
+
+class TestVersionedDashboardProtocol:
+    """Authoritative revisions and per-connection delivery ordering."""
+
+    @pytest.mark.asyncio
+    async def test_coalesced_state_emits_latest_revision(self):
+        ws = _make_ws_mock()
+        with _reset_protocol_state(), _isolated_ws_clients(ws), _reset_throttles():
+            original_throttle = server_module._STATE_THROTTLE_MS
+            server_module._STATE_THROTTLE_MS = 20
+            try:
+                server_module._last_state_broadcast = time.monotonic() * 1000
+                server_module._on_state_only_change(
+                    {"generated_at": "2026-08-02T00:00:00+00:00", "value": 1}
+                )
+                server_module._on_state_only_change(
+                    {"generated_at": "2026-08-02T00:00:00.001000+00:00", "value": 2}
+                )
+                with server_module._ws_protocol_lock:
+                    assert server_module._state_revision == 2
+                await asyncio.sleep(0.05)
+            finally:
+                server_module._STATE_THROTTLE_MS = original_throttle
+
+        payload = _sent_payload(ws)
+        assert payload["type"] == "state"
+        assert payload["data"]["value"] == 2
+        assert payload["state_revision"] == 2
+
+    def test_concurrent_snapshot_callbacks_have_unique_monotonic_revisions(self):
+        worker_count = 12
+        barrier = threading.Barrier(worker_count)
+        revisions: list[int] = []
+        revisions_lock = threading.Lock()
+
+        def update(index: int) -> None:
+            barrier.wait(timeout=2)
+            revision = server_module._update_state_snapshot({"value": index})
+            with revisions_lock:
+                revisions.append(revision)
+
+        with _reset_protocol_state():
+            threads = [threading.Thread(target=update, args=(i,)) for i in range(worker_count)]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join(timeout=2)
+            assert all(not thread.is_alive() for thread in threads)
+
+        assert sorted(revisions) == list(range(1, worker_count + 1))
+
+    def test_issue_invalidation_and_rebuild_share_one_new_generation(self):
+        with _reset_protocol_state():
+            server_module._set_issues_snapshot(
+                {"Open": []}, duration_ms=0, orch_id=1
+            )
+            server_module._invalidate_issue_caches(schedule_broadcast=False)
+            server_module._set_issues_snapshot(
+                {"Open": [{"identifier": "TASK-1"}]},
+                duration_ms=0,
+                orch_id=1,
+            )
+            with server_module._ws_protocol_lock:
+                assert server_module._issue_revision == 2
+            payload, revision = server_module._issues_snapshot_payload_with_revision(
+                allow_empty=False
+            )
+
+        assert payload is not None
+        assert payload["Open"] == [{"identifier": "TASK-1"}]
+        assert revision == 2
+
+    @pytest.mark.asyncio
+    async def test_delivery_sequences_are_contiguous_and_isolated(self):
+        ws1 = _make_ws_mock()
+        ws2 = _make_ws_mock()
+        with _reset_protocol_state(), _isolated_ws_clients(ws1, ws2):
+            server_module._register_ws(ws1)
+            server_module._register_ws(ws2)
+            await server_module._broadcast({"type": "activity", "entry": {}})
+            await server_module._send_ws(ws1, {"type": "pong"})
+            await server_module._send_ws(ws2, {"type": "pong"})
+
+        assert [_sent_payload(ws1)["delivery_seq"], _sent_payload(ws2)["delivery_seq"]] == [
+            2,
+            2,
+        ]
+        assert [json.loads(call.args[0])["delivery_seq"] for call in ws1.send_text.await_args_list] == [1, 2]
+        assert [json.loads(call.args[0])["delivery_seq"] for call in ws2.send_text.await_args_list] == [1, 2]
+
+    def test_epoch_change_resets_revisions_deterministically(self):
+        ws = _make_ws_mock()
+        with _reset_protocol_state():
+            assert server_module._update_state_snapshot({"value": "old"}) == 1
+            server_module._INSTANCE_ID = "new-test-epoch"
+            assert server_module._update_state_snapshot({"value": "new"}) == 1
+            server_module._register_ws(ws)
+            asyncio.run(server_module._send_ws(ws, {"type": "state", "data": {}}))
+
+        payload = _sent_payload(ws)
+        assert payload["epoch"] == "new-test-epoch"
+        assert payload["state_revision"] == 1
+        assert payload["delivery_seq"] == 1
 
 
 # ---------------------------------------------------------------------------
@@ -631,7 +813,9 @@ class TestWebSocketEndpointLifecycle:
                     if message.get("type") == "pong":
                         pong = message
                         break
-                assert pong == {"type": "pong"}
+                assert pong["type"] == "pong"
+                assert pong["protocol_version"] == server_module.WS_PROTOCOL_VERSION
+                assert pong["delivery_seq"] > 2
         finally:
             server_module._orchestrator = prior_orch
 
@@ -730,7 +914,9 @@ class TestFanOutConcurrentClients:
             # Live client still present
             assert live in server_module._ws_clients
             # Live client received the message
-            live.send_text.assert_awaited_once_with(json.dumps(msg, default=str))
+            payload = _sent_payload(live)
+            assert payload["type"] == msg["type"]
+            assert payload["data"] == msg["data"]
         finally:
             server_module._ws_clients = original
             server_module._orchestrator = prior_orch
@@ -957,13 +1143,23 @@ class TestWebSocketRefreshAction:
 
                 ws.send_json({"action": "refresh"})
 
-                # Collect messages; the refresh sends state then broadcast_issues
-                # which may send issues — order is not guaranteed.
+                # The refresh handler unconditionally sends state, then invokes
+                # broadcast_issues() which may or may not produce an "issues"
+                # message (throttled/coalesced/empty paths can suppress it).
+                # A background issues broadcast from the initial connect's
+                # _ensure_issues_snapshot_refresh(broadcast=True) may also race
+                # in front of the refresh state.  Read up to two messages,
+                # breaking as soon as "state" is seen — both reads are backed
+                # by messages the server is guaranteed to deliver, so this
+                # bounded loop cannot hang under CI load.
                 refresh_msgs: list[dict] = []
-                for _ in range(3):
+                for _ in range(2):
                     try:
-                        refresh_msgs.append(ws.receive_json())
+                        msg = ws.receive_json()
                     except Exception:
+                        break
+                    refresh_msgs.append(msg)
+                    if msg.get("type") == "state":
                         break
 
                 refresh_types = {m.get("type") for m in refresh_msgs}

@@ -2543,6 +2543,23 @@ let wsReconnectAttempt = 0;
 let wsLastFreshAt = 0;
 let wsShouldReconnect = true;
 
+// Protocol v1 envelope tracking for gap detection and full-sync resync.
+// These values describe the server-owned portion of the UI.  Local UI state
+// (editing, dragging, filters, open panels, and console history) is kept in
+// its existing variables and is never reset by a WebSocket recovery.
+let wsEpoch = null;
+let wsDeliverySeq = 0;  // last contiguous delivery sequence
+let wsHighestObservedDeliverySeq = 0;
+let wsLastAppliedStateRevision = 0;
+let wsLastAppliedIssueRevision = 0;
+let wsFullSyncPending = false;
+let wsReconciling = false;
+let wsFullSyncRetryTimer = null;
+let wsFullSyncRetryAttempt = 0;
+let wsBufferedMessages = [];
+let wsLastFullSyncDeliverySeq = 0;
+let wsApplyingFullSync = false;
+
 // Browser WebSocket objects do not expose protocol-level ping/pong methods.
 // Use an application-level ping and require a recent inbound message so a
 // half-open proxy connection cannot remain displayed as Connected forever.
@@ -2550,6 +2567,9 @@ const WS_HEARTBEAT_INTERVAL_MS = 10000;
 const WS_STALE_TIMEOUT_MS = 30000;
 const WS_RECONNECT_BASE_DELAY_MS = 1000;
 const WS_RECONNECT_MAX_DELAY_MS = 15000;
+const WS_FULL_SYNC_RETRY_BASE_DELAY_MS = 1000;
+const WS_FULL_SYNC_RETRY_MAX_DELAY_MS = 8000;
+const WS_FULL_SYNC_BUFFER_MAX = 100;
 
 function setWebSocketStatus(text) {
   const status = document.getElementById('status-text');
@@ -2567,6 +2587,13 @@ function clearWebSocketHeartbeat() {
   if (wsHeartbeatTimer !== null) {
     clearInterval(wsHeartbeatTimer);
     wsHeartbeatTimer = null;
+  }
+}
+
+function clearFullSyncRetryTimer() {
+  if (wsFullSyncRetryTimer !== null) {
+    clearTimeout(wsFullSyncRetryTimer);
+    wsFullSyncRetryTimer = null;
   }
 }
 
@@ -2588,6 +2615,7 @@ function closeWebSocket({reconnect = false} = {}) {
   wsShouldReconnect = reconnect;
   clearWebSocketHeartbeat();
   clearWebSocketReconnectTimer();
+  clearFullSyncRetryTimer();
   const socket = ws;
   ws = null;
   if (socket && (socket.readyState === WebSocket.OPEN ||
@@ -2613,6 +2641,262 @@ function checkWebSocketLiveness() {
   }
 }
 
+function _scheduleFullSyncRetry() {
+  if (!wsReconciling || wsFullSyncPending || wsFullSyncRetryTimer !== null) return;
+  const delay = Math.min(
+    WS_FULL_SYNC_RETRY_MAX_DELAY_MS,
+    WS_FULL_SYNC_RETRY_BASE_DELAY_MS * Math.pow(2, wsFullSyncRetryAttempt),
+  );
+  wsFullSyncRetryAttempt = Math.min(wsFullSyncRetryAttempt + 1, 5);
+  setWebSocketStatus('Synchronizing...');
+  wsFullSyncRetryTimer = setTimeout(() => {
+    wsFullSyncRetryTimer = null;
+    if (wsReconciling) _requestFullSync();
+  }, delay);
+}
+
+// Mark the server-owned UI stale and request one coherent replacement.  The
+// pending flag and retry timer make repeated gap/heartbeat signals harmless.
+function _markWebSocketStale(reason) {
+  wsReconciling = true;
+  setWebSocketStatus('Synchronizing...');
+  _requestFullSync();
+}
+
+// Request a full dashboard resynchronization without reconnecting.
+// Coalesces duplicates: a second call while a request is in flight (or while
+// its bounded retry delay is pending) is silently dropped.
+function _requestFullSync() {
+  if (!wsReconciling || wsFullSyncPending || wsFullSyncRetryTimer !== null) return;
+  const socket = ws;
+  if (!socket || socket.readyState !== WebSocket.OPEN) {
+    setWebSocketStatus('Reconnecting...');
+    return;
+  }
+  wsFullSyncPending = true;
+  setWebSocketStatus('Synchronizing...');
+  try {
+    socket.send(JSON.stringify({action: 'full_sync'}));
+  } catch (e) {
+    wsFullSyncPending = false;
+    _scheduleFullSyncRetry();
+  }
+}
+
+function _numericRevision(value) {
+  return (typeof value === 'number' && Number.isFinite(value) && value >= 0)
+    ? value : null;
+}
+
+function _messageWatermark(msg, field, fallbackField) {
+  return _numericRevision(msg[field]) ?? _numericRevision(msg[fallbackField]);
+}
+
+function _bufferWebSocketMessage(msg) {
+  // Keep a bounded diagnostic/replay buffer.  Messages at or below the
+  // full-sync delivery watermark are discarded at the commit boundary;
+  // retaining a small bounded tail also makes out-of-order delivery safe.
+  wsBufferedMessages.push(msg);
+  if (wsBufferedMessages.length > WS_FULL_SYNC_BUFFER_MAX) {
+    wsBufferedMessages.shift();
+  }
+}
+
+function _observeWebSocketEnvelope(msg) {
+  if (msg.epoch == null || typeof msg.delivery_seq !== 'number') return true;
+  const sequence = msg.delivery_seq;
+
+  if (wsEpoch === null) {
+    wsEpoch = msg.epoch;
+    wsDeliverySeq = sequence;
+    wsHighestObservedDeliverySeq = sequence;
+    return true;
+  }
+
+  if (msg.epoch !== wsEpoch) {
+    // A new epoch invalidates every ordering and revision comparison from the
+    // old service instance.  Do not apply this incremental message: the
+    // full-sync response is the first coherent snapshot for the new epoch.
+    wsEpoch = msg.epoch;
+    wsDeliverySeq = sequence;
+    wsHighestObservedDeliverySeq = sequence;
+    wsLastAppliedStateRevision = 0;
+    wsLastAppliedIssueRevision = 0;
+    wsLastFullSyncDeliverySeq = 0;
+    wsFullSyncPending = false;
+    clearFullSyncRetryTimer();
+    _markWebSocketStale('epoch-change');
+    // A coherent full_sync response is safe to apply even when it is the
+    // first message observed from the new epoch.  Incremental messages wait
+    // for that response.
+    return msg.type === 'full_sync' || msg.type === 'full_sync_error';
+  }
+
+  // A sequence of zero is the baseline for a newly opened connection.  The
+  // epoch remains comparable across reconnects, while delivery sequence is
+  // scoped to the new socket.
+  if (wsDeliverySeq === 0) {
+    wsDeliverySeq = sequence;
+    wsHighestObservedDeliverySeq = sequence;
+    return true;
+  }
+
+  if (wsReconciling) {
+    // Once stale, keep the highest observed sequence as a diagnostic
+    // watermark but do not let an out-of-order incremental create another
+    // request.  The full_sync response itself is always admitted to the
+    // router; its own delivery_seq becomes the new authoritative boundary.
+    if (sequence > wsHighestObservedDeliverySeq) {
+      wsHighestObservedDeliverySeq = sequence;
+    }
+    return true;
+  }
+
+  if (sequence <= wsDeliverySeq) {
+    // Messages buffered before a full-sync response can arrive after it in a
+    // test harness/proxy.  They are known stale once at or below its
+    // watermark and must not trigger another sync or overwrite the snapshot.
+    if (wsLastFullSyncDeliverySeq > 0 && sequence <= wsLastFullSyncDeliverySeq) {
+      return false;
+    }
+    _markWebSocketStale('sequence-regression');
+    if (sequence > wsHighestObservedDeliverySeq) {
+      wsHighestObservedDeliverySeq = sequence;
+    }
+    return false;
+  }
+
+  if (sequence !== wsDeliverySeq + 1) {
+    if (sequence > wsHighestObservedDeliverySeq) {
+      wsHighestObservedDeliverySeq = sequence;
+    }
+    _markWebSocketStale('delivery-gap');
+    return false;
+  }
+
+  wsDeliverySeq = sequence;
+  wsHighestObservedDeliverySeq = sequence;
+  return true;
+}
+
+function _heartbeatNeedsFullSync(msg) {
+  if (msg.type !== 'pong' && msg.type !== 'heartbeat') return false;
+  const stateWatermark = _messageWatermark(msg, 'state_revision', 'current_state_revision');
+  const issueWatermark = _messageWatermark(msg, 'issue_revision', 'current_issue_revision');
+  return (stateWatermark !== null && stateWatermark > wsLastAppliedStateRevision) ||
+    (issueWatermark !== null && issueWatermark > wsLastAppliedIssueRevision);
+}
+
+function _applyStateMessage(msg) {
+  const revision = _numericRevision(msg.state_revision);
+  if (revision !== null &&
+      (revision < wsLastAppliedStateRevision ||
+       (revision === wsLastAppliedStateRevision && revision > 0))) return;
+  handleStateUpdate(msg.data);
+  if (revision !== null) wsLastAppliedStateRevision = revision;
+}
+
+function _applyIssuesMessage(msg) {
+  const revision = _numericRevision(msg.issue_revision);
+  if (revision !== null &&
+      (revision < wsLastAppliedIssueRevision ||
+       (revision === wsLastAppliedIssueRevision && revision > 0))) return;
+  if (currentProjects.length > 0) {
+    renderBoard(filterByProject(msg.data));
+  } else {
+    renderBoard(msg.data);
+  }
+  refreshOpenDetailPanel();
+  _setTrackerStaleBanner(false);
+  _updateTaskStateStaleBanner(false);
+  if (revision !== null) wsLastAppliedIssueRevision = revision;
+}
+
+function _routeWebSocketMessage(msg) {
+  if (msg.type === 'state') {
+    _applyStateMessage(msg);
+  } else if (msg.type === 'issues') {
+    _applyIssuesMessage(msg);
+    _setTrackerStaleBanner(false);
+  } else if (msg.type === 'activity') {
+    handleActivityPush(msg.identifier, msg.run_id, msg.entry);
+    if (_openDetailIdentifier && msg.identifier === _openDetailIdentifier) {
+      refreshOpenDetailPanel();
+    }
+  } else if (msg.type === 'pong') {
+    // Freshness is tracked by wsLastFreshAt at the top of onmessage.
+  } else if (msg.type === 'console_event') {
+    handleConsoleEvent(msg.project_id, msg.event);
+  }
+}
+
+function _applyFullSyncMessage(msg) {
+  if (!msg.state || !msg.issues) {
+    wsFullSyncPending = false;
+    _scheduleFullSyncRetry();
+    return;
+  }
+  const stateRevision = _numericRevision(msg.state_revision);
+  const issueRevision = _numericRevision(msg.issue_revision);
+  if (msg.epoch != null) wsEpoch = msg.epoch;
+  if (typeof msg.delivery_seq === 'number') {
+    wsDeliverySeq = msg.delivery_seq;
+    wsHighestObservedDeliverySeq = msg.delivery_seq;
+    wsLastFullSyncDeliverySeq = msg.delivery_seq;
+  }
+
+  // Suppress the optimistic dispatch render in handleStateUpdate until both
+  // server-owned snapshots have been installed.  renderBoard itself still
+  // defers around inline editing and drag state, preserving those local UX
+  // affordances exactly as it does for ordinary incremental updates.
+  const wasApplying = wsApplyingFullSync;
+  wsApplyingFullSync = true;
+  try {
+    handleStateUpdate(msg.state);
+    if (stateRevision !== null) wsLastAppliedStateRevision = stateRevision;
+    if (currentProjects.length > 0) {
+      renderBoard(filterByProject(msg.issues));
+    } else {
+      renderBoard(msg.issues);
+    }
+    if (issueRevision !== null) wsLastAppliedIssueRevision = issueRevision;
+    refreshOpenDetailPanel();
+    _setTrackerStaleBanner(false);
+    _updateTaskStateStaleBanner(false);
+  } finally {
+    wsApplyingFullSync = wasApplying;
+  }
+
+  // The full snapshot is authoritative through its delivery watermark.  Old
+  // buffered messages are discarded; future messages are replayed in sequence
+  // order so recovery cannot lose a valid activity/console event that arrived
+  // after the snapshot was assembled.
+  const bufferedAfterWatermark = wsBufferedMessages
+    .filter(function(buffered) {
+      return typeof buffered.delivery_seq === 'number' &&
+        buffered.delivery_seq > wsLastFullSyncDeliverySeq;
+    })
+    .sort(function(left, right) {
+      return left.delivery_seq - right.delivery_seq;
+    });
+  wsBufferedMessages = [];
+  wsFullSyncPending = false;
+  wsReconciling = false;
+  wsFullSyncRetryAttempt = 0;
+  clearFullSyncRetryTimer();
+  setWebSocketStatus('Connected');
+  for (const buffered of bufferedAfterWatermark) {
+    if (!_observeWebSocketEnvelope(buffered)) continue;
+    if (_heartbeatNeedsFullSync(buffered)) _markWebSocketStale('heartbeat-watermark');
+    if (wsReconciling) {
+      _bufferWebSocketMessage(buffered);
+    } else {
+      _routeWebSocketMessage(buffered);
+    }
+  }
+  if (_activeConsoleProject) _backfillConsoleTranscript(_activeConsoleProject);
+}
+
 function connectWebSocket() {
   if (!wsShouldReconnect) return;
   clearWebSocketReconnectTimer();
@@ -2627,12 +2911,21 @@ function connectWebSocket() {
 
   ws.onopen = () => {
     if (ws !== socket) return;
-    setWebSocketStatus('Connected');
+    const wasReconciling = wsReconciling;
+    setWebSocketStatus(wasReconciling ? 'Synchronizing...' : 'Connected');
     clearWebSocketReconnectTimer();
     wsReconnectAttempt = 0;
     wsLastFreshAt = Date.now();
     clearWebSocketHeartbeat();
     wsHeartbeatTimer = setInterval(checkWebSocketLiveness, WS_HEARTBEAT_INTERVAL_MS);
+    // Delivery sequence is scoped to the socket; keep the epoch and applied
+    // revisions so a reconnect in the same service instance can reject old
+    // payloads, while a genuinely new epoch still forces a full sync.
+    wsDeliverySeq = 0;
+    wsHighestObservedDeliverySeq = 0;
+    wsLastFullSyncDeliverySeq = 0;
+    wsFullSyncPending = false;
+    clearFullSyncRetryTimer();
     // Force a full board rebuild after reconnect so stale snapshot state
     // doesn't suppress the first incoming 'issues' push.
     _lastRenderedSnapshot = null;
@@ -2648,6 +2941,7 @@ function connectWebSocket() {
       socket.close();
       return;
     }
+    if (wasReconciling) _requestFullSync();
     // Console WS reconnect backfill — pick up events that landed while
     // we were disconnected before the live stream resumes. Only for
     // the currently-active project; other projects refresh next time
@@ -2662,25 +2956,37 @@ function connectWebSocket() {
     wsLastFreshAt = Date.now();
     try {
       const msg = JSON.parse(event.data);
-      if (msg.type === 'state') {
-        handleStateUpdate(msg.data);
-      } else if (msg.type === 'issues') {
-        if (currentProjects.length > 0) {
-          renderBoard(filterByProject(msg.data));
-          refreshOpenDetailPanel();
-          // A WS push means the server just refreshed; hide the stale banners.
-          _setTrackerStaleBanner(false);
-          _updateTaskStateStaleBanner(false);
-        }
-      } else if (msg.type === 'activity') {
-        handleActivityPush(msg.identifier, msg.run_id, msg.entry);
-        if (_openDetailIdentifier && msg.identifier === _openDetailIdentifier) {
-          refreshOpenDetailPanel();
+      if (!_observeWebSocketEnvelope(msg)) return;
+
+      // A full sync is the only message allowed to mutate server-owned UI
+      // state while reconciling.  Incrementals are retained only in a bounded
+      // buffer and are discarded at the returned delivery watermark.
+      if (_heartbeatNeedsFullSync(msg)) {
+        _markWebSocketStale('heartbeat-watermark');
+      }
+      if (wsReconciling && msg.type !== 'full_sync' && msg.type !== 'full_sync_error') {
+        _bufferWebSocketMessage(msg);
+        return;
+      }
+
+      if (msg.type === 'full_sync') {
+        // Apply state and issues as one coherent server-owned snapshot, then
+        // resume only after the response's delivery/revision watermarks.
+        _applyFullSyncMessage(msg);
+      } else if (msg.type === 'full_sync_error') {
+        wsFullSyncPending = false;
+        setWebSocketStatus('Synchronizing...');
+        if (msg.retryable) {
+          _scheduleFullSyncRetry();
+        } else {
+          // Keep the socket alive, but make the unresolved state explicit and
+          // retry with the same bounded backoff rather than hiding the error.
+          _scheduleFullSyncRetry();
         }
       } else if (msg.type === 'pong') {
-        // wsLastFreshAt is updated above for both pong and normal data.
-      } else if (msg.type === 'console_event') {
-        handleConsoleEvent(msg.project_id, msg.event);
+        _routeWebSocketMessage(msg);
+      } else {
+        _routeWebSocketMessage(msg);
       }
     } catch (e) { /* ignore parse errors */ }
   };
@@ -3313,7 +3619,7 @@ function handleStateUpdate(state) {
     // immediately. applyOptimisticOverrides() (called inside renderBoard)
     // moves the issue between columns and self-clears once the server
     // confirms via the next "issues" push.
-    if (boardData && Object.keys(boardData).length > 0) {
+    if (!wsApplyingFullSync && boardData && Object.keys(boardData).length > 0) {
       renderBoard(boardData);
     }
   }
