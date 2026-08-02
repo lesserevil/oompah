@@ -12,9 +12,9 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T18:20:28.879414Z'
-updated_at: '2026-08-02T20:20:03.795675Z'
-work_branch: null
-target_branch: null
+updated_at: '2026-08-02T20:20:10.371682Z'
+work_branch: OOMPAH-699
+target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/660
 review_number: '660'
 review_head: null
@@ -29,6 +29,8 @@ oompah.integration:
   updated_at: '2026-08-02T20:12:04.109767+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/660
 oompah.review_number: '660'
+oompah.work_branch: OOMPAH-699
+oompah.target_branch: main
 ---
 ## Summary
 
