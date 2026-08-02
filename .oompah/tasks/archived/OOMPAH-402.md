@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T05:27:02.143073Z'
-updated_at: '2026-08-02T01:22:44.959175Z'
+updated_at: '2026-08-02T01:23:11.759367Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -93,6 +93,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-02T01:15:48.103448+00:00'
     branch_key: OOMPAH-402
+oompah.task_costs:
+  total_input_tokens: 28
+  total_output_tokens: 4391
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 28
+      output_tokens: 4391
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 28
+    output_tokens: 4391
+    cost_usd: 0.0
+    recorded_at: '2026-08-02T01:23:10.054916+00:00'
 ---
 ## Summary
 
@@ -155,5 +171,15 @@ Safe evidence:
 - focus_regression_test_present: tests/test_orchestrator_duplicate_detection.py:251 test_handoff_comment_without_label_advances_focus
 - focus_selection_fix_present: oompah/focus.py changes on main (18 lines added) + tests/test_focus.py new cases (28 lines added)
 - closure_age_days: ~7 days since reconciled closure (2026-07-26) vs today 2026-08-02
+---
+author: oompah
+created: 2026-08-02 01:23
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 30, Tool calls: 22
+- Tokens: 28 in / 4.4K out [4.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 7m 18s
+- Log: OOMPAH-402__20260802T011559Z.jsonl
 ---
 <!-- COMMENTS:END -->
