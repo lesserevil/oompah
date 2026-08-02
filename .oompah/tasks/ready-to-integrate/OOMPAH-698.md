@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-698
 type: bug
-status: Open
+status: Ready to Integrate
 priority: 1
 title: Recover legacy stale reviews without persisted review-head metadata
 parent: null
@@ -12,13 +12,21 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T18:20:27.192609Z'
-updated_at: '2026-08-02T19:37:02.108151Z'
+updated_at: '2026-08-02T19:37:16.248169Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-698
+  head_sha: 6de721ae2f44a8ce0d3c21fcf660cc332a996e1b
+  submitted_at: '2026-08-02T19:37:11.543655+00:00'
+  updated_at: '2026-08-02T19:37:11.543655+00:00'
 ---
 ## Summary
 
@@ -53,5 +61,10 @@ author: oompah
 created: 2026-08-02 19:37
 ---
 Direct implementation complete at 6de721ae2f44a8ce0d3c21fcf660cc332a996e1b. Added forge-reported historical review-head recovery for GitHub/GitLab, Git-containment fallback when legacy payloads lack a head, fail-closed evidence errors, durable superseded-review comments, and repeated-pass idempotence. Focused: 455 passed. Full make test: 14,990 passed, 7 skipped, 1 xfailed in 382.36s. make check-secrets passed.
+---
+author: oompah
+created: 2026-08-02 19:37
+---
+Recovered legacy review heads and safely requeued advanced branches; full gate and secret scan passed.
 ---
 <!-- COMMENTS:END -->
