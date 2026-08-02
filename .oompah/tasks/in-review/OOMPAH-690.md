@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-690
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Restore reliable automatic dashboard updates
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T00:37:18.141681Z'
-updated_at: '2026-08-02T00:58:37.672210Z'
+updated_at: '2026-08-02T00:58:42.216185Z'
 work_branch: null
 target_branch: null
 review_url: https://github.com/lesserevil/oompah/pull/649
