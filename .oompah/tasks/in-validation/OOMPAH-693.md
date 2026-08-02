@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-693
 type: feature
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Provide a coherent full dashboard resynchronization response
 parent: OOMPAH-691
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:48.499285Z'
-updated_at: '2026-08-02T03:47:28.957952Z'
+updated_at: '2026-08-02T03:54:28.233506Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-693
 target_branch: null
 review_url: null
@@ -64,14 +64,15 @@ oompah.agent_run_id: eafd73e0-4ff2-473f-a88d-f5f00a5701e1
 oompah.work_branch: epic-OOMPAH-691--task-OOMPAH-693
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-691--task-OOMPAH-693
-  base_branch: main
-  base_sha: d4607b78ba919a1f14efb12ff8d9f2059a59f6fb
+  base_branch: epic-OOMPAH-691
+  base_sha: 23d108b20c132b03c5dd450c1cb8ac97d4f0ffac
   head_sha: cf5f3cecede5a3344922345e2fcbc3f042c982c9
+  integrated_sha: cf5f3cecede5a3344922345e2fcbc3f042c982c9
   submitted_at: '2026-08-02T03:47:08.087214+00:00'
-  updated_at: '2026-08-02T03:47:28.002461+00:00'
+  updated_at: '2026-08-02T03:54:24.112113+00:00'
 oompah.task_costs:
   total_input_tokens: 344
   total_output_tokens: 45610
@@ -116,6 +117,28 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-691--task-OOMPAH-693
     source_sha: cf5f3cecede5a3344922345e2fcbc3f042c982c9
     completed_at: '2026-08-02T03:47:22.364396+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-db72034c610f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-693
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 388553d73c9b2f435bc5c85b3c353679763fbb9461222f4848f973335726a6bb
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-08-02T03:54:25.478062+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -223,5 +246,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 16m 59s
 - Log: OOMPAH-693__20260802T033030Z.jsonl
+---
+author: oompah
+created: 2026-08-02 03:54
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
