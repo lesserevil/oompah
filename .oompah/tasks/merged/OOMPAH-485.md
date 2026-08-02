@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-485
 type: feature
-status: Done
+status: Merged
 priority: 1
 title: Add In Validation and terminal-audit details to the dashboard
 parent: OOMPAH-460
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:24.220262Z'
-updated_at: '2026-07-31T03:58:27.650600Z'
+updated_at: '2026-08-02T18:31:06.713737Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-485
 target_branch: null
 review_url: null
@@ -200,6 +200,25 @@ oompah.terminal_audit:
       present and verified in OOMPAH-597 head 44e5c5579. This second override is an
       ownership fence; the obsolete queue attempt must not reopen or redispatch implementation.
     created_at: '2026-07-31T03:58:08.263609+00:00'
+  - version: 1
+    override_id: override-b595646684a4
+    project_id: proj-14849f1b
+    task_id: OOMPAH-485
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 2a29f5772a031f5006eb50b5b2b1fdaeab96ab58177878d12849d62cb0ac349c
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reconciliation: OOMPAH-460''s terminal audit records that this
+      implementation was recovered into main by PR #603 / landing commit 15c96dac6,
+      even though the superseded epic branch itself was Archived. OOMPAH-699 tracks
+      automatic convergence.'
+    created_at: '2026-08-02T18:31:02.954203+00:00'
+    applied: false
   version: 1
   pending_chain: []
   attempt_history: []
@@ -384,5 +403,12 @@ author: oompah
 created: 2026-07-31 03:58
 ---
 Re-fenced after stale old-runtime queue race; no additional implementation is authorized.
+---
+author: oompah
+created: 2026-08-02 18:31
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner reconciliation: OOMPAH-460's terminal audit records that this implementation was recovered into main by PR #603 / landing commit 15c96dac6, even though the superseded epic branch itself was Archived. OOMPAH-699 tracks automatic convergence.
 ---
 <!-- COMMENTS:END -->
