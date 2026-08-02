@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T22:20:11.202634Z'
-updated_at: '2026-08-02T22:32:33.894123Z'
+updated_at: '2026-08-02T22:33:25.547343Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -84,6 +84,24 @@ Infrastructure action required: repair or replace the operator-owned quality-gat
 Output tail:
 ```text
 Trusted quality-gate runtime corruption detected; candidate CI was not run: trusted editable source mapping is inconsistent: expected one of ['/home/shedwards/src/oompah'] or immutable candidate /home/shedwards/.oompah/tmp/oompah-quality-gate-2lcw5dfn/workspace; actual /home/shedwards/.oompah/worktrees/oompah/OOMPAH-701. Repair or replace the service test runtime before rerunning the branch gate.
+```
+---
+author: oompah
+created: 2026-08-02 22:33
+---
+Branch quality gate blocked review creation.
+
+Branch: `OOMPAH-708`
+Target: `main`
+Head: `b965154dbf216ffb3587f59c2eb30aa681c73796`
+Command: `make test`
+Result: `infrastructure_error`
+
+Infrastructure action required: repair or replace the operator-owned quality-gate runtime. No candidate CI-fix status was applied because the candidate command did not run.
+
+Output tail:
+```text
+Trusted quality-gate runtime corruption detected; candidate CI was not run: trusted editable source mapping is inconsistent: expected one of ['/home/shedwards/src/oompah'] or immutable candidate /home/shedwards/.oompah/tmp/oompah-quality-gate-8yzluei_/workspace; actual /home/shedwards/.oompah/worktrees/oompah/OOMPAH-701. Repair or replace the service test runtime before rerunning the branch gate.
 ```
 ---
 <!-- COMMENTS:END -->
