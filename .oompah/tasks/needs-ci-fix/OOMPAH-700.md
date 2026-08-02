@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T19:52:39.323644Z'
-updated_at: '2026-08-02T20:57:42.634786Z'
+updated_at: '2026-08-02T21:00:22.528383Z'
 work_branch: OOMPAH-700
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/661
@@ -231,5 +231,10 @@ author: oompah
 created: 2026-08-02 20:57
 ---
 YOLO: CI tests failed on MR #661. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
+---
+author: oompah
+created: 2026-08-02 21:00
+---
+Direct-owner integration update: PR #661's first CI attempt passed Python 3.13 but hit the unrelated fixed-sleep race tests/test_release_delivery_refresh.py::TestBacklogRefreshManagerInvalidate::test_invalidate_causes_next_get_or_start_to_refresh on Python 3.11; 3.12 was canceled by fail-fast. Filed OOMPAH-703 for deterministic synchronization. Failed CI jobs are rerunning now; task head remains 819f8516723772742fddfab4eba6c8d5666c1b7b and its complete local gate passed.
 ---
 <!-- COMMENTS:END -->
