@@ -13,7 +13,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-08-01T22:19:41.486806Z'
-updated_at: '2026-08-02T03:16:10.768534Z'
+updated_at: '2026-08-02T03:27:37.193641Z'
 work_branch: OOMPAH-686
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/652
@@ -570,5 +570,16 @@ author: oompah
 created: 2026-08-02 03:16
 ---
 Understanding: Rebase OOMPAH-686 onto current main. The branch has 3 commits to preserve: worker XDG_RUNTIME_DIR fallback, maintenance lane regression test stabilization, and editable CLI source projection in quality gates. Main has 20 commits since the divergence point, including OOMPAH-687 and OOMPAH-688 changes that overlap with quality_gate.py, makefile_setup tests, and orchestrator.py. Starting rebase now.
+---
+author: oompah
+created: 2026-08-02 03:27
+---
+Discovery: Three conflict areas found across two commits (maintenance lane commit was already upstream and dropped cleanly):
+
+1. oompah/agent.py: HEAD (OOMPAH-687) added workspace_path to agent_environment() call; our branch pre-computed agent_env to track _worker_runtime_dir. Resolution: pass workspace_path to pre-computed call, use env=agent_env to preserve _worker_runtime_dir tracking.
+
+2. oompah/client_auth.py: HEAD added workspace_path parameter + _WORKER_RUNTIME_SELECTOR_ENV_VARS/TASK_VENV_ENV logic; our branch added _is_xdg_runtime_dir_writable(), _create_worker_runtime_directory(), and XDG fallback logic. Resolution: merge all into unified agent_environment() with both features.
+
+3. oompah/quality_gate.py + tests: HEAD (OOMPAH-687) refactored _editable_oompah_source into _declared_editable_oompah_source + _editable_oompah_source wrapper + _validate_trusted_runtime_source; our branch had the original _editable_oompah_source. Resolution: take HEAD's refined implementation, add both sides' unique test coverage.
 ---
 <!-- COMMENTS:END -->
