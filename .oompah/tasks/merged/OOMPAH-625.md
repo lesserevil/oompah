@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-625
 type: bug
-status: Done
+status: Merged
 priority: 1
 title: Release terminal-auditor branch claims on forced termination
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T21:58:34.567478Z'
-updated_at: '2026-07-30T22:12:36.350140Z'
+updated_at: '2026-08-02T18:28:33.434445Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-625
 target_branch: null
 review_url: null
@@ -81,6 +81,25 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-4ecb52e715e9: '2026-07-30T22:11:49.091543+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-f9429e5a1f44
+    project_id: proj-14849f1b
+    task_id: OOMPAH-625
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: fc9071e490560eeba582f9939c39cb972653a862f834afb8de6f7250c22d25de
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reconciliation: parent OOMPAH-585 is Merged and its accepted rollup
+      contains this previously audited Done child; durable integration-queue/rollup
+      evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.'
+    created_at: '2026-08-02T18:28:26.427714+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -230,5 +249,12 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 5m 51s
 - Log: OOMPAH-625__20260730T220650Z.jsonl
+---
+author: oompah
+created: 2026-08-02 18:28
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner reconciliation: parent OOMPAH-585 is Merged and its accepted rollup contains this previously audited Done child; durable integration-queue/rollup evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.
 ---
 <!-- COMMENTS:END -->
