@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-689
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Do not poison successful handoff after expected non-running peer reads
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T00:13:22.222984Z'
-updated_at: '2026-08-02T00:58:58.102564Z'
+updated_at: '2026-08-02T01:03:11.701926Z'
 work_branch: OOMPAH-689
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/648
@@ -111,6 +111,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-68276aa50ebb: '2026-08-02T00:57:25.104904+00:00'
+    attempt-9dd1c98988ea: '2026-08-02T01:03:08.953282+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-689
@@ -121,6 +122,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-02T00:57:25.104915+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-689
+    target_state: Merged
+    evidence_fingerprint: 885db9c57a581ef3a742173d863ce064b260ce60f7b056161d52cafdbf9fa7b7
+    audit_ids:
+    - audit-a10f3199dad8
+    kind: result
+    applied: true
+    retired_at: '2026-08-02T01:03:08.953299+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-689
@@ -134,6 +144,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-02T00:57:25.104930+00:00'
     applied_at: '2026-08-02T00:57:28.447624+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-689
+    audit_id: audit-a10f3199dad8
+    attempt_id: attempt-9dd1c98988ea
+    target_state: Merged
+    evidence_fingerprint: 885db9c57a581ef3a742173d863ce064b260ce60f7b056161d52cafdbf9fa7b7
+    status: Merged
+    audit_ids:
+    - audit-a10f3199dad8
+    applied: false
+    created_at: '2026-08-02T01:03:08.953320+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -175,7 +196,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-689
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -184,7 +205,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-9dd1c98988ea
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -194,13 +215,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-02T00:58:53.940908+00:00'
       branch_key: OOMPAH-689
+      verdict: pass
+      completed_at: '2026-08-02T01:03:08.953008+00:00'
+      ended_at: '2026-08-02T01:03:08.953008+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-02T00:51:24.042669+00:00'
-    updated_at: '2026-08-02T00:58:53.940908+00:00'
+    updated_at: '2026-08-02T01:03:08.953008+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-68276aa50ebb
@@ -401,5 +425,30 @@ author: oompah
 created: 2026-08-02 00:58
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-02 01:03
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: a5acdde6497e03bb83714ec585dff131b4b09398
+- merge_commit: 431d472825a0dc7eeb75a9489ef4f91e9599db15
+- pr_number: 648
+- files_changed: docs/authentication.md, docs/scoped-task-cli-authentication.md, oompah/auth_health.py, oompah/orchestrator.py, oompah/server.py, oompah/task_handoff.py, tests/test_task_handoff.py
+- diff_stat: 7 files changed, 391 insertions(+), 24 deletions(-)
+- focused_tests_task_handoff_rerun: 68 passed in 7.07s at HEAD a5acdde64
+- focused_tests_handoff_auth_server_rerun: 171 passed, 1 deprecation warning in 8.07s at HEAD a5acdde64
+- focused_tests_orchestrator_handlers_rerun: 277 passed in 85.31s at HEAD a5acdde64
+- branch_gate_make_test: passed in 391.4s (per branch quality gate comment for a5acdde64)
+- regression_test_present: TestFailedHandoffLifecycle::test_informational_peer_read_does_not_poison_successful_submit
+- parametrized_peer_view_states_present: Open, Ready to Integrate, Done, Unknown; tracker.fetch_issue_detail.side_effect asserts target must not be resolved
+- parametrized_mutation_actionable_present: comment, submit; asserts recent_403_scope_count==1 and consume_task_handoff_failure returns record
+- cross_project_denial_actionable: test_wrong_project_token_returns_403 asserts scope alert + actionable failure
+- peer_view_never_resolves_target: server._is_verified_peer_scope_denial deliberately does not call _verified_running_entry on target; only accepts action=='view'
+- exit_reconciler_actionable_only: [REDACTED-credential-pattern] renames handoff_failure -> actionable_handoff_failure with comment clarifying registry semantics
+- commit_trailer: canonical oompah trailer, no model attribution
 ---
 <!-- COMMENTS:END -->
