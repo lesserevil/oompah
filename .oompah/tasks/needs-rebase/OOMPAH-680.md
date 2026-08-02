@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-680
 type: task
-status: In Review
-priority: null
+status: Needs Rebase
+priority: 0
 title: Use project forge credentials for all managed Git network operations
 parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- merge-conflict
 assignee: null
 created_at: '2026-08-01T17:31:44.735248Z'
-updated_at: '2026-08-02T18:37:30.899015Z'
+updated_at: '2026-08-02T18:37:47.852199Z'
 work_branch: OOMPAH-680
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/657
@@ -651,5 +652,10 @@ author: oompah
 created: 2026-08-02 18:21
 ---
 Owner recovered stale historical-review metadata; requeueing current exact head for automated gate and review.
+---
+author: oompah
+created: 2026-08-02 18:37
+---
+YOLO: Merge conflict detected on MR #657. Rebase onto main and resolve conflicts.
 ---
 <!-- COMMENTS:END -->
