@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T21:46:41.297124Z'
-updated_at: '2026-08-02T03:13:54.386304Z'
+updated_at: '2026-08-02T03:14:15.758245Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -108,7 +108,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 95e4f171-fd62-436a-ad0a-fb02cc1e4d79
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 274
   total_output_tokens: 9286
@@ -512,5 +512,10 @@ author: oompah
 created: 2026-08-02 03:13
 ---
 Verification: parallel focused regression suites pass on the rebased branch: TestTickDelegation plus TestSlowTickSubstepLogging (11 passed), and managed credential plus unpushed-gate suites (37 passed). git diff --check passes. make test-setup was attempted twice but the host uv launcher failed before dependency setup with a DBus transient-scope error; the existing worktree test environment ran the focused suites successfully.
+---
+author: oompah
+created: 2026-08-02 03:14
+---
+Completion: pushed rebased CI repair at 610dd7ccf. The branch now includes the merged deterministic OOMPAH-688 test stabilization while preserving project credential forwarding and noninteractive recovery behavior. GitHub has no PR or Actions workflow for this branch; submission will queue Oompah's branch gate for this exact clean head.
 ---
 <!-- COMMENTS:END -->
