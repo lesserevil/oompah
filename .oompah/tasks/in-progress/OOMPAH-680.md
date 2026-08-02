@@ -12,7 +12,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-08-01T17:31:44.735248Z'
-updated_at: '2026-08-02T18:38:56.635050Z'
+updated_at: '2026-08-02T18:43:57.885774Z'
 work_branch: OOMPAH-680
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/657
@@ -672,5 +672,10 @@ author: oompah
 created: 2026-08-02 18:38
 ---
 Understanding: The branch has 3 OOMPAH-680 commits, but fd8f96145 and 6b26b9b3d were already merged in PR #643. Only d08a8da59 (Route all managed Git operations through forge credentials) remains to rebase onto origin/main. This commit touches 16 source files and adds tests/test_managed_git_credentials.py. Starting rebase onto origin/main now.
+---
+author: oompah
+created: 2026-08-02 18:43
+---
+Discovery: 6 files with conflicts. Pattern: d08a8da59 added features that origin/main also added (via later commits that refined the same code). Resolution strategy: prefer HEAD (origin/main) for infrastructure improvements (base_env, cwd, type annotations, import organization) while keeping d08a8da59's unique additions. Key files: integration_executor.py, landing_gate.py, orchestrator.py, projects.py, unpushed_gate.py, tests/test_managed_git_credentials.py. Test file needs merge of HEAD's authentication diagnostics tests plus d08a8da59's unique test_failed_authenticated_clone_removes_partial_checkout.
 ---
 <!-- COMMENTS:END -->
