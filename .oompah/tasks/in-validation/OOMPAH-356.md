@@ -15,7 +15,7 @@ labels:
 - workflow
 assignee: null
 created_at: '2026-07-22T01:23:32.887223Z'
-updated_at: '2026-08-02T01:12:48.384022Z'
+updated_at: '2026-08-02T01:30:43.922063Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -30,19 +30,46 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-356
     target_state: Archived
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: afe4a724470fb72d93d5fc3e6ef18e8d543f1b54864f887b84c39a678efa8e3f
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-50c3d6991111
+      target_state: Archived
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: afe4a724470fb72d93d5fc3e6ef18e8d543f1b54864f887b84c39a678efa8e3f
+      created_at: '2026-08-02T01:30:43.014536+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-02T01:30:43.014536+00:00'
+      branch_key: OOMPAH-356
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-02T01:12:44.770084+00:00'
-  attempt_history: []
+    updated_at: '2026-08-02T01:30:43.014536+00:00'
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-50c3d6991111
+    target_state: Archived
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: afe4a724470fb72d93d5fc3e6ef18e8d543f1b54864f887b84c39a678efa8e3f
+    created_at: '2026-08-02T01:30:43.014536+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-02T01:30:43.014536+00:00'
+    branch_key: OOMPAH-356
 ---
 ## Summary
 
