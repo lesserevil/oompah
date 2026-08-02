@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T21:11:44.479316Z'
-updated_at: '2026-08-02T21:47:59.017983Z'
+updated_at: '2026-08-02T21:48:01.906693Z'
 work_branch: OOMPAH-704
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/662
@@ -54,7 +54,19 @@ oompah.terminal_audit:
       Direct owner override avoids the known completion-auditor transport defect tracked
       by OOMPAH-701.'
     created_at: '2026-08-02T21:47:55.622824+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-704
+    target_state: Merged
+    evidence_fingerprint: 5cef968f93c267a603a745502c8d66ca1838765281e77aee2271eec9296ec602
+    audit_ids:
+    - audit-f9cc52ad4d0c
+    - audit-7fee35fe24c0
+    kind: override
+    applied: true
+    retired_at: '2026-08-02T21:48:00.904426+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -62,7 +74,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-704
     target_state: Done
-    request_state: in_progress
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -87,13 +99,13 @@ oompah.terminal_audit:
       source: forge
     previous_state: In Review
     created_at: '2026-08-02T21:46:26.220743+00:00'
-    updated_at: '2026-08-02T21:47:43.075909+00:00'
+    updated_at: '2026-08-02T21:48:00.904380+00:00'
   - version: 1
     audit_id: audit-7fee35fe24c0
     project_id: proj-14849f1b
     task_id: OOMPAH-704
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -105,6 +117,7 @@ oompah.terminal_audit:
       source: forge
     previous_state: In Review
     created_at: '2026-08-02T21:46:26.220743+00:00'
+    updated_at: '2026-08-02T21:48:00.904406+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-1cf395ccc6ea
