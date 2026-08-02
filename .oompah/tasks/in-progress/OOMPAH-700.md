@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-700
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Gate accepted submissions without a canonical task worktree
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T19:52:39.323644Z'
-updated_at: '2026-08-02T20:24:16.025522Z'
+updated_at: '2026-08-02T20:24:33.710988Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -56,7 +56,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: b6771626-8b88-457d-853c-c9c5ea5b398e
+oompah.agent_run_id: 5475ec6b-9612-4159-a581-930f5e6724e6
 oompah.task_costs:
   total_input_tokens: 6
   total_output_tokens: 1125
@@ -167,5 +167,15 @@ author: oompah
 created: 2026-08-02 20:16
 ---
 Understanding: Resuming from the preserved snapshot at decf967e5 which already modified oompah/quality_gate.py to accept require_source_head_match=False, resolve the archive from the managed repository's exact commit rather than the source checkout's HEAD, and classify unresolvable heads as infrastructure_error. Orchestrator side (_review_quality_gate_passes) already routes standalone submissions through project.repo_path when no matching worktree exists. Next step: add regression tests for OOMPAH-698 scenarios (non-canonical clean submission, unfetchable head, stale head during snapshot, idempotent recovery) then run focused suites.
+---
+author: oompah
+created: 2026-08-02 20:24
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-08-02 20:24
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
