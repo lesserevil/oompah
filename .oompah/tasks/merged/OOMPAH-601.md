@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:16:00.331568Z'
-updated_at: '2026-08-02T18:26:28.408300Z'
+updated_at: '2026-08-02T18:26:31.502721Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-601
 target_branch: null
 review_url: null
@@ -216,7 +216,21 @@ oompah.terminal_audit:
       contains this previously audited Done child; durable integration-queue/rollup
       evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.'
     created_at: '2026-08-02T18:26:24.035091+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-601
+    target_state: Merged
+    evidence_fingerprint: 500f0a9b0cc3838fda21356ceed08439cd36fc47de013369930cc6330ebb0a3a
+    audit_ids:
+    - audit-2c9cd7f38656
+    - audit-079f7f8841a8
+    - audit-597b79a6b728
+    - audit-ce0377221a0d
+    kind: override
+    applied: true
+    retired_at: '2026-08-02T18:26:30.389471+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -342,7 +356,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-601
     target_state: Done
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -354,6 +368,7 @@ oompah.terminal_audit:
       source: api
     previous_state: Needs Human
     created_at: '2026-07-31T05:56:28.888249+00:00'
+    updated_at: '2026-08-02T18:26:30.389438+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-131c3414d8df
