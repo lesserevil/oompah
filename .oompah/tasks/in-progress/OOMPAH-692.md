@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-692
 type: feature
-status: Needs CI Fix
+status: In Progress
 priority: 1
 title: Version authoritative dashboard state in the WebSocket protocol
 parent: OOMPAH-691
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:46.836436Z'
-updated_at: '2026-08-02T02:39:02.710423Z'
+updated_at: '2026-08-02T02:39:40.581661Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-692
 target_branch: null
 review_url: null
@@ -41,52 +41,16 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: fcbb1ae6-d4c2-4d31-bcc3-779e3bd4c3d8
+oompah.agent_run_id: b9c01d79-197f-4861-920c-5fbf07e12e4d
 oompah.work_branch: epic-OOMPAH-691--task-OOMPAH-692
 oompah.integration:
   version: 2
-  state: blocked
-  attempts: 1
+  state: working
+  attempts: 0
   task_branch: epic-OOMPAH-691--task-OOMPAH-692
   base_branch: epic-OOMPAH-691
   base_sha: 6252b5434f392b74de9703a9fc8dca1951dfeaca
-  head_sha: d27274909e84ecefc549d22a57887fc27b8a6288
-  submitted_at: '2026-08-02T02:29:51.348129+00:00'
-  updated_at: '2026-08-02T02:38:57.252963+00:00'
-  last_error: "Combined-tree quality gate failed: es/httpx/_models.py:408: DeprecationWarning:\
-    \ Use 'content=<...>' to upload raw bytes/text content.\n    headers, stream =\
-    \ encode_request(\n\ntests/test_webhooks.py::TestWebhookForwarderStderrCapture::test_terminate_cancels_stderr_task\n\
-    \  /home/shedwards/.oompah/tmp/oompah-quality-gate-7zgvkt4x/workspace/.venv/lib/python3.12/site-packages/_pytest/unraisableexception.py:67:\
-    \ PytestUnraisableExceptionWarning: Exception ignored in: <function BaseSubprocessTransport.__del__\
-    \ at 0x7268cb64b9c0>\n  \n  Traceback (most recent call last):\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
-    , line 126, in __del__\n      self.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
-    , line 104, in close\n      proto.pipe.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 568, in close\n      self._close(None)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 592, in _close\n      self._loop.call_soon(self._call_connection_lost,\
-    \ exc)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 799, in call_soon\n      self._check_closed()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 545, in _check_closed\n      raise RuntimeError('Event loop is closed')\n\
-    \  RuntimeError: Event loop is closed\n  \n  Enable tracemalloc to get traceback\
-    \ where the object was allocated.\n  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
-    \ for more info.\n    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))\n\
-    \ntests/test_websocket_authenticated_bootstrap.py::TestRESTWebSocketConsistency::test_rest_and_ws_both_include_build_id\n\
-    \  /home/shedwards/.oompah/tmp/oompah-quality-gate-7zgvkt4x/workspace/.venv/lib/python3.12/site-packages/_pytest/unraisableexception.py:67:\
-    \ PytestUnraisableExceptionWarning: Exception ignored in: <function BaseSubprocessTransport.__del__\
-    \ at 0x76f6f2f0b9c0>\n  \n  Traceback (most recent call last):\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
-    , line 126, in __del__\n      self.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py\"\
-    , line 104, in close\n      proto.pipe.close()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 568, in close\n      self._close(None)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py\"\
-    , line 592, in _close\n      self._loop.call_soon(self._call_connection_lost,\
-    \ exc)\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 799, in call_soon\n      self._check_closed()\n    File \"/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py\"\
-    , line 545, in _check_closed\n      raise RuntimeError('Event loop is closed')\n\
-    \  RuntimeError: Event loop is closed\n  \n  Enable tracemalloc to get traceback\
-    \ where the object was allocated.\n  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings\
-    \ for more info.\n    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))\n\
-    \n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n===========================\
-    \ short test summary info ============================\nFAILED tests/test_orchestrator_handlers.py::TestMaintenanceLaneNonBlocking::test_tick_does_not_await_maintenance_heal\n\
-    = 1 failed, 14875 passed, 8 skipped, 1 xfailed, 45 warnings in 379.31s (0:06:19)\
-    \ =\n\nmake: *** [Makefile:388: test] Error 1\n"
+  updated_at: '2026-08-02T02:39:37.054806+00:00'
 oompah.task_costs:
   total_input_tokens: 14733068
   total_output_tokens: 48530
@@ -382,5 +346,15 @@ FAILED tests/test_orchestrator_handlers.py::TestMaintenanceLaneNonBlocking::test
 make: *** [Makefile:388: test] Error 1
 
 ```
+---
+author: oompah
+created: 2026-08-02 02:39
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-08-02 02:39
+---
+Focus: Frontend Developer
 ---
 <!-- COMMENTS:END -->
