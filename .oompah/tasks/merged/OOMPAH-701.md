@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T20:20:26.676545Z'
-updated_at: '2026-08-02T23:45:56.391232Z'
+updated_at: '2026-08-02T23:46:00.063665Z'
 work_branch: OOMPAH-701
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/665
@@ -119,6 +119,16 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-02T23:45:04.961720+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-701
+    target_state: Merged
+    evidence_fingerprint: 3ffccdccadddc3e7c3185cc51cd8dbdce2c47023b32f832158721ad41edf4385
+    audit_ids:
+    - audit-c05a51f9c48e
+    - audit-c521d3856622
+    kind: override
+    applied: true
+    retired_at: '2026-08-02T23:45:58.960941+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-701
@@ -132,6 +142,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-02T23:45:04.961730+00:00'
     applied_at: '2026-08-02T23:45:09.561267+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-1e668ca19030
@@ -154,7 +165,7 @@ oompah.terminal_audit:
       the stranded audit without treating the transport failure as an implementation
       failure.'
     created_at: '2026-08-02T23:45:52.813091+00:00'
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -231,7 +242,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-701
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -243,6 +254,7 @@ oompah.terminal_audit:
       source: forge
     previous_state: In Review
     created_at: '2026-08-02T23:37:08.506986+00:00'
+    updated_at: '2026-08-02T23:45:58.960892+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-d2dd8c20dae6
