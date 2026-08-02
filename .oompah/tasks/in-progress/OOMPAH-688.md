@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T23:11:33.946132Z'
-updated_at: '2026-08-02T00:03:54.078672Z'
+updated_at: '2026-08-02T00:04:41.057247Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -393,5 +393,10 @@ author: oompah
 created: 2026-08-02 00:03
 ---
 Discovery: GitHub has no Actions run for this branch, so I used the captured quality-gate failure as the CI evidence. The remaining maintenance-lane test still left _recover_release_addendum_leases as real tracker I/O and returned an AsyncMock where slow-tick telemetry expects a mapping. Its sibling already required those exact stubs. The process-global lifecycle test passed locally under four xdist workers, including its nested isolated gate; no reproducible failing behavior or detailed CI trace supports a change there.
+---
+author: oompah
+created: 2026-08-02 00:04
+---
+Verification: Focused four-worker xdist run passed: 40 tests in 19.17s — TestMaintenanceLaneNonBlocking, all 35 tests in test_orchestrator_tick_telemetry.py (including the repeated fast-tick regression), and test_process_global_gate_keeps_preexisting_sentinel_alive with its nested isolated gate. The full make test gate is intentionally left to Oompah for the exact pushed head per project policy.
 ---
 <!-- COMMENTS:END -->
