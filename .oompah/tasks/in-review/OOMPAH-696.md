@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-696
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Honor integrated SHA evidence after epic child branches are pruned
 parent: null
@@ -12,10 +12,10 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T16:18:38.337420Z'
-updated_at: '2026-08-02T17:01:58.135805Z'
+updated_at: '2026-08-02T17:02:08.495724Z'
 work_branch: null
 target_branch: null
-review_url: null
+review_url: https://github.com/lesserevil/oompah/pull/655
 review_number: null
 merged_at: null
 oompah.duplicate_screening:
@@ -95,6 +95,7 @@ oompah.integration:
   head_sha: 0d4f3d9932b2773cbdf904d9443def0ed0d1c0a2
   submitted_at: '2026-08-02T16:54:37.933619+00:00'
   updated_at: '2026-08-02T16:54:37.933619+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/655
 ---
 ## Summary
 
