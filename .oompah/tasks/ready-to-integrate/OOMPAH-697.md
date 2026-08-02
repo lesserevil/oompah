@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T16:21:00.027506Z'
-updated_at: '2026-08-02T16:40:12.459162Z'
+updated_at: '2026-08-02T16:40:34.327737Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,13 +40,13 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: 419b479d-f9e7-4142-85da-5c920d2cd5aa
 oompah.task_costs:
-  total_input_tokens: 631109
-  total_output_tokens: 2505
+  total_input_tokens: 632071
+  total_output_tokens: 31523
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 631109
-      output_tokens: 2505
+      input_tokens: 632071
+      output_tokens: 31523
       cost_usd: 0.0
   runs:
   - profile: default
@@ -55,6 +55,12 @@ oompah.task_costs:
     output_tokens: 2505
     cost_usd: 0.0
     recorded_at: '2026-08-02T16:23:01.954879+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 962
+    output_tokens: 29018
+    cost_usd: 0.0
+    recorded_at: '2026-08-02T16:40:27.583984+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-697__20260802T162155Z
@@ -65,14 +71,24 @@ oompah.work_contributors:
     source_branch: OOMPAH-697
     source_sha: b7fdf2b3f6dfa00f39659abafb176f3d67579dce
     completed_at: '2026-08-02T16:23:01.976548+00:00'
+  - run_id: OOMPAH-697__20260802T162325Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: callback_auth
+    source_branch: OOMPAH-697
+    source_sha: de24893bdfb8bed90c7ca4ffe20a2c2e511e1c9b
+    completed_at: '2026-08-02T16:40:27.588350+00:00'
 oompah.integration:
   version: 2
   state: ready
   attempts: 0
   task_branch: OOMPAH-697
+  base_branch: main
+  base_sha: b7fdf2b3f6dfa00f39659abafb176f3d67579dce
   head_sha: de24893bdfb8bed90c7ca4ffe20a2c2e511e1c9b
   submitted_at: '2026-08-02T16:40:09.103321+00:00'
-  updated_at: '2026-08-02T16:40:09.103321+00:00'
+  updated_at: '2026-08-02T16:40:33.359882+00:00'
 ---
 ## Summary
 
@@ -254,5 +270,20 @@ author: oompah
 created: 2026-08-02 16:40
 ---
 Implemented exact-head review binding and stale review detection. Tasks no longer strand in In Review when branches advance after PR merge. Reconciliation clears stale metadata and requeues for fresh gate and review creation.
+---
+author: oompah
+created: 2026-08-02 16:40
+---
+Agent completed successfully in 1028s (29980 tokens)
+---
+author: oompah
+created: 2026-08-02 16:40
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 254, Tool calls: 119
+- Tokens: 962 in / 29.0K out [30.0K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 17m 8s
+- Log: OOMPAH-697__20260802T162325Z.jsonl
 ---
 <!-- COMMENTS:END -->
