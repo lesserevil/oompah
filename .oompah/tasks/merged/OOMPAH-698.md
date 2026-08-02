@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T18:20:27.192609Z'
-updated_at: '2026-08-02T20:31:19.476662Z'
+updated_at: '2026-08-02T20:31:27.655227Z'
 work_branch: OOMPAH-698
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/659
@@ -45,6 +45,16 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-02T20:10:43.003474+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-698
+    target_state: Merged
+    evidence_fingerprint: 28b1bcdbb3ca3e48d1bdccf2d0eef9685f93745f8cc23f1c5f2fc72b9ca2af97
+    audit_ids:
+    - audit-262d471400ee
+    - audit-d2f370513491
+    kind: override
+    applied: true
+    retired_at: '2026-08-02T20:31:21.442884+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-698
@@ -58,6 +68,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-02T20:10:43.003487+00:00'
     applied_at: '2026-08-02T20:10:47.026071+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-20f4b9971971
@@ -77,7 +88,7 @@ oompah.terminal_audit:
       audit audit-d2f370513491 previously recorded PASS, but restart recovery reopened
       the task and replacement read-only auditors entered repeated denied-tool loops.'
     created_at: '2026-08-02T20:31:16.098174+00:00'
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -119,7 +130,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-698
     target_state: Merged
-    request_state: in_progress
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -160,7 +171,7 @@ oompah.terminal_audit:
       source: forge
     previous_state: In Review
     created_at: '2026-08-02T19:58:01.589885+00:00'
-    updated_at: '2026-08-02T20:26:40.473629+00:00'
+    updated_at: '2026-08-02T20:31:21.442840+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-5e5fef3d478e
@@ -205,13 +216,13 @@ oompah.terminal_audit:
     branch_key: OOMPAH-698
     candidate_rotation_count: 1
 oompah.task_costs:
-  total_input_tokens: 43
-  total_output_tokens: 7270
+  total_input_tokens: 97
+  total_output_tokens: 8901
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 43
-      output_tokens: 7270
+      input_tokens: 97
+      output_tokens: 8901
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -220,6 +231,12 @@ oompah.task_costs:
     output_tokens: 7270
     cost_usd: 0.0
     recorded_at: '2026-08-02T20:11:00.739445+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 54
+    output_tokens: 1631
+    cost_usd: 0.0
+    recorded_at: '2026-08-02T20:31:25.712306+00:00'
 ---
 ## Summary
 
@@ -381,5 +398,15 @@ created: 2026-08-02 20:31
 Override by oompah-cli: terminal transition to Merged applied by project owner.
 
 Reason: PR #659 is merged at 3a7835ebdee4b051764a3e4d62ffda6e1dec277f; exact task head 6de721ae2f44a8ce0d3c21fcf660cc332a996e1b is contained in origin/main; audit audit-d2f370513491 previously recorded PASS, but restart recovery reopened the task and replacement read-only auditors entered repeated denied-tool loops.
+---
+author: oompah
+created: 2026-08-02 20:31
+---
+Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 0, Tool calls: 32
+- Tokens: 54 in / 1.6K out [1.7K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 4m 43s
+- Log: OOMPAH-698__20260802T202647Z.jsonl
 ---
 <!-- COMMENTS:END -->
