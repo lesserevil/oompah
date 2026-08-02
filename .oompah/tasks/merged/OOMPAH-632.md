@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-632
 type: bug
-status: Done
+status: Merged
 priority: 1
 title: Refresh candidate refs before child landing reconciliation
 parent: OOMPAH-584
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T00:46:34.785511Z'
-updated_at: '2026-07-31T05:56:04.628056Z'
+updated_at: '2026-08-02T18:29:38.817720Z'
 work_branch: epic-OOMPAH-584--task-OOMPAH-632
 target_branch: null
 review_url: null
@@ -133,6 +133,24 @@ oompah.terminal_audit:
     reason: Restore previously audited Done after false post-merge landing regression;
       refreshed exact task ref is contained in main.
     created_at: '2026-07-31T05:55:43.702582+00:00'
+  - version: 1
+    override_id: override-3aa2615ff66c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-632
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 810f872bda218c1dfc42272d0c0977c6aaf99c2ed43c9df71cdc8f8c23c180dd
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reconciliation: parent OOMPAH-584 is Merged and its accepted rollup
+      contains this previously audited Done child; durable integration-queue/rollup
+      evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.'
+    created_at: '2026-08-02T18:29:35.196704+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -625,5 +643,12 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 1m 26s
 - Log: OOMPAH-632__20260731T055439Z.jsonl
+---
+author: oompah
+created: 2026-08-02 18:29
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner reconciliation: parent OOMPAH-584 is Merged and its accepted rollup contains this previously audited Done child; durable integration-queue/rollup evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.
 ---
 <!-- COMMENTS:END -->
