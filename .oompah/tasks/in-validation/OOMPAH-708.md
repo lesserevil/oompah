@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-708
 type: task
-status: Open
+status: In Validation
 priority: 0
 title: Repair duplicate-screening owner-resolution project lookup
 parent: null
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T22:20:11.202634Z'
-updated_at: '2026-08-02T22:52:11.531000Z'
+updated_at: '2026-08-02T22:59:07.202104Z'
 work_branch: OOMPAH-708
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/664
@@ -32,6 +32,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/664
 oompah.review_number: '664'
 oompah.work_branch: OOMPAH-708
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-83ea41fbc0d5
+    project_id: proj-14849f1b
+    task_id: OOMPAH-708
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: e4fef94ce3bc314f97e3bd4ec0cc87af579ea569d7c631043b0ef7afcfebf452
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-02T22:58:58.819037+00:00'
+  - version: 1
+    audit_id: audit-5e5e124258f5
+    project_id: proj-14849f1b
+    task_id: OOMPAH-708
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: e4fef94ce3bc314f97e3bd4ec0cc87af579ea569d7c631043b0ef7afcfebf452
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: Open
+    created_at: '2026-08-02T22:58:58.819037+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -135,5 +174,15 @@ created: 2026-08-02 22:52
 **Evidence:** Recent comment indicates CI is now passing or PR has been merged; safe to reopen for dispatch.
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-08-02 22:59
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-02 22:59
+---
+YOLO: merged PR #664.
 ---
 <!-- COMMENTS:END -->
