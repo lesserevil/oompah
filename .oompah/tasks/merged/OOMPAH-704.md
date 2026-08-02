@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T21:11:44.479316Z'
-updated_at: '2026-08-02T21:48:01.906693Z'
+updated_at: '2026-08-02T21:48:15.202869Z'
 work_branch: OOMPAH-704
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/662
@@ -132,6 +132,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-02T21:47:43.075909+00:00'
     branch_key: OOMPAH-704
+oompah.task_costs:
+  total_input_tokens: 12
+  total_output_tokens: 2
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 12
+      output_tokens: 2
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 12
+    output_tokens: 2
+    cost_usd: 0.0
+    recorded_at: '2026-08-02T21:48:13.141156+00:00'
 ---
 ## Summary
 
@@ -270,5 +286,15 @@ created: 2026-08-02 21:47
 Override by oompah-cli: terminal transition to Merged applied by project owner.
 
 Reason: PR #662 merged at 366129d0a5046c5ed7caed4acf26cd8cd2a3fbdd; exact task head 5640fc49e3036e552d4c047c9c35b6509e94e8cd is contained in origin/main; GitHub CI passed on Python 3.11, 3.12, and 3.13; the server exact-head branch gate passed in 396.1s; local make test passed 15,010 tests with 7 skipped and 1 xfailed. Direct owner override avoids the known completion-auditor transport defect tracked by OOMPAH-701.
+---
+author: oompah
+created: 2026-08-02 21:48
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 2, Tool calls: 1
+- Tokens: 12 in / 2 out [14 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 29s
+- Log: OOMPAH-704__20260802T214749Z.jsonl
 ---
 <!-- COMMENTS:END -->
