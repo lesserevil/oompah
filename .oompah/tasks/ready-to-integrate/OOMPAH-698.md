@@ -13,10 +13,10 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T18:20:27.192609Z'
-updated_at: '2026-08-02T19:42:25.781270Z'
+updated_at: '2026-08-02T19:49:24.807178Z'
 work_branch: null
 target_branch: null
-review_url: null
+review_url: https://github.com/lesserevil/oompah/pull/659
 review_number: null
 review_head: null
 merged_at: null
@@ -28,6 +28,7 @@ oompah.integration:
   head_sha: 6de721ae2f44a8ce0d3c21fcf660cc332a996e1b
   submitted_at: '2026-08-02T19:37:11.543655+00:00'
   updated_at: '2026-08-02T19:37:11.543655+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/659
 ---
 ## Summary
 
@@ -102,5 +103,10 @@ author: oompah
 created: 2026-08-02 19:42
 ---
 Restored the submitted exact head in the managed task worktree after the gate could not discover the temporary checkout; resubmitting the unchanged, fully tested head.
+---
+author: oompah
+created: 2026-08-02 19:49
+---
+Branch quality gate passed for `6de721ae2f44a8ce0d3c21fcf660cc332a996e1b` using `make test` in 394.5s. Review creation may proceed.
 ---
 <!-- COMMENTS:END -->
