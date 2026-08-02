@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T16:21:00.027506Z'
-updated_at: '2026-08-02T16:23:54.546803Z'
+updated_at: '2026-08-02T16:25:50.426752Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -155,5 +155,31 @@ created: 2026-08-02 16:23
 6. Add tests reproducing OOMPAH-680 scenario and confirming recovery behavior
 
 **My Focus:** As Callback Auth specialist, I'll pay attention to event handling idempotency, webhook race conditions, and proper state consistency in recovery paths.
+---
+author: oompah
+created: 2026-08-02 16:25
+---
+## Discovery
+
+**Root Cause Identified:**
+The current code binds reviews only to branch names, not the exact HEAD/SHA they reviewed. When a branch advances (via new commits) after a PR merges:
+
+1. Task metadata persists stale \`review_number\` / \`review_url\` from the merged PR
+2. During reconciliation, if the old PR is no longer in live reviews but branch name matches, it's found via \`provider.find_pr_for_branch(slug, branch)\`
+3. Code incorrectly treats the old merged review as evidence for the current (different) HEAD
+4. Task stays incorrectly in In Review or gets reopened as Open with manual action comment
+
+**Solution Approach:**
+1. Add \`oompah.review_head\` metadata field: store exact SHA when review is created
+2. Modify \`_write_review_metadata\` to accept and persist review_head
+3. In \`_mark_task_in_review\`, extract current branch HEAD and save it
+4. In \`_reconcile_stale_in_review_tasks\`, detect stale reviews by comparing current HEAD vs stored review_head
+5. For stale reviews: clear metadata, restore to READY_TO_INTEGRATE (not OPEN), allow normal review flow to requeue
+6. Preserve old review history in separate fields for audit trail
+
+**Key Files:**
+- oompah/orchestrator.py: _ensure_review_exists (line 15477), _mark_task_in_review (line 15857), _write_review_metadata (line 15904), _reconcile_stale_in_review_tasks (line 17003), _reopen_stale_in_review_task (line 17519)
+- tests/test_orchestrator_merged.py: reconciliation tests
+- oompah/close_gate.py: git command execution patterns
 ---
 <!-- COMMENTS:END -->
