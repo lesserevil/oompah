@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T16:18:38.337420Z'
-updated_at: '2026-08-02T16:39:19.250698Z'
+updated_at: '2026-08-02T16:39:41.783084Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -47,13 +47,13 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: f2bcb30e-1b03-459d-ae56-0dace58463a7
 oompah.task_costs:
-  total_input_tokens: 356919
-  total_output_tokens: 1867
+  total_input_tokens: 357585
+  total_output_tokens: 26773
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 356919
-      output_tokens: 1867
+      input_tokens: 357585
+      output_tokens: 26773
       cost_usd: 0.0
   runs:
   - profile: default
@@ -62,6 +62,12 @@ oompah.task_costs:
     output_tokens: 1867
     cost_usd: 0.0
     recorded_at: '2026-08-02T16:24:20.393623+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 666
+    output_tokens: 24906
+    cost_usd: 0.0
+    recorded_at: '2026-08-02T16:39:34.933979+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-696__20260802T162333Z
@@ -72,14 +78,24 @@ oompah.work_contributors:
     source_branch: OOMPAH-696
     source_sha: b7fdf2b3f6dfa00f39659abafb176f3d67579dce
     completed_at: '2026-08-02T16:24:20.407899+00:00'
+  - run_id: OOMPAH-696__20260802T162442Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: callback_auth
+    source_branch: OOMPAH-696
+    source_sha: 05e5842a9e24301fd03d686cee5e652d10a64ccd
+    completed_at: '2026-08-02T16:39:34.937402+00:00'
 oompah.integration:
   version: 2
   state: ready
   attempts: 0
   task_branch: OOMPAH-696
+  base_branch: main
+  base_sha: b7fdf2b3f6dfa00f39659abafb176f3d67579dce
   head_sha: 05e5842a9e24301fd03d686cee5e652d10a64ccd
   submitted_at: '2026-08-02T16:39:15.632666+00:00'
-  updated_at: '2026-08-02T16:39:15.632666+00:00'
+  updated_at: '2026-08-02T16:39:40.919562+00:00'
 ---
 ## Summary
 
@@ -175,5 +191,20 @@ Honor integrated SHA evidence after epic child branches are pruned
 Added _child_has_durable_landing_evidence() method to check if a child's integration record shows the work is already integrated and reachable from the epic container. Modified _mark_epic_merged() to use this before calling _child_landing_evidence_block_reason(), preventing false Needs Human moves when branches are pruned after successful integration.
 
 Three new tests verify: (1) Done children with pruned branches are promoted when integration is proven, (2) repeated reconciliation is idempotent, (3) unreachable SHAs fall back to normal checks. All 222 epic_strategy tests pass.
+---
+author: oompah
+created: 2026-08-02 16:39
+---
+Agent completed successfully in 898s (25572 tokens)
+---
+author: oompah
+created: 2026-08-02 16:39
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 173, Tool calls: 82
+- Tokens: 666 in / 24.9K out [25.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 14m 58s
+- Log: OOMPAH-696__20260802T162442Z.jsonl
 ---
 <!-- COMMENTS:END -->
