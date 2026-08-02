@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T22:19:11.796639Z'
-updated_at: '2026-08-02T22:38:32.502861Z'
+updated_at: '2026-08-02T22:39:11.825545Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -22,20 +22,49 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 7d4d9cd88ad1c84fe1c9d9dcb34803d9be4586a3b35ef419bd3cfa27efa0e822
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-02T22:39:06.357208+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: a7e5d58f-a03e-4f10-a67b-13b7114960f2
-  claim_owner: b2f4fbfa-8d27-4ee5-b29b-31d5b4a85217
-  claimed_at: '2026-08-02T22:38:24.274461+00:00'
-  claim_expires_at: '2026-08-02T23:08:24.274461+00:00'
+  evidence: "Focus handoff: duplicate_detector  \nDuplicate preflight verdict: no_duplicate\
+    \  \nMatches: none  \n\nEvidence: No active peer task covers direct-owner claims\
+    \ or orphan watchdog resets. Closest reviewed tasks OOMPAH-160, OOMPAH-163, and\
+    \ OOMPAH-165 are archived and address different mechanisms."
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
 oompah.agent_run_id: a87ea440-19f6-47c6-826f-e75acc2dbc38
+oompah.task_costs:
+  total_input_tokens: 50340
+  total_output_tokens: 904
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 50340
+      output_tokens: 904
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 50340
+    output_tokens: 904
+    cost_usd: 0.0
+    recorded_at: '2026-08-02T22:39:06.355945+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-707__20260802T223833Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: OOMPAH-707
+    source_sha: 53b14479d528381299b101f602dae6fae1161df9
+    completed_at: '2026-08-02T22:39:06.408255+00:00'
 ---
 ## Summary
 
@@ -63,5 +92,15 @@ author: oompah
 created: 2026-08-02 22:38
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-02 22:39
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 0
+- Tokens: 50.3K in / 904 out [51.2K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 37s
+- Log: OOMPAH-707__20260802T223833Z.jsonl
 ---
 <!-- COMMENTS:END -->
