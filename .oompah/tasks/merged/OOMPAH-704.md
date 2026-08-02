@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-704
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Fence graceful-restart redispatch against terminal state changes
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T21:11:44.479316Z'
-updated_at: '2026-08-02T21:47:48.180031Z'
+updated_at: '2026-08-02T21:47:59.017983Z'
 work_branch: OOMPAH-704
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/662
@@ -33,6 +33,28 @@ oompah.work_branch: OOMPAH-704
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-6703e21dfb73
+    project_id: proj-14849f1b
+    task_id: OOMPAH-704
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 5cef968f93c267a603a745502c8d66ca1838765281e77aee2271eec9296ec602
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'PR #662 merged at 366129d0a5046c5ed7caed4acf26cd8cd2a3fbdd; exact task
+      head 5640fc49e3036e552d4c047c9c35b6509e94e8cd is contained in origin/main; GitHub
+      CI passed on Python 3.11, 3.12, and 3.13; the server exact-head branch gate
+      passed in 396.1s; local make test passed 15,010 tests with 7 skipped and 1 xfailed.
+      Direct owner override avoids the known completion-auditor transport defect tracked
+      by OOMPAH-701.'
+    created_at: '2026-08-02T21:47:55.622824+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -228,5 +250,12 @@ author: oompah
 created: 2026-08-02 21:47
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-02 21:47
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: PR #662 merged at 366129d0a5046c5ed7caed4acf26cd8cd2a3fbdd; exact task head 5640fc49e3036e552d4c047c9c35b6509e94e8cd is contained in origin/main; GitHub CI passed on Python 3.11, 3.12, and 3.13; the server exact-head branch gate passed in 396.1s; local make test passed 15,010 tests with 7 skipped and 1 xfailed. Direct owner override avoids the known completion-auditor transport defect tracked by OOMPAH-701.
 ---
 <!-- COMMENTS:END -->
