@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-650
 type: bug
-status: Done
+status: Merged
 priority: 1
 title: Keep scoped task handoff credentials valid for the full worker lifetime
 parent: OOMPAH-619
@@ -14,7 +14,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-31T08:57:09.832838Z'
-updated_at: '2026-07-31T14:40:09.710456Z'
+updated_at: '2026-08-02T18:30:09.134103Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-650
 target_branch: null
 review_url: null
@@ -199,6 +199,25 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-07-31T14:39:30.756759+00:00'
     applied_at: '2026-07-31T14:39:35.131089+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-21028d70fb46
+    project_id: proj-14849f1b
+    task_id: OOMPAH-650
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 27cdc6d2013b6dc93b8eb3fd89185f058962778b9a7b25b89a9e978c104ed379
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reconciliation: parent OOMPAH-619 is Merged and its accepted rollup
+      contains this previously audited Done child; durable integration-queue/rollup
+      evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.'
+    created_at: '2026-08-02T18:30:05.727033+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -1427,5 +1446,12 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 10m 58s
 - Log: OOMPAH-650__20260731T142915Z.jsonl
+---
+author: oompah
+created: 2026-08-02 18:30
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner reconciliation: parent OOMPAH-619 is Merged and its accepted rollup contains this previously audited Done child; durable integration-queue/rollup evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.
 ---
 <!-- COMMENTS:END -->
