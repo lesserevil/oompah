@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:48.499285Z'
-updated_at: '2026-08-02T03:46:46.119069Z'
+updated_at: '2026-08-02T03:46:55.841417Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-693
 target_branch: null
 review_url: null
@@ -178,5 +178,10 @@ author: oompah
 created: 2026-08-02 03:46
 ---
 VERIFICATION: All focused tests pass. Results: test_ws_full_sync.py (22/22), test_ws_lifecycle.py (49/49), test_websocket_authenticated_bootstrap.py (14/14). Total: 85 tests pass, 0 failures. Branch pushed: epic-OOMPAH-691--task-OOMPAH-693 at cf5f3cece.
+---
+author: oompah
+created: 2026-08-02 03:46
+---
+COMPLETION: OOMPAH-693 delivered. Changes: (1) oompah/server.py — _handle_full_sync() assembles coherent state+issues with revision watermarks atomically; per-connection coalescing via _ws_fullsync_pending; _unregister_ws extended; full_sync action wired in websocket_endpoint. (2) oompah/templates/dashboard.html — envelope gap detection (wsEpoch, wsDeliverySeq), _requestFullSync() helper, full_sync response handler for atomic state+issues replacement, full_sync_error handler with auto-retry. (3) tests/test_ws_full_sync.py — 22 tests covering all acceptance criteria: coherent revision watermarks, race safety, coalescing, retryable errors, auth isolation, multi-client isolation. (4) plans/websocket-state-versioning.md — full_sync action documented. Browser can now resynchronize without a page reload or new WebSocket connection.
 ---
 <!-- COMMENTS:END -->
