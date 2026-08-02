@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T00:56:34.088413Z'
-updated_at: '2026-08-02T01:27:41.333800Z'
+updated_at: '2026-08-02T01:27:48.159004Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -113,5 +113,10 @@ author: oompah
 created: 2026-08-02 01:27
 ---
 Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-02 01:27
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
