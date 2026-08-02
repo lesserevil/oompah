@@ -568,6 +568,11 @@ def test_sandbox_command_uses_an_empty_root_and_private_runtime_mounts(
     try:
         monkeypatch.setattr(shutil, "which", lambda _name: "/usr/bin/bwrap")
         monkeypatch.setattr(
+            quality_gate,
+            "_validate_trusted_runtime_source",
+            lambda _runtime_prefix, _candidate_snapshot: None,
+        )
+        monkeypatch.setattr(
             subprocess,
             "run",
             lambda args, **_kwargs: subprocess.CompletedProcess(args, 0),
@@ -622,6 +627,11 @@ def test_sandbox_command_overlays_writable_uv_sentinels_over_ro_venv(
     run_root = BranchQualityGate._gate_run_root()
     try:
         monkeypatch.setattr(shutil, "which", lambda _name: "/usr/bin/bwrap")
+        monkeypatch.setattr(
+            quality_gate,
+            "_validate_trusted_runtime_source",
+            lambda _runtime_prefix, _candidate_snapshot: None,
+        )
         monkeypatch.setattr(
             subprocess,
             "run",
@@ -679,6 +689,11 @@ def test_sandbox_command_binds_operator_venv_at_absolute_path_for_shebang_resolu
     run_root = BranchQualityGate._gate_run_root()
     try:
         monkeypatch.setattr(shutil, "which", lambda _name: "/usr/bin/bwrap")
+        monkeypatch.setattr(
+            quality_gate,
+            "_validate_trusted_runtime_source",
+            lambda _runtime_prefix, _candidate_snapshot: None,
+        )
         monkeypatch.setattr(
             subprocess,
             "run",
