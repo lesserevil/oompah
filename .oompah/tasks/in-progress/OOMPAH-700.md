@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T19:52:39.323644Z'
-updated_at: '2026-08-02T20:12:40.671481Z'
+updated_at: '2026-08-02T20:16:14.025594Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -162,5 +162,10 @@ author: oompah
 created: 2026-08-02 20:12
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-08-02 20:16
+---
+Understanding: Resuming from the preserved snapshot at decf967e5 which already modified oompah/quality_gate.py to accept require_source_head_match=False, resolve the archive from the managed repository's exact commit rather than the source checkout's HEAD, and classify unresolvable heads as infrastructure_error. Orchestrator side (_review_quality_gate_passes) already routes standalone submissions through project.repo_path when no matching worktree exists. Next step: add regression tests for OOMPAH-698 scenarios (non-canonical clean submission, unfetchable head, stale head during snapshot, idempotent recovery) then run focused suites.
 ---
 <!-- COMMENTS:END -->
