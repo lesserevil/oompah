@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-695
 type: task
-status: Needs Human
+status: In Validation
 priority: 1
 title: Prove dashboard convergence with fault injection and health telemetry
 parent: OOMPAH-691
@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:52.297786Z'
-updated_at: '2026-08-02T07:34:38.230402Z'
+updated_at: '2026-08-02T16:19:15.924102Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-695
 target_branch: null
 review_url: null
@@ -1008,5 +1008,10 @@ author: oompah
 created: 2026-08-02 07:34
 ---
 The parent epic OOMPAH-691 merged from epic-OOMPAH-691, but this task was Needs Human with work branch epic-OOMPAH-691--task-OOMPAH-695. Its work is not proven to be in the merged epic. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
+---
+author: oompah
+created: 2026-08-02 16:19
+---
+Operator ownership and recovery: verified recorded integrated head 1edd55f7c62f43448dd1d485e069cf3b61efd25b is an ancestor of origin/main b7fdf2b3f6dfa00f39659abafb176f3d67579dce (merged epic OOMPAH-691 / PR #654). The task audit previously passed. No missing code recovery is required; staging the child for its correct Merged state. Root cause is tracked by OOMPAH-696.
 ---
 <!-- COMMENTS:END -->

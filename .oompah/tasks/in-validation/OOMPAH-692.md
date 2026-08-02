@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-692
 type: feature
-status: Needs Human
+status: In Validation
 priority: 1
 title: Version authoritative dashboard state in the WebSocket protocol
 parent: OOMPAH-691
@@ -12,7 +12,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-08-02T02:01:46.836436Z'
-updated_at: '2026-08-02T07:31:29.050639Z'
+updated_at: '2026-08-02T16:19:20.388071Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-692
 target_branch: null
 review_url: null
@@ -214,7 +214,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-692
     target_state: Merged
-    request_state: pending
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -226,6 +226,37 @@ oompah.terminal_audit:
       source: oompah
     previous_state: Done
     created_at: '2026-08-02T07:26:31.490591+00:00'
+  - version: 1
+    audit_id: audit-ff093565657d
+    project_id: proj-14849f1b
+    task_id: OOMPAH-692
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 06b30d8470c4f2ec01d04e168e620a2bf0817a123d88fcd8f73a1bae68c7a00a
+    attempts:
+    - version: 1
+      attempt_id: attempt-c41e62b40db3
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 06b30d8470c4f2ec01d04e168e620a2bf0817a123d88fcd8f73a1bae68c7a00a
+      created_at: '2026-08-02T16:19:06.518701+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-02T16:19:06.518701+00:00'
+      branch_key: epic-OOMPAH-691--task-OOMPAH-692
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: Needs Human
+    created_at: '2026-08-02T16:18:58.695264+00:00'
+    updated_at: '2026-08-02T16:19:06.518701+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-516c4b5a5b7d
@@ -239,6 +270,19 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: opus
     started_at: '2026-08-02T03:22:00.861667+00:00'
+    branch_key: epic-OOMPAH-691--task-OOMPAH-692
+  - version: 1
+    attempt_id: attempt-c41e62b40db3
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 06b30d8470c4f2ec01d04e168e620a2bf0817a123d88fcd8f73a1bae68c7a00a
+    created_at: '2026-08-02T16:19:06.518701+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-02T16:19:06.518701+00:00'
     branch_key: epic-OOMPAH-691--task-OOMPAH-692
 ---
 ## Summary
@@ -675,5 +719,20 @@ author: oompah
 created: 2026-08-02 07:31
 ---
 The parent epic OOMPAH-691 merged from epic-OOMPAH-691, but this task was Needs Human with work branch epic-OOMPAH-691--task-OOMPAH-692. Its work is not proven to be in the merged epic. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
+---
+author: oompah
+created: 2026-08-02 16:18
+---
+Operator ownership and recovery: verified recorded integrated head 23d108b20c132b03c5dd450c1cb8ac97d4f0ffac is an ancestor of origin/main b7fdf2b3f6dfa00f39659abafb176f3d67579dce (merged epic OOMPAH-691 / PR #654). The task audit previously passed. No missing code recovery is required; staging the child for its correct Merged state. Root cause is tracked by OOMPAH-696.
+---
+author: oompah
+created: 2026-08-02 16:19
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-02 16:19
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->

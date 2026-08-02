@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-693
 type: feature
-status: Needs Human
+status: In Validation
 priority: 1
 title: Provide a coherent full dashboard resynchronization response
 parent: OOMPAH-691
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:48.499285Z'
-updated_at: '2026-08-02T07:31:31.814731Z'
+updated_at: '2026-08-02T16:19:22.882725Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-693
 target_branch: null
 review_url: null
@@ -195,18 +195,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-693
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: dba42564a68fa29a07fe568873076d97e163274543686d3bc2ca82c55d8162d0
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-f88db1c603df
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: dba42564a68fa29a07fe568873076d97e163274543686d3bc2ca82c55d8162d0
+      created_at: '2026-08-02T16:19:14.454975+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-02T16:19:14.454975+00:00'
+      branch_key: epic-OOMPAH-691--task-OOMPAH-693
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
       source: oompah
     previous_state: Done
     created_at: '2026-08-02T07:26:35.163105+00:00'
+    updated_at: '2026-08-02T16:19:14.454975+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-645487a41a0f
@@ -220,6 +234,19 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: opus
     started_at: '2026-08-02T03:55:01.275711+00:00'
+    branch_key: epic-OOMPAH-691--task-OOMPAH-693
+  - version: 1
+    attempt_id: attempt-f88db1c603df
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: dba42564a68fa29a07fe568873076d97e163274543686d3bc2ca82c55d8162d0
+    created_at: '2026-08-02T16:19:14.454975+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-02T16:19:14.454975+00:00'
     branch_key: epic-OOMPAH-691--task-OOMPAH-693
 ---
 ## Summary
@@ -401,5 +428,20 @@ author: oompah
 created: 2026-08-02 07:31
 ---
 The parent epic OOMPAH-691 merged from epic-OOMPAH-691, but this task was Needs Human with work branch epic-OOMPAH-691--task-OOMPAH-693. Its work is not proven to be in the merged epic. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
+---
+author: oompah
+created: 2026-08-02 16:19
+---
+Operator ownership and recovery: verified recorded integrated head cf5f3cecede5a3344922345e2fcbc3f042c982c9 is an ancestor of origin/main b7fdf2b3f6dfa00f39659abafb176f3d67579dce (merged epic OOMPAH-691 / PR #654). The task audit previously passed. No missing code recovery is required; staging the child for its correct Merged state. Root cause is tracked by OOMPAH-696.
+---
+author: oompah
+created: 2026-08-02 16:19
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-02 16:19
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
