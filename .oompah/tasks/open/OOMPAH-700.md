@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-700
 type: bug
-status: Merged
+status: Open
 priority: 0
 title: Gate accepted submissions without a canonical task worktree
 parent: null
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T19:52:39.323644Z'
-updated_at: '2026-08-02T21:09:50.484978Z'
+updated_at: '2026-08-02T21:09:55.605043Z'
 work_branch: OOMPAH-700
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/661
@@ -120,7 +120,19 @@ oompah.terminal_audit:
       1 xfailed). The terminal auditor was launched by the stale shutting-down process
       and the hidden-provider shutdown/recovery defect is tracked by OOMPAH-701.'
     created_at: '2026-08-02T21:09:47.010824+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-700
+    target_state: Merged
+    evidence_fingerprint: 217031b9e0cad87fc96b91b6ec3bff0cf1da42c75877514610d7557efd6105d2
+    audit_ids:
+    - audit-79284d825a2d
+    - audit-dee192504992
+    kind: override
+    applied: true
+    retired_at: '2026-08-02T21:09:52.626840+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -128,7 +140,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-700
     target_state: Done
-    request_state: in_progress
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -153,13 +165,13 @@ oompah.terminal_audit:
       source: forge
     previous_state: Open
     created_at: '2026-08-02T21:06:51.383233+00:00'
-    updated_at: '2026-08-02T21:08:07.571518+00:00'
+    updated_at: '2026-08-02T21:09:52.626814+00:00'
   - version: 1
     audit_id: audit-dee192504992
     project_id: proj-14849f1b
     task_id: OOMPAH-700
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -171,6 +183,7 @@ oompah.terminal_audit:
       source: forge
     previous_state: Open
     created_at: '2026-08-02T21:06:51.383233+00:00'
+    updated_at: '2026-08-02T21:09:52.626829+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-5f093d4b47fb
