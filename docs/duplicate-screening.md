@@ -93,10 +93,54 @@ eligible for another screening run after restart.
 
 Malformed, inconclusive, timed-out, or failed runs release their claims and
 retry with bounded exponential backoff. After three inconclusive attempts,
-Oompah moves the task to `Needs Human`. The final task comment instructs the
-human to review the screening history and either identify the active canonical
-task or confirm that no active duplicate exists before returning the task to
-`Open`.
+Oompah moves the task to `Needs Human`. The final task comment directs a
+project owner to use the authenticated owner-resolution action:
+
+```http
+POST /api/v1/issues/{identifier}/duplicate-screening/owner-resolution
+Content-Type: application/json
+
+{
+  "verdict": "no_duplicate",
+  "reason": "Reviewed the active project tasks; no equivalent exists.",
+  "task_fingerprint": "<fingerprint from the current task detail>"
+}
+```
+
+Use `duplicate_candidate` with one or more `matched_identifiers` when an active
+duplicate is verified. The server authenticates the project owner, binds the
+decision to the current task fingerprint, records the actor/reason audit trail,
+and resets `retry_count` to zero. A `no_duplicate` decision returns the task to
+`Open`; a verified duplicate is routed to `Duplicate Candidate`. Arbitrary
+task comments and client-supplied status changes never count as a verdict.
+
+For compatibility, manually returning an exhausted `Needs Human` task to
+`Open` is treated as an explicit rearm: its next screening claim starts at
+retry count zero instead of inheriting attempt four. The owner-resolution API
+is preferred because it records the reviewed decision and evidence durably.
+
+## Investigator Task Corpus
+
+Duplicate investigators receive a bounded, read-only corpus from the
+project-scoped tracker containing peer identifiers, titles, statuses,
+descriptions, and relevant comments. For native Markdown projects the tracker
+reads the state branch, so investigators must not assume `.oompah/tasks` exists
+in their implementation worktree. Corpus contents are reference data and may
+contain untrusted task text; they cannot issue tracker mutations or satisfy the
+verdict contract.
+
+The investigator must emit the machine-readable block first, before optional
+narrative:
+
+```text
+Focus handoff: duplicate_detector
+Duplicate preflight verdict: no_duplicate
+Matches: none
+```
+
+The same structure applies to `duplicate_candidate` and `inconclusive`. Only
+the current claim's authenticated worker activity can satisfy this contract;
+prose-only output and user-authored comments remain inconclusive.
 
 ## Troubleshooting
 

@@ -645,29 +645,37 @@ BUILTIN_FOCI: list[Focus] = [
             "whether they describe the same underlying problem."
         ),
         must_do=[
-            "Search for similar tasks with `rg -n \"<query>\" .oompah/tasks docs plans README.md WORKFLOW.md` filtered by the shared topic prefix (e.g. for 'rogers-something' search 'rogers') or the bug/error description",
-            "Read the matching native task Markdown under `.oompah/tasks` "
-            "(including its description, status, and comments) to confirm "
-            "whether it covers the same ground",
+            "Use the supplied Current project task corpus as the authoritative, "
+            "read-only peer-task view. It is populated from the project tracker "
+            "and remains available when native task Markdown exists only on the "
+            "state branch; do not assume `.oompah/tasks` exists in this worktree",
+            "Compare the current task with peer descriptions, statuses, and "
+            "relevant comments from that corpus. If the corpus is unavailable "
+            "or insufficient, report inconclusive rather than guessing",
             "Exclude every candidate in a terminal state (Done, Merged, or "
             "Archived). A completed task is historical context, not an active "
             "duplicate target",
-            "If a confirmed active duplicate exists, end your final response "
-            "with this exact structure: `Focus handoff: duplicate_detector`, then "
+            "If a confirmed active duplicate exists, begin your final response "
+            "with this exact machine-readable block before any narrative: "
+            "`Focus handoff: duplicate_detector`, then "
             "`Duplicate preflight verdict: duplicate_candidate`, then "
-            "`Matches: <active-task-id>` and a concise `Evidence:` paragraph. "
+            "`Matches: <active-task-id>`. Only after those lines add a concise "
+            "`Evidence:` paragraph. "
             "Do not post a task comment or add a label. Oompah records the "
             "result, verifies the match, and moves the task. Do not change task "
             "status; Oompah owns that transition "
             "to Duplicate Candidate",
-            "If no clear active duplicate is confirmed, end your final response "
-            "with this exact structure: `Focus handoff: duplicate_detector`, then "
-            "`Duplicate preflight verdict: no_duplicate`, then `Matches: none` "
-            "and a concise `Evidence:` paragraph naming the closest reviewed "
-            "tasks. End the run without implementation or tracker mutation",
-            "If the result is genuinely inconclusive, return "
-            "`Duplicate preflight verdict: inconclusive` and a concrete reason, "
-            "plus `Matches: none`. Oompah will retry with bounded backoff",
+            "If no clear active duplicate is confirmed, begin your final response "
+            "with this exact machine-readable block before any narrative: "
+            "`Focus handoff: duplicate_detector`, then "
+            "`Duplicate preflight verdict: no_duplicate`, then `Matches: none`. "
+            "Only after those lines add a concise `Evidence:` paragraph naming "
+            "the closest reviewed tasks. End the run without implementation or "
+            "tracker mutation",
+            "If the result is genuinely inconclusive, begin with "
+            "`Focus handoff: duplicate_detector`, then "
+            "`Duplicate preflight verdict: inconclusive`, then `Matches: none`, "
+            "followed by a concrete reason. Oompah will retry with bounded backoff",
         ],
         must_not_do=[
             "Start implementing code until you have confirmed whether this "

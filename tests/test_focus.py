@@ -1113,7 +1113,9 @@ class TestDuplicateDetectorFocus:
         """must_do should mention searching for similar issues."""
         focus = self._get_duplicate_detector()
         text = " ".join(focus.must_do)
-        assert ".oompah/tasks" in text and ("duplicate" in text.lower() or "similar" in text.lower())
+        assert "Current project task corpus" in text
+        assert "state branch" in text.lower()
+        assert "duplicate" in text.lower() or "similar" in text.lower()
 
     def test_verdict_handoff_leaves_status_change_to_oompah(self):
         """The focus reports a verdict; the orchestrator owns transitions."""
