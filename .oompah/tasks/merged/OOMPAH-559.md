@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-559
 type: feature
-status: Done
+status: Merged
 priority: 0
 title: Recover integration failures and clean private workspaces safely
 parent: OOMPAH-555
@@ -13,12 +13,36 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T16:23:27.458733Z'
-updated_at: '2026-07-29T18:28:34.111123Z'
+updated_at: '2026-08-02T18:35:24.739205Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-8c7e2c752137
+    project_id: proj-14849f1b
+    task_id: OOMPAH-559
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6721ac667d8a9a544dc7f608f5ab5bc092b2af51911e55c3915f07ac3e561c27
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reconciliation: the human-owned parallel coordination/integration
+      implementation was delivered by merged PR #579 at 31f8938b8, with full-gate
+      and live-deployment evidence recorded on the task family. OOMPAH-699 tracks
+      automatic convergence.'
+    created_at: '2026-08-02T18:35:19.307573+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
@@ -50,5 +74,12 @@ author: oompah
 created: 2026-07-29 18:28
 ---
 Implemented in PR #579 and merged to main at 31f8938b8f669a316a830690aaedcc1e0d3834bf. Full GitHub CI passed on Python 3.11, 3.12, and 3.13; the deployed server exposes the new coordination and submission surfaces.
+---
+author: oompah
+created: 2026-08-02 18:35
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner reconciliation: the human-owned parallel coordination/integration implementation was delivered by merged PR #579 at 31f8938b8, with full-gate and live-deployment evidence recorded on the task family. OOMPAH-699 tracks automatic convergence.
 ---
 <!-- COMMENTS:END -->
