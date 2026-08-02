@@ -10,9 +10,10 @@ blocked_by: []
 start_blocked_by: []
 labels:
 - focus-complete:frontend
+- focus-complete:docs
 assignee: null
 created_at: '2026-08-02T22:19:11.796639Z'
-updated_at: '2026-08-02T22:48:35.231577Z'
+updated_at: '2026-08-02T22:49:07.724357Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -339,5 +340,45 @@ Wrote design documentation and operator-facing guidance for the owner-claim mech
 - Old section 6.8 renumbered to 6.9
 
 **`docs/task-epic-workflow.md`** (modified) — Added note on direct-owner work after the dispatch table, explaining owner claims and linking to the runbook section.
+---
+author: oompah
+created: 2026-08-02 22:49
+---
+**Focus handoff: docs - COMPLETE**
+
+**Outcome:**
+Design and operator documentation for the owner-claim mechanism is complete and committed on branch OOMPAH-707.
+
+**Files written:**
+
+1. `plans/owner-claim.md` (new, 252 lines) — Internal design document for backend implementation:
+   - Root cause analysis showing exactly why `_reset_orphaned_in_progress()` resets direct owner work
+   - `OwnerClaim` dataclass design (fields, types, semantics)
+   - `OrchestratorState.owner_claims` integration
+   - Persistence via `_save_state()` / `service_state.json`
+   - Watchdog guard code pattern (under existing per-project write lock)
+   - Three REST API endpoints: POST/GET/DELETE `/api/v1/projects/{pid}/tasks/{id}/owner-claim`
+   - Race serialization strategy (reuse existing `project_store.project_write_lock()`)
+   - Bounded expiry: 48h default TTL, configurable via `OOMPAH_OWNER_CLAIM_TTL_HOURS`
+   - Implementation map (exact files to modify)
+   - Five required test scenarios
+
+2. `docs/operator-runbook.md` (modified) — New section 6.8 for operators facing this issue:
+   - Short-term workaround (human-only label)
+   - Permanent fix using owner-claim API (with curl examples)
+   - Claim status check, release, expiry documentation
+
+3. `docs/task-epic-workflow.md` (modified) — Added direct-owner-work note after dispatch table
+
+**Remaining work (backend needed):**
+- Implement `OwnerClaim` dataclass in `oompah/models.py`
+- Add `owner_claims` field to `OrchestratorState`
+- Modify `_reset_orphaned_in_progress()` with claim guard (see design doc for exact code pattern)
+- Add `_load_state()` deserialization and `_save_state()` persistence calls
+- Implement the three API endpoints
+- Add `owner_claims` list to `get_snapshot()` response
+- Write five test scenarios in `tests/test_owner_claim.py`
+
+**Recommended next focus:** backend (needs:backend)
 ---
 <!-- COMMENTS:END -->
