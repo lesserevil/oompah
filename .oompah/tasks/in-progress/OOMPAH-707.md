@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T22:19:11.796639Z'
-updated_at: '2026-08-02T22:40:40.877050Z'
+updated_at: '2026-08-02T22:41:58.298579Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -131,5 +131,22 @@ Key code locations identified:
 - Current check is: if no running_ids, no retry_ids, and no claimed_ids → reset
 
 **Role note**: As Frontend Developer, I'll focus on UI/API exposure and then likely hand off to backend agent for core implementation. First, let me explore the full scope and what needs to surface in the UI.
+---
+author: oompah
+created: 2026-08-02 22:41
+---
+**Discovery**: Examined codebase structure:
+
+**Current state tracking:**
+- OrchestratorState (oompah/models.py:1460) tracks: running (agents), claimed (issued claimed by dispatch), retry_attempts
+- _reset_orphaned_in_progress (oompah/orchestrator.py:15228) resets In Progress issues without running/retry/claimed entries
+- get_snapshot() (oompah/orchestrator.py:31936) builds API payload with running/retrying lists for dashboard
+- Frontend: single component (Dashboard.tsx is empty), dashboard.html is server-rendered HTML template
+
+**What needs to happen:**
+1. **Backend (core)**: Add OwnerClaim data structure, persist claims, modify watchdog to preserve them
+2. **Frontend (exposure)**: Add owner claim fields to API snapshot, display in dashboard
+
+This is primarily a backend task with frontend UI exposure. As Frontend Developer, I should hand off the core implementation to backend and then handle UI exposure, OR hand off entirely if you need the core done first.
 ---
 <!-- COMMENTS:END -->
