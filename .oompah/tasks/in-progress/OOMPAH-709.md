@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-709
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Make tick-delegation tests deterministic under parallel full-suite execution
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T23:17:45.073003Z'
-updated_at: '2026-08-02T23:30:39.379635Z'
+updated_at: '2026-08-02T23:30:57.343083Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,7 +39,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 8b42efdc-70ac-47f0-a637-5d72969268e6
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 50525
   total_output_tokens: 384
