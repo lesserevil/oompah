@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T21:44:29.390457Z'
-updated_at: '2026-08-02T02:19:54.032722Z'
+updated_at: '2026-08-02T02:20:07.607724Z'
 work_branch: OOMPAH-684
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/650
@@ -187,18 +187,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-684
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 958c00bb5699374ae5b7c47ae06ca266f5d34415f36d256acfc32271cee6ea26
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-b698464daf77
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 958c00bb5699374ae5b7c47ae06ca266f5d34415f36d256acfc32271cee6ea26
+      created_at: '2026-08-02T02:20:06.778657+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-02T02:20:06.778657+00:00'
+      branch_key: OOMPAH-684
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Progress
     created_at: '2026-08-02T02:12:41.699584+00:00'
+    updated_at: '2026-08-02T02:20:06.778657+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-90a88fcf128f
@@ -212,6 +226,19 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: opus
     started_at: '2026-08-02T02:13:04.201854+00:00'
+    branch_key: OOMPAH-684
+  - version: 1
+    attempt_id: attempt-b698464daf77
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 958c00bb5699374ae5b7c47ae06ca266f5d34415f36d256acfc32271cee6ea26
+    created_at: '2026-08-02T02:20:06.778657+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-02T02:20:06.778657+00:00'
     branch_key: OOMPAH-684
 ---
 ## Summary

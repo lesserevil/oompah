@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-687
 type: task
-status: Needs CI Fix
+status: Open
 priority: null
 title: Isolate branch-gate runtime from task worktree environments
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T23:00:54.291962Z'
-updated_at: '2026-08-02T02:19:59.272810Z'
+updated_at: '2026-08-02T02:20:02.136964Z'
 work_branch: null
 target_branch: null
 review_url: null
