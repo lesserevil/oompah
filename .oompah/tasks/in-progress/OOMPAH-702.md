@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T20:34:49.621752Z'
-updated_at: '2026-08-02T23:29:18.365435Z'
+updated_at: '2026-08-02T23:31:41.543857Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -326,5 +326,10 @@ author: oompah
 created: 2026-08-02 23:29
 ---
 Understanding: The CI failure is TestTickDelegation::test_tick_handler_order in tests/test_orchestrator_handlers.py — an orchestrator-tick test unrelated to this branch's webhook-sync work but which shares the fire-and-forget maintenance flake pattern that OOMPAH-667 fixed on sibling notify-observer tests. The unmocked _maybe_run_watchdog, _run_step5b_maintenance, _run_step5c_epic_maintenance, and _recover_release_addendum_leases can run against the real tracker under xdist CPU contention and either wake state that shifts call_order or slow the tick past the 5s pytest-timeout. I will apply the same targeted mock isolation the OOMPAH-667 fix used, cover both test_tick_calls_all_handlers and test_tick_handler_order, and verify locally that it still passes deterministically.
+---
+author: oompah
+created: 2026-08-02 23:31
+---
+Discovery: The failing test test_tick_handler_order (and its neighbor test_tick_calls_all_handlers) directly mirrors the OOMPAH-667 fix pattern. _tick() awaits _recover_release_addendum_leases against the real tracker, awaits _maybe_run_watchdog on the tick pool, and fire-and-forgets _run_step5b_maintenance / _run_step5c_epic_maintenance. Under xdist CPU contention any of those unmocked auxiliary lanes can slow the tick past the 5s pytest-timeout or transitively perturb state. The fix is targeted mock isolation identical to what OOMPAH-667 applied to the neighboring _notify_observers tests.
 ---
 <!-- COMMENTS:END -->
