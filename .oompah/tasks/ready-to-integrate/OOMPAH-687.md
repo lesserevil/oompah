@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-687
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Isolate branch-gate runtime from task worktree environments
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T23:00:54.291962Z'
-updated_at: '2026-08-02T02:24:42.074105Z'
+updated_at: '2026-08-02T02:24:47.136402Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -295,5 +295,10 @@ author: oompah
 created: 2026-08-02 02:24
 ---
 Completion: Pushed 9dfa372d7 to OOMPAH-687. The two non-gate setup fixtures now neutralize an inherited branch-gate flag; focused failures and neighboring suites pass. GitHub currently reports no PR or Actions run for this branch, so there is no remote check to observe; submission will request the normal branch gate for this head.
+---
+author: oompah
+created: 2026-08-02 02:24
+---
+Fixed gate-mode inheritance in non-gate Makefile setup tests; focused suites pass
 ---
 <!-- COMMENTS:END -->
