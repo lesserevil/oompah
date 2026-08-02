@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-622
 type: task
-status: Done
+status: Merged
 priority: null
 title: Reject verdict-incapable Codex CLI auditor sessions
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T21:26:15.242500Z'
-updated_at: '2026-07-30T21:52:55.407026Z'
+updated_at: '2026-08-02T18:30:38.527672Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-622
 target_branch: null
 review_url: null
@@ -107,6 +107,25 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-899ceea92932: '2026-07-30T21:52:36.678248+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-ca002baffe46
+    project_id: proj-14849f1b
+    task_id: OOMPAH-622
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f5c52db606ea62e58d00f52cf73d8c5946064f2569a3ecb280864a0002dd871d
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reconciliation: parent OOMPAH-585 is Merged and its accepted rollup
+      contains this previously audited Done child; durable integration-queue/rollup
+      evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.'
+    created_at: '2026-08-02T18:30:34.629483+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -397,5 +416,12 @@ Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: terminated, Duration: 4m 8s
 - Log: OOMPAH-622__20260730T214852Z.jsonl
+---
+author: oompah
+created: 2026-08-02 18:30
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner reconciliation: parent OOMPAH-585 is Merged and its accepted rollup contains this previously audited Done child; durable integration-queue/rollup evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.
 ---
 <!-- COMMENTS:END -->
