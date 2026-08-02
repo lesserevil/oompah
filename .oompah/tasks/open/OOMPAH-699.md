@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-699
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Converge historical Done records after parent terminalization
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T18:20:28.879414Z'
-updated_at: '2026-08-02T19:44:20.124090Z'
+updated_at: '2026-08-02T19:47:54.087543Z'
 work_branch: null
 target_branch: null
 review_url: null
