@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-695
 type: task
-status: Open
+status: In Progress
 priority: 1
 title: Prove dashboard convergence with fault injection and health telemetry
 parent: OOMPAH-691
@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:52.297786Z'
-updated_at: '2026-08-02T06:03:24.668868Z'
+updated_at: '2026-08-02T06:03:58.935243Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-695
 target_branch: null
 review_url: null
@@ -62,23 +62,16 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 1567f590-2377-452b-aea1-4daa7b5ed2ed
+oompah.agent_run_id: 3c941a0b-0ed5-40c4-a8b7-83639bbb2078
 oompah.work_branch: epic-OOMPAH-691--task-OOMPAH-695
 oompah.integration:
   version: 2
-  state: integrated
-  attempts: 1
+  state: working
+  attempts: 0
   task_branch: epic-OOMPAH-691--task-OOMPAH-695
   base_branch: epic-OOMPAH-691
-  base_sha: 5d9186d6d63e368e4f97934354f4d28e5ea2a93f
-  head_sha: 1293a2f3c548d450447a44b57dc839fd8860606d
-  integrated_sha: 1293a2f3c548d450447a44b57dc839fd8860606d
-  submitted_at: '2026-08-02T05:19:25.890739+00:00'
-  updated_at: '2026-08-02T05:26:30.423069+00:00'
-  dependency_heads:
-    OOMPAH-692: 23d108b20c132b03c5dd450c1cb8ac97d4f0ffac
-    OOMPAH-693: cf5f3cecede5a3344922345e2fcbc3f042c982c9
-    OOMPAH-694: 5d9186d6d63e368e4f97934354f4d28e5ea2a93f
+  base_sha: 1293a2f3c548d450447a44b57dc839fd8860606d
+  updated_at: '2026-08-02T06:03:55.834353+00:00'
 oompah.task_costs:
   total_input_tokens: 205
   total_output_tokens: 25194
@@ -528,5 +521,15 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: normal, Duration: 36m 23s
 - Log: OOMPAH-695__20260802T052703Z.jsonl
+---
+author: oompah
+created: 2026-08-02 06:03
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-02 06:03
+---
+Focus: Callback Auth Validation Specialist
 ---
 <!-- COMMENTS:END -->
