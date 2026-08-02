@@ -1,8 +1,8 @@
 ---
 id: OOMPAH-686
 type: task
-status: In Review
-priority: null
+status: Needs Rebase
+priority: 0
 title: Keep worker container-runtime failures out of Needs Human
 parent: null
 children: []
@@ -10,9 +10,10 @@ blocked_by: []
 start_blocked_by: []
 labels:
 - ci-fix
+- merge-conflict
 assignee: null
 created_at: '2026-08-01T22:19:41.486806Z'
-updated_at: '2026-08-02T03:14:57.762376Z'
+updated_at: '2026-08-02T03:15:37.523900Z'
 work_branch: OOMPAH-686
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/652
@@ -549,5 +550,10 @@ author: oompah
 created: 2026-08-02 03:14
 ---
 Branch quality gate passed for `9c83678db3cada35e49e5cde1393c7772e4f0317` using `make test` in 396.6s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-02 03:15
+---
+YOLO: Merge conflict detected on MR #652. Rebase onto main and resolve conflicts.
 ---
 <!-- COMMENTS:END -->
