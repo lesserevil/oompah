@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:48.499285Z'
-updated_at: '2026-08-02T03:32:12.887450Z'
+updated_at: '2026-08-02T03:45:31.928750Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-693
 target_branch: null
 review_url: null
@@ -168,5 +168,10 @@ author: oompah
 created: 2026-08-02 03:32
 ---
 DISCOVERY: Reviewed OOMPAH-692 implementation. Server now has: (1) Versioned WebSocket protocol v1 with envelope fields (protocol_version, epoch, delivery_seq, state_revision, issue_revision), (2) Per-connection delivery sequences to detect transport gaps, (3) Monotonic state/issue revisions within epochs, (4) Trailing-edge state coalescing. Planning document in plans/websocket-state-versioning.md clarifies protocol contract. Current refresh action sends state+issues. Next: Implement browser-side gap detection and full-sync request handling.
+---
+author: oompah
+created: 2026-08-02 03:45
+---
+IMPLEMENTATION: Added full dashboard resynchronization. Server changes (oompah/server.py): (1) _ws_fullsync_pending set + _ws_fullsync_lock for per-connection coalescing, (2) _handle_full_sync() function that atomically assembles state+issues with revision watermarks, returns full_sync_error with retryable:true on failure, (3) full_sync action handler in websocket_endpoint. Client changes (dashboard.html): (1) Protocol envelope tracking (wsEpoch, wsDeliverySeq, wsFullSyncPending), (2) _requestFullSync() helper, (3) Gap detection in ws.onmessage - detects epoch changes and delivery_seq gaps, (4) full_sync message handler for atomic state+issues replacement, (5) full_sync_error handler with auto-retry. Tests (tests/test_ws_full_sync.py): 22 tests covering response structure, revision watermarks, coalescing, race safety, error handling, auth isolation, and multi-client isolation. All tests pass.
 ---
 <!-- COMMENTS:END -->
