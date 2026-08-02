@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-698
 type: bug
-status: In Validation
+status: Open
 priority: 1
 title: Recover legacy stale reviews without persisted review-head metadata
 parent: null
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T18:20:27.192609Z'
-updated_at: '2026-08-02T20:12:35.593925Z'
+updated_at: '2026-08-02T20:24:14.613765Z'
 work_branch: OOMPAH-698
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/659
