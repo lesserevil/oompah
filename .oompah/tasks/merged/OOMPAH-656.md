@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T10:41:57.043640Z'
-updated_at: '2026-08-02T18:36:18.304542Z'
+updated_at: '2026-08-02T18:36:21.282160Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -137,7 +137,20 @@ oompah.terminal_audit:
       OOMPAH-619, whose accepted rollup is Merged; the topology work is therefore
       delivered. OOMPAH-699 tracks automatic convergence.'
     created_at: '2026-08-02T18:36:14.247929+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-656
+    target_state: Merged
+    evidence_fingerprint: 0730a451878799e01bd6e3d75afc41fd75b5eeb2bef6391c90cda72aa7bd899c
+    audit_ids:
+    - audit-34f2ea958905
+    - audit-5ef883a8dd16
+    - audit-e8bfca8a3ca4
+    kind: override
+    applied: true
+    retired_at: '2026-08-02T18:36:20.183100+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -196,7 +209,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-656
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -208,6 +221,7 @@ oompah.terminal_audit:
       source: oompah
     previous_state: Done
     created_at: '2026-07-31T13:40:45.456519+00:00'
+    updated_at: '2026-08-02T18:36:20.183068+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-69a000478301
