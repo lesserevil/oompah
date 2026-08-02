@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-693
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Provide a coherent full dashboard resynchronization response
 parent: OOMPAH-691
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:48.499285Z'
-updated_at: '2026-08-02T03:46:55.841417Z'
+updated_at: '2026-08-02T03:47:10.784432Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-693
 target_branch: null
 review_url: null
@@ -64,12 +64,12 @@ oompah.agent_run_id: eafd73e0-4ff2-473f-a88d-f5f00a5701e1
 oompah.work_branch: epic-OOMPAH-691--task-OOMPAH-693
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-691--task-OOMPAH-693
-  base_branch: epic-OOMPAH-691
-  base_sha: 23d108b20c132b03c5dd450c1cb8ac97d4f0ffac
-  updated_at: '2026-08-02T03:30:27.419803+00:00'
+  head_sha: cf5f3cecede5a3344922345e2fcbc3f042c982c9
+  submitted_at: '2026-08-02T03:47:08.087214+00:00'
+  updated_at: '2026-08-02T03:47:08.087214+00:00'
 oompah.task_costs:
   total_input_tokens: 15
   total_output_tokens: 3362
@@ -183,5 +183,10 @@ author: oompah
 created: 2026-08-02 03:46
 ---
 COMPLETION: OOMPAH-693 delivered. Changes: (1) oompah/server.py — _handle_full_sync() assembles coherent state+issues with revision watermarks atomically; per-connection coalescing via _ws_fullsync_pending; _unregister_ws extended; full_sync action wired in websocket_endpoint. (2) oompah/templates/dashboard.html — envelope gap detection (wsEpoch, wsDeliverySeq), _requestFullSync() helper, full_sync response handler for atomic state+issues replacement, full_sync_error handler with auto-retry. (3) tests/test_ws_full_sync.py — 22 tests covering all acceptance criteria: coherent revision watermarks, race safety, coalescing, retryable errors, auth isolation, multi-client isolation. (4) plans/websocket-state-versioning.md — full_sync action documented. Browser can now resynchronize without a page reload or new WebSocket connection.
+---
+author: oompah
+created: 2026-08-02 03:47
+---
+Implemented full WebSocket dashboard resynchronization. Server: _handle_full_sync() with per-connection coalescing (prevents duplicate in-flight requests), race-safe atomic state+issues snapshot assembly with revision watermarks, retryable error responses that never disconnect a healthy client. Client: delivery sequence gap detection, epoch tracking, _requestFullSync() helper, full_sync/full_sync_error message handlers for atomic dashboard replacement without page reload. 22 new tests, 85 total tests passing.
 ---
 <!-- COMMENTS:END -->
