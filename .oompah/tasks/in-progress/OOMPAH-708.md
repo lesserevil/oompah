@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-708
 type: task
-status: Backlog
+status: In Progress
 priority: null
 title: Repair duplicate-screening owner-resolution project lookup
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T22:20:11.202634Z'
-updated_at: '2026-08-02T22:20:25.472390Z'
+updated_at: '2026-08-02T22:20:40.620567Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -30,3 +30,11 @@ Triggered by: OOMPAH-706\n\nProduction reproduction on 2026-08-02: authenticated
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-02 22:20
+---
+Claimed directly to unblock the currently stranded OOMPAH-706 owner-resolution flow. OOMPAH-707 separately tracks the watchdog resetting direct owner work without a scheduler runtime.
+---
+<!-- COMMENTS:END -->
