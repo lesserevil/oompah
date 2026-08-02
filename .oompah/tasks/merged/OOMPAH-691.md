@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-691
 type: epic
-status: In Validation
+status: Merged
 priority: 0
 title: Make dashboard WebSocket state provably convergent
 parent: null
@@ -16,7 +16,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T02:00:17.265294Z'
-updated_at: '2026-08-02T07:32:08.696897Z'
+updated_at: '2026-08-02T07:35:27.394314Z'
 work_branch: epic-OOMPAH-691
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/654
@@ -65,6 +65,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-5ba17e15ff2a: '2026-08-02T07:31:32.335125+00:00'
+    attempt-e16eb54c4b46: '2026-08-02T07:35:24.071056+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-691
@@ -75,6 +76,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-02T07:31:32.335134+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-691
+    target_state: Merged
+    evidence_fingerprint: 57a700f225cb6392c51be53777ddc45e1e50fd927ceec7dbed185f7898613379
+    audit_ids:
+    - audit-13c123393a84
+    kind: result
+    applied: true
+    retired_at: '2026-08-02T07:35:24.071068+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-691
@@ -88,6 +98,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-02T07:31:32.335146+00:00'
     applied_at: '2026-08-02T07:31:37.742001+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-691
+    audit_id: audit-13c123393a84
+    attempt_id: attempt-e16eb54c4b46
+    target_state: Merged
+    evidence_fingerprint: 57a700f225cb6392c51be53777ddc45e1e50fd927ceec7dbed185f7898613379
+    status: Merged
+    audit_ids:
+    - audit-13c123393a84
+    applied: false
+    created_at: '2026-08-02T07:35:24.071082+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -129,7 +150,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-691
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -138,7 +159,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-e16eb54c4b46
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -148,13 +169,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-02T07:32:01.099713+00:00'
       branch_key: epic-OOMPAH-691
+      verdict: pass
+      completed_at: '2026-08-02T07:35:24.070924+00:00'
+      ended_at: '2026-08-02T07:35:24.070924+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-02T07:26:17.708600+00:00'
-    updated_at: '2026-08-02T07:32:01.099713+00:00'
+    updated_at: '2026-08-02T07:35:24.070924+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-5ba17e15ff2a
@@ -334,5 +358,28 @@ author: oompah
 created: 2026-08-02 07:32
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-02 07:35
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit: b7fdf2b3f
+- merge_title: Merge pull request #654 from lesserevil/epic-OOMPAH-691
+- merge_on_main: yes
+- head_branch_commit: dd300faf5
+- merge_diff_stat: 8 files changed, 2973 insertions(+), 162 deletions(-)
+- epoch_impl: oompah/server.py:1011 _protocol_epoch = _INSTANCE_ID; :1672-1683 epoch reset + revision advance guarded
+- full_sync_handler: oompah/server.py:3336 dispatch; :3367 _handle_full_sync; :3436 full_sync_error
+- metrics: oompah/server.py:981 full_sync_requests; :1086 _ws_sync_record_full_sync_request
+- client_full_sync: oompah/templates/dashboard.html:2679 socket.send full_sync; :2967-2976 full_sync/full_sync_error handling
+- child_commits_in_pr: OOMPAH-692 (849d5f752,23d108b20); OOMPAH-693 (8283f794b,cf5f3cece); OOMPAH-694 (e84581658,a8fc3fff5,5d9186d6d); OOMPAH-695 (1293a2f3c,984127960,6897f3093)
+- focused_ws_lifecycle_tests: 49 passed in 1.20s
+- focused_convergence_tests: 84 passed in 7.15s (test_ws_full_sync + test_ws_fault_injection + test_dashboard_websocket_liveness + test_websocket_authenticated_bootstrap + test_orchestrator_full_sync)
+- prior_ci_failure_test: test_refresh_action_sends_state_back PASSED
+- branch_gate: make test passed in 391.3s for dd300faf5 (tracker comment record)
 ---
 <!-- COMMENTS:END -->
