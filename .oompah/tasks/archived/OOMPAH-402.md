@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-402
 type: task
-status: In Validation
+status: Archived
 priority: null
 title: Advance focus after completed agent handoffs
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T05:27:02.143073Z'
-updated_at: '2026-08-02T01:15:55.682988Z'
+updated_at: '2026-08-02T01:22:42.269578Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -18,6 +18,30 @@ review_number: null
 merged_at: null
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-636f51cc7643: '2026-08-02T01:22:39.587255+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-402
+    target_state: Archived
+    evidence_fingerprint: c28cd5319bac2b11e945fe0c05ee5e25886b758250caec37db54974f4f07d033
+    audit_ids:
+    - audit-7ca8172a31f3
+    kind: result
+    applied: true
+    retired_at: '2026-08-02T01:22:39.587269+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-402
+    audit_id: audit-7ca8172a31f3
+    attempt_id: attempt-636f51cc7643
+    target_state: Archived
+    evidence_fingerprint: c28cd5319bac2b11e945fe0c05ee5e25886b758250caec37db54974f4f07d033
+    status: Archived
+    audit_ids:
+    - audit-7ca8172a31f3
+    applied: false
+    created_at: '2026-08-02T01:22:39.587288+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -25,7 +49,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-402
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -34,7 +58,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-636f51cc7643
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -44,13 +68,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-02T01:15:48.103448+00:00'
       branch_key: OOMPAH-402
+      verdict: pass
+      completed_at: '2026-08-02T01:22:39.587062+00:00'
+      ended_at: '2026-08-02T01:22:39.587062+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-02T01:13:12.552453+00:00'
-    updated_at: '2026-08-02T01:15:48.103448+00:00'
+    updated_at: '2026-08-02T01:22:39.587062+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-636f51cc7643
@@ -112,5 +139,20 @@ author: oompah
 created: 2026-08-02 01:15
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-02 01:22
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- delivery_commits: de48457e8 orchestrator + test; b9ec91b8f focus + test
+- commit_dates_utc: 2026-07-22T05:29:11Z, 2026-07-22T05:30:52Z
+- orchestrator_focus_advance_present: oompah/orchestrator.py:23459 _handoff_completed_focus with label backfill comment at 23493
+- focus_regression_test_present: tests/test_orchestrator_duplicate_detection.py:251 test_handoff_comment_without_label_advances_focus
+- focus_selection_fix_present: oompah/focus.py changes on main (18 lines added) + tests/test_focus.py new cases (28 lines added)
+- closure_age_days: ~7 days since reconciled closure (2026-07-26) vs today 2026-08-02
 ---
 <!-- COMMENTS:END -->
