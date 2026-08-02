@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-694
 type: feature
-status: Backlog
+status: Open
 priority: 1
 title: Detect WebSocket gaps and self-heal the dashboard state
 parent: OOMPAH-691
@@ -14,7 +14,7 @@ labels:
 - needs:frontend
 assignee: null
 created_at: '2026-08-02T02:01:50.443759Z'
-updated_at: '2026-08-02T02:02:37.588981Z'
+updated_at: '2026-08-02T02:03:59.102118Z'
 work_branch: null
 target_branch: null
 review_url: null

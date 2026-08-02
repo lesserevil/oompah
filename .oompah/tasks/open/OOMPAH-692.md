@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-692
 type: feature
-status: Backlog
+status: Open
 priority: 1
 title: Version authoritative dashboard state in the WebSocket protocol
 parent: OOMPAH-691
@@ -12,7 +12,7 @@ labels:
 - needs:backend
 assignee: null
 created_at: '2026-08-02T02:01:46.836436Z'
-updated_at: '2026-08-02T02:02:31.981965Z'
+updated_at: '2026-08-02T02:03:53.774866Z'
 work_branch: null
 target_branch: null
 review_url: null

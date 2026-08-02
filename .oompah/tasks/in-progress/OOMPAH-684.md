@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T21:44:29.390457Z'
-updated_at: '2026-08-02T02:03:01.081622Z'
+updated_at: '2026-08-02T02:04:05.100673Z'
 work_branch: OOMPAH-684
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/650
@@ -349,5 +349,10 @@ author: oompah
 created: 2026-08-02 02:03
 ---
 Discovery: CI failure is in tests/test_dashboard_task_display_identifier.py::test_api_issues_includes_project_scoped_display_identifier (IndexError: list index out of range at resp.json()["Open"][0]). The clear_api_state autouse fixture is missing 'source_generations': {} and 'invalidated': False from its snapshot reset dict. A previous test can leave _issues_snapshot['source_generations'] = {'proj-X': 'unavailable'}, which causes _issues_snapshot_sources_match to return False → source_stale=True in _issues_snapshot_payload → returns None instead of the correct board. This fix was already applied to origin/main in OOMPAH-683. Fix: add the two missing fields to the clear_api_state fixture.
+---
+author: oompah
+created: 2026-08-02 02:04
+---
+Implementation: Added 'source_generations': {} and 'invalidated': False to clear_api_state fixture in tests/test_dashboard_task_display_identifier.py (both setup and teardown). This ensures stale source_generations/invalidated state from previous tests cannot contaminate the snapshot state check in _issues_snapshot_payload, which caused source_stale=True and an empty board response. This is the exact fix from OOMPAH-683 that was already on origin/main but missing from this branch.
 ---
 <!-- COMMENTS:END -->

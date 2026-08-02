@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-693
 type: feature
-status: Backlog
+status: Open
 priority: 1
 title: Provide a coherent full dashboard resynchronization response
 parent: OOMPAH-691
@@ -13,7 +13,7 @@ labels:
 - needs:backend
 assignee: null
 created_at: '2026-08-02T02:01:48.499285Z'
-updated_at: '2026-08-02T02:02:34.770378Z'
+updated_at: '2026-08-02T02:03:56.882667Z'
 work_branch: null
 target_branch: null
 review_url: null
