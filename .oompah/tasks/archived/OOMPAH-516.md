@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-516
 type: chore
-status: Done
+status: Archived
 priority: 1
 title: Deploy OOMPAH-505 and apply live Claude/Codex tier roles
 parent: null
@@ -10,12 +10,35 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-28T15:52:20.003932Z'
-updated_at: '2026-07-28T17:29:09.788320Z'
+updated_at: '2026-08-02T18:21:03.076706Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-e2dbbc6c434d
+    project_id: proj-14849f1b
+    task_id: OOMPAH-516
+    target_state: Archived
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a4ce14582582a9a58f03f6d6b4d8ae0fd9ef7479629731815c0619b6bfb00f81
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Authorized owner cleanup: completed operator deployment has durable live-verification
+      comments and no merge artifact; terminal Archived is the truthful lifecycle
+      state. OOMPAH-699 tracks automatic convergence.'
+    created_at: '2026-08-02T18:20:58.865035+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
@@ -50,5 +73,17 @@ author: oompah
 created: 2026-07-28 17:28
 ---
 Deployment complete: live Claude/Codex round-robin tiers resolve successfully; corrected the unavailable Claude fast mapping from fable to haiku.
+---
+author: oompah
+created: 2026-08-02 18:20
+---
+Owner reconciliation: this operator-only deployment task completed on 2026-07-28, as recorded in comments #3-4; the live role configuration was verified and no code branch or merge remains. Archiving the completed operational record. Root-cause tracking for stranded historical Done states: OOMPAH-699.
+---
+author: oompah
+created: 2026-08-02 18:21
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Authorized owner cleanup: completed operator deployment has durable live-verification comments and no merge artifact; terminal Archived is the truthful lifecycle state. OOMPAH-699 tracks automatic convergence.
 ---
 <!-- COMMENTS:END -->
