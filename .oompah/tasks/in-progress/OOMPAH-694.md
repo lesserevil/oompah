@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:50.443759Z'
-updated_at: '2026-08-02T04:24:56.205686Z'
+updated_at: '2026-08-02T04:26:57.825479Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-694
 target_branch: null
 review_url: null
@@ -259,5 +259,10 @@ author: oompah
 created: 2026-08-02 04:24
 ---
 Understanding: The previous agent implemented the browser-side WebSocket convergence state machine (epoch tracking, delivery sequence, revision watermarks, bounded retry/backoff, full-sync recovery). The quality gate passed 14907 tests but failed on exactly one test: tests/test_dashboard_tracker_state_reconciliation.py::TestDashboardStaleBannerUI::test_ws_issues_handler_clears_stale_banner. My job is to diagnose and fix this failing test without breaking any other tests, then push and submit.
+---
+author: oompah
+created: 2026-08-02 04:26
+---
+Discovery: The failing test (test_ws_issues_handler_clears_stale_banner) uses a regex to extract the 'msg.type === issues' handler block and checks that _setTrackerStaleBanner(false) appears within it. The call exists inside _applyIssuesMessage() (called from the handler) but the test regex stops at the closing } before else, so it only sees '_applyIssuesMessage(msg)' in the block — not the inner function's body. Fix: add _setTrackerStaleBanner(false) directly in the msg.type === 'issues' handler block (after the _applyIssuesMessage call). The existing call inside _applyIssuesMessage stays for revision-guarded paths; the new call in the handler makes the contract visible and explicit.
 ---
 <!-- COMMENTS:END -->
