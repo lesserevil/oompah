@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T20:34:49.621752Z'
-updated_at: '2026-08-02T22:19:10.729633Z'
+updated_at: '2026-08-02T22:31:31.080009Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -197,5 +197,23 @@ Run #2 [attempt=2, profile=deep, role=deep -> Claude/opus]
 - Cost: $0.0000
 - Exit: normal, Duration: 7m 47s
 - Log: OOMPAH-702__20260802T221118Z.jsonl
+---
+author: oompah
+created: 2026-08-02 22:31
+---
+Branch quality gate blocked review creation.
+
+Branch: `OOMPAH-702`
+Target: `main`
+Head: `c3c4698482dd2f8260758a381c8329e30f5b5ed2`
+Command: `make test`
+Result: `infrastructure_error`
+
+Infrastructure action required: repair or replace the operator-owned quality-gate runtime. No candidate CI-fix status was applied because the candidate command did not run.
+
+Output tail:
+```text
+Trusted quality-gate runtime corruption detected; candidate CI was not run: trusted editable source mapping is inconsistent: expected one of ['/home/shedwards/src/oompah'] or immutable candidate /home/shedwards/.oompah/tmp/oompah-quality-gate-_chkbo_w/workspace; actual /home/shedwards/.oompah/worktrees/oompah/OOMPAH-701. Repair or replace the service test runtime before rerunning the branch gate.
+```
 ---
 <!-- COMMENTS:END -->
