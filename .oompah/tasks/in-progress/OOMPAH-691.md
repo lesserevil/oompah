@@ -16,7 +16,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T02:00:17.265294Z'
-updated_at: '2026-08-02T07:18:06.566366Z'
+updated_at: '2026-08-02T07:18:20.731252Z'
 work_branch: epic-OOMPAH-691
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/654
@@ -93,5 +93,10 @@ author: oompah
 created: 2026-08-02 07:18
 ---
 Implementation: Bounded the post-refresh receive loop in \`tests/test_ws_lifecycle.py::TestWebSocketRefreshAction::test_refresh_action_sends_state_back\` to at most 2 messages with an early break on 'state'. Both reads are backed by messages the server is guaranteed to deliver (refresh-handler state; plus at most one background issues broadcast from initial-connect's \`_ensure_issues_snapshot_refresh(broadcast=True)\` that can race in front). Assertion unchanged. This removes the unbounded 3rd/2nd \`receive_json\` that hung past 5s under CI load when \`broadcast_issues\` coalesced/suppressed its emit. Verification: 133 focused WebSocket/dashboard-convergence tests pass locally (test_ws_lifecycle.py 49, test_ws_full_sync.py 22, test_ws_fault_injection.py 16, test_dashboard_websocket_liveness.py 9, test_websocket_authenticated_bootstrap.py 14, test_orchestrator_full_sync.py 23). Pushed as dd300faf5.
+---
+author: oompah
+created: 2026-08-02 07:18
+---
+Completion: CI fix pushed as dd300faf5 to epic-OOMPAH-691. Minimal edit to tests/test_ws_lifecycle.py bounds the post-refresh receive loop and adds an early break on 'state'; no feature code touched. Focused WS/dashboard-convergence tests pass locally. CI (test 3.11/3.12/3.13) re-queued on PR #654. Ready for the orchestrator's full-branch gate.
 ---
 <!-- COMMENTS:END -->
