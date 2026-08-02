@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-696
 type: bug
-status: Needs CI Fix
+status: In Progress
 priority: 1
 title: Honor integrated SHA evidence after epic child branches are pruned
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T16:18:38.337420Z'
-updated_at: '2026-08-02T16:46:30.099280Z'
+updated_at: '2026-08-02T16:47:37.029279Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,7 +46,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: f2bcb30e-1b03-459d-ae56-0dace58463a7
+oompah.agent_run_id: bed673f9-bb50-4060-8718-9f742a952cc3
 oompah.task_costs:
   total_input_tokens: 357585
   total_output_tokens: 26773
@@ -277,5 +277,15 @@ FAILED tests/test_quality_gate.py::test_sandbox_command_projects_declared_editab
 
 make: *** [Makefile:401: test] Error 1
 ```
+---
+author: oompah
+created: 2026-08-02 16:47
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-08-02 16:47
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
