@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-709
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Make tick-delegation tests deterministic under parallel full-suite execution
 parent: null
@@ -11,13 +11,30 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T23:17:45.073003Z'
-updated_at: '2026-08-02T23:17:45.073003Z'
+updated_at: '2026-08-02T23:18:05.303294Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 9b2194839796d0c3c2982593ae5669cc297262587a4dfaf3ae341b88fe23f4b9
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 16e019d6-d3ef-48fc-a88e-9ac924735443
+  claim_owner: b2f4fbfa-8d27-4ee5-b29b-31d5b4a85217
+  claimed_at: '2026-08-02T23:18:04.148644+00:00'
+  claim_expires_at: '2026-08-02T23:48:04.148644+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
 ---
 ## Summary
 
