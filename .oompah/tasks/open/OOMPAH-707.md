@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-707
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Preserve explicit owner work from orphaned-In-Progress reset
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T22:19:11.796639Z'
-updated_at: '2026-08-02T22:19:11.796639Z'
+updated_at: '2026-08-02T22:37:59.967233Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ Triggered by: OOMPAH-701\n\nProduction evidence on 2026-08-02: the authenticated
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-02 22:37
+---
+Promoted to Open after confirming the live watchdog reset direct project-owner work twice. The description contains the production evidence, implementation scope, required race tests, and bounded owner-claim acceptance criteria; Oompah may dispatch it normally while the directly owned OOMPAH-701 repair proceeds.
+---
+<!-- COMMENTS:END -->
