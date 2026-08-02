@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:52.297786Z'
-updated_at: '2026-08-02T06:03:58.935243Z'
+updated_at: '2026-08-02T06:04:36.054582Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-695
 target_branch: null
 review_url: null
@@ -531,5 +531,24 @@ author: oompah
 created: 2026-08-02 06:03
 ---
 Focus: Callback Auth Validation Specialist
+---
+author: oompah
+created: 2026-08-02 06:04
+---
+**Understanding**: The auditor rejected the previous submission because the metrics infrastructure exists but isn't wired into actual code paths. The fault-injection tests mock the WebSocket layer instead of intercepting the real sequenced protocol. I need to:
+
+1. Wire _ws_sync_record_gap() into the actual message receipt path (detecting stale revisions, duplicates)
+2. Wire _ws_sync_record_failure() into full-sync construction/broadcast failures
+3. Rewrite tests to patch oompah.server._send_ws or _broadcast to inject faults into real protocol
+4. Add integration tests reproducing the observed failure against the real /ws endpoint
+5. Add assertions that metrics increment via actual code paths and alerts appear in state payload
+
+**Planned approach**: 
+- Examine the WebSocket receive handler and full-sync code paths
+- Identify where gaps/failures are detected
+- Wire the metric recording functions into those paths
+- Rewrite tests to use real protocol interception
+- Add end-to-end integration tests
+- Verify all metrics counters and alerts work in production code paths
 ---
 <!-- COMMENTS:END -->
