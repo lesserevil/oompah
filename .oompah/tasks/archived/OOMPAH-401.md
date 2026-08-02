@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-401
 type: task
-status: In Validation
+status: Archived
 priority: null
 title: Preserve structured Markdown descriptions in native tasks
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T05:18:51.142416Z'
-updated_at: '2026-08-02T01:15:50.492846Z'
+updated_at: '2026-08-02T01:28:03.502794Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -18,6 +18,30 @@ review_number: null
 merged_at: null
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-ad95c6306b68: '2026-08-02T01:28:00.386124+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-401
+    target_state: Archived
+    evidence_fingerprint: 0778b90cc2cbd0fa88ab81c667deca6b497b4306e9d806748507cacd3d2cce9f
+    audit_ids:
+    - audit-da556e0797a9
+    kind: result
+    applied: true
+    retired_at: '2026-08-02T01:28:00.386132+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-401
+    audit_id: audit-da556e0797a9
+    attempt_id: attempt-ad95c6306b68
+    target_state: Archived
+    evidence_fingerprint: 0778b90cc2cbd0fa88ab81c667deca6b497b4306e9d806748507cacd3d2cce9f
+    status: Archived
+    audit_ids:
+    - audit-da556e0797a9
+    applied: false
+    created_at: '2026-08-02T01:28:00.386143+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -25,7 +49,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-401
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -34,7 +58,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-ad95c6306b68
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -44,13 +68,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-02T01:15:45.384105+00:00'
       branch_key: OOMPAH-401
+      verdict: pass
+      completed_at: '2026-08-02T01:28:00.386014+00:00'
+      ended_at: '2026-08-02T01:28:00.386014+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-02T01:13:07.201134+00:00'
-    updated_at: '2026-08-02T01:15:45.384105+00:00'
+    updated_at: '2026-08-02T01:28:00.386014+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-ad95c6306b68
@@ -112,5 +139,22 @@ author: oompah
 created: 2026-08-02 01:15
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-02 01:28
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- delivery_commit: dcbef393e5ed5c110c4413f224f02e0a227d1df0
+- head_sha: 6252b5434f392b74de9703a9fc8dca1951dfeaca
+- tracker_helper_symbol: oompah/oompah_md_tracker.py:_summary_safe_description@173
+- server_validation_symbol: oompah/server.py:api_update_issue (validation of empty description on dispatchable status)
+- regression_tests: tests/test_oompah_md_tracker.py:110,126; tests/test_server_source_update.py:127
+- previous_state: Merged
+- aged_merged_reason: Auto-archive queued 2026-08-02 for task closed 2026-07-22 (>=7 days)
+- pytest_run_here: not-run: auditor policy blocked env-var-set invocation and pytest reported ImportPathMismatchError in this worktree layout; delivery commit's tests were validated at merge time
 ---
 <!-- COMMENTS:END -->
