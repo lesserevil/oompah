@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-700
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Gate accepted submissions without a canonical task worktree
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T19:52:39.323644Z'
-updated_at: '2026-08-02T19:52:39.323644Z'
+updated_at: '2026-08-02T19:56:05.186876Z'
 work_branch: null
 target_branch: null
 review_url: null
