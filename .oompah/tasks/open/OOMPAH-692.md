@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-692
 type: feature
-status: Ready to Integrate
+status: Open
 priority: 1
 title: Version authoritative dashboard state in the WebSocket protocol
 parent: OOMPAH-691
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- focus-complete:frontend
 assignee: null
 created_at: '2026-08-02T02:01:46.836436Z'
-updated_at: '2026-08-02T02:50:03.839975Z'
+updated_at: '2026-08-02T02:50:21.001364Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-692
 target_branch: null
 review_url: null
@@ -52,13 +53,13 @@ oompah.integration:
   submitted_at: '2026-08-02T02:50:00.592295+00:00'
   updated_at: '2026-08-02T02:50:00.592295+00:00'
 oompah.task_costs:
-  total_input_tokens: 14733068
-  total_output_tokens: 48530
+  total_input_tokens: 14733137
+  total_output_tokens: 65354
   total_cost_usd: 0.0
   by_model:
     sonnet:
-      input_tokens: 852710
-      output_tokens: 3464
+      input_tokens: 852779
+      output_tokens: 20288
       cost_usd: 0.0
     haiku:
       input_tokens: 13880358
@@ -83,6 +84,12 @@ oompah.task_costs:
     output_tokens: 40784
     cost_usd: 0.0
     recorded_at: '2026-08-02T02:32:42.832477+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 69
+    output_tokens: 16824
+    cost_usd: 0.0
+    recorded_at: '2026-08-02T02:50:13.276365+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-692__20260802T020428Z
@@ -101,6 +108,14 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-691--task-OOMPAH-692
     source_sha: 6252b5434f392b74de9703a9fc8dca1951dfeaca
     completed_at: '2026-08-02T02:08:01.149159+00:00'
+  - run_id: OOMPAH-692__20260802T023943Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: sonnet
+    focus: frontend
+    source_branch: epic-OOMPAH-691--task-OOMPAH-692
+    source_sha: 6b149fc850e339c128f760f28dd3f681aecd838f
+    completed_at: '2026-08-02T02:50:13.280279+00:00'
 ---
 ## Summary
 
@@ -371,5 +386,25 @@ author: oompah
 created: 2026-08-02 02:50
 ---
 Rebased onto origin/main (OOMPAH-684), resolving the combined-tree quality gate failure. WebSocket protocol v1 versioning (epoch, per-connection delivery_seq, state/issue revisions, trailing-edge coalescing, plans/websocket-state-versioning.md) remains intact. All focused tests pass (99 tests) and all orchestrator handler tests pass (277 tests).
+---
+author: oompah
+created: 2026-08-02 02:50
+---
+Agent completed successfully in 642s (16893 tokens)
+---
+author: oompah
+created: 2026-08-02 02:50
+---
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 97, Tool calls: 67
+- Tokens: 69 in / 16.8K out [16.9K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 10m 42s
+- Log: OOMPAH-692__20260802T023943Z.jsonl
+---
+author: oompah
+created: 2026-08-02 02:50
+---
+Focus handoff from `frontend` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
 ---
 <!-- COMMENTS:END -->
