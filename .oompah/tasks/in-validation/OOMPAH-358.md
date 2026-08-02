@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-358
 type: task
-status: Merged
+status: In Validation
 priority: 1
 title: Gate epic rebase scheduling on actionable conditions
 parent: OOMPAH-356
@@ -11,12 +11,34 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-22T01:23:51.390755Z'
-updated_at: '2026-07-26T00:27:56.371512Z'
+updated_at: '2026-08-02T01:12:59.446655Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-09c5d6e686c7
+    project_id: proj-14849f1b
+    task_id: OOMPAH-358
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a95209a2e5e84d25e663b6c89792d61d9093b88b02f7b73fe663bca15169800e
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-02T01:12:55.913861+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -44,5 +66,10 @@ author: oompah
 created: 2026-07-26 00:27
 ---
 Verified delivered on origin/main in 2ba37886b and reconciled stale Done state.
+---
+author: oompah
+created: 2026-08-02 01:12
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
