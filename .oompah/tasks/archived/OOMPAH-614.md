@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-614
 type: task
-status: Done
+status: Archived
 priority: 0
 title: Rebase epic-OOMPAH-460 onto main
 parent: OOMPAH-460
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T19:51:07.651359Z'
-updated_at: '2026-07-30T20:21:52.302802Z'
+updated_at: '2026-08-02T18:33:06.836872Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-614
 target_branch: null
 review_url: null
@@ -142,6 +142,25 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-182b70b99fa6: '2026-07-30T20:21:37.770518+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-7344391a5d11
+    project_id: proj-14849f1b
+    task_id: OOMPAH-614
+    target_state: Archived
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 2887e03efa6f5014f2617d3fba0a28030159cdc8302b894f7aa469b9ce1c46ff
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reconciliation: superseded rebase helper under Archived epic OOMPAH-460;
+      the required feature work was recovered separately and the old epic branch was
+      intentionally retired. OOMPAH-699 tracks automatic convergence.'
+    created_at: '2026-08-02T18:33:03.413167+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -462,5 +481,12 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 38s
 - Log: OOMPAH-614__20260730T202025Z.jsonl
+---
+author: oompah
+created: 2026-08-02 18:33
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Owner reconciliation: superseded rebase helper under Archived epic OOMPAH-460; the required feature work was recovered separately and the old epic branch was intentionally retired. OOMPAH-699 tracks automatic convergence.
 ---
 <!-- COMMENTS:END -->
