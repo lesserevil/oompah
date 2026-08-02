@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T22:19:41.486806Z'
-updated_at: '2026-08-02T03:27:46.881549Z'
+updated_at: '2026-08-02T03:27:59.268534Z'
 work_branch: OOMPAH-686
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/652
@@ -585,5 +585,10 @@ author: oompah
 created: 2026-08-02 03:27
 ---
 Verification: OOMPAH_TASK_VENV= python3 -m pytest -n 4 -q tests/test_quality_gate.py tests/test_installed_cli_smoke.py tests/test_makefile_setup.py tests/test_client_auth.py tests/test_agent.py tests/test_oompah_686_worker_runtime.py passed 198 tests, 5 skipped. One test (test_non_gate_test_setup_still_installs_declared_dependencies) is a pre-existing local-environment artifact where OOMPAH_TASK_VENV is set in the worktree; it passes when that var is unset and passes in the clean gate environment (confirmed by prior gate run). Pushed 954bdcd68 to OOMPAH-686.
+---
+author: oompah
+created: 2026-08-02 03:27
+---
+Completion: Rebased OOMPAH-686 onto origin/main (99c46aa06). Resolved conflicts in oompah/agent.py, oompah/client_auth.py, oompah/quality_gate.py, and tests/test_quality_gate.py. The maintenance-lane regression commit (19f4f3f9c) was already upstream and dropped cleanly. Two commits preserved: worker XDG_RUNTIME_DIR fallback and editable CLI source projection. Force-pushed as 954bdcd68.
 ---
 <!-- COMMENTS:END -->
