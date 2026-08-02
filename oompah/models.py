@@ -236,6 +236,9 @@ class Issue:
     provider_url: str | None = None
     review_url: str | None = None
     review_number: str | None = None
+    # SHA of the branch HEAD when the review was created (OOMPAH-697).
+    # Used to detect stale reviews when the branch advances after merge.
+    review_head: str | None = None
     # GitHub login of the issue creator/requestor when supplied by the tracker.
     requestor_login: str | None = None
     # Managed code repository for this issue (e.g. "lesserevil/trickle").

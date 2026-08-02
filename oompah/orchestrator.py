@@ -15923,6 +15923,10 @@ class Orchestrator:
         Also persists ``oompah.review_url`` and ``oompah.review_number``
         metadata fields (TASK-462.2) so the task record carries the PR link
         without relying on GitHub's PR-to-issue auto-close semantics.
+
+        Additionally persists ``oompah.review_head`` (the exact SHA the
+        review was created for) to detect stale reviews when the branch
+        advances after merge (OOMPAH-697).
         """
         if not project_id:
             return
@@ -15941,9 +15945,25 @@ class Orchestrator:
                 )
             else:
                 logger.info("Marked %s as In Review", entry.identifier)
+
+            # Get the review head SHA for stale review detection
+            review_head = None
+            if review_source and project_id:
+                try:
+                    project = self.project_store.get(project_id)
+                    if project:
+                        review_head = self._get_branch_head_sha(project, review_source)
+                except Exception as exc:  # noqa: BLE001 - best effort for metadata
+                    logger.debug(
+                        "Failed to get review head SHA for %s during In Review mark: %s",
+                        entry.identifier,
+                        exc,
+                    )
+
             # Write review metadata so the task record carries the PR link
             # (Review URL / Review Number) without relying on GitHub
-            # auto-close semantics.
+            # auto-close semantics. Also write the review head SHA for later
+            # stale review detection.
             self._write_review_metadata(
                 tracker,
                 entry.identifier,
@@ -15951,6 +15971,7 @@ class Orchestrator:
                 review_url=review_url,
                 source_branch=review_source,
                 target_branch=review_target,
+                review_head=review_head,
             )
         except Exception as exc:
             logger.warning(
@@ -15968,13 +15989,15 @@ class Orchestrator:
         review_url: str | None,
         source_branch: str | None = None,
         target_branch: str | None = None,
+        review_head: str | None = None,
         authority: StandaloneDeliveryAuthority | None = None,
     ) -> bool:
         """Persist review metadata fields on a task (best-effort).
 
         Writes ``oompah.review_url`` and ``oompah.review_number`` to the
-        task's metadata block.  Also writes ``oompah.work_branch`` (source)
-        and ``oompah.target_branch`` when supplied and not already set.
+        task's metadata block.  Also writes ``oompah.work_branch`` (source),
+        ``oompah.target_branch``, and ``oompah.review_head`` (the exact SHA
+        the review was created for) when supplied and not already set.
 
         All writes are best-effort: failures are logged as warnings but do
         not propagate so the caller's control flow is unaffected.
@@ -15988,6 +16011,8 @@ class Orchestrator:
             fields["oompah.work_branch"] = source_branch
         if target_branch:
             fields["oompah.target_branch"] = target_branch
+        if review_head:
+            fields["oompah.review_head"] = review_head
         for key, value in fields.items():
             try:
                 mutation = lambda key=key, value=value: tracker.set_metadata_field(
@@ -17183,6 +17208,17 @@ class Orchestrator:
                             branch,
                             exc,
                         )
+
+                # Check if the review is stale (branch advanced past reviewed head)
+                # OOMPAH-697: treat stale reviews as historical evidence, never as
+                # active reviews for newer branch heads
+                if self._is_review_stale(issue, project, branch):
+                    target_branch = self._review_target_branch(project, review)
+                    self._clear_stale_review_and_requeue(
+                        tracker, issue, branch, target_branch
+                    )
+                    continue
+
                 review_state = str(getattr(review, "state", "") or "").lower()
                 if review_state == "open":
                     continue
@@ -17467,6 +17503,46 @@ class Orchestrator:
                 project = None
         return self._branch_for_issue(issue, project)
 
+    def _get_branch_head_sha(
+        self,
+        project: Project,
+        branch: str,
+    ) -> str | None:
+        """Get the HEAD SHA of a remote branch.
+
+        Returns the SHA of the branch tip, or None if unavailable.
+        Tries origin/branch first, then local branch.
+        """
+        repo_path = getattr(project, "repo_path", "")
+        if not isinstance(repo_path, str) or not repo_path:
+            return None
+
+        try:
+            import subprocess
+
+            # Try origin/branch first, then local branch
+            for ref in [f"origin/{branch}", branch]:
+                result = subprocess.run(
+                    ["git", "rev-parse", ref],
+                    cwd=repo_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+                if result.returncode == 0:
+                    sha = result.stdout.strip()
+                    if sha and len(sha) >= 7:  # Valid SHA format
+                        return sha
+        except Exception as exc:  # noqa: BLE001 - best effort for metadata
+            logger.debug(
+                "Failed to get branch HEAD SHA for %s/%s: %s",
+                project.name,
+                branch,
+                exc,
+            )
+
+        return None
+
     def _count_review_branch_ahead(
         self,
         project: Project,
@@ -17570,6 +17646,109 @@ class Orchestrator:
         except TrackerError as exc:
             logger.debug(
                 "Failed to mark stale In Review task %s Needs Human: %s",
+                issue.identifier,
+                exc,
+            )
+
+    def _is_review_stale(
+        self,
+        issue: Issue,
+        project: Project,
+        branch: str,
+    ) -> bool:
+        """Check if the recorded review is stale by comparing head SHAs.
+
+        Returns True if the current branch HEAD differs from the stored
+        review_head (indicating the branch has advanced since review creation).
+        This handles the case where a PR merged but the branch was later
+        advanced with new commits (OOMPAH-697).
+        """
+        # Get the stored review head SHA from metadata
+        stored_review_head = getattr(issue, "review_head", None)
+        if not stored_review_head or not isinstance(stored_review_head, str):
+            return False  # No stored review head, cannot determine staleness
+
+        stored_review_head = stored_review_head.strip()
+        if not stored_review_head:
+            return False
+
+        # Get current branch HEAD SHA
+        current_head = self._get_branch_head_sha(project, branch)
+        if not current_head:
+            return False  # Cannot determine staleness if we can't get current HEAD
+
+        # Compare: if they differ, the review is stale
+        is_stale = current_head.lower() != stored_review_head.lower()
+        if is_stale:
+            logger.info(
+                "Detected stale review for %s: stored head %s, current %s",
+                issue.identifier,
+                stored_review_head[:7],
+                current_head[:7],
+            )
+        return is_stale
+
+    def _clear_stale_review_and_requeue(
+        self,
+        tracker: TrackerProtocol,
+        issue: Issue,
+        branch: str,
+        target_branch: str,
+    ) -> None:
+        """Clear stale review metadata and restore task to READY_TO_INTEGRATE.
+
+        When a branch advances after its recorded review merges, this clears
+        the old review metadata and restores the task to READY_TO_INTEGRATE
+        so it can be automatically requeued through the normal review path
+        (OOMPAH-697).
+        """
+        try:
+            # Clear the stale review metadata fields to allow requeue
+            review_id = getattr(issue, "review_number", None)
+            logger.info(
+                "Clearing stale review metadata for %s (review #%s, branch %s at %s)",
+                issue.identifier,
+                review_id or "unknown",
+                branch,
+                (str(getattr(issue, "review_head", "")) or "unknown")[:7],
+            )
+
+            # Remove stale review metadata so the task won't stay In Review
+            for field in [
+                "oompah.review_url",
+                "oompah.review_number",
+                "oompah.review_head",
+            ]:
+                try:
+                    tracker.set_metadata_field(issue.identifier, field, "")
+                except Exception as exc:  # noqa: BLE001 - best effort
+                    logger.debug(
+                        "Failed to clear %s for %s: %s",
+                        field,
+                        issue.identifier,
+                        exc,
+                    )
+
+            # Restore to READY_TO_INTEGRATE so it can be automatically requeued
+            # (not OPEN, which requires manual intervention)
+            try:
+                tracker.update_issue(
+                    issue.identifier, status=READY_TO_INTEGRATE
+                )
+                logger.info(
+                    "Restored %s to Ready to Integrate after clearing stale review",
+                    issue.identifier,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Failed to restore %s to Ready to Integrate: %s",
+                    issue.identifier,
+                    exc,
+                )
+
+        except Exception as exc:
+            logger.warning(
+                "Failed to clear stale review for %s: %s",
                 issue.identifier,
                 exc,
             )

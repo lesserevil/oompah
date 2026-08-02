@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import threading
 import time
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -144,9 +145,21 @@ class TestMetricsWiredIntoRealPaths:
         """Provide a mock orchestrator."""
         return _make_mock_orch()
 
-    def test_refresh_action_increments_full_sync_requests(self, mock_orch):
+    def test_refresh_action_increments_full_sync_requests(self, mock_orch, monkeypatch):
         """The refresh action increments full_sync_requests counter."""
         _reset_ws_sync_metrics()
+        success_recorded = threading.Event()
+        record_success = server_module._ws_sync_record_success
+
+        def record_success_and_signal():
+            record_success()
+            success_recorded.set()
+
+        monkeypatch.setattr(
+            server_module,
+            "_ws_sync_record_success",
+            record_success_and_signal,
+        )
 
         prior_orch = server_module._orchestrator
         server_module._orchestrator = mock_orch
@@ -163,6 +176,11 @@ class TestMetricsWiredIntoRealPaths:
                     ws.receive_json()
                 except Exception:
                     pass
+
+                # Receiving the state frame does not mean the refresh handler
+                # has finished: it records success only after broadcast_issues.
+                # Keep the socket open until that exact code path completes.
+                assert success_recorded.wait(3), "refresh handler did not finish"
 
             # Verify metrics were incremented
             metrics = _get_ws_sync_metrics()
