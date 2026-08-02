@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-708
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Repair duplicate-screening owner-resolution project lookup
 parent: null
@@ -12,10 +12,10 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T22:20:11.202634Z'
-updated_at: '2026-08-02T22:41:13.004857Z'
+updated_at: '2026-08-02T22:41:22.624924Z'
 work_branch: null
 target_branch: null
-review_url: null
+review_url: https://github.com/lesserevil/oompah/pull/664
 review_number: null
 review_head: null
 merged_at: null
@@ -27,6 +27,7 @@ oompah.integration:
   head_sha: b965154dbf216ffb3587f59c2eb30aa681c73796
   submitted_at: '2026-08-02T22:22:47.553512+00:00'
   updated_at: '2026-08-02T22:22:47.553512+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/664
 ---
 ## Summary
 
