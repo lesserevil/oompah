@@ -262,6 +262,93 @@ class TestOnOrchestratorChange:
                 # Count should not have doubled; throttle suppressed the second
                 assert second_count == first_count
 
+    @pytest.mark.asyncio
+    async def test_issue_refresh_is_not_suppressed_by_state_throttle(self):
+        """An issue change after activity still broadcasts the fresh board."""
+        ws = _make_ws_mock()
+        fresh_board = {"Open": [{"identifier": "TASK-2", "title": "fresh"}]}
+        broadcast_messages: list[dict] = []
+
+        async def _capture_broadcast(msg: dict) -> None:
+            broadcast_messages.append(msg)
+
+        with _isolated_ws_clients(ws):
+            with _reset_throttles():
+                with patch.object(
+                    server_module, "_ensure_issues_snapshot_refresh",
+                    new_callable=AsyncMock,
+                ):
+                    with patch.object(
+                        server_module, "_wait_for_issues_snapshot_refresh",
+                        new_callable=AsyncMock,
+                        return_value=True,
+                    ):
+                        with patch.object(
+                            server_module, "_issues_snapshot_payload",
+                            return_value=fresh_board,
+                        ):
+                            with patch.object(
+                                server_module, "_get_orchestrator",
+                                return_value=MagicMock(),
+                            ):
+                                with patch.object(
+                                    server_module,
+                                    "_broadcast",
+                                    side_effect=_capture_broadcast,
+                                ):
+                                    # The activity update consumes the state
+                                    # throttle window, but must not consume the
+                                    # issue-refresh opportunity.
+                                    server_module._on_state_only_change(
+                                        {"running": ["agent"]}
+                                    )
+                                    server_module._on_orchestrator_change(
+                                        {"running": ["agent"], "issues": "changed"}
+                                    )
+                                    await asyncio.sleep(0.01)
+
+        issue_messages = [
+            message
+            for message in broadcast_messages
+            if message.get("type") == "issues"
+        ]
+        assert issue_messages == [{"type": "issues", "data": fresh_board}]
+
+    @pytest.mark.asyncio
+    async def test_rapid_issue_changes_arm_one_deferred_refresh(self):
+        """Rapid issue notifications remain coalesced behind the issue throttle."""
+        ws = _make_ws_mock()
+        with _isolated_ws_clients(ws):
+            with _reset_throttles():
+                server_module._last_issues_broadcast = time.monotonic() * 1000
+                call_later_count = 0
+                deferred_callbacks: list = []
+
+                def _fake_call_later(delay, callback):
+                    nonlocal call_later_count
+                    call_later_count += 1
+                    deferred_callbacks.append(callback)
+
+                loop = asyncio.get_event_loop()
+                with patch.object(loop, "call_later", side_effect=_fake_call_later):
+                    with patch.object(
+                        server_module, "_do_broadcast_issues", new_callable=AsyncMock
+                    ) as mock_do:
+                        server_module._on_state_only_change({"running": []})
+                        server_module._on_orchestrator_change(
+                            {"running": [], "issue": "first"}
+                        )
+                        server_module._on_orchestrator_change(
+                            {"running": [], "issue": "second"}
+                        )
+                        await asyncio.sleep(0)
+                        assert call_later_count == 1
+                        deferred_callbacks[0]()
+                        await asyncio.sleep(0)
+                        mock_do.assert_awaited_once()
+
+                assert call_later_count == 1
+
     def test_cross_loop_safety_no_crash_when_loop_not_running(self):
         """_on_orchestrator_change must not raise when the loop isn't running."""
         ws = _make_ws_mock()
@@ -524,6 +611,27 @@ class TestWebSocketEndpointLifecycle:
             types = {msg1.get("type"), msg2.get("type")}
             assert "state" in types
             assert "issues" in types
+        finally:
+            server_module._orchestrator = prior_orch
+
+    def test_application_ping_receives_pong(self, mock_orch):
+        """The browser heartbeat has an explicit application-level response."""
+        prior_orch = server_module._orchestrator
+        server_module._orchestrator = mock_orch
+        try:
+            client = TestClient(app, raise_server_exceptions=False)
+            with client.websocket_connect("/ws") as ws:
+                ws.receive_json()
+                ws.receive_json()
+                ws.send_json({"action": "ping"})
+
+                pong = None
+                for _ in range(4):
+                    message = ws.receive_json()
+                    if message.get("type") == "pong":
+                        pong = message
+                        break
+                assert pong == {"type": "pong"}
         finally:
             server_module._orchestrator = prior_orch
 
