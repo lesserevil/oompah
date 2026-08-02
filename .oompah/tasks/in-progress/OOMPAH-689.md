@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T00:13:22.222984Z'
-updated_at: '2026-08-02T00:15:50.897807Z'
+updated_at: '2026-08-02T00:30:15.051721Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -148,5 +148,15 @@ author: oompah
 created: 2026-08-02 00:15
 ---
 Understanding: verified workers must keep non-running cross-task views fail-closed (403) while treating them as informational; own-task handoff failures and security-relevant mismatches must remain actionable. I will inspect server classification, task-handoff recording, and orchestrator exit reconciliation, then add regression coverage for target states and forbidden mutations.
+---
+author: oompah
+created: 2026-08-02 00:30
+---
+Discovery: OOMPAH-678's _is_verified_peer_scope_denial required a second _verified_running_entry for the target, so expected peer views of non-running or unknown tasks were recorded as handoff failures. Scope-reason matching also included project denials and all actions, which could suppress security signals.
+---
+author: oompah
+created: 2026-08-02 00:30
+---
+Implementation: server peer classification now verifies only the live source capability in the requested project, requires the exact task-scope denial and view action, and never resolves the target. Added lifecycle/unknown, mutation, cross-project, wrong-token, and successful comment-submit-exit regressions; clarified actionable-only handoff failure reconciliation and updated auth documentation.
 ---
 <!-- COMMENTS:END -->
