@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T13:49:37.853904Z'
-updated_at: '2026-08-02T18:22:55.904533Z'
+updated_at: '2026-08-02T19:08:43.653580Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-662
 target_branch: null
 review_url: null
@@ -380,5 +380,10 @@ created: 2026-08-02 18:22
 Override by oompah-cli: terminal transition to Merged applied by project owner.
 
 Reason: Owner reconciliation: parent OOMPAH-619 is Merged and its accepted rollup contains this previously audited Done child; durable integration-queue/rollup evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.
+---
+author: oompah
+created: 2026-08-02 19:08
+---
+Post-terminal cleanup evidence (2026-08-02): retained clean worktree head 61546199b contains one test-only OOMPAH-660 commit not patch-identical to main, but accepted OOMPAH-660 commit db203bae9 is an ancestor of current main and implements the same test isolation. The only final-tree difference in the affected files is main's safer CLIENT_AUTH_DISABLED_ENV named constant versus the old branch's literal string. The remote epic branch is deleted and OOMPAH-619/OOMPAH-660/OOMPAH-662 are Merged. The superseded local worktree/branch can therefore be pruned without losing accepted work; OOMPAH-699 tracks automatic evidence recovery.
 ---
 <!-- COMMENTS:END -->
