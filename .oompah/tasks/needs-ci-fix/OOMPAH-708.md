@@ -1,8 +1,8 @@
 ---
 id: OOMPAH-708
 type: task
-status: In Review
-priority: null
+status: Needs CI Fix
+priority: 0
 title: Repair duplicate-screening owner-resolution project lookup
 parent: null
 children: []
@@ -10,9 +10,10 @@ blocked_by: []
 start_blocked_by: []
 labels:
 - human-only
+- ci-fix
 assignee: null
 created_at: '2026-08-02T22:20:11.202634Z'
-updated_at: '2026-08-02T22:41:29.721060Z'
+updated_at: '2026-08-02T22:50:20.761924Z'
 work_branch: OOMPAH-708
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/664
@@ -112,5 +113,10 @@ author: oompah
 created: 2026-08-02 22:41
 ---
 Branch quality gate passed for `b965154dbf216ffb3587f59c2eb30aa681c73796` using `make test` in 425.8s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-02 22:50
+---
+YOLO: CI tests failed on MR #664. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
 ---
 <!-- COMMENTS:END -->
