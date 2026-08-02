@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-613
 type: task
-status: Done
+status: Archived
 priority: 0
 title: Rebase epic-OOMPAH-460 onto main
 parent: OOMPAH-460
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T19:34:40.947096Z'
-updated_at: '2026-07-30T19:59:53.448105Z'
+updated_at: '2026-08-02T18:32:46.083880Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-613
 target_branch: null
 review_url: null
@@ -134,6 +134,25 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-182c18c7b66f: '2026-07-30T19:59:47.141708+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-aedf3c79ed35
+    project_id: proj-14849f1b
+    task_id: OOMPAH-613
+    target_state: Archived
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6ff8639c8b0cdef5bafb465a675df3fbbe065e84dd9b2b228eee680a40a400d3
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reconciliation: superseded rebase helper under Archived epic OOMPAH-460;
+      the required feature work was recovered separately and the old epic branch was
+      intentionally retired. OOMPAH-699 tracks automatic convergence.'
+    created_at: '2026-08-02T18:32:42.439965+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -385,5 +404,12 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> InferenceAPI/nvidia/nvidia/n
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 34s
 - Log: OOMPAH-613__20260730T195828Z.jsonl
+---
+author: oompah
+created: 2026-08-02 18:32
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Owner reconciliation: superseded rebase helper under Archived epic OOMPAH-460; the required feature work was recovered separately and the old epic branch was intentionally retired. OOMPAH-699 tracks automatic convergence.
 ---
 <!-- COMMENTS:END -->

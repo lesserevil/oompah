@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T19:15:55.237083Z'
-updated_at: '2026-08-02T18:32:36.695352Z'
+updated_at: '2026-08-02T18:32:39.786559Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-611
 target_branch: null
 review_url: null
@@ -152,7 +152,18 @@ oompah.terminal_audit:
       the required feature work was recovered separately and the old epic branch was
       intentionally retired. OOMPAH-699 tracks automatic convergence.'
     created_at: '2026-08-02T18:32:33.047381+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-611
+    target_state: Archived
+    evidence_fingerprint: 3d16b47a3a5a5a62b0f2892d9ed3d9e41e4525f7c1379c1930ddbb34e81ac7f5
+    audit_ids:
+    - audit-e4511b988619
+    kind: override
+    applied: true
+    retired_at: '2026-08-02T18:32:38.691986+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
