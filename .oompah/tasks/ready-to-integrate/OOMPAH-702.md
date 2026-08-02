@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-702
 type: bug
-status: Needs CI Fix
+status: Ready to Integrate
 priority: 0
 title: Synchronize merged-webhook tests with background terminal staging
 parent: null
@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T20:34:49.621752Z'
-updated_at: '2026-08-02T23:40:04.573713Z'
+updated_at: '2026-08-02T23:40:27.994911Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,7 +40,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: f09c8c3b-71cd-4563-a89c-05f009024399
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 50728
   total_output_tokens: 29562
@@ -104,11 +104,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-702
-  base_branch: main
-  base_sha: 26ce120b9c48621161e4447866163f035b57d83a
-  head_sha: d1097b3ba91fd281bb9c8ab937bfb3e82ce9a21a
-  submitted_at: '2026-08-02T23:32:46.880481+00:00'
-  updated_at: '2026-08-02T23:33:04.986131+00:00'
+  head_sha: 02da2864d3b3dce49f15a1ef4b39526069e7e099
+  submitted_at: '2026-08-02T23:40:22.226641+00:00'
+  updated_at: '2026-08-02T23:40:22.226641+00:00'
 ---
 ## Summary
 
@@ -376,5 +374,10 @@ author: oompah
 created: 2026-08-02 23:39
 ---
 Direct owner correction: CI-fixer commit d1097b3ba duplicated OOMPAH-709 despite the explicit operator scope fence. I am removing that cross-task test change with a forward commit, preserving the webhook-only branch, then will resubmit the exact corrected head.
+---
+author: oompah
+created: 2026-08-02 23:40
+---
+Webhook synchronization branch rebased onto current main at 02da2864d3b3dce49f15a1ef4b39526069e7e099; cross-task scheduler-test commit neutralized. Focused test_server_webhooks.py: 132 passed. OOMPAH-709 owns the deterministic tick-delegation repair.
 ---
 <!-- COMMENTS:END -->

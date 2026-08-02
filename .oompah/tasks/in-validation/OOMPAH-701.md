@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T20:20:26.676545Z'
-updated_at: '2026-08-02T23:40:09.680463Z'
+updated_at: '2026-08-02T23:40:16.677640Z'
 work_branch: OOMPAH-701
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/665
@@ -324,5 +324,15 @@ author: oompah
 created: 2026-08-02 23:39
 ---
 Auditor attempt was stopped after repeated policy denials; a different independent candidate will be tried.
+---
+author: oompah
+created: 2026-08-02 23:40
+---
+Auditor dispatched (attempt #2, candidate: prov-651d553c/sonnet)
+---
+author: oompah
+created: 2026-08-02 23:40
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
