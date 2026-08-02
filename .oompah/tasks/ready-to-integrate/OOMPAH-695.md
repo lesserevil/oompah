@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:52.297786Z'
-updated_at: '2026-08-02T06:12:32.316684Z'
+updated_at: '2026-08-02T06:12:57.849226Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-695
 target_branch: null
 review_url: null
@@ -69,12 +69,14 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: epic-OOMPAH-691--task-OOMPAH-695
+  base_branch: main
+  base_sha: c84a5febeb433640292e91790dfaa17613c1a3a0
   head_sha: 6897f3093f86fc9d6961b915c1b51504b30e9f5b
   submitted_at: '2026-08-02T06:12:29.549536+00:00'
-  updated_at: '2026-08-02T06:12:29.549536+00:00'
+  updated_at: '2026-08-02T06:12:56.899649+00:00'
 oompah.task_costs:
-  total_input_tokens: 205
-  total_output_tokens: 25194
+  total_input_tokens: 751
+  total_output_tokens: 58653
   total_cost_usd: 0.0
   by_model:
     sonnet:
@@ -82,8 +84,8 @@ oompah.task_costs:
       output_tokens: 8171
       cost_usd: 0.0
     haiku:
-      input_tokens: 10
-      output_tokens: 488
+      input_tokens: 556
+      output_tokens: 33947
       cost_usd: 0.0
     unknown:
       input_tokens: 55
@@ -114,6 +116,12 @@ oompah.task_costs:
     output_tokens: 16535
     cost_usd: 0.0
     recorded_at: '2026-08-02T06:03:21.484308+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 546
+    output_tokens: 33459
+    cost_usd: 0.0
+    recorded_at: '2026-08-02T06:12:50.402030+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-695__20260802T021051Z
@@ -132,6 +140,14 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-691--task-OOMPAH-695
     source_sha: f77bb3eff6041608ee98d52396e10c2d0d46a389
     completed_at: '2026-08-02T02:23:57.073911+00:00'
+  - run_id: OOMPAH-695__20260802T060359Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: callback_auth
+    source_branch: epic-OOMPAH-691--task-OOMPAH-695
+    source_sha: 6897f3093f86fc9d6961b915c1b51504b30e9f5b
+    completed_at: '2026-08-02T06:12:50.405797+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
@@ -640,5 +656,20 @@ author: oompah
 created: 2026-08-02 06:12
 ---
 Wired WebSocket sync metrics into real code paths and added comprehensive fault injection tests. Metrics now recorded when gaps detected (full_sync request), failures occur (exception handling), and recovery succeeds. Tests validate end-to-end behavior using real WebSocket endpoint with protocol-level fault injection. All 92 focused tests pass.
+---
+author: oompah
+created: 2026-08-02 06:12
+---
+Agent completed successfully in 539s (34005 tokens)
+---
+author: oompah
+created: 2026-08-02 06:12
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 137, Tool calls: 67
+- Tokens: 546 in / 33.5K out [34.0K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 8m 59s
+- Log: OOMPAH-695__20260802T060359Z.jsonl
 ---
 <!-- COMMENTS:END -->
