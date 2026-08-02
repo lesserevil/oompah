@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-709
 type: task
-status: In Progress
+status: Open
 priority: null
 title: Make tick-delegation tests deterministic under parallel full-suite execution
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T23:17:45.073003Z'
-updated_at: '2026-08-02T23:19:05.119212Z'
+updated_at: '2026-08-02T23:20:08.159630Z'
 work_branch: null
 target_branch: null
 review_url: null

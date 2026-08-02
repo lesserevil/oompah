@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-706
 type: bug
-status: Needs Human
+status: Open
 priority: 1
 title: Make duplicate-preflight verdict delivery truncation-proof
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T21:55:47.761417Z'
-updated_at: '2026-08-02T23:07:33.666158Z'
+updated_at: '2026-08-02T23:20:02.846010Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -23,19 +23,25 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 82145263e666d6ef638c055ad7010f38bff980cdc24ed61b65e79d6555a76293
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-02T23:19:59.002797+00:00'
   matched_identifiers: []
-  evidence: Duplicate-screening worker exited with reason normal.
+  evidence: 'Project-owner review: OOMPAH-706 is the production regression follow-up
+    for OOMPAH-701. The exact provider log proves a complete no-duplicate result was
+    lost only by ACP text truncation, and no active task implements this provider-boundary
+    envelope repair.'
   claim_id: null
   claim_owner: null
   claimed_at: null
   claim_expires_at: null
-  retry_count: 3
-  retry_after: '2026-08-02T22:16:07.080999+00:00'
-  owner_resolved_at: null
-  owner_login: null
-  owner_resolution_reason: ''
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: '2026-08-02T23:19:59.002797+00:00'
+  owner_login: oompah-cli
+  owner_resolution_reason: 'Project-owner review: OOMPAH-706 is the production regression
+    follow-up for OOMPAH-701. The exact provider log proves a complete no-duplicate
+    result was lost only by ACP text truncation, and no active task implements this
+    provider-boundary envelope repair.'
 oompah.agent_run_id: aec8c7ea-8cf1-4b45-8e2c-1713e97345f6
 oompah.task_costs:
   total_input_tokens: 110758
