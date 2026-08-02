@@ -1,8 +1,8 @@
 ---
 id: OOMPAH-699
 type: bug
-status: In Review
-priority: 1
+status: Needs CI Fix
+priority: 0
 title: Converge historical Done records after parent terminalization
 parent: null
 children: []
@@ -10,9 +10,10 @@ blocked_by: []
 start_blocked_by: []
 labels:
 - human-only
+- ci-fix
 assignee: null
 created_at: '2026-08-02T18:20:28.879414Z'
-updated_at: '2026-08-02T20:20:10.371682Z'
+updated_at: '2026-08-02T20:28:10.685757Z'
 work_branch: OOMPAH-699
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/660
@@ -85,5 +86,10 @@ author: oompah
 created: 2026-08-02 20:19
 ---
 Branch quality gate passed for `46b708cb1d830f613f52ba3ef53610dda4ace32e` using `make test` in 417.6s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-02 20:28
+---
+YOLO: CI tests failed on MR #660. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
 ---
 <!-- COMMENTS:END -->
