@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-707
 type: task
-status: In Progress
+status: Open
 priority: null
 title: Preserve explicit owner work from orphaned-In-Progress reset
 parent: null
@@ -11,9 +11,10 @@ start_blocked_by: []
 labels:
 - focus-complete:frontend
 - focus-complete:docs
+- needs:backend
 assignee: null
 created_at: '2026-08-02T22:19:11.796639Z'
-updated_at: '2026-08-02T22:49:07.724357Z'
+updated_at: '2026-08-02T22:49:25.592385Z'
 work_branch: null
 target_branch: null
 review_url: null
