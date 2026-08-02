@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T23:11:33.946132Z'
-updated_at: '2026-08-02T00:01:08.941733Z'
+updated_at: '2026-08-02T00:03:54.078672Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -383,5 +383,15 @@ author: oompah
 created: 2026-08-02 00:01
 ---
 Understanding: I am taking the CI-fix pass for the two reported branch-gate failures. I will update the existing OOMPAH-688 branch, inspect the relevant GitHub Actions job output and local tests, then apply the smallest evidence-backed repair and verify focused suites before pushing and submitting.
+---
+author: oompah
+created: 2026-08-02 00:03
+---
+Implementation: Updated only tests/test_orchestrator_handlers.py::TestMaintenanceLaneNonBlocking::test_tick_skips_new_maintenance_when_previous_still_running. The fixture now stubs release-addendum recovery to eliminate unrelated tracker I/O and returns {} from dispatch handling so contended slow-tick formatting remains valid. This matches the existing neighboring test-isolation pattern and leaves production behavior unchanged.
+---
+author: oompah
+created: 2026-08-02 00:03
+---
+Discovery: GitHub has no Actions run for this branch, so I used the captured quality-gate failure as the CI evidence. The remaining maintenance-lane test still left _recover_release_addendum_leases as real tracker I/O and returned an AsyncMock where slow-tick telemetry expects a mapping. Its sibling already required those exact stubs. The process-global lifecycle test passed locally under four xdist workers, including its nested isolated gate; no reproducible failing behavior or detailed CI trace supports a change there.
 ---
 <!-- COMMENTS:END -->
