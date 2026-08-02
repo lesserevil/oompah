@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-707
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Preserve explicit owner work from orphaned-In-Progress reset
 parent: null
@@ -9,11 +9,10 @@ children: []
 blocked_by: []
 start_blocked_by: []
 labels:
-- needs:backend
 - focus-complete:frontend
 assignee: null
 created_at: '2026-08-02T22:19:11.796639Z'
-updated_at: '2026-08-02T22:42:51.324565Z'
+updated_at: '2026-08-02T22:43:06.711102Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,7 +39,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: f1dfc558-8b09-4a7a-8956-ed39503796d9
+oompah.agent_run_id: b3cd976a-a926-41aa-a7bf-287c22a70670
 oompah.task_costs:
   total_input_tokens: 50670
   total_output_tokens: 9264
@@ -251,5 +250,15 @@ author: oompah
 created: 2026-08-02 22:42
 ---
 Focus handoff from `frontend` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-08-02 22:43
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-08-02 22:43
+---
+Focus: Technical Writer
 ---
 <!-- COMMENTS:END -->
