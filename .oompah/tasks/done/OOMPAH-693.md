@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-693
 type: feature
-status: In Validation
+status: Done
 priority: 1
 title: Provide a coherent full dashboard resynchronization response
 parent: OOMPAH-691
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:48.499285Z'
-updated_at: '2026-08-02T03:55:05.548681Z'
+updated_at: '2026-08-02T04:06:16.660803Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-693
 target_branch: null
 review_url: null
@@ -119,6 +119,30 @@ oompah.work_contributors:
     completed_at: '2026-08-02T03:47:22.364396+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-645487a41a0f: '2026-08-02T04:06:13.391119+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-693
+    target_state: Done
+    evidence_fingerprint: 388553d73c9b2f435bc5c85b3c353679763fbb9461222f4848f973335726a6bb
+    audit_ids:
+    - audit-db72034c610f
+    kind: result
+    applied: true
+    retired_at: '2026-08-02T04:06:13.391127+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-693
+    audit_id: audit-db72034c610f
+    attempt_id: attempt-645487a41a0f
+    target_state: Done
+    evidence_fingerprint: 388553d73c9b2f435bc5c85b3c353679763fbb9461222f4848f973335726a6bb
+    status: Done
+    audit_ids:
+    - audit-db72034c610f
+    applied: false
+    created_at: '2026-08-02T04:06:13.391137+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -126,7 +150,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-693
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -135,7 +159,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-645487a41a0f
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -145,13 +169,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-02T03:55:01.275711+00:00'
       branch_key: epic-OOMPAH-691--task-OOMPAH-693
+      verdict: pass
+      completed_at: '2026-08-02T04:06:13.391000+00:00'
+      ended_at: '2026-08-02T04:06:13.391000+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-08-02T03:54:25.478062+00:00'
-    updated_at: '2026-08-02T03:55:01.275711+00:00'
+    updated_at: '2026-08-02T04:06:13.391000+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-645487a41a0f
@@ -288,5 +315,26 @@ author: oompah
 created: 2026-08-02 03:55
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-02 04:06
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- head_commit: cf5f3cecede5a3344922345e2fcbc3f042c982c9
+- branch: epic-OOMPAH-691--task-OOMPAH-693
+- remote_branch: origin/epic-OOMPAH-691--task-OOMPAH-693
+- commits_added: 8283f794b (server+client+tests), cf5f3cece (plan doc)
+- server_change: oompah/server.py: +99 lines including _ws_fullsync_pending, _ws_fullsync_lock, _handle_full_sync, full_sync action handler, _unregister_ws extension
+- client_change: oompah/templates/dashboard.html: +85 lines including wsEpoch/wsDeliverySeq/wsFullSyncPending, _requestFullSync, gap detection, full_sync/full_sync_error handlers
+- docs_change: plans/websocket-state-versioning.md: +47/-3 lines documenting full_sync protocol
+- tests_added: tests/test_ws_full_sync.py: 816 lines, 22 tests
+- acceptance_criteria_covered: single message replacing state+issues with revision watermarks; no page reload or new WS connection required
+- auditor_local_test_status: not_run_env_shadow
+- auditor_env_note: venv oompah lacks _protocol_epoch (OOMPAH-692 attribute) causing AttributeError at fixture setup
+- prior_focused_test_report: 22/22 test_ws_full_sync + 49/49 test_ws_lifecycle + 14/14 test_websocket_authenticated_bootstrap
 ---
 <!-- COMMENTS:END -->
