@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-697
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Requeue branches that advance after their recorded review merges
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T16:21:00.027506Z'
-updated_at: '2026-08-02T16:21:47.181024Z'
+updated_at: '2026-08-02T16:23:23.813451Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -21,20 +21,50 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 3d4dcd1225d01ef9a3fa6c3277b48ee6432c055f7096368737892a5afa9b5bf8
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-02T16:23:01.957663+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: c64df9cb-e0d1-4521-ac31-dfff8a0115aa
-  claim_owner: 8ed25388-a2c2-4d5e-b302-5705d6f379a6
-  claimed_at: '2026-08-02T16:21:38.795718+00:00'
-  claim_expires_at: '2026-08-02T16:51:38.795718+00:00'
+  evidence: "Focus handoff: duplicate_detector\n\nDuplicate preflight verdict: no_duplicate\n\
+    \nMatches: none\n\nEvidence: Active tasks OOMPAH-281 and OOMPAH-282 are unrelated.\
+    \ Closest reviewed terminal tasks\u2014OOMPAH-216, OOMPAH-179, OOMPAH-195, OOMPAH-202,\
+    \ and OOMPAH-235\u2014address release-delivery polling or tracker-write races,\
+    \ not requeuing newer branch heads after merged reviews."
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 786244c4-3519-4523-887c-92983dee0d6a
+oompah.agent_run_id: 419b479d-f9e7-4142-85da-5c920d2cd5aa
+oompah.task_costs:
+  total_input_tokens: 631109
+  total_output_tokens: 2505
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 631109
+      output_tokens: 2505
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 631109
+    output_tokens: 2505
+    cost_usd: 0.0
+    recorded_at: '2026-08-02T16:23:01.954879+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-697__20260802T162155Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: OOMPAH-697
+    source_sha: b7fdf2b3f6dfa00f39659abafb176f3d67579dce
+    completed_at: '2026-08-02T16:23:01.976548+00:00'
 ---
 ## Summary
 
@@ -82,5 +112,25 @@ author: oompah
 created: 2026-08-02 16:21
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-02 16:23
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 10
+- Tokens: 631.1K in / 2.5K out [633.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 18s
+- Log: OOMPAH-697__20260802T162155Z.jsonl
+---
+author: oompah
+created: 2026-08-02 16:23
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-02 16:23
+---
+Focus: Callback Auth Validation Specialist
 ---
 <!-- COMMENTS:END -->
