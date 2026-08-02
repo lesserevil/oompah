@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:52.297786Z'
-updated_at: '2026-08-02T06:05:45.238724Z'
+updated_at: '2026-08-02T06:11:29.398448Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-695
 target_branch: null
 review_url: null
@@ -569,5 +569,32 @@ What needs to be done:
 5. Add assertions that metrics increment and alerts appear in state payload
 
 Key insight: Client detects gaps via delivery_seq or revision jumps and signals server via full_sync request. Server should record this.
+---
+author: oompah
+created: 2026-08-02 06:11
+---
+**Implementation**: Wired metrics into real code paths and rewrote tests for end-to-end validation.
+
+**Changes**:
+1. oompah/server.py:
+   - Added _ws_sync_record_gap() call when client sends full_sync action (line 3340)
+   - Added _ws_sync_record_failure() call in exception handler when full_sync fails (line 3428)
+   - _ws_sync_record_success() already in effect after full_sync completes (line 3427)
+
+2. tests/test_ws_fault_injection.py (complete rewrite):
+   - Removed mock-based tests using WebSocketMessageInterceptor
+   - New tests use real WebSocket endpoint via TestClient
+   - 10 comprehensive tests validating:
+     - refresh action increments full_sync_requests counter
+     - full_sync action increments gaps_detected counter
+     - Successful full_sync increments reconciliations counter
+     - State payload includes ws_sync_metrics
+     - No alerts on healthy recovered gaps
+     - Success clears failure counters
+     - Disconnect/reconnect scenarios
+
+**Test results**: All 81 focused tests pass (10 new + 71 existing)
+
+**Next steps**: Need to add integration test reproducing the specific 4-auditor completion failure scenario mentioned in the issue.
 ---
 <!-- COMMENTS:END -->
