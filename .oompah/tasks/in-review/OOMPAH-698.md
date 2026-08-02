@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-698
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Recover legacy stale reviews without persisted review-head metadata
 parent: null
@@ -13,11 +13,11 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T18:20:27.192609Z'
-updated_at: '2026-08-02T19:49:24.807178Z'
+updated_at: '2026-08-02T19:49:29.670945Z'
 work_branch: null
 target_branch: null
 review_url: https://github.com/lesserevil/oompah/pull/659
-review_number: null
+review_number: '659'
 review_head: null
 merged_at: null
 oompah.integration:
@@ -29,6 +29,7 @@ oompah.integration:
   submitted_at: '2026-08-02T19:37:11.543655+00:00'
   updated_at: '2026-08-02T19:37:11.543655+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/659
+oompah.review_number: '659'
 ---
 ## Summary
 
