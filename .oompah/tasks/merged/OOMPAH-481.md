@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-481
 type: feature
-status: Done
+status: Merged
 priority: 1
 title: Route automatic archive and intake retirement through Archived audits
 parent: OOMPAH-459
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:29.211296Z'
-updated_at: '2026-07-30T00:54:20.752254Z'
+updated_at: '2026-08-02T18:23:31.716377Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-481
 target_branch: null
 review_url: null
@@ -109,6 +109,25 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-0a0b17cd406c: '2026-07-30T00:48:56.683557+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-42ba0f38c0a2
+    project_id: proj-14849f1b
+    task_id: OOMPAH-481
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b4c82deb36ba1c829824ee263c86063f3da398fef045741f106e01a63f130055
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reconciliation: parent OOMPAH-459 is Merged and its accepted rollup
+      contains this previously audited Done child; durable integration-queue/rollup
+      evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.'
+    created_at: '2026-08-02T18:23:28.448665+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -526,5 +545,12 @@ Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 39m 28s
 - Log: OOMPAH-481__20260730T001456Z.jsonl
+---
+author: oompah
+created: 2026-08-02 18:23
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner reconciliation: parent OOMPAH-459 is Merged and its accepted rollup contains this previously audited Done child; durable integration-queue/rollup evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.
 ---
 <!-- COMMENTS:END -->
