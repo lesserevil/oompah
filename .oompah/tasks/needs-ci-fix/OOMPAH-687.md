@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T23:00:54.291962Z'
-updated_at: '2026-08-02T02:19:33.580485Z'
+updated_at: '2026-08-02T02:19:59.272810Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -248,5 +248,17 @@ FAILED tests/test_quality_gate.py::test_sandbox_command_binds_operator_venv_at_a
 
 make: *** [Makefile:401: test] Error 1
 ```
+---
+author: oompah
+created: 2026-08-02 02:19
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #11)
+
+**State audited:** `Needs CI Fix`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** Recent comment indicates CI is now passing or PR has been merged; safe to reopen for dispatch.
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
 ---
 <!-- COMMENTS:END -->
