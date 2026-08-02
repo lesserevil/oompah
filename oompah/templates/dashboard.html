@@ -2817,6 +2817,7 @@ function _routeWebSocketMessage(msg) {
     _applyStateMessage(msg);
   } else if (msg.type === 'issues') {
     _applyIssuesMessage(msg);
+    _setTrackerStaleBanner(false);
   } else if (msg.type === 'activity') {
     handleActivityPush(msg.identifier, msg.run_id, msg.entry);
     if (_openDetailIdentifier && msg.identifier === _openDetailIdentifier) {
