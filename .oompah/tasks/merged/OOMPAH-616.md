@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-616
 type: bug
-status: Done
+status: Merged
 priority: 1
 title: Integrate terminal-audit retry ownership fencing
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T20:47:41.612111Z'
-updated_at: '2026-07-31T00:13:56.876163Z'
+updated_at: '2026-08-02T18:27:18.245883Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-616
 target_branch: null
 review_url: null
@@ -96,6 +96,25 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-9c05f83f34c2: '2026-07-30T21:30:59.511374+00:00'
     attempt-a71d5f1fdb34: '2026-07-31T00:13:23.862712+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-9c8624550e24
+    project_id: proj-14849f1b
+    task_id: OOMPAH-616
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0fd011fe3da47c2fbf27c9e479a96fd4321c491c6578863728d2af3253a29d72
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reconciliation: parent OOMPAH-585 is Merged and its accepted rollup
+      contains this previously audited Done child; durable integration-queue/rollup
+      evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.'
+    created_at: '2026-08-02T18:27:14.142662+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -517,5 +536,12 @@ Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: terminated, Duration: 9m 49s
 - Log: OOMPAH-616__20260731T000414Z.jsonl
+---
+author: oompah
+created: 2026-08-02 18:27
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner reconciliation: parent OOMPAH-585 is Merged and its accepted rollup contains this previously audited Done child; durable integration-queue/rollup evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.
 ---
 <!-- COMMENTS:END -->
