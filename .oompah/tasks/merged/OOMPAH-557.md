@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-557
 type: feature
-status: Done
+status: Merged
 priority: 0
 title: Implement durable topological epic integration queues
 parent: OOMPAH-555
@@ -14,12 +14,36 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-07-29T16:23:22.859407Z'
-updated_at: '2026-07-29T18:28:25.996104Z'
+updated_at: '2026-08-02T18:34:42.774037Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-144313a1fedf
+    project_id: proj-14849f1b
+    task_id: OOMPAH-557
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 9ef72b9c6ef242d4f5dd05d5d017a570069d95687832582e254d2bcae6cd083c
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reconciliation: the human-owned parallel coordination/integration
+      implementation was delivered by merged PR #579 at 31f8938b8, with full-gate
+      and live-deployment evidence recorded on the task family. OOMPAH-699 tracks
+      automatic convergence.'
+    created_at: '2026-08-02T18:34:39.074960+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
@@ -51,5 +75,12 @@ author: oompah
 created: 2026-07-29 18:28
 ---
 Implemented in PR #579 and merged to main at 31f8938b8f669a316a830690aaedcc1e0d3834bf. Full GitHub CI passed on Python 3.11, 3.12, and 3.13; the deployed server exposes the new coordination and submission surfaces.
+---
+author: oompah
+created: 2026-08-02 18:34
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner reconciliation: the human-owned parallel coordination/integration implementation was delivered by merged PR #579 at 31f8938b8, with full-gate and live-deployment evidence recorded on the task family. OOMPAH-699 tracks automatic convergence.
 ---
 <!-- COMMENTS:END -->
