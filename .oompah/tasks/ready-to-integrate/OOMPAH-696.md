@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-696
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Honor integrated SHA evidence after epic child branches are pruned
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T16:18:38.337420Z'
-updated_at: '2026-08-02T16:54:32.618301Z'
+updated_at: '2026-08-02T16:54:49.076475Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,7 +46,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: bed673f9-bb50-4060-8718-9f742a952cc3
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 357585
   total_output_tokens: 26773
@@ -92,11 +92,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-696
-  base_branch: main
-  base_sha: b7fdf2b3f6dfa00f39659abafb176f3d67579dce
-  head_sha: 05e5842a9e24301fd03d686cee5e652d10a64ccd
-  submitted_at: '2026-08-02T16:39:15.632666+00:00'
-  updated_at: '2026-08-02T16:39:40.919562+00:00'
+  head_sha: 0d4f3d9932b2773cbdf904d9443def0ed0d1c0a2
+  submitted_at: '2026-08-02T16:54:37.933619+00:00'
+  updated_at: '2026-08-02T16:54:37.933619+00:00'
 ---
 ## Summary
 
@@ -312,5 +310,20 @@ author: oompah
 created: 2026-08-02 16:54
 ---
 Completion: Delivered and pushed commit 0d4f3d993 to the existing OOMPAH-696 branch. The CI-only repair isolates the failed sandbox bind test from executor-specific editable metadata; production code is unchanged. Focused parallel verification passed 283 tests across test_quality_gate.py and test_epic_strategy.py, and the branch is ready for the orchestrator's exact-head make test rerun.
+---
+author: oompah
+created: 2026-08-02 16:54
+---
+Fixed the failed quality-gate sandbox bind test by mocking its trusted-runtime validation boundary; pushed 0d4f3d993 after 283 focused tests passed.
+---
+author: oompah
+created: 2026-08-02 16:54
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Codex/gpt-5.6-sol]
+- Turns: 0, Tool calls: 56
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 7m 15s
+- Log: OOMPAH-696__20260802T164737Z.jsonl
 ---
 <!-- COMMENTS:END -->

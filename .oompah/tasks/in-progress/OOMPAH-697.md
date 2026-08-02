@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-697
 type: bug
-status: Needs CI Fix
+status: In Progress
 priority: 1
 title: Requeue branches that advance after their recorded review merges
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T16:21:00.027506Z'
-updated_at: '2026-08-02T16:54:26.664057Z'
+updated_at: '2026-08-02T16:54:57.884311Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,7 +39,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 419b479d-f9e7-4142-85da-5c920d2cd5aa
+oompah.agent_run_id: cd8c7169-cfeb-4ac6-821c-99a40c1e210c
 oompah.task_costs:
   total_input_tokens: 632071
   total_output_tokens: 31523
@@ -356,5 +356,15 @@ FAILED tests/test_quality_gate.py::test_sandbox_command_projects_declared_editab
 
 make: *** [Makefile:401: test] Error 1
 ```
+---
+author: oompah
+created: 2026-08-02 16:54
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-08-02 16:54
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
