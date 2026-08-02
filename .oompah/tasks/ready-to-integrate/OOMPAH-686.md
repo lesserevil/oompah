@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-686
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: 0
 title: Keep worker container-runtime failures out of Needs Human
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T22:19:41.486806Z'
-updated_at: '2026-08-02T03:27:59.268534Z'
+updated_at: '2026-08-02T03:28:12.148119Z'
 work_branch: OOMPAH-686
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/652
@@ -111,9 +111,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-686
-  head_sha: 9c83678db3cada35e49e5cde1393c7772e4f0317
-  submitted_at: '2026-08-01T23:01:55.925801+00:00'
-  updated_at: '2026-08-01T23:01:55.925801+00:00'
+  head_sha: 954bdcd68021e4ce81a2c55edce974ccf336b171
+  submitted_at: '2026-08-02T03:28:08.633080+00:00'
+  updated_at: '2026-08-02T03:28:08.633080+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/652
 oompah.review_number: '652'
 oompah.work_branch: OOMPAH-686
@@ -590,5 +590,10 @@ author: oompah
 created: 2026-08-02 03:27
 ---
 Completion: Rebased OOMPAH-686 onto origin/main (99c46aa06). Resolved conflicts in oompah/agent.py, oompah/client_auth.py, oompah/quality_gate.py, and tests/test_quality_gate.py. The maintenance-lane regression commit (19f4f3f9c) was already upstream and dropped cleanly. Two commits preserved: worker XDG_RUNTIME_DIR fallback and editable CLI source projection. Force-pushed as 954bdcd68.
+---
+author: oompah
+created: 2026-08-02 03:28
+---
+Rebased onto origin/main (99c46aa06), resolved conflicts in agent.py, client_auth.py, quality_gate.py, and test_quality_gate.py. Merged workspace_path parameter (OOMPAH-687) with XDG_RUNTIME_DIR fallback (ours) in agent_environment(); merged refined editable source helper split (OOMPAH-687) with both sides' test coverage. 198 focused tests pass. Force-pushed 954bdcd68.
 ---
 <!-- COMMENTS:END -->
