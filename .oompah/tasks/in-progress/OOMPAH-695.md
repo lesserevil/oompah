@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-695
 type: task
-status: Open
+status: In Progress
 priority: 1
 title: Prove dashboard convergence with fault injection and health telemetry
 parent: OOMPAH-691
@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:52.297786Z'
-updated_at: '2026-08-02T02:13:21.747220Z'
+updated_at: '2026-08-02T02:13:41.567072Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-695
 target_branch: null
 review_url: null
@@ -62,7 +62,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 854f0926-b90b-4e4c-a141-114da4d89430
+oompah.agent_run_id: f413da90-b5f6-4228-8395-978239abb5fd
 oompah.work_branch: epic-OOMPAH-691--task-OOMPAH-695
 oompah.integration:
   version: 2
@@ -71,7 +71,7 @@ oompah.integration:
   task_branch: epic-OOMPAH-691--task-OOMPAH-695
   base_branch: epic-OOMPAH-691
   base_sha: 6252b5434f392b74de9703a9fc8dca1951dfeaca
-  updated_at: '2026-08-02T02:10:41.847108+00:00'
+  updated_at: '2026-08-02T02:13:39.184585+00:00'
 oompah.task_costs:
   total_input_tokens: 20
   total_output_tokens: 5025
@@ -151,5 +151,15 @@ Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: normal, Duration: 2m 37s
 - Log: OOMPAH-695__20260802T021051Z.jsonl
+---
+author: oompah
+created: 2026-08-02 02:13
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-02 02:13
+---
+Focus: Callback Auth Validation Specialist
 ---
 <!-- COMMENTS:END -->
