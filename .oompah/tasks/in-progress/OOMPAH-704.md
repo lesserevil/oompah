@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-704
 type: bug
-status: Backlog
+status: In Progress
 priority: 1
 title: Fence graceful-restart redispatch against terminal state changes
 parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- human-only
 assignee: null
 created_at: '2026-08-02T21:11:44.479316Z'
-updated_at: '2026-08-02T21:11:44.479316Z'
+updated_at: '2026-08-02T21:14:37.100676Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -31,3 +32,16 @@ Production regression after OOMPAH-653: OOMPAH-700 was owner-overridden to Merge
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-02 21:14
+---
+Second live symptom confirmed: replaying the exact owner override after the restart writer regressed OOMPAH-700 returned success with audit ID override-41c2b65a97e8 but left tracker status Open. In TerminalTransitionCoordinator._override_transition_locked, the applied-override idempotency return occurs before checking or repairing canonical tracker status. Extend scope: an identical applied override replay must verify current canonical status; if it has regressed, atomically reassert the recorded terminal target under the same ownership fence (or fail explicitly), retire sibling records again, and never report status remains Merged while the tracker is Open. Add a deterministic regression for this exact sequence.
+---
+author: oompah
+created: 2026-08-02 21:14
+---
+Claimed for direct owner implementation; human-only prevents scheduler dispatch while the live recovery race is repaired.
+---
+<!-- COMMENTS:END -->
