@@ -993,6 +993,124 @@ class TestGracefulRestartShutdownEvent:
         )
         assert restart_issues[0]["issue_id"] == issue_id
 
+    def test_restart_recovery_reopens_only_interrupted_implementation(
+        self, tmp_path, event_loop
+    ):
+        """A genuine In Progress worker is reopened once after restart."""
+        from oompah.models import Issue
+
+        orch = _make_orchestrator(tmp_path)
+        issue_id = "TASK-restart"
+        tracker = MagicMock()
+        tracker.fetch_issue_states_by_ids.return_value = [
+            Issue(
+                id=issue_id,
+                identifier=issue_id,
+                title="Interrupted implementation",
+                state="In Progress",
+            )
+        ]
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch._save_state(
+            restart_issues=[
+                {
+                    "issue_id": issue_id,
+                    "identifier": issue_id,
+                    "project_id": "proj-test",
+                }
+            ]
+        )
+
+        event_loop.run_until_complete(orch._recover_restart_issues())
+        event_loop.run_until_complete(orch._recover_restart_issues())
+
+        tracker.update_issue.assert_called_once_with(issue_id, status="Open")
+        assert orch._load_state().get("restart_issues") == []
+
+    @pytest.mark.parametrize(
+        "superseding_state",
+        ["Merged", "Archived", "In Validation", "Needs Human"],
+    )
+    def test_restart_recovery_preserves_superseding_state(
+        self, tmp_path, event_loop, superseding_state
+    ):
+        """Terminal and audit-owned states supersede an old worker record."""
+        from oompah.models import Issue
+
+        orch = _make_orchestrator(tmp_path)
+        issue_id = "TASK-superseded"
+        tracker = MagicMock()
+        tracker.fetch_issue_states_by_ids.return_value = [
+            Issue(
+                id=issue_id,
+                identifier=issue_id,
+                title="Superseded implementation",
+                state=superseding_state,
+            )
+        ]
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch._save_state(
+            restart_issues=[
+                {
+                    "issue_id": issue_id,
+                    "identifier": issue_id,
+                    "project_id": "proj-test",
+                }
+            ]
+        )
+
+        event_loop.run_until_complete(orch._recover_restart_issues())
+
+        tracker.update_issue.assert_not_called()
+        assert orch._load_state().get("restart_issues") == []
+
+    def test_terminal_transition_wins_restart_recovery_lock_race(
+        self, tmp_path, event_loop
+    ):
+        """A terminal write landing before recovery's fenced read wins."""
+        from oompah.models import Issue
+
+        orch = _make_orchestrator(tmp_path)
+        issue_id = "TASK-race"
+        tracker = MagicMock()
+        current_state = {"value": "In Progress"}
+
+        def _fetch(_issue_ids):
+            return [
+                Issue(
+                    id=issue_id,
+                    identifier=issue_id,
+                    title="Racing implementation",
+                    state=current_state["value"],
+                )
+            ]
+
+        tracker.fetch_issue_states_by_ids.side_effect = _fetch
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch._save_state(
+            restart_issues=[
+                {
+                    "issue_id": issue_id,
+                    "identifier": issue_id,
+                    "project_id": "proj-test",
+                }
+            ]
+        )
+
+        async def _race():
+            transition_lock = orch.issue_transition_lock(issue_id)
+            await transition_lock.acquire()
+            recovery = asyncio.create_task(orch._recover_restart_issues())
+            await asyncio.sleep(0)
+            current_state["value"] = "Merged"
+            transition_lock.release()
+            await recovery
+
+        event_loop.run_until_complete(_race())
+
+        tracker.update_issue.assert_not_called()
+        assert orch._load_state().get("restart_issues") == []
+
     def test_running_agents_that_complete_during_drain_are_not_requeued(
         self, tmp_path, event_loop
     ):

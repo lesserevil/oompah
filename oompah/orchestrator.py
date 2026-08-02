@@ -3937,11 +3937,65 @@ class Orchestrator:
                     tracker = self._tracker_for_project(project_id)
                 else:
                     tracker = self.tracker
-                # Re-open the issue so it gets picked up on the next tick
-                tracker.update_issue(identifier, status=OPEN)
-                logger.info(
-                "Marked %s as Open for re-dispatch after restart", identifier
-                )
+                # A restart record is only evidence that a worker was alive
+                # when draining timed out.  It is not durable authority to
+                # overwrite a newer task transition.  Serialize with the
+                # server's terminal-transition path and re-read tracker state
+                # inside that fence so a concurrent audit/owner override wins.
+                async with self.issue_transition_lock(str(issue_id)):
+                    lookup_ids = list(
+                        dict.fromkeys(
+                            str(value)
+                            for value in (issue_id, identifier)
+                            if value
+                        )
+                    )
+                    snapshots = await asyncio.to_thread(
+                        tracker.fetch_issue_states_by_ids,
+                        lookup_ids,
+                    )
+                    current = next(
+                        (
+                            candidate
+                            for candidate in snapshots
+                            if str(getattr(candidate, "id", "")) in lookup_ids
+                            or str(getattr(candidate, "identifier", ""))
+                            in lookup_ids
+                        ),
+                        None,
+                    )
+                    if current is None:
+                        logger.warning(
+                            "Skipped restart recovery for %s: current tracker "
+                            "state is unavailable",
+                            identifier,
+                        )
+                        continue
+
+                    current_status = canonicalize_status(current.state)
+                    if current_status == OPEN:
+                        logger.info(
+                            "Restart recovery found %s already Open", identifier
+                        )
+                        continue
+                    if current_status != IN_PROGRESS:
+                        logger.info(
+                            "Skipped restart recovery for %s: tracker state %s "
+                            "supersedes the interrupted implementation worker",
+                            identifier,
+                            current_status,
+                        )
+                        continue
+
+                    await asyncio.to_thread(
+                        tracker.update_issue,
+                        identifier,
+                        status=OPEN,
+                    )
+                    logger.info(
+                        "Marked %s as Open for re-dispatch after restart",
+                        identifier,
+                    )
             except (TrackerError, ProjectError) as exc:
                 logger.warning("Failed to recover issue %s: %s", identifier, exc)
 

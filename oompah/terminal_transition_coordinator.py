@@ -1906,10 +1906,75 @@ class TerminalTransitionCoordinator:
                     and raw_override.get("target_state") == requested_target.value
                     and _raw_fingerprint_digest(raw_override) == evidence_fingerprint.digest
                 ):
+                    # Idempotency acknowledges the same terminal decision; it
+                    # must not bless a tracker state that a stale recovery
+                    # writer regressed afterward.  Re-read under the caller's
+                    # per-task ownership fence and repair the recorded target
+                    # before reporting success.  This is intentionally the
+                    # same authorized, persisted override rather than a new
+                    # audit decision or override record.
+                    lookup_ids = list(
+                        dict.fromkeys(
+                            str(value)
+                            for value in (
+                                getattr(current_issue, "id", None),
+                                identifier,
+                            )
+                            if value
+                        )
+                    )
+                    latest_issue = current_issue
+                    try:
+                        snapshots = tracker.fetch_issue_states_by_ids(lookup_ids)
+                        latest_issue = next(
+                            (
+                                candidate
+                                for candidate in snapshots
+                                if str(getattr(candidate, "id", "")) in lookup_ids
+                                or str(getattr(candidate, "identifier", ""))
+                                in lookup_ids
+                            ),
+                            current_issue,
+                        )
+                    except Exception:
+                        # The API supplied a freshly read issue.  Reapplying an
+                        # already-authorized terminal target remains safe if a
+                        # tracker cannot provide a second optimized snapshot.
+                        logger.warning(
+                            "Could not refresh tracker state while replaying "
+                            "owner override for %s; using request snapshot",
+                            identifier,
+                            exc_info=True,
+                        )
+
+                    target_status = _target_state_to_status(requested_target)
+                    if canonicalize_status(
+                        getattr(latest_issue, "state", "") or ""
+                    ) != canonicalize_status(target_status):
+                        self._revoke_delivery_for_terminal_transition(
+                            project_id, identifier
+                        )
+                        try:
+                            # TERMINAL-AUDIT-ALLOW OOMPAH-704: repair tracker
+                            # state regressed after a persisted owner override.
+                            tracker.update_issue(identifier, status=target_status)
+                        except Exception:
+                            logger.exception(
+                                "Failed to restore idempotent override status %r "
+                                "for %s",
+                                target_status,
+                                identifier,
+                            )
+                            return OverrideResult(
+                                success=False,
+                                override_id=str(raw_override.get("override_id")),
+                                reason="failed to restore overridden tracker status",
+                                error_code=OverrideRejection.STATUS_UPDATE_FAILED,
+                            )
                     return OverrideResult(
                         success=True,
                         override_id=str(raw_override.get("override_id")),
-                        applied_status=_target_state_to_status(requested_target),
+                        applied_status=target_status,
                         idempotent=True,
                         retired_alert_audit_ids=[
                             item.audit_id for item in document.pending_chain

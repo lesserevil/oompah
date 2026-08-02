@@ -105,6 +105,19 @@ class _MemoryTracker:
         with self._lock:
             return self._statuses.get(identifier)
 
+    def fetch_issue_states_by_ids(self, issue_ids: list[str]) -> list[Issue]:
+        with self._lock:
+            return [
+                Issue(
+                    id=identifier,
+                    identifier=identifier,
+                    title="Test task",
+                    state=self._statuses[identifier],
+                )
+                for identifier in issue_ids
+                if identifier in self._statuses
+            ]
+
 
 class _FailingUpdateTracker(_MemoryTracker):
     """A tracker that raises on update_issue (simulates tracker write failure)."""
@@ -844,6 +857,63 @@ class TestOwnerOverrides:
         assert replay.idempotent is True
         assert replay.override_id == result.override_id
         assert len(tracker.update_calls) == 1
+
+    def test_idempotent_override_repairs_regressed_tracker_status(self) -> None:
+        """A stale restart writer cannot make an applied override lie."""
+        tracker = _MemoryTracker()
+        fingerprint = _fingerprint()
+        record = _pending_record(
+            audit_id="audit-override-repair",
+            fingerprint=fingerprint,
+        )
+        _seed_metadata(tracker, [record])
+        coordinator = _coordinator(tracker, post_comments=False)
+        owner = ContributorIdentity("project-owner", "github")
+        project = SimpleNamespace(
+            tracker_owner="project-owner",
+            status_actor_login=None,
+            status_label_authorized_logins=["project-owner"],
+        )
+
+        first = _run(
+            coordinator.override_transition(
+                _issue(IN_VALIDATION),
+                TargetState.DONE,
+                owner,
+                PROJECT_ID,
+                fingerprint,
+                "Owner approved this transition.",
+                project,
+            )
+        )
+        assert first.success is True
+        assert tracker.current_status(TASK_ID) == DONE
+
+        # Reproduce OOMPAH-700: restart recovery writes Open after the
+        # persisted override has already applied its terminal status.
+        tracker.update_issue(TASK_ID, status="Open")
+        assert tracker.current_status(TASK_ID) == "Open"
+
+        replay = _run(
+            coordinator.override_transition(
+                _issue("Open"),
+                TargetState.DONE,
+                owner,
+                PROJECT_ID,
+                fingerprint,
+                "Owner approved this transition.",
+                project,
+            )
+        )
+
+        assert replay.success is True
+        assert replay.idempotent is True
+        assert replay.override_id == first.override_id
+        assert tracker.current_status(TASK_ID) == DONE
+        stored = TerminalAuditMetadataStore(
+            tracker, _LockStore(), PROJECT_ID
+        ).read(TASK_ID)
+        assert len(stored.unknown_fields["oompah.terminal_override_records"]) == 1
 
 
 # ---------------------------------------------------------------------------
