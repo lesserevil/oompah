@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-695
 type: task
-status: Done
+status: Needs Human
 priority: 1
 title: Prove dashboard convergence with fault injection and health telemetry
 parent: OOMPAH-691
@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:52.297786Z'
-updated_at: '2026-08-02T07:26:42.113108Z'
+updated_at: '2026-08-02T07:33:02.746365Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-695
 target_branch: null
 review_url: null
@@ -998,5 +998,10 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: normal, Duration: 4m 37s
 - Log: OOMPAH-695__20260802T065019Z.jsonl
+---
+author: oompah
+created: 2026-08-02 07:33
+---
+The parent epic OOMPAH-691 merged from epic-OOMPAH-691, but this task was Done with work branch epic-OOMPAH-691--task-OOMPAH-695. Its work is not proven to be in the merged epic. Git evidence: OOMPAH-695 records epic-OOMPAH-691--task-OOMPAH-695, expected epic-OOMPAH-691, but that branch cannot be verified. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
 ---
 <!-- COMMENTS:END -->
