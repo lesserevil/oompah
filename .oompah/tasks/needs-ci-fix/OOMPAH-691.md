@@ -16,7 +16,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T02:00:17.265294Z'
-updated_at: '2026-08-02T07:16:28.128292Z'
+updated_at: '2026-08-02T07:16:37.406531Z'
 work_branch: epic-OOMPAH-691
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/654
@@ -83,5 +83,10 @@ author: oompah
 created: 2026-08-02 07:11
 ---
 Understanding: CI failed only on Python 3.12 and 3.13 (3.11 passed) on the same test: \`tests/test_ws_lifecycle.py::TestWebSocketRefreshAction::test_refresh_action_sends_state_back\` — pytest-timeout at 5s while receiving the 3rd message after sending {action: refresh}. This is a WS lifecycle test in the epic's convergence work. Plan: reproduce locally, inspect refresh handler on the server, and either loosen the read loop or ensure the refresh reliably drives the expected number of messages within the timeout.
+---
+author: oompah
+created: 2026-08-02 07:16
+---
+Discovery: The refresh test does \`for _ in range(3): ws.receive_json()\` with no per-call timeout. The server refresh handler synchronously sends state, then calls \`broadcast_issues()\`. Under CI load, \`broadcast_issues\` may (a) never emit if the throttled/coalesced payload is None or (b) emit after >5s. If fewer than 3 messages arrive before the 5s pytest-timeout, \`receive_json\` blocks indefinitely and the whole test times out. The assertion only requires 'state' to be in the received types. Also there's a possible race with the initial connect's background \`_ensure_issues_snapshot_refresh(orch, broadcast=True)\` broadcasting one extra 'issues' before the refresh state. Bounded, early-exit fix: receive at most 2 messages, break as soon as 'state' is seen (state is guaranteed by the server refresh handler).
 ---
 <!-- COMMENTS:END -->
