@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-446
 type: task
-status: In Validation
+status: Archived
 priority: null
 title: Kill CLI agent process trees when worker cancellation times out
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-26T03:12:30.119065Z'
-updated_at: '2026-08-02T04:02:44.007787Z'
+updated_at: '2026-08-02T04:07:09.091686Z'
 work_branch: OOMPAH-446
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/554
@@ -40,6 +40,30 @@ oompah.work_branch: OOMPAH-446
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-8c05c01db2e0: '2026-08-02T04:07:06.257138+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-446
+    target_state: Archived
+    evidence_fingerprint: 0bc3a5fe8eec4ad73cce478738998379b489a17fb4ddb2db78bc26ce7ecefc0f
+    audit_ids:
+    - audit-b06d89b302c4
+    kind: result
+    applied: true
+    retired_at: '2026-08-02T04:07:06.257149+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-446
+    audit_id: audit-b06d89b302c4
+    attempt_id: attempt-8c05c01db2e0
+    target_state: Archived
+    evidence_fingerprint: 0bc3a5fe8eec4ad73cce478738998379b489a17fb4ddb2db78bc26ce7ecefc0f
+    status: Archived
+    audit_ids:
+    - audit-b06d89b302c4
+    applied: false
+    created_at: '2026-08-02T04:07:06.257165+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -47,7 +71,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-446
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -56,7 +80,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-8c05c01db2e0
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -66,13 +90,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-02T04:02:39.230689+00:00'
       branch_key: OOMPAH-446
+      verdict: pass
+      completed_at: '2026-08-02T04:07:06.256943+00:00'
+      ended_at: '2026-08-02T04:07:06.256943+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-02T04:02:21.848916+00:00'
-    updated_at: '2026-08-02T04:02:39.230689+00:00'
+    updated_at: '2026-08-02T04:07:06.256943+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-8c05c01db2e0
@@ -254,5 +281,27 @@ author: oompah
 created: 2026-08-02 04:02
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-02 04:07
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit: 1a750b96c0d208f85f6ba11e92e4f3aecd15cac9
+- implementation_commit: 31cd81494fcff88a13f5ed31f8c35d8d0b7cb374
+- pr_reference: PR #554
+- merge_date: 2026-07-26
+- current_main_head: d4607b78b
+- on_main: true
+- files_touched: oompah/agent.py, oompah/orchestrator.py, tests/test_agent.py, tests/test_task_cost_telemetry.py
+- diff_stats: 481 insertions(+), 66 deletions(-)
+- posix_session_evidence: oompah/agent.py:372 start_new_session=(os.name == 'posix')
+- killpg_evidence: oompah/agent.py:675,720,750 os.killpg usage with identity guards
+- regression_test_agent: tests/test_agent.py::test_stop_kills_spawned_descendant, test_stop_escalates_stubborn_process_group_to_sigkill, test_stop_has_safe_non_posix_fallback, test_stop_refuses_reused_or_reassigned_process_identity
+- regression_test_orchestrator: tests/test_task_cost_telemetry.py::test_terminate_kills_cli_tree_when_worker_resists_cancel, test_terminate_does_not_wait_forever_for_cancelled_worker, test_session_shutdown_failure_is_observable_and_does_not_block_cleanup, test_shutdown_timeout_logs_warning_not_error
+- commit_trailer_compliant: true
 ---
 <!-- COMMENTS:END -->
