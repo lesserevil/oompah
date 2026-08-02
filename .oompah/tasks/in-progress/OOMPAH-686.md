@@ -10,10 +10,9 @@ blocked_by: []
 start_blocked_by: []
 labels:
 - ci-fix
-- merge-conflict
 assignee: null
 created_at: '2026-08-01T22:19:41.486806Z'
-updated_at: '2026-08-02T03:27:37.193641Z'
+updated_at: '2026-08-02T03:27:46.881549Z'
 work_branch: OOMPAH-686
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/652
@@ -581,5 +580,10 @@ Discovery: Three conflict areas found across two commits (maintenance lane commi
 2. oompah/client_auth.py: HEAD added workspace_path parameter + _WORKER_RUNTIME_SELECTOR_ENV_VARS/TASK_VENV_ENV logic; our branch added _is_xdg_runtime_dir_writable(), _create_worker_runtime_directory(), and XDG fallback logic. Resolution: merge all into unified agent_environment() with both features.
 
 3. oompah/quality_gate.py + tests: HEAD (OOMPAH-687) refactored _editable_oompah_source into _declared_editable_oompah_source + _editable_oompah_source wrapper + _validate_trusted_runtime_source; our branch had the original _editable_oompah_source. Resolution: take HEAD's refined implementation, add both sides' unique test coverage.
+---
+author: oompah
+created: 2026-08-02 03:27
+---
+Verification: OOMPAH_TASK_VENV= python3 -m pytest -n 4 -q tests/test_quality_gate.py tests/test_installed_cli_smoke.py tests/test_makefile_setup.py tests/test_client_auth.py tests/test_agent.py tests/test_oompah_686_worker_runtime.py passed 198 tests, 5 skipped. One test (test_non_gate_test_setup_still_installs_declared_dependencies) is a pre-existing local-environment artifact where OOMPAH_TASK_VENV is set in the worktree; it passes when that var is unset and passes in the clean gate environment (confirmed by prior gate run). Pushed 954bdcd68 to OOMPAH-686.
 ---
 <!-- COMMENTS:END -->
