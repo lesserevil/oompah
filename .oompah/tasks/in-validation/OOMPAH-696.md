@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-696
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Honor integrated SHA evidence after epic child branches are pruned
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T16:18:38.337420Z'
-updated_at: '2026-08-02T17:02:15.039508Z'
+updated_at: '2026-08-02T17:10:58.556231Z'
 work_branch: OOMPAH-696
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/655
@@ -99,6 +99,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/655
 oompah.review_number: '655'
 oompah.work_branch: OOMPAH-696
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-3e497004f0fe
+    project_id: proj-14849f1b
+    task_id: OOMPAH-696
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 2dda3e90a70ac443ca71d2ad8e935ef6cd4fe341cc2be595c66229508c8f3f12
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-02T17:10:51.618988+00:00'
+  - version: 1
+    audit_id: audit-ef09e9e90f6d
+    project_id: proj-14849f1b
+    task_id: OOMPAH-696
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 2dda3e90a70ac443ca71d2ad8e935ef6cd4fe341cc2be595c66229508c8f3f12
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-02T17:10:51.618988+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -334,5 +373,15 @@ author: oompah
 created: 2026-08-02 17:01
 ---
 Branch quality gate passed for `0d4f3d9932b2773cbdf904d9443def0ed0d1c0a2` using `make test` in 393.2s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-02 17:10
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-02 17:10
+---
+YOLO: merged PR #655.
 ---
 <!-- COMMENTS:END -->
