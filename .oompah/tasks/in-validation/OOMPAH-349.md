@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-349
 type: bug
-status: Merged
+status: In Validation
 priority: 1
 title: Make project tracker refresh timeouts real
 parent: OOMPAH-348
@@ -10,12 +10,34 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T00:56:34.088413Z'
-updated_at: '2026-07-26T00:27:18.235820Z'
+updated_at: '2026-08-02T01:12:27.342160Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-b0ef813cb617
+    project_id: proj-14849f1b
+    task_id: OOMPAH-349
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b8a3cfe80c291913878c1d8a16754806ed4de2e65f551d1f29dbcbc6e5b9c45d
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-02T01:12:23.849923+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -54,5 +76,10 @@ author: oompah
 created: 2026-07-26 00:27
 ---
 Verified delivered on origin/main in 6dd2cdfcf and reconciled stale Done state.
+---
+author: oompah
+created: 2026-08-02 01:12
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
