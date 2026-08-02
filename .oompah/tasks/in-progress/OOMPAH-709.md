@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T23:17:45.073003Z'
-updated_at: '2026-08-02T23:20:29.881804Z'
+updated_at: '2026-08-02T23:20:53.149457Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -161,5 +161,10 @@ author: oompah
 created: 2026-08-02 23:20
 ---
 Focus: Test Engineer
+---
+author: oompah
+created: 2026-08-02 23:20
+---
+Understanding: I will inspect TestTickDelegation and the orchestrator maintenance executor, reproduce both parallel-only failures, then replace timing assumptions with explicit completion/teardown synchronization while preserving production concurrency. I will verify focused tests and the required project checks before committing and submitting.
 ---
 <!-- COMMENTS:END -->
