@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-698
 type: bug
-status: Needs CI Fix
+status: Open
 priority: 1
 title: Recover legacy stale reviews without persisted review-head metadata
 parent: null
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T18:20:27.192609Z'
-updated_at: '2026-08-02T19:37:52.831820Z'
+updated_at: '2026-08-02T19:42:07.047268Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -85,5 +85,17 @@ Output tail:
 ```text
 No existing worktree matched the review branch tip. Recreate the task worktree before retrying.
 ```
+---
+author: oompah
+created: 2026-08-02 19:42
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #8)
+
+**State audited:** `Needs CI Fix`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** Recent comment indicates CI is now passing or PR has been merged; safe to reopen for dispatch.
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
 ---
 <!-- COMMENTS:END -->
