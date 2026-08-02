@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-704
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Fence graceful-restart redispatch against terminal state changes
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T21:11:44.479316Z'
-updated_at: '2026-08-02T21:38:00.900553Z'
+updated_at: '2026-08-02T21:46:33.206141Z'
 work_branch: OOMPAH-704
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/662
@@ -31,6 +31,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/662
 oompah.review_number: '662'
 oompah.work_branch: OOMPAH-704
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-f9cc52ad4d0c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-704
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 5cef968f93c267a603a745502c8d66ca1838765281e77aee2271eec9296ec602
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-02T21:46:26.220743+00:00'
+  - version: 1
+    audit_id: audit-7fee35fe24c0
+    project_id: proj-14849f1b
+    task_id: OOMPAH-704
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 5cef968f93c267a603a745502c8d66ca1838765281e77aee2271eec9296ec602
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-02T21:46:26.220743+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -142,5 +181,15 @@ author: oompah
 created: 2026-08-02 21:37
 ---
 Branch quality gate passed for `5640fc49e3036e552d4c047c9c35b6509e94e8cd` using `make test` in 396.1s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-02 21:46
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-02 21:46
+---
+YOLO: merged PR #662.
 ---
 <!-- COMMENTS:END -->
