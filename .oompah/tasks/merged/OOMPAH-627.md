@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-627
 type: bug
-status: Done
+status: Merged
 priority: 1
 title: Preserve integrated evidence when creating auditor worktrees
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T22:09:32.117751Z'
-updated_at: '2026-07-30T23:08:38.382612Z'
+updated_at: '2026-08-02T18:28:58.395922Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-627
 target_branch: null
 review_url: null
@@ -33,6 +33,25 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-26df5a1390dc: '2026-07-30T22:29:35.606594+00:00'
     attempt-54ab762046bd: '2026-07-30T23:07:51.453451+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-2e2c6f169bcc
+    project_id: proj-14849f1b
+    task_id: OOMPAH-627
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 951d87ad1c6853f1732b414ec6f66ec964537326ee8225bafcfbc11e7dad87e9
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reconciliation: parent OOMPAH-585 is Merged and its accepted rollup
+      contains this previously audited Done child; durable integration-queue/rollup
+      evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.'
+    created_at: '2026-08-02T18:28:52.522269+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -273,5 +292,12 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: normal, Duration: 3m 46s
 - Log: OOMPAH-627__20260730T230456Z.jsonl
+---
+author: oompah
+created: 2026-08-02 18:28
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner reconciliation: parent OOMPAH-585 is Merged and its accepted rollup contains this previously audited Done child; durable integration-queue/rollup evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.
 ---
 <!-- COMMENTS:END -->
