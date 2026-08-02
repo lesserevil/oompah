@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T00:56:36.177730Z'
-updated_at: '2026-08-02T01:36:37.118380Z'
+updated_at: '2026-08-02T01:37:11.845652Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -93,6 +93,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-02T01:29:16.549416+00:00'
     branch_key: OOMPAH-350
+oompah.task_costs:
+  total_input_tokens: 39
+  total_output_tokens: 1149
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 39
+      output_tokens: 1149
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 39
+    output_tokens: 1149
+    cost_usd: 0.0
+    recorded_at: '2026-08-02T01:37:09.881587+00:00'
 ---
 ## Summary
 
@@ -166,5 +182,15 @@ Safe evidence:
 - tests_added_in_delivery: tests/test_dispatch_loop_heartbeat.py; tests/test_orchestrator_handlers.py; tests/test_task_cost_telemetry.py
 - previous_state: Merged
 - requested_target: Archived
+---
+author: oompah
+created: 2026-08-02 01:37
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 23
+- Tokens: 39 in / 1.1K out [1.2K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 7m 51s
+- Log: OOMPAH-350__20260802T012927Z.jsonl
 ---
 <!-- COMMENTS:END -->
