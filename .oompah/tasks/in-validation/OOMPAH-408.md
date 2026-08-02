@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-408
 type: task
-status: Merged
+status: In Validation
 priority: null
 title: Redispatch conflicted open PR resolver tasks
 parent: null
@@ -10,12 +10,34 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T15:25:36.632395Z'
-updated_at: '2026-07-26T00:28:20.074693Z'
+updated_at: '2026-08-02T01:13:21.471652Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-d43f713bf131
+    project_id: proj-14849f1b
+    task_id: OOMPAH-408
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: dcfc5e7c4aa448ca572dde850b4e18baee2f3dafd94de2fe6d8f8c83bab26834
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-02T01:13:17.871750+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -48,5 +70,10 @@ author: oompah
 created: 2026-07-26 00:28
 ---
 Verified delivered on origin/main in 8668849cc and reconciled stale Done state.
+---
+author: oompah
+created: 2026-08-02 01:13
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
