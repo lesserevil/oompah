@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-702
 type: bug
-status: Needs CI Fix
+status: In Progress
 priority: 1
 title: Synchronize merged-webhook tests with background terminal staging
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T20:34:49.621752Z'
-updated_at: '2026-08-02T23:17:00.140369Z'
+updated_at: '2026-08-02T23:17:30.394979Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,7 +39,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: null
+oompah.agent_run_id: 1a69d781-0955-4ea0-ae26-af069eae2ca9
 oompah.task_costs:
   total_input_tokens: 50668
   total_output_tokens: 13769
@@ -286,5 +286,15 @@ FAILED tests/test_orchestrator_handlers.py::TestTickDelegation::test_tick_handle
 
 make: *** [Makefile:401: test] Error 1
 ```
+---
+author: oompah
+created: 2026-08-02 23:17
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-08-02 23:17
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
