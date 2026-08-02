@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T20:20:26.676545Z'
-updated_at: '2026-08-02T20:27:40.089078Z'
+updated_at: '2026-08-02T21:10:40.478747Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -37,5 +37,10 @@ author: oompah
 created: 2026-08-02 20:27
 ---
 Additional live evidence: normal make restart entered its one-hour drain despite an empty public agent list. Emergency cutover execed the service at the same PID, and the superseded OOMPAH-700 Claude child survived that exec. Restart recovery then launched a second Codex implementation run for OOMPAH-700 while direct owner work was active. Adding human-only plus a Backlog/In Progress ownership fence finally terminated both provider processes, but also created automatic recovery checkpoint commits in the shared worktree. OOMPAH-698 was incorrectly reopened to Open despite its earlier recorded PASS and merged PR, requiring the owner to re-request the same audit ID. Cover graceful drain, exec cutover inheritance, restart redispatch fencing, and completed-PASS recovery in this bug.
+---
+author: oompah
+created: 2026-08-02 21:10
+---
+Additional production reproduction from OOMPAH-700 on 2026-08-02: after PR #661 merged, auto-update began graceful shutdown and closed port 8090, but PID 3339192 remained alive. During that shutdown window the old process created detached audit worktree OOMPAH-700--terminal-audit-attempt-5f093d4b47fb and launched a Sonnet completion auditor, leaving health unavailable for more than 40 seconds. make force-restart was required to cut over to merge 39d1f2ec; owner override then cleared the stale persisted audit. Acceptance coverage must include preventing any new provider launch once shutdown/drain starts and ensuring the old PID cannot retain child transports after HTTP shutdown.
 ---
 <!-- COMMENTS:END -->
