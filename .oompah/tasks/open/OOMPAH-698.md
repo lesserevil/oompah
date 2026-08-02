@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-698
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Recover legacy stale reviews without persisted review-head metadata
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T18:20:27.192609Z'
-updated_at: '2026-08-02T19:23:33.903454Z'
+updated_at: '2026-08-02T19:24:14.496919Z'
 work_branch: null
 target_branch: null
 review_url: null
