@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-695
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: 1
 title: Prove dashboard convergence with fault injection and health telemetry
 parent: OOMPAH-691
@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:52.297786Z'
-updated_at: '2026-08-02T05:19:43.202357Z'
+updated_at: '2026-08-02T05:26:34.908493Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-695
 target_branch: null
 review_url: null
@@ -66,12 +66,19 @@ oompah.agent_run_id: 1567f590-2377-452b-aea1-4daa7b5ed2ed
 oompah.work_branch: epic-OOMPAH-691--task-OOMPAH-695
 oompah.integration:
   version: 2
-  state: ready
-  attempts: 0
+  state: integrated
+  attempts: 1
   task_branch: epic-OOMPAH-691--task-OOMPAH-695
+  base_branch: epic-OOMPAH-691
+  base_sha: 5d9186d6d63e368e4f97934354f4d28e5ea2a93f
   head_sha: 1293a2f3c548d450447a44b57dc839fd8860606d
+  integrated_sha: 1293a2f3c548d450447a44b57dc839fd8860606d
   submitted_at: '2026-08-02T05:19:25.890739+00:00'
-  updated_at: '2026-08-02T05:19:25.890739+00:00'
+  updated_at: '2026-08-02T05:26:30.423069+00:00'
+  dependency_heads:
+    OOMPAH-692: 23d108b20c132b03c5dd450c1cb8ac97d4f0ffac
+    OOMPAH-693: cf5f3cecede5a3344922345e2fcbc3f042c982c9
+    OOMPAH-694: 5d9186d6d63e368e4f97934354f4d28e5ea2a93f
 oompah.task_costs:
   total_input_tokens: 150
   total_output_tokens: 8659
@@ -122,6 +129,28 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-691--task-OOMPAH-695
     source_sha: f77bb3eff6041608ee98d52396e10c2d0d46a389
     completed_at: '2026-08-02T02:23:57.073911+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-495509e073f7
+    project_id: proj-14849f1b
+    task_id: OOMPAH-695
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 5c4dbba5aa91626d2c7bb5817d6fa15fa32f2f1d47c612392dc83bf53ed10bf7
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah-integration
+      source: service
+    previous_state: Ready to Integrate
+    created_at: '2026-08-02T05:26:32.059637+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -394,5 +423,10 @@ Run #1 [attempt=1, profile=standard, role=standard -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: terminated, Duration: 7m 47s
 - Log: OOMPAH-695__20260802T051203Z.jsonl
+---
+author: oompah
+created: 2026-08-02 05:26
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
