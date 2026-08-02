@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-704
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Fence graceful-restart redispatch against terminal state changes
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T21:11:44.479316Z'
-updated_at: '2026-08-02T21:30:32.213592Z'
+updated_at: '2026-08-02T21:37:53.614359Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -133,5 +133,10 @@ Output tail:
 ```text
 Candidate CI was not run because the submitted review branch tip is unavailable in the managed repository.
 ```
+---
+author: oompah
+created: 2026-08-02 21:37
+---
+Branch quality gate passed for `5640fc49e3036e552d4c047c9c35b6509e94e8cd` using `make test` in 396.1s. Review creation may proceed.
 ---
 <!-- COMMENTS:END -->
