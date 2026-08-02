@@ -12,7 +12,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-08-02T02:01:46.836436Z'
-updated_at: '2026-08-02T02:50:53.511338Z'
+updated_at: '2026-08-02T02:52:01.795353Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-692
 target_branch: null
 review_url: null
@@ -421,5 +421,10 @@ author: oompah
 created: 2026-08-02 02:50
 ---
 Understanding: I will review the existing WebSocket protocol-versioning documentation against the current server behavior, correct any terminology, examples, or lifecycle semantics that are inaccurate, run focused protocol/documentation checks, and hand off or submit without changing code behavior.
+---
+author: oompah
+created: 2026-08-02 02:52
+---
+Discovery: the server routes all server-to-client sends through _send_ws, which assigns delivery_seq under a per-socket lock; state payloads carry the revision paired with the cached snapshot, while issue payloads carry data_revision under the issue-cache lock. The existing plan is accurate but underspecified for consumers: it needs a wire example, a clear rule that envelope counters on non-state/non-issues messages are observations rather than payload versions, and explicit client gap-handling guidance.
 ---
 <!-- COMMENTS:END -->
