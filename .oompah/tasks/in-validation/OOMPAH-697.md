@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-697
 type: bug
-status: In Review
+status: In Validation
 priority: 0
 title: Requeue branches that advance after their recorded review merges
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T16:21:00.027506Z'
-updated_at: '2026-08-02T17:31:19.491582Z'
+updated_at: '2026-08-02T17:39:09.006824Z'
 work_branch: OOMPAH-697
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/656
@@ -111,6 +111,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/656
 oompah.review_number: '656'
 oompah.work_branch: OOMPAH-697
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-b238ea1d70c1
+    project_id: proj-14849f1b
+    task_id: OOMPAH-697
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7d08b3cc35c035bd96642c4fc0ebb20d3d91d8cbb86ee9d927fe5e0a88b83704
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-02T17:39:02.291869+00:00'
+  - version: 1
+    audit_id: audit-612752c86562
+    project_id: proj-14849f1b
+    task_id: OOMPAH-697
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7d08b3cc35c035bd96642c4fc0ebb20d3d91d8cbb86ee9d927fe5e0a88b83704
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-02T17:39:02.291869+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -500,5 +539,15 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Codex/gpt-5.6-
 - Cost: $0.0000
 - Exit: terminated, Duration: 4m 7s
 - Log: OOMPAH-697__20260802T172704Z.jsonl
+---
+author: oompah
+created: 2026-08-02 17:39
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-02 17:39
+---
+YOLO: merged PR #656.
 ---
 <!-- COMMENTS:END -->
