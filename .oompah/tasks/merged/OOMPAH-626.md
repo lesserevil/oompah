@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-626
 type: bug
-status: Done
+status: Merged
 priority: 1
 title: Supersede in-flight terminal audits when evidence changes
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T22:02:35.998442Z'
-updated_at: '2026-07-30T22:18:39.933547Z'
+updated_at: '2026-08-02T18:28:46.262100Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-626
 target_branch: null
 review_url: null
@@ -29,6 +29,25 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-81d39d73e735: '2026-07-30T22:17:01.599562+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-333c2faea4fe
+    project_id: proj-14849f1b
+    task_id: OOMPAH-626
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 22bd0cf1b2145c87857e1fb9e20bc5a87268bf2002340c937f33efe33eb43a4b
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reconciliation: parent OOMPAH-585 is Merged and its accepted rollup
+      contains this previously audited Done child; durable integration-queue/rollup
+      evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.'
+    created_at: '2026-08-02T18:28:40.031817+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -173,5 +192,12 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: normal, Duration: 6m 56s
 - Log: OOMPAH-626__20260730T221148Z.jsonl
+---
+author: oompah
+created: 2026-08-02 18:28
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner reconciliation: parent OOMPAH-585 is Merged and its accepted rollup contains this previously audited Done child; durable integration-queue/rollup evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.
 ---
 <!-- COMMENTS:END -->
