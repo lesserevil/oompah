@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-698
 type: bug
-status: Open
+status: In Validation
 priority: 1
 title: Recover legacy stale reviews without persisted review-head metadata
 parent: null
@@ -10,10 +10,9 @@ blocked_by: []
 start_blocked_by: []
 labels:
 - human-only
-- ci-fix
 assignee: null
 created_at: '2026-08-02T18:20:27.192609Z'
-updated_at: '2026-08-02T20:24:14.613765Z'
+updated_at: '2026-08-02T20:26:30.243060Z'
 work_branch: OOMPAH-698
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/659
@@ -308,5 +307,10 @@ author: oompah
 created: 2026-08-02 20:12
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-02 20:26
+---
+Owner reconciliation after the restart: PR #659 is merged at 3a7835ebdee4b051764a3e4d62ffda6e1dec277f, the exact task head is contained in origin/main, and the prior auditor recorded PASS. Re-requesting the canonical Merged transition after restart recovery incorrectly reopened the task.
 ---
 <!-- COMMENTS:END -->
