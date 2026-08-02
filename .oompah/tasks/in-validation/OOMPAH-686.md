@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-686
 type: task
-status: In Review
+status: In Validation
 priority: 0
 title: Keep worker container-runtime failures out of Needs Human
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T22:19:41.486806Z'
-updated_at: '2026-08-02T03:29:08.562353Z'
+updated_at: '2026-08-02T03:35:39.212280Z'
 work_branch: OOMPAH-686
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/652
@@ -134,6 +134,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/652
 oompah.review_number: '652'
 oompah.work_branch: OOMPAH-686
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-f684d0da4477
+    project_id: proj-14849f1b
+    task_id: OOMPAH-686
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6eb8fdcae9546e718eea23c788540947069e5bc98f1b169459e63958d4887df5
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-02T03:35:33.681778+00:00'
+  - version: 1
+    audit_id: audit-081b5c455234
+    project_id: proj-14849f1b
+    task_id: OOMPAH-686
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6eb8fdcae9546e718eea23c788540947069e5bc98f1b169459e63958d4887df5
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-02T03:35:33.681778+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -626,5 +665,15 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Claude
 - Cost: $0.0000
 - Exit: normal, Duration: 12m 36s
 - Log: OOMPAH-686__20260802T031551Z.jsonl
+---
+author: oompah
+created: 2026-08-02 03:35
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-02 03:35
+---
+YOLO: merged PR #652.
 ---
 <!-- COMMENTS:END -->
