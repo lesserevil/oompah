@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-710
 type: bug
-status: Open
+status: Needs Human
 priority: null
 title: Keep oversized auditor tool results inside the read-only authority boundary
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T23:45:39.918535Z'
-updated_at: '2026-08-02T23:51:13.871916Z'
+updated_at: '2026-08-02T23:51:43.777267Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -25,25 +25,25 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: 65bfa554-8c1f-424e-86f8-931c0afef4f1
-  claim_owner: e66a0cec-af3d-4845-bbdc-4b14727350de
-  claimed_at: '2026-08-02T23:51:07.847725+00:00'
-  claim_expires_at: '2026-08-03T00:21:07.847725+00:00'
-  retry_count: 2
-  retry_after: null
+  evidence: Duplicate-screening worker exited with reason normal.
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
+  retry_count: 3
+  retry_after: '2026-08-02T23:55:35.797470+00:00'
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
 oompah.agent_run_id: 590ba94c-4338-4d32-aa04-424cc8bacc37
 oompah.task_costs:
-  total_input_tokens: 51458
-  total_output_tokens: 3004
+  total_input_tokens: 51468
+  total_output_tokens: 4280
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 51458
-      output_tokens: 3004
+      input_tokens: 51468
+      output_tokens: 4280
       cost_usd: 0.0
   runs:
   - profile: default
@@ -58,6 +58,12 @@ oompah.task_costs:
     output_tokens: 1662
     cost_usd: 0.0
     recorded_at: '2026-08-02T23:48:58.135833+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 10
+    output_tokens: 1276
+    cost_usd: 0.0
+    recorded_at: '2026-08-02T23:51:35.796327+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-710__20260802T234610Z
@@ -76,6 +82,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-710
     source_sha: 3a231ee97337db95bb131abc0dd27ca12133c257
     completed_at: '2026-08-02T23:48:58.152118+00:00'
+  - run_id: OOMPAH-710__20260802T235114Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: duplicate_detector
+    source_branch: OOMPAH-710
+    source_sha: 3a231ee97337db95bb131abc0dd27ca12133c257
+    completed_at: '2026-08-02T23:51:35.811481+00:00'
 ---
 ## Summary
 
@@ -161,5 +175,20 @@ author: oompah
 created: 2026-08-02 23:51
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-02 23:51
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 2, Tool calls: 0
+- Tokens: 10 in / 1.3K out [1.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 25s
+- Log: OOMPAH-710__20260802T235114Z.jsonl
+---
+author: oompah
+created: 2026-08-02 23:51
+---
+Duplicate screening was inconclusive 3 times. Human action required: a project owner must review the authoritative task corpus and use the authenticated duplicate-screening owner-resolution action (POST /api/v1/issues/OOMPAH-710/duplicate-screening/owner-resolution) with a conclusive verdict and reason. This records the owner decision, resets the retry budget, and returns no_duplicate tasks to Open (or routes a verified duplicate to Duplicate Candidate). A plain verdict comment is not authoritative.
 ---
 <!-- COMMENTS:END -->
