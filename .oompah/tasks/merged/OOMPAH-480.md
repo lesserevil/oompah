@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-480
 type: feature
-status: Done
+status: Merged
 priority: 1
 title: Route release-delivery and release-pick terminal updates through audits
 parent: OOMPAH-459
@@ -12,7 +12,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:28.235708Z'
-updated_at: '2026-07-30T01:45:32.583373Z'
+updated_at: '2026-08-02T18:23:12.490289Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-480
 target_branch: null
 review_url: null
@@ -124,6 +124,25 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-a481da05abb4: '2026-07-30T01:45:10.304163+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-472acc8cc38d
+    project_id: proj-14849f1b
+    task_id: OOMPAH-480
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 1e94ca81ef2adfbd8169c863c448f32b76ebeb9672c05b5d11213bc46877cb4d
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reconciliation: parent OOMPAH-459 is Merged and its accepted rollup
+      contains this previously audited Done child; durable integration-queue/rollup
+      evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.'
+    created_at: '2026-08-02T18:23:08.474856+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -578,5 +597,12 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 6m 31s
 - Log: OOMPAH-480__20260730T013908Z.jsonl
+---
+author: oompah
+created: 2026-08-02 18:23
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner reconciliation: parent OOMPAH-459 is Merged and its accepted rollup contains this previously audited Done child; durable integration-queue/rollup evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.
 ---
 <!-- COMMENTS:END -->
