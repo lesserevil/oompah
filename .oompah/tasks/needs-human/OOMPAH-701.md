@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-701
 type: bug
-status: In Validation
+status: Needs Human
 priority: 1
 title: Retire hidden provider processes when task ownership is revoked
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T20:20:26.676545Z'
-updated_at: '2026-08-02T23:42:40.426518Z'
+updated_at: '2026-08-02T23:45:10.586378Z'
 work_branch: OOMPAH-701
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/665
@@ -107,6 +107,31 @@ oompah.work_branch: OOMPAH-701
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    infrastructure-exhausted-audit-c05a51f9c48e-2: '2026-08-02T23:45:04.961711+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-701
+    target_state: Done
+    evidence_fingerprint: 3ffccdccadddc3e7c3185cc51cd8dbdce2c47023b32f832158721ad41edf4385
+    audit_ids:
+    - audit-c05a51f9c48e
+    kind: result
+    applied: true
+    retired_at: '2026-08-02T23:45:04.961720+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-701
+    audit_id: audit-c05a51f9c48e
+    attempt_id: infrastructure-exhausted-audit-c05a51f9c48e-2
+    target_state: Done
+    evidence_fingerprint: 3ffccdccadddc3e7c3185cc51cd8dbdce2c47023b32f832158721ad41edf4385
+    status: Needs Human
+    audit_ids:
+    - audit-c05a51f9c48e
+    applied: true
+    created_at: '2026-08-02T23:45:04.961730+00:00'
+    applied_at: '2026-08-02T23:45:09.561267+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -114,7 +139,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-701
     target_state: Done
-    request_state: pending
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -159,13 +184,25 @@ oompah.terminal_audit:
         auditor capability policy permits only read-only repository inspection and
         configured test commands; command denied'
       next_retry_at: '2026-08-02T23:42:55.506186+00:00'
+    - version: 1
+      attempt_id: infrastructure-exhausted-audit-c05a51f9c48e-2
+      target_state: Done
+      request_state: completed
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 3ffccdccadddc3e7c3185cc51cd8dbdce2c47023b32f832158721ad41edf4385
+      verdict: needs_human
+      failure_classification: infrastructure_error
+      created_at: '2026-08-02T23:45:04.961637+00:00'
+      completed_at: '2026-08-02T23:45:04.961637+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-02T23:37:08.506986+00:00'
-    updated_at: '2026-08-02T23:42:35.506215+00:00'
+    updated_at: '2026-08-02T23:45:04.961637+00:00'
   - version: 1
     audit_id: audit-c521d3856622
     project_id: proj-14849f1b
@@ -367,5 +404,12 @@ author: oompah
 created: 2026-08-02 23:42
 ---
 Auditor attempt was stopped after repeated policy denials; a different independent candidate will be tried.
+---
+author: oompah
+created: 2026-08-02 23:45
+---
+Needs Human — Done audit requires operator input.
+
+Independent auditor launches exhausted their retry budget because the audit workspace or transport failed before review began. Restore the audit infrastructure, then have a project owner rearm this terminal audit; do not reopen implementation work.
 ---
 <!-- COMMENTS:END -->
