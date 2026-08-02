@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-700
 type: bug
-status: Open
+status: Ready to Integrate
 priority: 1
 title: Gate accepted submissions without a canonical task worktree
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T19:52:39.323644Z'
-updated_at: '2026-08-02T20:25:44.701935Z'
+updated_at: '2026-08-02T20:33:52.784173Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -57,7 +57,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 5475ec6b-9612-4159-a581-930f5e6724e6
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 6
   total_output_tokens: 1125
@@ -84,6 +84,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-700
     source_sha: 126422448bb23f19561533eebbdfc0a4aa4f9178
     completed_at: '2026-08-02T19:56:56.670367+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-700
+  head_sha: 819f8516723772742fddfab4eba6c8d5666c1b7b
+  submitted_at: '2026-08-02T20:33:46.825465+00:00'
+  updated_at: '2026-08-02T20:33:46.825465+00:00'
 ---
 ## Summary
 
@@ -198,5 +206,15 @@ author: oompah
 created: 2026-08-02 20:25
 ---
 Marked human-only and reclaimed for direct owner implementation after restart recovery incorrectly launched a concurrent worker.
+---
+author: oompah
+created: 2026-08-02 20:33
+---
+Direct owner implementation complete and pushed at 819f8516723772742fddfab4eba6c8d5666c1b7b. Exact-head gates now fall back to the managed repository when no canonical checkout matches, archive only the verified submitted commit, preserve strict checkout matching where a task worktree exists, and classify unavailable commit evidence as infrastructure without ci-fix. Regression coverage proves unrelated/dirty managed checkouts cannot contaminate the snapshot, missing exact heads do not run CI or add ci-fix, repeated gates reuse evidence, and branch advancement remains fenced. Focused: 257 passed plus 4 new targeted tests. Full make test clean rerun: 14,994 passed, 7 skipped, 1 xfailed in 385.61s. The first full run had one unrelated webhook-health timing-boundary failure; its exact rerun passed. make check-secrets and git diff --check passed.
+---
+author: oompah
+created: 2026-08-02 20:33
+---
+Exact submitted heads now gate without requiring a surviving canonical worktree.
 ---
 <!-- COMMENTS:END -->
