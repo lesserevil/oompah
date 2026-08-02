@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-690
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Restore reliable automatic dashboard updates
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T00:37:18.141681Z'
-updated_at: '2026-08-02T00:40:48.253780Z'
+updated_at: '2026-08-02T00:41:02.136609Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -58,7 +58,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 74c1716f-c359-4342-aa2a-37e73b80d1de
+oompah.agent_run_id: 4ec82bd5-1f8b-4a3c-a842-74976f408879
 oompah.task_costs:
   total_input_tokens: 146
   total_output_tokens: 4598
@@ -145,5 +145,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 36s
 - Log: OOMPAH-690__20260802T003910Z.jsonl
+---
+author: oompah
+created: 2026-08-02 00:40
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-02 00:41
+---
+Focus: Callback Auth Validation Specialist
 ---
 <!-- COMMENTS:END -->
