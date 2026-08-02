@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T00:13:22.222984Z'
-updated_at: '2026-08-02T00:30:15.051721Z'
+updated_at: '2026-08-02T00:30:20.816734Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -158,5 +158,10 @@ author: oompah
 created: 2026-08-02 00:30
 ---
 Implementation: server peer classification now verifies only the live source capability in the requested project, requires the exact task-scope denial and view action, and never resolves the target. Added lifecycle/unknown, mutation, cross-project, wrong-token, and successful comment-submit-exit regressions; clarified actionable-only handoff failure reconciliation and updated auth documentation.
+---
+author: oompah
+created: 2026-08-02 00:30
+---
+Verification: focused handoff/auth/server suites pass: 171 passed, 1 deprecation warning. make check-secrets passes. The required full make test could not start because the environment's uv launcher fails to create a transient DBus scope; the direct project serial runner reached the full suite but exposed unrelated pre-existing ACP model-handoff failures before I stopped it. git diff --check is clean.
 ---
 <!-- COMMENTS:END -->
