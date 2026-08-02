@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-695
 type: task
-status: In Validation
+status: Open
 priority: 1
 title: Prove dashboard convergence with fault injection and health telemetry
 parent: OOMPAH-691
@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:52.297786Z'
-updated_at: '2026-08-02T05:27:02.290266Z'
+updated_at: '2026-08-02T06:03:11.487188Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-695
 target_branch: null
 review_url: null
@@ -131,6 +131,31 @@ oompah.work_contributors:
     completed_at: '2026-08-02T02:23:57.073911+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-f7901f6eb210: '2026-08-02T06:03:07.211998+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-695
+    target_state: Done
+    evidence_fingerprint: 5c4dbba5aa91626d2c7bb5817d6fa15fa32f2f1d47c612392dc83bf53ed10bf7
+    audit_ids:
+    - audit-495509e073f7
+    kind: result
+    applied: true
+    retired_at: '2026-08-02T06:03:07.212010+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-695
+    audit_id: audit-495509e073f7
+    attempt_id: attempt-f7901f6eb210
+    target_state: Done
+    evidence_fingerprint: 5c4dbba5aa91626d2c7bb5817d6fa15fa32f2f1d47c612392dc83bf53ed10bf7
+    status: Open
+    audit_ids:
+    - audit-495509e073f7
+    applied: true
+    created_at: '2026-08-02T06:03:07.212027+00:00'
+    applied_at: '2026-08-02T06:03:10.503017+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -138,7 +163,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-695
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -147,7 +172,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-f7901f6eb210
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -157,13 +182,17 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-02T05:26:57.235549+00:00'
       branch_key: epic-OOMPAH-691--task-OOMPAH-695
+      verdict: fail
+      failure_classification: incomplete
+      completed_at: '2026-08-02T06:03:07.211768+00:00'
+      ended_at: '2026-08-02T06:03:07.211768+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-08-02T05:26:32.059637+00:00'
-    updated_at: '2026-08-02T05:26:57.235549+00:00'
+    updated_at: '2026-08-02T06:03:07.211768+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-f7901f6eb210
@@ -465,5 +494,19 @@ author: oompah
 created: 2026-08-02 05:27
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-02 06:03
+---
+Audit FAIL — incomplete. Routing task to Open.
+
+[REDACTED]
+
+Instructions:
+- Wire `_ws_sync_record_gap()` into the real receive path — e.g. when the client signals a detected gap or when the server detects a stale/duplicate delivery — so the `gaps_detected` counter can move in production.
+- Wire `_ws_sync_record_failure()` into the full-sync construction/broadcast failure path so `consecutive_failures` can increment and the `_ws_sync_alert` can actually fire on repeated unrecovered failures.
+- Rewrite the fault-injection tests to intercept the real sequenced protocol added by OOMPAH-692 (e.g. by patching `oompah.server._send_ws` or `_broadcast` to drop/duplicate/delay/reorder the actual enveloped messages), so the tests fail against lossy behavior and only pass when end-to-end sequence detection + full sync converge.
+- Include an integration test that reproduces the observed failure against the real /ws endpoint (four completion snapshots dropped, browser refresh action triggers full sync, all four chips removed) rather than only against the in-file `WebSocketMessageInterceptor` mock.
+- Add a test that asserts `gaps_detected` and `consecutive_failures` actually increment via the real code path, and that the `_ws_sync_alert` is emitted in the enriched state payload after threshold breach.
 ---
 <!-- COMMENTS:END -->
