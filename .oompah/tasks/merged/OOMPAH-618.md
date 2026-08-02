@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-618
 type: bug
-status: Done
+status: Merged
 priority: 1
 title: Keep ACP shell commands off the scheduler event loop
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T21:03:01.411786Z'
-updated_at: '2026-07-30T21:26:24.650705Z'
+updated_at: '2026-08-02T18:27:39.105254Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-618
 target_branch: null
 review_url: null
@@ -29,6 +29,25 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-10c30103c602: '2026-07-30T21:26:07.485406+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-f023a174d359
+    project_id: proj-14849f1b
+    task_id: OOMPAH-618
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 521a5d8c31d24272c4a8f758e501311e515f603c49a1dd0608080fd759993c89
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reconciliation: parent OOMPAH-585 is Merged and its accepted rollup
+      contains this previously audited Done child; durable integration-queue/rollup
+      evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.'
+    created_at: '2026-08-02T18:27:34.651738+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -168,5 +187,12 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 3m 56s
 - Log: OOMPAH-618__20260730T212234Z.jsonl
+---
+author: oompah
+created: 2026-08-02 18:27
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner reconciliation: parent OOMPAH-585 is Merged and its accepted rollup contains this previously audited Done child; durable integration-queue/rollup evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.
 ---
 <!-- COMMENTS:END -->
