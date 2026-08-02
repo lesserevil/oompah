@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T16:21:00.027506Z'
-updated_at: '2026-08-02T17:27:20.449947Z'
+updated_at: '2026-08-02T17:29:20.914083Z'
 work_branch: OOMPAH-697
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/656
@@ -466,5 +466,10 @@ author: oompah
 created: 2026-08-02 17:27
 ---
 Understanding: CI on existing MR #656 failed after the feature branch passed its exact-head quality gate. I will refresh OOMPAH-697, inspect the actual GitHub Actions failure logs, reproduce the failing test locally, apply only the minimal CI/test repair, run focused neighboring tests, push the same branch, verify checks rerun, and submit the task.
+---
+author: oompah
+created: 2026-08-02 17:29
+---
+Discovery: GitHub Actions run 30758603273 shows Python 3.13 alone failed tests/test_ws_fault_injection.py::TestMetricsWiredIntoRealPaths::test_refresh_action_increments_full_sync_requests. The test reads only the refresh handler's first state frame, then immediately closes the WebSocket. The handler records successful_reconciliations only after awaiting broadcast_issues(), so under CI scheduling the close cancels/interrupts the handler before that metric is recorded. Python 3.12 passes locally, confirming the race is timing-sensitive. I will keep the socket open behind an explicit success-recording synchronization barrier before asserting metrics; production code and OOMPAH-697 feature logic remain unchanged.
 ---
 <!-- COMMENTS:END -->
