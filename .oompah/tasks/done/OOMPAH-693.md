@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:48.499285Z'
-updated_at: '2026-08-02T04:06:19.532308Z'
+updated_at: '2026-08-02T04:06:40.978831Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-693
 target_branch: null
 review_url: null
@@ -74,8 +74,8 @@ oompah.integration:
   submitted_at: '2026-08-02T03:47:08.087214+00:00'
   updated_at: '2026-08-02T03:54:24.112113+00:00'
 oompah.task_costs:
-  total_input_tokens: 344
-  total_output_tokens: 45610
+  total_input_tokens: 449
+  total_output_tokens: 69977
   total_cost_usd: 0.0
   by_model:
     sonnet:
@@ -85,6 +85,10 @@ oompah.task_costs:
     haiku:
       input_tokens: 329
       output_tokens: 42248
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 105
+      output_tokens: 24367
       cost_usd: 0.0
   runs:
   - profile: standard
@@ -99,6 +103,12 @@ oompah.task_costs:
     output_tokens: 42248
     cost_usd: 0.0
     recorded_at: '2026-08-02T03:47:22.359687+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 105
+    output_tokens: 24367
+    cost_usd: 0.0
+    recorded_at: '2026-08-02T04:06:39.172539+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-693__20260802T020628Z
@@ -337,5 +347,15 @@ Safe evidence:
 - auditor_local_test_status: not_run_env_shadow
 - auditor_env_note: venv oompah lacks _protocol_epoch (OOMPAH-692 attribute) causing AttributeError at fixture setup
 - prior_focused_test_report: 22/22 test_ws_full_sync + 49/49 test_ws_lifecycle + 14/14 test_websocket_authenticated_bootstrap
+---
+author: oompah
+created: 2026-08-02 04:06
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 99
+- Tokens: 105 in / 24.4K out [24.5K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 11m 36s
+- Log: OOMPAH-693__20260802T035507Z.jsonl
 ---
 <!-- COMMENTS:END -->
