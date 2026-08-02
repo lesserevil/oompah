@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-696
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Honor integrated SHA evidence after epic child branches are pruned
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T16:18:38.337420Z'
-updated_at: '2026-08-02T16:24:26.992725Z'
+updated_at: '2026-08-02T16:24:41.780625Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -45,7 +45,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: bfdbef5f-5d9f-4ffe-af93-88c1840832ae
+oompah.agent_run_id: f2bcb30e-1b03-459d-ae56-0dace58463a7
 oompah.task_costs:
   total_input_tokens: 356919
   total_output_tokens: 1867
@@ -128,5 +128,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 53s
 - Log: OOMPAH-696__20260802T162333Z.jsonl
+---
+author: oompah
+created: 2026-08-02 16:24
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-02 16:24
+---
+Focus: Callback Auth Validation Specialist
 ---
 <!-- COMMENTS:END -->
