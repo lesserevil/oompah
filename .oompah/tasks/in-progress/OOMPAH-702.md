@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T20:34:49.621752Z'
-updated_at: '2026-08-02T23:24:43.987670Z'
+updated_at: '2026-08-02T23:29:18.365435Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -321,5 +321,10 @@ author: oompah
 created: 2026-08-02 23:24
 ---
 The live retry worktree currently differs from pushed head only by 37 added uv.lock lines caused during test setup. This is not part of OOMPAH-702. Restore uv.lock to the pushed branch version before resubmitting; do not commit environment-lock noise or any OOMPAH-709 scheduler-test repair here.
+---
+author: oompah
+created: 2026-08-02 23:29
+---
+Understanding: The CI failure is TestTickDelegation::test_tick_handler_order in tests/test_orchestrator_handlers.py — an orchestrator-tick test unrelated to this branch's webhook-sync work but which shares the fire-and-forget maintenance flake pattern that OOMPAH-667 fixed on sibling notify-observer tests. The unmocked _maybe_run_watchdog, _run_step5b_maintenance, _run_step5c_epic_maintenance, and _recover_release_addendum_leases can run against the real tracker under xdist CPU contention and either wake state that shifts call_order or slow the tick past the 5s pytest-timeout. I will apply the same targeted mock isolation the OOMPAH-667 fix used, cover both test_tick_calls_all_handlers and test_tick_handler_order, and verify locally that it still passes deterministically.
 ---
 <!-- COMMENTS:END -->
