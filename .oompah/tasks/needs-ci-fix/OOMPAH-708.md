@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T22:20:11.202634Z'
-updated_at: '2026-08-02T22:50:20.761924Z'
+updated_at: '2026-08-02T22:51:32.032763Z'
 work_branch: OOMPAH-708
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/664
@@ -118,5 +118,10 @@ author: oompah
 created: 2026-08-02 22:50
 ---
 YOLO: CI tests failed on MR #664. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
+---
+author: oompah
+created: 2026-08-02 22:51
+---
+PR #664 Python 3.11 CI failure is unrelated to this endpoint patch: tests/test_agent.py::test_stop_kills_spawned_descendant timed out waiting 1 second for a shell child PID file; the other 15,013 tests passed, and Python 3.12/3.13 matrices passed. The failed GitHub Actions job has been rerun. Retaining the exact submitted head and human-only ownership fence pending the rerun.
 ---
 <!-- COMMENTS:END -->
