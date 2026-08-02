@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-706
 type: bug
-status: Open
+status: Ready to Integrate
 priority: 1
 title: Make duplicate-preflight verdict delivery truncation-proof
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T21:55:47.761417Z'
-updated_at: '2026-08-02T23:20:02.846010Z'
+updated_at: '2026-08-02T23:20:36.833121Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,7 +42,7 @@ oompah.duplicate_screening:
     follow-up for OOMPAH-701. The exact provider log proves a complete no-duplicate
     result was lost only by ACP text truncation, and no active task implements this
     provider-boundary envelope repair.'
-oompah.agent_run_id: aec8c7ea-8cf1-4b45-8e2c-1713e97345f6
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 110758
   total_output_tokens: 4964
@@ -97,6 +97,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-706
     source_sha: 366129d0a5046c5ed7caed4acf26cd8cd2a3fbdd
     completed_at: '2026-08-02T22:12:07.094150+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-706
+  head_sha: 0b78028a691b4c21935d9c9dc3b69d59f8448643
+  submitted_at: '2026-08-02T23:20:28.116349+00:00'
+  updated_at: '2026-08-02T23:20:28.116349+00:00'
 ---
 ## Summary
 
@@ -207,5 +215,10 @@ author: oompah
 created: 2026-08-02 23:07
 ---
 Direct implementation complete at pushed head 0b78028a691b4c21935d9c9dc3b69d59f8448643. ACP backends now extract a bounded validated duplicate-screening envelope from the full provider response before the 2,000-character display/log cap; the orchestrator consumes that envelope through the existing current-run-only parser, while comments remain excluded. Regression coverage reproduces OOMPAH-701 long analysis followed by a valid verdict and covers Claude, Codex, OpenCode, conflicts, and end-to-end implementation eligibility. Verification: focused 188 passed; full make test 15,017 passed, 7 skipped, 1 xfailed; terminal mutation scan and check-secrets passed. Awaiting deployment of merged OOMPAH-708 solely to execute the authoritative owner-resolution transition out of Needs Human before submit.
+---
+author: oompah
+created: 2026-08-02 23:20
+---
+Preserved duplicate-screening verdicts before ACP display truncation with bounded provider envelopes across Claude, Codex, and OpenCode. Full make test: 15,017 passed; focused suite, terminal mutation scan, and secret scan passed.
 ---
 <!-- COMMENTS:END -->

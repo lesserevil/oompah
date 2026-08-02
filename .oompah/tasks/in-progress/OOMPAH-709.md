@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-709
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Make tick-delegation tests deterministic under parallel full-suite execution
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T23:17:45.073003Z'
-updated_at: '2026-08-02T23:20:08.159630Z'
+updated_at: '2026-08-02T23:20:29.881804Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -38,7 +38,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: e57219ea-94f3-4c25-a984-b8e16ec04886
+oompah.agent_run_id: 8b42efdc-70ac-47f0-a637-5d72969268e6
 oompah.task_costs:
   total_input_tokens: 50525
   total_output_tokens: 384
@@ -151,5 +151,15 @@ OOMPAH-709 requires fixing non-deterministic test failures in TestTickDelegation
 6. Run tests under repeated parallel execution to verify determinism
 
 **Target:** Tests pass reliably under parallel execution without changing production scheduler behavior.
+---
+author: oompah
+created: 2026-08-02 23:20
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-02 23:20
+---
+Focus: Test Engineer
 ---
 <!-- COMMENTS:END -->

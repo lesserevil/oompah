@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-702
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Synchronize merged-webhook tests with background terminal staging
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T20:34:49.621752Z'
-updated_at: '2026-08-02T23:20:06.718025Z'
+updated_at: '2026-08-02T23:20:22.519725Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -39,7 +39,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 1a69d781-0955-4ea0-ae26-af069eae2ca9
+oompah.agent_run_id: f09c8c3b-71cd-4563-a89c-05f009024399
 oompah.task_costs:
   total_input_tokens: 50668
   total_output_tokens: 13769
@@ -301,5 +301,15 @@ author: oompah
 created: 2026-08-02 23:17
 ---
 Understanding: Continuing the preserved OOMPAH-702 webhook synchronization branch as CI Failure Fixer. I will inspect the exact test_tick_handler_order failure and branch diff, reproduce it with the project test target where available, apply only the minimal deterministic test repair, run focused neighboring tests, then commit, push, verify checks, and submit.
+---
+author: oompah
+created: 2026-08-02 23:20
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-08-02 23:20
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
