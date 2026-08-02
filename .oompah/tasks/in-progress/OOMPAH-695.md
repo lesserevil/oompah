@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:52.297786Z'
-updated_at: '2026-08-02T02:13:41.567072Z'
+updated_at: '2026-08-02T02:13:58.555526Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-695
 target_branch: null
 review_url: null
@@ -161,5 +161,20 @@ author: oompah
 created: 2026-08-02 02:13
 ---
 Focus: Callback Auth Validation Specialist
+---
+author: oompah
+created: 2026-08-02 02:13
+---
+**Understanding**: This task requires building deterministic WebSocket fault injection tests and health telemetry for dashboard synchronization. The specific scenario to cover is where completion snapshots are dropped, causing the browser to detect stale state and request full resync. Key deliverables: fault injection harness (drop/duplicate/delay/reorder), metrics (gaps, resyncs, failures), alerts for repeated failures, and comprehensive E2E tests. 
+
+**Planned approach**: 
+1. Explore WebSocket lifecycle and current test infrastructure
+2. Identify synchronization/metrics code in oompah/server.py 
+3. Build fault injection test harness with deterministic controls
+4. Add bounded counters for gaps/resyncs/failures
+5. Implement alerts for unrecovered failures
+6. Verify all tests pass including the critical observed failure scenario
+
+Starting with codebase exploration.
 ---
 <!-- COMMENTS:END -->
