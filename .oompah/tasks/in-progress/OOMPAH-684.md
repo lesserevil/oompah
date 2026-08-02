@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T21:44:29.390457Z'
-updated_at: '2026-08-02T02:04:05.100673Z'
+updated_at: '2026-08-02T02:04:37.391975Z'
 work_branch: OOMPAH-684
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/650
@@ -354,5 +354,10 @@ author: oompah
 created: 2026-08-02 02:04
 ---
 Implementation: Added 'source_generations': {} and 'invalidated': False to clear_api_state fixture in tests/test_dashboard_task_display_identifier.py (both setup and teardown). This ensures stale source_generations/invalidated state from previous tests cannot contaminate the snapshot state check in _issues_snapshot_payload, which caused source_stale=True and an empty board response. This is the exact fix from OOMPAH-683 that was already on origin/main but missing from this branch.
+---
+author: oompah
+created: 2026-08-02 02:04
+---
+Verification: Pushed fix to OOMPAH-684 branch (ce27cada4). CI checks are now running on PR #650. The fix: add 'source_generations': {} and 'invalidated': False to clear_api_state fixture's reset dict (both setup and teardown) in tests/test_dashboard_task_display_identifier.py. This prevents stale _issues_snapshot state from a previous test causing source_stale=True and an empty board response. Local tests: 6/6 pass in test_dashboard_task_display_identifier.py; 82/82 pass in test_retry_authority_generation.py and test_submit_queue_concurrency.py.
 ---
 <!-- COMMENTS:END -->
