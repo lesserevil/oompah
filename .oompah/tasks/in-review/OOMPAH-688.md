@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-688
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Make slow-tick telemetry tests deterministic under load
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T23:11:33.946132Z'
-updated_at: '2026-08-02T00:05:33.045270Z'
+updated_at: '2026-08-02T00:12:40.371448Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -439,5 +439,10 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Codex/
 - Cost: $0.0000
 - Exit: normal, Duration: 4m 37s
 - Log: OOMPAH-688__20260802T000053Z.jsonl
+---
+author: oompah
+created: 2026-08-02 00:12
+---
+Branch quality gate passed for `818653a948776b17728e111a03181e3a5beba3b2` using `make test` in 392.8s. Review creation may proceed.
 ---
 <!-- COMMENTS:END -->
