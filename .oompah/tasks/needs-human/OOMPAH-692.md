@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-692
 type: feature
-status: In Progress
+status: Needs Human
 priority: 1
 title: Version authoritative dashboard state in the WebSocket protocol
 parent: OOMPAH-691
@@ -12,7 +12,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-08-02T02:01:46.836436Z'
-updated_at: '2026-08-02T07:29:27.533537Z'
+updated_at: '2026-08-02T07:30:03.557688Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-692
 target_branch: null
 review_url: null
@@ -644,5 +644,10 @@ author: oompah
 created: 2026-08-02 07:29
 ---
 Focus: Technical Writer
+---
+author: oompah
+created: 2026-08-02 07:30
+---
+The parent epic OOMPAH-691 merged from epic-OOMPAH-691, but this task was In Progress with work branch epic-OOMPAH-691--task-OOMPAH-692. Its work is not proven to be in the merged epic. Inspect the task's agent history and remote branches, recover any missing commits through a new recovery epic or approved follow-up PR, then move this task to Done only after the recovered work is verified on the target branch.
 ---
 <!-- COMMENTS:END -->
