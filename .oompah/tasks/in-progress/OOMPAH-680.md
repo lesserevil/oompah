@@ -12,7 +12,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-08-01T17:31:44.735248Z'
-updated_at: '2026-08-02T18:38:04.628167Z'
+updated_at: '2026-08-02T18:38:56.635050Z'
 work_branch: OOMPAH-680
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/657
@@ -667,5 +667,10 @@ author: oompah
 created: 2026-08-02 18:38
 ---
 Focus: Merge Conflict Resolver
+---
+author: oompah
+created: 2026-08-02 18:38
+---
+Understanding: The branch has 3 OOMPAH-680 commits, but fd8f96145 and 6b26b9b3d were already merged in PR #643. Only d08a8da59 (Route all managed Git operations through forge credentials) remains to rebase onto origin/main. This commit touches 16 source files and adds tests/test_managed_git_credentials.py. Starting rebase onto origin/main now.
 ---
 <!-- COMMENTS:END -->
