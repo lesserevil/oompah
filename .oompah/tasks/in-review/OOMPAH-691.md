@@ -15,12 +15,16 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T02:00:17.265294Z'
-updated_at: '2026-08-02T07:01:25.259404Z'
-work_branch: null
-target_branch: null
-review_url: null
-review_number: null
+updated_at: '2026-08-02T07:01:32.172415Z'
+work_branch: epic-OOMPAH-691
+target_branch: main
+review_url: https://github.com/lesserevil/oompah/pull/654
+review_number: '654'
 merged_at: null
+oompah.review_url: https://github.com/lesserevil/oompah/pull/654
+oompah.review_number: '654'
+oompah.work_branch: epic-OOMPAH-691
+oompah.target_branch: main
 ---
 ## Summary
 
