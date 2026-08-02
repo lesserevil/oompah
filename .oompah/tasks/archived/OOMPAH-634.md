@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-634
 type: task
-status: Done
+status: Archived
 priority: 0
 title: Rebase epic-OOMPAH-460 onto main
 parent: OOMPAH-460
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-31T02:27:37.845123Z'
-updated_at: '2026-07-31T04:23:40.867512Z'
+updated_at: '2026-08-02T18:33:15.482420Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-634
 target_branch: null
 review_url: null
@@ -168,6 +168,24 @@ oompah.terminal_audit:
       ancestry. The audit blocker is contributor independence, not a code or verification
       failure.
     created_at: '2026-07-31T04:23:34.448763+00:00'
+  - version: 1
+    override_id: override-dd297ab9a51b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-634
+    target_state: Archived
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f1a5444dfe80260c5e9683709bb38e3a733d98a7bf4aa02b8dc3d4f1155ffb8a
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reconciliation: superseded rebase helper under Archived epic OOMPAH-460;
+      the required feature work was recovered separately and the old epic branch was
+      intentionally retired. OOMPAH-699 tracks automatic convergence.'
+    created_at: '2026-08-02T18:33:12.244684+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -406,5 +424,12 @@ author: oompah
 created: 2026-07-31 04:23
 ---
 Owner reconciliation: completed shared-branch rebase is preserved in OOMPAH-460.
+---
+author: oompah
+created: 2026-08-02 18:33
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Owner reconciliation: superseded rebase helper under Archived epic OOMPAH-460; the required feature work was recovered separately and the old epic branch was intentionally retired. OOMPAH-699 tracks automatic convergence.
 ---
 <!-- COMMENTS:END -->
