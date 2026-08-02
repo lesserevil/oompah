@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-483
 type: feature
-status: Done
+status: Merged
 priority: 1
 title: Detect and block terminal-state writes that bypass the coordinator
 parent: OOMPAH-459
@@ -19,7 +19,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:31.119782Z'
-updated_at: '2026-07-30T03:31:28.422294Z'
+updated_at: '2026-08-02T18:23:59.784459Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-483
 target_branch: null
 review_url: null
@@ -127,6 +127,25 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-6ce2bc425063: '2026-07-30T02:31:09.238453+00:00'
     attempt-571a73f432bd: '2026-07-30T03:31:09.572255+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-ff3ea4b3ffe2
+    project_id: proj-14849f1b
+    task_id: OOMPAH-483
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 585a45d90c1300b521cfd7a87abe4117325762e4a8eb2023aedf1cfde80af407
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reconciliation: parent OOMPAH-459 is Merged and its accepted rollup
+      contains this previously audited Done child; durable integration-queue/rollup
+      evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.'
+    created_at: '2026-08-02T18:23:56.610017+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -747,5 +766,12 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 9m 57s
 - Log: OOMPAH-483__20260730T032138Z.jsonl
+---
+author: oompah
+created: 2026-08-02 18:23
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner reconciliation: parent OOMPAH-459 is Merged and its accepted rollup contains this previously audited Done child; durable integration-queue/rollup evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.
 ---
 <!-- COMMENTS:END -->
