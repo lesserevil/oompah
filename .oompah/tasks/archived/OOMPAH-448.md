@@ -11,7 +11,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-07-26T04:20:53.082551Z'
-updated_at: '2026-08-02T05:06:47.582300Z'
+updated_at: '2026-08-02T05:06:50.499579Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -58,8 +58,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-f081d8d028e0
-    applied: false
+    applied: true
     created_at: '2026-08-02T05:06:44.363956+00:00'
+    applied_at: '2026-08-02T05:06:49.570727+00:00'
   version: 1
   pending_chain:
   - version: 1
