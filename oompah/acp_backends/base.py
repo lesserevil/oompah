@@ -129,6 +129,9 @@ class AcpBackendOptions:
     # Passed through to every backend so a backend that rebuilds its native
     # tool catalog cannot silently drop the auditor restriction.
     action_policy: Any = None
+    # Session-local callback used to bound repeated authority denials.  It is
+    # deliberately not part of the immutable policy itself.
+    policy_denial_handler: Callable[[str], None] | None = None
     # Short-lived capability for native subprocess backends (Codex CLI,
     # OpenCode). It is never included in the prompt or logs.
     task_handoff_token: str | None = None

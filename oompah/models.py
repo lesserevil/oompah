@@ -1454,6 +1454,18 @@ class RunningEntry:
     # scheduling another implementation retry.
     authority_revoked: bool = False
     authority_revocation_reason: str | None = None
+    # Exact PID/start-time identities observed while this run owned its
+    # workspace.  Third-party provider SDKs can let grandchildren outlive the
+    # immediate transport, so ownership evidence must survive until bounded
+    # process cleanup confirms every captured identity has exited.
+    managed_processes: dict[int, Any] = field(default_factory=dict, repr=False)
+    retirement_pending: bool = False
+    provider_started: bool = False
+    # Read-only auditors are allowed a small number of policy mistakes before
+    # the attempt is failed and rotated to another independent candidate.
+    policy_denial_count: int = 0
+    forced_exit_reason: str | None = None
+    forced_exit_error: str | None = None
 
 
 @dataclass

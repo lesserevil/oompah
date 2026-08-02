@@ -998,6 +998,7 @@ def build_tool_catalog(
     auditor: bool = False,
     audit_target: Any = None,
     audit_result_handler: Any = None,
+    policy_denial_handler: Any = None,
 ) -> list[Any]:
     """Build the SDK-flavored tool list for one ACP session.
 
@@ -1062,6 +1063,13 @@ def build_tool_catalog(
 
     workspace = Path(workspace_path)
     current_project_id = project_id
+
+    def _record_policy_denial(denial: str) -> None:
+        if callable(policy_denial_handler):
+            try:
+                policy_denial_handler(denial)
+            except Exception:  # noqa: BLE001 - denial must remain fail-closed
+                logger.exception("Policy-denial observer failed")
 
     def _wrap_text(content: str) -> dict[str, Any]:
         """Package a plain-string tool result in the MCP content shape
@@ -1130,6 +1138,7 @@ def build_tool_catalog(
         # Authority check for shell commands (git push, gh CLI, credentials, …)
         shell_denial = check_shell_command(action_policy, cmd)
         if shell_denial is not None:
+            _record_policy_denial(shell_denial)
             return _wrap_text(shell_denial)
         direct = await _exec_oompah_task_command_async(
             cmd,
@@ -1325,6 +1334,7 @@ def build_codex_tool_catalog(
     auditor: bool = False,
     audit_target: Any = None,
     audit_result_handler: Any = None,
+    policy_denial_handler: Any = None,
 ) -> list[Any]:
     """Build the OpenAI-Agents-SDK-flavored tool list for a Codex session.
 
@@ -1401,6 +1411,13 @@ def build_codex_tool_catalog(
     workspace = Path(workspace_path)
     current_project_id = project_id
 
+    def _record_policy_denial(denial: str) -> None:
+        if callable(policy_denial_handler):
+            try:
+                policy_denial_handler(denial)
+            except Exception:  # noqa: BLE001 - denial must remain fail-closed
+                logger.exception("Policy-denial observer failed")
+
     # Each @function_tool target is introspected by the SDK to build
     # a JSON Schema for the model — keep the signatures simple
     # (positional kwargs, scalar types) and the docstrings clear.
@@ -1451,6 +1468,7 @@ def build_codex_tool_catalog(
         # Authority check for shell commands (git push, gh CLI, credentials, …)
         shell_denial = check_shell_command(action_policy, command)
         if shell_denial is not None:
+            _record_policy_denial(shell_denial)
             return shell_denial
         direct = await _exec_oompah_task_command_async(
             command,
@@ -1620,6 +1638,7 @@ def build_opencode_tool_catalog(
     auditor: bool = False,
     audit_target: Any = None,
     audit_result_handler: Any = None,
+    policy_denial_handler: Any = None,
 ) -> list[Any]:
     """Build the OpenCode-SDK-flavored tool list for an OpenCode session.
 
@@ -1688,6 +1707,13 @@ def build_opencode_tool_catalog(
 
     workspace = Path(workspace_path)
 
+    def _record_policy_denial(denial: str) -> None:
+        if callable(policy_denial_handler):
+            try:
+                policy_denial_handler(denial)
+            except Exception:  # noqa: BLE001 - denial must remain fail-closed
+                logger.exception("Policy-denial observer failed")
+
     def _wrap_text(content: str) -> dict[str, Any]:
         """Package a plain-string tool result in the MCP content shape
         the SDK expects from @tool functions."""
@@ -1755,6 +1781,7 @@ def build_opencode_tool_catalog(
         # Authority check for shell commands (git push, gh CLI, credentials, …)
         shell_denial = check_shell_command(action_policy, cmd)
         if shell_denial is not None:
+            _record_policy_denial(shell_denial)
             return _wrap_text(shell_denial)
         direct = await _exec_oompah_task_command_async(
             cmd,
