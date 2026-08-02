@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T21:44:29.390457Z'
-updated_at: '2026-08-02T01:45:27.713426Z'
+updated_at: '2026-08-02T02:03:01.081622Z'
 work_branch: OOMPAH-684
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/650
@@ -344,5 +344,10 @@ author: oompah
 created: 2026-08-02 01:45
 ---
 Understanding: CI failures are in tests/test_installed_cli_smoke.py (8 tests: test_oompah_help_contains_usage, test_oompah_task_help_exits_zero, etc.). The branch quality gate blocked due to installed CLI smoke tests failing. Previous comments indicate these failures are a runtime/install isolation issue rather than a source code bug. I will look at the test file, run the failing tests locally, diagnose the root cause, and apply the minimal fix.
+---
+author: oompah
+created: 2026-08-02 02:03
+---
+Discovery: CI failure is in tests/test_dashboard_task_display_identifier.py::test_api_issues_includes_project_scoped_display_identifier (IndexError: list index out of range at resp.json()["Open"][0]). The clear_api_state autouse fixture is missing 'source_generations': {} and 'invalidated': False from its snapshot reset dict. A previous test can leave _issues_snapshot['source_generations'] = {'proj-X': 'unavailable'}, which causes _issues_snapshot_sources_match to return False → source_stale=True in _issues_snapshot_payload → returns None instead of the correct board. This fix was already applied to origin/main in OOMPAH-683. Fix: add the two missing fields to the clear_api_state fixture.
 ---
 <!-- COMMENTS:END -->
