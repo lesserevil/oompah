@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-425
 type: feature
-status: In Validation
+status: Archived
 priority: 1
 title: Auto-scale agent concurrency when configured as zero
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-23T20:45:34.887827Z'
-updated_at: '2026-08-02T01:39:10.563879Z'
+updated_at: '2026-08-02T01:47:37.727262Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -18,6 +18,30 @@ review_number: null
 merged_at: null
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-f903ac64a8a8: '2026-08-02T01:47:35.028483+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-425
+    target_state: Archived
+    evidence_fingerprint: bc78b0c30049e7a69db5da871fa1a272fa36cf432110ad8d3a046859c7babf46
+    audit_ids:
+    - audit-a916a08af396
+    kind: result
+    applied: true
+    retired_at: '2026-08-02T01:47:35.028493+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-425
+    audit_id: audit-a916a08af396
+    attempt_id: attempt-f903ac64a8a8
+    target_state: Archived
+    evidence_fingerprint: bc78b0c30049e7a69db5da871fa1a272fa36cf432110ad8d3a046859c7babf46
+    status: Archived
+    audit_ids:
+    - audit-a916a08af396
+    applied: false
+    created_at: '2026-08-02T01:47:35.028510+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -25,7 +49,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-425
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -34,7 +58,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-f903ac64a8a8
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -44,13 +68,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-02T01:38:59.839326+00:00'
       branch_key: OOMPAH-425
+      verdict: pass
+      completed_at: '2026-08-02T01:47:35.028309+00:00'
+      ended_at: '2026-08-02T01:47:35.028309+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-02T01:13:50.532180+00:00'
-    updated_at: '2026-08-02T01:38:59.839326+00:00'
+    updated_at: '2026-08-02T01:47:35.028309+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-f903ac64a8a8
@@ -112,5 +139,21 @@ author: oompah
 created: 2026-08-02 01:39
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-02 01:47
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- delivery_commit: ad8db8419 Auto-scale agent concurrency (2026-07-23)
+- merged_via: epic-OOMPAH-418 merge 10fac3f6e; reachable from HEAD 6252b5434
+- code_symbols_at_head: _available_memory_bytes @ orchestrator.py:310; _auto_concurrency_limit @ 9421; _refresh_effective_concurrency @ 9434; tick call @ 5041; snapshot concurrency block @ 30655-30658
+- env_documentation: .env.example line 92-93 documents zero-value auto mode
+- tests_added: tests/test_auto_concurrency.py — 4 deterministic tests
+- focused_test_run: python -m pytest tests/test_auto_concurrency.py -q => 4 passed in 2.69s
+- config_change: oompah/config.py: comment on ServiceConfig.max_concurrent_agents documents auto sizing at zero
 ---
 <!-- COMMENTS:END -->
