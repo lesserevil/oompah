@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-692
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Version authoritative dashboard state in the WebSocket protocol
 parent: OOMPAH-691
@@ -12,7 +12,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-08-02T02:01:46.836436Z'
-updated_at: '2026-08-02T02:53:49.543408Z'
+updated_at: '2026-08-02T02:54:15.182017Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-692
 target_branch: null
 review_url: null
@@ -46,12 +46,12 @@ oompah.agent_run_id: 0e560dd4-b918-4c85-b811-59af3e1eade7
 oompah.work_branch: epic-OOMPAH-691--task-OOMPAH-692
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-691--task-OOMPAH-692
-  base_branch: epic-OOMPAH-691
-  base_sha: 6252b5434f392b74de9703a9fc8dca1951dfeaca
-  updated_at: '2026-08-02T02:50:35.843818+00:00'
+  head_sha: ac3b02e6693269566975ea310e18a81f79139649
+  submitted_at: '2026-08-02T02:54:11.237223+00:00'
+  updated_at: '2026-08-02T02:54:11.237223+00:00'
 oompah.task_costs:
   total_input_tokens: 14733137
   total_output_tokens: 65354
@@ -431,5 +431,15 @@ author: oompah
 created: 2026-08-02 02:53
 ---
 Verification: the protocol JSON example parses successfully; git diff --check passes; focused WebSocket lifecycle and authenticated-bootstrap suites pass with the provisioned interpreter (63 passed in 1.10s). The initial .venv-local invocation was unavailable, and the default pytest plugin caused a cross-worktree import mismatch; rerunning with project addopts disabled used the correct worktree and passed.
+---
+author: oompah
+created: 2026-08-02 02:54
+---
+Completion: refined plans/websocket-state-versioning.md with a concrete protocol-v1 envelope example, payload-versus-observation revision semantics, client gap-handling guidance, bootstrap ordering, and restart/reconnect behavior. No code behavior changed. Commit ac3b02e66 is pushed; branch is clean and up to date with origin.
+---
+author: oompah
+created: 2026-08-02 02:54
+---
+Clarified WebSocket protocol v1 envelope, revision semantics, client gap handling, and restart/reconnect documentation; focused tests pass.
 ---
 <!-- COMMENTS:END -->
