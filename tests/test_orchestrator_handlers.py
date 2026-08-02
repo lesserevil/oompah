@@ -2505,7 +2505,9 @@ class TestMaintenanceLaneNonBlocking:
         orch = _make_orchestrator(tmp_path)
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
-        orch._handle_dispatch_needed = AsyncMock()
+        # Slow-tick telemetry formats this return value as a mapping.  Make
+        # that path valid even if host contention crosses its threshold.
+        orch._handle_dispatch_needed = AsyncMock(return_value={})
         orch._handle_yolo_review = AsyncMock(return_value=0.0)
         orch._run_step5c_epic_maintenance = MagicMock()
         orch._handle_auto_update = AsyncMock()
@@ -2513,6 +2515,9 @@ class TestMaintenanceLaneNonBlocking:
         orch._maybe_run_watchdog = MagicMock()
         orch._maybe_heal_repos = MagicMock()
         orch._maybe_cleanup_worktrees = MagicMock()
+        # The tick's release-addendum recovery performs unrelated tracker I/O.
+        # Stub it so this test only exercises the maintenance-future guard.
+        orch._recover_release_addendum_leases = MagicMock(return_value=0)
 
         async def _run_with_fake_future():
             # Pre-set a fake still-running future (never-completing)
