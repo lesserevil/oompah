@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-704
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Fence graceful-restart redispatch against terminal state changes
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T21:11:44.479316Z'
-updated_at: '2026-08-02T21:14:37.100676Z'
+updated_at: '2026-08-02T21:15:36.638676Z'
 work_branch: null
 target_branch: null
 review_url: null
