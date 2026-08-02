@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-690
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Restore reliable automatic dashboard updates
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T00:37:18.141681Z'
-updated_at: '2026-08-02T00:50:54.650545Z'
+updated_at: '2026-08-02T00:51:05.545909Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -85,6 +85,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-690
     source_sha: 7e0d0d8c766219d9ced2f2b502f6c5cf4becf4cd
     completed_at: '2026-08-02T00:40:43.882534+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-690
+  head_sha: cac4b5141dcbe43217f4a3848e6bd7ac226a8f42
+  submitted_at: '2026-08-02T00:51:01.811525+00:00'
+  updated_at: '2026-08-02T00:51:01.811525+00:00'
 ---
 ## Summary
 
@@ -180,5 +188,10 @@ author: oompah
 created: 2026-08-02 00:50
 ---
 Implemented reliable automatic dashboard refresh: issue snapshot broadcasts no longer get dropped by the state throttle, and dashboard WebSockets now use application heartbeats, stale-connection recovery, bounded singleton reconnects, reconnect backfill, and navigation cleanup/revival. Focused dashboard/WebSocket suite: 207 passed. Full project run: 14,857 passed with one unrelated parallel-only watchdog failure; that test passed twice in isolation. make check-secrets passed.
+---
+author: oompah
+created: 2026-08-02 00:51
+---
+Prevented state throttling from dropping board updates and added WebSocket heartbeat/reconnect/backfill recovery.
 ---
 <!-- COMMENTS:END -->
