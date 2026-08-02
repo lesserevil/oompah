@@ -525,7 +525,14 @@ def cherry_pick_delivery(
     # Step 5: Push the work branch to origin.
     # ------------------------------------------------------------------
     try:
-        push_branch(wt_path, work_branch)
+        project_token = getattr(project, "access_token", None)
+        project_forge = getattr(project, "forge_kind", "github")
+        push_branch(
+            wt_path,
+            work_branch,
+            access_token=project_token if isinstance(project_token, str) else None,
+            forge_kind=project_forge if isinstance(project_forge, str) else "github",
+        )
     except Exception as exc:  # noqa: BLE001
         error = f"Failed to push {work_branch!r}: {exc}"
         logger.warning(

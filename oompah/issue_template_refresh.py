@@ -533,27 +533,21 @@ def apply_template_updates(
 
     # --- git push ---
     if push:
-        if access_token:
-            with git_credential_environment(
-                forge_kind=forge_kind,
-                access_token=access_token,
-                base_env=env,
-            ) as credential_env:
-                push_r = subprocess.run(
-                    ["git", "push", "origin", branch],
-                    cwd=str(repo_path),
-                    capture_output=True,
-                    text=True,
-                    timeout=60,
-                    env=credential_env,
-                )
-                push_r.stdout = redact_git_output(push_r.stdout, (access_token,))
-                push_r.stderr = redact_git_output(push_r.stderr, (access_token,))
-        else:
-            push_r = _run(
+        with git_credential_environment(
+            forge_kind=forge_kind,
+            access_token=access_token,
+            base_env=env,
+        ) as credential_env:
+            push_r = subprocess.run(
                 ["git", "push", "origin", branch],
+                cwd=str(repo_path),
+                capture_output=True,
+                text=True,
                 timeout=60,
+                env=credential_env,
             )
+        push_r.stdout = redact_git_output(push_r.stdout, (access_token or "",))
+        push_r.stderr = redact_git_output(push_r.stderr, (access_token or "",))
 
         if push_r.returncode != 0:
             result.error = f"git push failed: {push_r.stderr.strip()[:300]}"

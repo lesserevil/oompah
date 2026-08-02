@@ -6701,6 +6701,8 @@ async def api_issue_templates_apply(project_id: str):
             git_user_name=getattr(project, "git_user_name", None),
             git_user_email=getattr(project, "git_user_email", None),
             branch=getattr(project, "default_branch", None) or "main",
+            access_token=getattr(project, "access_token", None),
+            forge_kind=getattr(project, "forge_kind", "github"),
         )
 
         if result.error:
@@ -6857,6 +6859,8 @@ async def api_project_bootstrap_apply(project_id: str):
             git_user_name=getattr(project, "git_user_name", None),
             git_user_email=getattr(project, "git_user_email", None),
             branch=getattr(project, "default_branch", None) or "main",
+            access_token=getattr(project, "access_token", None),
+            forge_kind=getattr(project, "forge_kind", "github"),
         )
         if result.error:
             if "Refused" in result.error and "uncommitted changes" in result.error:
@@ -7044,6 +7048,8 @@ def _get_commit_inventory_service(project):
                 project_id=str(project_id),
                 default_branch=project.default_branch,
                 delivery_store=store,
+                access_token=getattr(project, "access_token", None),
+                forge_kind=getattr(project, "forge_kind", "github"),
             )
             _commit_inventory_services[project_id] = svc
         return _commit_inventory_services[project_id]

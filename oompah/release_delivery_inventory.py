@@ -86,6 +86,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from oompah.git_credentials import git_credential_environment, redact_git_output
 from oompah.release_addendum_schema import AddendumStatus
 from oompah.release_delivery_store import ReleaseDelivery, ReleaseDeliveryStore
 
@@ -387,6 +388,8 @@ def _run_git(
     repo_path: str | Path,
     timeout: int = 30,
     check: bool = False,
+    access_token: str | None = None,
+    forge_kind: str = "github",
 ) -> subprocess.CompletedProcess:
     """Run a git command in *repo_path* and return the result.
 
@@ -406,14 +409,39 @@ def _run_git(
         subprocess.CalledProcessError: When *check* is ``True`` and exit != 0.
     """
     try:
-        return subprocess.run(
-            ["git"] + args,
-            cwd=str(repo_path),
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            check=check,
-        )
+        if args and args[0] in {"clone", "fetch", "ls-remote", "push"}:
+            with git_credential_environment(
+                forge_kind=forge_kind,
+                access_token=access_token,
+            ) as env:
+                result = subprocess.run(
+                    ["git"] + args,
+                    cwd=str(repo_path),
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout,
+                    check=False,
+                    env=env,
+                )
+        else:
+            result = subprocess.run(
+                ["git"] + args,
+                cwd=str(repo_path),
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                check=False,
+            )
+        result.stdout = redact_git_output(result.stdout, (access_token or "",))
+        result.stderr = redact_git_output(result.stderr, (access_token or "",))
+        if check and result.returncode != 0:
+            raise subprocess.CalledProcessError(
+                result.returncode,
+                ["git"] + args,
+                output=result.stdout,
+                stderr=result.stderr,
+            )
+        return result
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError(
             f"git {args[0]!r} timed out after {timeout}s in {repo_path}"
@@ -430,6 +458,8 @@ def _fetch_refs(
     default_branch: str,
     release_branches: list[str],
     timeout: int = 30,
+    access_token: str | None = None,
+    forge_kind: str = "github",
 ) -> bool:
     """Fetch the source and release refs from the remote.
 
@@ -451,6 +481,8 @@ def _fetch_refs(
         ["fetch", "origin"] + refs + ["--no-tags"],
         repo_path=repo_path,
         timeout=timeout,
+        access_token=access_token,
+        forge_kind=forge_kind,
     )
     if result.returncode != 0:
         logger.warning(
@@ -989,6 +1021,8 @@ def _acquire_snapshot(
     default_branch: str,
     release_branches: list[str],
     fetch_timeout: int = 30,
+    access_token: str | None = None,
+    forge_kind: str = "github",
 ) -> RefSnapshot:
     """Fetch remote refs and build an immutable :class:`RefSnapshot`.
 
@@ -1014,6 +1048,8 @@ def _acquire_snapshot(
         default_branch=default_branch,
         release_branches=release_branches,
         timeout=fetch_timeout,
+        access_token=access_token,
+        forge_kind=forge_kind,
     )
     if not fetch_ok:
         stale = True
@@ -1090,6 +1126,8 @@ class CommitInventoryService:
         revlist_timeout: int = 60,
         cache_ttl: float = CACHE_TTL_SECONDS,
         max_commits: int = MAX_COMMITS,
+        access_token: str | None = None,
+        forge_kind: str = "github",
     ) -> None:
         self._repo_path = Path(project_root)
         self._project_id = str(project_id).strip()
@@ -1104,6 +1142,8 @@ class CommitInventoryService:
         self._revlist_timeout = revlist_timeout
         self._cache_ttl = cache_ttl
         self._max_commits = max_commits
+        self._access_token = access_token if isinstance(access_token, str) else None
+        self._forge_kind = forge_kind if isinstance(forge_kind, str) else "github"
 
         # Cache: (project_id, frozenset(branch_names)) → _CacheEntry
         self._cache: dict[tuple[str, frozenset[str]], _CacheEntry] = {}
@@ -1448,6 +1488,8 @@ class CommitInventoryService:
                 default_branch=self._default_branch,
                 release_branches=visible_branches,
                 fetch_timeout=self._fetch_timeout,
+                access_token=self._access_token,
+                forge_kind=self._forge_kind,
             )
             source_ref = f"refs/remotes/origin/{self._default_branch}"
             commits = _enumerate_commits(

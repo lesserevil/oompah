@@ -53,6 +53,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
+from oompah.git_credentials import git_credential_environment, redact_git_output
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -182,7 +183,13 @@ def _reverse_natural_sort_key(name: str) -> tuple:
 # ---------------------------------------------------------------------------
 
 
-def _run_ls_remote(repo_path: str, timeout: int = 30) -> set[str]:
+def _run_ls_remote(
+    repo_path: str,
+    timeout: int = 30,
+    *,
+    access_token: str | None = None,
+    forge_kind: str = "github",
+) -> set[str]:
     """Run ``git ls-remote --heads origin`` and return the set of branch names.
 
     Args:
@@ -197,14 +204,19 @@ def _run_ls_remote(repo_path: str, timeout: int = 30) -> set[str]:
         RuntimeError: When the ``git ls-remote`` command fails or times out.
     """
     try:
-        result = subprocess.run(
-            ["git", "ls-remote", "--heads", "origin"],
-            cwd=repo_path,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            check=False,
-        )
+        with git_credential_environment(
+            forge_kind=forge_kind,
+            access_token=access_token,
+        ) as env:
+            result = subprocess.run(
+                ["git", "ls-remote", "--heads", "origin"],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                check=False,
+                env=env,
+            )
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError(
             f"git ls-remote --heads origin timed out after {timeout}s in {repo_path}"
@@ -215,7 +227,10 @@ def _run_ls_remote(repo_path: str, timeout: int = 30) -> set[str]:
         ) from exc
 
     if result.returncode != 0:
-        stderr = (result.stderr or result.stdout or "").strip()
+        stderr = redact_git_output(
+            (result.stderr or result.stdout or "").strip(),
+            (access_token or "",),
+        )
         raise RuntimeError(
             f"git ls-remote --heads origin failed (rc={result.returncode}) "
             f"in {repo_path}: {stderr}"
@@ -418,8 +433,17 @@ class ReleaseBranchCatalog:
         if not cache_valid:
             if repo_path:
                 try:
+                    token = getattr(project, "access_token", None)
+                    forge_kind = getattr(project, "forge_kind", "github")
+                    if not isinstance(token, str):
+                        token = None
+                    if not isinstance(forge_kind, str):
+                        forge_kind = "github"
+                    kwargs: dict[str, Any] = {}
+                    if token or forge_kind != "github":
+                        kwargs = {"access_token": token, "forge_kind": forge_kind}
                     remote_branches = _run_ls_remote(
-                        repo_path, timeout=self._ls_remote_timeout
+                        repo_path, timeout=self._ls_remote_timeout, **kwargs
                     )
                     # Cache the successful result
                     self._cache[project_id] = _CacheEntry(

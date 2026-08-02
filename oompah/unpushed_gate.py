@@ -167,7 +167,7 @@ def _check_unpushed(
             timeout=_GIT_TIMEOUT_S,
         )
     except (subprocess.TimeoutExpired, OSError, FileNotFoundError) as exc:
-        error = f"git rev-list --count failed: {exc}"
+        error = f"git rev-list --count failed: {type(exc).__name__}"
         return has_uncommitted, 0, [], error
 
     if result.returncode != 0:

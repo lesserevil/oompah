@@ -540,6 +540,19 @@ def _exec_oompah_task_command(
             f"but this ACP session is scoped to {project_id!r}"
         )
 
+    managed_project = None
+    if project_store is not None and project_id:
+        try:
+            managed_project = project_store.get(project_id)
+        except Exception:  # noqa: BLE001 - task routing remains usable
+            managed_project = None
+    project_access_token = getattr(managed_project, "access_token", None)
+    if not isinstance(project_access_token, str):
+        project_access_token = None
+    project_forge_kind = getattr(managed_project, "forge_kind", "github")
+    if not isinstance(project_forge_kind, str):
+        project_forge_kind = "github"
+
     # The tracker object is project-scoped, but that alone is not sufficient:
     # a compromised task prompt must not turn the worker into a project-wide
     # task service account.  Worker sessions receive an exact task grant.
@@ -687,7 +700,11 @@ def _exec_oompah_task_command(
                     "Error: task submission requires the assigned git "
                     "workspace"
                 )
-            evidence = _git_submission_evidence(cwd=workspace_path)
+            evidence = _git_submission_evidence(
+                cwd=workspace_path,
+                access_token=project_access_token,
+                forge_kind=project_forge_kind,
+            )
             issue = task_tracker.fetch_issue_detail(args.identifier)
             if issue is None:
                 return f"Error: Issue {args.identifier!r} not found"

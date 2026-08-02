@@ -56,6 +56,7 @@ Design invariants
 from __future__ import annotations
 
 import logging
+import os
 import subprocess
 import threading
 import time
@@ -64,6 +65,7 @@ from concurrent.futures import TimeoutError as FutureTimeoutError
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from oompah.git_credentials import git_credential_environment, redact_git_output
 from oompah.repo_indexer import index_repository
 from oompah.repo_map import (
     REPO_MAP_MAX_RETAINED,
@@ -190,12 +192,16 @@ class RepoMapGenerator:
         max_retained: int = REPO_MAP_MAX_RETAINED,
         max_workers: int = DEFAULT_MAX_WORKERS,
         generator_version: str = "1.0.0",
+        access_token: str | None = None,
+        forge_kind: str = "github",
     ) -> None:
         self._state_dir = Path(state_branch_dir)
         self._repo_identity = repo_identity
         self._timeout_s = float(timeout_s)
         self._max_retained = int(max_retained)
         self._generator_version = generator_version
+        self._access_token = access_token if isinstance(access_token, str) else None
+        self._forge_kind = forge_kind if isinstance(forge_kind, str) else "github"
 
         # Coalescing map: commit_sha (normalised) → in-flight Future[RepoMap]
         self._in_flight: dict[str, Future[RepoMap]] = {}
@@ -509,13 +515,21 @@ class RepoMapGenerator:
             When ``True`` (default), raise :class:`RuntimeError` on non-zero
             exit codes.
         """
-        result = subprocess.run(
-            ["git", *args],
-            cwd=str(self._state_dir),
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        with git_credential_environment(
+            forge_kind=self._forge_kind,
+            access_token=self._access_token,
+            base_env=os.environ,
+        ) as env:
+            result = subprocess.run(
+                ["git", *args],
+                cwd=str(self._state_dir),
+                capture_output=True,
+                text=True,
+                check=False,
+                env=env,
+            )
+        result.stdout = redact_git_output(result.stdout, (self._access_token or "",))
+        result.stderr = redact_git_output(result.stderr, (self._access_token or "",))
         if check and result.returncode != 0:
             raise RuntimeError(
                 f"git {' '.join(args)!r} failed (exit {result.returncode}):\n"
