@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T21:46:41.297124Z'
-updated_at: '2026-08-02T03:09:35.613569Z'
+updated_at: '2026-08-02T03:10:54.164594Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -497,5 +497,10 @@ author: oompah
 created: 2026-08-02 03:09
 ---
 Understanding: I am handling the reported branch-gate CI failure only. I will update the existing OOMPAH-685 branch, inspect the original GitHub Actions failure, reproduce the affected test locally, apply the minimal deterministic repair with coverage, then commit, push, and submit the task.
+---
+author: oompah
+created: 2026-08-02 03:10
+---
+Discovery: the recorded internal gate failure is a CI-only orchestrator flake. This branch predates merged OOMPAH-688, which makes tick telemetry deterministic and isolates unrelated maintenance I/O. The focused handler-order test passes locally; I will rebase OOMPAH-685 onto current main so it inherits the already-reviewed CI repair, preserving this task's credential changes.
 ---
 <!-- COMMENTS:END -->
