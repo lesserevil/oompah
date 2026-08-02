@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:46.836436Z'
-updated_at: '2026-08-02T02:06:16.733135Z'
+updated_at: '2026-08-02T02:06:34.427683Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-692
 target_branch: null
 review_url: null
@@ -140,5 +140,19 @@ author: oompah
 created: 2026-08-02 02:06
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-08-02 02:06
+---
+**Understanding:** This task requires implementing server-side WebSocket protocol versioning to track authoritative dashboard state freshness. The scope includes:
+1. Protocol envelope with version, epoch (service_instance_id), per-connection delivery sequence, state revision, issue revision
+2. Advancing revisions whenever state/issue snapshots change
+3. Concurrency-safe counters across observer threads and API loop
+4. Trailing-edge coalescing instead of leading-edge dropping
+5. Updated tests for monotonic revisions, contiguous sequences, epoch reset, concurrent callbacks
+
+This appears to be primarily backend (server.py, orchestrator.py) and protocol work. As a Frontend Developer, I need to assess if there's a UI component or if this should be handed to a backend specialist.
+
+Starting codebase exploration now.
 ---
 <!-- COMMENTS:END -->
