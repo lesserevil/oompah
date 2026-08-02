@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-702
 type: bug
-status: Ready to Integrate
+status: In Progress
 priority: 1
 title: Synchronize merged-webhook tests with background terminal staging
 parent: null
@@ -10,9 +10,10 @@ blocked_by: []
 start_blocked_by: []
 labels:
 - ci-fix
+- human-only
 assignee: null
 created_at: '2026-08-02T20:34:49.621752Z'
-updated_at: '2026-08-02T23:33:06.170433Z'
+updated_at: '2026-08-02T23:39:24.265176Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -370,5 +371,10 @@ Run #YOLO-reopen [attempt=YOLO-reopen, profile=deep, role=deep -> Claude/opus]
 - Cost: $0.0000
 - Exit: normal, Duration: 12m 40s
 - Log: OOMPAH-702__20260802T232024Z.jsonl
+---
+author: oompah
+created: 2026-08-02 23:39
+---
+Direct owner correction: CI-fixer commit d1097b3ba duplicated OOMPAH-709 despite the explicit operator scope fence. I am removing that cross-task test change with a forward commit, preserving the webhook-only branch, then will resubmit the exact corrected head.
 ---
 <!-- COMMENTS:END -->
