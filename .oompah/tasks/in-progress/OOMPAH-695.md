@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:52.297786Z'
-updated_at: '2026-08-02T02:15:21.356586Z'
+updated_at: '2026-08-02T02:20:40.079661Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-695
 target_branch: null
 review_url: null
@@ -205,5 +205,38 @@ created: 2026-08-02 02:15
 4. **Blocking task dependencies**: Tasks OOMPAH-692/693/694 are not yet created but don't block this work.
 
 Next: Building the fault injection test harness and metrics infrastructure.
+---
+author: oompah
+created: 2026-08-02 02:20
+---
+**Implementation**: Added synchronization metrics and alert infrastructure to oompah/server.py:
+
+1. **Metrics globals** (_ws_sync_metrics):
+   - gaps_detected: count of out-of-order situations
+   - full_sync_requests: count of resync requests
+   - successful_reconciliations: count of successful syncs
+   - failed_reconciliations: count of failed syncs
+   - last_reconciliation_ts, last_failure_ts for tracking
+   - consecutive_failures for alert threshold
+
+2. **Alert system**:
+   - Triggered when consecutive_failures >= 3 (configurable)
+   - Deduplication window: 5 minutes (don't re-alert within window)
+   - Alert includes actionable remediation text
+
+3. **Integration**:
+   - Metrics exposed in enriched state payload via _enrich_state_snapshot()
+   - Alert included in state when active
+   - Full sync requests (browser 'refresh' action) record metrics
+   - Helper functions: _ws_sync_record_gap/success/failure/full_sync_request()
+
+4. **Test harness** (tests/test_ws_fault_injection.py):
+   - 24 passing tests covering all fault injection scenarios
+   - Fault injection controller for deterministic testing
+   - Tests for dropped, duplicated, delayed, reordered messages
+   - Observed failure scenario validation
+   - Concurrent changes resilience
+
+Next: Run full test suite to ensure integration stability.
 ---
 <!-- COMMENTS:END -->
