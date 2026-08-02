@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-708
 type: task
-status: In Progress
+status: Open
 priority: null
 title: Repair duplicate-screening owner-resolution project lookup
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T22:20:11.202634Z'
-updated_at: '2026-08-02T22:20:40.620567Z'
+updated_at: '2026-08-02T22:20:57.774276Z'
 work_branch: null
 target_branch: null
 review_url: null
