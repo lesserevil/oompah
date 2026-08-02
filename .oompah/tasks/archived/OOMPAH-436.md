@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-24T02:29:45.093119Z'
-updated_at: '2026-08-02T01:24:32.960552Z'
+updated_at: '2026-08-02T01:25:35.540125Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -93,6 +93,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-02T01:16:20.130966+00:00'
     branch_key: OOMPAH-436
+oompah.task_costs:
+  total_input_tokens: 29
+  total_output_tokens: 5099
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 29
+      output_tokens: 5099
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 29
+    output_tokens: 5099
+    cost_usd: 0.0
+    recorded_at: '2026-08-02T01:25:31.029313+00:00'
 ---
 ## Summary
 
@@ -157,5 +173,15 @@ Safe evidence:
 - tests_present: test_mcp_defaults_to_loopback_host_protection; test_mcp_can_be_explicitly_enabled_for_network_hosts; test_network_enabled_mcp_transport_still_challenges_missing_basic_auth
 - docs_updated: plans/mcp-openapi-exposure-policy.md section 3 documents OOMPAH_MCP_ALLOW_NETWORK and its trust boundary
 - previous_state: Merged (aged 7 days per scheduler evidence)
+---
+author: oompah
+created: 2026-08-02 01:25
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 31, Tool calls: 23
+- Tokens: 29 in / 5.1K out [5.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 9m 5s
+- Log: OOMPAH-436__20260802T011630Z.jsonl
 ---
 <!-- COMMENTS:END -->
