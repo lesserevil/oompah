@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T22:19:11.796639Z'
-updated_at: '2026-08-02T22:39:41.120949Z'
+updated_at: '2026-08-02T22:40:40.877050Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -112,5 +112,24 @@ author: oompah
 created: 2026-08-02 22:39
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-08-02 22:40
+---
+**Understanding**: This task requires implementing an owner-claim mechanism to prevent the orphan watchdog from resetting intentional direct-owner work back to Open. The issue was triggered by OOMPAH-701 where a project owner placed a task In Progress but the watchdog reset it because there was no scheduler agent attached.
+
+The implementation needs:
+1. A durable owner-claim/lease representation (probably in OrchestratorState)
+2. Logic to preserve In Progress status when a direct owner claim exists
+3. Bounded expiry/release so claims don't strand work indefinitely
+4. API/UI exposure of the ownership source and staleness evidence
+5. Race condition tests to ensure watchdog and owner claims don't conflict
+
+Key code locations identified:
+- oompah/orchestrator.py::_reset_orphaned_in_progress (line 15228): main reset logic
+- oompah/models.py::OrchestratorState (line 1460): state tracking
+- Current check is: if no running_ids, no retry_ids, and no claimed_ids → reset
+
+**Role note**: As Frontend Developer, I'll focus on UI/API exposure and then likely hand off to backend agent for core implementation. First, let me explore the full scope and what needs to surface in the UI.
 ---
 <!-- COMMENTS:END -->
