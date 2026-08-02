@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T20:34:49.621752Z'
-updated_at: '2026-08-02T22:11:16.712915Z'
+updated_at: '2026-08-02T22:18:05.672624Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -144,5 +144,10 @@ author: oompah
 created: 2026-08-02 22:11
 ---
 Focus: Test Engineer
+---
+author: oompah
+created: 2026-08-02 22:18
+---
+Verification: 132/132 tests in test_server_webhooks.py pass on Python 3.11, 3.12, and 3.13. 50/50 repeated runs of test_pr_merged_stages_task_merged pass deterministically (Python 3.11 and 3.12). The delayed-transition regression proves HTTP acknowledgement precedes terminal staging while the join barrier synchronizes assertions. The background-exception regression proves worker failures propagate through the barrier and cannot false-pass. Neighboring webhook suites (tests/test_webhooks.py, test_gitlab_webhook_url.py, test_orchestrator_webhook_health.py) all pass together (379 tests).
 ---
 <!-- COMMENTS:END -->
