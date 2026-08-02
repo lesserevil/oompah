@@ -12,10 +12,10 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T19:52:39.323644Z'
-updated_at: '2026-08-02T20:33:52.784173Z'
+updated_at: '2026-08-02T20:49:35.004635Z'
 work_branch: null
 target_branch: null
-review_url: null
+review_url: https://github.com/lesserevil/oompah/pull/661
 review_number: null
 review_head: null
 merged_at: null
@@ -92,6 +92,7 @@ oompah.integration:
   head_sha: 819f8516723772742fddfab4eba6c8d5666c1b7b
   submitted_at: '2026-08-02T20:33:46.825465+00:00'
   updated_at: '2026-08-02T20:33:46.825465+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/661
 ---
 ## Summary
 
@@ -216,5 +217,10 @@ author: oompah
 created: 2026-08-02 20:33
 ---
 Exact submitted heads now gate without requiring a surviving canonical worktree.
+---
+author: oompah
+created: 2026-08-02 20:49
+---
+Branch quality gate passed for `819f8516723772742fddfab4eba6c8d5666c1b7b` using `make test` in 398.5s. Review creation may proceed.
 ---
 <!-- COMMENTS:END -->
