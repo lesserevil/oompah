@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T23:00:54.291962Z'
-updated_at: '2026-08-02T02:37:14.538225Z'
+updated_at: '2026-08-02T02:38:06.461640Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -424,5 +424,10 @@ author: oompah
 created: 2026-08-02 02:37
 ---
 Discovery: GitHub has no PR/Actions run for OOMPAH-687; the oompah gate transcript is the CI evidence. The three remaining failures are sandbox-command unit tests running inside the outer gate's candidate-projected venv. Their direct_url metadata deliberately retains the service absolute source root, so the new trusted-runtime validator raises before the tests reach their bind assertions. Outer gate preflight already validates the runtime before candidate code starts; these command-construction tests must mock that independent validation boundary.
+---
+author: oompah
+created: 2026-08-02 02:38
+---
+Implementation: Updated only the three sandbox-command bind-layout tests to stub _validate_trusted_runtime_source. Those tests now exercise mount construction independently; poisoned editable-mapping tests continue to exercise the validator and infrastructure_error classification. Verification: OOMPAH_PYTEST_GATE=1 python -m pytest -q tests/test_quality_gate.py (54 passed); tests/test_makefile_setup.py (14 passed); tests/test_installed_cli_smoke.py (13 passed, 5 skipped). make test-setup remains blocked before project setup by the host snap uv DBus transient-scope error, and the full make test gate is reserved for the orchestrator.
 ---
 <!-- COMMENTS:END -->
