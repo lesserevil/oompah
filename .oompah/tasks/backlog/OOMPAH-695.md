@@ -6,12 +6,16 @@ priority: 1
 title: Prove dashboard convergence with fault injection and health telemetry
 parent: OOMPAH-691
 children: []
-blocked_by: []
+blocked_by:
+- OOMPAH-692
+- OOMPAH-693
+- OOMPAH-694
 start_blocked_by: []
-labels: []
+labels:
+- needs:testing
 assignee: null
 created_at: '2026-08-02T02:01:52.297786Z'
-updated_at: '2026-08-02T02:01:52.297786Z'
+updated_at: '2026-08-02T02:02:40.929394Z'
 work_branch: null
 target_branch: null
 review_url: null

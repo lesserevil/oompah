@@ -7,16 +7,19 @@ title: Provide a coherent full dashboard resynchronization response
 parent: OOMPAH-691
 children: []
 blocked_by: []
-start_blocked_by: []
-labels: []
+start_blocked_by: &id001
+- OOMPAH-692
+labels:
+- needs:backend
 assignee: null
 created_at: '2026-08-02T02:01:48.499285Z'
-updated_at: '2026-08-02T02:01:48.499285Z'
+updated_at: '2026-08-02T02:02:34.770378Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.start_blocked_by: *id001
 ---
 ## Summary
 
