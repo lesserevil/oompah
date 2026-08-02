@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-694
 type: feature
-status: In Validation
+status: Merged
 priority: 1
 title: Detect WebSocket gaps and self-heal the dashboard state
 parent: OOMPAH-691
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:50.443759Z'
-updated_at: '2026-08-02T16:19:33.900978Z'
+updated_at: '2026-08-02T16:22:01.250280Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-694
 target_branch: null
 review_url: null
@@ -116,6 +116,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-eb9af8ac86f4: '2026-08-02T05:10:59.062927+00:00'
+    attempt-89c61056c326: '2026-08-02T16:21:57.979110+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-694
@@ -126,6 +127,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-02T05:10:59.062939+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-694
+    target_state: Merged
+    evidence_fingerprint: b0a0f76cbb1b0cb70a3edebe01dfec32476b12e5fb3a825c34727db372c208f9
+    audit_ids:
+    - audit-f686d73b61b1
+    kind: result
+    applied: true
+    retired_at: '2026-08-02T16:21:57.979128+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-694
@@ -139,6 +149,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-02T05:10:59.062956+00:00'
     applied_at: '2026-08-02T05:11:03.699540+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-694
+    audit_id: audit-f686d73b61b1
+    attempt_id: attempt-89c61056c326
+    target_state: Merged
+    evidence_fingerprint: b0a0f76cbb1b0cb70a3edebe01dfec32476b12e5fb3a825c34727db372c208f9
+    status: Merged
+    audit_ids:
+    - audit-f686d73b61b1
+    applied: false
+    created_at: '2026-08-02T16:21:57.979147+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -180,7 +201,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-694
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -189,7 +210,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-89c61056c326
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -199,13 +220,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-02T16:19:27.569808+00:00'
       branch_key: epic-OOMPAH-691--task-OOMPAH-694
+      verdict: pass
+      completed_at: '2026-08-02T16:21:57.978894+00:00'
+      ended_at: '2026-08-02T16:21:57.978894+00:00'
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
       source: oompah
     previous_state: Done
     created_at: '2026-08-02T07:26:38.159221+00:00'
-    updated_at: '2026-08-02T16:19:27.569808+00:00'
+    updated_at: '2026-08-02T16:21:57.978894+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-eb9af8ac86f4
@@ -607,5 +631,21 @@ author: oompah
 created: 2026-08-02 16:19
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-02 16:22
+---
+Audit PASS — Merged
+
+Recorded head 5d9186d6d is a verified ancestor of origin/main b7fdf2b3f (Merge PR #654 from epic-OOMPAH-691). All three OOMPAH-694 commits (e84581658 self-heal WS state, a8fc3fff5 clear stale banner, 5d9186d6d stabilize Granian handshake) are reachable from origin/main. Task was previously audited PASS to Done; the merged epic includes this work.
+
+Safe evidence:
+- local_head: 5d9186d6d63e368e4f97934354f4d28e5ea2a93f
+- origin_main_head: b7fdf2b3f6dfa00f39659abafb176f3d67579dce
+- merge_commit_subject: Merge pull request #654 from lesserevil/epic-OOMPAH-691
+- task_commits_reachable_from_main: e84581658, a8fc3fff5, 5d9186d6d
+- ancestor_check: commits reachable from origin/main but not from 5d9186d include the OOMPAH-691 merge commit and sibling epic-child work, confirming 5d9186d is an ancestor of origin/main
+- prior_audit: PASS to Done recorded 2026-08-02 05:11
+- operator_verification: operator confirmed ancestry at 2026-08-02 16:19 and staged for Merged
 ---
 <!-- COMMENTS:END -->
