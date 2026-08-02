@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-691
 type: epic
-status: In Progress
+status: Ready to Integrate
 priority: 0
 title: Make dashboard WebSocket state provably convergent
 parent: null
@@ -16,7 +16,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T02:00:17.265294Z'
-updated_at: '2026-08-02T07:18:20.731252Z'
+updated_at: '2026-08-02T07:18:30.456765Z'
 work_branch: epic-OOMPAH-691
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/654
@@ -27,6 +27,14 @@ oompah.review_number: '654'
 oompah.work_branch: epic-OOMPAH-691
 oompah.target_branch: main
 oompah.agent_run_id: 48308078-3dd3-40cc-b41b-72ca94d9324d
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: epic-OOMPAH-691
+  head_sha: dd300faf519ca68652e60f9ed2a6465d9ceb0b9a
+  submitted_at: '2026-08-02T07:18:27.177075+00:00'
+  updated_at: '2026-08-02T07:18:27.177075+00:00'
 ---
 ## Summary
 
@@ -98,5 +106,10 @@ author: oompah
 created: 2026-08-02 07:18
 ---
 Completion: CI fix pushed as dd300faf5 to epic-OOMPAH-691. Minimal edit to tests/test_ws_lifecycle.py bounds the post-refresh receive loop and adds an early break on 'state'; no feature code touched. Focused WS/dashboard-convergence tests pass locally. CI (test 3.11/3.12/3.13) re-queued on PR #654. Ready for the orchestrator's full-branch gate.
+---
+author: oompah
+created: 2026-08-02 07:18
+---
+Fixed CI failure on tests/test_ws_lifecycle.py::TestWebSocketRefreshAction::test_refresh_action_sends_state_back by bounding the post-refresh receive_json loop to two messages with an early break on state (assertion unchanged). The prior range(3) had no per-call receive timeout and hung past 5s under CI load when broadcast_issues() coalesced/suppressed the issues emission. Focused WS/dashboard-convergence suites pass locally (133 tests).
 ---
 <!-- COMMENTS:END -->
