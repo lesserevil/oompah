@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-684
 type: task
-status: Needs CI Fix
+status: Open
 priority: 0
 title: Prevent stale retry dispatch after operator task resubmission
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T21:44:29.390457Z'
-updated_at: '2026-08-02T01:26:55.979624Z'
+updated_at: '2026-08-02T01:28:16.460579Z'
 work_branch: OOMPAH-684
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/650
@@ -317,5 +317,17 @@ author: oompah
 created: 2026-08-02 01:26
 ---
 YOLO: CI tests failed on MR #650. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
+---
+author: oompah
+created: 2026-08-02 01:28
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #3)
+
+**State audited:** `Needs CI Fix`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** Recent comment indicates CI is now passing or PR has been merged; safe to reopen for dispatch.
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
 ---
 <!-- COMMENTS:END -->
