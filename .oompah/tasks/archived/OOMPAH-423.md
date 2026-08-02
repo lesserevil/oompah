@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-23T20:25:33.664332Z'
-updated_at: '2026-08-02T01:32:12.030569Z'
+updated_at: '2026-08-02T01:32:38.834071Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -93,6 +93,22 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-02T01:26:07.177474+00:00'
     branch_key: OOMPAH-423
+oompah.task_costs:
+  total_input_tokens: 30
+  total_output_tokens: 739
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 30
+      output_tokens: 739
+      cost_usd: 0.0
+  runs:
+  - profile: auditor
+    model: unknown
+    input_tokens: 30
+    output_tokens: 739
+    cost_usd: 0.0
+    recorded_at: '2026-08-02T01:32:36.889729+00:00'
 ---
 ## Summary
 
@@ -158,5 +174,15 @@ Safe evidence:
 - actionable_alert_test: tests/test_epic_rebase_state.py::TestEpicStaleAlert::test_failed_rebase_state_explains_failed_run
 - informational_state_preserved: EpicRebaseState.STALE still surfaced in oompah/orchestrator.py (line 12335, 12356, 13848, 30792)
 - aged_merge_policy: 7-day aged-Merged auto-archive; commit is ~10 days old
+---
+author: oompah
+created: 2026-08-02 01:32
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 15
+- Tokens: 30 in / 739 out [769 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 6m 24s
+- Log: OOMPAH-423__20260802T012621Z.jsonl
 ---
 <!-- COMMENTS:END -->
