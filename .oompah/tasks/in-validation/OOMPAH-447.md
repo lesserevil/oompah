@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-447
 type: bug
-status: Merged
+status: In Validation
 priority: 1
 title: Do not reopen merged epic siblings for a later shared-branch PR
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-26T04:02:02.297716Z'
-updated_at: '2026-07-26T04:30:59.314024Z'
+updated_at: '2026-08-02T04:59:03.712602Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,6 +40,28 @@ oompah.task_costs:
     output_tokens: 1646
     cost_usd: 0.0
     recorded_at: '2026-07-26T04:12:41.459476+00:00'
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-478cac5f42d0
+    project_id: proj-14849f1b
+    task_id: OOMPAH-447
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 2629899155cc5d9709c733a0d873053587f87ed620f2d1c5de699defba6fad3a
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-02T04:58:59.988147+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -166,5 +188,10 @@ author: oompah
 created: 2026-07-26 04:27
 ---
 PR #555 CI exposed a pre-existing clean-runner identity defect in an epic-rollup fixture. Fixed on the same branch in ed815c908; full make test passes (12,329 passed, 7 skipped). Replacement CI is running.
+---
+author: oompah
+created: 2026-08-02 04:59
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
