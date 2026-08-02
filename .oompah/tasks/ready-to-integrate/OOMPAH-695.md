@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:52.297786Z'
-updated_at: '2026-08-02T02:23:09.036603Z'
+updated_at: '2026-08-02T02:24:06.509524Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-695
 target_branch: null
 review_url: null
@@ -69,17 +69,23 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: epic-OOMPAH-691--task-OOMPAH-695
+  base_branch: main
+  base_sha: 917633fd9a199f5a456d6b091a72e1a1ad3633b5
   head_sha: f77bb3eff6041608ee98d52396e10c2d0d46a389
   submitted_at: '2026-08-02T02:23:05.669901+00:00'
-  updated_at: '2026-08-02T02:23:05.669901+00:00'
+  updated_at: '2026-08-02T02:24:05.118185+00:00'
 oompah.task_costs:
-  total_input_tokens: 20
-  total_output_tokens: 5025
+  total_input_tokens: 30
+  total_output_tokens: 5513
   total_cost_usd: 0.0
   by_model:
     sonnet:
       input_tokens: 20
       output_tokens: 5025
+      cost_usd: 0.0
+    haiku:
+      input_tokens: 10
+      output_tokens: 488
       cost_usd: 0.0
   runs:
   - profile: standard
@@ -88,6 +94,12 @@ oompah.task_costs:
     output_tokens: 5025
     cost_usd: 0.0
     recorded_at: '2026-08-02T02:13:13.469505+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 10
+    output_tokens: 488
+    cost_usd: 0.0
+    recorded_at: '2026-08-02T02:23:57.066705+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-695__20260802T021051Z
@@ -98,6 +110,14 @@ oompah.work_contributors:
     source_branch: epic-OOMPAH-691--task-OOMPAH-695
     source_sha: 6252b5434f392b74de9703a9fc8dca1951dfeaca
     completed_at: '2026-08-02T02:13:13.474528+00:00'
+  - run_id: OOMPAH-695__20260802T021342Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: callback_auth
+    source_branch: epic-OOMPAH-691--task-OOMPAH-695
+    source_sha: f77bb3eff6041608ee98d52396e10c2d0d46a389
+    completed_at: '2026-08-02T02:23:57.073911+00:00'
 ---
 ## Summary
 
@@ -305,5 +325,20 @@ author: oompah
 created: 2026-08-02 02:23
 ---
 Implemented WebSocket synchronization metrics, fault injection tests, and alerts for dashboard convergence validation. 27 tests demonstrate resilience to dropped, duplicated, delayed, and reordered messages. Metrics safely exposed without false alerts on normal recovered gaps. Alerts triggered only for repeated unrecovered failures with deduplication.
+---
+author: oompah
+created: 2026-08-02 02:23
+---
+Agent completed successfully in 622s (498 tokens)
+---
+author: oompah
+created: 2026-08-02 02:24
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 138, Tool calls: 66
+- Tokens: 10 in / 488 out [498 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 10m 22s
+- Log: OOMPAH-695__20260802T021342Z.jsonl
 ---
 <!-- COMMENTS:END -->

@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T23:00:54.291962Z'
-updated_at: '2026-08-02T02:22:57.964979Z'
+updated_at: '2026-08-02T02:24:11.910278Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -280,5 +280,15 @@ author: oompah
 created: 2026-08-02 02:22
 ---
 Discovery: There is no GitHub Actions run/PR for this branch; reproducing under OOMPAH_PYTEST_GATE=1 matches the two Makefile failures. Their subprocess environments inherit the outer gate flag, so Make intentionally selects its gate-mode no-op setup and the non-gate assertions see exit 0. The fix is to remove that inherited flag in these explicitly non-gate test fixtures; sandbox assertions themselves currently pass with the repaired trusted runtime.
+---
+author: oompah
+created: 2026-08-02 02:24
+---
+Implementation: Updated the two Makefile safety fixtures in tests/test_makefile_setup.py to set OOMPAH_PYTEST_GATE=0 in their subprocess environment. This preserves the production gate-mode setup behavior while making explicitly non-gate tests exercise the intended wrapper/symlink rejection path.
+---
+author: oompah
+created: 2026-08-02 02:24
+---
+Verification: The five originally reported tests pass with OOMPAH_PYTEST_GATE=1 (5 passed). Neighbor suites also pass: tests/test_makefile_setup.py (14 passed under gate-mode env) and tests/test_quality_gate.py (54 passed in host-supported configuration). The complete make test gate is reserved for the orchestrator.
 ---
 <!-- COMMENTS:END -->
