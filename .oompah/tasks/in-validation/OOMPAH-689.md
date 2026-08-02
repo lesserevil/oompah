@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-689
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Do not poison successful handoff after expected non-running peer reads
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T00:13:22.222984Z'
-updated_at: '2026-08-02T00:38:38.870209Z'
+updated_at: '2026-08-02T00:51:30.372792Z'
 work_branch: OOMPAH-689
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/648
@@ -97,6 +97,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/648
 oompah.review_number: '648'
 oompah.work_branch: OOMPAH-689
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-b7a055e8c647
+    project_id: proj-14849f1b
+    task_id: OOMPAH-689
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 885db9c57a581ef3a742173d863ce064b260ce60f7b056161d52cafdbf9fa7b7
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-02T00:51:24.042669+00:00'
+  - version: 1
+    audit_id: audit-a10f3199dad8
+    project_id: proj-14849f1b
+    task_id: OOMPAH-689
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 885db9c57a581ef3a742173d863ce064b260ce60f7b056161d52cafdbf9fa7b7
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-02T00:51:24.042669+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -206,5 +245,15 @@ author: oompah
 created: 2026-08-02 00:38
 ---
 Branch quality gate passed for `a5acdde6497e03bb83714ec585dff131b4b09398` using `make test` in 391.4s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-02 00:51
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-02 00:51
+---
+YOLO: merged PR #648.
 ---
 <!-- COMMENTS:END -->
