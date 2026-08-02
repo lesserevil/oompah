@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T21:30:29.609691Z'
-updated_at: '2026-08-02T21:51:40.860383Z'
+updated_at: '2026-08-02T21:51:45.765288Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -49,3 +49,16 @@ Production regression of OOMPAH-700: OOMPAH-704 was submitted from a clean non-c
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-02 21:51
+---
+Duplicate screening dispatched (profile: deep, task remains Open)
+---
+author: oompah
+created: 2026-08-02 21:51
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
