@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-24T15:53:33.753602Z'
-updated_at: '2026-08-02T01:26:41.111971Z'
+updated_at: '2026-08-02T01:26:43.799969Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,8 +40,9 @@ oompah.terminal_audit:
     status: Archived
     audit_ids:
     - audit-d9afc59181c0
-    applied: false
+    applied: true
     created_at: '2026-08-02T01:26:37.829185+00:00'
+    applied_at: '2026-08-02T01:26:42.870203+00:00'
   version: 1
   pending_chain:
   - version: 1
