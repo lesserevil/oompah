@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-694
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Detect WebSocket gaps and self-heal the dashboard state
 parent: OOMPAH-691
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:50.443759Z'
-updated_at: '2026-08-02T04:44:28.287342Z'
+updated_at: '2026-08-02T04:56:40.442370Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-694
 target_branch: null
 review_url: null
@@ -43,16 +43,16 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 785a9378-5b44-4f2e-9c36-5535fcd0110d
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-691--task-OOMPAH-694
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-691--task-OOMPAH-694
-  base_branch: epic-OOMPAH-691
-  base_sha: cf5f3cecede5a3344922345e2fcbc3f042c982c9
-  updated_at: '2026-08-02T04:44:25.498737+00:00'
+  head_sha: 5d9186d6d63e368e4f97934354f4d28e5ea2a93f
+  submitted_at: '2026-08-02T04:56:35.371302+00:00'
+  updated_at: '2026-08-02T04:56:35.371302+00:00'
 oompah.task_costs:
   total_input_tokens: 415223
   total_output_tokens: 11692
@@ -381,5 +381,15 @@ author: oompah
 created: 2026-08-02 04:44
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-08-02 04:56
+---
+Coordination review: acknowledged OOMPAH-685 changed-path-overlap advisory; published checkpoint for current head 5d9186d6d (only tests/test_granian_e2e.py) and attempted a peer message, but the tracker returned a handoff-operation error before any path disclosure. No local conflict is present. Verification: git diff --check is clean and branch is clean/up to date. Local make setup/test could not launch because uv failed before dependency setup with DBus transient-scope error (parent reported as kernel thread); submitting the clean pushed head for the isolated quality gate.
+---
+author: oompah
+created: 2026-08-02 04:56
+---
+Stabilized the Granian WebSocket handshake test with its documented 20-second startup budget; branch is clean and pushed. Coordinated/checkpointed the advisory overlap; isolated gate requested because local uv setup is environment-blocked.
 ---
 <!-- COMMENTS:END -->
