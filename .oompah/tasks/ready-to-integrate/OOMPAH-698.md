@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-698
 type: bug
-status: Open
+status: Ready to Integrate
 priority: 1
 title: Recover legacy stale reviews without persisted review-head metadata
 parent: null
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T18:20:27.192609Z'
-updated_at: '2026-08-02T19:42:07.047268Z'
+updated_at: '2026-08-02T19:42:25.781270Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -97,5 +97,10 @@ created: 2026-08-02 19:42
 **Evidence:** Recent comment indicates CI is now passing or PR has been merged; safe to reopen for dispatch.
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-08-02 19:42
+---
+Restored the submitted exact head in the managed task worktree after the gate could not discover the temporary checkout; resubmitting the unchanged, fully tested head.
 ---
 <!-- COMMENTS:END -->
