@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:46.836436Z'
-updated_at: '2026-08-02T02:09:07.274433Z'
+updated_at: '2026-08-02T02:09:26.758545Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-692
 target_branch: null
 review_url: null
@@ -232,5 +232,10 @@ author: oompah
 created: 2026-08-02 02:09
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-08-02 02:09
+---
+Understanding: implement the server-side WebSocket freshness contract. I will trace envelope construction, snapshot invalidation, and throttle paths; add concurrency-safe epoch/revision/delivery metadata with trailing-edge state coalescing; document reconnect/reset semantics; add focused lifecycle tests; then verify, commit, push, and submit.
 ---
 <!-- COMMENTS:END -->
