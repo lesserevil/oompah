@@ -12,6 +12,7 @@ from unittest import mock
 import pytest
 
 from oompah.config import ServiceConfig
+from oompah.integration import IntegrationRecord
 from oompah.models import BlockerRef, Issue, Project
 from oompah.orchestrator import Orchestrator
 from oompah.providers import ProviderStore
@@ -919,6 +920,29 @@ def test_changed_remote_head_cancels_stale_gate_result(harness):
     tracker.update_issue.assert_not_called()
     assert task.state == READY_TO_INTEGRATE
     assert not _delivery_alerts(orch)
+
+
+def test_remote_head_must_match_accepted_submission_before_gate(harness):
+    """A newer remote tip cannot replace the exact head accepted by submit."""
+    orch, _project, tracker, provider, _detect, gate = harness
+    task = _issue("TASK-SUBMITTED-HEAD", branch="feature/submitted-head")
+    task.integration = IntegrationRecord(
+        state="ready",
+        task_branch="feature/submitted-head",
+        head_sha="a" * 40,
+    )
+    tracker.fetch_issues_by_states.return_value = [task]
+    provider.get_branch_head_sha.return_value = "b" * 40
+
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+
+    gate.assert_not_called()
+    provider.find_pr_for_branch.assert_not_called()
+    provider.create_review.assert_not_called()
+    tracker.update_issue.assert_not_called()
+    alerts = _delivery_alerts(orch)
+    assert len(alerts) == 1
+    assert "advanced from accepted submitted head" in alerts[0]["message"]
 
 
 def test_restart_stale_ready_snapshot_cannot_mutate_terminal_task(harness):

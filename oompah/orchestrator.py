@@ -6620,6 +6620,53 @@ class Orchestrator:
                     )
                     continue
 
+                integration = getattr(issue, "integration", None)
+                submitted_branch = str(
+                    getattr(integration, "task_branch", "") or ""
+                ).strip()
+                submitted_head = (
+                    str(getattr(integration, "head_sha", "") or "").strip().lower()
+                )
+                if submitted_head and submitted_branch != task_branch:
+                    reason = (
+                        "accepted submission metadata does not match the task "
+                        f"branch ({submitted_branch or 'missing'} != {task_branch})"
+                    )
+                    self._arm_standalone_delivery_alert(
+                        project_id,
+                        task_id,
+                        reason,
+                        authority=authority,
+                    )
+                    logger.warning(
+                        "Standalone Ready task %s has inconsistent submitted "
+                        "branch metadata: %s",
+                        task_id,
+                        reason,
+                    )
+                    continue
+                if (
+                    submitted_head
+                    and str(branch_head).strip().lower() != submitted_head
+                ):
+                    reason = (
+                        f"remote branch {task_branch} advanced from accepted "
+                        f"submitted head {submitted_head} to {branch_head}; "
+                        "submit the new exact head before review"
+                    )
+                    self._arm_standalone_delivery_alert(
+                        project_id,
+                        task_id,
+                        reason,
+                        authority=authority,
+                    )
+                    logger.info(
+                        "Deferred standalone review for %s: %s",
+                        task_id,
+                        reason,
+                    )
+                    continue
+
                 if not self._set_standalone_delivery_head(
                     authority,
                     task_branch,
@@ -11003,6 +11050,161 @@ class Orchestrator:
                 return resolved.stdout.strip()
         return ""
 
+    @staticmethod
+    def _quality_gate_commit(repo_path: str, revision: str) -> str:
+        """Resolve ``revision`` to a commit without accepting other object types."""
+        if not repo_path or not revision:
+            return ""
+        try:
+            resolved = subprocess.run(
+                [
+                    "git",
+                    "rev-parse",
+                    "--verify",
+                    "--quiet",
+                    f"{revision}^{{commit}}",
+                ],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=15,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return ""
+        return resolved.stdout.strip() if resolved.returncode == 0 else ""
+
+    def _materialize_submitted_quality_gate_head(
+        self,
+        project: Project,
+        branch: str,
+        expected_head: str,
+    ) -> tuple[str, str, str]:
+        """Materialize and verify an accepted submission in the managed clone.
+
+        Returns ``(head, status, detail)``.  ``status`` is empty on success,
+        ``stale_head`` when the remote branch no longer names the accepted
+        submission, and ``infrastructure_error`` when the exact commit cannot
+        be made available safely.  A matching remote-tracking ref is reused so
+        recovery remains idempotent across repeated scheduler passes.
+        """
+        repo_path = str(project.repo_path or "")
+        expected_head = str(expected_head or "").strip().lower()
+        if not re.fullmatch(r"[0-9a-f]{40}", expected_head):
+            return (
+                expected_head,
+                "infrastructure_error",
+                "Candidate CI was not run because the persisted submitted "
+                "head is not a full commit SHA.",
+            )
+        if not (
+            repo_path
+            and os.path.isdir(repo_path)
+            and os.path.exists(os.path.join(repo_path, ".git"))
+        ):
+            return (
+                expected_head,
+                "infrastructure_error",
+                "Candidate CI was not run because the project managed "
+                "repository is unavailable.",
+            )
+
+        full_ref = f"refs/heads/{branch}"
+        try:
+            valid = subprocess.run(
+                ["git", "check-ref-format", full_ref],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=5,
+            )
+        except subprocess.TimeoutExpired:
+            return (
+                expected_head,
+                "infrastructure_error",
+                "Candidate CI was not run because submitted branch "
+                "validation timed out.",
+            )
+        except OSError:
+            return (
+                expected_head,
+                "infrastructure_error",
+                "Candidate CI was not run because submitted branch "
+                "validation could not start.",
+            )
+        if valid.returncode != 0:
+            return (
+                expected_head,
+                "infrastructure_error",
+                "Candidate CI was not run because the persisted submitted "
+                "branch is not a valid Git ref.",
+            )
+
+        remote_ref = f"refs/remotes/origin/{branch}"
+        local_remote_head = self._quality_gate_commit(repo_path, remote_ref)
+        local_exact_head = self._quality_gate_commit(repo_path, expected_head)
+        if local_remote_head == expected_head and local_exact_head == expected_head:
+            return expected_head, "", ""
+
+        try:
+            fetched = self._run_project_network_git(
+                project,
+                [
+                    "git",
+                    "fetch",
+                    "--no-tags",
+                    "--quiet",
+                    "origin",
+                    f"+{full_ref}:{remote_ref}",
+                ],
+                cwd=repo_path,
+                timeout=30,
+            )
+        except subprocess.TimeoutExpired:
+            return (
+                expected_head,
+                "infrastructure_error",
+                "Candidate CI was not run because fetching the accepted "
+                "submission timed out.",
+            )
+        except OSError:
+            return (
+                expected_head,
+                "infrastructure_error",
+                "Candidate CI was not run because fetching the accepted "
+                "submission could not start.",
+            )
+        if fetched.returncode != 0:
+            detail = str(fetched.stderr or fetched.stdout or "").strip()
+            if len(detail) > 500:
+                detail = detail[-500:]
+            suffix = f" Git reported: {detail}" if detail else ""
+            return (
+                expected_head,
+                "infrastructure_error",
+                "Candidate CI was not run because the accepted submitted "
+                f"head {expected_head} could not be fetched from origin "
+                f"branch {branch}.{suffix}",
+            )
+
+        fetched_head = self._quality_gate_commit(repo_path, remote_ref)
+        if fetched_head != expected_head:
+            return (
+                expected_head,
+                "stale_head",
+                f"Review branch advanced from accepted submitted head "
+                f"{expected_head} to {fetched_head or 'unknown'} before the gate.",
+            )
+        if self._quality_gate_commit(repo_path, expected_head) != expected_head:
+            return (
+                expected_head,
+                "infrastructure_error",
+                "Candidate CI was not run because Git fetched the submitted "
+                "branch but the accepted exact commit is unavailable.",
+            )
+        return expected_head, "", ""
+
     def _quality_gate_worktree(
         self,
         project: Project,
@@ -11198,6 +11400,42 @@ class Orchestrator:
                 )
                 return False
         command = self._quality_gate_command(project)
+        integration = getattr(issue, "integration", None)
+        submitted_branch = str(getattr(integration, "task_branch", "") or "").strip()
+        submitted_head = str(getattr(integration, "head_sha", "") or "").strip().lower()
+        if submitted_head and submitted_branch != branch:
+            result = QualityGateResult(
+                status="infrastructure_error",
+                head_sha=submitted_head,
+                command=command,
+                output_tail=(
+                    "Candidate CI was not run because accepted submission "
+                    f"branch {submitted_branch or 'unknown'} does not match "
+                    f"review branch {branch}."
+                ),
+            )
+            self._record_quality_gate_failure(
+                issue,
+                project_id,
+                branch,
+                target_branch,
+                result,
+            )
+            return False
+        if (
+            submitted_head
+            and authority is not None
+            and authority.head_sha
+            and str(authority.head_sha).strip().lower() != submitted_head
+        ):
+            logger.info(
+                "Discarding superseded quality gate for %s: accepted head %s, "
+                "remote head %s",
+                issue.identifier,
+                submitted_head,
+                authority.head_sha,
+            )
+            return False
         if not command:
             logger.debug(
                 "No branch quality command configured for %s; review gate skipped",
@@ -11205,16 +11443,34 @@ class Orchestrator:
             )
             return True
 
+        materialize_status = ""
+        materialize_detail = ""
+        if submitted_head:
+            expected_head, materialize_status, materialize_detail = (
+                self._materialize_submitted_quality_gate_head(
+                    project,
+                    branch,
+                    submitted_head,
+                )
+            )
+        else:
+            expected_head = self._quality_gate_branch_head(project, branch)
         worktree = self._quality_gate_worktree(
             project,
             issue,
             branch,
             preferred_path=preferred_path,
         )
-        expected_head = self._quality_gate_branch_head(project, branch)
         source_requires_head_match = bool(worktree)
         gate_source = worktree or str(project.repo_path or "")
-        if not expected_head:
+        if materialize_status:
+            result = QualityGateResult(
+                status=materialize_status,
+                head_sha=expected_head,
+                command=command,
+                output_tail=materialize_detail,
+            )
+        elif not expected_head:
             result = QualityGateResult(
                 status="infrastructure_error",
                 head_sha="",
