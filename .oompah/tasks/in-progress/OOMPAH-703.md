@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T20:59:10.197769Z'
-updated_at: '2026-08-02T21:57:14.250795Z'
+updated_at: '2026-08-02T22:11:06.563886Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -158,5 +158,10 @@ author: oompah
 created: 2026-08-02 21:57
 ---
 Implementation: added BacklogRefreshManager.wait_for_completion(), which awaits the existing job task without cancelling refresh work and returns terminal complete/failed status (or None for an unknown key). Added success, failure, and no-job unit coverage. Reworked all applicable invalidate tests to await completion, strengthened stale-while-revalidate assertions to verify the old result is served then replaced, and kept the exact one-subsequent-call assertion.
+---
+author: oompah
+created: 2026-08-02 22:11
+---
+Verification: make test passed with 15,013 passed, 7 skipped, and 1 xfailed; make check-secrets passed. After the final synchronization assertion cleanup, the full release-delivery-refresh suite passed 55/55 under Python 3.12, and the completion/thread-safety/invalidation subset passed 9/9 in five consecutive Python 3.11 runs.
 ---
 <!-- COMMENTS:END -->
