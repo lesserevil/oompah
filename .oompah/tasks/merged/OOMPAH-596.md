@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-596
 type: bug
-status: Done
+status: Merged
 priority: 1
 title: Rearm conflict repairs after recoverable agent infrastructure failure
 parent: OOMPAH-587
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:26.248587Z'
-updated_at: '2026-07-31T05:03:14.098762Z'
+updated_at: '2026-08-02T18:25:27.399104Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-596
 target_branch: null
 review_url: null
@@ -211,6 +211,25 @@ oompah.terminal_audit:
   applied_result_attempts:
     no-auditor-audit-2367df3b033e-1: '2026-07-30T18:13:31.482377+00:00'
     attempt-a7119b3535e6: '2026-07-30T18:20:50.950365+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-8eb8bdff5baf
+    project_id: proj-14849f1b
+    task_id: OOMPAH-596
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 65b716ad358a52c36949d87ff2f57f3c677206624c630b242965c1ab417e84c2
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reconciliation: parent OOMPAH-587 is Merged and its accepted rollup
+      contains this previously audited Done child; durable integration-queue/rollup
+      evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.'
+    created_at: '2026-08-02T18:25:23.927074+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -930,5 +949,12 @@ author: oompah
 created: 2026-07-31 05:03
 ---
 Operator rebase bookkeeping: refreshed the terminal task branch from da86acf64 to its patch-equivalent rebased head c45aa5574 under an exact force-with-lease. The branch is now an ancestor of origin/epic-OOMPAH-587 (0 commits outside the epic); no task content changed.
+---
+author: oompah
+created: 2026-08-02 18:25
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner reconciliation: parent OOMPAH-587 is Merged and its accepted rollup contains this previously audited Done child; durable integration-queue/rollup evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.
 ---
 <!-- COMMENTS:END -->
