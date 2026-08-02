@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-689
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Do not poison successful handoff after expected non-running peer reads
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T00:13:22.222984Z'
-updated_at: '2026-08-02T00:38:21.321477Z'
+updated_at: '2026-08-02T00:38:29.900067Z'
 work_branch: null
 target_branch: null
 review_url: null
