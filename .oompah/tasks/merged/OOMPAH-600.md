@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-600
 type: task
-status: Done
+status: Merged
 priority: 1
 title: Integrate OOMPAH-581 and prune current safe terminal workspaces
 parent: OOMPAH-588
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:58.634342Z'
-updated_at: '2026-07-31T05:17:53.016121Z'
+updated_at: '2026-08-02T18:26:17.792597Z'
 work_branch: epic-OOMPAH-588--task-OOMPAH-600
 target_branch: null
 review_url: null
@@ -127,6 +127,25 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-62ab5d8ea002: '2026-07-31T03:42:36.343084+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-15dd24dbb7bc
+    project_id: proj-14849f1b
+    task_id: OOMPAH-600
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: dcf92ae10affd72dcd4599db036f73110e2e430b9757e65da59c6f107951971b
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reconciliation: parent OOMPAH-588 is Merged and its accepted rollup
+      contains this previously audited Done child; durable integration-queue/rollup
+      evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.'
+    created_at: '2026-08-02T18:26:13.518192+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -543,5 +562,12 @@ author: oompah
 created: 2026-07-31 05:17
 ---
 Operator rebase bookkeeping: refreshed this terminal task branch with an exact lease to patch-equivalent rebased head 459422b4094d47cf5ba745eae6398229de824193, now contained in origin/epic-OOMPAH-588 with zero commits outside the epic. This prevents the old post-merge landing check from regressing the audited task after the nested epic merges.
+---
+author: oompah
+created: 2026-08-02 18:26
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner reconciliation: parent OOMPAH-588 is Merged and its accepted rollup contains this previously audited Done child; durable integration-queue/rollup evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.
 ---
 <!-- COMMENTS:END -->

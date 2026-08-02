@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:15:31.072278Z'
-updated_at: '2026-08-02T18:26:08.431505Z'
+updated_at: '2026-08-02T18:26:11.607919Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-599
 target_branch: null
 review_url: null
@@ -127,7 +127,20 @@ oompah.terminal_audit:
       contains this previously audited Done child; durable integration-queue/rollup
       evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.'
     created_at: '2026-08-02T18:26:03.967580+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-599
+    target_state: Merged
+    evidence_fingerprint: e216f95e2134e1f3d88b28098be22c0aaaeeecf86d1eca149633a6f6333b35c6
+    audit_ids:
+    - audit-e33a8e693d38
+    - audit-3be366dd9df2
+    - audit-7ebe0ee587e6
+    kind: override
+    applied: true
+    retired_at: '2026-08-02T18:26:10.410265+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
