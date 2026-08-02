@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-700
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Gate accepted submissions without a canonical task worktree
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T19:52:39.323644Z'
-updated_at: '2026-08-02T19:57:01.391067Z'
+updated_at: '2026-08-02T19:57:20.082784Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -56,7 +56,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 9bf00797-340c-478f-b549-884a22087b69
+oompah.agent_run_id: 219da94d-ba8b-4acb-a630-fc4904f11416
 oompah.task_costs:
   total_input_tokens: 6
   total_output_tokens: 1125
@@ -117,5 +117,15 @@ Run #1 [attempt=1, profile=deep, role=deep -> Claude/opus]
 - Cost: $0.0000
 - Exit: normal, Duration: 28s
 - Log: OOMPAH-700__20260802T195632Z.jsonl
+---
+author: oompah
+created: 2026-08-02 19:57
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-08-02 19:57
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
