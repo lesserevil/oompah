@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-708
 type: task
-status: Open
+status: Ready to Integrate
 priority: null
 title: Repair duplicate-screening owner-resolution project lookup
 parent: null
@@ -12,13 +12,21 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T22:20:11.202634Z'
-updated_at: '2026-08-02T22:20:57.774276Z'
+updated_at: '2026-08-02T22:22:52.623007Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-708
+  head_sha: b965154dbf216ffb3587f59c2eb30aa681c73796
+  submitted_at: '2026-08-02T22:22:47.553512+00:00'
+  updated_at: '2026-08-02T22:22:47.553512+00:00'
 ---
 ## Summary
 
@@ -36,5 +44,10 @@ author: oompah
 created: 2026-08-02 22:20
 ---
 Claimed directly to unblock the currently stranded OOMPAH-706 owner-resolution flow. OOMPAH-707 separately tracks the watchdog resetting direct owner work without a scheduler runtime.
+---
+author: oompah
+created: 2026-08-02 22:22
+---
+Replaced the nonexistent orchestrator project lookup with ProjectStore.get, added fail-closed missing-project handling, and added endpoint regressions. Focused tests: 5 passed. Secret scan passed.
 ---
 <!-- COMMENTS:END -->
