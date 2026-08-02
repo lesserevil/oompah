@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-710
 type: bug
-status: Backlog
+status: Open
 priority: null
 title: Keep oversized auditor tool results inside the read-only authority boundary
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T23:45:39.918535Z'
-updated_at: '2026-08-02T23:45:39.918535Z'
+updated_at: '2026-08-02T23:45:49.452063Z'
 work_branch: null
 target_branch: null
 review_url: null

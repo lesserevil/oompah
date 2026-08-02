@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-701
 type: bug
-status: Needs Human
+status: Merged
 priority: 1
 title: Retire hidden provider processes when task ownership is revoked
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T20:20:26.676545Z'
-updated_at: '2026-08-02T23:45:10.586378Z'
+updated_at: '2026-08-02T23:45:56.391232Z'
 work_branch: OOMPAH-701
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/665
@@ -132,6 +132,29 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-02T23:45:04.961730+00:00'
     applied_at: '2026-08-02T23:45:09.561267+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-1e668ca19030
+    project_id: proj-14849f1b
+    task_id: OOMPAH-701
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 3ffccdccadddc3e7c3185cc51cd8dbdce2c47023b32f832158721ad41edf4385
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'PR #665 merged after the isolated 15,020-test gate and all GitHub CI
+      jobs passed. Two independent Claude auditors were terminated only because oversized
+      approved read_file output was persisted outside the strict read-only authority
+      boundary; OOMPAH-710 captures that transport bug. Direct inspection confirms
+      OOMPAH-701 implementation and regression coverage, so this override resolves
+      the stranded audit without treating the transport failure as an implementation
+      failure.'
+    created_at: '2026-08-02T23:45:52.813091+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -411,5 +434,12 @@ created: 2026-08-02 23:45
 Needs Human — Done audit requires operator input.
 
 Independent auditor launches exhausted their retry budget because the audit workspace or transport failed before review began. Restore the audit infrastructure, then have a project owner rearm this terminal audit; do not reopen implementation work.
+---
+author: oompah
+created: 2026-08-02 23:45
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: PR #665 merged after the isolated 15,020-test gate and all GitHub CI jobs passed. Two independent Claude auditors were terminated only because oversized approved read_file output was persisted outside the strict read-only authority boundary; OOMPAH-710 captures that transport bug. Direct inspection confirms OOMPAH-701 implementation and regression coverage, so this override resolves the stranded audit without treating the transport failure as an implementation failure.
 ---
 <!-- COMMENTS:END -->
