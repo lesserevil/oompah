@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-694
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Detect WebSocket gaps and self-heal the dashboard state
 parent: OOMPAH-691
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:50.443759Z'
-updated_at: '2026-08-02T04:17:10.127691Z'
+updated_at: '2026-08-02T04:17:20.381496Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-694
 target_branch: null
 review_url: null
@@ -43,16 +43,16 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 4fddde2c-4359-4a0a-86fb-e025bb3cb89b
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-691--task-OOMPAH-694
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-691--task-OOMPAH-694
-  base_branch: epic-OOMPAH-691
-  base_sha: cf5f3cecede5a3344922345e2fcbc3f042c982c9
-  updated_at: '2026-08-02T04:06:29.653932+00:00'
+  head_sha: e84581658277e203a81532ff0d3db729eda59296
+  submitted_at: '2026-08-02T04:17:16.583960+00:00'
+  updated_at: '2026-08-02T04:17:16.583960+00:00'
 oompah.task_costs:
   total_input_tokens: 415198
   total_output_tokens: 2198
@@ -169,5 +169,10 @@ author: oompah
 created: 2026-08-02 04:17
 ---
 Completion: delivered and pushed commit e84581658. Dashboard recovery now converges stale state without reload, including dropped agent completions/chips, alerts/counters, and task columns, while retaining local interaction state. Branch is clean and up to date with origin.
+---
+author: oompah
+created: 2026-08-02 04:17
+---
+Implemented browser WebSocket convergence with epoch/sequence/revision watermark tracking, coalesced full-sync recovery, bounded retry/backoff, safe incremental buffering, and UI-preserving dashboard tests.
 ---
 <!-- COMMENTS:END -->
