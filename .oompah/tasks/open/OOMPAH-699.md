@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-699
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Converge historical Done records after parent terminalization
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T18:20:28.879414Z'
-updated_at: '2026-08-02T18:20:28.879414Z'
+updated_at: '2026-08-02T18:43:01.067994Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -32,3 +32,11 @@ Triggered by: OOMPAH-550\n\nProduction lifecycle backlog: 69 historical Oompah t
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-02 18:43
+---
+Promoted by the project owner: the bug report is actionable and ready for implementation.
+---
+<!-- COMMENTS:END -->
