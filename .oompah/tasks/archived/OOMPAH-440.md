@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-440
 type: task
-status: In Validation
+status: Archived
 priority: null
 title: Count claimed shared-epic children in branch serialization
 parent: null
@@ -10,7 +10,7 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-24T16:07:22.198190Z'
-updated_at: '2026-08-02T01:24:06.112182Z'
+updated_at: '2026-08-02T01:24:09.353997Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -134,5 +134,26 @@ author: oompah
 created: 2026-08-02 01:16
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-02 01:24
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- delivery_commit: 0e5fb0632781a90e4e10fb3afad1ba39e7a86bb9
+- delivery_commit_date: 2026-07-24 16:09:24 +0000
+- audit_queued_date: 2026-08-02
+- age_days_since_merge: 9
+- implementation_file: oompah/orchestrator.py
+- implementation_function: _epic_in_flight_count (line 9732)
+- state_field_file: oompah/models.py
+- state_field_line: 1461
+- regression_tests_file: tests/test_epic_strategy.py
+- regression_test_same_epic_line: 877
+- regression_test_different_epic_line: 893
+- test_evidence_note: Prior delivery comment records make test 12,316 tests passing at time of merge
 ---
 <!-- COMMENTS:END -->
