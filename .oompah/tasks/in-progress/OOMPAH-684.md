@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-684
 type: task
-status: Open
+status: In Progress
 priority: 0
 title: Prevent stale retry dispatch after operator task resubmission
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T21:44:29.390457Z'
-updated_at: '2026-08-02T01:28:16.460579Z'
+updated_at: '2026-08-02T01:43:59.960903Z'
 work_branch: OOMPAH-684
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/650
