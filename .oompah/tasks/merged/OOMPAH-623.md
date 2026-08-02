@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-623
 type: bug
-status: Done
+status: Merged
 priority: 1
 title: Keep the canonical user CLI synchronized with the running server
 parent: OOMPAH-619
@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T21:32:18.734139Z'
-updated_at: '2026-07-31T14:49:08.077960Z'
+updated_at: '2026-08-02T18:28:07.237972Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-623
 target_branch: null
 review_url: null
@@ -215,6 +215,25 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-07-31T14:48:47.174077+00:00'
     applied_at: '2026-07-31T14:48:52.511535+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-c833046e06bd
+    project_id: proj-14849f1b
+    task_id: OOMPAH-623
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d490099aa67324aa78a6230ea9abacf179edbab388ef7cf0d6628570cd67c720
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner reconciliation: parent OOMPAH-619 is Merged and its accepted rollup
+      contains this previously audited Done child; durable integration-queue/rollup
+      evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.'
+    created_at: '2026-08-02T18:28:03.248587+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -788,5 +807,12 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 12m 47s
 - Log: OOMPAH-623__20260731T143623Z.jsonl
+---
+author: oompah
+created: 2026-08-02 18:28
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner reconciliation: parent OOMPAH-619 is Merged and its accepted rollup contains this previously audited Done child; durable integration-queue/rollup evidence survives branch pruning. OOMPAH-699 tracks automatic convergence.
 ---
 <!-- COMMENTS:END -->
