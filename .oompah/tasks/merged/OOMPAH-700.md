@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-700
 type: bug
-status: Open
+status: Merged
 priority: 0
 title: Gate accepted submissions without a canonical task worktree
 parent: null
@@ -13,7 +13,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T19:52:39.323644Z'
-updated_at: '2026-08-02T21:09:55.605043Z'
+updated_at: '2026-08-02T21:48:26.596367Z'
 work_branch: OOMPAH-700
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/661
