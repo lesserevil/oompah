@@ -146,8 +146,10 @@ class WorkerAuthHealth:
     * **403_scope** — capability scoped to a different project or task
     * **403_action** — capability action not in the grant set (intentional
       least-privilege; never counted toward degraded status)
-    * **403_policy** — a verified live worker intentionally targeted another
-      running task (policy denial; never counted toward degraded status)
+    * **403_policy** — a verified live worker intentionally attempted a
+      read-only view of another task (policy denial; never counted toward
+      degraded status). The target may be non-running or unknown; it is never
+      resolved for this classification.
 
     Thread-safe; all public methods may be called from any thread.
     """

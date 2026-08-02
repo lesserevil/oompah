@@ -740,6 +740,143 @@ class TestAgentCredentialBoundary:
 
 
 class TestFailedHandoffLifecycle:
+    def test_informational_peer_read_does_not_poison_successful_submit(
+        self, tmp_path
+    ):
+        """A peer-view 403 cannot turn a later successful submit into Needs Human."""
+        from fastapi.testclient import TestClient
+
+        import oompah.server as server
+        from oompah.config import ServiceConfig
+        from oompah.orchestrator import Orchestrator
+        from oompah.server import app
+        from oompah.task_handoff import (
+            TASK_HANDOFF_HEADER,
+            issue_task_handoff_token,
+        )
+
+        issue = Issue(
+            id="issue-submit-after-peer-read",
+            identifier="TASK-1",
+            title="Task",
+            description="body",
+            state="In Progress",
+            project_id="proj-a",
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        tracker.fetch_comments.return_value = []
+
+        def update_issue(_identifier, **kwargs):
+            if "status" in kwargs:
+                issue.state = kwargs["status"]
+
+        tracker.update_issue.side_effect = update_issue
+        server_orch = MagicMock()
+        server_orch._tracker_for_project.return_value = tracker
+        server_orch.project_store.list_all.return_value = []
+        server_orch.config.parallel_epic_children_enabled = False
+        server_orch.coordination_checkpoint.return_value = {"peers": []}
+        token = issue_task_handoff_token(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"view", "comment", "submit"},
+        )
+        server_orch.state = SimpleNamespace(
+            running={
+                "issue-submit-after-peer-read": SimpleNamespace(
+                    identifier="TASK-1",
+                    issue=issue,
+                    task_handoff_token=token,
+                )
+            }
+        )
+
+        old_orch = server._orchestrator
+        old_creds = server._http_credentials
+        old_broadcast = server.broadcast_issues
+        server._orchestrator = server_orch
+        server._http_credentials = None
+        server.broadcast_issues = AsyncMock()
+        try:
+            with TestClient(app, raise_server_exceptions=False) as client:
+                peer_read = client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: token},
+                    json={
+                        "action": "view",
+                        "project_id": "proj-a",
+                        "identifier": "TASK-NOT-RUNNING",
+                        "worker_task_identifier": "TASK-1",
+                    },
+                )
+                comment = client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: token},
+                    json={
+                        "action": "comment",
+                        "project_id": "proj-a",
+                        "identifier": "TASK-1",
+                        "message": "Implementation complete",
+                    },
+                )
+                submit = client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: token},
+                    json={
+                        "action": "submit",
+                        "project_id": "proj-a",
+                        "identifier": "TASK-1",
+                        "summary": "Completed and tested",
+                        "task_branch": "TASK-1",
+                        "head_sha": "a" * 40,
+                        "remote_head_sha": "a" * 40,
+                        "worktree_clean": True,
+                    },
+                )
+        finally:
+            server._orchestrator = old_orch
+            server._http_credentials = old_creds
+            server.broadcast_issues = old_broadcast
+
+        assert peer_read.status_code == 403
+        assert comment.status_code == 200
+        assert submit.status_code == 200, submit.text
+        assert issue.state == "Ready to Integrate"
+
+        orch = Orchestrator(
+            config=ServiceConfig(),
+            workflow_path="WORKFLOW.md",
+            state_path=str(tmp_path / "state.json"),
+        )
+        orch.tracker = tracker
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch._accept_worker_submission = MagicMock(return_value=True)
+        orch._fire_task_cost_record = MagicMock()
+        orch._fire_telemetry_comment = MagicMock()
+        orch._fire_work_contributor_record = MagicMock()
+        orch._post_comment = MagicMock()
+        orch._post_event = MagicMock()
+        orch._notify_observers = MagicMock()
+        orch.state.running[issue.id] = RunningEntry(
+            worker_task=None,
+            identifier=issue.identifier,
+            issue=issue,
+            session=None,
+            retry_attempt=0,
+            started_at=datetime.now(timezone.utc),
+            task_handoff_token=token,
+        )
+
+        asyncio.run(orch._on_worker_exit(issue.id, "normal", None))
+
+        assert issue.state == "Ready to Integrate"
+        assert not any(
+            call.kwargs.get("status") == "Needs Human"
+            for call in tracker.update_issue.call_args_list
+        )
+        orch._accept_worker_submission.assert_called_once()
+
     def test_failed_handoff_is_held_for_human_without_retry(self, tmp_path):
         from oompah.config import ServiceConfig
         from oompah.orchestrator import Orchestrator
@@ -933,9 +1070,16 @@ class TestHandoffTokenFailClosed:
         proj-other — even for the same task identifier."""
         from fastapi.testclient import TestClient
 
+        import oompah.auth_health as ah
         import oompah.server as server
         from oompah.server import app
-        from oompah.task_handoff import issue_task_handoff_token
+        from oompah.task_handoff import (
+            consume_task_handoff_failure,
+            issue_task_handoff_token,
+            revoke_task_handoff_token,
+        )
+
+        ah._reset_for_testing()
 
         token = issue_task_handoff_token(
             project_id="proj-a",
@@ -944,6 +1088,23 @@ class TestHandoffTokenFailClosed:
         )
 
         orch, _tracker = self._make_server_context(server)
+        assigned_issue = Issue(
+            id="issue-1",
+            identifier="TASK-1",
+            title="Assigned",
+            description="body",
+            state="In Progress",
+            project_id="proj-a",
+        )
+        orch.state = SimpleNamespace(
+            running={
+                "issue-1": SimpleNamespace(
+                    identifier="TASK-1",
+                    issue=assigned_issue,
+                    task_handoff_token=token,
+                )
+            }
+        )
         old_orch = server._orchestrator
         old_creds = server._http_credentials
         server._orchestrator = orch
@@ -957,6 +1118,7 @@ class TestHandoffTokenFailClosed:
                         "action": "view",
                         "project_id": "proj-other",
                         "identifier": "TASK-1",
+                        "worker_task_identifier": "TASK-1",
                     },
                 )
         finally:
@@ -967,6 +1129,12 @@ class TestHandoffTokenFailClosed:
         body = response.json()
         msg = body.get("error", {}).get("message", "")
         assert "another project" in msg
+        snap = ah.auth_health_snapshot()["worker"]
+        assert snap["recent_403_scope_count"] == 1
+        assert snap["policy_denial_count"] == 0
+        assert consume_task_handoff_failure(token) is not None
+        revoke_task_handoff_token(token)
+        ah._reset_for_testing()
 
     def test_wrong_task_scope_returns_403(self):
         """A valid token scoped to TASK-1 must be rejected when the request
@@ -1090,6 +1258,164 @@ class TestHandoffTokenFailClosed:
         assert consume_task_handoff_failure(source_token) is None
         ah._reset_for_testing()
 
+    @pytest.mark.parametrize(
+        ("target_identifier", "target_state"),
+        [
+            ("TASK-OPEN", "Open"),
+            ("TASK-READY", "Ready to Integrate"),
+            ("TASK-DONE", "Done"),
+            ("TASK-UNKNOWN", None),
+        ],
+    )
+    def test_verified_worker_read_of_non_running_or_unknown_peer_is_informational(
+        self, target_identifier, target_state
+    ):
+        """Peer-view 403s do not depend on the target's lifecycle or existence."""
+        from fastapi.testclient import TestClient
+
+        import oompah.auth_health as ah
+        import oompah.server as server
+        from oompah.server import app
+        from oompah.task_handoff import (
+            consume_task_handoff_failure,
+            issue_task_handoff_token,
+            revoke_task_handoff_token,
+        )
+
+        ah._reset_for_testing()
+        source_token = issue_task_handoff_token(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"view", "comment", "submit"},
+        )
+        source_issue = Issue(
+            id="issue-1",
+            identifier="TASK-1",
+            title="Source",
+            description="body",
+            state="In Progress",
+            project_id="proj-a",
+        )
+        # The target is intentionally absent from state.running. The
+        # target_state parameter documents the lifecycle being exercised; the
+        # endpoint must not resolve it merely to classify this denial.
+        target_issue = Issue(
+            id=f"{target_identifier.lower()}-id",
+            identifier=target_identifier,
+            title=f"{target_state or 'Unknown'} peer",
+            description="must not be disclosed",
+            state=target_state or "Open",
+            project_id="proj-a",
+        )
+        orch, tracker = self._make_server_context(server)
+        orch.state = SimpleNamespace(
+            running={
+                "issue-1": SimpleNamespace(
+                    identifier="TASK-1",
+                    issue=source_issue,
+                    task_handoff_token=source_token,
+                )
+            }
+        )
+        tracker.fetch_issue_detail.side_effect = AssertionError(
+            "peer-view classification must not resolve the target"
+        )
+        old_orch = server._orchestrator
+        old_creds = server._http_credentials
+        server._orchestrator = orch
+        server._http_credentials = None
+        try:
+            with TestClient(app, raise_server_exceptions=False) as client:
+                response = client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: source_token},
+                    json={
+                        "action": "view",
+                        "project_id": "proj-a",
+                        "identifier": target_identifier,
+                        "worker_task_identifier": "TASK-1",
+                    },
+                )
+        finally:
+            server._orchestrator = old_orch
+            server._http_credentials = old_creds
+            revoke_task_handoff_token(source_token)
+
+        assert response.status_code == 403
+        assert target_issue.title not in response.text
+        assert "coordinate peers TASK-1" in response.json()["error"]["message"]
+        snap = ah.auth_health_snapshot()["worker"]
+        assert snap["recent_403_scope_count"] == 0
+        assert snap["policy_denial_count"] == 1
+        assert consume_task_handoff_failure(source_token) is None
+        ah._reset_for_testing()
+
+    @pytest.mark.parametrize("action", ["comment", "submit"])
+    def test_cross_task_mutation_denial_remains_actionable(self, action):
+        """Only read-only peer exploration is informational."""
+        from fastapi.testclient import TestClient
+
+        import oompah.auth_health as ah
+        import oompah.server as server
+        from oompah.server import app
+        from oompah.task_handoff import (
+            consume_task_handoff_failure,
+            issue_task_handoff_token,
+            revoke_task_handoff_token,
+        )
+
+        ah._reset_for_testing()
+        source_token = issue_task_handoff_token(
+            project_id="proj-a",
+            task_identifier="TASK-1",
+            allowed_actions={"view", "comment", "submit"},
+        )
+        source_issue = Issue(
+            id="issue-1",
+            identifier="TASK-1",
+            title="Source",
+            description="body",
+            state="In Progress",
+            project_id="proj-a",
+        )
+        orch, _tracker = self._make_server_context(server)
+        orch.state = SimpleNamespace(
+            running={
+                "issue-1": SimpleNamespace(
+                    identifier="TASK-1",
+                    issue=source_issue,
+                    task_handoff_token=source_token,
+                )
+            }
+        )
+        old_orch = server._orchestrator
+        old_creds = server._http_credentials
+        server._orchestrator = orch
+        server._http_credentials = None
+        try:
+            with TestClient(app, raise_server_exceptions=False) as client:
+                response = client.post(
+                    "/api/v1/task-handoff",
+                    headers={TASK_HANDOFF_HEADER: source_token},
+                    json={
+                        "action": action,
+                        "project_id": "proj-a",
+                        "identifier": "TASK-PEER",
+                        "worker_task_identifier": "TASK-1",
+                    },
+                )
+        finally:
+            server._orchestrator = old_orch
+            server._http_credentials = old_creds
+
+        assert response.status_code == 403
+        snap = ah.auth_health_snapshot()["worker"]
+        assert snap["recent_403_scope_count"] == 1
+        assert snap["policy_denial_count"] == 0
+        assert consume_task_handoff_failure(source_token) is not None
+        revoke_task_handoff_token(source_token)
+        ah._reset_for_testing()
+
     def test_wrong_token_targeting_assigned_task_remains_auth_failure(self):
         """A copied peer token must still produce an actionable scope alert."""
         from fastapi.testclient import TestClient
@@ -1097,7 +1423,11 @@ class TestHandoffTokenFailClosed:
         import oompah.auth_health as ah
         import oompah.server as server
         from oompah.server import app
-        from oompah.task_handoff import issue_task_handoff_token
+        from oompah.task_handoff import (
+            consume_task_handoff_failure,
+            issue_task_handoff_token,
+            revoke_task_handoff_token,
+        )
 
         ah._reset_for_testing()
         assigned_token = issue_task_handoff_token(
@@ -1165,6 +1495,9 @@ class TestHandoffTokenFailClosed:
         snap = ah.auth_health_snapshot()["worker"]
         assert snap["recent_403_scope_count"] == 1
         assert snap["policy_denial_count"] == 0
+        assert consume_task_handoff_failure(copied_token) is not None
+        revoke_task_handoff_token(copied_token)
+        revoke_task_handoff_token(assigned_token)
         ah._reset_for_testing()
 
     def test_ungranted_action_returns_403(self):

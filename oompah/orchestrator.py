@@ -27741,7 +27741,11 @@ class Orchestrator:
         if self.state.running.get(issue_id) is not entry:
             return
         self.state.running.pop(issue_id, None)
-        handoff_failure = consume_task_handoff_failure(
+        # The task-handoff registry contains only actionable failures of the
+        # assigned task. Verified read-only peer denials are deliberately kept
+        # out of it, so they cannot overwrite a successful own-task submit at
+        # worker exit.
+        actionable_handoff_failure = consume_task_handoff_failure(
             getattr(entry, "task_handoff_token", None)
         )
         revoke_task_handoff_token(getattr(entry, "task_handoff_token", None))
@@ -27861,7 +27865,7 @@ class Orchestrator:
             )
             return
 
-        if handoff_failure or self._is_task_handoff_failure(error):
+        if actionable_handoff_failure or self._is_task_handoff_failure(error):
             self._hold_after_task_handoff_failure(entry, issue_id, project_id)
             return
 

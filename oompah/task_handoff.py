@@ -351,7 +351,13 @@ class TaskHandoffGrantStore:
         )
 
     def record_failure(self, token: str | None, reason: str) -> None:
-        """Remember a failed operation without retaining the bearer token."""
+        """Remember an actionable failure without retaining the bearer token.
+
+        Informational policy denials, such as a verified worker's read-only
+        exploration of another task, must not call this method. The exit
+        reconciler consumes this registry specifically as evidence that the
+        assigned task's handoff could not be completed.
+        """
         if not token:
             return
         digest = self._digest(token)
@@ -677,7 +683,12 @@ def revoke_task_handoff_token(token: str | None) -> None:
 
 
 def record_task_handoff_failure(token: str | None, reason: str) -> None:
-    """Record an operation failure for the orchestrator's exit reconciler."""
+    """Record an actionable handoff failure for exit reconciliation.
+
+    Callers must leave intentional policy denials out of this registry; they
+    are informational auth-health events rather than failures of the worker's
+    assigned task.
+    """
     _default_store.record_failure(token, reason)
 
 

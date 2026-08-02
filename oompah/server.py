@@ -3954,31 +3954,41 @@ def _is_verified_peer_scope_denial(
     project_id: str,
     target_identifier: str,
     worker_task_identifier: str,
+    action: str = "view",
 ) -> bool:
-    """Return true only for a known worker intentionally targeting a peer.
+    """Return true for a verified worker's intentional read of another task.
 
     The assignment identifier is merely routing context from the worker. It
     becomes trustworthy for this classification only when the server's live
     entry for that task carries the exact presented capability. A copied
     capability therefore cannot suppress a genuine mismatched-token alert
-    while targeting the worker's assigned task. This helper never participates
-    in authorization; the failed capability validation remains authoritative.
+    while targeting the worker's assigned task. The target is deliberately
+    not resolved: a task may be Open, terminal, no longer running, or unknown,
+    and the 403 must remain indistinguishable in all of those cases. This
+    helper never participates in authorization; the failed capability
+    validation remains authoritative.
     """
-    if not worker_task_identifier or not target_identifier:
+    if action != "view" or not worker_task_identifier or not target_identifier:
         return False
     source = _verified_running_entry(
         orch,
+        project_id=project_id,
         token=token,
         identifier=worker_task_identifier,
     )
     if source is None:
         return False
-    target = _verified_running_entry(
-        orch,
-        project_id=project_id,
-        identifier=target_identifier,
-    )
-    return target is not None and target is not source
+
+    # Scope validation has already established that target_identifier differs
+    # from the capability's task. Do not inspect the target's running entry or
+    # tracker record: doing so would both leak existence and make an expected
+    # read denial depend on the peer's lifecycle state.
+    source_identifiers = {
+        str(getattr(source, "identifier", "") or "").strip(),
+        str(getattr(getattr(source, "issue", None), "identifier", "") or "").strip(),
+        str(getattr(getattr(source, "issue", None), "id", "") or "").strip(),
+    }
+    return target_identifier not in source_identifiers
 
 
 @app.post("/api/v1/task-handoff")
@@ -4094,7 +4104,10 @@ async def api_task_handoff(request: Request):
             else "handoff_forbidden"
         )
         expected_policy_denial = False
-        if status_code == 403 and "scoped to another" in reason.lower():
+        if (
+            status_code == 403
+            and reason == "task handoff capability is scoped to another task"
+        ):
             if orch is None:
                 try:
                     orch = _get_orchestrator()
@@ -4106,6 +4119,7 @@ async def api_task_handoff(request: Request):
                 project_id=project_id,
                 target_identifier=identifier,
                 worker_task_identifier=worker_task_identifier,
+                action=action,
             )
 
         # Do not expose whether a token exists for another task/project. A
