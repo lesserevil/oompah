@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T16:21:00.027506Z'
-updated_at: '2026-08-02T17:39:09.006824Z'
+updated_at: '2026-08-02T17:40:23.380984Z'
 work_branch: OOMPAH-697
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/656
@@ -120,18 +120,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-697
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 7d08b3cc35c035bd96642c4fc0ebb20d3d91d8cbb86ee9d927fe5e0a88b83704
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-61ea26528402
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 7d08b3cc35c035bd96642c4fc0ebb20d3d91d8cbb86ee9d927fe5e0a88b83704
+      created_at: '2026-08-02T17:40:17.951598+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-02T17:40:17.951598+00:00'
+      branch_key: OOMPAH-697
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-02T17:39:02.291869+00:00'
+    updated_at: '2026-08-02T17:40:17.951598+00:00'
   - version: 1
     audit_id: audit-612752c86562
     project_id: proj-14849f1b
@@ -149,7 +163,20 @@ oompah.terminal_audit:
       source: forge
     previous_state: In Review
     created_at: '2026-08-02T17:39:02.291869+00:00'
-  attempt_history: []
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-61ea26528402
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7d08b3cc35c035bd96642c4fc0ebb20d3d91d8cbb86ee9d927fe5e0a88b83704
+    created_at: '2026-08-02T17:40:17.951598+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-02T17:40:17.951598+00:00'
+    branch_key: OOMPAH-697
 ---
 ## Summary
 
@@ -549,5 +576,15 @@ author: oompah
 created: 2026-08-02 17:39
 ---
 YOLO: merged PR #656.
+---
+author: oompah
+created: 2026-08-02 17:40
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/sonnet)
+---
+author: oompah
+created: 2026-08-02 17:40
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
