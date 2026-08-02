@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-688
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Make slow-tick telemetry tests deterministic under load
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T23:11:33.946132Z'
-updated_at: '2026-08-02T00:12:47.022308Z'
+updated_at: '2026-08-02T00:21:43.737190Z'
 work_branch: OOMPAH-688
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/647
@@ -116,6 +116,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/647
 oompah.review_number: '647'
 oompah.work_branch: OOMPAH-688
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-583fa07f1e0e
+    project_id: proj-14849f1b
+    task_id: OOMPAH-688
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0ca25e04c4cd65b779daf9946533f364ae9d6697217a8bb3577527827d4e5796
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-02T00:21:38.641674+00:00'
+  - version: 1
+    audit_id: audit-5bc6922065a8
+    project_id: proj-14849f1b
+    task_id: OOMPAH-688
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0ca25e04c4cd65b779daf9946533f364ae9d6697217a8bb3577527827d4e5796
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-02T00:21:38.641674+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -448,5 +487,15 @@ author: oompah
 created: 2026-08-02 00:12
 ---
 Branch quality gate passed for `818653a948776b17728e111a03181e3a5beba3b2` using `make test` in 392.8s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-02 00:21
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-02 00:21
+---
+YOLO: merged PR #647.
 ---
 <!-- COMMENTS:END -->
