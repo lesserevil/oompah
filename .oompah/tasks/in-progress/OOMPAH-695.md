@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:52.297786Z'
-updated_at: '2026-08-02T06:40:08.680694Z'
+updated_at: '2026-08-02T06:41:28.141544Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-695
 target_branch: null
 review_url: null
@@ -829,5 +829,15 @@ author: oompah
 created: 2026-08-02 06:40
 ---
 Understanding: I am resuming the preserved WebSocket convergence work. I will inspect the existing protocol metrics and live fault-injection tests against the prior audit findings, fill any remaining end-to-end coverage, run focused suites, then commit, push, and submit the verified branch head.
+---
+author: oompah
+created: 2026-08-02 06:41
+---
+Implementation: The recovered checkpoint contains the completed audit follow-up: full_sync now records request telemetry; tests inject faults after protocol envelope stamping; live /ws coverage verifies thresholded failures/alert exposure and clearing on recovery, four dropped completion snapshots converging to zero chips, delivery-sequence idempotence, and a coalesced 20-request sync burst. No further source changes were needed after review.
+---
+author: oompah
+created: 2026-08-02 06:41
+---
+Verification: scripts/run-tests.sh serial tests/test_ws_fault_injection.py tests/test_ws_lifecycle.py tests/test_ws_full_sync.py tests/test_dashboard_websocket_liveness.py tests/test_dashboard_board_reconciliation.py tests/test_orchestrator_full_sync.py passed: 174 tests in 8.10s. This includes the new live endpoint failure/recovery, four-auditor convergence, duplicate/reordered envelope, and burst coalescing coverage. The complete make test gate is reserved for the orchestrator on this exact submitted head.
 ---
 <!-- COMMENTS:END -->
