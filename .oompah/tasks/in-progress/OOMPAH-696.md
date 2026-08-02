@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T16:18:38.337420Z'
-updated_at: '2026-08-02T16:52:29.327395Z'
+updated_at: '2026-08-02T16:53:31.300275Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -302,5 +302,10 @@ author: oompah
 created: 2026-08-02 16:52
 ---
 Implementation: Updated only tests/test_quality_gate.py. The failing sandbox-command test now stubs _validate_trusted_runtime_source() to return the same synthetic prior worktree used by its editable-source stub. This makes the fixture internally consistent and keeps the unit test focused on bind construction without weakening production runtime validation.
+---
+author: oompah
+created: 2026-08-02 16:53
+---
+Verification: Focused gate-equivalent parallel harness passed all 283 tests in tests/test_quality_gate.py and tests/test_epic_strategy.py after the repair; git diff --check also passed. The previously failing test now passes in the same four-worker mode. I did not rerun the 15k-test full gate because the project delegates that single exact-head run to the orchestrator.
 ---
 <!-- COMMENTS:END -->
