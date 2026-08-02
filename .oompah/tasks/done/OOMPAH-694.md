@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-694
 type: feature
-status: In Validation
+status: Done
 priority: 1
 title: Detect WebSocket gaps and self-heal the dashboard state
 parent: OOMPAH-691
@@ -13,7 +13,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:50.443759Z'
-updated_at: '2026-08-02T05:06:06.527259Z'
+updated_at: '2026-08-02T05:11:02.007232Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-694
 target_branch: null
 review_url: null
@@ -104,6 +104,30 @@ oompah.work_contributors:
     completed_at: '2026-08-02T04:28:36.649522+00:00'
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-eb9af8ac86f4: '2026-08-02T05:10:59.062927+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-694
+    target_state: Done
+    evidence_fingerprint: dd26516e743c1ce52501ddbc18aa2f12823d06707a634c504a3aa27833f955d7
+    audit_ids:
+    - audit-7406cdc1d164
+    kind: result
+    applied: true
+    retired_at: '2026-08-02T05:10:59.062939+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-694
+    audit_id: audit-7406cdc1d164
+    attempt_id: attempt-eb9af8ac86f4
+    target_state: Done
+    evidence_fingerprint: dd26516e743c1ce52501ddbc18aa2f12823d06707a634c504a3aa27833f955d7
+    status: Done
+    audit_ids:
+    - audit-7406cdc1d164
+    applied: false
+    created_at: '2026-08-02T05:10:59.062956+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -111,7 +135,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-694
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -120,7 +144,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-eb9af8ac86f4
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -130,13 +154,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-02T05:06:01.036758+00:00'
       branch_key: epic-OOMPAH-691--task-OOMPAH-694
+      verdict: pass
+      completed_at: '2026-08-02T05:10:59.062741+00:00'
+      ended_at: '2026-08-02T05:10:59.062741+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-08-02T05:05:10.695222+00:00'
-    updated_at: '2026-08-02T05:06:01.036758+00:00'
+    updated_at: '2026-08-02T05:10:59.062741+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-eb9af8ac86f4
@@ -474,5 +501,21 @@ author: oompah
 created: 2026-08-02 05:06
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-02 05:11
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- local_head: 5d9186d6d63e368e4f97934354f4d28e5ea2a93f
+- origin_head: 5d9186d6d63e368e4f97934354f4d28e5ea2a93f
+- focused_tests_passed: 200
+- focused_test_suites: test_dashboard_websocket_liveness, test_dashboard_board_reconciliation, test_console_ui, test_dashboard_tracker_state_reconciliation, test_websocket_authenticated_bootstrap, test_granian_e2e
+- task_commits: e84581658 (self-heal WS state), a8fc3fff5 (clear stale banner in issues handler), 5d9186d6d (stabilize Granian handshake timeout)
+- diff_stats: oompah/templates/dashboard.html +303/-82; tests/test_dashboard_websocket_liveness.py +59/-0; tests/test_granian_e2e.py +1/-0
+- prior_gate_failures_addressed: test_ws_issues_handler_clears_stale_banner and test_ws_connection_and_initial_push both pass in focused run
 ---
 <!-- COMMENTS:END -->
