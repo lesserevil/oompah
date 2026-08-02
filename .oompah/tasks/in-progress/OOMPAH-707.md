@@ -13,7 +13,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-08-02T22:19:11.796639Z'
-updated_at: '2026-08-02T23:02:34.984394Z'
+updated_at: '2026-08-02T23:13:14.098716Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -443,5 +443,10 @@ author: oompah
 created: 2026-08-02 23:02
 ---
 Implementation: added OwnerClaim persistence and bounded TTL configuration; atomic authorized POST/GET/DELETE claim APIs; watchdog expiry/recovery protection; owner-claim source/age/expiry in state; and dashboard owner badges. The claim route atomically transitions direct work to In Progress under the shared project lock.
+---
+author: oompah
+created: 2026-08-02 23:13
+---
+Verification: 8 owner-claim tests and 37 adjacent orchestrator/config/lock tests pass. The isolated full suite ran 15,020 passed / 1 failed (existing watchdog delegation flake); that one test passes on immediate serial rerun. make check-secrets, terminal mutation scan, compileall, and git diff --check pass. make test setup is blocked by this container's uv/DBus sandbox before pytest starts.
 ---
 <!-- COMMENTS:END -->
