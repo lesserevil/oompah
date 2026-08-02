@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-695
 type: task
-status: In Validation
+status: Done
 priority: 1
 title: Prove dashboard convergence with fault injection and health telemetry
 parent: OOMPAH-691
@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:52.297786Z'
-updated_at: '2026-08-02T06:50:17.757168Z'
+updated_at: '2026-08-02T06:54:37.104501Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-695
 target_branch: null
 review_url: null
@@ -164,6 +164,7 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-f7901f6eb210: '2026-08-02T06:03:07.211998+00:00'
     attempt-19e1c36dff9e: '2026-08-02T06:23:58.314128+00:00'
+    attempt-a1c9de3bd676: '2026-08-02T06:54:34.138918+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-695
@@ -183,6 +184,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-02T06:23:58.314144+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-695
+    target_state: Done
+    evidence_fingerprint: 84cdfa826dca38d343bb68080c1aff8b5d88fa0efe4754d2aec3337b1eaf7f97
+    audit_ids:
+    - audit-086a1d6e8251
+    kind: result
+    applied: true
+    retired_at: '2026-08-02T06:54:34.138931+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-695
@@ -208,6 +218,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-02T06:23:58.314163+00:00'
     applied_at: '2026-08-02T06:24:02.331839+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-695
+    audit_id: audit-086a1d6e8251
+    attempt_id: attempt-a1c9de3bd676
+    target_state: Done
+    evidence_fingerprint: 84cdfa826dca38d343bb68080c1aff8b5d88fa0efe4754d2aec3337b1eaf7f97
+    status: Done
+    audit_ids:
+    - audit-086a1d6e8251
+    applied: false
+    created_at: '2026-08-02T06:54:34.138946+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -285,7 +306,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-695
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -294,7 +315,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-a1c9de3bd676
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -304,13 +325,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-02T06:50:12.698943+00:00'
       branch_key: epic-OOMPAH-691--task-OOMPAH-695
+      verdict: pass
+      completed_at: '2026-08-02T06:54:34.138790+00:00'
+      ended_at: '2026-08-02T06:54:34.138790+00:00'
     requested_by:
       version: 1
       identity: oompah-integration
       source: service
     previous_state: Ready to Integrate
     created_at: '2026-08-02T06:49:41.239977+00:00'
-    updated_at: '2026-08-02T06:50:12.698943+00:00'
+    updated_at: '2026-08-02T06:54:34.138790+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-f7901f6eb210
@@ -920,5 +944,25 @@ author: oompah
 created: 2026-08-02 06:50
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-02 06:54
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: 1edd55f7c62f43448dd1d485e069cf3b61efd25b
+- remote_head_matches: yes
+- fault_injection_tests_passed: 16/16
+- neighbor_ws_tests_passed: 158/158
+- server_metrics_wired: _ws_sync_record_gap@3342, _ws_sync_record_success@3330,3428, _ws_sync_record_failure@3431, _ws_sync_record_full_sync_request@3326,3343
+- alert_test: test_repeated_full_sync_failures_emit_alert_in_state_payload asserts ws_sync_alert in _current_state_message()['data']
+- recovery_test: test_successful_full_sync_clears_alert_after_live_failures asserts consecutive_failures==0 and alert removed
+- four_auditor_test: test_four_completion_snapshots_converge_to_zero_running_chips asserts full_sync['state']['running']==[]
+- duplicate_reorder_test: asserts older-delivery_seq replay cannot override newer applied snapshot
+- burst_test: 20 concurrent _handle_full_sync yields refresh_mock.await_count==1 and send_text.await_count==1
+- state_enrichment: _enrich_state_snapshot exposes ws_sync_metrics and conditional ws_sync_alert
 ---
 <!-- COMMENTS:END -->
