@@ -15,7 +15,7 @@ labels:
 - workflow
 assignee: null
 created_at: '2026-07-22T01:23:32.887223Z'
-updated_at: '2026-08-02T01:30:43.922063Z'
+updated_at: '2026-08-02T01:30:53.827463Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -102,5 +102,15 @@ author: oompah
 created: 2026-08-02 01:12
 ---
 Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
+---
+author: oompah
+created: 2026-08-02 01:30
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-02 01:30
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
