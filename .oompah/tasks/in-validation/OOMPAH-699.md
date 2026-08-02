@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T18:20:28.879414Z'
-updated_at: '2026-08-02T20:41:27.396006Z'
+updated_at: '2026-08-02T20:42:42.598515Z'
 work_branch: OOMPAH-699
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/660
@@ -40,18 +40,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-699
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 043cdbd60febedffde56219f648403ba1b9a712bc26c7d55977a78822b8dabbc
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-65bbece6838f
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 043cdbd60febedffde56219f648403ba1b9a712bc26c7d55977a78822b8dabbc
+      created_at: '2026-08-02T20:42:37.426493+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-02T20:42:37.426493+00:00'
+      branch_key: OOMPAH-699
     requested_by:
       version: 1
       identity: yolo-merge
       source: oompah
     previous_state: In Review
     created_at: '2026-08-02T20:41:20.031456+00:00'
+    updated_at: '2026-08-02T20:42:37.426493+00:00'
   - version: 1
     audit_id: audit-13caa8418e58
     project_id: proj-14849f1b
@@ -69,7 +83,20 @@ oompah.terminal_audit:
       source: oompah
     previous_state: In Review
     created_at: '2026-08-02T20:41:20.031456+00:00'
-  attempt_history: []
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-65bbece6838f
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 043cdbd60febedffde56219f648403ba1b9a712bc26c7d55977a78822b8dabbc
+    created_at: '2026-08-02T20:42:37.426493+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-02T20:42:37.426493+00:00'
+    branch_key: OOMPAH-699
 ---
 ## Summary
 
@@ -156,5 +183,15 @@ author: oompah
 created: 2026-08-02 20:41
 ---
 YOLO: merged PR #660.
+---
+author: oompah
+created: 2026-08-02 20:42
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-02 20:42
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
