@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T21:44:29.390457Z'
-updated_at: '2026-08-02T01:43:59.960903Z'
+updated_at: '2026-08-02T01:44:07.306909Z'
 work_branch: OOMPAH-684
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/650
@@ -60,7 +60,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 4cfbf505-c88d-43b4-b043-720443baf42d
+oompah.agent_run_id: 5bc2ab90-96ce-41d2-adad-9e861c67e38d
 oompah.task_costs:
   total_input_tokens: 202
   total_output_tokens: 6472
@@ -329,5 +329,15 @@ created: 2026-08-02 01:28
 **Evidence:** Recent comment indicates CI is now passing or PR has been merged; safe to reopen for dispatch.
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-08-02 01:44
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-08-02 01:44
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
