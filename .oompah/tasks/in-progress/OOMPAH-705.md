@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T21:30:29.609691Z'
-updated_at: '2026-08-02T21:56:44.979615Z'
+updated_at: '2026-08-02T22:01:57.317744Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -136,5 +136,10 @@ author: oompah
 created: 2026-08-02 21:56
 ---
 Discovery: OOMPAH-700 lets BranchQualityGate archive an exact object from the managed clone, but _review_quality_gate_passes still derives expected_head only from local origin/<branch> or a local branch before any fetch. A clean external submission therefore persists integration.head_sha yet produces Head: unknown in a stale managed clone. The standalone authority already probes the live remote and fences advancement, so the correction must use the persisted integration head, materialize/verify its remote-tracking ref with authenticated bounded Git, and retain stale-head/infrastructure fail-closed routing.
+---
+author: oompah
+created: 2026-08-02 22:01
+---
+Implementation: Standalone delivery now compares the live remote branch tip with the accepted integration.head_sha before review lookup, so a newer tip cannot replace submitted evidence. Review gating resolves the persisted submission head, uses the project-scoped credential path for a 30-second exact branch-ref fetch into the stale managed clone, verifies the fetched tip equals the accepted SHA, reuses an already materialized exact ref idempotently, and classifies unavailable/fetch failures as infrastructure_error without CI-fix mutation. Added stale-clone, newer-tip, unavailable-head, idempotence, and standalone admission regressions.
 ---
 <!-- COMMENTS:END -->
