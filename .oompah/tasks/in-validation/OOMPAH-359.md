@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-359
 type: task
-status: Merged
+status: In Validation
 priority: 1
 title: Expose epic branch staleness without synchronization churn
 parent: OOMPAH-356
@@ -11,12 +11,34 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-22T01:23:53.416699Z'
-updated_at: '2026-07-26T00:28:02.646992Z'
+updated_at: '2026-08-02T01:13:04.768971Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-742227274b55
+    project_id: proj-14849f1b
+    task_id: OOMPAH-359
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 3ba4c95553617a563d8cdc69b6058ace9ab8b99ae451f9029faa16110a3d5629
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-02T01:13:01.207797+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -44,5 +66,10 @@ author: oompah
 created: 2026-07-26 00:28
 ---
 Verified delivered on origin/main in 2ba37886b and reconciled stale Done state.
+---
+author: oompah
+created: 2026-08-02 01:13
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
