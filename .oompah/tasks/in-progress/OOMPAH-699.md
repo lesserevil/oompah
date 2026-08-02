@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-699
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Converge historical Done records after parent terminalization
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T18:20:28.879414Z'
-updated_at: '2026-08-02T19:06:05.581834Z'
+updated_at: '2026-08-02T19:23:40.488641Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -43,5 +43,10 @@ author: oompah
 created: 2026-08-02 19:06
 ---
 Production mitigation completed on 2026-08-02: all 69 historical Done records were reconciled through canonical owner-audit transitions using parent terminal state, retained integration/recovery evidence, and explicit archival evidence for obsolete helpers. The current Done backlog is empty. This task remains Open for the idempotent maintenance/backfill implementation so the backlog cannot recur.
+---
+author: oompah
+created: 2026-08-02 19:23
+---
+Claimed for direct owner implementation after OOMPAH-698; adding durable historical Done convergence.
 ---
 <!-- COMMENTS:END -->

@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-698
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Recover legacy stale reviews without persisted review-head metadata
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T18:20:27.192609Z'
-updated_at: '2026-08-02T19:06:04.014115Z'
+updated_at: '2026-08-02T19:23:33.903454Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -43,5 +43,10 @@ author: oompah
 created: 2026-08-02 19:06
 ---
 Production mitigation completed on 2026-08-02: legacy stale reviews OOMPAH-680 and OOMPAH-682 were requeued against their exact current heads, passed fresh CI/audit paths, and merged via PR #657 (merge 126422448bb23f19561533eebbdfc0a4aa4f9178) and PR #658 (merge 24b27b8fc30a4ee16db7f736577e96758ceba4d1). This task remains Open for the automated legacy-metadata recovery so the manual intervention is not needed again.
+---
+author: oompah
+created: 2026-08-02 19:23
+---
+Claimed for direct owner implementation; reproducing the legacy missing-review-head reconciliation path.
 ---
 <!-- COMMENTS:END -->
