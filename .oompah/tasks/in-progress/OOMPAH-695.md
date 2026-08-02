@@ -14,7 +14,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:52.297786Z'
-updated_at: '2026-08-02T06:33:03.014807Z'
+updated_at: '2026-08-02T06:39:35.238904Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-695
 target_branch: null
 review_url: null
@@ -804,5 +804,15 @@ author: oompah
 created: 2026-08-02 06:33
 ---
 Implementation: Added an envelope-level _send_ws fault injector and replaced the lossy/drop and duplicate no-op tests with assertions over real delivery sequences, including replay of an older envelope after a newer state. Added live /ws tests for thresholded full-sync failures exposing one actionable ws_sync_alert, successful recovery clearing alert/failure streak, four dropped auditor completion snapshots converging to an empty running-chip state, and a 20-request concurrent full-sync burst producing one assembly/response. Full-sync actions now increment full_sync_requests in oompah/server.py.
+---
+author: oompah
+created: 2026-08-02 06:39
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 63
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 14m 35s
+- Log: OOMPAH-695__20260802T062507Z.jsonl
 ---
 <!-- COMMENTS:END -->
