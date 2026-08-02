@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-701
 type: bug
-status: Open
+status: Ready to Integrate
 priority: 1
 title: Retire hidden provider processes when task ownership is revoked
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T20:20:26.676545Z'
-updated_at: '2026-08-02T22:05:24.428509Z'
+updated_at: '2026-08-02T22:48:10.318693Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -36,7 +36,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 9358e6fd-e4b1-46b2-9c75-dc43574182fc
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 20
   total_output_tokens: 3189
@@ -77,6 +77,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-701
     source_sha: 366129d0a5046c5ed7caed4acf26cd8cd2a3fbdd
     completed_at: '2026-08-02T21:54:04.122274+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-701
+  head_sha: 455cde3b1a393b869240dc32404a17022d77cc8c
+  submitted_at: '2026-08-02T22:48:04.313149+00:00'
+  updated_at: '2026-08-02T22:48:04.313149+00:00'
 ---
 ## Summary
 
@@ -146,5 +154,15 @@ author: oompah
 created: 2026-08-02 21:56
 ---
 Claimed for direct project-owner implementation after two duplicate-preflight contract/truncation retries. Added human-only to fence further scheduler dispatch; OOMPAH-706 tracks the duplicate-screening cause.
+---
+author: oompah
+created: 2026-08-02 22:48
+---
+Direct implementation complete at pushed head 455cde3b1a393b869240dc32404a17022d77cc8c. Provider runs now retain exact process identities and visible retirement state until descendants exit; lifecycle drain fences final provider launches and persists recovery; startup reaps inherited workspace children; repeated auditor policy denials terminate through the durable independent-retry path. Verification: 15,020 passed, 7 skipped, 1 xfailed via make test; final focused post-rebase suite 12 passed; make check-secrets passed; terminal mutation scan passed.
+---
+author: oompah
+created: 2026-08-02 22:48
+---
+Retired revoked provider processes with exact descendant tracking, lifecycle launch fencing, inherited-child recovery, truthful UI/audit state, and bounded auditor denial retries. Full make test: 15,020 passed; secret scan passed.
 ---
 <!-- COMMENTS:END -->
