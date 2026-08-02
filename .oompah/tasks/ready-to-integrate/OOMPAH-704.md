@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T21:11:44.479316Z'
-updated_at: '2026-08-02T21:29:54.954494Z'
+updated_at: '2026-08-02T21:30:32.213592Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -100,6 +100,24 @@ Candidate CI was not run because the submitted review branch tip is unavailable 
 ---
 author: oompah
 created: 2026-08-02 21:29
+---
+Branch quality gate blocked review creation.
+
+Branch: `OOMPAH-704`
+Target: `main`
+Head: `unknown`
+Command: `make test`
+Result: `infrastructure_error`
+
+Infrastructure action required: repair or replace the operator-owned quality-gate runtime. No candidate CI-fix status was applied because the candidate command did not run.
+
+Output tail:
+```text
+Candidate CI was not run because the submitted review branch tip is unavailable in the managed repository.
+```
+---
+author: oompah
+created: 2026-08-02 21:30
 ---
 Branch quality gate blocked review creation.
 
