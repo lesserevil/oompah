@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-697
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Requeue branches that advance after their recorded review merges
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T16:21:00.027506Z'
-updated_at: '2026-08-02T17:19:09.467139Z'
+updated_at: '2026-08-02T17:19:13.313805Z'
 work_branch: null
 target_branch: null
 review_url: https://github.com/lesserevil/oompah/pull/656
