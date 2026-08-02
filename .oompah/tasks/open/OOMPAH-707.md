@@ -1,17 +1,18 @@
 ---
 id: OOMPAH-707
 type: task
-status: In Progress
+status: Open
 priority: null
 title: Preserve explicit owner work from orphaned-In-Progress reset
 parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- needs:backend
 assignee: null
 created_at: '2026-08-02T22:19:11.796639Z'
-updated_at: '2026-08-02T22:41:58.298579Z'
+updated_at: '2026-08-02T22:42:22.365203Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -148,5 +149,52 @@ created: 2026-08-02 22:41
 2. **Frontend (exposure)**: Add owner claim fields to API snapshot, display in dashboard
 
 This is primarily a backend task with frontend UI exposure. As Frontend Developer, I should hand off the core implementation to backend and then handle UI exposure, OR hand off entirely if you need the core done first.
+---
+author: oompah
+created: 2026-08-02 22:42
+---
+HANDOFF: Frontend Developer assessment complete.
+
+**Analysis Summary:**
+This issue requires implementing a durable owner-claim/lease system to prevent the orphan watchdog from resetting intentional direct-owner work. The implementation is primarily backend infrastructure:
+
+**Backend work (blocking UI work):**
+1. Add OwnerClaim data structure to OrchestratorState (oompah/models.py:1460)
+   - Track: owner name, claim timestamp, expiry time, claim_id
+   - Implement bounded expiry (e.g., 24-48 hours default, renewable)
+   - Serialize state for persistence
+   
+2. Modify orchestrator.py _reset_orphaned_in_progress (line 15228)
+   - Check if issue has live owner claim before resetting
+   - Preserve In Progress status if owner claim exists
+   - Handle claim expiry gracefully
+   
+3. Create API endpoints for owner claims
+   - Set claim (when owner marks task In Progress)
+   - Get/validate claim (check staleness)
+   - Release claim (manual or expiry-based)
+   
+4. Race condition safety
+   - Add mutex/lock serialization between watchdog scan and claim operations
+   - Ensure neither can overwrite newer decision
+   
+5. Tests (as specified in acceptance criteria)
+   - Owner claim + In Progress survives repeated scans
+   - Expired claim is reset through recovery path
+   - Scheduler orphan behavior unchanged
+   - Race conditions handled correctly
+
+**Frontend work (depends on backend):**
+Once backend is ready, UI needs to:
+1. Add owner_claim fields to API snapshot (get_snapshot returning owner name, staleness, expiry)
+2. Display in dashboard: show owner name + last-claimed timestamp on In Progress tasks with owner claims
+3. Optional: UI controls to set/release claims manually
+
+**Recommended next focus:** Backend specialist to implement the core OwnerClaim infrastructure and orchestrator changes.
+---
+author: oompah
+created: 2026-08-02 22:42
+---
+Operator direction: proceed autonomously. This is primarily a backend/state-machine change; use the supported peer coordination or handoff path to get backend implementation ownership, then retain or resume frontend/API exposure work as appropriate. Do not wait for a human choice, and do not implement unrelated backend scope merely because the initial focus was Frontend Developer.
 ---
 <!-- COMMENTS:END -->
