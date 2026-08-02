@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T20:59:10.197769Z'
-updated_at: '2026-08-02T22:11:06.563886Z'
+updated_at: '2026-08-02T22:12:47.070001Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -163,5 +163,10 @@ author: oompah
 created: 2026-08-02 22:11
 ---
 Verification: make test passed with 15,013 passed, 7 skipped, and 1 xfailed; make check-secrets passed. After the final synchronization assertion cleanup, the full release-delivery-refresh suite passed 55/55 under Python 3.12, and the completion/thread-safety/invalidation subset passed 9/9 in five consecutive Python 3.11 runs.
+---
+author: oompah
+created: 2026-08-02 22:12
+---
+Completion: pushed commit 26b3f2ea9a99038870bc1f5d46a29157ee9be512. BacklogRefreshManager now exposes deterministic wait_for_completion() status synchronization; invalidate, stale-while-revalidate, regression, thread-safety, and completion tests no longer infer background completion from fixed sleeps. Required make test and make check-secrets gates passed, and the branch is clean/up to date.
 ---
 <!-- COMMENTS:END -->
