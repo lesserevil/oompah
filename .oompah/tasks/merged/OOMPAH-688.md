@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-688
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Make slow-tick telemetry tests deterministic under load
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T23:11:33.946132Z'
-updated_at: '2026-08-02T00:25:26.821824Z'
+updated_at: '2026-08-02T00:26:56.246732Z'
 work_branch: OOMPAH-688
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/647
@@ -130,6 +130,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-5232b5846b40: '2026-08-02T00:24:55.032929+00:00'
+    attempt-1a7243d3ba25: '2026-08-02T00:26:53.523127+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-688
@@ -140,6 +141,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-02T00:24:55.032940+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-688
+    target_state: Merged
+    evidence_fingerprint: 0ca25e04c4cd65b779daf9946533f364ae9d6697217a8bb3577527827d4e5796
+    audit_ids:
+    - audit-5bc6922065a8
+    kind: result
+    applied: true
+    retired_at: '2026-08-02T00:26:53.523139+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-688
@@ -153,6 +163,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-02T00:24:55.032957+00:00'
     applied_at: '2026-08-02T00:25:00.200779+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-688
+    audit_id: audit-5bc6922065a8
+    attempt_id: attempt-1a7243d3ba25
+    target_state: Merged
+    evidence_fingerprint: 0ca25e04c4cd65b779daf9946533f364ae9d6697217a8bb3577527827d4e5796
+    status: Merged
+    audit_ids:
+    - audit-5bc6922065a8
+    applied: false
+    created_at: '2026-08-02T00:26:53.523154+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -194,7 +215,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-688
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -203,7 +224,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-1a7243d3ba25
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -213,13 +234,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-02T00:25:22.259020+00:00'
       branch_key: OOMPAH-688
+      verdict: pass
+      completed_at: '2026-08-02T00:26:53.523006+00:00'
+      ended_at: '2026-08-02T00:26:53.523006+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-02T00:21:38.641674+00:00'
-    updated_at: '2026-08-02T00:25:22.259020+00:00'
+    updated_at: '2026-08-02T00:26:53.523006+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-5232b5846b40
@@ -635,5 +659,22 @@ author: oompah
 created: 2026-08-02 00:25
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-02 00:26
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: 818653a948776b17728e111a03181e3a5beba3b2
+- merge_commit: 7e0d0d8c7 (PR #647)
+- focused_test_result: 35 passed in 18.54s (tests/test_orchestrator_tick_telemetry.py)
+- branch_gate: make test passed at 818653a94 in 392.8s (per trusted scheduler comment 2026-08-02 00:12)
+- merged_commits_present_on_main: 381465f98, dbb50c914, 818653a94, 7e0d0d8c7
+- production_seam: oompah/orchestrator.py:1444 self._monotonic_clock = time.monotonic; 12 call sites in _tick()
+- test_helpers: _make_fast_tick_clock (line 426), _make_slow_tick_clock (line 444)
+- new_regression_test: test_no_slow_tick_warning_for_fast_ticks_repeated at line 594
 ---
 <!-- COMMENTS:END -->
