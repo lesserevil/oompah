@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T21:30:29.609691Z'
-updated_at: '2026-08-02T22:14:06.772144Z'
+updated_at: '2026-08-02T22:15:35.851956Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -146,5 +146,10 @@ author: oompah
 created: 2026-08-02 22:14
 ---
 Verification: PASS — 96/96 quality-gate + standalone delivery tests; 13/13 submit-focused worker/CLI tests; terminal mutation scan 6/6 allowlisted. Full isolated xdist run: 15,013 passed, 7 skipped, 1 expected xfail, with one unrelated parallel-only failure in test_pr_merged_stages_task_merged; that test passes alone and the complete tests/test_server_webhooks.py file passes 130/130. The make targets themselves could not bootstrap because the host Snap uv wrapper fails in DBus before setup, so the same Makefile runner and scanner were executed directly with the provisioned interpreter.
+---
+author: oompah
+created: 2026-08-02 22:15
+---
+Completion: Delivered commit 73e20b64c on pushed branch OOMPAH-705. Accepted standalone submission heads are now remote-verified, credential-fetched into stale managed clones, exact-tip checked before CI, and protected from newer-head substitution; infrastructure fetch failures do not create CI-fix state. Regression coverage includes stale-clone recovery, repeated idempotence, advanced remote tips, unavailable commits, and standalone pre-gate fencing.
 ---
 <!-- COMMENTS:END -->
