@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-01T23:00:54.291962Z'
-updated_at: '2026-08-02T02:24:11.910278Z'
+updated_at: '2026-08-02T02:24:42.074105Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -98,9 +98,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-687
-  head_sha: 046ad1f71ec16c0a4ead58ef6a10e3020c0a0031
-  submitted_at: '2026-08-01T23:19:22.009948+00:00'
-  updated_at: '2026-08-01T23:19:22.009948+00:00'
+  head_sha: 9dfa372d7d3588e4d3d98bc13f7245b7185985c3
+  submitted_at: '2026-08-02T02:24:40.663857+00:00'
+  updated_at: '2026-08-02T02:24:40.663857+00:00'
 ---
 ## Summary
 
@@ -290,5 +290,10 @@ author: oompah
 created: 2026-08-02 02:24
 ---
 Verification: The five originally reported tests pass with OOMPAH_PYTEST_GATE=1 (5 passed). Neighbor suites also pass: tests/test_makefile_setup.py (14 passed under gate-mode env) and tests/test_quality_gate.py (54 passed in host-supported configuration). The complete make test gate is reserved for the orchestrator.
+---
+author: oompah
+created: 2026-08-02 02:24
+---
+Completion: Pushed 9dfa372d7 to OOMPAH-687. The two non-gate setup fixtures now neutralize an inherited branch-gate flag; focused failures and neighboring suites pass. GitHub currently reports no PR or Actions run for this branch, so there is no remote check to observe; submission will request the normal branch gate for this head.
 ---
 <!-- COMMENTS:END -->
