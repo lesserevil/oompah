@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-680
 type: task
-status: In Validation
+status: Merged
 priority: 0
 title: Use project forge credentials for all managed Git network operations
 parent: null
@@ -12,7 +12,7 @@ labels:
 - merge-conflict
 assignee: null
 created_at: '2026-08-01T17:31:44.735248Z'
-updated_at: '2026-08-02T18:58:45.796469Z'
+updated_at: '2026-08-02T18:59:52.413254Z'
 work_branch: OOMPAH-680
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/657
@@ -135,6 +135,7 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-7bb232f7c6b0: '2026-08-01T18:49:23.451181+00:00'
     attempt-cd841e90756b: '2026-08-01T20:15:12.884663+00:00'
+    attempt-36ad8c3ce3af: '2026-08-02T18:59:48.105586+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-680
@@ -154,6 +155,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-01T20:15:12.884686+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-680
+    target_state: Merged
+    evidence_fingerprint: e267959b3d2cdd36d6b66c0a7cabffa256ac486bb5615a5c5aa09228e72fc4bd
+    audit_ids:
+    - audit-b82b227f214a
+    kind: result
+    applied: true
+    retired_at: '2026-08-02T18:59:48.105603+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-680
@@ -179,6 +189,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-01T20:15:12.884710+00:00'
     applied_at: '2026-08-01T20:15:18.921688+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-680
+    audit_id: audit-b82b227f214a
+    attempt_id: attempt-36ad8c3ce3af
+    target_state: Merged
+    evidence_fingerprint: e267959b3d2cdd36d6b66c0a7cabffa256ac486bb5615a5c5aa09228e72fc4bd
+    status: Merged
+    audit_ids:
+    - audit-b82b227f214a
+    applied: false
+    created_at: '2026-08-02T18:59:48.105621+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -273,7 +294,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-680
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -282,7 +303,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-36ad8c3ce3af
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -292,13 +313,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-02T18:58:39.448893+00:00'
       branch_key: OOMPAH-680
+      verdict: pass
+      completed_at: '2026-08-02T18:59:48.105472+00:00'
+      ended_at: '2026-08-02T18:59:48.105472+00:00'
     requested_by:
       version: 1
       identity: NVShawn
       source: forge
     previous_state: In Review
     created_at: '2026-08-02T18:58:23.219763+00:00'
-    updated_at: '2026-08-02T18:58:39.448893+00:00'
+    updated_at: '2026-08-02T18:59:48.105472+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-7bb232f7c6b0
@@ -780,5 +804,21 @@ author: oompah
 created: 2026-08-02 18:58
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-02 18:59
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: db310ea4d8abfafaf973cf933e10596b4d80de3b
+- origin_main_head: 126422448bb23f19561533eebbdfc0a4aa4f9178
+- merge_commit: 126422448bb23f19561533eebbdfc0a4aa4f9178
+- merge_commit_parents: 24b27b8fc30a4ee16db7f736577e96758ceba4d1 db310ea4d8abfafaf973cf933e10596b4d80de3b
+- merge_commit_subject: Merge pull request #657 from lesserevil/OOMPAH-680
+- prior_merged_pr: PR #643 (7fd628c2d) merged an older branch generation; PR #657 completes the current head
+- test_file_present: tests/test_managed_git_credentials.py
 ---
 <!-- COMMENTS:END -->
