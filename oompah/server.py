@@ -986,6 +986,22 @@ _http_credentials: Any = None  # oompah.http_auth.HtpasswdCredentials | None
 # supervisors distinguish restarts without exposing operational data.
 _INSTANCE_ID: str = uuid.uuid4().hex
 
+# Versioned WebSocket protocol state.  ``_INSTANCE_ID`` is deliberately the
+# stream epoch: a process restart creates a new epoch and clients must
+# reconnect before treating revisions as comparable again.
+WS_PROTOCOL_VERSION = 1
+_ws_protocol_lock = threading.RLock()
+_protocol_epoch = _INSTANCE_ID
+_state_revision = 0
+_issue_revision = 0
+
+# The sequence is per connection, rather than global.  A lock protects the
+# maps because observer callbacks can originate on orchestrator threads while
+# sends run on the API event loop.  The asyncio locks serialize sends for one
+# socket so the sequence order is also the wire order.
+_ws_delivery_sequences: dict[WebSocket, int] = {}
+_ws_send_locks: dict[WebSocket, asyncio.Lock] = {}
+
 _NATIVE_TASK_IDENTIFIER_RE = re.compile(r"^TASK-(\d+(?:\.\d+)*)$", re.IGNORECASE)
 
 
@@ -1459,6 +1475,10 @@ from concurrent.futures import ThreadPoolExecutor
 _api_thread_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="api")
 _issues_broadcast_pending = False
 _STATE_THROTTLE_MS = 500  # Don't broadcast state more than every 500ms
+_state_broadcast_scheduled = False
+_state_broadcast_dirty = False
+_state_broadcast_loop: asyncio.AbstractEventLoop | None = None
+_broadcast_throttle_lock = threading.RLock()
 
 
 async def _run_api_io(func: Callable[..., Any], /, *args: Any, **kwargs: Any) -> Any:
@@ -1501,10 +1521,12 @@ _ISSUES_SNAPSHOT_STALE_MS = _env_positive_int_ms(
     "OOMPAH_ISSUES_SNAPSHOT_STALE_MS",
     60_000,
 )
-_issues_snapshot_lock = threading.Lock()
+_issues_snapshot_lock = threading.RLock()
 _issues_snapshot: dict[str, Any] = {
     "data": None,
     "orch_id": None,
+    "epoch": _INSTANCE_ID,
+    "data_revision": 0,
     "created_at_monotonic": 0.0,
     "created_at_wall": None,
     "duration_ms": None,
@@ -1543,20 +1565,108 @@ _STATE_SNAPSHOT_MAX_AGE_S = 30.0
 _state_snapshot_lock = threading.Lock()
 _state_snapshot: dict[str, Any] | None = None
 _state_snapshot_at: float = 0.0  # monotonic seconds
+_state_snapshot_epoch = _INSTANCE_ID
+_state_snapshot_authority: str | None = None
+_state_snapshot_signature: str | None = None
 
 
-def _update_state_snapshot(snapshot: dict[str, Any]) -> None:
-    """Store a fresh snapshot from an orchestrator observer callback."""
+def _protocol_values() -> tuple[str, int, int]:
+    """Return the current epoch and authoritative revisions atomically."""
+    global _protocol_epoch, _state_revision, _issue_revision
+    with _ws_protocol_lock:
+        # Tests and controlled in-process supervisors can replace the instance
+        # id.  Treat that exactly like a restart so no revision crosses epochs.
+        if _protocol_epoch != _INSTANCE_ID:
+            _protocol_epoch = _INSTANCE_ID
+            _state_revision = 0
+            _issue_revision = 0
+            with _ws_delivery_sequences_lock:
+                _ws_delivery_sequences.clear()
+                _ws_send_locks.clear()
+        return _protocol_epoch, _state_revision, _issue_revision
+
+
+def _advance_state_revision() -> int:
+    global _state_revision
+    with _ws_protocol_lock:
+        _protocol_values()
+        _state_revision += 1
+        return _state_revision
+
+
+def _advance_issue_revision() -> int:
+    global _issue_revision
+    with _ws_protocol_lock:
+        _protocol_values()
+        _issue_revision += 1
+        return _issue_revision
+
+
+_ws_delivery_sequences_lock = threading.RLock()
+
+
+def _snapshot_signature(snapshot: dict[str, Any]) -> str:
+    """Create a stable comparison token for observer snapshots."""
+    try:
+        return json.dumps(snapshot, sort_keys=True, default=str, separators=(",", ":"))
+    except Exception:  # noqa: BLE001 - defensive fallback for test doubles
+        return repr(snapshot)
+
+
+def _update_state_snapshot(snapshot: dict[str, Any]) -> int:
+    """Accept a newer orchestrator snapshot and return its state revision.
+
+    Observer callbacks are allowed to arrive from multiple threads.  The
+    generated timestamp, when present, rejects an older callback that raced a
+    newer one; snapshots without that field use arrival order.  Identical
+    duplicate callbacks do not manufacture a new authoritative generation.
+    """
     global _state_snapshot, _state_snapshot_at
+    global _state_snapshot_epoch, _state_snapshot_authority
+    global _state_snapshot_signature
+    incoming = dict(snapshot)
+    signature = _snapshot_signature(incoming)
+    authority = incoming.get("generated_at")
+    authority = str(authority) if authority is not None else None
+    epoch, _, _ = _protocol_values()
     with _state_snapshot_lock:
-        _state_snapshot = snapshot
+        if _state_snapshot_epoch != epoch:
+            _state_snapshot = None
+            _state_snapshot_authority = None
+            _state_snapshot_signature = None
+            _state_snapshot_epoch = epoch
+
+        if (
+            _state_snapshot is not None
+            and authority is not None
+            and _state_snapshot_authority is not None
+            and authority < _state_snapshot_authority
+        ):
+            with _ws_protocol_lock:
+                return _state_revision
+        if (
+            _state_snapshot is not None
+            and signature == _state_snapshot_signature
+            and authority == _state_snapshot_authority
+        ):
+            with _ws_protocol_lock:
+                return _state_revision
+
+        revision = _advance_state_revision()
+        _state_snapshot = incoming
         _state_snapshot_at = time.monotonic()
+        _state_snapshot_authority = authority
+        _state_snapshot_signature = signature
+        return revision
 
 
-def _read_state_snapshot(*, allow_stale: bool = False) -> dict[str, Any] | None:
+def _read_state_snapshot(
+    *, allow_stale: bool = False
+) -> dict[str, Any] | None:
     """Return the cached snapshot if it is fresh enough, else None."""
+    epoch, _, _ = _protocol_values()
     with _state_snapshot_lock:
-        if _state_snapshot is None:
+        if _state_snapshot is None or _state_snapshot_epoch != epoch:
             return None
         age = time.monotonic() - _state_snapshot_at
         if age > _STATE_SNAPSHOT_MAX_AGE_S and not allow_stale:
@@ -1566,6 +1676,24 @@ def _read_state_snapshot(*, allow_stale: bool = False) -> dict[str, Any] | None:
             snapshot["state_snapshot_stale"] = True
             snapshot["state_snapshot_age_seconds"] = round(age, 3)
         return snapshot
+
+
+def _read_state_snapshot_with_revision(
+    *, allow_stale: bool = False
+) -> tuple[dict[str, Any] | None, int]:
+    """Read a cached state payload and the revision belonging to that payload."""
+    epoch, current_revision, _ = _protocol_values()
+    with _state_snapshot_lock:
+        if _state_snapshot is None or _state_snapshot_epoch != epoch:
+            return None, current_revision
+        age = time.monotonic() - _state_snapshot_at
+        if age > _STATE_SNAPSHOT_MAX_AGE_S and not allow_stale:
+            return None, current_revision
+        snapshot = dict(_state_snapshot)
+        if age > _STATE_SNAPSHOT_MAX_AGE_S:
+            snapshot["state_snapshot_stale"] = True
+            snapshot["state_snapshot_age_seconds"] = round(age, 3)
+        return snapshot, current_revision
 
 
 def _cached_state_snapshot_or_unavailable() -> dict[str, Any]:
@@ -1648,7 +1776,10 @@ def _invalidate_issue_caches(
         _api_cache.invalidate_prefix(f"detail:{project_id}:")
     else:
         _api_cache.invalidate_prefix("detail:")
+    epoch, _, _ = _protocol_values()
     with _issues_snapshot_lock:
+        _advance_issue_revision()
+        _issues_snapshot["epoch"] = epoch
         _issues_snapshot["invalidated"] = True
     # A mutation callback can run in a worker thread.  Scheduling is
     # best-effort; the synchronous invalidation above is the correctness fence.
@@ -2055,11 +2186,15 @@ def _issues_snapshot_payload(
     orch: "Orchestrator | None" = None,
     include_meta: bool = False,
 ) -> dict[str, Any] | None:
+    epoch, _, _ = _protocol_values()
     with _issues_snapshot_lock:
         data = _issues_snapshot.get("data")
         snapshot_orch_id = _issues_snapshot.get("orch_id")
+        snapshot_epoch = _issues_snapshot.get("epoch")
         source_generations = _issues_snapshot.get("source_generations") or {}
         invalidated = bool(_issues_snapshot.get("invalidated"))
+        if snapshot_epoch != epoch:
+            data = None
         if (
             data is not None
             and orch is not None
@@ -2099,6 +2234,29 @@ def _issues_snapshot_payload(
         return payload
 
 
+def _issues_snapshot_payload_with_revision(
+    *,
+    filter_project: str | None = None,
+    allow_empty: bool = False,
+    orch: "Orchestrator | None" = None,
+) -> tuple[dict[str, Any] | None, int]:
+    """Return an issue payload and the revision that belongs to that payload."""
+    # Keep the payload and its data revision under the same lock.  This is the
+    # important stale-data fence: an invalidation racing a send cannot cause an
+    # older board to be labelled with the newly-current revision.
+    with _issues_snapshot_lock:
+        payload = _issues_snapshot_payload(
+            filter_project=filter_project,
+            allow_empty=allow_empty,
+            orch=orch,
+        )
+        if payload is None:
+            _, _, revision = _protocol_values()
+        else:
+            revision = int(_issues_snapshot.get("data_revision") or 0)
+        return payload, revision
+
+
 def _issues_snapshot_headers(orch: "Orchestrator | None" = None) -> dict[str, str]:
     payload = _issues_snapshot_payload(
         allow_empty=True, orch=orch, include_meta=True
@@ -2133,9 +2291,18 @@ def _set_issues_snapshot(
         source_authority is not None
         and _issues_snapshot_sources_match(source_authority, captured_generations)
     )
+    epoch, _, _ = _protocol_values()
     with _issues_snapshot_lock:
+        was_invalidated = bool(_issues_snapshot.get("invalidated"))
+        if _issues_snapshot.get("epoch") != epoch:
+            was_invalidated = False
+        if not was_invalidated:
+            _advance_issue_revision()
+        _, _, current_issue_revision = _protocol_values()
         _issues_snapshot["data"] = data
         _issues_snapshot["orch_id"] = orch_id
+        _issues_snapshot["epoch"] = epoch
+        _issues_snapshot["data_revision"] = current_issue_revision
         _issues_snapshot["created_at_monotonic"] = time.monotonic()
         _issues_snapshot["created_at_wall"] = datetime.now(timezone.utc).isoformat()
         _issues_snapshot["duration_ms"] = round(duration_ms, 3)
@@ -2295,8 +2462,16 @@ async def _ensure_issues_snapshot_refresh(
                         _issue_count_from_board(result),
                     )
                 if broadcast and _ws_clients:
-                    payload = _issues_snapshot_payload(allow_empty=True, orch=orch)
-                    await _broadcast({"type": "issues", "data": payload})
+                    payload, revision = _issues_snapshot_payload_with_revision(
+                        allow_empty=True, orch=orch
+                    )
+                    await _broadcast(
+                        {
+                            "type": "issues",
+                            "data": payload,
+                            "issue_revision": revision,
+                        }
+                    )
             except Exception as exc:
                 duration_ms = (time.monotonic() - start) * 1000
                 logger.debug("issues snapshot refresh failed: %s", exc)
@@ -2304,8 +2479,16 @@ async def _ensure_issues_snapshot_refresh(
                     _issues_snapshot["error"] = str(exc)
                     _issues_snapshot["duration_ms"] = round(duration_ms, 3)
                 if broadcast and _ws_clients:
-                    payload = _issues_snapshot_payload(allow_empty=True, orch=orch)
-                    await _broadcast({"type": "issues", "data": payload})
+                    payload, revision = _issues_snapshot_payload_with_revision(
+                        allow_empty=True, orch=orch
+                    )
+                    await _broadcast(
+                        {
+                            "type": "issues",
+                            "data": payload,
+                            "issue_revision": revision,
+                        }
+                    )
             finally:
                 with _issues_snapshot_lock:
                     _issues_refresh_task = None
@@ -2521,44 +2704,100 @@ def _sync_orchestrator_review_cache(
         notify()
 
 
-def _schedule_api_coro(factory: Callable[[], Any]) -> None:
+def _schedule_api_coro(factory: Callable[[], Any]) -> bool:
     """Schedule an async callback on the API event loop from any thread."""
     loop = _api_event_loop
     if loop is not None and loop.is_running():
         loop.call_soon_threadsafe(lambda: loop.create_task(factory()))
-        return
+        return True
     try:
         loop = asyncio.get_event_loop()
         if loop.is_running():
             loop.create_task(factory())
+            return True
     except RuntimeError:
         pass
+    return False
+
+
+def _current_state_message() -> dict[str, Any]:
+    """Build a state message from one cache/revision pair."""
+    snapshot, revision = _read_state_snapshot_with_revision(allow_stale=True)
+    if snapshot is None:
+        snapshot = _cached_state_snapshot_or_unavailable()
+    return {
+        "type": "state",
+        "data": _enrich_state_snapshot(snapshot),
+        "state_revision": revision,
+    }
+
+
+async def _drain_state_broadcast() -> None:
+    """Broadcast the latest cached state, deferring within the throttle window."""
+    global _last_state_broadcast, _state_broadcast_scheduled
+    global _state_broadcast_dirty
+    global _state_broadcast_loop
+    loop = asyncio.get_running_loop()
+    _state_broadcast_loop = loop
+    with _broadcast_throttle_lock:
+        if not _ws_clients:
+            _state_broadcast_dirty = False
+            _state_broadcast_scheduled = False
+            return
+        elapsed = time.monotonic() * 1000 - _last_state_broadcast
+        if not _state_broadcast_dirty:
+            _state_broadcast_scheduled = False
+            return
+        if elapsed < _STATE_THROTTLE_MS:
+            # Keep the pending flag set while the timer is armed.  Mutations
+            # during the window only replace the cached trailing snapshot.
+            delay = (_STATE_THROTTLE_MS - elapsed) / 1000
+            loop.call_later(
+                delay,
+                lambda: loop.create_task(_drain_state_broadcast()),
+            )
+            return
+        _state_broadcast_dirty = False
+        _state_broadcast_scheduled = False
+        _last_state_broadcast = time.monotonic() * 1000
+    # Read after the throttle decision.  The cache carries the matching
+    # revision, so a coalesced message can never use an old payload with the
+    # current revision.
+    await _broadcast(_current_state_message())
+
+
+def _queue_state_broadcast() -> None:
+    """Mark state dirty and schedule one immediate/trailing-edge drain."""
+    global _state_broadcast_scheduled, _state_broadcast_dirty
+    with _broadcast_throttle_lock:
+        # A test/client loop can be replaced while a deferred callback from
+        # the previous loop is still marked pending.  Do not let that stale
+        # marker suppress the first update on the new loop.
+        if _state_broadcast_scheduled and (
+            _state_broadcast_loop is not None
+            and _state_broadcast_loop.is_closed()
+        ):
+            _state_broadcast_scheduled = False
+        _state_broadcast_dirty = True
+        if _state_broadcast_scheduled:
+            return
+        _state_broadcast_scheduled = True
+    if not _schedule_api_coro(_drain_state_broadcast):
+        with _broadcast_throttle_lock:
+            _state_broadcast_scheduled = False
 
 
 def _on_state_only_change(snapshot: dict) -> None:
     """Called on agent activity — broadcast state only, no issues re-fetch."""
-    import time
-
-    global _last_state_broadcast
     # Always cache the snapshot so api_state() can serve it without recomputing.
     _update_state_snapshot(snapshot)
     if not _ws_clients:
         return
-    now = time.monotonic() * 1000
-    if now - _last_state_broadcast < _STATE_THROTTLE_MS:
-        return
-    _last_state_broadcast = now
-    enriched_snapshot = _enrich_state_snapshot(snapshot)
-    _schedule_api_coro(
-        lambda: _broadcast({"type": "state", "data": enriched_snapshot})
-    )
+    _queue_state_broadcast()
 
 
 def _on_orchestrator_change(snapshot: dict) -> None:
     """Called on state changes (dispatch, close, etc.). Broadcasts state + issues."""
-    import time
-
-    global _last_state_broadcast
     # Always cache the snapshot so api_state() can serve it without recomputing.
     _update_state_snapshot(snapshot)
     _invalidate_issue_caches(schedule_broadcast=False)
@@ -2568,12 +2807,7 @@ def _on_orchestrator_change(snapshot: dict) -> None:
     # applying the state-message throttle: a recent activity/state push must
     # never suppress the board snapshot that reflects this change.
     _schedule_api_coro(_throttled_broadcast_issues)
-    now = time.monotonic() * 1000
-    if now - _last_state_broadcast < _STATE_THROTTLE_MS:
-        return
-    _last_state_broadcast = now
-    enriched_snapshot = _enrich_state_snapshot(snapshot)
-    _schedule_api_coro(lambda: _broadcast({"type": "state", "data": enriched_snapshot}))
+    _queue_state_broadcast()
 
 
 def _on_agent_activity(
@@ -2834,10 +3068,12 @@ async def _do_broadcast_issues() -> None:
     before any broadcast to prevent stale payloads from overwriting newer state.
     """
     global _last_issues_broadcast, _issues_broadcast_pending
-    _issues_broadcast_pending = False
+    with _broadcast_throttle_lock:
+        _issues_broadcast_pending = False
     try:
         orch = _get_orchestrator()
-        _last_issues_broadcast = time.monotonic() * 1000
+        with _broadcast_throttle_lock:
+            _last_issues_broadcast = time.monotonic() * 1000
         # Force refresh the snapshot BEFORE broadcasting (not after).
         # This ensures clients receive fresh data reflecting recent state changes
         # (e.g., duplicate-screening claim/completion updates).
@@ -2848,9 +3084,17 @@ async def _do_broadcast_issues() -> None:
         # Only broadcast if refresh completed — this prevents stale payloads from
         # overwriting newer state (critical for duplicate-screening sync).
         if refresh_completed and _ws_clients:
-            payload = _issues_snapshot_payload(allow_empty=False, orch=orch)
+            payload, revision = _issues_snapshot_payload_with_revision(
+                allow_empty=False, orch=orch
+            )
             if payload is not None:
-                await _broadcast({"type": "issues", "data": payload})
+                await _broadcast(
+                    {
+                        "type": "issues",
+                        "data": payload,
+                        "issue_revision": revision,
+                    }
+                )
     except Exception as exc:
         logger.debug("broadcast_issues failed: %s", exc)
 
@@ -2866,34 +3110,82 @@ async def _throttled_broadcast_issues() -> None:
     if not _ws_clients:
         return
     now = time.monotonic() * 1000
-    elapsed = now - _last_issues_broadcast
+    with _broadcast_throttle_lock:
+        elapsed = now - _last_issues_broadcast
+        pending = _issues_broadcast_pending
     if elapsed >= _ISSUES_THROTTLE_MS:
         await _do_broadcast_issues()
-    elif not _issues_broadcast_pending:
-        _issues_broadcast_pending = True
+    elif not pending:
+        with _broadcast_throttle_lock:
+            if _issues_broadcast_pending:
+                return
+            _issues_broadcast_pending = True
         delay = (_ISSUES_THROTTLE_MS - elapsed) / 1000
         asyncio.get_event_loop().call_later(
             delay, lambda: asyncio.ensure_future(_do_broadcast_issues())
         )
 
 
+def _protocol_message(msg: dict[str, Any], delivery_seq: int) -> dict[str, Any]:
+    """Add the additive versioned envelope to one WebSocket message."""
+    epoch, state_revision, issue_revision = _protocol_values()
+    envelope = dict(msg)
+    envelope.setdefault("protocol_version", WS_PROTOCOL_VERSION)
+    envelope.setdefault("epoch", epoch)
+    envelope.setdefault("delivery_seq", delivery_seq)
+    envelope.setdefault("state_revision", state_revision)
+    envelope.setdefault("issue_revision", issue_revision)
+    return envelope
+
+
+def _register_ws(ws: WebSocket) -> None:
+    """Register a socket and start its delivery sequence at zero."""
+    with _ws_delivery_sequences_lock:
+        _ws_delivery_sequences[ws] = 0
+        _ws_send_locks[ws] = asyncio.Lock()
+
+
+def _unregister_ws(ws: WebSocket) -> None:
+    _ws_clients.discard(ws)
+    with _ws_delivery_sequences_lock:
+        _ws_delivery_sequences.pop(ws, None)
+        _ws_send_locks.pop(ws, None)
+
+
+async def _send_ws(ws: WebSocket, msg: dict[str, Any]) -> None:
+    """Send one enveloped message while preserving per-connection order."""
+    with _ws_delivery_sequences_lock:
+        send_lock = _ws_send_locks.get(ws)
+        if send_lock is None:
+            send_lock = asyncio.Lock()
+            _ws_send_locks[ws] = send_lock
+            _ws_delivery_sequences.setdefault(ws, 0)
+    async with send_lock:
+        with _ws_delivery_sequences_lock:
+            sequence = _ws_delivery_sequences.get(ws, 0) + 1
+            _ws_delivery_sequences[ws] = sequence
+        envelope = _protocol_message(msg, sequence)
+        try:
+            await ws.send_text(json.dumps(envelope, default=str))
+        except Exception:
+            _unregister_ws(ws)
+            raise
+
+
 async def _broadcast(msg: dict) -> None:
-    """Send a JSON message to all connected WebSocket clients."""
+    """Send an enveloped JSON message to all connected WebSocket clients."""
     if not _ws_clients:
         return
-    text = json.dumps(msg, default=str)
     try:
         clients = list(_ws_clients)
     except RuntimeError:
         return  # set changed during snapshot, skip this broadcast
-    dead: list[WebSocket] = []
     for ws in clients:
         try:
-            await ws.send_text(text)
+            await _send_ws(ws, msg)
         except Exception:
-            dead.append(ws)
-    for ws in dead:
-        _ws_clients.discard(ws)
+            # A failed client is isolated from the rest of the fan-out.
+            _unregister_ws(ws)
 
 
 @app.websocket("/ws")
@@ -2905,22 +3197,22 @@ async def websocket_endpoint(ws: WebSocket):
     """
     await ws.accept()
     _ws_clients.add(ws)
+    _register_ws(ws)
     logger.info("WebSocket client connected (%d total)", len(_ws_clients))
     try:
         # Send initial state + issues immediately
         orch = _get_orchestrator()
-        initial_state = _enrich_state_snapshot(
-            _cached_state_snapshot_or_unavailable()
+        await _send_ws(ws, _current_state_message())
+        payload, issue_revision = _issues_snapshot_payload_with_revision(
+            allow_empty=True, orch=orch
         )
-        await ws.send_text(
-            json.dumps(
-                {"type": "state", "data": initial_state},
-                default=str,
-            )
-        )
-        payload = _issues_snapshot_payload(allow_empty=True, orch=orch)
-        await ws.send_text(
-            json.dumps({"type": "issues", "data": payload}, default=str)
+        await _send_ws(
+            ws,
+            {
+                "type": "issues",
+                "data": payload,
+                "issue_revision": issue_revision,
+            },
         )
         await _ensure_issues_snapshot_refresh(orch, broadcast=True)
 
@@ -2931,24 +3223,13 @@ async def websocket_endpoint(ws: WebSocket):
             try:
                 msg = json.loads(data)
                 if msg.get("action") == "refresh":
-                    refresh_state = _enrich_state_snapshot(
-                        _cached_state_snapshot_or_unavailable()
-                    )
-                    await ws.send_text(
-                        json.dumps(
-                            {
-                                "type": "state",
-                                "data": refresh_state,
-                            },
-                            default=str,
-                        )
-                    )
+                    await _send_ws(ws, _current_state_message())
                     await broadcast_issues()
                 elif msg.get("action") == "ping":
                     # Browsers cannot send protocol-level WebSocket pings.
                     # Reply to the application-level heartbeat so clients can
                     # distinguish a live socket from a silently severed proxy.
-                    await ws.send_text(json.dumps({"type": "pong"}))
+                    await _send_ws(ws, {"type": "pong"})
                 elif msg.get("type") == "console_input":
                     # Per-project ACP console (oompah-zlz_2-ebwe).
                     # Operator typed something in the dashboard's console
@@ -2962,7 +3243,7 @@ async def websocket_endpoint(ws: WebSocket):
     except Exception:
         pass
     finally:
-        _ws_clients.discard(ws)
+        _unregister_ws(ws)
         logger.info("WebSocket client disconnected (%d remaining)", len(_ws_clients))
 
 
@@ -2992,19 +3273,18 @@ async def _handle_console_input(ws: WebSocket, msg: dict) -> None:
     if not project_id or not text.strip():
         return
     if _console_manager is None:
-        await ws.send_text(
-            json.dumps(
-                {
-                    "type": "console_event",
-                    "project_id": project_id,
-                    "event": {
-                        "ts": datetime.now(timezone.utc).isoformat(),
-                        "kind": "error",
-                        "is_error": True,
-                        "text": "console manager not initialized",
-                    },
-                }
-            )
+        await _send_ws(
+            ws,
+            {
+                "type": "console_event",
+                "project_id": project_id,
+                "event": {
+                    "ts": datetime.now(timezone.utc).isoformat(),
+                    "kind": "error",
+                    "is_error": True,
+                    "text": "console manager not initialized",
+                },
+            },
         )
         return
     # Reject unknown project_id before touching the manager so we
@@ -3015,19 +3295,18 @@ async def _handle_console_input(ws: WebSocket, msg: dict) -> None:
     except Exception:
         project = None
     if project is None:
-        await ws.send_text(
-            json.dumps(
-                {
-                    "type": "console_event",
-                    "project_id": project_id,
-                    "event": {
-                        "ts": datetime.now(timezone.utc).isoformat(),
-                        "kind": "error",
-                        "is_error": True,
-                        "text": f"unknown project_id {project_id!r}",
-                    },
-                }
-            )
+        await _send_ws(
+            ws,
+            {
+                "type": "console_event",
+                "project_id": project_id,
+                "event": {
+                    "ts": datetime.now(timezone.utc).isoformat(),
+                    "kind": "error",
+                    "is_error": True,
+                    "text": f"unknown project_id {project_id!r}",
+                },
+            },
         )
         return
     attachments_raw = msg.get("attachments") or []
@@ -3035,19 +3314,18 @@ async def _handle_console_input(ws: WebSocket, msg: dict) -> None:
     try:
         session = _console_manager.get(project_id)
     except Exception as exc:
-        await ws.send_text(
-            json.dumps(
-                {
-                    "type": "console_event",
-                    "project_id": project_id,
-                    "event": {
-                        "ts": datetime.now(timezone.utc).isoformat(),
-                        "kind": "error",
-                        "is_error": True,
-                        "text": str(exc),
-                    },
-                }
-            )
+        await _send_ws(
+            ws,
+            {
+                "type": "console_event",
+                "project_id": project_id,
+                "event": {
+                    "ts": datetime.now(timezone.utc).isoformat(),
+                    "kind": "error",
+                    "is_error": True,
+                    "text": str(exc),
+                },
+            },
         )
         return
     # session.send() awaits the turn to completion. The serial queue
@@ -3059,19 +3337,18 @@ async def _handle_console_input(ws: WebSocket, msg: dict) -> None:
         # The session already records an internal ``error`` event on
         # most failure paths; only emit an out-of-band one here when
         # send itself raised (closed session, etc.).
-        await ws.send_text(
-            json.dumps(
-                {
-                    "type": "console_event",
-                    "project_id": project_id,
-                    "event": {
-                        "ts": datetime.now(timezone.utc).isoformat(),
-                        "kind": "error",
-                        "is_error": True,
-                        "text": f"console send failed: {exc}",
-                    },
-                }
-            )
+        await _send_ws(
+            ws,
+            {
+                "type": "console_event",
+                "project_id": project_id,
+                "event": {
+                    "ts": datetime.now(timezone.utc).isoformat(),
+                    "kind": "error",
+                    "is_error": True,
+                    "text": f"console send failed: {exc}",
+                },
+            },
         )
 
 
