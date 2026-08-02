@@ -2454,6 +2454,29 @@ class TestFindPrForBranchGitHub:
         assert review.source_branch == "feat-x"
         assert review.target_branch == "main"
         assert review.author == "alice"
+        assert review.head_sha == ""
+
+    def test_preserves_review_head_sha(self):
+        payload = [{
+            "number": 43,
+            "title": "Feat X",
+            "html_url": "https://github.com/owner/repo/pull/43",
+            "user": {"login": "alice"},
+            "state": "closed",
+            "merged_at": "2026-01-01T00:00:00Z",
+            "head": {"ref": "feat-x", "sha": "a" * 40},
+            "base": {"ref": "main"},
+            "created_at": "",
+            "updated_at": "",
+            "body": "",
+            "labels": [],
+            "draft": False,
+        }]
+        review = self._provider(payload).find_pr_for_branch(
+            "owner/repo", "feat-x"
+        )
+        assert review is not None
+        assert review.head_sha == "a" * 40
 
     def test_returns_closed_state_for_closed_unmerged(self):
         payload = [{
@@ -2562,6 +2585,28 @@ class TestFindPrForBranchGitLab:
         assert review.state == "merged"
         assert review.source_branch == "feat-z"
         assert review.target_branch == "main"
+
+    def test_preserves_review_head_sha(self):
+        payload = [{
+            "iid": 126,
+            "title": "Merge me",
+            "web_url": "u",
+            "author": {"username": "dave"},
+            "state": "merged",
+            "source_branch": "feat-z",
+            "target_branch": "main",
+            "sha": "b" * 40,
+            "created_at": "",
+            "updated_at": "",
+            "description": "",
+            "labels": [],
+            "draft": False,
+        }]
+        review = self._provider(payload).find_pr_for_branch(
+            "group/proj", "feat-z"
+        )
+        assert review is not None
+        assert review.head_sha == "b" * 40
 
     def test_returns_closed_state(self):
         payload = [{

@@ -145,6 +145,10 @@ class ReviewRequest:
     churn_magnet: bool = False
     churn_magnet_files: list[str] = field(default_factory=list)
     files: list[str] = field(default_factory=list)
+    # Exact source SHA reported by the forge for this review.  Unlike the
+    # current branch tip, this remains authoritative when a reused branch is
+    # advanced after an older review merged.
+    head_sha: str = ""
 
     def __post_init__(self) -> None:
         """Normalize legacy provider strings at the contract boundary.
@@ -178,6 +182,7 @@ class ReviewRequest:
             "has_conflicts": self.has_conflicts,
             "auto_merge_enabled": self.auto_merge_enabled,
             "mergeable_state": self.mergeable_state,
+            "head_sha": self.head_sha,
             "files": self.files,
             "churn_magnet": self.churn_magnet,
             "churn_magnet_files": self.churn_magnet_files,
@@ -1593,6 +1598,7 @@ class GitHubProvider(SCMProvider):
             description=_truncate(pr.get("body", "") or "", 500),
             labels=[l.get("name", "") for l in (pr.get("labels") or [])],
             draft=pr.get("draft", False),
+            head_sha=str(pr.get("head", {}).get("sha", "") or ""),
         )
 
     def get_review(self, repo: str, review_id: str) -> ReviewRequest | None:
@@ -2226,6 +2232,11 @@ class GitLabProvider(SCMProvider):
             description=_truncate(mr.get("description", "") or "", 500),
             labels=mr.get("labels") or [],
             draft=mr.get("draft", False) or mr.get("work_in_progress", False),
+            head_sha=str(
+                mr.get("sha")
+                or (mr.get("diff_refs") or {}).get("head_sha")
+                or ""
+            ),
         )
 
     def get_review(self, repo: str, review_id: str) -> ReviewRequest | None:
