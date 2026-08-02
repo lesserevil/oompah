@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T23:17:45.073003Z'
-updated_at: '2026-08-02T23:20:53.149457Z'
+updated_at: '2026-08-02T23:21:30.188095Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -166,5 +166,10 @@ author: oompah
 created: 2026-08-02 23:20
 ---
 Understanding: I will inspect TestTickDelegation and the orchestrator maintenance executor, reproduce both parallel-only failures, then replace timing assumptions with explicit completion/teardown synchronization while preserving production concurrency. I will verify focused tests and the required project checks before committing and submitting.
+---
+author: oompah
+created: 2026-08-02 23:21
+---
+Discovery: TestTickDelegation constructs a new eight-thread _tick_pool per orchestrator, invokes _tick via asyncio.run, and several tests do not drain/shutdown fire-and-forget futures. _tick awaits watchdog but schedules step-5b/5c maintenance without awaiting; short-lived loops can leave executor work and closed-loop futures. I am reproducing the target failures and checking whether helper teardown plus explicit handler/future barriers fixes the shared scheduling leak.
 ---
 <!-- COMMENTS:END -->
