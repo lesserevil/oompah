@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T23:17:45.073003Z'
-updated_at: '2026-08-02T23:26:33.726119Z'
+updated_at: '2026-08-02T23:26:54.367985Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -176,5 +176,10 @@ author: oompah
 created: 2026-08-02 23:26
 ---
 Implementation: Added an autouse teardown in tests/test_orchestrator_handlers.py that drains helper-created orchestrator futures and shuts down tick/refresh executors at every test boundary. test_tick_handler_order and test_tick_runs_watchdog now use the dispatch mapping contract, stub unrelated recovery/maintenance, and await exact tick background completion; the watchdog executor test is isolated similarly.
+---
+author: oompah
+created: 2026-08-02 23:26
+---
+Review finding before commit: _TEST_ORCHESTRATORS is a weakref.WeakSet, but its comment and correctness require strong reachability until fixture teardown. Once a test frame releases its local orch, refcount/GC may remove it from the WeakSet before the fixture resumes, defeating the drain and preserving this race. Use a fixture-scoped strong collection (or yield/register helper) that is always cleared, and add focused proof that cleanup still runs after the test body releases its local reference. Also ensure expected background exceptions are consumed without masking the original test, then run repeated xdist coverage.
 ---
 <!-- COMMENTS:END -->
