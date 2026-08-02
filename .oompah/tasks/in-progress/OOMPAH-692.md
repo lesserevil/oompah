@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T02:01:46.836436Z'
-updated_at: '2026-08-02T02:20:55.043753Z'
+updated_at: '2026-08-02T02:29:10.027049Z'
 work_branch: epic-OOMPAH-691--task-OOMPAH-692
 target_branch: null
 review_url: null
@@ -247,5 +247,10 @@ author: oompah
 created: 2026-08-02 02:20
 ---
 Implementation: added protocol version 1 envelopes to every WebSocket send path with epoch, per-connection delivery_seq, and state/issue revisions. State snapshot acceptance is locked and rejects older generated_at callbacks; issue invalidation/rebuild tracks the revision belonging to serialized data. Replaced leading-edge state suppression with one trailing-edge coalescing drain, synchronized throttle/counter access, routed bootstrap/refresh/pong/activity/console errors through the same sender, added lifecycle/concurrency/epoch tests, and documented the contract in plans/websocket-state-versioning.md.
+---
+author: oompah
+created: 2026-08-02 02:29
+---
+Verification: 49 focused WebSocket tests pass; neighboring issue-cache/state/auth/build suites pass (119 tests). Full scripts/run-tests.sh parallel gate passed: 14877 passed, 7 skipped, 1 xfailed, 45 warnings in 396.13s. make test setup itself was blocked by the environment uv DBus transient-scope error; the repository runner completed the full pytest suite with the provisioned interpreter.
 ---
 <!-- COMMENTS:END -->
