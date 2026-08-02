@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-350
 type: bug
-status: Merged
+status: In Validation
 priority: 1
 title: Isolate scheduler execution from the HTTP event loop
 parent: OOMPAH-348
@@ -10,12 +10,34 @@ blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-22T00:56:36.177730Z'
-updated_at: '2026-07-26T00:27:25.299232Z'
+updated_at: '2026-08-02T01:12:32.583469Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 merged_at: null
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-0c9f590431cd
+    project_id: proj-14849f1b
+    task_id: OOMPAH-350
+    target_state: Archived
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 85ce2f6490b759c4d8346e4bef979e5e9912f363c5a714afe62efe816470cac7
+    attempts: []
+    requested_by:
+      version: 1
+      identity: oompah
+      source: auto_archive
+    previous_state: Merged
+    created_at: '2026-08-02T01:12:29.163087+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -54,5 +76,10 @@ author: oompah
 created: 2026-07-26 00:27
 ---
 Verified delivered on origin/main in 6dd2cdfcf and reconciled stale Done state.
+---
+author: oompah
+created: 2026-08-02 01:12
+---
+Queued Archived audit: Aged Merged auto-archive (closed 7 days ago). An auditor will review before the task is retired.
 ---
 <!-- COMMENTS:END -->
