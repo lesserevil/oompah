@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-702
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Synchronize merged-webhook tests with background terminal staging
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T20:34:49.621752Z'
-updated_at: '2026-08-02T21:51:31.316990Z'
+updated_at: '2026-08-02T21:52:27.519652Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -22,20 +22,49 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 031f38c6c40dcf1b0bd78f2318d6a4ac10df34ecdd776a048fd70f5a39cdebbd
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-02T21:52:02.848082+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 1c77241c-a4c6-4c8e-b18b-ac97fca83556
-  claim_owner: 0b22eab2-a2d1-4082-a6c8-404ec37650a4
-  claimed_at: '2026-08-02T21:51:24.556912+00:00'
-  claim_expires_at: '2026-08-02T22:21:24.556912+00:00'
+  evidence: "Focus handoff: duplicate_detector  \nDuplicate preflight verdict: no_duplicate\
+    \  \nMatches: none  \n\nEvidence: The closest webhook task, OOMPAH-14, is Archived\
+    \ and addresses metadata normalization, not background-thread synchronization.\
+    \ Other webhook-related candidates are terminal or unrelated."
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: fafa039e-a50e-4082-ba7f-7fd92918c9fe
+oompah.agent_run_id: 4cfd9318-e160-4bfc-a292-837b59670d39
+oompah.task_costs:
+  total_input_tokens: 50596
+  total_output_tokens: 545
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 50596
+      output_tokens: 545
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 50596
+    output_tokens: 545
+    cost_usd: 0.0
+    recorded_at: '2026-08-02T21:52:02.835725+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-702__20260802T215139Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: OOMPAH-702
+    source_sha: 366129d0a5046c5ed7caed4acf26cd8cd2a3fbdd
+    completed_at: '2026-08-02T21:52:02.871153+00:00'
 ---
 ## Summary
 
@@ -60,5 +89,15 @@ author: oompah
 created: 2026-08-02 21:51
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-02 21:52
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 0
+- Tokens: 50.6K in / 545 out [51.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 34s
+- Log: OOMPAH-702__20260802T215139Z.jsonl
 ---
 <!-- COMMENTS:END -->

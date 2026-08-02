@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T20:20:26.676545Z'
-updated_at: '2026-08-02T21:51:25.582647Z'
+updated_at: '2026-08-02T21:52:00.892071Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -25,17 +25,43 @@ oompah.duplicate_screening:
   verdict: inconclusive
   checked_at: null
   matched_identifiers: []
-  evidence: ''
-  claim_id: d3eec2b3-83b2-40f1-a97b-c8ab05b0b9e9
-  claim_owner: 0b22eab2-a2d1-4082-a6c8-404ec37650a4
-  claimed_at: '2026-08-02T21:51:18.709922+00:00'
-  claim_expires_at: '2026-08-02T22:21:18.709922+00:00'
-  retry_count: 0
-  retry_after: null
+  evidence: Duplicate-screening worker exited with reason normal.
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
+  retry_count: 1
+  retry_after: '2026-08-02T21:52:56.245304+00:00'
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
 oompah.agent_run_id: 9957ac77-6629-41c8-b45c-55f935fa46b3
+oompah.task_costs:
+  total_input_tokens: 10
+  total_output_tokens: 1514
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 10
+      output_tokens: 1514
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 10
+    output_tokens: 1514
+    cost_usd: 0.0
+    recorded_at: '2026-08-02T21:51:56.244095+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-701__20260802T215133Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: duplicate_detector
+    source_branch: OOMPAH-701
+    source_sha: 366129d0a5046c5ed7caed4acf26cd8cd2a3fbdd
+    completed_at: '2026-08-02T21:51:56.256868+00:00'
 ---
 ## Summary
 
@@ -70,5 +96,15 @@ author: oompah
 created: 2026-08-02 21:51
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-02 21:51
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 2, Tool calls: 0
+- Tokens: 10 in / 1.5K out [1.5K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 33s
+- Log: OOMPAH-701__20260802T215133Z.jsonl
 ---
 <!-- COMMENTS:END -->
