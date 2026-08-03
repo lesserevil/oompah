@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-734
 type: bug
-status: In Progress
+status: Open
 priority: 1
 title: Prevent auditor turn exhaustion after PASS from stranding terminal transitions
 parent: null
@@ -12,7 +12,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-08-03T19:06:11.095695Z'
-updated_at: '2026-08-03T19:18:42.046514Z'
+updated_at: '2026-08-03T19:19:08.707531Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,13 +46,17 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: 5bd28ab1-184c-445a-bbcb-c92ac1b2ec66
 oompah.task_costs:
-  total_input_tokens: 50274
-  total_output_tokens: 2145
+  total_input_tokens: 1381111
+  total_output_tokens: 9402
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 50274
       output_tokens: 2145
+      cost_usd: 0.0
+    opus:
+      input_tokens: 1330837
+      output_tokens: 7257
       cost_usd: 0.0
   runs:
   - profile: default
@@ -67,6 +71,12 @@ oompah.task_costs:
     output_tokens: 1964
     cost_usd: 0.0
     recorded_at: '2026-08-03T19:12:49.596930+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 1330837
+    output_tokens: 7257
+    cost_usd: 0.0
+    recorded_at: '2026-08-03T19:18:57.180123+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-734__20260803T190947Z
@@ -77,6 +87,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-734
     source_sha: 806bf1feee8ac46220c8ec750a5167017834b176
     completed_at: '2026-08-03T19:10:27.411011+00:00'
+  - run_id: OOMPAH-734__20260803T191430Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-sol
+    focus: frontend
+    source_branch: OOMPAH-734
+    source_sha: 561070d6c405563830c20d8569dfa543f0fd5832
+    completed_at: '2026-08-03T19:18:57.184079+00:00'
 ---
 ## Summary
 
@@ -221,5 +239,25 @@ Relevant files and evidence: oompah/templates/dashboard.html and tests/test_dash
 Remaining work and risks: Backend must add and populate the durable finalization_failure_count health fact and alert source; commit the structured verdict before any PASS/FAIL comment; provide a non-starvable finalization path at the turn ceiling; keep exit-before-commit fail-closed; fence same-target/same-fingerprint sibling dispatch; terminate persisted/running auditors on authority revocation; and add the required coordinator, scheduler, lifecycle, health, crash-ordering, race, and revocation tests. The frontend intentionally does not infer outcomes from comments.
 
 Recommended next focus: backend/feature implementation in terminal_transition_coordinator.py, auditor_dispatch.py, orchestrator.py, terminal_audit_health.py, and their focused test suites. Preserve the existing needs:backend routing.
+---
+author: oompah
+created: 2026-08-03 19:18
+---
+Agent completed successfully in 275s (1338094 tokens)
+---
+author: oompah
+created: 2026-08-03 19:18
+---
+Run #1 [attempt=1, profile=deep, role=deep -> Codex/gpt-5.6-sol]
+- Turns: 1, Tool calls: 34
+- Tokens: 1.3M in / 7.3K out [1.3M total]
+- Cost: $0.0000
+- Exit: normal, Duration: 4m 35s
+- Log: OOMPAH-734__20260803T191430Z.jsonl
+---
+author: oompah
+created: 2026-08-03 19:19
+---
+Focus handoff from `frontend` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
 ---
 <!-- COMMENTS:END -->
