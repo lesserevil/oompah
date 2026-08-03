@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T16:23:52.854950Z'
-updated_at: '2026-08-03T16:55:44.364190Z'
+updated_at: '2026-08-03T16:56:09.432519Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -150,5 +150,10 @@ author: oompah
 created: 2026-08-03 16:55
 ---
 Focus: Technical Writer
+---
+author: oompah
+created: 2026-08-03 16:56
+---
+Understanding: the regression is an integrated same-head task whose failed terminal audit cannot be retried after operator-supplied gate evidence changes only audit evidence. I will trace the existing owner retry and evidence fingerprint paths, add a narrowly authenticated evidence-addendum rearm that preserves audit/ownership/SHA fencing and coalesces races, integrate it with the completion sweep, then cover the EXOCOMP-145 flow and rejection/idempotency cases.
 ---
 <!-- COMMENTS:END -->
