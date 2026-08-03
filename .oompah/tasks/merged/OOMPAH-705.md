@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-705
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Fetch an accepted submission head before standalone review gating
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T21:30:29.609691Z'
-updated_at: '2026-08-02T23:59:18.132757Z'
+updated_at: '2026-08-03T00:02:54.291178Z'
 work_branch: OOMPAH-705
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/666
@@ -112,6 +112,27 @@ oompah.work_branch: OOMPAH-705
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-986f650dffde
+    project_id: proj-14849f1b
+    task_id: OOMPAH-705
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6eee60cd233a1743770b04898cd0283aa5702df57db747cecd99cd19db4a192e
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner override after PR #666 merged exact accepted head 73e20b64c99a542bbbab3c84237af916193b1a7c
+      as 93513d742b8abd45b6df2abf3683666787e24a42; isolated branch gate passed 15,013
+      tests and all GitHub CI checks passed. Both completion auditors were terminated
+      by the known provider-private oversized-tool-result boundary bug tracked and
+      under direct repair in OOMPAH-710, not by a code defect in OOMPAH-705.'
+    created_at: '2026-08-03T00:02:47.714989+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -395,5 +416,12 @@ author: oompah
 created: 2026-08-02 23:59
 ---
 Auditor attempt was stopped after repeated policy denials; a different independent candidate will be tried.
+---
+author: oompah
+created: 2026-08-03 00:02
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner override after PR #666 merged exact accepted head 73e20b64c99a542bbbab3c84237af916193b1a7c as 93513d742b8abd45b6df2abf3683666787e24a42; isolated branch gate passed 15,013 tests and all GitHub CI checks passed. Both completion auditors were terminated by the known provider-private oversized-tool-result boundary bug tracked and under direct repair in OOMPAH-710, not by a code defect in OOMPAH-705.
 ---
 <!-- COMMENTS:END -->
