@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-731
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Complete direct epic rebases without self-invalidating submission
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T17:45:33.391967Z'
-updated_at: '2026-08-03T19:07:47.255442Z'
+updated_at: '2026-08-03T19:08:07.003482Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -68,7 +68,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 732c6696-5595-4666-841b-af27c3698d75
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 87
   total_output_tokens: 3812
@@ -110,9 +110,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-731
-  head_sha: 2136743f5eca5d9c99f5c8c212ac95a13a55574b
-  submitted_at: '2026-08-03T18:42:07.724369+00:00'
-  updated_at: '2026-08-03T18:42:07.724369+00:00'
+  head_sha: 68d58d532cd282acce2941f54ea5efca8dce6752
+  submitted_at: '2026-08-03T19:07:48.413485+00:00'
+  updated_at: '2026-08-03T19:07:48.413485+00:00'
 ---
 ## Summary
 
@@ -389,5 +389,10 @@ author: oompah
 created: 2026-08-03 19:07
 ---
 Completion: Pushed CI repair commit 68d58d532 to the existing OOMPAH-731 branch. GitHub confirms there is no PR for this branch and no GitHub check runs on this commit; the failed gate was the local oompah branch-quality gate. The exact repaired head is ready for resubmission.
+---
+author: oompah
+created: 2026-08-03 19:08
+---
+Aligned the rebase-helper test fixture with the durable parent metadata required by direct epic maintenance; focused YOLO and repo-heal suites pass.
 ---
 <!-- COMMENTS:END -->
