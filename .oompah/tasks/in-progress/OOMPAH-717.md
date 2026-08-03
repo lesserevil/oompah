@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T13:00:53.157839Z'
-updated_at: '2026-08-03T13:02:13.636006Z'
+updated_at: '2026-08-03T13:02:28.870799Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -119,7 +119,6 @@ Acceptance criteria:
 - Operators see the real untracked-file collision and a safe repair path.
 - Independent Ready work proceeds while the failed row waits.
 - Focused integration executor/queue/orchestrator/ProjectStore tests and make test pass.
-
 ## Acceptance Criteria
 
 - [ ] Define acceptance criteria.
