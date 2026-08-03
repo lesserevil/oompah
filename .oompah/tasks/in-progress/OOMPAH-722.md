@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T14:55:24.661073Z'
-updated_at: '2026-08-03T15:14:41.838858Z'
+updated_at: '2026-08-03T15:17:38.285659Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -268,5 +268,10 @@ author: oompah
 created: 2026-08-03 15:14
 ---
 **Understanding**: CI Failure Fixer dispatched. The branch quality gate failed with one test: `tests/test_orchestrator_handlers.py::TestMaintenanceLaneNonBlocking::test_tick_does_not_await_maintenance_heal`. The previous agent (Security Auditor) successfully implemented the git rev-list fix and all 15119 other tests pass. My sole job is to diagnose and fix this single failing test without touching any other code, then push and submit.
+---
+author: oompah
+created: 2026-08-03 15:17
+---
+**Discovery**: The failing test `test_tick_does_not_await_maintenance_heal` is missing the `_recover_release_addendum_leases = MagicMock(return_value=0)` stub that all sibling tests in `TestMaintenanceLaneNonBlocking` carry. Under 4-worker xdist CI load, the real `_recover_release_addendum_leases` reads all `.oompah/tasks/*.md` files and can exceed the 15s asyncio timeout, causing the test to incorrectly conclude that `_tick()` is awaiting maintenance. OOMPAH-688 and OOMPAH-670 fixed the exact same pattern for the sibling tests but missed this one. The fix is to add the stub and change `_handle_dispatch_needed=AsyncMock()` to `AsyncMock(return_value={})` to protect the slow-tick formatting path.
 ---
 <!-- COMMENTS:END -->
