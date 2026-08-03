@@ -56,6 +56,12 @@ def _is_generated_worktree_helper(path: str) -> bool:
     return root.startswith(".oompah-")
 
 
+def is_generated_worktree_helper(path: str) -> bool:
+    """Return whether a relative path is an Oompah-generated helper."""
+
+    return _is_generated_worktree_helper(path)
+
+
 def _generated_worktree_helper_paths(wt_path: str) -> list[str]:
     """List generated helper paths without asking Git to expose ignored files."""
 
@@ -81,6 +87,44 @@ def _generated_worktree_helper_paths(wt_path: str) -> list[str]:
         else:
             paths.append(child.name)
     return sorted(dict.fromkeys(paths))
+
+
+def generated_worktree_helpers_in_revision(
+    repo_path: str,
+    revision: str,
+) -> list[str]:
+    """Return Oompah-generated helper paths tracked by *revision*.
+
+    Worktree-local helpers are intentionally ignored by normal status and
+    cleanup code.  That is safe for the working tree, but a legacy task head
+    can still have committed one.  Delivery callers use this check before
+    resetting or merging a shared worktree so an ignored helper can never be
+    promoted into a delivered tree.
+    """
+
+    try:
+        result = subprocess.run(
+            ["git", "-C", repo_path, "ls-tree", "-r", "--name-only", revision],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+            env={**os.environ, **NONINTERACTIVE_GIT_ENV},
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise ProjectError(
+            f"could not inspect generated helpers in {revision}: {exc}"
+        ) from exc
+    if result.returncode != 0:
+        raise ProjectError(
+            "could not inspect generated helpers in "
+            f"{revision}: {result.stderr.strip()[:500]}"
+        )
+    return [
+        path
+        for path in result.stdout.splitlines()
+        if _is_generated_worktree_helper(path)
+    ]
 
 
 def remove_generated_worktree_helpers(wt_path: str) -> list[str]:

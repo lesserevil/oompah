@@ -590,6 +590,39 @@ def test_integration_queue_summary_explains_finish_dependency_wait():
     )
 
 
+def test_integration_queue_summary_surfaces_failure_retry_and_repair_action():
+    task = Issue(
+        id="task-uuid",
+        identifier="TASK-2",
+        title="Poisoned task",
+        state="Ready to Integrate",
+    )
+    item = IntegrationQueueItem(
+        project_id="project-1",
+        epic_id="EPIC-1",
+        task_id=task.identifier,
+        task_branch="epic-EPIC-1--task-TASK-2",
+        head_sha="a" * 40,
+        base_sha="b" * 40,
+        priority=1,
+        submitted_at="2026-07-29T00:00:00+00:00",
+        state="ready",
+        attempts=3,
+        lease_owner=None,
+        lease_expires_at=None,
+        updated_at="2026-07-29T00:00:00+00:00",
+        last_error="submitted task head tracks Oompah-generated worktree helper: `"
+        ".oompah-no-hooks/prepare-commit-msg`",
+        next_retry_at=2_000_000_000,
+    )
+
+    summary = _integration_queue_summary(item, task, [task])
+
+    assert summary["failing_step"] == "generated-helper validation"
+    assert "Next retry at" in summary["wait_reason"]
+    assert "git rm" in summary["repair_action"]
+
+
 def test_integration_queue_summary_accepts_done_child_of_landed_parent():
     upstream_parent = Issue(
         id="upstream-epic-uuid",
@@ -996,6 +1029,16 @@ def test_epic_head_race_requeues_the_rebased_remote_head(tmp_path):
     )[0]
     assert refreshed.state == "ready"
     assert refreshed.head_sha == "c" * 40
+    assert refreshed.next_retry_at is not None
+    diagnostic = next(
+        alert
+        for alert in orchestrator._alerts
+        if alert["source"] == f"integration_retry:{project.id}:TASK-1"
+    )
+    assert diagnostic["task_id"] == "TASK-1"
+    assert diagnostic["failing_step"] == "epic compare-and-swap"
+    assert diagnostic["next_retry_at"] is not None
+    assert "wait for the scheduled retry" in diagnostic["repair_action"]
 
 
 def test_interrupted_quality_gate_requeues_the_rebased_remote_head(tmp_path):

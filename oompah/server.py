@@ -134,7 +134,11 @@ from oompah.auth_health import (
     record_worker_403_policy,
     record_worker_token_accepted,
 )
-from oompah.projects import ProjectError, ProjectStore
+from oompah.projects import (
+    ProjectError,
+    ProjectStore,
+    is_generated_worktree_helper,
+)
 from oompah.integration_queue import IntegrationQueueStore
 from oompah.label_auth import is_authorized_status_actor
 from oompah.tracker import TrackerError, normalize_priority_int
@@ -2986,6 +2990,17 @@ def _integration_queue_summary(item, issue, issues) -> dict[str, Any]:
             unreachable.append(dependency)
 
     state = str(item.state or "ready")
+    retry_at = getattr(item, "next_retry_at", None)
+    retry_wait = ""
+    if retry_at is not None:
+        try:
+            retry_wait = (
+                " Next retry at "
+                + datetime.fromtimestamp(float(retry_at), tz=timezone.utc).isoformat()
+                + "."
+            )
+        except (TypeError, ValueError, OverflowError, OSError):
+            retry_wait = " Next retry is scheduled after the backoff window."
     if state == "blocked":
         reason = item.last_error or "Integration requires task repair"
     elif state == "integrating":
@@ -3004,8 +3019,34 @@ def _integration_queue_summary(item, issue, issues) -> dict[str, Any]:
         )
     else:
         reason = "Waiting for the per-epic integration executor"
+        if item.last_error:
+            reason = f"Last integration failure: {item.last_error}"
+    if retry_wait:
+        reason += retry_wait
     result["waiting_on"] = [*unresolved, *unreachable]
     result["wait_reason"] = reason
+    result["failing_step"] = (
+        "generated-helper validation"
+        if item.last_error
+        and (
+            "generated-helper" in item.last_error
+            or "generated worktree helper" in item.last_error
+        )
+        else "integration execution"
+        if item.last_error
+        else None
+    )
+    result["repair_action"] = (
+        "Remove the generated helper with git rm, commit, push, and submit again."
+        if item.last_error
+        and (
+            "generated-helper" in item.last_error
+            or "generated worktree helper" in item.last_error
+        )
+        else "Inspect the failure above, repair the task branch, and submit again."
+        if state == "blocked"
+        else "Wait for the scheduled retry."
+    )
     return result
 
 
@@ -3912,6 +3953,22 @@ def _submission_record(issue, body: dict[str, Any]) -> IntegrationRecord:
     summary = str(body.get("summary") or "").strip()
     if not summary:
         raise ValueError("summary is required for task submission")
+    changed_paths = body.get("changed_paths")
+    generated_helpers = sorted(
+        {
+            str(path).strip()
+            for path in (changed_paths if isinstance(changed_paths, list) else [])
+            if str(path).strip() and is_generated_worktree_helper(str(path))
+        }
+    )
+    if generated_helpers:
+        rendered = ", ".join(f"`{path}`" for path in generated_helpers[:20])
+        suffix = " and more" if len(generated_helpers) > 20 else ""
+        raise ValueError(
+            "submission contains Oompah-generated worktree helper(s): "
+            f"{rendered}{suffix}. Remove them with `git rm`, commit and push "
+            "the repaired task head, then submit again"
+        )
     task_branch = validate_submission_branch(issue, body.get("task_branch"))
     head_sha = str(body.get("head_sha") or "").strip().lower() or None
     if head_sha is None:

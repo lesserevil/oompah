@@ -435,3 +435,38 @@ def test_submit_endpoint_rejects_foreign_task_branch_without_writing():
     tracker.set_metadata_field.assert_not_called()
     tracker.update_issue.assert_not_called()
     orch.integration_queue.enqueue.assert_not_called()
+
+
+def test_submit_endpoint_rejects_generated_worktree_helper_evidence():
+    issue = _issue()
+    tracker = MagicMock()
+    tracker.fetch_issue_detail.return_value = issue
+    orch = MagicMock()
+    orch._tracker_for_project.return_value = tracker
+
+    with (
+        patch.object(server_module, "_get_orchestrator", return_value=orch),
+        TestClient(app, raise_server_exceptions=False) as client,
+    ):
+        response = client.post(
+            "/api/v1/issues/TASK-2/submit",
+            json={
+                "project_id": "proj-1",
+                "task_branch": "oompah/task/TASK-2",
+                "head_sha": "a" * 40,
+                "remote_head_sha": "a" * 40,
+                "worktree_clean": True,
+                "changed_paths": [
+                    "src/feature.py",
+                    ".oompah-no-hooks/prepare-commit-msg",
+                ],
+                "summary": "Accidentally included helper",
+            },
+        )
+
+    assert response.status_code == 400
+    message = response.json()["error"]["message"]
+    assert "Oompah-generated worktree helper" in message
+    assert "git rm" in message
+    tracker.set_metadata_field.assert_not_called()
+    tracker.update_issue.assert_not_called()

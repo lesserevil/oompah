@@ -20,6 +20,7 @@ from oompah.quality_gate import (
     QualityGateOwner,
     QualityGateResult,
 )
+from oompah.projects import ProjectError, generated_worktree_helpers_in_revision
 
 
 @dataclass(frozen=True)
@@ -30,6 +31,27 @@ class IntegrationExecutionResult:
     rebased_task_sha: str | None = None
     integrated_sha: str | None = None
     quality: QualityGateResult | None = None
+
+    @property
+    def failing_step(self) -> str:
+        """Return the concrete integration step represented by this result."""
+
+        return {
+            "generated_helper": "submitted-head generated-helper validation",
+            "wrong_worktree": "worktree branch validation",
+            "dirty_worktree": "worktree cleanliness validation",
+            "missing_head": "task branch validation",
+            "stale_head": "submitted-head validation",
+            "worktree_recovery": "worktree head validation",
+            "missing_epic": "epic branch validation",
+            "conflict": "task rebase",
+            "epic_head_race": "epic compare-and-swap",
+            "epic_merge_failure": "epic merge",
+            "task_push_race": "task branch compare-and-swap",
+            "ci_failure": "combined-tree quality gate",
+            "needs_rebase": "combined-tree quality gate",
+            "interrupted": "combined-tree quality gate",
+        }.get(self.status, "integration preparation")
 
     @property
     def integrated(self) -> bool:
@@ -244,6 +266,37 @@ def execute_integration(
                     ),
                     rebased_task_sha=remote_task_sha,
                 )
+            try:
+                generated_helpers = generated_worktree_helpers_in_revision(
+                    task_worktree,
+                    remote_task_sha,
+                )
+            except ProjectError as exc:
+                return IntegrationExecutionResult(
+                    status="error",
+                    message=f"generated-helper validation failed: {exc}",
+                )
+            if generated_helpers:
+                rendered_helpers = ", ".join(
+                    f"`{path}`" for path in generated_helpers[:20]
+                )
+                suffix = (
+                    " and more"
+                    if len(generated_helpers) > 20
+                    else ""
+                )
+                return IntegrationExecutionResult(
+                    status="generated_helper",
+                    message=(
+                        "submitted task head tracks Oompah-generated worktree "
+                        f"helper(s): {rendered_helpers}{suffix}. These paths "
+                        "are non-deliverable; remove them from the task branch "
+                        "with `git rm`, commit, push the new head, and submit "
+                        "again. The shared epic worktree was not mutated."
+                    ),
+                    expected_epic_sha=expected_epic_sha,
+                    rebased_task_sha=remote_task_sha,
+                )
             current_task_head = _sha(task_worktree, "HEAD")
             if current_task_head != remote_task_sha:
                 return IntegrationExecutionResult(
@@ -453,26 +506,34 @@ def execute_integration(
                     quality=quality,
                 )
             checkout = _git(epic_worktree, "checkout", epic_branch)
+            if checkout.returncode != 0:
+                return IntegrationExecutionResult(
+                    status="error",
+                    message=f"epic checkout failed: {checkout.stderr.strip()[:1000]}",
+                    expected_epic_sha=expected_epic_sha,
+                    rebased_task_sha=rebased_sha,
+                    quality=quality,
+                )
             reset_epic = _git(
                 epic_worktree,
                 "reset",
                 "--hard",
                 f"origin/{epic_branch}",
             )
+            if reset_epic.returncode != 0:
+                return IntegrationExecutionResult(
+                    status="error",
+                    message=f"epic reset failed: {reset_epic.stderr.strip()[:1000]}",
+                    expected_epic_sha=expected_epic_sha,
+                    rebased_task_sha=rebased_sha,
+                    quality=quality,
+                )
             merge = _git(epic_worktree, "merge", "--ff-only", rebased_sha or "")
-            if (
-                checkout.returncode != 0
-                or reset_epic.returncode != 0
-                or merge.returncode != 0
-            ):
+            if merge.returncode != 0:
                 _git(epic_worktree, "reset", "--hard", f"origin/{epic_branch}")
                 return IntegrationExecutionResult(
-                    status="epic_head_race",
-                    message=(
-                        checkout.stderr.strip()
-                        or reset_epic.stderr.strip()
-                        or merge.stderr.strip()
-                    )[-1000:],
+                    status="epic_merge_failure",
+                    message=f"epic merge failed: {merge.stderr.strip()[:1000]}",
                     expected_epic_sha=expected_epic_sha,
                     rebased_task_sha=rebased_sha,
                     quality=quality,
