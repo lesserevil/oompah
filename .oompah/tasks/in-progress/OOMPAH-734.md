@@ -13,7 +13,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-08-03T19:06:11.095695Z'
-updated_at: '2026-08-03T20:09:04.768809Z'
+updated_at: '2026-08-03T20:15:26.847429Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -359,5 +359,10 @@ author: oompah
 created: 2026-08-03 20:09
 ---
 Understanding: I will trace the terminal result commit/comment ordering, turn-ceiling handling, duplicate-dispatch fencing, and auditor authority-revocation lifecycle. I will implement the backend fix with focused regression tests, verify affected suites, then commit, push, and submit the task.
+---
+author: oompah
+created: 2026-08-03 20:15
+---
+Discovery: The coordinator already durably records completed audit attempts and idempotent sibling retirement, but it currently posts the human-readable result comment before applying the tracker status. Auditor sessions also use only the ordinary turn budget, and health/lifecycle paths do not expose or classify unapplied terminal-result intents. I will close these gaps while preserving fingerprint and authority fencing, then add focused ordering, boundary, recovery, scheduler, revocation, and health coverage.
 ---
 <!-- COMMENTS:END -->
