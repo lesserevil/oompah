@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-738
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Fence terminal override cleanup from concurrent worker-map mutation
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T20:08:56.082557Z'
-updated_at: '2026-08-03T21:07:18.600972Z'
+updated_at: '2026-08-03T21:20:13.126341Z'
 work_branch: null
 target_branch: null
 review_url: null
