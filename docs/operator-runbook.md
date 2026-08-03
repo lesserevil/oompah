@@ -716,7 +716,99 @@ After recovery, trigger a new maintenance pass by restarting:
 make restart
 ```
 
-### 6.8 Service exits unexpectedly
+### 6.8 Direct owner work reset to Open by the watchdog
+
+**Symptom:** A task you placed In Progress and started working on yourself
+(without an oompah agent) was reset back to Open — sometimes twice in quick
+succession. The log contains entries like:
+
+```
+INFO oompah.orchestrator Reset orphaned In Progress issue PROJ-42 to Open
+(no agent attached, count=1)
+```
+
+**Cause:** The orphan-watchdog runs on every maintenance tick. It resets any In
+Progress task that has no scheduler agent (`state.running`), no pending retry
+(`state.retry_attempts`), and no pending dispatch claim (`state.claimed`). A
+task you move to In Progress manually has none of these, so the watchdog treats
+it as abandoned.
+
+**Short-term workaround:** Add the `human-only` label to the task _before_
+placing it In Progress.
+
+```bash
+oompah task add-label PROJ-42 human-only
+# Then set it to In Progress via the dashboard or tracker
+```
+
+> **Note:** As of OOMPAH-707, the `human-only` label blocks the scheduler
+> from dispatching the task but does NOT prevent the orphan-watchdog from
+> resetting it. The permanent fix — a durable owner-claim mechanism — is
+> implemented in the same release. Once the fix ships, you can register an
+> owner claim on the task instead (see below).
+
+**Permanent fix (OOMPAH-707 and later):** Register an owner claim to tell the
+watchdog that the task is under intentional direct-owner work:
+
+```bash
+# Grant yourself a 48-hour claim (default TTL):
+curl -X POST http://localhost:8080/api/v1/projects/<project_id>/tasks/PROJ-42/owner-claim \
+     -H "Content-Type: application/json" \
+     -d '{"actor_login": "<your-login>", "ttl_hours": 48}'
+```
+
+The response includes the claim ID, owner login, claimed-at timestamp, and
+expiry time:
+
+```json
+{
+  "claim_id": "a1b2c3d4e5f6...",
+  "owner_login": "alice",
+  "claimed_at": "2026-08-02T22:30:00Z",
+  "expires_at": "2026-08-04T22:30:00Z"
+}
+```
+
+This request atomically marks the task `In Progress` and grants the claim.
+While the claim is active the watchdog skips the task; it will not be reset to
+Open regardless of how many maintenance ticks pass.
+
+**Check claim status:**
+
+```bash
+curl -s http://localhost:8080/api/v1/projects/<project_id>/tasks/PROJ-42/owner-claim \
+  | python3 -m json.tool
+```
+
+**Release the claim when work is done:**
+
+Release the claim explicitly so the task can re-enter the normal dispatch
+lifecycle. If you don't release it, the claim expires automatically after the
+configured TTL (default 48 hours) and the watchdog resets the task on the next
+tick.
+
+```bash
+curl -X DELETE http://localhost:8080/api/v1/projects/<project_id>/tasks/PROJ-42/owner-claim \
+  -H "Content-Type: application/json" \
+  -d '{"actor_login": "<your-login>"}'
+```
+
+**Claim expiry and abandoned-work recovery:**
+
+An owner claim that is never released expires after `OOMPAH_OWNER_CLAIM_TTL_HOURS`
+(default 48 hours). Once expired, the next watchdog tick removes the claim
+automatically and resets the task to Open for normal scheduling. This bounds
+the maximum time a directly-owned task can remain In Progress after the owner
+stops responding.
+
+**Dashboard visibility:**
+
+The state snapshot (`GET /api/v1/state` → `owner_claims`) lists all active
+owner claims with their owner login, claim age, and expiry time. In Progress
+tasks covered by an owner claim display the owner's name and a staleness
+indicator in the dashboard.
+
+### 6.9 Service exits unexpectedly
 
 Check the tail of the log:
 

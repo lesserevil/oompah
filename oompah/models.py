@@ -1469,6 +1469,53 @@ class RunningEntry:
 
 
 @dataclass
+class OwnerClaim:
+    """A time-bounded direct-owner lease for work without a scheduler agent.
+
+    Scheduler dispatch claims are intentionally short-lived in-memory state.
+    A direct owner needs a durable, independently observable claim so the
+    orphan watchdog can distinguish deliberate human work from an abandoned
+    scheduler assignment.
+    """
+
+    claim_id: str
+    issue_id: str
+    project_id: str | None
+    owner_login: str
+    claimed_at: float
+    expires_at: float
+    renewable: bool = True
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "claim_id": self.claim_id,
+            "issue_id": self.issue_id,
+            "project_id": self.project_id,
+            "owner_login": self.owner_login,
+            "claimed_at": self.claimed_at,
+            "expires_at": self.expires_at,
+            "renewable": self.renewable,
+        }
+
+    @classmethod
+    def from_dict(cls, raw: dict[str, Any]) -> "OwnerClaim":
+        claim_id = str(raw.get("claim_id", "") or "").strip()
+        issue_id = str(raw.get("issue_id", "") or "").strip()
+        owner_login = str(raw.get("owner_login", "") or "").strip()
+        if not claim_id or not issue_id or not owner_login:
+            raise ValueError("owner claim is missing required identity fields")
+        return cls(
+            claim_id=claim_id,
+            issue_id=issue_id,
+            project_id=(str(raw["project_id"]).strip() if raw.get("project_id") else None),
+            owner_login=owner_login,
+            claimed_at=float(raw.get("claimed_at", 0) or 0),
+            expires_at=float(raw.get("expires_at", 0) or 0),
+            renewable=bool(raw.get("renewable", True)),
+        )
+
+
+@dataclass
 class OrchestratorState:
     """Single authoritative in-memory state owned by the orchestrator."""
 
@@ -1480,6 +1527,10 @@ class OrchestratorState:
     # registered a RunningEntry. Dispatch gates use this to serialize shared
     # epic branches during that narrow claim-to-worker-start window.
     claimed_issues: dict[str, Issue] = field(default_factory=dict)
+    # Direct-owner leases, keyed by a project-scoped issue key.  Unlike
+    # ``claimed``, these survive a restart and protect intentional work that
+    # does not have a scheduler RunningEntry.
+    owner_claims: dict[str, OwnerClaim] = field(default_factory=dict)
     retry_attempts: dict[str, RetryEntry] = field(default_factory=dict)
     completed: set[str] = field(default_factory=set)
     stall_counts: dict[str, int] = field(default_factory=dict)  # issue_id → stall count

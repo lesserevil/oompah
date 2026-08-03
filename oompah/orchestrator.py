@@ -107,6 +107,7 @@ from oompah.models import (
     EpicRebaseStateEntry,
     Issue,
     LiveSession,
+    OwnerClaim,
     OrchestratorState,
     Project,
     RetryEntry,
@@ -1143,6 +1144,11 @@ class Orchestrator:
             poll_interval_ms=config.poll_interval_ms,
             max_concurrent_agents=config.max_concurrent_agents,
         )
+        # API callbacks and watchdog maintenance mutate direct-owner leases
+        # from different threads.  The project write lock serializes a given
+        # task transition; this lock makes snapshot and persistence access to
+        # the shared in-memory mapping safe as well.
+        self._owner_claims_lock = threading.RLock()
         # Retry entries can be withdrawn by an API thread while a due timer
         # is refreshing tracker state on the scheduler loop.  Keep the
         # retry map and its in-flight dispatch claims behind one process-wide
@@ -1460,6 +1466,8 @@ class Orchestrator:
         # service restart.
         self._shared_absorption_evidence: dict[str, SharedAbsorptionEvidence] = {}
         self._restore_shared_absorption_evidence()
+
+        self._restore_owner_claims()
 
         # Fine-grained tick telemetry (TASK-465.1).
         # Stores the timing breakdown of the most-recently completed _tick()
@@ -2260,6 +2268,176 @@ class Orchestrator:
             for issue_id, evidence in self._shared_absorption_evidence.items()
         }
         self._save_state(shared_absorption_evidence=payload)
+
+    # ------------------------------------------------------------------
+    # Direct-owner claims (OOMPAH-707)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _owner_claim_key(project_id: str | None, issue_id: str) -> str:
+        """Return a collision-safe key for an owner claim.
+
+        Native task ids are unique per project, not service-wide, so a bare
+        issue id would let a claim in one project protect unrelated work in
+        another project.
+        """
+
+        return f"{project_id or ''}\0{issue_id}"
+
+    def _persist_owner_claims_locked(self) -> None:
+        """Persist owner claims while ``_owner_claims_lock`` is held."""
+
+        self._save_state(
+            owner_claims={
+                key: claim.to_dict()
+                for key, claim in self.state.owner_claims.items()
+            }
+        )
+
+    def _restore_owner_claims(self) -> None:
+        """Restore direct-owner claims without treating bad state as live work."""
+
+        raw_claims = self._load_state().get("owner_claims")
+        if not isinstance(raw_claims, dict):
+            return
+        restored: dict[str, OwnerClaim] = {}
+        for key, raw in raw_claims.items():
+            if not isinstance(raw, dict):
+                continue
+            try:
+                claim = OwnerClaim.from_dict(raw)
+            except (TypeError, ValueError) as exc:
+                logger.warning("Ignoring malformed persisted owner claim %r: %s", key, exc)
+                continue
+            restored[self._owner_claim_key(claim.project_id, claim.issue_id)] = claim
+        with self._owner_claims_lock:
+            self.state.owner_claims = restored
+        if restored:
+            logger.info("Restored %d direct-owner claim(s) from disk", len(restored))
+
+    def _owner_claim_for_issue(
+        self, issue_id: str, project_id: str | None
+    ) -> OwnerClaim | None:
+        """Return a direct-owner claim for one project-scoped issue."""
+
+        with self._owner_claims_lock:
+            return self.state.owner_claims.get(
+                self._owner_claim_key(project_id, issue_id)
+            )
+
+    def _live_owner_claim_for_issue_locked(
+        self,
+        issue_id: str,
+        project_id: str | None,
+        *,
+        now: float | None = None,
+    ) -> OwnerClaim | None:
+        """Return a live claim or remove an expired one under the project lock.
+
+        Callers must already hold ``project_write_lock(project_id)`` when a
+        project is known.  That makes the final watchdog decision and an API
+        claim/release operation one serialized transition.
+        """
+
+        checked_at = time.time() if now is None else now
+        key = self._owner_claim_key(project_id, issue_id)
+        with self._owner_claims_lock:
+            claim = self.state.owner_claims.get(key)
+            if claim is None:
+                return None
+            if claim.expires_at > checked_at:
+                return claim
+            del self.state.owner_claims[key]
+            self._persist_owner_claims_locked()
+        logger.info(
+            "Expired direct-owner claim for issue_id=%s project_id=%s owner=%s",
+            issue_id,
+            project_id or "legacy",
+            claim.owner_login,
+        )
+        return None
+
+    def grant_owner_claim(
+        self,
+        *,
+        issue_id: str,
+        project_id: str | None,
+        owner_login: str,
+        ttl_hours: int | None = None,
+    ) -> OwnerClaim:
+        """Create or renew a direct-owner lease under the project write lock."""
+
+        project_lock = (
+            self.project_store.project_write_lock(project_id)
+            if project_id
+            else contextlib.nullcontext()
+        )
+        with project_lock:
+            if (
+                issue_id in self.state.running
+                or issue_id in self.state.retry_attempts
+                or issue_id in self.state.claimed
+            ):
+                raise ValueError("task is currently owned by the scheduler")
+            claimed_at = time.time()
+            duration_hours = ttl_hours or self.config.owner_claim_ttl_hours
+            claim = OwnerClaim(
+                claim_id=uuid.uuid4().hex,
+                issue_id=issue_id,
+                project_id=project_id,
+                owner_login=owner_login,
+                claimed_at=claimed_at,
+                expires_at=(
+                    claimed_at + duration_hours * 60 * 60
+                ),
+            )
+            with self._owner_claims_lock:
+                self.state.owner_claims[
+                    self._owner_claim_key(project_id, issue_id)
+                ] = claim
+                self._persist_owner_claims_locked()
+            return claim
+
+    def release_owner_claim(
+        self, *, issue_id: str, project_id: str | None
+    ) -> bool:
+        """Release a direct-owner lease under the project write lock."""
+
+        project_lock = (
+            self.project_store.project_write_lock(project_id)
+            if project_id
+            else contextlib.nullcontext()
+        )
+        with project_lock, self._owner_claims_lock:
+            removed = self.state.owner_claims.pop(
+                self._owner_claim_key(project_id, issue_id), None
+            )
+            if removed is not None:
+                self._persist_owner_claims_locked()
+            return removed is not None
+
+    @staticmethod
+    def _owner_claim_snapshot(claim: OwnerClaim, *, now: float) -> dict[str, Any]:
+        """Build a safe, dashboard-ready owner-claim projection."""
+
+        expires_in_seconds = max(0.0, claim.expires_at - now)
+        return {
+            "claim_id": claim.claim_id,
+            "issue_id": claim.issue_id,
+            "project_id": claim.project_id,
+            "owner_login": claim.owner_login,
+            "ownership_source": "direct_owner",
+            "claimed_at": datetime.fromtimestamp(
+                claim.claimed_at, tz=timezone.utc
+            ).isoformat(),
+            "expires_at": datetime.fromtimestamp(
+                claim.expires_at, tz=timezone.utc
+            ).isoformat(),
+            "age_seconds": max(0.0, now - claim.claimed_at),
+            "expires_in_seconds": expires_in_seconds,
+            "is_expired": claim.expires_at <= now,
+            "renewable": claim.renewable,
+        }
 
     def _capture_shared_absorption_evidence(
         self,
@@ -15766,39 +15944,50 @@ class Orchestrator:
                     if project_id
                     else self.tracker
                 )
-                if issue.id in self.state.completed:
-                    _lock_ctx = (
-                        self.project_store.project_write_lock(project_id)
-                        if project_id
-                        else contextlib.nullcontext()
-                    )
-                    with _lock_ctx:
-                        # TERMINAL-AUDIT-ALLOW OOMPAH-483: reassert Done only
-                        # for an issue already present in the completed set.
-                        # The enforcement sweep still verifies audit metadata.
-                        tracker.update_issue(issue.identifier, status=DONE)
-                    logger.info(
-                        "Preserved completed issue %s as Done during orphan reset",
-                        issue.identifier,
-                    )
-                    continue
-                labels = {str(label).lower() for label in (issue.labels or [])}
-                status = OPEN
-                updates: dict[str, str] = {}
-                if "merge-conflict" in labels:
-                    status = NEEDS_REBASE
-                    updates["priority"] = "0"
-                elif "ci-fix" in labels:
-                    status = NEEDS_CI_FIX
-                    updates["priority"] = "0"
-                # Acquire per-project write lock so concurrent maintenance
-                # passes don't interleave tracker writes for the same project.
+                # The final owner-claim read and tracker transition must share
+                # this lock with API claim/release operations.  Reading the
+                # claim before acquiring the lock would leave a TOCTOU window
+                # where the watchdog could overwrite a newly granted lease.
                 _lock_ctx = (
                     self.project_store.project_write_lock(project_id)
                     if project_id
                     else contextlib.nullcontext()
                 )
                 with _lock_ctx:
+                    claim = self._live_owner_claim_for_issue_locked(
+                        issue.id,
+                        project_id,
+                    )
+                    if claim is not None:
+                        logger.info(
+                            "Preserved direct-owner work %s during orphan reset "
+                            "(owner=%s, expires_at=%s)",
+                            issue.identifier,
+                            claim.owner_login,
+                            datetime.fromtimestamp(
+                                claim.expires_at, tz=timezone.utc
+                            ).isoformat(),
+                        )
+                        continue
+                    if issue.id in self.state.completed:
+                        # TERMINAL-AUDIT-ALLOW OOMPAH-483: reassert Done only
+                        # for an issue already present in the completed set.
+                        # The enforcement sweep still verifies audit metadata.
+                        tracker.update_issue(issue.identifier, status=DONE)
+                        logger.info(
+                            "Preserved completed issue %s as Done during orphan reset",
+                            issue.identifier,
+                        )
+                        continue
+                    labels = {str(label).lower() for label in (issue.labels or [])}
+                    status = OPEN
+                    updates: dict[str, str] = {}
+                    if "merge-conflict" in labels:
+                        status = NEEDS_REBASE
+                        updates["priority"] = "0"
+                    elif "ci-fix" in labels:
+                        status = NEEDS_CI_FIX
+                        updates["priority"] = "0"
                     tracker.update_issue(issue.identifier, status=status, **updates)
                 reset_count += 1
                 self.state.completed.discard(issue.id)
@@ -32685,6 +32874,18 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 }
             )
 
+        # Direct-owner claims are kept distinct from scheduler ``running``
+        # rows so operators can see why an In Progress task has no agent and
+        # how long that protection remains valid.
+        with self._owner_claims_lock:
+            owner_claim_rows = [
+                self._owner_claim_snapshot(claim, now=now.timestamp())
+                for claim in self.state.owner_claims.values()
+            ]
+        owner_claim_rows.sort(
+            key=lambda row: (str(row["project_id"] or ""), str(row["issue_id"]))
+        )
+
         totals = self.state.agent_totals
         terminal_audit_metrics = self._terminal_audit_metrics.snapshot(now=now)
         return {
@@ -32711,6 +32912,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             },
             "running": running_rows,
             "retrying": retry_rows,
+            "owner_claims": owner_claim_rows,
             "agent_totals": {
                 "input_tokens": totals.input_tokens,
                 "output_tokens": totals.output_tokens,

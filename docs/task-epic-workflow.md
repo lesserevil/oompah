@@ -137,6 +137,20 @@ verdict routes it to the appropriate repair state. See
 [`docs/auditor-dispatch-operations.md`](auditor-dispatch-operations.md) for
 configuration and recovery guidance.
 
+**Direct owner work:** A project owner may set a task to `In Progress`
+directly to handle it without an agent. When doing this, register an
+**owner claim** so the orphan-watchdog does not mistake the task for an
+abandoned scheduler assignment and reset it to `Open`:
+
+```bash
+curl -X POST http://localhost:8080/api/v1/projects/<project_id>/tasks/PROJ-42/owner-claim \
+  -H "Content-Type: application/json" \
+  -d '{"actor_login": "<your-login>"}'
+```
+
+See [§ 6.8 of the Operator Runbook](operator-runbook.md#68-direct-owner-work-reset-to-open-by-the-watchdog)
+for full claim, renewal, and release instructions.
+
 Dispatch also requires clear task content, no unresolved dependencies, available
 agent capacity, project/global pause gates to be open, and valid branch
 metadata. Non-epic tasks with empty descriptions are rejected because agents
