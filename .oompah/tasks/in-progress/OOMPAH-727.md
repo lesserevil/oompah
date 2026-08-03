@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:39:38.824262Z'
-updated_at: '2026-08-03T16:10:11.371564Z'
+updated_at: '2026-08-03T16:19:16.554054Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -170,5 +170,10 @@ author: oompah
 created: 2026-08-03 16:10
 ---
 Discovery: cleanup is centered in oompah/projects.py. cleanup_terminal_issue passes a task's recorded work_branch into _assert_terminal_worktree_safe_locked, so a direct-epic maintenance task whose managed issue path is actually on epic-<parent>--task-<id> raises on branch mismatch. Existing _cleanup_epic_repair_workspace_locked safely handles OOMPAH-581's epic-path/<id>-branch residue, while epic_child_branch_name defines the exact private branch shape needed here. I’ll extend the non-epic terminal path with narrow parent-epic/derived-branch evidence and preserve all existing guards.
+---
+author: oompah
+created: 2026-08-03 16:19
+---
+Implementation: added a conservative ProjectStore direct-epic auxiliary cleanup path. It recognizes only a registered issue worktree on the exact scheduler-derived epic child branch, rejects shared checkouts, active operations, stable recovery refs, dirty state, ref identity changes, protected refs, and missing durable evidence, and compare-and-deletes only the exact local derived ref after worktree removal. Reachability accepts the default/authoritative epic remote or a same-epic private task remote; no remote ref is deleted. Added integration coverage for EXOCOMP-240 shape, staged/unstaged/untracked changes, recovery, paused rebase, unpublished unique heads, wrong suffix, shared checkout, cross-project/unregistered paths, authoritative/remote preservation, and repeated cleanup.
 ---
 <!-- COMMENTS:END -->

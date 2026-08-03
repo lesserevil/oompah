@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-728
 type: bug
-status: Backlog
+status: Open
 priority: 1
 title: Keep structurally relevant peers in duplicate-screening corpus
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T16:19:05.113116Z'
-updated_at: '2026-08-03T16:19:05.113116Z'
+updated_at: '2026-08-03T16:19:18.110676Z'
 work_branch: null
 target_branch: null
 review_url: null
