@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:17.550824Z'
-updated_at: '2026-08-03T23:09:53.099631Z'
+updated_at: '2026-08-03T23:14:44.058786Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-742
 target_branch: null
 review_url: null
@@ -235,5 +235,49 @@ author: oompah
 created: 2026-08-03 23:09
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-08-03 23:14
+---
+**Understanding & Plan**
+
+I have analyzed the requirements and codebase. This task involves refactoring the dashboard to replace multiple stacked warning/health banners with a compact, collapsible alert center.
+
+**Current State:**
+The dashboard has multiple independent banners (cred-error-banner, alerts-banner, terminal-audit-health, repo-hygiene-health, auth-health-banner, task-state-stale-banner, board-error/notice) that consume vertical space even when empty/non-actionable.
+
+**Key Requirements:**
+1. Create a single compact alert center with collapsed summary showing actionable count + highest severity
+2. Clear toggle to expand/collapse details
+3. Bound expanded height with internal scrolling
+4. Move non-actionable facts (healthy repo status, auth OK) to separate diagnostics view
+5. Prevent duplicate alert rendering
+6. Preserve board visibility, scroll behavior, keyboard nav, focus management, aria-live
+
+**Planned Implementation:**
+1. Create `.alert-center` component (collapsed summary + expanded list)
+2. Consolidate alert logic: identify actionable vs informational alerts
+3. Group alerts by severity (critical, warning, info)
+4. Add CSS for bounded height + internal scrolling on expanded state
+5. Extract non-actionable facts to new diagnostics panel (separate from alert center)
+6. Update handleStateUpdate() to populate alert center instead of individual banners
+7. Implement keyboard/a11y: focus management, aria-live for new alerts only
+8. Add comprehensive tests covering all states
+
+**Acceptance Criteria Approach:**
+- Tests for 0/1/many alerts, mixed severity, expanded/collapsed
+- Verify duplicates render once
+- Confirm board remains visible at common viewport heights
+- Test dynamic add/remove without layout corruption
+- Verify keyboard and accessible names
+
+**Implementation Path:**
+1. Update dashboard.html with new alert-center markup and styling
+2. Refactor state update logic to populate alert center
+3. Hide old banners (keep for migration safety)
+4. Implement test coverage
+5. Run focused tests to verify
+
+Starting discovery phase now...
 ---
 <!-- COMMENTS:END -->
