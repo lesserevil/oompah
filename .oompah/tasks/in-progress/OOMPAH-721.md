@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T14:39:16.938367Z'
-updated_at: '2026-08-03T14:44:13.124417Z'
+updated_at: '2026-08-03T14:51:35.148759Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -149,5 +149,39 @@ OOMPAH-721 requires fixing duplicate-preflight screening handoff to prevent infi
 - Verify no stale preflight claims or duplicate running entries remain
 
 Starting discovery now.
+---
+author: oompah
+created: 2026-08-03 14:51
+---
+**Discovery: Root Cause Identified**
+
+Found the regression in orchestrator.py:
+
+Current behavior (_finish_duplicate_preflight_sync):
+- When screening finishes with NO_DUPLICATE verdict, it:
+  1. Completes the screening record ✓
+  2. Saves the record ✓
+  3. Returns outcome='checked' ✗ (but doesn't hand off)
+
+The problem:
+- No handoff comment is posted (focus handoff: duplicate_detector)
+- No focus-complete:duplicate_detector label is added
+- Task stays in Open but without proper handoff markers
+- Next scheduler tick doesn't know to dispatch implementation with correct focus
+- Generic escalation logic then takes over instead of dispatching implementation
+
+The fix requires:
+1. After NO_DUPLICATE verdict, post handoff comment with verdict block
+2. Add focus-complete:duplicate_detector label
+3. Immediately dispatch fresh implementation agent with appropriate focus (rebase/general)
+4. Ensure duplicate_preflight claim is cleared before implementation dispatch
+5. Add tests for EXOCOMP-241-style scenarios (no-dup screen → rebase dispatch, no escalation)
+
+Key files:
+- oompah/orchestrator.py: _finish_duplicate_preflight_sync, _handle_duplicate_preflight_exit
+- oompah/focus.py: duplicate_detector focus definition
+- oompah/duplicate_screening.py: result parsing and record management
+
+Starting implementation now.
 ---
 <!-- COMMENTS:END -->
