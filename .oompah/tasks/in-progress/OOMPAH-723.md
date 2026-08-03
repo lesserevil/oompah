@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-723
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Isolate maintenance-lane nonblocking test from awaited tracker I/O
 parent: null
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-03T15:20:07.046080Z'
-updated_at: '2026-08-03T16:04:05.133779Z'
+updated_at: '2026-08-03T16:14:34.080225Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -77,7 +77,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 8020d40b-4df0-4b09-aa80-25f4b7bff628
+oompah.agent_run_id: 51095c77-0020-48c4-9b26-b7aa777541bf
 oompah.task_costs:
   total_input_tokens: 50969
   total_output_tokens: 2148
@@ -175,5 +175,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 14s
 - Log: OOMPAH-723__20260803T160255Z.jsonl
+---
+author: oompah
+created: 2026-08-03 16:14
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-03 16:14
+---
+Focus: Test Engineer
 ---
 <!-- COMMENTS:END -->
