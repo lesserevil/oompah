@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-731
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Complete direct epic rebases without self-invalidating submission
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T17:45:33.391967Z'
-updated_at: '2026-08-03T18:41:55.732571Z'
+updated_at: '2026-08-03T18:42:10.978048Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -94,6 +94,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-731
     source_sha: f035aa3e64db9e6c71e6538c0c4fd7fcffa2de8c
     completed_at: '2026-08-03T17:51:11.556260+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-731
+  head_sha: 2136743f5eca5d9c99f5c8c212ac95a13a55574b
+  submitted_at: '2026-08-03T18:42:07.724369+00:00'
+  updated_at: '2026-08-03T18:42:07.724369+00:00'
 ---
 ## Summary
 
@@ -196,5 +204,10 @@ author: oompah
 created: 2026-08-03 18:41
 ---
 Completion: Delivered complete fix for EXOCOMP-244-style self-invalidating submission. Direct epic rebase helpers now: (1) receive the canonical shared epic worktree so worker and submission share one ref, (2) bypass the ordinary child integration queue on submission, (3) reconcile the registered epic checkout to the proven published SHA via a guarded reset (dirty/active/recovery/divergent states preserved), (4) transition directly to audited Done via the maintenance lifecycle, (5) recover idempotently on restart if the push succeeded before process exit. 499 focused tests pass across all affected suites.
+---
+author: oompah
+created: 2026-08-03 18:42
+---
+Complete direct epic rebases without self-invalidating submission. Auto-filed Rebase epic-* helpers now route to the canonical shared worktree, bypass the ordinary child integration queue, reconcile the registered epic checkout after a proven force-push, and reach audited Done via the maintenance lifecycle. EXOCOMP-244 reproduction passes, 499 focused tests green.
 ---
 <!-- COMMENTS:END -->
