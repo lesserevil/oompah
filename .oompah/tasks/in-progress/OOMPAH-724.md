@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:25:39.369981Z'
-updated_at: '2026-08-03T16:11:45.771395Z'
+updated_at: '2026-08-03T16:16:16.733970Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -198,5 +198,24 @@ Found the relevant code paths:
    - Recovery reopening needs explicit task state (not transient)
 
 **Key insight:** The recovery system works, but needs fencing around submission acceptance to prevent late mutations becoming integration blockers.
+---
+author: oompah
+created: 2026-08-03 16:16
+---
+**Implementation (Phase 1):** Added submission fencing mechanism:
+
+1. **Revocation on acceptance:** When submission accepted in _accept_worker_submission, authority is immediately revoked via _cancel_retry_for_issue to prevent further mutations
+
+2. **Accepted submission record:** Added accepted_submission_record field to RunningEntry to mark when submission has been accepted and needs special handling
+
+3. **Revoked submission exit handler:** New _handle_revoked_submission_exit method that:
+   - Preserves late changes via recovery checkpoint  
+   - Validates final worktree HEAD matches submitted HEAD
+   - If clean: enqueues for integration (sets READY_TO_INTEGRATE)
+   - If late changes: reopens task with recovery context + comment
+
+4. **Current status:** Phase 1 implementation complete, all existing tests pass
+
+**Next:** Create comprehensive tests for EXOCOMP-172 reproduction and edge cases
 ---
 <!-- COMMENTS:END -->
