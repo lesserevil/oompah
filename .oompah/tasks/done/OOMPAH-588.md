@@ -16,7 +16,7 @@ labels:
 - epic:rebased
 assignee: null
 created_at: '2026-07-30T14:13:46.482910Z'
-updated_at: '2026-08-03T20:02:59.215168Z'
+updated_at: '2026-08-03T20:03:03.170418Z'
 work_branch: epic-OOMPAH-588
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/602
@@ -27,6 +27,21 @@ oompah.terminal_audit:
   applied_result_attempts:
     attempt-d986f94b1463: '2026-07-31T05:09:14.294912+00:00'
     attempt-5c2400157350: '2026-07-31T05:28:47.357509+00:00'
+  oompah.terminal_override_records: []
+  oompah.terminal_audit_retirements: []
+  oompah.terminal_audit_result_intents: []
+  oompah.lifecycle_reconciliations:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-588
+    from: Merged
+    to: Done
+    reason: shared_epic_parent_not_landed
+    conflict: 'Cannot transition shared-epic child OOMPAH-588 to Merged: parent epic
+      OOMPAH-584 could not be verified. The parent review must land on its configured
+      target branch first.'
+    done_audit_ids:
+    - audit-324180823f32
+    created_at: '2026-08-03T20:03:00.853768+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -67,7 +82,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-588
     target_state: Merged
-    request_state: completed
+    request_state: superseded
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -95,7 +110,7 @@ oompah.terminal_audit:
       source: forge
     previous_state: In Review
     created_at: '2026-07-31T05:25:38.259925+00:00'
-    updated_at: '2026-07-31T05:28:47.357389+00:00'
+    updated_at: '2026-08-03T20:03:00.853768+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-d986f94b1463
@@ -291,5 +306,10 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 3m 14s
 - Log: OOMPAH-588__20260731T052555Z.jsonl
+---
+author: oompah
+created: 2026-08-03 20:03
+---
+Lifecycle reconciliation restored OOMPAH-588 to audited Done: Cannot transition shared-epic child OOMPAH-588 to Merged: parent epic OOMPAH-584 could not be verified. The parent review must land on its configured target branch first.
 ---
 <!-- COMMENTS:END -->

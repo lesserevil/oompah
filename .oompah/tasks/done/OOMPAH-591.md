@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-591
 type: task
-status: Merged
+status: Done
 priority: 1
 title: Reconcile the pending audit backlog and stale In Validation tasks
 parent: OOMPAH-585
@@ -15,7 +15,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:26.620047Z'
-updated_at: '2026-08-02T18:24:30.402576Z'
+updated_at: '2026-08-03T20:03:04.518069Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-591
 target_branch: null
 review_url: null
