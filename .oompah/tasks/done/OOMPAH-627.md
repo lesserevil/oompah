@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-627
 type: bug
-status: Merged
+status: Done
 priority: 1
 title: Preserve integrated evidence when creating auditor worktrees
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T22:09:32.117751Z'
-updated_at: '2026-08-02T18:29:02.703521Z'
+updated_at: '2026-08-03T20:04:57.237888Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-627
 target_branch: null
 review_url: null
