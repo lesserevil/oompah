@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-716
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Do not exhaust auditor policy budget on read-only awk and sed inspection
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T03:02:02.962763Z'
-updated_at: '2026-08-03T03:39:58.831799Z'
+updated_at: '2026-08-03T03:40:02.341504Z'
 work_branch: null
 target_branch: null
 review_url: https://github.com/lesserevil/oompah/pull/676
