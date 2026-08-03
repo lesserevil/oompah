@@ -259,6 +259,7 @@ class OverrideRejection:
     METADATA_WRITE_FAILED = "metadata_write_failed"
     COMMENT_FAILED = "comment_failed"
     STATUS_UPDATE_FAILED = "status_update_failed"
+    LIFECYCLE_INCOMPATIBLE = "lifecycle_incompatible"
 
 
 @dataclass
@@ -383,6 +384,7 @@ class ResultRejection:
     MISSING_CLASSIFICATION = "FAIL verdict requires a failure classification"
     UNPARSEABLE_VERDICT = "unparseable verdict"
     RETRY_CEILING = "retry ceiling reached; verdict left pending"
+    LIFECYCLE_INCOMPATIBLE = "terminal lifecycle is incompatible with shared-epic landing"
 
 
 @dataclass
@@ -494,6 +496,8 @@ class TerminalTransitionCoordinator:
         metrics: Any | None = None,
         revoke_delivery_authority: Callable[[str, str], None] | None = None,
         clear_audit_alert: Callable[[str, str, str], None] | None = None,
+        validate_terminal_transition: Callable[[Issue, TargetState, str], str | None]
+        | None = None,
     ) -> None:
         # The standalone API accepts one tracker, while the server passes a
         # project-aware factory because managed projects each have their own
@@ -516,6 +520,10 @@ class TerminalTransitionCoordinator:
         # in-memory dashboard identity while the durable metadata remains the
         # source of truth across a restart.
         self._clear_audit_alert = clear_audit_alert
+        # The orchestrator owns project/SCM-specific shared-epic knowledge.
+        # Keep the coordinator as the single mutation boundary while letting
+        # that owner supply a fail-closed lifecycle compatibility check.
+        self._validate_terminal_transition = validate_terminal_transition
 
     def _run_project_serialized(
         self,
@@ -591,6 +599,52 @@ class TerminalTransitionCoordinator:
                 exc_info=True,
             )
 
+    def _lifecycle_conflict(
+        self,
+        current_issue: Issue,
+        requested_target: TargetState,
+        project_id: str,
+    ) -> str | None:
+        """Return a shared-epic lifecycle conflict before any mutation.
+
+        Project/SCM-specific landing evidence belongs to the orchestrator, but
+        every terminal boundary belongs to this coordinator.  The callback is
+        therefore deliberately consulted by request, audit-result, override,
+        and recovery callers.  A callback failure fails closed for Merged so a
+        forge outage cannot turn unverifiable epic-branch work into a terminal
+        child state.
+        """
+
+        if requested_target != TargetState.MERGED:
+            return None
+        callback = self._validate_terminal_transition
+        if callback is None:
+            return None
+        try:
+            conflict = callback(current_issue, requested_target, project_id)
+        except Exception as exc:  # lifecycle enforcement must fail closed
+            logger.warning(
+                "Could not verify Merged lifecycle for %s/%s: %s",
+                project_id,
+                current_issue.identifier,
+                exc,
+                exc_info=True,
+            )
+            return (
+                f"Merged transition for {current_issue.identifier} could not verify "
+                "shared-epic landing evidence; the parent review must land on "
+                "its configured target branch before this child can be Merged."
+            )
+        if isinstance(conflict, str) and conflict.strip():
+            return conflict.strip()
+        if conflict is False:
+            return (
+                f"Merged transition for {current_issue.identifier} is incompatible "
+                "with the shared-epic lifecycle: the parent review must land on "
+                "its configured target branch first."
+            )
+        return None
+
     # ------------------------------------------------------------------
     # Public API — request_transition
     # ------------------------------------------------------------------
@@ -637,12 +691,17 @@ class TerminalTransitionCoordinator:
             :class:`~oompah.terminal_audit.TargetState`.
         """
         requested_target = TargetState.from_raw(requested_target)
-        self._revoke_delivery_for_terminal_transition(
-            project_id,
-            current_issue.identifier,
-        )
 
         def _operation() -> TransitionResult:
+            lifecycle_conflict = self._lifecycle_conflict(
+                current_issue, requested_target, project_id
+            )
+            if lifecycle_conflict is not None:
+                return TransitionResult(success=False, reason=lifecycle_conflict)
+            self._revoke_delivery_for_terminal_transition(
+                project_id,
+                current_issue.identifier,
+            )
             tracker = self._tracker_for_project(project_id)
             store = TerminalAuditMetadataStore(
                 tracker, self._project_store, project_id
@@ -715,12 +774,17 @@ class TerminalTransitionCoordinator:
         has a different timestamp in its retention evidence.
         """
         requested_target = TargetState.from_raw(requested_target)
-        self._revoke_delivery_for_terminal_transition(
-            project_id,
-            current_issue.identifier,
-        )
 
         def _operation() -> TransitionResult:
+            lifecycle_conflict = self._lifecycle_conflict(
+                current_issue, requested_target, project_id
+            )
+            if lifecycle_conflict is not None:
+                return TransitionResult(success=False, reason=lifecycle_conflict)
+            self._revoke_delivery_for_terminal_transition(
+                project_id,
+                current_issue.identifier,
+            )
             tracker = self._tracker_for_project(project_id)
             store = TerminalAuditMetadataStore(
                 tracker, self._project_store, project_id
@@ -778,6 +842,15 @@ class TerminalTransitionCoordinator:
             return TransitionResult(success=False, reason="project_mismatch")
 
         def _operation() -> TransitionResult:
+            lifecycle_conflict = self._lifecycle_conflict(
+                current_issue, requested_target, project_id
+            )
+            if lifecycle_conflict is not None:
+                return TransitionResult(success=False, reason=lifecycle_conflict)
+            self._revoke_delivery_for_terminal_transition(
+                project_id,
+                current_issue.identifier,
+            )
             tracker = self._tracker_for_project(project_id)
             store = TerminalAuditMetadataStore(
                 tracker, self._project_store, project_id
@@ -1554,6 +1627,17 @@ class TerminalTransitionCoordinator:
                 reason=ResultRejection.ISSUE_NOT_IN_VALIDATION,
             )
 
+        if result.verdict == Verdict.PASS:
+            lifecycle_conflict = self._lifecycle_conflict(
+                current_issue, result.target_state, project_id
+            )
+            if lifecycle_conflict is not None:
+                return ResultOutcome(
+                    success=False,
+                    audit_id=result.audit_id,
+                    reason=lifecycle_conflict,
+                )
+
         # --- Needs-Human comments must be actionable before any state write ---
         if result.verdict == Verdict.NEEDS_HUMAN or (
             result.verdict == Verdict.FAIL
@@ -1921,6 +2005,16 @@ class TerminalTransitionCoordinator:
                 error_code=OverrideRejection.UNAUTHORIZED_ACTOR,
             )
 
+        lifecycle_conflict = self._lifecycle_conflict(
+            current_issue, requested_target, project_id
+        )
+        if lifecycle_conflict is not None:
+            return OverrideResult(
+                success=False,
+                reason=lifecycle_conflict,
+                error_code=OverrideRejection.LIFECYCLE_INCOMPATIBLE,
+            )
+
         # Step 2: Verify fingerprint matches current state
         try:
             document = store.read(identifier)
@@ -1948,6 +2042,11 @@ class TerminalTransitionCoordinator:
                 if not isinstance(raw_override, Mapping):
                     continue
                 if raw_override.get("applied", True) is False:
+                    continue
+                if raw_override.get("lifecycle_reconciled", False):
+                    # A legacy incompatible Merged override remains in the
+                    # audit ledger for history, but must never replay its
+                    # structurally impossible status after repair.
                     continue
                 if (
                     raw_override.get("project_id") == project_id

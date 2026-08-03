@@ -5565,6 +5565,14 @@ def _safe_terminal_transition_error(result, *, override: bool = False) -> tuple[
         return "Only a project owner may use an audit override.", 403
     if override and error_code == OverrideRejection.FINGERPRINT_MISMATCH:
         return "The task changed before the override was requested; refresh and retry.", 409
+    if error_code == OverrideRejection.LIFECYCLE_INCOMPATIBLE:
+        return reason, 409
+
+    if "shared-epic" in reason.lower() or "auto-filed epic" in reason.lower():
+        # This is a safe, actionable domain conflict rather than an internal
+        # metadata failure. Preserve it for API/CLI callers so they know the
+        # parent landing prerequisite instead of blindly retrying.
+        return reason, 409
 
     return (
         "The terminal transition could not be staged. Retry the request or ask a "
@@ -5781,6 +5789,8 @@ async def _stage_terminal_transition(
                     "No matching exhausted audit can be retried for this task.",
                     409,
                 )
+            if "shared-epic" in str(result.reason or "").lower() or "auto-filed epic" in str(result.reason or "").lower():
+                return None, (str(result.reason), 409)
             return None, ("The terminal audit retry could not be staged.", 503)
         payload = _terminal_transition_payload(
             target,

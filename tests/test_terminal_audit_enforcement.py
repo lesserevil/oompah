@@ -17,11 +17,11 @@ from oompah.orchestrator import Orchestrator
 from oompah.terminal_audit import (
     AuditAttempt,
     ContributorIdentity,
-    EvidenceFingerprint,
     OverrideRecord,
     RequestState,
     TargetState,
     TerminalAuditRecord,
+    Verdict,
     compute_evidence_fingerprint,
     compute_issue_evidence_fingerprint,
 )
@@ -458,6 +458,89 @@ def test_restart_finishes_override_retirement_after_status_write(tmp_path):
     assert stored.unknown_fields["oompah.terminal_audit_retirements"][0]["applied"] is True
 
 
+def test_legacy_incompatible_shared_merged_child_restores_done_without_canceling_unrelated_audit(
+    tmp_path,
+):
+    """Legacy EXOCOMP-240-shaped state converges to its completed Done audit."""
+
+    child = _issue("CHILD-1", "Merged", "evidence-a", "project-a")
+    child.parent_id = "EPIC-1"
+    done = _pending_record("project-a", "CHILD-1", "audit-done")
+    done = replace(
+        done,
+        request_state=RequestState.COMPLETED,
+        attempts=[
+            AuditAttempt(
+                attempt_id="done-pass",
+                target_state=TargetState.DONE,
+                evidence_fingerprint=done.evidence_fingerprint,
+                request_state=RequestState.COMPLETED,
+                verdict=Verdict.PASS,
+            )
+        ],
+    )
+    merged = replace(
+        done,
+        audit_id="audit-merged-override",
+        target_state=TargetState.MERGED,
+        request_state=RequestState.COMPLETED,
+    )
+    unrelated = replace(
+        done,
+        audit_id="audit-unrelated-archive",
+        target_state=TargetState.ARCHIVED,
+        request_state=RequestState.PENDING,
+        attempts=[],
+    )
+    override = {
+        "version": 1,
+        "override_id": "override-legacy-merged",
+        "project_id": "project-a",
+        "task_id": "CHILD-1",
+        "target_state": TargetState.MERGED.value,
+        "evidence_fingerprint": done.evidence_fingerprint.to_dict(),
+        "authorized_by": {"version": 1, "identity": "owner"},
+        "reason": "legacy emergency approval",
+        "applied": True,
+    }
+    tracker = _Tracker([child])
+    tracker.metadata[child.identifier] = {
+        METADATA_KEY: TerminalAuditMetadata(
+            pending_chain=[done, merged, unrelated],
+            unknown_fields={TERMINAL_OVERRIDE_RECORDS_KEY: [override]},
+        ).to_dict()
+    }
+
+    def conflict(_issue, target, _project):
+        if target == TargetState.MERGED:
+            return (
+                "Cannot transition shared-epic child CHILD-1 to Merged: parent "
+                "review must land on configured target branch main first."
+            )
+        return None
+
+    enforcer = TerminalAuditEnforcement(
+        str(tmp_path / "service_state.json"),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        validate_terminal_transition=conflict,
+    )
+    assert enforcer.recover_pending_audits([("project-a", tracker)]) == []
+
+    stored = TerminalAuditMetadata.from_dict(
+        tracker.metadata[child.identifier][METADATA_KEY]
+    )
+    by_id = {record.audit_id: record for record in stored.pending_chain}
+    assert child.state == "Done"
+    assert by_id[done.audit_id].request_state == RequestState.COMPLETED
+    assert by_id[merged.audit_id].request_state == RequestState.SUPERSEDED
+    assert by_id[unrelated.audit_id].request_state == RequestState.PENDING
+    repaired_override = stored.unknown_fields[TERMINAL_OVERRIDE_RECORDS_KEY][0]
+    assert repaired_override["lifecycle_reconciled"] is True
+    assert repaired_override["reconciled_to"] == "Done"
+    assert tracker.status_updates == [("CHILD-1", "Done")]
+
+
 def test_recovery_applies_unapplied_override_while_still_in_validation(tmp_path):
     """An override intent must not deadlock when its status write was interrupted."""
     tracker = _Tracker([_issue("TASK-1", "In Validation", "evidence-a", "project-a")])
@@ -498,6 +581,55 @@ def test_recovery_applies_unapplied_override_while_still_in_validation(tmp_path)
     # Restart recovery is idempotent after both halves of the intent are durable.
     assert enforcer.recover_pending_audits([("project-a", tracker)]) == []
     assert tracker.status_updates == [("TASK-1", "Done")]
+
+
+def test_recovery_retires_incompatible_merged_override_without_status_write(tmp_path):
+    """Restart recovery must not replay a structurally impossible Merged override."""
+    issue = _issue("CHILD-1", "In Validation", "evidence-a", "project-a")
+    issue.parent_id = "EPIC-1"
+    fingerprint = compute_issue_evidence_fingerprint(issue, "project-a")
+    override = {
+        "version": 1,
+        "override_id": "override-incompatible-merged",
+        "project_id": "project-a",
+        "task_id": "CHILD-1",
+        "target_state": TargetState.MERGED.value,
+        "evidence_fingerprint": fingerprint.to_dict(),
+        "authorized_by": {"version": 1, "identity": "owner"},
+        "reason": "legacy recovery",
+        "applied": False,
+    }
+    tracker = _Tracker([issue])
+    tracker.metadata[issue.identifier] = {
+        METADATA_KEY: TerminalAuditMetadata(
+            unknown_fields={TERMINAL_OVERRIDE_RECORDS_KEY: [override]}
+        ).to_dict()
+    }
+
+    def conflict(_issue, target, _project):
+        if target == TargetState.MERGED:
+            return (
+                "Cannot transition shared-epic child CHILD-1 to Merged: parent "
+                "review must land on configured target branch main first."
+            )
+        return None
+
+    enforcer = TerminalAuditEnforcement(
+        str(tmp_path / "service_state.json"),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        validate_terminal_transition=conflict,
+    )
+    assert enforcer.recover_pending_audits([("project-a", tracker)]) == []
+
+    stored = TerminalAuditMetadata.from_dict(
+        tracker.metadata[issue.identifier][METADATA_KEY]
+    )
+    repaired = stored.unknown_fields[TERMINAL_OVERRIDE_RECORDS_KEY][0]
+    assert issue.state == "In Validation"
+    assert tracker.status_updates == []
+    assert repaired["applied"] is True
+    assert "parent review must land" in repaired["retired_reason"]
 
 
 @pytest.mark.parametrize(

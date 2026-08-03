@@ -34,6 +34,7 @@ from oompah.terminal_audit_metadata import (
     TerminalAuditMetadataStore,
 )
 from oompah.terminal_transition_coordinator import (
+    OverrideRejection,
     TerminalTransitionCoordinator,
     TransitionResult,
     _build_new_entries,
@@ -216,12 +217,14 @@ def _coordinator(
     tracker: _MemoryTracker | None = None,
     post_comments: bool = True,
     metrics: Any | None = None,
+    validate_terminal_transition: Any | None = None,
 ) -> TerminalTransitionCoordinator:
     return TerminalTransitionCoordinator(
         tracker=tracker or _MemoryTracker(),
         project_store=_LockStore(),
         post_comments=post_comments,
         metrics=metrics,
+        validate_terminal_transition=validate_terminal_transition,
     )
 
 
@@ -418,6 +421,113 @@ class TestMergedChain:
         assert len(merged_records) == 1
         assert len(done_records) == 1
 
+
+class TestSharedEpicMergedCompatibility:
+    """Every coordinator terminal boundary honors the shared-epic gate."""
+
+    @staticmethod
+    def _child(state: str = "In Progress") -> Issue:
+        return Issue(
+            id="CHILD-1",
+            identifier="CHILD-1",
+            title="Shared child",
+            state=state,
+            parent_id="EPIC-1",
+            project_id=PROJECT_ID,
+            work_branch="epic-EPIC-1",
+        )
+
+    @staticmethod
+    def _conflict(_issue: Issue, _target: TargetState, _project_id: str) -> str:
+        return (
+            "Cannot transition shared-epic child CHILD-1 to Merged: parent "
+            "review must land on configured target branch main first."
+        )
+
+    def test_request_rejects_merged_before_parent_landing(self) -> None:
+        tracker = _MemoryTracker()
+        coordinator = _coordinator(
+            tracker,
+            validate_terminal_transition=self._conflict,
+        )
+
+        result = _run(
+            coordinator.request_transition(
+                self._child(),
+                TargetState.MERGED,
+                _trigger(),
+                PROJECT_ID,
+                _fingerprint(),
+            )
+        )
+
+        assert not result.success
+        assert "parent review must land" in (result.reason or "")
+        assert tracker.update_calls == []
+        assert TerminalAuditMetadataStore(
+            tracker, _LockStore(), PROJECT_ID
+        ).read("CHILD-1").pending_chain == []
+
+    def test_owner_override_rejects_without_canceling_audits(self) -> None:
+        tracker = _MemoryTracker()
+        done = _completed_done_record(project_id=PROJECT_ID, task_id="CHILD-1")
+        _seed_metadata(tracker, [done], task_id="CHILD-1")
+        coordinator = _coordinator(
+            tracker,
+            validate_terminal_transition=self._conflict,
+        )
+        project = SimpleNamespace(
+            tracker_owner="project-owner",
+            status_actor_login=None,
+            status_label_authorized_logins=["project-owner"],
+        )
+
+        result = _run(
+            coordinator.override_transition(
+                self._child(DONE),
+                TargetState.MERGED,
+                ContributorIdentity("project-owner", "api"),
+                PROJECT_ID,
+                _fingerprint(),
+                "Emergency owner approval",
+                project,
+            )
+        )
+
+        assert not result.success
+        assert result.error_code == OverrideRejection.LIFECYCLE_INCOMPATIBLE
+        assert "parent review must land" in (result.reason or "")
+        assert tracker.update_calls == []
+        assert TerminalAuditMetadataStore(
+            tracker, _LockStore(), PROJECT_ID
+        ).read("CHILD-1").pending_chain == [done]
+
+    def test_passed_merged_audit_stays_pending_until_parent_lands(self) -> None:
+        tracker = _MemoryTracker()
+        record = _pending_record(
+            audit_id="audit-child-merged",
+            target=TargetState.MERGED,
+            task_id="CHILD-1",
+        )
+        _seed_metadata(tracker, [record], task_id="CHILD-1")
+        coordinator = _coordinator(
+            tracker,
+            validate_terminal_transition=self._conflict,
+        )
+        outcome = _apply(
+            coordinator,
+            self._child(IN_VALIDATION),
+            _pass_result(record),
+            PROJECT_ID,
+        )
+
+        assert not outcome.success
+        assert "parent review must land" in (outcome.reason or "")
+        stored = TerminalAuditMetadataStore(
+            tracker, _LockStore(), PROJECT_ID
+        ).read("CHILD-1")
+        assert stored.pending_chain[0].request_state == RequestState.PENDING
+        assert tracker.update_calls == []
 
 # ---------------------------------------------------------------------------
 # TestArchivedChain

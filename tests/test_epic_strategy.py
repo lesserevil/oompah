@@ -3160,8 +3160,10 @@ class TestOpenEpicMainPrs:
             not in tracker.update_issue.call_args_list
         )
         tracker.update_issue.assert_any_call("TRICKLE-5", status=OPEN)
-        # TRICKLE-7 (MERGED) is routed through coordinator now
-        mock_request.assert_called_once_with(rebase, MERGED)
+        # Rebase/maintenance helpers successfully terminate at Done; they do
+        # not receive a second Merged transition merely because the epic has
+        # an open review.
+        mock_request.assert_not_called()
         assert tracker.update_issue.call_count == 1  # Only TRICKLE-5 OPEN update
         tracker.set_metadata_field.assert_called_once_with(
             "TRICKLE-2",
@@ -5738,9 +5740,9 @@ class TestLabelMergedEpics:
             call.args[0]: call.kwargs.get("status")
             for call in tracker.update_issue.call_args_list
         }
-        # Verify that the coordinator was called for Merged transitions
-        # (epic, child, and helper tasks)
-        assert orch.terminal_transition_coordinator.request_transition.call_count >= 4
+        # Verify that the coordinator was called for the epic, ordinary child,
+        # and CI-fix helper. The rebase helper remains Done by contract.
+        assert orch.terminal_transition_coordinator.request_transition.call_count == 3
 
     @patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo")
     @patch("oompah.orchestrator.detect_provider")
@@ -6382,6 +6384,7 @@ class TestYoloEpicStrategyBlockReason:
         reason = orch._yolo_epic_strategy_block_reason(proj, tracker, review)
         assert reason is None
 
+
     def test_returns_none_when_branch_resolves_to_no_issue(self, tmp_path):
         """YOLO gate allows PRs whose source branch cannot be mapped to a task."""
         orch, proj, _, _, tracker = _make_shared_epic_scenario(tmp_path)
@@ -6611,6 +6614,97 @@ class TestYoloEpicStrategyBlockReason:
         assert reason is None, (
             "Gate must ALLOW a nested epic rollup PR (issue_type='epic' with parent_id)"
         )
+
+
+class TestSharedEpicTerminalCompatibility:
+    """Shared-epic children need parent-landing evidence before Merged."""
+
+    def test_top_level_task_keeps_normal_merged_path(self, tmp_path):
+        orch, proj, _parent, _child, _tracker = _make_shared_epic_scenario(tmp_path)
+        top_level = _make_issue(identifier="task-top", project_id=proj.id)
+
+        assert (
+            orch._validate_terminal_transition(
+                top_level, TargetState.MERGED, proj.id
+            )
+            is None
+        )
+
+    def test_ordinary_child_is_rejected_until_parent_lands(self, tmp_path):
+        orch, proj, parent, child, _tracker = _make_shared_epic_scenario(tmp_path)
+        parent.state = DONE
+        child.state = DONE
+        orch._resolve_parent_epic = MagicMock(
+            side_effect=lambda issue: (
+                parent if issue.identifier == child.identifier else None
+            )
+        )
+
+        with patch("oompah.orchestrator.detect_provider", return_value=None):
+            reason = orch._validate_terminal_transition(
+                child, TargetState.MERGED, proj.id
+            )
+
+        assert reason is not None
+        assert "parent review has not landed" in reason
+        assert "audited Done" in reason
+
+    def test_ordinary_child_is_allowed_after_default_branch_landing(self, tmp_path):
+        orch, proj, parent, child, _tracker = _make_shared_epic_scenario(tmp_path)
+        parent.state = DONE
+        child.state = DONE
+        orch._resolve_parent_epic = MagicMock(
+            side_effect=lambda issue: (
+                parent if issue.identifier == child.identifier else None
+            )
+        )
+        provider = MagicMock()
+        provider.list_merged_reviews.return_value = [
+            _make_review(
+                source_branch="epic-epic-1",
+                target_branch="main",
+                state="merged",
+            )
+        ]
+
+        with patch("oompah.orchestrator.detect_provider", return_value=provider):
+            reason = orch._validate_terminal_transition(
+                child, TargetState.MERGED, proj.id
+            )
+
+        assert reason is None
+        provider.list_merged_reviews.assert_called_once_with("org/repo")
+
+    def test_nested_epic_uses_immediate_parent_branch(self, tmp_path):
+        orch, proj, parent, _child, _tracker = _make_shared_epic_scenario(tmp_path)
+        parent.state = DONE
+        nested = _make_issue(
+            identifier="epic-2",
+            issue_type="epic",
+            parent_id=parent.identifier,
+            project_id=proj.id,
+        )
+        orch._resolve_parent_epic = MagicMock(
+            side_effect=lambda issue: (
+                parent if issue.identifier == nested.identifier else None
+            )
+        )
+        provider = MagicMock()
+        provider.list_merged_reviews.return_value = [
+            _make_review(
+                source_branch="epic-epic-2",
+                target_branch="epic-epic-1",
+                state="merged",
+            )
+        ]
+
+        with patch("oompah.orchestrator.detect_provider", return_value=provider):
+            reason = orch._validate_terminal_transition(
+                nested, TargetState.MERGED, proj.id
+            )
+
+        assert reason is None
+        provider.list_merged_reviews.assert_called_once_with("org/repo")
 
 
 class TestCloseInvalidEpicPolicyReview:

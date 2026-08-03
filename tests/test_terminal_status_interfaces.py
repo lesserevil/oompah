@@ -990,6 +990,38 @@ def test_patch_owner_override_rejects_non_owner_without_metadata_details(client)
     assert tracker.status_updates == []
 
 
+def test_patch_owner_override_rejects_incompatible_shared_epic_merged(client):
+    issue = Issue("task-shared", "task-shared", "Task", state="Done")
+    issue.parent_id = "epic-1"
+    orch, tracker, coordinator = _orchestrator(issue)
+    coordinator.override_result = OverrideResult(
+        success=False,
+        reason=(
+            "Cannot transition shared-epic child task-shared to Merged: parent "
+            "review must land on configured target branch main first."
+        ),
+        error_code=OverrideRejection.LIFECYCLE_INCOMPATIBLE,
+    )
+    with (
+        patch.object(server_module, "_get_orchestrator", return_value=orch),
+        patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+    ):
+        response = client.patch(
+            "/api/v1/issues/task-shared",
+            json={
+                "project_id": "proj-1",
+                "status": "Merged",
+                "audit_override": True,
+                "override_reason": "Emergency release approval",
+                "actor_login": "owner",
+            },
+        )
+
+    assert response.status_code == 409
+    assert "parent review must land" in response.json()["error"]["message"]
+    assert tracker.status_updates == []
+
+
 def test_patch_owner_override_alias_rejects_unauthorized_actor(client):
     """Canonicalization must not weaken owner authorization."""
     issue = Issue("task-unauthorized-alias", "task-unauthorized-alias", "Task", state="Open")
@@ -1097,6 +1129,41 @@ async def test_acp_terminal_router_stages_and_supports_override():
     assert "owner override" in overridden
     assert coordinator.requests[0]["requested_target"] is TargetState.MERGED
     assert coordinator.overrides[0]["requested_target"] is TargetState.ARCHIVED
+    assert tracker.status_updates == []
+
+
+@pytest.mark.asyncio
+async def test_acp_terminal_router_reports_shared_epic_override_conflict():
+    from oompah.acp_tools import _exec_oompah_task_command_async
+
+    issue = Issue("task-acp-shared", "task-acp-shared", "Task", state="Done")
+    issue.parent_id = "epic-1"
+    tracker = _Tracker(issue)
+    coordinator = _Coordinator()
+    coordinator.override_result = OverrideResult(
+        success=False,
+        reason=(
+            "Cannot transition shared-epic child task-acp-shared to Merged: "
+            "parent review must land on configured target branch main first."
+        ),
+        error_code=OverrideRejection.LIFECYCLE_INCOMPATIBLE,
+    )
+    project_store = MagicMock()
+    project_store.get.return_value = SimpleNamespace(
+        id="proj-1", status_label_authorized_logins=["owner"], tracker_owner="owner"
+    )
+
+    result = await _exec_oompah_task_command_async(
+        "oompah task set-status task-acp-shared Merged --audit-override "
+        "--override-reason 'Emergency release approval' --actor owner",
+        tracker,
+        "proj-1",
+        project_store=project_store,
+        terminal_transition_coordinator=coordinator,
+    )
+
+    assert "parent review must land" in result
+    assert coordinator.overrides[0]["requested_target"] is TargetState.MERGED
     assert tracker.status_updates == []
 
 

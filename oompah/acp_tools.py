@@ -479,6 +479,13 @@ async def _stage_acp_terminal_status(
             # response; operators can use the server logs for diagnostics.
             return "Error: terminal override request failed"
         if not result.success:
+            reason_text = str(result.reason or "").lower()
+            if (
+                result.error_code == "lifecycle_incompatible"
+                or "shared-epic" in reason_text
+                or "auto-filed epic" in reason_text
+            ):
+                return f"Error: {result.reason}"
             return "Error: terminal override was not authorized or could not be applied"
         return (
             f"Status set by owner override: {result.applied_status} "
@@ -498,6 +505,8 @@ async def _stage_acp_terminal_status(
     if not result.success:
         if result.reason == "already completed":
             return "Error: terminal transition has already been completed"
+        if "shared-epic" in str(result.reason or "").lower() or "auto-filed epic" in str(result.reason or "").lower():
+            return f"Error: {result.reason}"
         return "Error: terminal transition could not be staged"
     if not result.status_staged:
         return (

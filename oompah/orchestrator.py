@@ -1153,6 +1153,7 @@ class Orchestrator:
             project_store=self.project_store,
             load_state=self._load_state_for_terminal_audit,
             save_state=self._save_state_for_terminal_audit,
+            validate_terminal_transition=self._validate_terminal_transition,
         )
         self._terminal_audit_started = False
         self._terminal_audit_last_scan: float = 0.0
@@ -1192,6 +1193,7 @@ class Orchestrator:
             project_store=self.project_store,
             revoke_delivery_authority=self._revoke_standalone_delivery_authority,
             clear_audit_alert=self.clear_terminal_audit_alert,
+            validate_terminal_transition=self._validate_terminal_transition,
         )
         # Serializes the final implementation status claim with terminal-audit
         # staging for one task.  The terminal path installs its in-memory fence
@@ -13280,6 +13282,102 @@ class Orchestrator:
             return None
         return "shared"
 
+    def _validate_terminal_transition(
+        self,
+        issue: Issue,
+        requested_target: TargetState,
+        project_id: str,
+    ) -> str | None:
+        """Reject Merged states that cannot be true in shared-epic mode.
+
+        A normal child writes its accepted work to the parent epic branch.
+        That proves ``Done`` only; ``Merged`` belongs to the parent rollup
+        after its review lands on the configured target.  Nested epics are the
+        one deliberate exception to that ordering: their own review may land
+        on the immediate parent epic branch before the parent reaches its
+        final target.
+
+        The coordinator invokes this callback at every terminal boundary.  A
+        missing parent or unverifiable review is intentionally a conflict,
+        not permission to infer a more terminal state from a branch name.
+        """
+
+        if requested_target != TargetState.MERGED:
+            return None
+        parent_id = str(getattr(issue, "parent_id", None) or "").strip()
+        if not parent_id:
+            # Top-level tasks and top-level epics retain normal Merged paths.
+            return None
+
+        if self._is_epic_rebase_task(issue, parent_id) or (
+            self._done_review_child_is_completed_maintenance(issue)
+        ):
+            return (
+                f"{issue.identifier} is an auto-filed epic maintenance/rebase "
+                "child; its successful terminal target is audited Done. It must "
+                "not be promoted to Merged merely because it changed the epic "
+                "branch."
+            )
+
+        parent = self._resolve_parent_epic(issue)
+        if parent is None:
+            return (
+                f"Cannot transition shared-epic child {issue.identifier} to "
+                f"Merged: parent epic {parent_id} could not be verified. The "
+                "parent review must land on its configured target branch first."
+            )
+        project = self.project_store.get(project_id)
+        parent_state = canonicalize_status(getattr(parent, "state", ""))
+
+        # A completed parent rollup is durable tracker evidence in its own
+        # right.  This also keeps native/offline test and recovery paths
+        # usable when the forge review has already been consumed or pruned.
+        if parent_state in {MERGED, ARCHIVED}:
+            return None
+
+        try:
+            if (getattr(issue, "issue_type", "") or "").strip().lower() == "epic":
+                source_branch = self._epic_branch_for_issue(issue)
+                target_branch = self._epic_branch_for_issue(parent)
+            else:
+                source_branch = self._epic_branch_for_issue(parent)
+                target_branch = self._resolve_epic_target_branch(parent, project)
+        except Exception as exc:  # fail closed with an actionable conflict
+            return (
+                f"Cannot transition shared-epic child {issue.identifier} to "
+                f"Merged: the parent landing target could not be resolved "
+                f"({exc}). The parent review must land on its configured target "
+                "branch first."
+            )
+
+        provider = None
+        slug = ""
+        repo_url = getattr(project, "repo_url", None) if project is not None else None
+        if repo_url:
+            try:
+                provider = detect_provider(
+                    repo_url,
+                    access_token=getattr(project, "access_token", None),
+                )
+                slug = extract_repo_slug(repo_url) if provider is not None else ""
+            except Exception:
+                provider, slug = None, ""
+        if provider is not None and slug and self._epic_branch_landed_on_target(
+            provider,
+            slug,
+            source_branch,
+            target_branch,
+        ):
+            return None
+
+        return (
+            f"Cannot transition shared-epic child {issue.identifier} to Merged: "
+            f"its accepted work is contained on {source_branch}, but the parent "
+            f"review has not landed on configured target branch {target_branch}. "
+            f"Keep {issue.identifier} at audited Done until parent epic "
+            f"{parent.identifier} lands there."
+        )
+
     def _create_workspace_for_issue(
         self,
         issue: Issue,
@@ -14743,9 +14841,19 @@ class Orchestrator:
         for child in children:
             if canonicalize_status(child.state) != DONE:
                 continue
-            if self._done_review_child_is_completed_maintenance(child):
-                next_status = MERGED
-                reason = "completed maintenance child"
+            if self._is_epic_rebase_task(child, epic.identifier) or (
+                self._done_review_child_is_completed_maintenance(child)
+            ):
+                # Rebase/maintenance work mutates the shared epic branch but
+                # has no independent review to merge. Done is its successful
+                # terminal target; never invite a second Merged transition
+                # merely because the parent rollup is later reviewed.
+                logger.info(
+                    "Leaving completed maintenance child %s under epic %s in Done",
+                    child.identifier,
+                    epic.identifier,
+                )
+                continue
             elif self._done_review_child_has_epic_branch_work(
                 project,
                 epic_branch,
@@ -20881,6 +20989,19 @@ class Orchestrator:
                 self._cleanup_landed_private_child_branch(epic, child)
                 continue
             child_status = canonicalize_status(child.state)
+            if child_status == DONE and (
+                self._is_epic_rebase_task(child, epic.identifier)
+                or self._done_review_child_is_completed_maintenance(child)
+            ):
+                # Auto-filed branch-maintenance helpers are complete at Done.
+                # Parent landing must not manufacture an independent Merged
+                # lifecycle transition for them.
+                logger.info(
+                    "Leaving completed maintenance child %s under landed epic %s in Done",
+                    child.identifier,
+                    epic.identifier,
+                )
+                continue
             child_branch = (child.work_branch or "").strip()
             landing_reason = None
             if child_status == DONE:
