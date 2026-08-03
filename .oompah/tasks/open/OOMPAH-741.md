@@ -12,8 +12,8 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:13.861445Z'
-updated_at: '2026-08-03T22:59:52.836000Z'
-work_branch: null
+updated_at: '2026-08-03T23:00:22.858294Z'
+work_branch: epic-OOMPAH-740--task-OOMPAH-741
 target_branch: null
 review_url: null
 review_number: null
@@ -37,6 +37,15 @@ oompah.duplicate_screening:
   owner_login: null
   owner_resolution_reason: ''
 oompah.agent_run_id: 81b994b8-3626-428a-9515-b5d3354d5fe5
+oompah.work_branch: epic-OOMPAH-740--task-OOMPAH-741
+oompah.integration:
+  version: 2
+  state: working
+  attempts: 0
+  task_branch: epic-OOMPAH-740--task-OOMPAH-741
+  base_branch: epic-OOMPAH-740
+  base_sha: 583fb236963493a820f36eabdd29789fa5497e6b
+  updated_at: '2026-08-03T23:00:18.598601+00:00'
 ---
 ## Summary
 
@@ -73,3 +82,16 @@ Acceptance criteria:
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-03 23:00
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-03 23:00
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
