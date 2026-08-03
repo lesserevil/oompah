@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T14:39:16.938367Z'
-updated_at: '2026-08-03T14:43:49.927917Z'
+updated_at: '2026-08-03T14:44:13.124417Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -127,5 +127,27 @@ author: oompah
 created: 2026-08-03 14:43
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-03 14:44
+---
+**Understanding & Plan:**
+
+OOMPAH-721 requires fixing duplicate-preflight screening handoff to prevent infinite loops. Currently, when a Duplicate Investigator agent exits normally from screening, the generic escalation logic relaunches the same agent instead of handing off to a rebase specialist.
+
+**Key changes needed:**
+1. Route all model-backed duplicate-preflight exits through a dedicated screening completion path
+2. On non-duplicate/indeterminate normal exit: atomically clear preflight claim, persist result, return task to Open, dispatch correct focus
+3. Ensure Duplicate Investigator never executes implementation work
+4. Prevent generic standard-to-deep escalation from retaining duplicate_preflight=true
+
+**Approach:**
+- Find worker exit/escalation handling logic
+- Identify duplicate screening completion paths
+- Implement dedicated preflight completion path
+- Add tests for EXOCOMP-241-style scenarios
+- Verify no stale preflight claims or duplicate running entries remain
+
+Starting discovery now.
 ---
 <!-- COMMENTS:END -->
