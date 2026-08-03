@@ -685,30 +685,84 @@ class TestRunEventDrivenLoop:
 
     def test_full_sync_loop_posts_full_sync_events(self, tmp_path, event_loop):
         """_full_sync_loop() posts FULL_SYNC events at the configured interval."""
-        # Use a very short interval so the test doesn't take long
+        # The test must wait for the event itself rather than for an elapsed
+        # interval.  A busy xdist worker can delay the producer past a fixed
+        # sleep even though the loop is behaving correctly.
         orch = _make_orchestrator(tmp_path, config=_make_config(full_sync_interval_ms=50))
         orch._stopping = False
 
-        async def _run_for_a_bit():
-            task = asyncio.create_task(orch._full_sync_loop())
-            await asyncio.sleep(0.2)
-            orch._stopping = True
-            task.cancel()
+        async def _run_until_events_are_posted():
+            sleep_started = asyncio.Event()
+            release_sleep = asyncio.Event()
+            second_full_sync_posted = asyncio.Event()
+            sleep_calls = 0
+            full_sync_posts = 0
+
+            async def _delayed_sleep(_interval_s):
+                """Hold the producer at its timer until the test releases it."""
+                nonlocal sleep_calls
+                sleep_calls += 1
+                sleep_started.set()
+                await release_sleep.wait()
+                release_sleep.clear()
+                sleep_started.clear()
+
+            original_post_event = orch._post_event
+
+            def _record_full_sync_post(event):
+                nonlocal full_sync_posts
+                original_post_event(event)
+                if event.event_type == DispatchEventType.FULL_SYNC:
+                    full_sync_posts += 1
+                    if full_sync_posts == 2:
+                        second_full_sync_posted.set()
+
+            orch._post_event = _record_full_sync_post
+            producer_task = None
+            event_task = None
             try:
-                await task
-            except (asyncio.CancelledError, Exception):
-                pass
+                # Deliberately delay timer completion so a wall-clock based
+                # assertion would run before the producer emits anything.
+                with patch(
+                    "oompah.orchestrator.asyncio.sleep",
+                    new=_delayed_sleep,
+                ):
+                    producer_task = asyncio.create_task(orch._full_sync_loop())
+                    await asyncio.wait_for(sleep_started.wait(), timeout=1.0)
 
-        event_loop.run_until_complete(_run_for_a_bit())
+                    event_task = asyncio.create_task(orch._dispatch_queue.get())
+                    assert not event_task.done()
 
-        # Repeated FULL_SYNC wakeups coalesce while one is already pending.
-        events = []
-        while not orch._dispatch_queue.empty():
-            events.append(orch._dispatch_queue.get_nowait())
+                    release_sleep.set()
+                    first_event = await asyncio.wait_for(event_task, timeout=1.0)
+                    assert first_event.event_type == DispatchEventType.FULL_SYNC
 
-        full_sync_events = [e for e in events if e.event_type == DispatchEventType.FULL_SYNC]
-        assert len(full_sync_events) == 1
-        assert orch._dispatch_events_coalesced >= 1
+                    # Release one more delayed interval and observe the
+                    # second exact emission.  It must coalesce in the queue
+                    # because the first event remains pending for dispatch.
+                    await asyncio.wait_for(sleep_started.wait(), timeout=1.0)
+                    release_sleep.set()
+                    await asyncio.wait_for(
+                        second_full_sync_posted.wait(),
+                        timeout=1.0,
+                    )
+
+                assert sleep_calls >= 2
+                assert full_sync_posts == 2
+                assert orch._dispatch_events_coalesced >= 1
+                assert orch._dispatch_queue.empty()
+            finally:
+                orch._stopping = True
+                release_sleep.set()
+                if producer_task is not None:
+                    producer_task.cancel()
+                    await asyncio.gather(producer_task, return_exceptions=True)
+                if event_task is not None and not event_task.done():
+                    event_task.cancel()
+                if event_task is not None:
+                    await asyncio.gather(event_task, return_exceptions=True)
+
+        event_loop.run_until_complete(_run_until_events_are_posted())
 
     def test_full_sync_loop_stops_when_stopping(self, tmp_path, event_loop):
         """_full_sync_loop() exits when _stopping is set."""
