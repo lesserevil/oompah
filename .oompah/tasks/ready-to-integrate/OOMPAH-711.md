@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-711
 type: bug
-status: Open
+status: Ready to Integrate
 priority: null
 title: Fence owner duplicate resolution from superseded preflight exit
 parent: null
@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T23:59:03.600915Z'
-updated_at: '2026-08-03T01:05:08.996970Z'
+updated_at: '2026-08-03T01:07:58.219725Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -104,9 +104,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-711
-  head_sha: 90cd974651638b3a85b08e1cbd674bb0aaf3cf45
-  submitted_at: '2026-08-03T00:37:20.337162+00:00'
-  updated_at: '2026-08-03T00:37:20.337162+00:00'
+  head_sha: 9578b2175bd61800bfd3b7d6dc2241b7c1d5fe06
+  submitted_at: '2026-08-03T01:07:53.813385+00:00'
+  updated_at: '2026-08-03T01:07:53.813385+00:00'
 ---
 ## Summary
 
@@ -305,5 +305,15 @@ created: 2026-08-03 01:05
 **Evidence:** Recent comment indicates CI is now passing or PR has been merged; safe to reopen for dispatch.
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-08-03 01:07
+---
+Direct CI repair complete at pushed head 9578b2175bd61800bfd3b7d6dc2241b7c1d5fe06. The nine deterministic failures were partial Orchestrator.__new__ fixtures missing production owner-claim initialization; those fixtures now install an empty registry and RLock. All nine former failures pass, the four focused modules pass 146/146, and the load-only event-loop failure passed ten consecutive isolated retries. make check-secrets passed.
+---
+author: oompah
+created: 2026-08-03 01:07
+---
+Repaired the owner-claim test fixtures exposed by the full gate and resubmitted exact clean head 9578b2175bd61800bfd3b7d6dc2241b7c1d5fe06. Focused suite 146 passed; event-loop regression passed ten retries; secret scan passed.
 ---
 <!-- COMMENTS:END -->
