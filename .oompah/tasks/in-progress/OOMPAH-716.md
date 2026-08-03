@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T03:02:02.962763Z'
-updated_at: '2026-08-03T03:09:26.801452Z'
+updated_at: '2026-08-03T03:11:15.461731Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -170,5 +170,20 @@ author: oompah
 created: 2026-08-03 03:09
 ---
 Additional live evidence from OOMPAH-714 Merged audit attempt at 2026-08-03T03:08:41Z: `git merge-base --is-ancestor 28bb1e3c... main` was denied with the generic auditor capability message, so it appears fatal rather than recoverable. Please cover the underlying rule: safe unsupported single-command repository inspection must either be narrowly allowed or return the stable recoverable marker; mutating/path-escape/credential commands must remain fatal.
+---
+author: oompah
+created: 2026-08-03 03:11
+---
+Implementation: added strict worktree-relative parsing for numeric NR-range awk output and numeric-address sed -n print output. These return the existing recoverable validation marker with search_files/read_file guidance; awk system/write forms, sed -i/-e, redirects, shell/process syntax, and state-changing git remain fatal. Added exact-command recovery, non-rotation, and mutation regression tests.
+---
+author: oompah
+created: 2026-08-03 03:11
+---
+Verification: focused policy/auditor/provider-retirement/terminal-health suites pass (223 tests); neighboring ACP backend, auditor-result bridge, and orchestrator-handler suites pass (378 tests).
+---
+author: oompah
+created: 2026-08-03 03:11
+---
+Discovery: standalone awk/sed requests were rejected by the fixed auditor allowlist before the existing recoverable-shell-syntax path. The denial-budget, candidate-retirement, and terminal-health plumbing from OOMPAH-713 already distinguishes marked local incompatibility from fatal policy/provider failures.
 ---
 <!-- COMMENTS:END -->
