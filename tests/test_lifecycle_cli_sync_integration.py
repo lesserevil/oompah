@@ -70,6 +70,7 @@ class _LiveOldServer:
         complete_after_quiesce_polls: int | None = None,
         old_state_instance: object = _MATCHING_STATE_INSTANCE,
         new_state_instance: object = _MATCHING_STATE_INSTANCE,
+        resume_error: Exception | None = None,
     ):
         self.old_revision = "a" * 40
         self.new_revision = "b" * 40
@@ -85,6 +86,7 @@ class _LiveOldServer:
         self.complete_after_quiesce_polls = complete_after_quiesce_polls
         self.old_state_instance = old_state_instance
         self.new_state_instance = new_state_instance
+        self.resume_error = resume_error
         self.committed = False
         self.resumed = False
         self.stopped = False
@@ -148,6 +150,8 @@ class _LiveOldServer:
             self.paused = False
             self.quiesced = False
             self.resumed = True
+            if self.resume_error is not None:
+                raise self.resume_error
             return {"ok": True, "paused": False, "quiesced": False}
         if path == "/api/v1/orchestrator/restart":
             if self.restart_drops_before_accept:
@@ -565,6 +569,25 @@ def test_accepted_restart_connection_drop_proves_candidate_pair(tmp_path):
     assert server.committed is True
     assert server.resumed is True
     assert server.stopped is False
+    assert activation.rollback_count == 0
+    assert activation.commit_count == 1
+
+
+def test_candidate_resume_timeout_does_not_false_fail_cutover(tmp_path):
+    """A proven candidate remains authoritative while migration delays resume."""
+    server = _LiveOldServer(resume_error=TimeoutError("migration still draining"))
+    activation = _FakeActivation()
+
+    revision, _ = _run_cutover(
+        tmp_path,
+        server,
+        activate=lambda *args, **kwargs: activation,
+    )
+
+    assert revision == server.new_revision
+    assert server.committed is True
+    assert server.stopped is False
+    assert server.resumed is True
     assert activation.rollback_count == 0
     assert activation.commit_count == 1
 

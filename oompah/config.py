@@ -623,6 +623,10 @@ class ServiceConfig:
     # finish-dependency order. Environment-only rollout switch.
     parallel_epic_children_enabled: bool = False
     maintenance_startup_delay_seconds: int = 60
+    # Number of legacy shared-epic lifecycle rows handled by one background
+    # reconciliation turn.  Small batches keep state/health progress visible
+    # and bound the tracker work associated with a single scheduler callback.
+    terminal_lifecycle_reconciliation_batch_size: int = 4
     release_pick_max_runtime_seconds: int = 15
     merged_labels_max_runtime_seconds: int = 15
     # Stalled-task remediation watchdog (OOMPAH-398).
@@ -820,6 +824,9 @@ class ServiceConfig:
         )
         self.maintenance_startup_delay_seconds = max(
             int(self.maintenance_startup_delay_seconds), 0
+        )
+        self.terminal_lifecycle_reconciliation_batch_size = max(
+            int(self.terminal_lifecycle_reconciliation_batch_size), 1
         )
         self.release_pick_max_runtime_seconds = max(
             int(self.release_pick_max_runtime_seconds), 0
@@ -1210,6 +1217,11 @@ class ServiceConfig:
             ),
             maintenance_startup_delay_seconds=_env_int(
                 "OOMPAH_MAINTENANCE_STARTUP_DELAY_SECONDS", None, 60
+            ),
+            terminal_lifecycle_reconciliation_batch_size=_env_int(
+                "OOMPAH_TERMINAL_LIFECYCLE_RECONCILIATION_BATCH_SIZE",
+                None,
+                4,
             ),
             release_pick_max_runtime_seconds=_env_int(
                 "OOMPAH_RELEASE_PICK_MAX_RUNTIME_SECONDS", None, 15

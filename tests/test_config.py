@@ -103,6 +103,7 @@ class TestServiceConfig:
         assert cfg.restart_drain_timeout_seconds == 3600
         assert cfg.quality_gate_timeout_seconds == 3600
         assert cfg.parallel_epic_children_enabled is False
+        assert cfg.terminal_lifecycle_reconciliation_batch_size == 4
         assert cfg.prompt_max_comments == 20
         assert cfg.prompt_max_comment_bytes == 32 * 1024
         assert cfg.release_pick_max_runtime_seconds == 15
@@ -173,6 +174,12 @@ class TestServiceConfig:
 
         assert "OOMPAH_PROMPT_MAX_COMMENTS=" in content
         assert "OOMPAH_PROMPT_MAX_COMMENT_BYTES=" in content
+
+    def test_terminal_lifecycle_batch_size_is_documented(self):
+        env_example = Path(__file__).parents[1] / ".env.example"
+        assert "OOMPAH_TERMINAL_LIFECYCLE_RECONCILIATION_BATCH_SIZE=" in (
+            env_example.read_text(encoding="utf-8")
+        )
 
     def test_storage_cleanup_settings_come_from_environment(self, monkeypatch):
         values = {
@@ -369,6 +376,7 @@ class TestRepoMapEnvironmentConfiguration(TestServiceConfig):
         monkeypatch.setenv("OOMPAH_WORKTREE_CLEANUP_INTERVAL_SECONDS", "11")
         monkeypatch.setenv("OOMPAH_WORKTREE_CLEANUP_BATCH_SIZE", "5")
         monkeypatch.setenv("OOMPAH_MAINTENANCE_STARTUP_DELAY_SECONDS", "9")
+        monkeypatch.setenv("OOMPAH_TERMINAL_LIFECYCLE_RECONCILIATION_BATCH_SIZE", "8")
         monkeypatch.setenv("OOMPAH_RELEASE_PICK_MAX_RUNTIME_SECONDS", "4")
         monkeypatch.setenv("OOMPAH_MERGED_LABELS_MAX_RUNTIME_SECONDS", "6")
         wf = WorkflowDefinition(config={}, prompt_template="test")
@@ -384,6 +392,7 @@ class TestRepoMapEnvironmentConfiguration(TestServiceConfig):
         assert cfg.worktree_cleanup_interval_seconds == 11
         assert cfg.worktree_cleanup_batch_size == 5
         assert cfg.maintenance_startup_delay_seconds == 9
+        assert cfg.terminal_lifecycle_reconciliation_batch_size == 8
         assert cfg.release_pick_max_runtime_seconds == 4
         assert cfg.merged_labels_max_runtime_seconds == 6
 

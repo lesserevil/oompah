@@ -171,7 +171,10 @@ from oompah.terminal_audit import (
     compute_issue_evidence_fingerprint,
 )
 from oompah.terminal_audit_metadata import TerminalAuditMetadataStore
-from oompah.terminal_audit_enforcement import TerminalAuditEnforcement
+from oompah.terminal_audit_enforcement import (
+    DEFAULT_LIFECYCLE_RECONCILIATION_BATCH_SIZE,
+    TerminalAuditEnforcement,
+)
 from oompah.terminal_audit_observability import (
     AuditAlertCondition,
     TerminalAuditAlertRegistry,
@@ -1429,6 +1432,10 @@ class Orchestrator:
         # Running maintenance executor future so _tick() can fire-and-forget
         # without accumulating unbounded concurrent maintenance runs.
         self._maintenance_future: "asyncio.Future[None] | None" = None
+        # Legacy shared-epic lifecycle repairs are durable but can involve a
+        # slow tracker mutation per row.  Keep their batch future independent
+        # from the scheduler tick and coalesce continuations to one worker.
+        self._terminal_lifecycle_future: "asyncio.Future[None] | None" = None
         # Dedicated future for epic maintenance (step 5c) so it does not
         # compete for the same coalescing gate as the step-5b heal/cleanup
         # jobs.  Fire-and-forget: a new run starts only when the previous one
@@ -1901,7 +1908,8 @@ class Orchestrator:
         """Initialize or reconcile the terminal-audit enforcement record."""
         try:
             result = self._terminal_audit_enforcement.initialize(
-                self._terminal_audit_scopes()
+                self._terminal_audit_scopes(),
+                defer_lifecycle_reconciliation=True,
             )
             metrics = self._terminal_audit_metrics
             metrics.sync_pending(self._terminal_audit_enforcement.pending_audits)
@@ -1951,6 +1959,83 @@ class Orchestrator:
         finally:
             self._terminal_audit_started = True
             self._terminal_audit_last_scan = time.monotonic()
+
+    def _run_terminal_lifecycle_reconciliation_batch(self) -> None:
+        """Drain one bounded lifecycle-repair batch off the scheduler loop."""
+
+        try:
+            result = self._terminal_audit_enforcement.reconcile_lifecycle_batch(
+                self._terminal_audit_scopes(),
+                batch_size=max(
+                    1,
+                    int(
+                        getattr(
+                            self.config,
+                            "terminal_lifecycle_reconciliation_batch_size",
+                            DEFAULT_LIFECYCLE_RECONCILIATION_BATCH_SIZE,
+                        )
+                    ),
+                ),
+            )
+            current = dict(
+                self._maintenance_status.get("terminal_lifecycle_reconciliation", {})
+                or {}
+            )
+            current.update(result)
+            self._maintenance_status["terminal_lifecycle_reconciliation"] = current
+            self._terminal_audit_enforcement.last_result = {
+                **dict(self._terminal_audit_enforcement.last_result or {}),
+                "lifecycle_reconciliation": dict(result),
+            }
+            self._notify_state_only()
+        except Exception as exc:  # noqa: BLE001 - keep health/state observable
+            logger.exception("terminal lifecycle reconciliation batch failed")
+            result = {
+                "version": 1,
+                "status": "degraded",
+                "error": type(exc).__name__,
+            }
+            self._maintenance_status["terminal_lifecycle_reconciliation"] = result
+            self._terminal_audit_enforcement.last_result = {
+                **dict(self._terminal_audit_enforcement.last_result or {}),
+                "lifecycle_reconciliation": result,
+            }
+            self._notify_state_only()
+
+    def _schedule_terminal_lifecycle_reconciliation(self) -> None:
+        """Submit one lifecycle batch and continue only after it completes."""
+
+        if self._stopping:
+            return
+        future = self._terminal_lifecycle_future
+        if future is not None and not future.done():
+            return
+        loop = self._dispatch_loop
+        if loop is None or not loop.is_running():
+            return
+        self._terminal_lifecycle_future = loop.run_in_executor(
+            self._tick_pool,
+            self._run_terminal_lifecycle_reconciliation_batch,
+        )
+
+        def _continue(completed: asyncio.Future) -> None:
+            if self._stopping:
+                return
+            try:
+                completed.result()
+            except Exception:  # pragma: no cover - worker method is defensive
+                logger.exception("terminal lifecycle reconciliation future failed")
+            status = self._terminal_audit_enforcement.lifecycle_reconciliation_status()
+            if status.get("status") in {"complete", "idle"}:
+                return
+            # Give the scheduler loop a chance to service queued events between
+            # batches.  A slow tracker call never occupies this event loop. A
+            # failed row is retried on a deliberate backoff rather than
+            # spinning a worker against an unavailable tracker.
+            delay = 0.01 if int(status.get("pending", 0) or 0) else 5.0
+            loop.call_later(delay, self._schedule_terminal_lifecycle_reconciliation)
+
+        self._terminal_lifecycle_future.add_done_callback(_continue)
 
     def _sync_terminal_audit_observability_alerts(
         self,
@@ -5579,6 +5664,10 @@ class Orchestrator:
         await asyncio.get_running_loop().run_in_executor(
             self._tick_pool, self._run_terminal_audit_enforcement
         )
+        # Legacy shared-epic lifecycle repairs are deliberately fire-and-forget
+        # from startup.  The service can accept health/state/resume traffic
+        # while the durable worker drains its bounded queue.
+        self._schedule_terminal_lifecycle_reconciliation()
         await self.startup_cleanup()
         await self._recover_restart_issues()
         await self._restore_persisted_retries()
@@ -5707,6 +5796,7 @@ class Orchestrator:
                 self._epic_maintenance_future,
                 self._integration_future,
                 self._standalone_delivery_future,
+                self._terminal_lifecycle_future,
             )
             if future is not None
         ]
@@ -5861,6 +5951,8 @@ class Orchestrator:
             await asyncio.get_running_loop().run_in_executor(
                 self._tick_pool, self._run_terminal_audit_enforcement
             )
+
+        self._schedule_terminal_lifecycle_reconciliation()
 
         # Release addendum leases are independent of source-task lifecycle.
         # Run their durable recovery on every event/full-sync tick so a worker
@@ -35571,6 +35663,9 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             },
             "terminal_audit_enforcement": dict(
                 getattr(self._terminal_audit_enforcement, "last_result", {}) or {}
+            ),
+            "terminal_lifecycle_reconciliation": (
+                self._terminal_audit_enforcement.lifecycle_reconciliation_status()
             ),
             "audits": dict(getattr(self, "_audit_metrics", {}) or {}),
             # Stable top-level shape for API consumers that do not need the
