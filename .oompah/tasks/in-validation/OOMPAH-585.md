@@ -24,7 +24,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:13:32.577860Z'
-updated_at: '2026-08-03T22:56:12.615350Z'
+updated_at: '2026-08-03T22:58:00.711077Z'
 work_branch: epic-OOMPAH-585
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/596
@@ -446,18 +446,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-585
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 0cfb98eafc768e5e2b01af3fc05a46d57c2174f15a248e0583518caca77a559e
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-ee2d11d5b875
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 0cfb98eafc768e5e2b01af3fc05a46d57c2174f15a248e0583518caca77a559e
+      created_at: '2026-08-03T22:57:59.121691+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-03T22:57:59.121691+00:00'
+      branch_key: epic-OOMPAH-585
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
       source: oompah
     previous_state: Done
     created_at: '2026-08-03T22:53:41.246176+00:00'
+    updated_at: '2026-08-03T22:57:59.121691+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-49359e458701
@@ -594,6 +608,19 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: opus
     started_at: '2026-08-03T22:41:24.893896+00:00'
+    branch_key: epic-OOMPAH-585
+  - version: 1
+    attempt_id: attempt-ee2d11d5b875
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 0cfb98eafc768e5e2b01af3fc05a46d57c2174f15a248e0583518caca77a559e
+    created_at: '2026-08-03T22:57:59.121691+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-03T22:57:59.121691+00:00'
     branch_key: epic-OOMPAH-585
 oompah.task_costs:
   total_input_tokens: 225
