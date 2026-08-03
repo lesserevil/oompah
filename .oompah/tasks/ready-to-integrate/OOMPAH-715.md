@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-715
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Make full-sync event-loop test deterministic under full-gate load
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T01:08:30.439967Z'
-updated_at: '2026-08-03T01:24:15.260522Z'
+updated_at: '2026-08-03T01:24:35.750882Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -66,7 +66,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 91eaa4c6-55c8-442b-a2b7-8ffb0fabb39f
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1261
@@ -93,6 +93,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-715
     source_sha: 8b6f368252e653d56f0c1c9a07da0fc825a9cb10
     completed_at: '2026-08-03T01:10:10.618262+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-715
+  head_sha: 27c62eca57fa115c3d22d2e4053181ae40fb1b8b
+  submitted_at: '2026-08-03T01:24:19.381222+00:00'
+  updated_at: '2026-08-03T01:24:19.381222+00:00'
 ---
 ## Summary
 
@@ -175,5 +183,10 @@ author: oompah
 created: 2026-08-03 01:24
 ---
 Completion: Reworked tests/test_event_driven_loop.py::TestRunEventDrivenLoop::test_full_sync_loop_posts_full_sync_events to use explicit delayed-sleep, dispatch-queue, and second-emission barriers. Cleanup now cancels and drains the producer and queue waiter deterministically; production code is unchanged. Verified 60 event-loop tests serially, three concurrent xdist module runs (60/60 each), the full parallel runner (15,047 passed; 41 existing warnings), focused ResourceWarning/RuntimeWarning checks, and make check-secrets. Normal make test setup was blocked before pytest by this worker's uv DBus transient-scope error and managed CLI snapshot identity check; the exact underlying parallel runner passed. Commit was rebased and pushed as a1705bc7f-derived HEAD.
+---
+author: oompah
+created: 2026-08-03 01:24
+---
+Deterministic full-sync event-loop test with explicit emission barriers and task teardown
 ---
 <!-- COMMENTS:END -->

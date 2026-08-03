@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T20:34:49.621752Z'
-updated_at: '2026-08-03T01:24:24.403501Z'
+updated_at: '2026-08-03T01:24:27.852466Z'
 work_branch: OOMPAH-702
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/670
@@ -145,7 +145,19 @@ oompah.terminal_audit:
       via OOMPAH-714. Owner override breaks the deadlock without weakening implementation
       verification.'
     created_at: '2026-08-03T01:24:19.409017+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-702
+    target_state: Merged
+    evidence_fingerprint: 665335cc6f57b53e5e9c655d107c2a6e6e39dc3b3934deee9f1b564aa65062ab
+    audit_ids:
+    - audit-97c040fdbac1
+    - audit-f37627a99af2
+    kind: override
+    applied: true
+    retired_at: '2026-08-03T01:24:26.764912+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -153,7 +165,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-702
     target_state: Done
-    request_state: in_progress
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -198,13 +210,13 @@ oompah.terminal_audit:
       source: forge
     previous_state: In Review
     created_at: '2026-08-03T01:21:12.967256+00:00'
-    updated_at: '2026-08-03T01:23:27.474319+00:00'
+    updated_at: '2026-08-03T01:24:26.764878+00:00'
   - version: 1
     audit_id: audit-f37627a99af2
     project_id: proj-14849f1b
     task_id: OOMPAH-702
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -216,6 +228,7 @@ oompah.terminal_audit:
       source: forge
     previous_state: In Review
     created_at: '2026-08-03T01:21:12.967256+00:00'
+    updated_at: '2026-08-03T01:24:26.764900+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-1edd8d23f4d6
