@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T17:45:33.391967Z'
-updated_at: '2026-08-03T18:33:57.738668Z'
+updated_at: '2026-08-03T18:34:26.000957Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -176,5 +176,10 @@ author: oompah
 created: 2026-08-03 18:33
 ---
 Understanding (continuation): Resuming from recovery checkpoint eafabf130. Previous agent implemented: (1) is_direct_epic_maintenance_issue() classifier in integration.py, (2) reconcile_published_epic_worktree() in projects.py that safely realigns a clean registered epic checkout, (3) complete_direct_epic_maintenance_submission() in orchestrator.py that proves the published epic head and routes to audited Done without ordinary child integration, (4) submit API path that detects direct rebase helpers and bypasses the integration queue, (5) workspace routing that gives rebase helpers the canonical shared epic worktree instead of a private child branch. All 365 focused tests pass.
+---
+author: oompah
+created: 2026-08-03 18:34
+---
+Discovery: Root cause confirmed. _create_workspace_for_issue was giving auto-filed 'Rebase epic-*' helpers a private child branch, so the agent published the epic ref while submission validated a different ref. Key files: oompah/integration.py (is_direct_epic_maintenance_issue), oompah/projects.py (reconcile_published_epic_worktree, EpicWorktreeReconciliation), oompah/orchestrator.py (complete_direct_epic_maintenance_submission, _create_workspace_for_issue epic-rebase routing, tick recovery for already-published heads), oompah/server.py (submit bypass from integration queue for direct maintenance), oompah/acp_tools.py (base_sha/base_branch propagation). Tests in tests/test_worker_submission.py, tests/test_projects.py, tests/test_epic_strategy.py.
 ---
 <!-- COMMENTS:END -->
