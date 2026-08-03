@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-716
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Do not exhaust auditor policy budget on read-only awk and sed inspection
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T03:02:02.962763Z'
-updated_at: '2026-08-03T03:04:12.388610Z'
+updated_at: '2026-08-03T03:04:28.266794Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -65,7 +65,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 2be72db4-3bd1-41a3-8ad8-1f03d49b3f4a
+oompah.agent_run_id: 5e361a50-38cf-4471-9c2f-d96fc394de45
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1325
@@ -150,5 +150,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 27s
 - Log: OOMPAH-716__20260803T030345Z.jsonl
+---
+author: oompah
+created: 2026-08-03 03:04
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-03 03:04
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
