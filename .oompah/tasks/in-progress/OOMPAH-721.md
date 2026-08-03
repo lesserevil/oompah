@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T14:39:16.938367Z'
-updated_at: '2026-08-03T15:01:49.261400Z'
+updated_at: '2026-08-03T15:12:15.151856Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -204,5 +204,10 @@ author: oompah
 created: 2026-08-03 15:01
 ---
 Direct-owner correction: the live EXOCOMP-241 first run emitted structured duplicate_preflight_result=inconclusive, but it was registered/commented as ordinary Agent dispatched and then passed through generic standard-to-deep retry. The draft NO_DUPLICATE-only post-exit dispatch does not cover that reproduction; it also selects focus before a completion marker, passes focus.name as override_profile, and bypasses normal candidate/claim/concurrency dispatch. Owner is replacing it with a regression at the dispatch classification/claim-propagation boundary plus bounded screening retry/handoff tests.
+---
+author: oompah
+created: 2026-08-03 15:12
+---
+Owner implementation complete at 145972d505913bad93562ffc96a96870724d0dee. Root cause: auto-filed rebase tasks start in Needs Rebase and therefore are ordinary implementation dispatches; generic focus triage nevertheless selected the scheduler-owned duplicate_detector, registering its read-only verdict run as implementation and sending its exit through standard-to-deep escalation. Fix: make duplicate_detector an immutable reserved focus, select it only through the dedicated duplicate-preflight RunningEntry boundary, give its prompt an explicit read-only scheduler contract, and keep reserved foci out of generic handoff mutation instructions. Regression proves EXOCOMP-241-style Needs Rebase work selects merge_conflict, ordinary entries cannot receive Duplicate Investigator, dedicated preflight entries still do, and user focus overrides cannot unreserve it. Checks: terminal mutation scan passed; 180 focus/preflight tests passed at exact rebased head; 300 adjacent focus-triage/auditor/duplicate-detection/epic-strategy tests passed before the conflict-free rebase.
 ---
 <!-- COMMENTS:END -->
