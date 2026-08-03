@@ -686,7 +686,23 @@ def graceful_cutover(
             activation = None
             restart_attempted = False
             if not was_paused:
-                request("POST", "/api/v1/orchestrator/resume", {})
+                # Candidate health and state have already proved the new
+                # instance/revision pair.  Resume is a post-exec control-plane
+                # hint: lifecycle reconciliation may still be draining in the
+                # candidate, so a dropped or delayed response must not turn an
+                # authoritative cutover into a rollback/error.  The next
+                # state probe will expose the migration progress.
+                try:
+                    request("POST", "/api/v1/orchestrator/resume", {})
+                except Exception as resume_error:  # noqa: BLE001 - candidate is authoritative
+                    logger.warning(
+                        "Candidate revision %s is healthy but resume response was "
+                        "unavailable; migration remains observable on the new "
+                        "instance: %s",
+                        staged.revision,
+                        resume_error,
+                    )
+                quiesced_by_cutover = False
             return staged.revision
 
         if resolution == "old":

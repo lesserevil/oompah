@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
+import time
 from dataclasses import replace
 from itertools import permutations
 
@@ -59,6 +61,7 @@ class _Tracker:
         self.metadata: dict[str, dict[str, object]] = {}
         self.set_calls = 0
         self.fail_status_updates = False
+        self.fail_metadata_updates = False
         self.status_updates: list[tuple[str, str]] = []
 
     def fetch_all_issues_enriched(self):
@@ -68,6 +71,8 @@ class _Tracker:
         return dict(self.metadata.get(identifier, {}))
 
     def set_metadata_field(self, identifier: str, key: str, value: object):
+        if self.fail_metadata_updates:
+            raise RuntimeError("metadata write failed")
         self.set_calls += 1
         self.metadata.setdefault(identifier, {})[key] = value
 
@@ -104,6 +109,21 @@ class _OverrideRaceTracker(_Tracker):
                 unknown_fields=unknown,
             ).to_dict()
         return super().get_metadata(identifier)
+
+
+class _SlowLifecycleTracker(_Tracker):
+    """Block one status write so progress reads can race a migration safely."""
+
+    def __init__(self, issues: list[Issue]):
+        super().__init__(issues)
+        self.started = threading.Event()
+        self.release = threading.Event()
+
+    def update_issue(self, identifier: str, **kwargs):
+        self.started.set()
+        if not self.release.wait(timeout=5):
+            raise TimeoutError("test did not release lifecycle write")
+        return super().update_issue(identifier, **kwargs)
 
 
 def _issue(identifier: str, state: str, evidence: str, project: str | None = None) -> Issue:
@@ -539,6 +559,191 @@ def test_legacy_incompatible_shared_merged_child_restores_done_without_canceling
     assert repaired_override["lifecycle_reconciled"] is True
     assert repaired_override["reconciled_to"] == "Done"
     assert tracker.status_updates == [("CHILD-1", "Done")]
+
+
+def _legacy_lifecycle_issue(tracker: _Tracker, identifier: str) -> None:
+    issue = _issue(identifier, "Merged", "evidence-a", "project-a")
+    issue.parent_id = "EPIC-1"
+    done = replace(
+        _pending_record("project-a", identifier, f"audit-done-{identifier}"),
+        request_state=RequestState.COMPLETED,
+        attempts=[
+            AuditAttempt(
+                attempt_id=f"done-pass-{identifier}",
+                target_state=TargetState.DONE,
+                evidence_fingerprint=compute_issue_evidence_fingerprint(
+                    issue, "project-a"
+                ),
+                request_state=RequestState.COMPLETED,
+                verdict=Verdict.PASS,
+            )
+        ],
+    )
+    tracker.issues.append(issue)
+    tracker.metadata[identifier] = {
+        METADATA_KEY: TerminalAuditMetadata(pending_chain=[done]).to_dict()
+    }
+
+
+def _shared_epic_conflict(issue, target, _project):
+    if target == TargetState.MERGED:
+        return f"shared epic parent has not landed for {issue.identifier}"
+    return None
+
+
+def test_lifecycle_reconciliation_batches_are_durable_and_restart_safe(tmp_path):
+    tracker = _Tracker([])
+    for number in range(5):
+        _legacy_lifecycle_issue(tracker, f"CHILD-{number}")
+    state_path = tmp_path / "service_state.json"
+
+    first = TerminalAuditEnforcement(
+        str(state_path),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        validate_terminal_transition=_shared_epic_conflict,
+    )
+    progress = first.reconcile_lifecycle_batch(
+        [("project-a", tracker)], batch_size=2
+    )
+    assert progress["status"] == "migrating"
+    assert progress["processed"] == 2
+    assert progress["pending"] == 3
+    assert len(tracker.status_updates) == 2
+
+    # A fresh enforcement object resumes from the persisted row statuses.
+    restarted = TerminalAuditEnforcement(
+        str(state_path),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        validate_terminal_transition=_shared_epic_conflict,
+    )
+    restarted.reconcile_lifecycle_batch(
+        [("project-a", tracker)], batch_size=2
+    )
+    final = restarted.reconcile_lifecycle_batch(
+        [("project-a", tracker)], batch_size=2
+    )
+    assert final["status"] == "complete"
+    assert final["processed"] == 5
+    assert final["reconciled"] == 5
+    assert final["pending"] == 0
+    assert [identifier for identifier, _ in tracker.status_updates] == [
+        f"CHILD-{number}" for number in range(5)
+    ]
+
+    # Duplicate recovery does not issue a second terminal mutation.
+    duplicate = restarted.reconcile_lifecycle_batch(
+        [("project-a", tracker)], batch_size=10
+    )
+    assert duplicate["status"] == "complete"
+    assert len(tracker.status_updates) == 5
+
+
+def test_initialize_can_defer_lifecycle_reconciliation(tmp_path):
+    tracker = _Tracker([])
+    _legacy_lifecycle_issue(tracker, "CHILD-DEFERRED")
+    enforcer = TerminalAuditEnforcement(
+        str(tmp_path / "service_state.json"),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        validate_terminal_transition=_shared_epic_conflict,
+    )
+
+    result = enforcer.initialize(
+        [("project-a", tracker)], defer_lifecycle_reconciliation=True
+    )
+
+    assert result["lifecycle_reconciliation"]["status"] == "idle"
+    assert tracker.status_updates == []
+    completed = enforcer.reconcile_lifecycle_batch(
+        [("project-a", tracker)], batch_size=1
+    )
+    assert completed["status"] == "complete"
+    assert tracker.status_updates == [("CHILD-DEFERRED", "Done")]
+
+
+def test_lifecycle_reconciliation_isolates_tracker_failures_and_retries(tmp_path):
+    tracker = _Tracker([])
+    for number in range(3):
+        _legacy_lifecycle_issue(tracker, f"CHILD-{number}")
+    enforcer = TerminalAuditEnforcement(
+        str(tmp_path / "service_state.json"),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        validate_terminal_transition=_shared_epic_conflict,
+    )
+
+    tracker.fail_status_updates = True
+    failed = enforcer.reconcile_lifecycle_batch(
+        [("project-a", tracker)], batch_size=3
+    )
+    assert failed["status"] == "degraded"
+    assert failed["failed"] == 3
+    assert all("lifecycle_repair_not_applied" in error for error in failed["errors"])
+    assert tracker.status_updates == []
+
+    tracker.fail_status_updates = False
+    recovered = enforcer.reconcile_lifecycle_batch(
+        [("project-a", tracker)], batch_size=3
+    )
+    assert recovered["status"] == "complete"
+    assert recovered["reconciled"] == 3
+    assert len(tracker.status_updates) == 3
+
+
+def test_lifecycle_reconciliation_finishes_after_status_write_metadata_failure(tmp_path):
+    tracker = _Tracker([])
+    _legacy_lifecycle_issue(tracker, "CHILD-METADATA")
+    enforcer = TerminalAuditEnforcement(
+        str(tmp_path / "service_state.json"),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        validate_terminal_transition=_shared_epic_conflict,
+    )
+
+    tracker.fail_metadata_updates = True
+    failed = enforcer.reconcile_lifecycle_batch(
+        [("project-a", tracker)], batch_size=1
+    )
+    assert failed["status"] == "degraded"
+    assert failed["failed"] == 1
+    assert tracker.status_updates == [("CHILD-METADATA", "Done")]
+
+    # The second pass sees Done and performs only the durable ledger/comment
+    # half; it must not repeat the tracker status mutation.
+    tracker.fail_metadata_updates = False
+    recovered = enforcer.reconcile_lifecycle_batch(
+        [("project-a", tracker)], batch_size=1
+    )
+    assert recovered["status"] == "complete"
+    assert recovered["reconciled"] == 1
+    assert tracker.status_updates == [("CHILD-METADATA", "Done")]
+
+
+def test_lifecycle_progress_read_does_not_wait_for_slow_tracker_mutation(tmp_path):
+    tracker = _SlowLifecycleTracker([])
+    _legacy_lifecycle_issue(tracker, "CHILD-SLOW")
+    enforcer = TerminalAuditEnforcement(
+        str(tmp_path / "service_state.json"),
+        terminal_states=("Done",),
+        project_store=_LockStore(),
+        validate_terminal_transition=_shared_epic_conflict,
+    )
+    worker = threading.Thread(
+        target=enforcer.reconcile_lifecycle_batch,
+        args=([("project-a", tracker)],),
+        kwargs={"batch_size": 1},
+    )
+    worker.start()
+    assert tracker.started.wait(timeout=2)
+    started = time.monotonic()
+    progress = enforcer.lifecycle_reconciliation_status()
+    assert time.monotonic() - started < 0.2
+    assert progress["status"] in {"migrating", "degraded"}
+    tracker.release.set()
+    worker.join(timeout=5)
+    assert not worker.is_alive()
 
 
 def test_recovery_applies_unapplied_override_while_still_in_validation(tmp_path):
