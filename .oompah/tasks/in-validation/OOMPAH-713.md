@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-713
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Do not terminate completion audits for harmless read-only shell syntax
 parent: null
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-03T00:59:11.573065Z'
-updated_at: '2026-08-03T02:07:13.943507Z'
+updated_at: '2026-08-03T02:15:39.644695Z'
 work_branch: OOMPAH-713
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/673
@@ -108,6 +108,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/673
 oompah.review_number: '673'
 oompah.work_branch: OOMPAH-713
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-28a9455c87c2
+    project_id: proj-14849f1b
+    task_id: OOMPAH-713
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 13d704910879f223de0b07d61ce68830eb3a0df352d0e37c95e1c52bd84531d0
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-03T02:15:32.584140+00:00'
+  - version: 1
+    audit_id: audit-01088260c2be
+    project_id: proj-14849f1b
+    task_id: OOMPAH-713
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 13d704910879f223de0b07d61ce68830eb3a0df352d0e37c95e1c52bd84531d0
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-03T02:15:32.584140+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -220,5 +259,15 @@ author: oompah
 created: 2026-08-03 02:07
 ---
 Completion-audit guidance while this fix is not yet deployed: use approved read_file, list_files, search_files, and simple single read-only run_command calls only. Do not use grep, pipes, redirection, command chaining, or whole-file reads. Exact submitted head ac442ca4573e98fed6057b84c65b9113d1913ed7 passed the combined 433-test affected suite and make check-secrets.
+---
+author: oompah
+created: 2026-08-03 02:15
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-03 02:15
+---
+YOLO: merged PR #673.
 ---
 <!-- COMMENTS:END -->
