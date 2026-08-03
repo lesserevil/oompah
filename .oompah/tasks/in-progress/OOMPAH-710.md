@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-710
 type: bug
-status: Open
+status: In Progress
 priority: null
 title: Keep oversized auditor tool results inside the read-only authority boundary
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T23:45:39.918535Z'
-updated_at: '2026-08-02T23:58:20.573970Z'
+updated_at: '2026-08-03T00:01:51.140508Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -202,5 +202,10 @@ author: oompah
 created: 2026-08-02 23:57
 ---
 Reopened from premature Done: the authenticated owner-resolution raced the active third duplicate investigator, then direct owner work was moved to Done during its exit/deployment despite an uncommitted dirty worktree and no submission. Implementation remains actively owned here; a dedicated follow-up will cover that race.
+---
+author: oompah
+created: 2026-08-03 00:01
+---
+Owner resumed direct implementation after the current deployed watchdog incorrectly reset active owner work to Open. OOMPAH-707 contains the durable-claim fix and is awaiting integration.
 ---
 <!-- COMMENTS:END -->
