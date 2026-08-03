@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-727
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Prune safe auxiliary worktrees left by direct epic maintenance tasks
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:39:38.824262Z'
-updated_at: '2026-08-03T17:07:07.376712Z'
+updated_at: '2026-08-03T17:07:54.219298Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -95,6 +95,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-727
     source_sha: d510748342777dd4748070d83391ffb0eae40091
     completed_at: '2026-08-03T16:04:19.467265+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-727
+  head_sha: ab69c0eb8ae7721493ae99334bd5fc3e7564bec1
+  submitted_at: '2026-08-03T17:07:49.533798+00:00'
+  updated_at: '2026-08-03T17:07:49.533798+00:00'
 ---
 ## Summary
 
@@ -215,5 +223,10 @@ Verification: all focused tests pass on commit ab69c0eb8.
 - test_workspace.py + test_epic_rebase_state.py: 32 pass
 - Full test_projects.py: 113/113 pass (including all new tests)
 Branch pushed as origin/OOMPAH-727 at ab69c0eb8.
+---
+author: oompah
+created: 2026-08-03 17:07
+---
+Added conservative auxiliary-workspace cleanup for direct epic maintenance tasks. New _cleanup_direct_epic_auxiliary_workspace_locked() in oompah/projects.py recognises the EXOCOMP-240/OOMPAH-721 shape (registered issue worktree on exact scheduler-derived epic child branch for a task whose recorded work_branch is the parent epic branch), enforces 8 safety guards (identity, registration, shared-checkout, active-operation, recovery-ref, dirty-state, ref-identity, remote-reachability) before removing only the auxiliary worktree and exact local derived ref. No remote ref deleted, no epic worktree touched, idempotent. 10 new integration tests in TestDirectEpicAuxiliaryCleanup covering all required scenarios; 113/113 tests pass in test_projects.py.
 ---
 <!-- COMMENTS:END -->
