@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T01:03:08.223719Z'
-updated_at: '2026-08-03T01:04:32.043796Z'
+updated_at: '2026-08-03T01:28:45.190963Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -159,5 +159,14 @@ author: oompah
 created: 2026-08-03 01:04
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-08-03 01:28
+---
+Direct owner review before integration:
+1. Add a true orchestrator regression with task A auditor retirement/rotation concurrent with task B owned branch gate, proving B survives and its result is accepted; the current QualityGateOwner unit test alone does not replay the production path required by the task.
+2. Bound or clear _quality_gate_outcomes/recent telemetry. As currently drafted it retains one result per project/task for the server lifetime, which is undesirable ahead of ~100-task dispatch. Preserve active/interrupted observability without unbounded historical growth.
+3. Verify the exact-owner path through partial/mocked gate facades remains compatible; _cancel_standalone_delivery_gate currently invokes cancel_owner unconditionally before its documented legacy fallback.
+Please address these after the current full-test process returns, then rerun the focused affected suites and make check-secrets before submission.
 ---
 <!-- COMMENTS:END -->
