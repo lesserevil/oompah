@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T13:10:18.934341Z'
-updated_at: '2026-08-03T14:56:57.348814Z'
+updated_at: '2026-08-03T14:57:01.445195Z'
 work_branch: OOMPAH-718
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/678
@@ -138,6 +138,16 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-03T14:27:13.631566+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-718
+    target_state: Merged
+    evidence_fingerprint: 8363b611899f61dc8a696b3e9755e4701beacd6756e7f8471d8f33b46f4a3bc6
+    audit_ids:
+    - audit-de39b377917f
+    - audit-9d1bb30c72c1
+    kind: override
+    applied: true
+    retired_at: '2026-08-03T14:56:59.795460+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-718
@@ -151,6 +161,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-03T14:27:13.631578+00:00'
     applied_at: '2026-08-03T14:27:19.208358+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-07157092643c
@@ -167,7 +178,7 @@ oompah.terminal_audit:
       source: api
     reason: '[REDACTED]'
     created_at: '2026-08-03T14:56:52.894031+00:00'
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -229,7 +240,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-718
     target_state: Merged
-    request_state: in_progress
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -274,7 +285,7 @@ oompah.terminal_audit:
       source: forge
     previous_state: In Review
     created_at: '2026-08-03T14:19:36.766922+00:00'
-    updated_at: '2026-08-03T14:43:34.429299+00:00'
+    updated_at: '2026-08-03T14:56:59.795426+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-eeb5404db210
