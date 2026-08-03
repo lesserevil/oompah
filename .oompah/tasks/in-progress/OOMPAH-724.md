@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:25:39.369981Z'
-updated_at: '2026-08-03T16:02:27.675375Z'
+updated_at: '2026-08-03T16:04:10.941885Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -145,5 +145,23 @@ author: oompah
 created: 2026-08-03 16:02
 ---
 Focus: Refactoring Specialist
+---
+author: oompah
+created: 2026-08-03 16:04
+---
+**Understanding:** This issue prevents a race condition where task changes occur between submission acceptance and worker retirement. The problem: after a worker submits clean work, before it fully exits, late changes can appear (e.g., formatter runs). Integration then fails because local HEAD != submitted HEAD, unnecessarily requiring another agent even though recovery preserved the changes.
+
+**Planned approach:**
+1. Understand current submission flow and authority/locking mechanisms
+2. Identify the race window between acceptance and worker retirement completion
+3. Add generation-based fencing to prevent further mutation after acceptance
+4. Implement pre-integration validation (branch/head/cleanliness check)
+5. Create recovery checkpoint path for late changes that preserves them durably
+6. Reopen task with recovery context (not transient Ready state) if late changes detected
+7. Add comprehensive tests for EXOCOMP-172 reproduction and edge cases
+
+**Key files to examine:** oompah/server.py (submission authority), orchestrator.py (worker lifecycle), projects.py (recovery snapshots), integration_executor.py (integration checks), task_cli.py (evidence capture)
+
+Starting with code exploration.
 ---
 <!-- COMMENTS:END -->
