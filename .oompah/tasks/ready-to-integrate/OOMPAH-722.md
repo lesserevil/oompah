@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-722
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Treat read-only git rev-list audit inspection as recoverable
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T14:55:24.661073Z'
-updated_at: '2026-08-03T15:05:52.772427Z'
+updated_at: '2026-08-03T15:06:16.850425Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -71,6 +71,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-722
     source_sha: 8d58087fa3aee54da42e153020a0748d6c5201cb
     completed_at: '2026-08-03T14:57:05.497972+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-722
+  head_sha: 7eb17e9743f101fe45c02f20c9000e6e67c7444f
+  submitted_at: '2026-08-03T15:06:11.182256+00:00'
+  updated_at: '2026-08-03T15:06:11.182256+00:00'
 ---
 ## Summary
 
@@ -153,5 +161,10 @@ author: oompah
 created: 2026-08-03 15:05
 ---
 **Verification**: All test suites pass. Verified: 1) 6/6 EXOCOMP-241 production forms allowed without policy budget consumption, 2) 5/5 dangerous syntax patterns correctly denied, 3) 2/2 unsupported-but-recoverable variants return proper errors, 4) Auditor can recover and submit verdict after read-only validation. Full test results: 31 auditor contract tests (all pass), 155 authority boundary tests (all pass), 44 terminal audit health tests (all pass). Total: 230/230 tests passing. No write-capable commands admitted. Git rev-list with --count, --left-right, --oneline validated against hardcoded safe flags. Dangerous variants (piping, redirects, --delete-refs) correctly caught. Ready for submission.
+---
+author: oompah
+created: 2026-08-03 15:06
+---
+Implemented git rev-list support with structured capability table and comprehensive security validation. Created _GIT_SUBCOMMAND_CAPABILITIES for systematic git command expansion, added _is_safe_git_rev_list_command() validator, and enhanced check_auditor_command() to handle read-only rev-list operations safely. All EXOCOMP-241 production forms (--left-right --count, --count with revision ranges) now allowed without consuming policy budget. Unsupported but non-mutating variants return recoverable errors. Dangerous syntax (shell escapes, redirects, mutating flags) properly denied. Comprehensive test coverage: 14 new tests + all existing tests pass (230/230 in focused suites).
 ---
 <!-- COMMENTS:END -->
