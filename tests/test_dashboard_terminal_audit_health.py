@@ -85,6 +85,18 @@ class TestTerminalAuditHealthRendererUsesSafeNumericFacts:
             "renderTerminalAuditHealth must reference health.transport_failure_count"
         )
 
+    def test_function_distinguishes_uncommitted_finalization_failures(self):
+        html = _load_dashboard()
+        fn = _extract_function("renderTerminalAuditHealth", html)
+        assert "health.finalization_failure_count" in fn, (
+            "renderTerminalAuditHealth must reference "
+            "health.finalization_failure_count"
+        )
+        assert "uncommitted audit finalization failure(s)" in fn, (
+            "finalization failures must not be presented as transport or "
+            "command-policy failures"
+        )
+
     def test_function_uses_oldest_pending_age(self):
         html = _load_dashboard()
         fn = _extract_function("renderTerminalAuditHealth", html)
