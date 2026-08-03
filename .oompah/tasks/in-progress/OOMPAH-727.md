@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-727
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Prune safe auxiliary worktrees left by direct epic maintenance tasks
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:39:38.824262Z'
-updated_at: '2026-08-03T16:04:24.754589Z'
+updated_at: '2026-08-03T16:05:44.787265Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -68,7 +68,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 5257ddba-948a-413b-aeb6-7f8ffab96c33
+oompah.agent_run_id: 5ec5420f-65f5-44e1-bebd-d3f2708d2a77
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1769
