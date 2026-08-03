@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-713
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Do not terminate completion audits for harmless read-only shell syntax
 parent: null
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-03T00:59:11.573065Z'
-updated_at: '2026-08-03T01:44:17.688482Z'
+updated_at: '2026-08-03T01:47:23.259257Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -100,9 +100,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-713
-  head_sha: ed288443a155dbdfd62bf1b5efe30161f169451d
-  submitted_at: '2026-08-03T01:17:11.810774+00:00'
-  updated_at: '2026-08-03T01:17:11.810774+00:00'
+  head_sha: ac442ca4573e98fed6057b84c65b9113d1913ed7
+  submitted_at: '2026-08-03T01:47:19.078322+00:00'
+  updated_at: '2026-08-03T01:47:19.078322+00:00'
 oompah.start_blocked_by: *id001
 ---
 ## Summary
@@ -196,5 +196,15 @@ author: oompah
 created: 2026-08-03 01:44
 ---
 Direct owner is rebasing the submitted auditor-policy fix onto newly merged OOMPAH-710 to preserve both bounded read-tool behavior and recoverable read-only policy validation. I will also add the missing end-to-end tool-session regression proving a recoverable denial can be followed by submit_audit_result.
+---
+author: oompah
+created: 2026-08-03 01:47
+---
+Direct owner rebase complete at exact head ac442ca4573e98fed6057b84c65b9113d1913ed7 on merged OOMPAH-710. Conflict resolution preserves offset/limit chunked reads across all provider tool schemas and keeps recoverable read-only command validation. Added an end-to-end regression that receives the validation error, continues with safe tools, and successfully submits an accepted audit verdict. Combined 710+713 focused suites: 433 passed; make check-secrets passed.
+---
+author: oompah
+created: 2026-08-03 01:47
+---
+Rebased onto merged bounded-read implementation, preserved both behaviors, and added accepted-verdict recovery coverage.
 ---
 <!-- COMMENTS:END -->
