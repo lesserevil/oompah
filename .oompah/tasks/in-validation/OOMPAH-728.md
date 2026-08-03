@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T16:19:05.113116Z'
-updated_at: '2026-08-03T17:19:15.069707Z'
+updated_at: '2026-08-03T17:20:08.142735Z'
 work_branch: OOMPAH-728
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/684
@@ -116,18 +116,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-728
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: cbf62bc583bb9518cc3fcb30f87c4c893b12b8d1074cc02d49da7e934e4d08fa
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-260b0c89c00a
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: cbf62bc583bb9518cc3fcb30f87c4c893b12b8d1074cc02d49da7e934e4d08fa
+      created_at: '2026-08-03T17:20:06.888630+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-03T17:20:06.888630+00:00'
+      branch_key: OOMPAH-728
     requested_by:
       version: 1
       identity: yolo-merge
       source: oompah
     previous_state: In Review
     created_at: '2026-08-03T17:19:05.983776+00:00'
+    updated_at: '2026-08-03T17:20:06.888630+00:00'
   - version: 1
     audit_id: audit-1543f6417c72
     project_id: proj-14849f1b
@@ -145,7 +159,20 @@ oompah.terminal_audit:
       source: oompah
     previous_state: In Review
     created_at: '2026-08-03T17:19:05.983776+00:00'
-  attempt_history: []
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-260b0c89c00a
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: cbf62bc583bb9518cc3fcb30f87c4c893b12b8d1074cc02d49da7e934e4d08fa
+    created_at: '2026-08-03T17:20:06.888630+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-03T17:20:06.888630+00:00'
+    branch_key: OOMPAH-728
 ---
 ## Summary
 
