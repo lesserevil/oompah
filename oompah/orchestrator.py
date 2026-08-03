@@ -21,7 +21,7 @@ from fnmatch import fnmatchcase
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from enum import Enum
-from typing import Any
+from typing import Any, TypedDict
 
 from oompah.agent import (
     AgentError,
@@ -471,6 +471,14 @@ def _is_terminal_state(state: str | None, terminal_states: list[str] | tuple[str
 
 _TERMINAL_RETIREMENTS_KEY = "oompah.terminal_audit_retirements"
 _TERMINAL_OVERRIDE_RECORDS_KEY = "oompah.terminal_override_records"
+
+
+class _NestedEpicCleanupEvidence(TypedDict, total=False):
+    """Optional ProjectStore kwargs that prove a nested epic may be removed."""
+
+    target_branch: str
+    review_head: str
+    require_target_branch: bool
 
 
 def _audit_observability_time(value: object) -> datetime | None:
@@ -4136,7 +4144,7 @@ class Orchestrator:
         self,
         project: Any,
         issue: Issue,
-    ) -> dict[str, Any]:
+    ) -> _NestedEpicCleanupEvidence:
         """Return verified target evidence required for a nested epic cleanup.
 
         A terminal status and a branch name are not landing proof.  Nested
@@ -4152,7 +4160,9 @@ class Orchestrator:
         if not _is_epic_issue(issue) or not str(issue.parent_id or "").strip():
             return {}
 
-        required = {"require_target_branch": True}
+        # Keep the cleanup-only kwargs explicit: ordinary terminal cleanup
+        # must not accidentally opt into the stricter nested-epic path.
+        required: _NestedEpicCleanupEvidence = {"require_target_branch": True}
         try:
             parent = self._resolve_parent_epic(issue)
             if parent is None:
