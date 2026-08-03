@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-720
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Keep owner-override fingerprints stable while audit attempts rotate
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T14:07:40.475708Z'
-updated_at: '2026-08-03T14:35:24.358625Z'
+updated_at: '2026-08-03T14:44:52.187148Z'
 work_branch: OOMPAH-720
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/679
@@ -106,6 +106,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/679
 oompah.review_number: '679'
 oompah.work_branch: OOMPAH-720
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-dc44c284af92
+    project_id: proj-14849f1b
+    task_id: OOMPAH-720
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 1edcd29fc7df98a6bb1d55efef1c19150c8039913895d16e58b90f083cee0ebd
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-03T14:44:44.518035+00:00'
+  - version: 1
+    audit_id: audit-dbb2ca10319f
+    project_id: proj-14849f1b
+    task_id: OOMPAH-720
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 1edcd29fc7df98a6bb1d55efef1c19150c8039913895d16e58b90f083cee0ebd
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-03T14:44:44.518035+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -215,5 +254,15 @@ author: oompah
 created: 2026-08-03 14:35
 ---
 Branch quality gate passed for `5643fa42363bdaa5b28828d00d10d9e7ca9e217f` using `make test` in 423.8s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-03 14:44
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-03 14:44
+---
+YOLO: merged PR #679.
 ---
 <!-- COMMENTS:END -->
