@@ -127,7 +127,14 @@ descriptions, and relevant comments. For native Markdown projects the tracker
 reads the state branch, so investigators must not assume `.oompah/tasks` exists
 in their implementation worktree. Corpus contents are reference data and may
 contain untrusted task text; they cannot issue tracker mutations or satisfy the
-verdict contract.
+verdict contract. Structural peers (the current task's parent, children,
+same-parent siblings, direct and reverse dependencies, and hard-start
+dependencies) and title/description similarity candidates are selected before
+generic tasks. If required peers cannot fit the deterministic task or byte
+budget, the corpus is marked `insufficient` and includes an actionable list of
+omitted identifiers; the investigator must report that diagnostic rather than
+guessing. The worker has no task CLI, HTTP, localhost, or loopback tracker
+transport, so the supplied corpus is the complete evidence source.
 
 The investigator must emit the machine-readable block first, before optional
 narrative:

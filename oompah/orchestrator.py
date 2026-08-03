@@ -300,6 +300,43 @@ _DUPLICATE_PREFLIGHT_HANDOFF_RE = re.compile(
 )
 _DUPLICATE_CORPUS_MAX_TASKS = 100
 _DUPLICATE_CORPUS_MAX_BYTES = 96 * 1024
+_DUPLICATE_CORPUS_MAX_DIAGNOSTIC_IDS = 32
+_DUPLICATE_CORPUS_STOP_WORDS = frozenset(
+    {
+        "about",
+        "after",
+        "also",
+        "because",
+        "been",
+        "being",
+        "could",
+        "does",
+        "from",
+        "have",
+        "into",
+        "more",
+        "need",
+        "only",
+        "same",
+        "should",
+        "task",
+        "that",
+        "their",
+        "then",
+        "there",
+        "these",
+        "they",
+        "this",
+        "through",
+        "using",
+        "what",
+        "when",
+        "where",
+        "which",
+        "with",
+        "would",
+    }
+)
 
 logger = logging.getLogger(__name__)
 
@@ -10469,6 +10506,13 @@ class Orchestrator:
         intentionally absent from implementation worktrees.  The tracker is
         therefore the authority for this context; callers must not make the
         investigator discover peers by reading the worker checkout.
+
+        Selection is deliberately two-phase.  Relationship and similarity
+        candidates are selected before the generic project-task fallback, so
+        a large project cannot evict the peers needed to make a duplicate
+        decision merely because their identifiers sort later.  The final
+        envelope reports any required peers that could not fit the bounded
+        corpus instead of hiding that loss from the investigator.
         """
 
         try:
@@ -10487,72 +10531,393 @@ class Orchestrator:
                 ensure_ascii=False,
             )
 
+        def _identity_values(value: object) -> set[str]:
+            """Return normalized tracker identity aliases without trusting text."""
+
+            if isinstance(value, str):
+                values = [value]
+            else:
+                values = [
+                    getattr(value, "identifier", None),
+                    getattr(value, "id", None),
+                ]
+            return {
+                str(raw).strip().casefold()
+                for raw in values
+                if str(raw or "").strip()
+            }
+
+        def _task_key(task: object) -> str:
+            identifier = str(getattr(task, "identifier", "") or "").strip()
+            if identifier:
+                return identifier.casefold()
+            task_id = str(getattr(task, "id", "") or "").strip()
+            return task_id.casefold()
+
         current_project = str(issue.project_id or "").strip()
-        scoped: list[Issue] = []
+        scoped_by_key: dict[str, Issue] = {}
         for task in tasks:
             task_project = str(getattr(task, "project_id", "") or "").strip()
             # A project-scoped tracker normally omits project_id on native
-            # records.  Only reject an explicitly different project.
+            # records. Only reject an explicitly different project.
             if current_project and task_project and task_project != current_project:
                 continue
-            scoped.append(task)
+            key = _task_key(task)
+            if not key:
+                continue
+            # If a tracker returns duplicate aliases, retain the record whose
+            # primary identifier is deterministic. This avoids duplicate rows
+            # and prevents an attacker-controlled duplicate from consuming the
+            # corpus budget.
+            previous = scoped_by_key.get(key)
+            if previous is None or str(getattr(task, "identifier", "")) < str(
+                getattr(previous, "identifier", "")
+            ):
+                scoped_by_key[key] = task
+
+        current_key = _task_key(issue)
+        if current_key and current_key not in scoped_by_key:
+            # Keep the task being screened visible even if a stale tracker
+            # listing omitted it. The detail supplied by the scheduler is the
+            # only fallback; no checkout or network lookup is attempted.
+            scoped_by_key[current_key] = issue
+
+        scoped = list(scoped_by_key.values())
         scoped.sort(
             key=lambda task: (
-                0 if task.identifier == issue.identifier else 1,
-                str(getattr(task, "state", "") or ""),
-                str(getattr(task, "identifier", "") or ""),
+                0 if _task_key(task) == current_key else 1,
+                1
+                if _is_terminal_state(
+                    getattr(task, "state", None),
+                    self.config.tracker_terminal_states,
+                )
+                else 0,
+                str(getattr(task, "identifier", "") or "").casefold(),
             )
         )
+        task_alias_to_key: dict[str, str] = {}
+        for task in scoped:
+            key = _task_key(task)
+            for alias in _identity_values(task):
+                task_alias_to_key.setdefault(alias, key)
 
-        rows: list[dict[str, Any]] = []
-        total_bytes = 0
+        relevance: dict[str, set[str]] = {}
+
+        def _mark(task: object, reason: str) -> None:
+            key = _task_key(task)
+            if key and key != current_key and key in scoped_by_key:
+                relevance.setdefault(key, set()).add(reason)
+
+        def _mark_references(references: object, reason: str) -> None:
+            for reference in references or []:
+                for alias in _identity_values(reference):
+                    target_key = task_alias_to_key.get(alias)
+                    if target_key and target_key != current_key:
+                        relevance.setdefault(target_key, set()).add(reason)
+
+        def _references_current(references: object) -> bool:
+            current_aliases = _identity_values(issue)
+            return any(
+                alias in current_aliases
+                for reference in references or []
+                for alias in _identity_values(reference)
+            )
+
+        current_parent_aliases = _identity_values(getattr(issue, "parent_id", None))
+        for task in scoped:
+            task_key = _task_key(task)
+            if task_key == current_key:
+                continue
+            task_parent_aliases = _identity_values(getattr(task, "parent_id", None))
+            if task_parent_aliases & _identity_values(issue):
+                _mark(task, "child")
+            if current_parent_aliases and task_parent_aliases & current_parent_aliases:
+                _mark(task, "same_parent_sibling")
+            if current_parent_aliases and task_alias_to_key:
+                if task_aliases := _identity_values(task):
+                    if task_aliases & current_parent_aliases:
+                        _mark(task, "parent")
+
+            if _references_current(getattr(task, "blocked_by", None)):
+                _mark(task, "dependent")
+            if _references_current(getattr(task, "start_blocked_by", None)):
+                _mark(task, "hard_start_dependent")
+
+        # Direct blockers and hard-start blockers of the screened task are
+        # mandatory candidates. Reverse edges above retain tasks that depend
+        # on it as well, which is useful when sibling work is being screened
+        # concurrently.
+        _mark_references(getattr(issue, "blocked_by", None), "dependency")
+        _mark_references(getattr(issue, "start_blocked_by", None), "hard_start_dependency")
+
+        def _words(value: object) -> set[str]:
+            return {
+                word
+                for word in re.findall(r"[a-z0-9][a-z0-9_-]{2,}", str(value or "").casefold())
+                if word not in _DUPLICATE_CORPUS_STOP_WORDS
+            }
+
+        current_title_words = _words(getattr(issue, "title", ""))
+        current_description_words = _words(getattr(issue, "description", ""))
+        similarity_scores: dict[str, float] = {}
+        try:
+            for candidate, score in find_similar_issues(
+                issue,
+                scoped,
+                min_score=_MIN_SCORE_TO_FLAG,
+            ):
+                candidate_key = _task_key(candidate)
+                if candidate_key and candidate_key != current_key:
+                    similarity_scores[candidate_key] = max(
+                        similarity_scores.get(candidate_key, 0.0), float(score)
+                    )
+        except Exception as exc:
+            logger.debug(
+                "Duplicate corpus title similarity failed for %s: %s",
+                issue.identifier,
+                exc,
+            )
+
+        for candidate in scoped:
+            candidate_key = _task_key(candidate)
+            if not candidate_key or candidate_key == current_key:
+                continue
+            title_words = _words(getattr(candidate, "title", ""))
+            description_words = _words(getattr(candidate, "description", ""))
+            title_overlap = current_title_words & title_words
+            description_overlap = current_description_words & description_words
+            combined_current = current_title_words | current_description_words
+            combined_candidate = title_words | description_words
+            combined_overlap = combined_current & combined_candidate
+            title_ratio = len(title_overlap) / max(
+                len(current_title_words | title_words), 1
+            )
+            description_ratio = len(description_overlap) / max(
+                min(len(current_description_words), len(description_words)), 1
+            )
+            combined_ratio = len(combined_overlap) / max(
+                len(combined_current | combined_candidate), 1
+            )
+            description_match = (
+                len(description_overlap) >= 3 and description_ratio >= 0.15
+            )
+            combined_match = len(combined_overlap) >= 3 and combined_ratio >= 0.12
+            title_match = len(title_overlap) >= 2 and title_ratio >= 0.25
+            if description_match or combined_match or title_match:
+                score = max(
+                    0.5 if description_match or combined_match else 0.0,
+                    0.5 if title_match else 0.0,
+                )
+                similarity_scores[candidate_key] = max(
+                    similarity_scores.get(candidate_key, 0.0), score
+                )
+
+        required_keys = {current_key, *relevance}
+
+        def _required_sort(task: Issue) -> tuple[int, str]:
+            key = _task_key(task)
+            if key == current_key:
+                return (0, key)
+            reasons = relevance.get(key, set())
+            rank = min(
+                (
+                    {
+                        "parent": 1,
+                        "child": 2,
+                        "same_parent_sibling": 3,
+                        "hard_start_dependency": 4,
+                        "dependency": 5,
+                        "hard_start_dependent": 6,
+                        "dependent": 7,
+                    }.get(reason, 8)
+                    for reason in reasons
+                ),
+                default=8,
+            )
+            return (rank, str(getattr(task, "identifier", "") or "").casefold())
+
+        required_tasks = sorted(
+            (task for task in scoped if _task_key(task) in required_keys),
+            key=_required_sort,
+        )
+        similarity_tasks = sorted(
+            (
+                task
+                for task in scoped
+                if _task_key(task) not in required_keys
+                and _task_key(task) in similarity_scores
+            ),
+            key=lambda task: (
+                -similarity_scores[_task_key(task)],
+                str(getattr(task, "identifier", "") or "").casefold(),
+            ),
+        )
+        generic_tasks = sorted(
+            (
+                task
+                for task in scoped
+                if _task_key(task) not in required_keys
+                and _task_key(task) not in similarity_scores
+            ),
+            key=lambda task: (
+                1
+                if _is_terminal_state(
+                    getattr(task, "state", None),
+                    self.config.tracker_terminal_states,
+                )
+                else 0,
+                str(getattr(task, "state", "") or "").casefold(),
+                str(getattr(task, "identifier", "") or "").casefold(),
+            ),
+        )
 
         def _clip(value: object, limit: int) -> str:
             text = str(value or "")
             return text if len(text) <= limit else text[:limit] + "\n[truncated]"
 
-        for task in scoped[:_DUPLICATE_CORPUS_MAX_TASKS]:
+        def _row(task: Issue, *, compact: bool = False) -> dict[str, Any]:
+            description_limit = 600 if compact else 2500
+            comment_limit = 500 if compact else 900
+            comment_bytes = 1200 if compact else 3000
             try:
                 comments = compact_prompt_comments(
                     task,
                     tracker.fetch_comments(task.identifier),
-                    max_comments=4,
-                    max_bytes=3000,
+                    max_comments=2 if compact else 4,
+                    max_bytes=comment_bytes,
                 )
             except Exception:
                 comments = []
-            row = {
-                "identifier": task.identifier,
-                "title": _clip(task.title, 500),
-                "status": task.state,
-                "issue_type": task.issue_type,
-                "description": _clip(task.description, 2500),
+            key = _task_key(task)
+            row: dict[str, Any] = {
+                "identifier": _clip(getattr(task, "identifier", ""), 256),
+                "title": _clip(getattr(task, "title", ""), 500),
+                "status": _clip(getattr(task, "state", ""), 120),
+                "issue_type": _clip(getattr(task, "issue_type", "task"), 80),
+                "description": _clip(getattr(task, "description", ""), description_limit),
                 "comments": [
                     {
-                        "author": str(comment.get("author") or ""),
-                        "created_at": str(comment.get("created_at") or ""),
-                        "text": _clip(comment.get("text"), 900),
+                        "author": _clip(comment.get("author"), 160),
+                        "created_at": _clip(comment.get("created_at"), 80),
+                        "text": _clip(comment.get("text"), comment_limit),
                     }
                     for comment in comments
                     if isinstance(comment, dict)
                 ],
             }
-            encoded = json.dumps(row, ensure_ascii=False, separators=(",", ":"))
-            if rows and total_bytes + len(encoded.encode("utf-8")) > _DUPLICATE_CORPUS_MAX_BYTES:
-                break
-            rows.append(row)
-            total_bytes += len(encoded.encode("utf-8"))
+            if key == current_key:
+                row["relevance"] = ["current_task"]
+            elif key in relevance:
+                row["relevance"] = sorted(relevance[key])
+            elif key in similarity_scores:
+                row["relevance"] = ["title_description_similarity"]
+                row["similarity_score"] = round(similarity_scores[key], 3)
+            return row
 
-        return json.dumps(
-            {
-                "availability": "authoritative",
+        def _id_for_key(key: str) -> str:
+            task = scoped_by_key.get(key)
+            return _clip(
+                getattr(task, "identifier", "") if task is not None else key,
+                256,
+            )
+
+        def _bounded_ids(keys: list[str]) -> list[str]:
+            return [_id_for_key(key) for key in keys[:_DUPLICATE_CORPUS_MAX_DIAGNOSTIC_IDS]]
+
+        rows: list[dict[str, Any]] = []
+        selected_keys: set[str] = set()
+        max_tasks = max(1, int(_DUPLICATE_CORPUS_MAX_TASKS))
+
+        def _payload(
+            current_rows: list[dict[str, Any]],
+            pending_key: str | None = None,
+        ) -> dict[str, Any]:
+            # Keep selection accounting keyed by the normalized tracker
+            # identity, never by clipped attacker-controlled display text.
+            selected = set(selected_keys)
+            if pending_key:
+                selected.add(pending_key)
+            omitted_required = sorted(required_keys - selected)
+            omitted_similarity = sorted(
+                set(similarity_scores) - selected,
+                key=lambda key: (-similarity_scores[key], key),
+            )
+            selection: dict[str, Any] = {
+                "required_peer_count": max(len(required_keys) - 1, 0),
+                "required_peers_included": max(
+                    len(required_keys & selected) - (1 if current_key in selected else 0),
+                    0,
+                ),
+                "omitted_required_peer_count": len(omitted_required),
+                "omitted_required_peer_identifiers": _bounded_ids(omitted_required),
+                "similarity_candidate_count": len(similarity_scores),
+                "similarity_candidates_included": len(set(similarity_scores) & selected),
+                "omitted_similarity_candidate_count": len(omitted_similarity),
+            }
+            if omitted_required:
+                selection["diagnostic"] = (
+                    "Required structural peers could not fit the bounded corpus. "
+                    "Increase the duplicate corpus task/byte budget or have a "
+                    "project owner review the omitted identifiers before deciding."
+                )
+            return {
+                "availability": "insufficient" if omitted_required else "authoritative",
                 "scope": "current project tracker",
-                "current_task": issue.identifier,
-                "tasks": rows,
-            },
-            ensure_ascii=False,
-            indent=2,
-        )
+                "current_task": _clip(issue.identifier, 256),
+                "selection": selection,
+                "tasks": current_rows,
+            }
+
+        def _fits(candidate_rows: list[dict[str, Any]], pending_key: str) -> bool:
+            encoded = json.dumps(
+                _payload(candidate_rows, pending_key),
+                ensure_ascii=False,
+                indent=2,
+            )
+            return len(encoded.encode("utf-8")) <= _DUPLICATE_CORPUS_MAX_BYTES
+
+        omitted_required_keys: set[str] = set()
+        for task in [*required_tasks, *similarity_tasks, *generic_tasks]:
+            key = _task_key(task)
+            if not key or key in selected_keys:
+                continue
+            is_required = key in required_keys
+            if len(rows) >= max_tasks:
+                if is_required:
+                    omitted_required_keys.add(key)
+                continue
+            candidate_row = _row(task)
+            if _fits([*rows, candidate_row], key):
+                rows.append(candidate_row)
+                selected_keys.add(key)
+                continue
+            if is_required:
+                compact_row = _row(task, compact=True)
+                if _fits([*rows, compact_row], key):
+                    rows.append(compact_row)
+                    selected_keys.add(key)
+                else:
+                    omitted_required_keys.add(key)
+
+        # The fit checks above calculate omission diagnostics from the current
+        # rows. Keep an explicit record for required peers skipped by the task
+        # count or byte limit.
+        omitted_required_keys.update(required_keys - selected_keys)
+        final_payload = _payload(rows)
+        if omitted_required_keys:
+            final_selection = final_payload["selection"]
+            final_selection["omitted_required_peer_count"] = len(omitted_required_keys)
+            final_selection["omitted_required_peer_identifiers"] = _bounded_ids(
+                sorted(omitted_required_keys)
+            )
+            final_selection["diagnostic"] = (
+                "Required structural peers could not fit the bounded corpus. "
+                "Increase the duplicate corpus task/byte budget or have a "
+                "project owner review the omitted identifiers before deciding."
+            )
+            final_payload["availability"] = "insufficient"
+
+        return json.dumps(final_payload, ensure_ascii=False, indent=2)
 
     def _renew_duplicate_preflight_claims(self) -> int:
         """Renew live claims near half-life; stale claims are left for retry."""
@@ -27935,7 +28300,12 @@ class Orchestrator:
                         "You are a read-only duplicate investigator. Inspect the "
                         "authoritative project task corpus and return the required "
                         "structured verdict first, before optional narrative. "
-                        "Do not modify files or tracker state. "
+                        "The supplied corpus is self-sufficient: do not run an "
+                        "oompah task CLI command, curl, HTTP request, localhost or "
+                        "loopback query, or any other tracker/network lookup. "
+                        "Only the supplied evidence and the enabled read-only "
+                        "workspace file tools are available. Do not modify files "
+                        "or tracker state. "
                     )
                     if read_only_preflight
                     else
@@ -30229,6 +30599,76 @@ class Orchestrator:
                     "Duplicate verdict referenced missing, self, or terminal "
                     f"task(s): {', '.join(invalid_matches or matched_identifiers)}"
                 )
+
+            # A corpus-budget failure is an operator/configuration diagnostic,
+            # not a model ambiguity. Re-read the tracker corpus server-side so
+            # untrusted model prose cannot trigger this fast path, then expose
+            # the omitted peer identifiers immediately instead of spending the
+            # remaining indistinguishable retries on an impossible comparison.
+            corpus_budget_diagnostic: str | None = None
+            try:
+                corpus_payload = json.loads(
+                    self._duplicate_preflight_task_corpus(tracker, current)
+                )
+                if corpus_payload.get("availability") == "insufficient":
+                    selection = corpus_payload.get("selection")
+                    omitted = (
+                        selection.get("omitted_required_peer_identifiers", [])
+                        if isinstance(selection, dict)
+                        else []
+                    )
+                    safe_omitted = [
+                        re.sub(
+                            r"[^A-Za-z0-9._/#:-]+",
+                            "_",
+                            str(identifier),
+                        )[:128]
+                        for identifier in omitted
+                        if str(identifier).strip()
+                    ]
+                    corpus_budget_diagnostic = (
+                        "Required structural peers could not fit the bounded "
+                        "duplicate corpus."
+                    )
+                    if safe_omitted:
+                        corpus_budget_diagnostic += (
+                            " Omitted peer identifiers: "
+                            + ", ".join(safe_omitted)
+                            + "."
+                        )
+            except Exception:
+                # A tracker read failure should retain the normal bounded retry
+                # path; only an authoritative insufficient envelope fast-fails.
+                corpus_budget_diagnostic = None
+
+            if corpus_budget_diagnostic:
+                failed = inconclusive_record(
+                    record,
+                    retry_count=_DUPLICATE_PREFLIGHT_MAX_RETRIES,
+                    retry_after=now,
+                    evidence=corpus_budget_diagnostic,
+                )
+                save_duplicate_screening_record(tracker, current, failed)
+                issue.duplicate_screening = failed.to_dict()
+                self._mark_needs_human(
+                    tracker,
+                    entry.identifier,
+                    (
+                        "Duplicate screening stopped with an actionable corpus "
+                        "diagnostic: "
+                        + corpus_budget_diagnostic
+                        + " Increase the duplicate corpus task/byte budget or "
+                        "have a project owner review the authoritative tracker "
+                        "corpus, then use the authenticated duplicate-screening "
+                        "owner-resolution action with a conclusive verdict."
+                    ),
+                )
+                issue.state = NEEDS_HUMAN
+                return {
+                    "outcome": "needs_human",
+                    "terminal": True,
+                    "diagnostic": "corpus_insufficient",
+                }
 
             retry_count = record.retry_count + 1
             retry_delay = min(60 * (2 ** max(retry_count - 1, 0)), 15 * 60)

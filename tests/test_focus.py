@@ -1119,6 +1119,15 @@ class TestDuplicateDetectorFocus:
         assert "state branch" in text.lower()
         assert "duplicate" in text.lower() or "similar" in text.lower()
 
+    def test_duplicate_investigator_prompt_does_not_require_tracker_network(self):
+        """The injected corpus is self-contained in a network-disabled worker."""
+        focus = self._get_duplicate_detector()
+        text = " ".join(focus.must_do).lower()
+        assert "self-sufficient" in text
+        assert "oompah task" in text
+        assert "localhost" in text
+        assert "supplied evidence" in text
+
     def test_verdict_handoff_leaves_status_change_to_oompah(self):
         """The focus reports a verdict; the orchestrator owns transitions."""
         focus = self._get_duplicate_detector()

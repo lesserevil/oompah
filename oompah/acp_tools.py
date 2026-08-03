@@ -1358,6 +1358,12 @@ def build_tool_catalog(
             submit_audit_result_tool,
         ]
 
+    if read_only and str(getattr(focus, "name", "")).casefold() == "duplicate_detector":
+        # Duplicate screening receives a complete tracker corpus in its
+        # prompt. Do not advertise project/task lookup tools that could tempt
+        # the investigator into an unavailable network or loopback fallback.
+        return [read_file, list_files, search_files]
+
     readable = [
         read_file,
         list_files,
@@ -1700,6 +1706,9 @@ def build_codex_tool_catalog(
             run_command,
             submit_audit_result,
         ]
+
+    if read_only and str(getattr(focus, "name", "")).casefold() == "duplicate_detector":
+        return [read_file, list_files, search_files]
 
     readable = [
         read_file,
@@ -2074,6 +2083,9 @@ def build_opencode_tool_catalog(
             run_command,
             submit_audit_result_tool,
         ]
+
+    if read_only and str(getattr(focus, "name", "")).casefold() == "duplicate_detector":
+        return [read_file, list_files, search_files]
 
     readable = [
         read_file,
