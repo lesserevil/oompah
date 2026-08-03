@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-617
 type: bug
-status: Merged
+status: Done
 priority: 1
 title: Integrate wrong-checkout submission protection
 parent: OOMPAH-587
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T20:52:01.122820Z'
-updated_at: '2026-08-02T18:27:32.351638Z'
+updated_at: '2026-08-03T20:04:07.132638Z'
 work_branch: epic-OOMPAH-587--task-OOMPAH-617
 target_branch: null
 review_url: null
