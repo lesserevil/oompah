@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T20:08:56.082557Z'
-updated_at: '2026-08-03T21:24:19.049285Z'
+updated_at: '2026-08-03T21:24:25.399609Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -121,5 +121,10 @@ author: oompah
 created: 2026-08-03 21:24
 ---
 Discovery:  is shared between the API and scheduler/provider-exit loops. Existing  calls are still unsafe because dict iteration can fail during concurrent mutation;  removes entries without the existing . The PATCH terminal cleanup loop and retry-authority scan are the critical paths, with post-commit broadcast/cleanup exceptions currently reaching the generic 500 handler.
+---
+author: oompah
+created: 2026-08-03 21:24
+---
+Discovery correction: state.running is shared between the API and scheduler/provider-exit loops. Existing list(state.running.items()) calls are unsafe because dict iteration can fail during concurrent mutation; the worker-exit handler removes entries without the existing retry-authority lock. The PATCH terminal cleanup loop and retry-authority scan are the critical paths, with post-commit broadcast/cleanup exceptions currently reaching the generic 500 handler.
 ---
 <!-- COMMENTS:END -->
