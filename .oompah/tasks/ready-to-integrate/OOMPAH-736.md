@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-736
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Align auditor command policy with project-required Makefile validation targets
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T19:26:22.477120Z'
-updated_at: '2026-08-03T19:49:48.757698Z'
+updated_at: '2026-08-03T19:50:19.117498Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -70,6 +70,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-736
     source_sha: fae232ee614a74a9565f4fc6bfbbcf86333f0255
     completed_at: '2026-08-03T19:27:32.147847+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-736
+  head_sha: 460fd8b1bab1c36dfbcdb759db2e90a65bed05cb
+  submitted_at: '2026-08-03T19:50:15.966155+00:00'
+  updated_at: '2026-08-03T19:50:15.966155+00:00'
 ---
 ## Summary
 
@@ -239,5 +247,10 @@ created: 2026-08-03 19:49
 - Before: Projects requiring fmt-check/lint exhausted auditor candidates
 - After: Projects can explicitly configure allowed validation targets
 - Prompt now accurately reflects enforcement for better user guidance
+---
+author: oompah
+created: 2026-08-03 19:50
+---
+Implemented project validation-command contract for auditor policy alignment. Projects can now configure auditor_validation_targets (e.g., ['test', 'fmt-check', 'lint']) and the auditor will allow those commands without exhausting policy budget. Dynamic regex generation aligns prompt guidance with enforcement. Fixes EXOCOMP-159 regression where fmt-check/lint denials caused candidate exhaustion.
 ---
 <!-- COMMENTS:END -->
