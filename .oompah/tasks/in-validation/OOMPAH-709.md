@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-709
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Make tick-delegation tests deterministic under parallel full-suite execution
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T23:17:45.073003Z'
-updated_at: '2026-08-03T00:44:11.391788Z'
+updated_at: '2026-08-03T00:53:11.722449Z'
 work_branch: OOMPAH-709
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/669
@@ -78,6 +78,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/669
 oompah.review_number: '669'
 oompah.work_branch: OOMPAH-709
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-03c795f5edee
+    project_id: proj-14849f1b
+    task_id: OOMPAH-709
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d3b6e024a73fe88f053211e0f7e43d03d6bbae9a25d741e66d6c0ef5c1e0b9b8
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-03T00:53:05.081583+00:00'
+  - version: 1
+    audit_id: audit-320b7d504592
+    project_id: proj-14849f1b
+    task_id: OOMPAH-709
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d3b6e024a73fe88f053211e0f7e43d03d6bbae9a25d741e66d6c0ef5c1e0b9b8
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-03T00:53:05.081583+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -234,5 +273,15 @@ author: oompah
 created: 2026-08-03 00:43
 ---
 Branch quality gate passed for `234507c7c76611d5a10cf3eeec341f8773aadf34` using `make test` in 396.2s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-03 00:53
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-03 00:53
+---
+YOLO: merged PR #669.
 ---
 <!-- COMMENTS:END -->
