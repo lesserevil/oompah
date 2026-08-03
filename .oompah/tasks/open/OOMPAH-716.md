@@ -11,13 +11,31 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T03:02:02.962763Z'
-updated_at: '2026-08-03T03:03:29.217927Z'
+updated_at: '2026-08-03T03:03:44.310100Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: ca6711b3db90a70ee9ccb0f22c07a68e76eaacdbcd18aa40230fb994cd5dc834
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: 4a8c8a80-2555-4e12-bb32-dc1bd9c65d81
+  claim_owner: 382962b8-8b4b-4507-ae51-eef3a3f2cbc6
+  claimed_at: '2026-08-03T03:03:36.588549+00:00'
+  claim_expires_at: '2026-08-03T03:33:36.588549+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
+oompah.agent_run_id: 2be72db4-3bd1-41a3-8ad8-1f03d49b3f4a
 ---
 ## Summary
 
@@ -56,5 +74,15 @@ author: oompah
 created: 2026-08-03 03:03
 ---
 Filed from live OOMPAH-714 terminal-audit evidence: read-only awk/sed inspection commands consumed the fatal policy budget and rotated an otherwise healthy auditor. Promoting for automatic dispatch while OOMPAH-714 finishes validation.
+---
+author: oompah
+created: 2026-08-03 03:03
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-03 03:03
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->
