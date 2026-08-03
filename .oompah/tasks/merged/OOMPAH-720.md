@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T14:07:40.475708Z'
-updated_at: '2026-08-03T14:59:33.178500Z'
+updated_at: '2026-08-03T14:59:47.248620Z'
 work_branch: OOMPAH-720
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/679
@@ -69,8 +69,8 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: null
 oompah.task_costs:
-  total_input_tokens: 50
-  total_output_tokens: 10440
+  total_input_tokens: 68
+  total_output_tokens: 10746
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -78,8 +78,8 @@ oompah.task_costs:
       output_tokens: 1729
       cost_usd: 0.0
     unknown:
-      input_tokens: 40
-      output_tokens: 8711
+      input_tokens: 58
+      output_tokens: 9017
       cost_usd: 0.0
   runs:
   - profile: default
@@ -94,6 +94,12 @@ oompah.task_costs:
     output_tokens: 8711
     cost_usd: 0.0
     recorded_at: '2026-08-03T14:58:27.633319+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 18
+    output_tokens: 306
+    cost_usd: 0.0
+    recorded_at: '2026-08-03T14:59:44.662253+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-720__20260803T140813Z
@@ -446,5 +452,15 @@ created: 2026-08-03 14:59
 Override by oompah-cli: terminal transition to Merged applied by project owner.
 
 Reason: Operator independently verified the Merged transition after Audit PASS for Done at exact head 5643fa42363bdaa5b28828d00d10d9e7ca9e217f. The auditor confirmed merge SHA 8d58087fa3aee54da42e153020a0748d6c5201cb, 386 focused tests with zero failures, and the full exact-head gate of 15,100 passed, 7 skipped, 1 expected xfail. A second Merged audit would duplicate the accepted evidence while the deployed service still lacks this task's race/idempotency fix.
+---
+author: oompah
+created: 2026-08-03 14:59
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 0, Tool calls: 6
+- Tokens: 18 in / 306 out [324 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 1m 0s
+- Log: OOMPAH-720__20260803T145849Z.jsonl
 ---
 <!-- COMMENTS:END -->
