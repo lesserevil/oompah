@@ -11,13 +11,31 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T17:45:33.391967Z'
-updated_at: '2026-08-03T17:48:22.068685Z'
+updated_at: '2026-08-03T17:50:04.526491Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.duplicate_screening:
+  schema_version: 1
+  task_fingerprint: 721a65e211683c1283e69f2cb0f9320f456417f3ce7ea311ecedfd6e7ac233bc
+  detector_version: duplicate-detector-v1
+  verdict: inconclusive
+  checked_at: null
+  matched_identifiers: []
+  evidence: ''
+  claim_id: bea169fc-d1a0-4df6-9802-0726104316ea
+  claim_owner: 8a58fb27-42d0-40cf-8dc2-70615b9783dc
+  claimed_at: '2026-08-03T17:49:52.759668+00:00'
+  claim_expires_at: '2026-08-03T18:19:52.759668+00:00'
+  retry_count: 0
+  retry_after: null
+  owner_resolved_at: null
+  owner_login: null
+  owner_resolution_reason: ''
+oompah.agent_run_id: 7d79dbe3-3a3d-4f4e-98ec-4d291c90df6f
 ---
 ## Summary
 
@@ -35,5 +53,10 @@ author: oompah
 created: 2026-08-03 17:46
 ---
 Live workaround applied safely: verified EXOCOMP-244 had no running agent; preserved old clean epic-EXOCOMP-135 head 333c3b81 under local recovery/epic-EXOCOMP-135-pre-rebase-333c3b81; detached and repointed the local epic branch to already-published 98e26f09 without reset or deletion; verified both authoritative epic and assigned task worktrees clean at 98e26f09; resubmitted from the required derived task checkout. A submit from the direct epic checkout was rejected because expected_work_branch remains epic-EXOCOMP-135--task-EXOCOMP-244, confirming the branch-model mismatch in scope.
+---
+author: oompah
+created: 2026-08-03 17:50
+---
+Duplicate screening dispatched (profile: default, task remains Open)
 ---
 <!-- COMMENTS:END -->
