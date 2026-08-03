@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-711
 type: bug
-status: Open
+status: In Progress
 priority: null
 title: Fence owner duplicate resolution from superseded preflight exit
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T23:59:03.600915Z'
-updated_at: '2026-08-03T00:09:14.677072Z'
+updated_at: '2026-08-03T00:09:17.876724Z'
 work_branch: null
 target_branch: null
 review_url: null
