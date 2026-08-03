@@ -18,7 +18,7 @@ labels:
 - epic:rebased
 assignee: null
 created_at: '2026-07-30T14:13:38.093049Z'
-updated_at: '2026-08-03T20:17:08.683966Z'
+updated_at: '2026-08-03T21:18:51.579030Z'
 work_branch: epic-OOMPAH-587
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/601
@@ -118,7 +118,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-587
     target_state: Merged
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -127,7 +127,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-07535546a80f
       target_state: Merged
-      request_state: in_progress
+      request_state: pending
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -137,13 +137,17 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-03T20:16:58.949006+00:00'
       branch_key: epic-OOMPAH-587
+      failure_classification: infrastructure_error
+      ended_at: '2026-08-03T21:18:47.070901+00:00'
+      failure_reason: ACP turn timeout exceeded
+      next_retry_at: '2026-08-03T21:18:57.070866+00:00'
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
       source: oompah
     previous_state: In Review
     created_at: '2026-08-03T20:12:31.603557+00:00'
-    updated_at: '2026-08-03T20:16:58.949006+00:00'
+    updated_at: '2026-08-03T21:18:47.070901+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-17be272b6055
@@ -174,7 +178,7 @@ oompah.terminal_audit:
   - version: 1
     attempt_id: attempt-07535546a80f
     target_state: Merged
-    request_state: in_progress
+    request_state: pending
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -184,14 +188,18 @@ oompah.terminal_audit:
     model: opus
     started_at: '2026-08-03T20:16:58.949006+00:00'
     branch_key: epic-OOMPAH-587
+    failure_classification: infrastructure_error
+    ended_at: '2026-08-03T21:18:47.070901+00:00'
+    failure_reason: ACP turn timeout exceeded
+    next_retry_at: '2026-08-03T21:18:57.070866+00:00'
 oompah.task_costs:
-  total_input_tokens: 146
-  total_output_tokens: 27002
+  total_input_tokens: 266
+  total_output_tokens: 31711
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 146
-      output_tokens: 27002
+      input_tokens: 266
+      output_tokens: 31711
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -206,6 +214,12 @@ oompah.task_costs:
     output_tokens: 1309
     cost_usd: 0.0
     recorded_at: '2026-07-31T05:11:56.486934+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 120
+    output_tokens: 4709
+    cost_usd: 0.0
+    recorded_at: '2026-08-03T21:18:47.073718+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/601
 oompah.review_number: '601'
 oompah.work_branch: epic-OOMPAH-587
@@ -363,5 +377,15 @@ author: oompah
 created: 2026-08-03 20:17
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-03 21:18
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 110, Tool calls: 87
+- Tokens: 120 in / 4.7K out [4.8K total]
+- Cost: $0.0000
+- Exit: stalled, Duration: 1h 1m 43s
+- Log: OOMPAH-587__20260803T201714Z.jsonl
 ---
 <!-- COMMENTS:END -->
