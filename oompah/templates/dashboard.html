@@ -1342,6 +1342,119 @@
     .cred-error-banner .cred-error-list li {
       padding: 0.1rem 0;
     }
+    /* Compact alert center — consolidates alerts into one collapsible component */
+    .alert-center {
+      display: none;
+      flex-direction: column;
+      gap: 0;
+      padding: 0;
+      margin: 0;
+      background: transparent;
+      border: none;
+      flex-shrink: 0;
+    }
+    .alert-center[data-alert-count="0"] {
+      display: none;
+    }
+    .alert-center[data-alert-count]:not([data-alert-count="0"]) {
+      display: flex;
+    }
+    .alert-center-toggle {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.6rem 1.5rem;
+      background: rgba(210, 153, 34, 0.12);
+      border-bottom: 1px solid rgba(210, 153, 34, 0.4);
+      cursor: pointer;
+      user-select: none;
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--yellow);
+      border: none;
+      width: 100%;
+      text-align: left;
+      transition: background 0.15s;
+    }
+    .alert-center-toggle:hover {
+      background: rgba(210, 153, 34, 0.18);
+    }
+    .alert-center-toggle:focus {
+      outline: 2px solid var(--accent);
+      outline-offset: -2px;
+    }
+    .alert-center-icon {
+      font-size: 1rem;
+      flex-shrink: 0;
+      line-height: 1.4;
+    }
+    .alert-center-summary {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      min-width: 0;
+    }
+    .alert-center-count {
+      font-weight: 700;
+      color: var(--text);
+    }
+    .alert-center-severity {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+    }
+    .alert-center-expand-indicator {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      transition: transform 0.15s;
+      flex-shrink: 0;
+    }
+    .alert-center[aria-expanded="true"] .alert-center-expand-indicator {
+      transform: rotate(90deg);
+    }
+    .alert-center-list {
+      display: none;
+      flex-direction: column;
+      gap: 0;
+      max-height: 300px;
+      overflow-y: auto;
+      background: rgba(210, 153, 34, 0.08);
+      border-bottom: 1px solid rgba(210, 153, 34, 0.4);
+    }
+    .alert-center[aria-expanded="true"] .alert-center-list {
+      display: flex;
+    }
+    .alert-item {
+      list-style: none;
+      padding: 0.6rem 1.5rem;
+      border-top: 1px solid rgba(210, 153, 34, 0.2);
+      margin: 0;
+      font-size: 0.72rem;
+      color: var(--text);
+    }
+    .alert-item:first-child {
+      border-top: none;
+    }
+    .alert-title {
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 0.1rem;
+    }
+    .alert-detail {
+      color: var(--text-muted);
+      margin-top: 0.1rem;
+      overflow-wrap: anywhere;
+    }
+    .alert-action {
+      color: var(--text);
+      margin-top: 0.1rem;
+    }
+    .alert-source {
+      color: var(--text-muted);
+      font-size: 0.68rem;
+      margin-top: 0.1rem;
+      overflow-wrap: anywhere;
+    }
     .alerts-banner {
       display: flex;
       align-items: flex-start;
@@ -2419,6 +2532,20 @@
     <span class="agent-warning" id="agent-warnings"></span>
     <div class="running-agents" id="running-agents"></div>
   </div>
+  <!-- Compact alert center consolidating alerts into one collapsible component (OOMPAH-742) -->
+  <div class="alert-center" id="alert-center" data-alert-count="0" aria-expanded="false"
+       role="region" aria-label="Oompah alerts">
+    <button class="alert-center-toggle" type="button" onclick="toggleAlertCenter()"
+            aria-controls="alert-center-list" aria-expanded="false" aria-label="Alerts">
+      <span class="alert-center-icon" aria-hidden="true">&#9888;</span>
+      <div class="alert-center-summary">
+        <span class="alert-center-count"><span id="alert-center-count">0</span> alerts</span>
+        <span class="alert-center-severity" id="alert-center-severity-label"></span>
+      </div>
+      <span class="alert-center-expand-indicator" aria-hidden="true">&#9658;</span>
+    </button>
+    <ul class="alert-center-list" id="alert-center-list" aria-live="polite" aria-label="Alert details"></ul>
+  </div>
   <div class="cred-error-banner" id="cred-error-banner" hidden
        role="alert" aria-live="polite" aria-label="Provider credential error">
     <span class="cred-error-icon" aria-hidden="true">&#9888;</span>
@@ -3414,6 +3541,79 @@ function renderAlertItem(alert) {
     '</li>';
 }
 
+/* Alert center (OOMPAH-742) — compact collapsible alert consolidation */
+function getAlertSeverity(alert) {
+  if (!alert) return 0;
+  // Map alert source/type to severity (higher = more severe)
+  const source = alert.source || '';
+  if (source.indexOf('cred_error:') === 0) return 3;  // Critical
+  if (source.indexOf('auth_health:degraded') === 0) return 2;  // Warning
+  if (source.indexOf('terminal_audit') === 0) return 2;  // Warning
+  return 1;  // Info
+}
+
+function getHighestAlertSeverity(alerts) {
+  if (!alerts || alerts.length === 0) return 0;
+  return Math.max(...alerts.map(getAlertSeverity));
+}
+
+function getSeverityLabel(severity) {
+  switch (severity) {
+    case 3: return 'critical';
+    case 2: return 'warning';
+    default: return 'info';
+  }
+}
+
+function toggleAlertCenter() {
+  const center = document.getElementById('alert-center');
+  const expanded = center.getAttribute('aria-expanded') === 'true';
+  const newState = !expanded;
+  center.setAttribute('aria-expanded', String(newState));
+  const btn = center.querySelector('.alert-center-toggle');
+  if (btn) btn.setAttribute('aria-expanded', String(newState));
+}
+
+function renderAlertCenter(alerts) {
+  const center = document.getElementById('alert-center');
+  const list = document.getElementById('alert-center-list');
+  const countEl = document.getElementById('alert-center-count');
+  const severityEl = document.getElementById('alert-center-severity-label');
+  
+  if (!center || !list) return;
+  
+  // Filter out credential and auth_health alerts (shown in separate banners during migration)
+  const otherAlerts = (alerts || []).filter(function(a) {
+    if (!a.source) return true;
+    if (a.source.indexOf('cred_error:') === 0) return false;
+    if (a.source.indexOf('auth_health:') === 0) return false;
+    return true;
+  });
+  
+  const count = otherAlerts.length;
+  const severity = getHighestAlertSeverity(otherAlerts);
+  const severityLabel = getSeverityLabel(severity);
+  
+  // Update data attribute and visibility
+  center.setAttribute('data-alert-count', String(count));
+  
+  // Update summary
+  if (countEl) countEl.textContent = String(count);
+  if (severityEl) {
+    severityEl.textContent = count > 0 ? '(' + severityLabel + ')' : '';
+  }
+  
+  // Populate list
+  list.innerHTML = otherAlerts.map(renderAlertItem).join('');
+  
+  // Reset expanded state when alerts change
+  if (count === 0) {
+    center.setAttribute('aria-expanded', 'false');
+    const btn = center.querySelector('.alert-center-toggle');
+    if (btn) btn.setAttribute('aria-expanded', 'false');
+  }
+}
+
 function renderTerminalAuditHealth(health) {
   // Build a compact, redacted health summary from durable numeric facts only.
   // This function deliberately does NOT render provider names, model output, or
@@ -3715,6 +3915,9 @@ function handleStateUpdate(state) {
   } else {
     warningsEl.textContent = '';
   }
+
+  // Render the new compact alert center (OOMPAH-742)
+  renderAlertCenter(otherAlerts);
 
   const alertsBanner = document.getElementById('alerts-banner');
   const alertsList = document.getElementById('alerts-list');
