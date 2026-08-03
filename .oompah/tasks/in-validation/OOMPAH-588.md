@@ -16,7 +16,7 @@ labels:
 - epic:rebased
 assignee: null
 created_at: '2026-07-30T14:13:46.482910Z'
-updated_at: '2026-08-03T22:27:26.121371Z'
+updated_at: '2026-08-03T22:27:39.530834Z'
 work_branch: epic-OOMPAH-588
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/602
@@ -437,7 +437,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-588
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -460,13 +460,27 @@ oompah.terminal_audit:
       ended_at: '2026-08-03T22:27:11.148448+00:00'
       failure_reason: normal
       next_retry_at: '2026-08-03T22:27:21.148421+00:00'
+    - version: 1
+      attempt_id: attempt-d43192a6f512
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 4b103ce873cb0ba5c01da5f327fb8d227c3c3337cab3e7aa30a168dcd3bcd957
+      created_at: '2026-08-03T22:27:38.294553+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-03T22:27:38.294553+00:00'
+      branch_key: epic-OOMPAH-588
+      candidate_rotation_count: 1
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
       source: oompah
     previous_state: Done
     created_at: '2026-08-03T22:17:47.691386+00:00'
-    updated_at: '2026-08-03T22:27:11.148448+00:00'
+    updated_at: '2026-08-03T22:27:38.294553+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-d986f94b1463
@@ -576,6 +590,20 @@ oompah.terminal_audit:
     ended_at: '2026-08-03T22:27:11.148448+00:00'
     failure_reason: normal
     next_retry_at: '2026-08-03T22:27:21.148421+00:00'
+  - version: 1
+    attempt_id: attempt-d43192a6f512
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 4b103ce873cb0ba5c01da5f327fb8d227c3c3337cab3e7aa30a168dcd3bcd957
+    created_at: '2026-08-03T22:27:38.294553+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-03T22:27:38.294553+00:00'
+    branch_key: epic-OOMPAH-588
+    candidate_rotation_count: 1
 oompah.task_costs:
   total_input_tokens: 227
   total_output_tokens: 22444

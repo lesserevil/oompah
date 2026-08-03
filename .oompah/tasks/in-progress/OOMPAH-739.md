@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T20:14:53.133307Z'
-updated_at: '2026-08-03T21:54:59.354970Z'
+updated_at: '2026-08-03T22:27:33.630897Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -156,5 +156,21 @@ author: oompah
 created: 2026-08-03 21:54
 ---
 DISCOVERY: Found root cause in _validate_terminal_transition() and _epic_branch_landed_on_target() in orchestrator.py. The validator tries to verify parent landing by finding PR/MR in the forge, but when source branches are deleted after merge, find_pr_for_branch returns False causing false-positive Merged demotions. Issue details: Child has PASS/Merged audit + parent has PASS/Merged audit proving merge landed, but validator rejects it because deleted source branch cannot be fetched. Key insight: Must check durable parent terminal audit state FIRST before trying forge ref verification. If parent is MERGED or ARCHIVED, the landing is proven and child can safely remain Merged.
+---
+author: oompah
+created: 2026-08-03 22:27
+---
+IMPLEMENTATION: Fixed regression in OOMPAH-725 where verified Merged nested-epic children were incorrectly demoted during restart due to inability to verify parent landing via forge when source branches deleted.
+
+Changes made:
+1. Added context variable (_recovery_snapshot) to terminal_audit_enforcement.py to carry loaded issues through recovery
+2. Modified recover_pending_audits() to build and set a snapshot of all loaded issues before reconciliation
+3. Added get_recovery_snapshot() helper to expose the snapshot to validators
+4. Enhanced _validate_terminal_transition() in orchestrator.py to check recovery snapshot first, allowing parent state to be verified locally even when refs are deleted
+5. Added graceful fallback for backward compatibility with mocked/incompatible signatures
+
+Key insight: During recovery, parent evidence can be checked from the loaded snapshot WITHOUT requiring forge ref verification. This separates 'cannot fetch deleted ref' (not an error) from 'parent has not landed' (actual problem).
+
+All existing tests pass (45 terminal enforcement + 233 epic strategy tests). Ready for verification against OOMPAH-584/587/588 scenario.
 ---
 <!-- COMMENTS:END -->
