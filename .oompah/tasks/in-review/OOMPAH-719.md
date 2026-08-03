@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-719
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 1
 title: Keep oversized auditor run_command output inside the authority boundary
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T14:01:56.950921Z'
-updated_at: '2026-08-03T14:51:54.659250Z'
+updated_at: '2026-08-03T14:52:04.172382Z'
 work_branch: null
 target_branch: null
 review_url: null
