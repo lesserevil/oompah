@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:22.560635Z'
-updated_at: '2026-08-03T23:13:32.747024Z'
+updated_at: '2026-08-03T23:17:00.557277Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-743
 target_branch: null
 review_url: null
@@ -152,5 +152,10 @@ author: oompah
 created: 2026-08-03 23:13
 ---
 Understanding: keep multiline failure transcripts out of compact dashboard alerts by producing bounded normalized/redacted summaries, retaining sanitized diagnostics for explicit details, and enforcing safe limits at producer and renderer boundaries. I will trace producers/templates, add regression/security tests including the EXOCOMP-147 rebase case, run focused checks, then commit, push, and submit.
+---
+author: oompah
+created: 2026-08-03 23:17
+---
+Discovery: Orchestrator.get_snapshot() currently publishes _alerts verbatim; integration_retry alerts concatenate IntegrationExecutionResult.message, which can contain multiline rebase/gate transcripts. Server cached/IPC snapshots can bypass that producer. I will enforce a shared redacted/normalized/bounded alert projection at both boundaries, add a structured integration failure alert, and render diagnostics only inside an accessible collapsed details control.
 ---
 <!-- COMMENTS:END -->
