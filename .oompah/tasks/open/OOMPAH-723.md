@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-723
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Isolate maintenance-lane nonblocking test from awaited tracker I/O
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:20:07.046080Z'
-updated_at: '2026-08-03T15:20:07.046080Z'
+updated_at: '2026-08-03T15:31:02.816916Z'
 work_branch: null
 target_branch: null
 review_url: null
