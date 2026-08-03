@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T16:19:05.113116Z'
-updated_at: '2026-08-03T16:25:59.499502Z'
+updated_at: '2026-08-03T16:30:41.276789Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -169,5 +169,10 @@ author: oompah
 created: 2026-08-03 16:25
 ---
 Discovery: _duplicate_preflight_task_corpus currently sorts all scoped tasks by state/identifier, then truncates at 100 tasks and breaks on the first byte overflow. It ignores parent/child/sibling/dependency relationships and description similarity. Issue already carries parent_id, blocked_by, and start_blocked_by, so the fix can rank authoritative tracker records without worker checkout or network fallback.
+---
+author: oompah
+created: 2026-08-03 16:30
+---
+Implementation: Reworked duplicate corpus selection to retain the current task, parent/children/siblings, direct and reverse normal/hard-start dependencies, then title/description similarity candidates before deterministic generic fallback. Added bounded row compaction, stable project scoping/deduplication, comments/status/description evidence, and an explicit insufficient-budget diagnostic. Duplicate investigators are told the corpus is self-sufficient with no CLI/HTTP/loopback fallback; read-only ACP catalogs expose only workspace file tools.
 ---
 <!-- COMMENTS:END -->
