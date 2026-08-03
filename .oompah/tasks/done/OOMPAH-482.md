@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-482
 type: feature
-status: Merged
+status: Done
 priority: 1
 title: Dispatch one repair-planner run for an epic that fails audit
 parent: OOMPAH-459
@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:30.191340Z'
-updated_at: '2026-08-02T18:23:44.135065Z'
+updated_at: '2026-08-03T20:02:23.752973Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-482
 target_branch: null
 review_url: null
