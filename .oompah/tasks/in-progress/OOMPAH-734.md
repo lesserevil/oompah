@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T19:06:11.095695Z'
-updated_at: '2026-08-03T19:11:11.590409Z'
+updated_at: '2026-08-03T19:12:08.371114Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -137,5 +137,24 @@ author: oompah
 created: 2026-08-03 19:11
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-08-03 19:12
+---
+HANDOFF: This issue requires backend infrastructure fixes, not frontend UI work. The core problem is commit ordering in the terminal coordinator and race conditions in the audit scheduler. Specifically needed:
+
+1. **Terminal Coordinator**: Make terminal result commits atomic and ordered BEFORE any comment posting
+2. **Audit Scheduler**: Prevent duplicate dispatch after committed PASS by checking durable state, not comment text
+3. **Agent Lifecycle**: Handle turn exhaustion correctly - auditor must commit terminal result even when reaching turn ceiling
+4. **Recovery Path**: Ensure fail-closed behavior with actionable finalization alerts
+5. **Tests**: Boundary tests, crash-ordering tests, scheduler race tests, authority-revocation tests
+
+Relevant systems:
+- Terminal coordinator (commit ordering and atomicity)
+- Audit scheduler (dispatch logic and fingerprint fencing)
+- Agent lifecycle (turn ceiling boundary conditions)
+- Tracker state (durable vs. dashboard state consistency)
+
+A backend specialist should take this task to implement the commit ordering fixes, scheduler logic, and comprehensive test coverage. Frontend work (if any dashboard changes are needed) can happen after the backend fix is complete and durable state is reliable.
 ---
 <!-- COMMENTS:END -->
