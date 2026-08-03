@@ -21,12 +21,14 @@ from oompah.duplicate_screening import (
     assess_screening,
     compute_task_fingerprint,
     complete_claim_record,
+    duplicate_preflight_text_payload,
+    format_duplicate_preflight_result,
     inconclusive_record,
     new_claim_record,
 )
 from oompah.events import EventBus
 from oompah.models import BlockerRef, Issue, OrchestratorState, RunningEntry
-from oompah.orchestrator import Orchestrator
+from oompah.orchestrator import Orchestrator, _acp_text_activity_detail
 from oompah.statuses import (
     DONE,
     DUPLICATE_CANDIDATE,
@@ -1329,6 +1331,76 @@ def test_prose_verdict_without_structured_marker_is_inconclusive():
     # Should retry (inconclusive)
     assert result["outcome"] == "retry"
     assert result["retry_count"] == 1
+
+
+def test_provider_boundary_preserves_verdict_beyond_display_truncation():
+    """The OOMPAH-701 response shape survives the ACP text display cap."""
+
+    issue = _issue(identifier="OOMPAH-701")
+    tracker = _Tracker([issue])
+    orch = _orch(tracker)
+    claim = orch._claim_duplicate_preflight(issue)
+    assert claim is not None
+
+    response = (
+        "I reviewed the authoritative corpus in detail.\n"
+        + ("analysis before the required result\n" * 100)
+        + "Focus handoff: duplicate_detector\n"
+        + "Duplicate preflight verdict: no_duplicate\n"
+        + "Matches: none\n"
+        + "Evidence: every nearby task is terminal.\n"
+        + ("optional trailing narrative\n" * 100)
+    )
+    payload = duplicate_preflight_text_payload(response)
+
+    assert len(payload["text"]) == 2000
+    assert "Duplicate preflight verdict" not in payload["text"]
+    extracted = payload["duplicate_preflight_result"]
+    assert extracted == {
+        "verdict": "no_duplicate",
+        "matched_identifiers": [],
+        "evidence": "every nearby task is terminal.",
+    }
+    envelope = format_duplicate_preflight_result(extracted)
+    assert envelope is not None
+    activity_detail = _acp_text_activity_detail(
+        payload,
+        read_only_preflight=True,
+    )
+    assert activity_detail.startswith(
+        "Focus handoff: duplicate_detector\n"
+        "Duplicate preflight verdict: no_duplicate\n"
+        "Matches: none"
+    )
+
+    entry = _entry(issue, claim.claim_id or "", claim.task_fingerprint)
+    entry.activity_log.append(
+        AgentActivity(
+            turn=1,
+            kind="message",
+            summary="provider response",
+            detail=activity_detail,
+            timestamp=datetime.now(timezone.utc).timestamp(),
+        )
+    )
+
+    result = orch._finish_duplicate_preflight_sync(entry, "normal", None)
+    refreshed = tracker.fetch_issue_detail(issue.identifier)
+    assert result["outcome"] == "checked"
+    assert assess_screening(refreshed).implementation_eligible is True
+
+
+def test_provider_boundary_rejects_conflicting_verdict_envelopes():
+    response = (
+        "Duplicate preflight verdict: no_duplicate\n"
+        "Matches: none\n"
+        "Duplicate preflight verdict: duplicate_candidate\n"
+        "Matches: TASK-2\n"
+    )
+
+    assert "duplicate_preflight_result" not in duplicate_preflight_text_payload(
+        response
+    )
 
 
 def test_non_owner_cannot_forge_duplicate_verdict_via_comment():

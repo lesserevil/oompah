@@ -1040,7 +1040,14 @@ class CodexAcpBackendSession(AcpBackendSession):
                 text = getattr(item, "text", "") or ""
                 if text:
                     self._counters.last_event = "text"
-                    yield self._emit("acp_text", payload={"text": text[:2000]})
+                    from oompah.duplicate_screening import (
+                        duplicate_preflight_text_payload,
+                    )
+
+                    yield self._emit(
+                        "acp_text",
+                        payload=duplicate_preflight_text_payload(text),
+                    )
         elif item_type == "reasoning":
             if ev_type == "item.completed":
                 text = getattr(item, "text", "") or ""
@@ -1129,8 +1136,12 @@ class CodexAcpBackendSession(AcpBackendSession):
             delta = getattr(data, "delta", None) if data is not None else None
             if isinstance(delta, str) and delta:
                 self._counters.last_event = "text"
+                from oompah.duplicate_screening import (
+                    duplicate_preflight_text_payload,
+                )
+
                 yield self._emit(
-                    "acp_text", payload={"text": delta[:2000]}
+                    "acp_text", payload=duplicate_preflight_text_payload(delta)
                 )
             # Capture session id if present.
             if data is not None and self._session_id is None:
@@ -1146,8 +1157,12 @@ class CodexAcpBackendSession(AcpBackendSession):
                 text = self._extract_message_text(item)
                 if text:
                     self._counters.last_event = "text"
+                    from oompah.duplicate_screening import (
+                        duplicate_preflight_text_payload,
+                    )
+
                     yield self._emit(
-                        "acp_text", payload={"text": text[:2000]}
+                        "acp_text", payload=duplicate_preflight_text_payload(text)
                     )
             elif item_type == "tool_call_item":
                 self._counters.last_event = "tool_use"

@@ -354,6 +354,29 @@ class TestOpencodeSessionLifecycle:
         assert "Hello from opencode" in text_events[0].payload["text"]
 
     @pytest.mark.asyncio
+    async def test_text_extracts_verdict_before_display_truncation(self):
+        text = (
+            ("analysis\n" * 300)
+            + "Duplicate preflight verdict: no_duplicate\n"
+            + "Matches: none\n"
+        )
+        proc = _build_mock_proc(
+            stdout_lines=[
+                _json_msg("session_start"),
+                _json_msg("text", text=text),
+                _json_msg("result"),
+            ],
+        )
+
+        _session, events = await self._drive_session(proc)
+
+        text_event = next(event for event in events if event.kind == "text")
+        assert len(text_event.payload["text"]) == 2000
+        assert text_event.payload["duplicate_preflight_result"]["verdict"] == (
+            "no_duplicate"
+        )
+
+    @pytest.mark.asyncio
     async def test_run_turn_emits_tool_use_events(self):
         """A tool_use message from opencode serve is mapped to acp_tool_use."""
         proc = _build_mock_proc(

@@ -30,6 +30,16 @@ DETECTOR_VERSION = "duplicate-detector-v1"
 DEFAULT_CLAIM_TTL_SECONDS = 30 * 60
 
 _SPACE_RE = re.compile(r"\s+")
+_RESULT_VERDICT_RE = re.compile(
+    r"(?i)^duplicate preflight verdict:\s*"
+    r"(duplicate_candidate|no_duplicate|inconclusive)\s*$"
+)
+_RESULT_MATCHES_RE = re.compile(r"(?i)^matches:\s*(.*?)\s*$")
+_RESULT_EVIDENCE_RE = re.compile(r"(?i)^evidence:\s*(.*?)\s*$")
+_RESULT_TEXT_LIMIT = 2000
+_RESULT_EVIDENCE_LIMIT = 1000
+_RESULT_MATCH_LIMIT = 20
+_RESULT_IDENTIFIER_LIMIT = 128
 
 
 class ScreeningState(str, Enum):
@@ -47,6 +57,137 @@ class ScreeningVerdict(str, Enum):
     NO_DUPLICATE = "no_duplicate"
     DUPLICATE_CANDIDATE = "duplicate_candidate"
     INCONCLUSIVE = "inconclusive"
+
+
+def _normalize_result_line(value: object) -> str:
+    """Normalize one model-result line without accepting prose variants."""
+
+    line = re.sub(r"^\s*(?:>\s*)?(?:[-*+]\s+)?", "", str(value or ""))
+    return line.strip().strip("`*_~").strip()
+
+
+def extract_duplicate_preflight_result(text: object) -> dict[str, Any] | None:
+    """Extract a bounded structured verdict before provider log truncation.
+
+    ACP backends deliberately cap ordinary assistant text before it reaches
+    logs and dashboard state.  Duplicate investigators can put their exact
+    machine-readable block after analysis despite prompt instructions, so the
+    cap used to erase an otherwise valid verdict.  This helper scans the full
+    provider-owned response for the exact verdict + matches envelope and
+    returns only a small validated result that is safe to carry beside the
+    truncated display text.
+
+    Task comments and prompt text never pass through this function as a result
+    channel.  Multiple conflicting envelopes fail closed.
+    """
+
+    raw_text = str(text or "")
+    if not raw_text:
+        return None
+    raw_lines = raw_text.splitlines()
+    lines = [_normalize_result_line(line) for line in raw_lines]
+    candidates: list[dict[str, Any]] = []
+    for index, line in enumerate(lines):
+        verdict_match = _RESULT_VERDICT_RE.fullmatch(line)
+        if verdict_match is None:
+            continue
+
+        matches_index: int | None = None
+        matches_value = ""
+        # The contract places Matches immediately after the verdict. Permit
+        # blank/markdown-only lines, but stop at substantive prose or another
+        # verdict so a remote phrase cannot be stitched into an envelope.
+        for candidate_index in range(index + 1, min(len(lines), index + 5)):
+            candidate_line = lines[candidate_index]
+            if not candidate_line:
+                continue
+            matches_match = _RESULT_MATCHES_RE.fullmatch(candidate_line)
+            if matches_match is not None:
+                matches_index = candidate_index
+                matches_value = matches_match.group(1).strip()
+            break
+        if matches_index is None:
+            continue
+
+        identifiers: list[str] = []
+        if matches_value.casefold() not in {"none", "n/a", "no match"}:
+            identifiers = [
+                identifier[:_RESULT_IDENTIFIER_LIMIT]
+                for identifier in re.split(r"[\s,]+", matches_value)
+                if identifier
+            ][:_RESULT_MATCH_LIMIT]
+
+        evidence = ""
+        for candidate_index in range(matches_index + 1, len(lines)):
+            candidate_line = lines[candidate_index]
+            if not candidate_line:
+                continue
+            evidence_match = _RESULT_EVIDENCE_RE.fullmatch(candidate_line)
+            if evidence_match is not None:
+                evidence = evidence_match.group(1).strip()
+            break
+        if not evidence:
+            evidence = (
+                f"Duplicate preflight verdict: {verdict_match.group(1).lower()}\n"
+                f"Matches: {matches_value}"
+            )
+        candidates.append(
+            {
+                "verdict": verdict_match.group(1).lower(),
+                "matched_identifiers": identifiers,
+                "evidence": evidence[:_RESULT_EVIDENCE_LIMIT],
+            }
+        )
+
+    if not candidates:
+        return None
+    signatures = {
+        (candidate["verdict"], tuple(candidate["matched_identifiers"]))
+        for candidate in candidates
+    }
+    if len(signatures) != 1:
+        return None
+    return candidates[-1]
+
+
+def duplicate_preflight_text_payload(text: object) -> dict[str, Any]:
+    """Return display-bounded text plus any pre-truncation verdict envelope."""
+
+    raw_text = str(text or "")
+    payload: dict[str, Any] = {"text": raw_text[:_RESULT_TEXT_LIMIT]}
+    result = extract_duplicate_preflight_result(raw_text)
+    if result is not None:
+        payload["duplicate_preflight_result"] = result
+    return payload
+
+
+def format_duplicate_preflight_result(result: object) -> str | None:
+    """Render a validated extracted result as the parser's leading envelope."""
+
+    if not isinstance(result, dict):
+        return None
+    try:
+        verdict = ScreeningVerdict(str(result.get("verdict") or "").lower())
+    except ValueError:
+        return None
+    raw_identifiers = result.get("matched_identifiers")
+    if not isinstance(raw_identifiers, list):
+        return None
+    identifiers = [
+        str(identifier)[:_RESULT_IDENTIFIER_LIMIT]
+        for identifier in raw_identifiers[:_RESULT_MATCH_LIMIT]
+        if str(identifier).strip()
+    ]
+    matches = ", ".join(identifiers) if identifiers else "none"
+    evidence = str(result.get("evidence") or "")[:_RESULT_EVIDENCE_LIMIT]
+    rendered = (
+        "Focus handoff: duplicate_detector\n"
+        f"Duplicate preflight verdict: {verdict.value}\n"
+        f"Matches: {matches}"
+    )
+    if evidence:
+        rendered += f"\nEvidence: {evidence}"
+    return rendered
 
 
 def _normalize_text(value: object) -> str:

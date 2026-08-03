@@ -602,8 +602,12 @@ class OpencodeAcpBackendSession(AcpBackendSession):
             text = msg.get("text", "")
             if text:
                 self._counters.last_event = "text"
+                from oompah.duplicate_screening import (
+                    duplicate_preflight_text_payload,
+                )
+
                 yield self._emit(
-                    "acp_text", payload={"text": str(text)[:2000]}
+                    "acp_text", payload=duplicate_preflight_text_payload(text)
                 )
 
         elif msg_type == "tool_use":

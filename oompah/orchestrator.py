@@ -59,6 +59,7 @@ from oompah.duplicate_screening import (
     complete_claim_record,
     compute_task_fingerprint,
     eligible_for_model_screening,
+    format_duplicate_preflight_result,
     inconclusive_record,
     load_record as load_duplicate_screening_record,
     new_claim_record,
@@ -312,6 +313,22 @@ def _acp_session_is_read_only(focus: Any, running_entry: Any | None) -> bool:
             and getattr(running_entry, "duplicate_preflight", False)
         )
     )
+
+
+def _acp_text_activity_detail(
+    payload: dict[str, Any],
+    *,
+    read_only_preflight: bool,
+) -> str:
+    """Build in-memory ACP speech detail without losing a result envelope."""
+
+    text = str(payload.get("text", ""))
+    extracted_result = payload.get("duplicate_preflight_result")
+    if read_only_preflight and extracted_result is not None:
+        envelope = format_duplicate_preflight_result(extracted_result)
+        if envelope is not None:
+            return f"{envelope}\n{text}"
+    return text[:2000]
 
 
 def _available_memory_bytes() -> int | None:
@@ -27732,10 +27749,15 @@ class Orchestrator:
                 elif ev.event == "acp_text":
                     text = str(payload.get("text", ""))
                     summary = text[:200] or "(empty text)"
-                    # Keep the complete structured final verdict in memory for
-                    # read-only preflight parsing. Serialization still applies
-                    # AgentActivity's normal display truncation.
-                    detail = text if read_only_preflight else text[:2000]
+                    # ACP backends extract this bounded result from their full
+                    # provider response before applying the 2,000-character
+                    # display/log cap.  Put the validated envelope first for
+                    # the existing current-run parser; task comments remain
+                    # outside this result channel.
+                    detail = _acp_text_activity_detail(
+                        payload,
+                        read_only_preflight=read_only_preflight,
+                    )
                 elif ev.event == "acp_thinking":
                     text = str(payload.get("text", ""))
                     summary = text[:200] or "(thinking)"
