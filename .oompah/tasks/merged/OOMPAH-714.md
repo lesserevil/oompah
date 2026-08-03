@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-714
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Do not cancel an unrelated branch gate when an auditor attempt retires
 parent: null
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T01:03:08.223719Z'
-updated_at: '2026-08-03T03:06:19.665724Z'
+updated_at: '2026-08-03T03:09:11.494388Z'
 work_branch: OOMPAH-714
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/675
@@ -145,6 +145,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-0532d77fc08a: '2026-08-03T03:05:46.068787+00:00'
+    attempt-5276bd0f056f: '2026-08-03T03:09:06.946771+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-714
@@ -155,6 +156,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-03T03:05:46.068801+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-714
+    target_state: Merged
+    evidence_fingerprint: 34070e96eae79a32f080cb09f6244000bdbdd1da09baef1f3dc921e77887ed21
+    audit_ids:
+    - audit-368c38000175
+    kind: result
+    applied: true
+    retired_at: '2026-08-03T03:09:06.946792+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-714
@@ -168,6 +178,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-03T03:05:46.068818+00:00'
     applied_at: '2026-08-03T03:05:52.698922+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-714
+    audit_id: audit-368c38000175
+    attempt_id: attempt-5276bd0f056f
+    target_state: Merged
+    evidence_fingerprint: 34070e96eae79a32f080cb09f6244000bdbdd1da09baef1f3dc921e77887ed21
+    status: Merged
+    audit_ids:
+    - audit-368c38000175
+    applied: false
+    created_at: '2026-08-03T03:09:06.946814+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -229,7 +250,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-714
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -238,7 +259,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-5276bd0f056f
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -248,13 +269,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-03T03:06:14.454300+00:00'
       branch_key: OOMPAH-714
+      verdict: pass
+      completed_at: '2026-08-03T03:09:06.946576+00:00'
+      ended_at: '2026-08-03T03:09:06.946576+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-03T02:55:43.843503+00:00'
-    updated_at: '2026-08-03T03:06:14.454300+00:00'
+    updated_at: '2026-08-03T03:09:06.946576+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-3f0f50e00cb3
@@ -546,5 +570,29 @@ author: oompah
 created: 2026-08-03 03:06
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-03 03:09
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- merged_commit_sha: 28bb1e3c212a07e765e5cb461c08b7a578c5c8f6
+- merge_commit_sha: fc79579d42968c99a1130275dd40b5cc84c89526
+- merged_pr: 675
+- on_main: true
+- files_changed: 8 files, 1018 insertions, 47 deletions
+- test_quality_gate_count: 72 passed
+- test_delivery_plane_recovery_count: 7 passed
+- test_standalone_ready_to_integrate_count: 30 passed
+- test_dashboard_terminal_audit_health_count: 19 passed
+- focused_total: 128 passed
+- regression_test_present: test_completion_auditor_retirement_preserves_unrelated_branch_gate
+- cross_task_cancel_test_present: test_exact_owner_cancellation_cannot_stop_an_unrelated_task_gate
+- retryable_interrupt_test_present: test_quality_gate_state_reports_retryable_interrupt_and_clears_on_pass
+- legacy_fallback_test_present: test_legacy_quality_gate_facade_uses_generation_fallback
+- bounded_telemetry_test_present: test_quality_gate_outcomes_are_bounded_and_head_aware
 ---
 <!-- COMMENTS:END -->
