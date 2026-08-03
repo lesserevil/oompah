@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-732
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Prevent standalone Ready delivery starvation after restart
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T17:50:33.429591Z'
-updated_at: '2026-08-03T18:01:43.169921Z'
+updated_at: '2026-08-03T18:03:25.685875Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -115,7 +115,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: b1ab6e68-21d3-4ea3-9d67-81c0f9e018f0
+oompah.agent_run_id: ba32f46e-31e9-4e86-86e1-155a92f27ea0
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1882
@@ -189,5 +189,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 8m 14s
 - Log: OOMPAH-732__20260803T175332Z.jsonl
+---
+author: oompah
+created: 2026-08-03 18:03
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
