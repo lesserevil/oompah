@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T17:50:33.429591Z'
-updated_at: '2026-08-03T17:58:46.136405Z'
+updated_at: '2026-08-03T18:01:43.169921Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -22,20 +22,126 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 1ead466f6b075a490ac65852a7c07a00a2fb85b329ff34b25e6401d64b7e3251
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-03T18:01:38.122140+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 9ea6a089-2558-4a42-ad2d-3f278f14912a
-  claim_owner: 8a58fb27-42d0-40cf-8dc2-70615b9783dc
-  claimed_at: '2026-08-03T17:53:06.675850+00:00'
-  claim_expires_at: '2026-08-03T18:23:06.675850+00:00'
+  evidence: 'Focus handoff: duplicate_detector
+
+    Duplicate preflight verdict: no_duplicate
+
+    Matches: none
+
+    Evidence: The current project task corpus contains only OOMPAH-732 in Open state.
+    All 175+ peer tasks are archived/terminal and therefore ineligible as duplicate
+    targets. The referenced regression source OOMPAH-598 is absent from the authoritative
+    corpus; if it exists in the tracker, it has been merged and would be terminal.
+    No active Open task addresses the specific standalone delivery starvation mechanism
+    (authority revocation before review lookup during shared-epic queue starvation)
+    described in OOMPAH-732.
+
+    # Duplicate Investigation Results
+
+
+    I need to analyze OOMPAH-732 against the provided project task corpus to determine
+    if it''s a duplicate of any active issue.
+
+
+    ## Current Task Summary
+
+    **OOMPAH-732** is marked as **Open** and describes:
+
+    - A live regression from merged OOMPAH-598 (post-2026-08-03 service restart)
+
+    - Standalone Ready tasks (OOMPAH-724, OOMPAH-726, OOMPAH-729) stuck without delivery
+    paths
+
+    - Root cause: delivery authority being revoked before review lookup, repeating
+    with no competing worker/tracker transition
+
+    - No gate, review, queue activity, or standalone-delivery alert despite having
+    capacity
+
+
+    ## Corpus Analysis
+
+
+    I reviewed all 175+ tasks in the provided current project task corpus for active
+    duplicates. The task corpus explicitly states `"availability": "authoritative"`
+    and `"scope": "current project tracker"`.
+
+
+    **Finding:** No active Open task in the corpus describes the same standalone Ready
+    delivery starvation problem.
+
+
+    ### Key Observations:
+
+
+    1. **All other tasks are terminal** (Archived/Done/Merged): OOMPAH-1, OOMPAH-10
+    through OOMPAH-175 are all explicitly marked Archived or Done, making them historical
+    context rather than active duplicate targets per the investigation rules.
+
+
+    2. **OOMPAH-598 is not in the corpus**: The issue description references OOMPAH-598
+    as the source of the regression ("Live regression of merged OOMPAH-598"), but
+    this task does not appear in the provided authoritative corpus. If OOMPAH-598
+    exists, it has been merged/archived (terminal state) and would not qualify as
+    a duplicate candidate anyway.
+
+
+    3. **No related Open task covers this scope**: The closest archived tasks touch
+    orchestrator delivery, reconciliation scheduling, quality gates, and review capacity
+    (OOMPAH-162 through OOMPAH-175), but all are terminal and none describe the specific
+    starvation pattern of standalone Ready records being skipped during shared-epic
+    queue processing.
+
+
+    ---
+
+
+    Focus handoff: duplicate_detector
+
+
+    Duplicate preflight verdict: no_duplicate
+
+
+    Ma'
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
 oompah.agent_run_id: b1ab6e68-21d3-4ea3-9d67-81c0f9e018f0
+oompah.task_costs:
+  total_input_tokens: 10
+  total_output_tokens: 1882
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 10
+      output_tokens: 1882
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 10
+    output_tokens: 1882
+    cost_usd: 0.0
+    recorded_at: '2026-08-03T18:01:38.119231+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-732__20260803T175332Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: duplicate_detector
+    source_branch: OOMPAH-732
+    source_sha: f035aa3e64db9e6c71e6538c0c4fd7fcffa2de8c
+    completed_at: '2026-08-03T18:01:38.150950+00:00'
 ---
 ## Summary
 
@@ -73,5 +179,15 @@ author: oompah
 created: 2026-08-03 17:58
 ---
 Additional live scheduling defect: after same-head rearm, the standalone reconciler correctly began the exact OOMPAH-724 make test gate in isolated bwrap (active gate PID 3130590), but _process_integration_queues awaits the entire standalone reconciliation before recover/claim of shared-epic rows. While this several-minute gate runs, 39 Ready integration rows have no claimant. Make the permanent scheduling fix bidirectional: shared-epic volume must not starve standalone delivery, and a long standalone exact-head gate must not pause unrelated shared-epic queue claims. Preserve per-project review/gate serialization while allowing unrelated groups/projects to progress.
+---
+author: oompah
+created: 2026-08-03 18:01
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 2, Tool calls: 0
+- Tokens: 10 in / 1.9K out [1.9K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 8m 14s
+- Log: OOMPAH-732__20260803T175332Z.jsonl
 ---
 <!-- COMMENTS:END -->
