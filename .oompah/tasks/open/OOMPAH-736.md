@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T19:26:22.477120Z'
-updated_at: '2026-08-03T19:27:02.074922Z'
+updated_at: '2026-08-03T19:27:41.637758Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -22,20 +22,54 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: a9ad7e8cca59e0c39ddf67181fa80efd012d0a7ebcde6adf3c86742955b010cb
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-03T19:27:32.123320+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 3a985e2e-2a47-4195-8f33-dc896de9f904
-  claim_owner: 8a58fb27-42d0-40cf-8dc2-70615b9783dc
-  claimed_at: '2026-08-03T19:26:46.939052+00:00'
-  claim_expires_at: '2026-08-03T19:56:46.939052+00:00'
+  evidence: "Focus handoff: duplicate_detector\nDuplicate preflight verdict: no_duplicate\n\
+    Matches: none\nEvidence: Reviewed the supplied peer corpus; no active task addresses\
+    \ auditor command-policy validation or provider-rotation classification. Closest\
+    \ topics, OOMPAH-174 and OOMPAH-175, are archived release-branch tasks and unrelated.\n\
+    Focus handoff: duplicate_detector  \nDuplicate preflight verdict: no_duplicate\
+    \  \nMatches: none\n\nEvidence: Reviewed the supplied peer corpus; no active task\
+    \ addresses auditor command-policy validation or provider-rotation classification.\
+    \ Closest topics, OOMPAH-174 and OOMPAH-175, are archived release-branch tasks\
+    \ and unrelated."
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
 oompah.agent_run_id: 1fb75a12-8871-435f-81b9-a2b0f12cda68
+oompah.task_costs:
+  total_input_tokens: 50398
+  total_output_tokens: 297
+  total_cost_usd: 0.0
+  by_model:
+    haiku:
+      input_tokens: 50398
+      output_tokens: 297
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: haiku
+    input_tokens: 50398
+    output_tokens: 297
+    cost_usd: 0.0
+    recorded_at: '2026-08-03T19:27:31.988008+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-736__20260803T192705Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: OOMPAH-736
+    source_sha: fae232ee614a74a9565f4fc6bfbbcf86333f0255
+    completed_at: '2026-08-03T19:27:32.147847+00:00'
 ---
 ## Summary
 
@@ -91,5 +125,15 @@ author: oompah
 created: 2026-08-03 19:27
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-03 19:27
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 1, Tool calls: 0
+- Tokens: 50.4K in / 297 out [50.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 36s
+- Log: OOMPAH-736__20260803T192705Z.jsonl
 ---
 <!-- COMMENTS:END -->
