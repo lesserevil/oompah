@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:13.861445Z'
-updated_at: '2026-08-03T23:13:50.498874Z'
+updated_at: '2026-08-03T23:26:46.064949Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-741
 target_branch: null
 review_url: null
@@ -161,5 +161,15 @@ author: oompah
 created: 2026-08-03 23:13
 ---
 Implementation: Added oompah.dashboard_alerts normalization/deduplication with redaction, stable identity, severity, action_required, recovery/lifecycle/status/active fields, and retained diagnostics. Orchestrator snapshots now normalize all producers and expose active/failed quality-gate facts; server REST/WebSocket enrichment normalizes cached/fallback snapshots. Terminal-audit, auth, and repository-health producers emit the structured fields, and dashboard warnings filter action_required=false.
+---
+author: oompah
+created: 2026-08-03 23:26
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 88
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 19m 57s
+- Log: OOMPAH-741__20260803T230702Z.jsonl
 ---
 <!-- COMMENTS:END -->
