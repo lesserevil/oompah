@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-724
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Fence accepted submissions against post-handoff worktree mutation
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:25:39.369981Z'
-updated_at: '2026-08-03T21:10:28.280105Z'
+updated_at: '2026-08-03T21:17:54.356722Z'
 work_branch: OOMPAH-724
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/689
@@ -134,6 +134,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-fea797ff10f8: '2026-08-03T21:05:41.526577+00:00'
+    attempt-8893e945564d: '2026-08-03T21:17:47.512618+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-724
@@ -144,6 +145,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-03T21:05:41.526584+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-724
+    target_state: Merged
+    evidence_fingerprint: 6207b35347f538a8b533c9c3026bc0960152108688fd6062acb1c6683247296c
+    audit_ids:
+    - audit-416640aad5b6
+    kind: result
+    applied: true
+    retired_at: '2026-08-03T21:17:47.512629+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-724
@@ -157,6 +167,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-03T21:05:41.526594+00:00'
     applied_at: '2026-08-03T21:05:51.472203+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-724
+    audit_id: audit-416640aad5b6
+    attempt_id: attempt-8893e945564d
+    target_state: Merged
+    evidence_fingerprint: 6207b35347f538a8b533c9c3026bc0960152108688fd6062acb1c6683247296c
+    status: Merged
+    audit_ids:
+    - audit-416640aad5b6
+    applied: false
+    created_at: '2026-08-03T21:17:47.512642+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -198,7 +219,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-724
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -207,7 +228,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-8893e945564d
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -217,13 +238,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-03T21:10:04.790627+00:00'
       branch_key: OOMPAH-724
+      verdict: pass
+      completed_at: '2026-08-03T21:17:47.512489+00:00'
+      ended_at: '2026-08-03T21:17:47.512489+00:00'
     requested_by:
       version: 1
       identity: NVShawn
       source: forge
     previous_state: In Review
     created_at: '2026-08-03T19:43:14.892619+00:00'
-    updated_at: '2026-08-03T21:10:04.790627+00:00'
+    updated_at: '2026-08-03T21:17:47.512489+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-fea797ff10f8
@@ -541,5 +565,27 @@ author: oompah
 created: 2026-08-03 21:10
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-03 21:17
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- branch_head: e0e1769757167c48853d850c484840f129aa56cf
+- head_is_ancestor_of_origin_main: true
+- merged_pr: #689
+- origin_main_marker: Merge pull request #689 from lesserevil/OOMPAH-724
+- models_change: oompah/models.py:1472 accepted_submission_record
+- handler_change: oompah/orchestrator.py:29793 _handle_revoked_submission_exit
+- exit_route: oompah/orchestrator.py:30587 routes accepted+revoked entries
+- tests_file_tracked: tests/test_submission_fencing.py
+- prior_branch_gate: make test passed 406.0s for e0e1769757167c48853d850c484840f129aa56cf
+- prior_focused_tests: tests/test_submission_fencing.py 3/3
+- prior_neighbor_tests: worker_submission+integration_executor+retry_authority_generation+orchestrator_handlers 325/325
+- prior_extra_tests: projects+models 133/133
+- commit_trailer: oompah co-author, no model attribution
 ---
 <!-- COMMENTS:END -->
