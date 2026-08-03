@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-03T00:23:44.424551Z'
-updated_at: '2026-08-03T00:29:04.887084Z'
+updated_at: '2026-08-03T00:29:07.929818Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -40,7 +40,17 @@ oompah.terminal_audit:
       the suspected hidden provider. The only real gauge inconsistency is covered
       and tested by OOMPAH-710.'
     created_at: '2026-08-03T00:29:01.303447+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-712
+    target_state: Archived
+    evidence_fingerprint: 58c13464c4a9338abbd786402a8bef620ae36aa6834b05bc60e5cabb081a3690
+    audit_ids: []
+    kind: override
+    applied: true
+    retired_at: '2026-08-03T00:29:06.878439+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain: []
   attempt_history: []
