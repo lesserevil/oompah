@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-620
 type: feature
-status: Merged
+status: Done
 priority: 1
 title: Resolve CLI Basic-auth credentials from argv, environment, and netrc
 parent: OOMPAH-619
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T21:25:27.860280Z'
-updated_at: '2026-08-02T18:27:50.598574Z'
+updated_at: '2026-08-03T20:04:18.125358Z'
 work_branch: epic-OOMPAH-619--task-OOMPAH-620
 target_branch: null
 review_url: null
