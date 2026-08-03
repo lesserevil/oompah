@@ -12,7 +12,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-08-03T19:06:11.095695Z'
-updated_at: '2026-08-03T19:24:14.767504Z'
+updated_at: '2026-08-03T19:31:46.470982Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -281,5 +281,27 @@ Understanding: The production regression stems from improper commit ordering in 
 4. **Exit-before-commit fail-closed**: Provider exit/timeout cannot leave misleading PASS comment while durable audit remains incomplete
 
 I will update the design docs to make the commit ordering and turn-ceiling requirements explicit for the backend implementation, then hand off to a backend specialist.
+---
+author: oompah
+created: 2026-08-03 19:31
+---
+Discovery: The issue stems from incorrect commit ordering: the auditor posts a PASS comment before the coordinator persists the durable verdict, leaving the task in In Validation when the auditor hits its turn ceiling. I have updated three design documents to specify the required fix:
+
+1. **plans/terminal-transition-coordinator.md** — Added 'Commit-Before-Comment Ordering' section:
+   - Verdict record MUST be persisted as COMPLETED before any tracker comment
+   - Provides recovery path for exit-before-comment scenarios
+   - Clarifies turn-ceiling boundary: finalization call is non-starvable, outside ordinary turn budget
+   - Ensures no auditor can strand the task by reaching its turn limit
+
+2. **plans/independent-auditor-dispatch.md** — Added 'Turn-Ceiling and Finalization Semantics':
+   - Auditor reserves finalization call outside turn budget
+   - Turn N-1: complete logic and decide verdict; Turn N: invoke submit_audit_result non-starvably
+   - Added 'Fingerprint-Based Duplicate-Dispatch Prevention' section explaining how committed PASS prevents second auditor via compare-and-set
+
+3. **docs/auditor-dispatch-operations.md** — Added 'Uncommitted Finalization Failures' troubleshooting:
+   - Operator-facing recovery guidance for finalization failures
+   - Auto-recovery on restart; manual rearm command if needed
+
+These docs now prescribe the exact requirements for backend implementation.
 ---
 <!-- COMMENTS:END -->
