@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-744
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Atomically clear stale alert UI after authoritative resynchronization
 parent: OOMPAH-740
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:25.203763Z'
-updated_at: '2026-08-03T23:38:53.705402Z'
+updated_at: '2026-08-03T23:39:14.494929Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-744
 target_branch: null
 review_url: null
@@ -73,12 +73,12 @@ oompah.agent_run_id: dbab9525-8a8a-4f37-aca1-7492a2d37d0b
 oompah.work_branch: epic-OOMPAH-740--task-OOMPAH-744
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-740--task-OOMPAH-744
-  base_branch: epic-OOMPAH-740
-  base_sha: 583fb236963493a820f36eabdd29789fa5497e6b
-  updated_at: '2026-08-03T23:15:36.994182+00:00'
+  head_sha: b35bb731824fd98fba491d3daf1052bdd5208f88
+  submitted_at: '2026-08-03T23:39:09.474747+00:00'
+  updated_at: '2026-08-03T23:39:09.474747+00:00'
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1994
@@ -254,5 +254,10 @@ Changes:
 Commit: b35bb7318 (signed with oompah attribution)
 Branch: epic-OOMPAH-740--task-OOMPAH-744
 Status: Ready for integration
+---
+author: oompah
+created: 2026-08-03 23:39
+---
+Implemented atomic clearing of stale alert UI after authoritative full_sync. Added _clearAllAlertAndHealthUI() function that clears all diagnostic panels (alerts, credential errors, quality gates, terminal audit, repo hygiene, auth health, running agents) before applying an authoritative snapshot. This ensures full_sync responses are treated as complete replacements, preventing mixed-generation rendering where old alerts appear beside new state. All 907 dashboard tests + 16 fault injection tests pass. Implementation is production-ready.
 ---
 <!-- COMMENTS:END -->
