@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-745
 type: task
-status: Open
+status: In Progress
 priority: 1
 title: Add browser-level alert density and recovery regression coverage
 parent: OOMPAH-740
@@ -16,7 +16,7 @@ labels:
 - needs:test
 assignee: null
 created_at: '2026-08-03T22:56:27.836890Z'
-updated_at: '2026-08-03T23:42:18.781913Z'
+updated_at: '2026-08-03T23:42:51.808037Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-745
 target_branch: null
 review_url: null
@@ -69,7 +69,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 71bad1af-a2df-46bc-b654-108ea2047684
+oompah.agent_run_id: bacf6ad9-a6a1-465d-8dfb-7834dc82172b
 oompah.work_branch: epic-OOMPAH-740--task-OOMPAH-745
 oompah.integration:
   version: 2
