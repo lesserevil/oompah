@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T00:59:11.573065Z'
-updated_at: '2026-08-03T01:09:28.191621Z'
+updated_at: '2026-08-03T01:11:24.554157Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -156,5 +156,10 @@ author: oompah
 created: 2026-08-03 01:09
 ---
 Implementation: Added recoverable AuditorCommandDenial metadata for unsupported read-only shell separators, skipped those denials in API/ACP/orchestrator fatal-budget callbacks, and kept mutation/shell-escape/file-redirection paths fail-closed. Fatal policy exhaustion now records FailureClassification.POLICY_INCOMPATIBILITY, with dedicated health counters/alerts and dashboard wording distinct from transport outages. Auditor prompts and both tool catalogs now prefer bounded read_file/search_files and separate run_command calls.
+---
+author: oompah
+created: 2026-08-03 01:11
+---
+Verification: after fixing an initial regex compilation error, the focused authority/auditor/health/coordinator/dashboard suites pass 341 tests. Recoverable OOMPAH-709 pipeline denials do not invoke the fatal callback; safe search/run calls and bounded reads continue successfully; policy incompatibility health is separate from transport health.
 ---
 <!-- COMMENTS:END -->
