@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T20:08:56.082557Z'
-updated_at: '2026-08-03T22:22:04.220082Z'
+updated_at: '2026-08-03T22:47:52.994569Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -318,5 +318,20 @@ author: oompah
 created: 2026-08-03 22:22
 ---
 Understanding: CI Failure Fixer picking up from the gate failure. 12 tests failed across test_orchestrator_duplicate_detection.py, test_release_pick_validation.py, test_storage_cleanup.py, and test_task_cost_telemetry.py. These test files were NOT modified by this PR but likely broke due to changes in oompah/orchestrator.py (the PR's main changed path). Will read the failing tests and the orchestrator diff to identify exactly what broke and apply a minimal fix.
+---
+author: oompah
+created: 2026-08-03 22:47
+---
+Implementation: Fixed 12 CI gate failures caused by test helpers using Orchestrator.__new__() not receiving the _retry_authority_lock attribute added by this PR's _running_items_snapshot refactor.
+
+Root causes:
+1. test_orchestrator_duplicate_detection.py — 3 helpers missing _retry_authority_lock: _make_orch_for_should_dispatch, _make_orch, and one inline orch
+2. test_release_pick_validation.py — _make_orchestrator_with_project missing _retry_authority_lock
+3. test_storage_cleanup.py — _scheduler helper missing _retry_authority_lock
+4. test_task_cost_telemetry.py — terminate.call_args.args[0] is captured identity check failed because _managed_processes now returns dict(current) (a copy), not the original dict; changed to == equality check
+
+Fix: minimal 7-line change across 4 test files — add _retry_authority_lock = threading.RLock() to each helper, change one is to ==.
+
+Verification: all 12 previously-failing tests pass; full affected suites (133 tests) pass; original PR suites (105 tests) unaffected.
 ---
 <!-- COMMENTS:END -->
