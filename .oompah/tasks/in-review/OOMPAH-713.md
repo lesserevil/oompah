@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-03T00:59:11.573065Z'
-updated_at: '2026-08-03T02:07:05.890199Z'
+updated_at: '2026-08-03T02:07:13.943507Z'
 work_branch: OOMPAH-713
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/673
@@ -215,5 +215,10 @@ author: oompah
 created: 2026-08-03 02:06
 ---
 Branch quality gate passed for `ac442ca4573e98fed6057b84c65b9113d1913ed7` using `make test` in 423.9s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-03 02:07
+---
+Completion-audit guidance while this fix is not yet deployed: use approved read_file, list_files, search_files, and simple single read-only run_command calls only. Do not use grep, pipes, redirection, command chaining, or whole-file reads. Exact submitted head ac442ca4573e98fed6057b84c65b9113d1913ed7 passed the combined 433-test affected suite and make check-secrets.
 ---
 <!-- COMMENTS:END -->
