@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-744
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Atomically clear stale alert UI after authoritative resynchronization
 parent: OOMPAH-740
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:25.203763Z'
-updated_at: '2026-08-03T23:06:26.090162Z'
+updated_at: '2026-08-03T23:15:31.274525Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-744
 target_branch: null
 review_url: null
@@ -69,7 +69,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 8c67b196-018e-462a-9f07-1538ceaf8363
+oompah.agent_run_id: dbab9525-8a8a-4f37-aca1-7492a2d37d0b
 oompah.work_branch: epic-OOMPAH-740--task-OOMPAH-744
 oompah.integration:
   version: 2
@@ -162,5 +162,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 3m 33s
 - Log: OOMPAH-744__20260803T230325Z.jsonl
+---
+author: oompah
+created: 2026-08-03 23:15
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
