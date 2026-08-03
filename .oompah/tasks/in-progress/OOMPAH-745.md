@@ -11,10 +11,11 @@ blocked_by:
 - OOMPAH-743
 - OOMPAH-744
 start_blocked_by: []
-labels: []
+labels:
+- focus-complete:merge_conflict
 assignee: null
 created_at: '2026-08-03T22:56:27.836890Z'
-updated_at: '2026-08-03T23:40:29.040404Z'
+updated_at: '2026-08-03T23:40:47.198515Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-745
 target_branch: null
 review_url: null
