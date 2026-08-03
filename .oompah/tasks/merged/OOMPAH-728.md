@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-728
 type: bug
-status: In Validation
+status: Merged
 priority: 1
 title: Keep structurally relevant peers in duplicate-screening corpus
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T16:19:05.113116Z'
-updated_at: '2026-08-03T17:35:43.236359Z'
+updated_at: '2026-08-03T17:42:38.224684Z'
 work_branch: OOMPAH-728
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/684
@@ -121,6 +121,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-260b0c89c00a: '2026-08-03T17:33:46.602018+00:00'
+    attempt-5cd1ae6e9b99: '2026-08-03T17:42:30.766319+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-728
@@ -131,6 +132,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-03T17:33:46.602032+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-728
+    target_state: Merged
+    evidence_fingerprint: cbf62bc583bb9518cc3fcb30f87c4c893b12b8d1074cc02d49da7e934e4d08fa
+    audit_ids:
+    - audit-1543f6417c72
+    kind: result
+    applied: true
+    retired_at: '2026-08-03T17:42:30.766335+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-728
@@ -144,6 +154,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-03T17:33:46.602052+00:00'
     applied_at: '2026-08-03T17:33:53.951343+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-728
+    audit_id: audit-1543f6417c72
+    attempt_id: attempt-5cd1ae6e9b99
+    target_state: Merged
+    evidence_fingerprint: cbf62bc583bb9518cc3fcb30f87c4c893b12b8d1074cc02d49da7e934e4d08fa
+    status: Merged
+    audit_ids:
+    - audit-1543f6417c72
+    applied: false
+    created_at: '2026-08-03T17:42:30.766355+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -185,7 +206,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-728
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -194,7 +215,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-5cd1ae6e9b99
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -204,13 +225,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-03T17:35:32.789984+00:00'
       branch_key: OOMPAH-728
+      verdict: pass
+      completed_at: '2026-08-03T17:42:30.766084+00:00'
+      ended_at: '2026-08-03T17:42:30.766084+00:00'
     requested_by:
       version: 1
       identity: yolo-merge
       source: oompah
     previous_state: In Review
     created_at: '2026-08-03T17:19:05.983776+00:00'
-    updated_at: '2026-08-03T17:35:32.789984+00:00'
+    updated_at: '2026-08-03T17:42:30.766084+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-260b0c89c00a
@@ -415,5 +439,26 @@ author: oompah
 created: 2026-08-03 17:35
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-03 17:42
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- head_sha: 2d682cacc8e9f18a6fc12de674b7ac91f37532e1
+- merge_commit_on_main: 14df3a8759f28ac42d4e8f10df922ff4adc11042
+- pr_number: 684
+- diff_stats: 6 files changed, +680 insertions, -37 deletions
+- changed_files: docs/duplicate-screening.md; oompah/acp_tools.py; oompah/focus.py; oompah/orchestrator.py; tests/test_duplicate_preflight.py; tests/test_focus.py
+- structural_reason_markers: same_parent_sibling; hard_start_dependency; parent; child; dependency; dependent; hard_start_dependent
+- insufficiency_diagnostic: orchestrator.py:10857,10912,30509 'Required structural peers could not fit the bounded corpus'
+- self_sufficient_prompt_evidence: focus.py:678 forbids curl/HTTP/localhost/loopback; orchestrator.py:28184 forbids loopback query and tracker/network lookup
+- read_only_catalog_restriction: acp_tools.py restricts duplicate_detector focus at three catalog sites (1352, 1701, 2078)
+- branch_gate_prior_run: make test passed for 2d682cacc in 430.7s (branch-gate comment 2026-08-03 17:09)
+- worktree_clean: nothing to commit, working tree clean
+- prior_audit_pass: attempt #1 auditor Claude/opus at 2026-08-03 17:33 passed against the same evidence_fingerprint
 ---
 <!-- COMMENTS:END -->
