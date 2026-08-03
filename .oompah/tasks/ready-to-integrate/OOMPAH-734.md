@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-734
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Prevent auditor turn exhaustion after PASS from stranding terminal transitions
 parent: null
@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T19:06:11.095695Z'
-updated_at: '2026-08-03T21:11:12.819716Z'
+updated_at: '2026-08-03T21:11:26.922147Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -46,7 +46,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 6d220329-3f00-4a36-a269-37a49b5cb033
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 1381845
   total_output_tokens: 9577
@@ -108,9 +108,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-734
-  head_sha: 7c8bcabcaf9a078723eaba42d3c3efeaa528435f
-  submitted_at: '2026-08-03T20:51:23.137508+00:00'
-  updated_at: '2026-08-03T20:51:23.137508+00:00'
+  head_sha: 17f0b2a29f70585105efbe3990ea7db1537c0986
+  submitted_at: '2026-08-03T21:11:19.480490+00:00'
+  updated_at: '2026-08-03T21:11:19.480490+00:00'
 ---
 ## Summary
 
@@ -557,5 +557,10 @@ author: oompah
 created: 2026-08-03 21:11
 ---
 Completion: Repaired the branch-gate failure with commit 17f0b2a29 by aligning the stale owner-override regression test with the implemented status-before-comment safety contract. Focused verification is 159 passed. The clean local branch and origin/OOMPAH-734 both resolve to 17f0b2a29f70585105efbe3990ea7db1537c0986. No GitHub PR exists yet because review creation is gated on successful submission, so the trusted full make test gate will rerun from this pushed head.
+---
+author: oompah
+created: 2026-08-03 21:11
+---
+Fixed the CI gate by updating the stale owner-override comment-failure test to assert the required status-before-comment ordering; 159 focused tests pass and commit 17f0b2a29 is pushed.
 ---
 <!-- COMMENTS:END -->
