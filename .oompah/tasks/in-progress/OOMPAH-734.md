@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-734
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Prevent auditor turn exhaustion after PASS from stranding terminal transitions
 parent: null
@@ -12,7 +12,7 @@ labels:
 - focus-complete:frontend
 assignee: null
 created_at: '2026-08-03T19:06:11.095695Z'
-updated_at: '2026-08-03T19:19:08.707531Z'
+updated_at: '2026-08-03T19:20:21.826653Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,7 +44,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 5bd28ab1-184c-445a-bbcb-c92ac1b2ec66
+oompah.agent_run_id: ab30369f-d1e6-4c76-bbd0-763efb5493d1
 oompah.task_costs:
   total_input_tokens: 1381111
   total_output_tokens: 9402
@@ -259,5 +259,10 @@ author: oompah
 created: 2026-08-03 19:19
 ---
 Focus handoff from `frontend` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-08-03 19:20
+---
+Agent dispatched (profile: default)
 ---
 <!-- COMMENTS:END -->
