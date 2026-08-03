@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-722
 type: task
-status: Needs CI Fix
+status: In Progress
 priority: null
 title: Treat read-only git rev-list audit inspection as recoverable
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T14:55:24.661073Z'
-updated_at: '2026-08-03T15:13:51.707909Z'
+updated_at: '2026-08-03T15:14:27.153231Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -45,7 +45,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: af4a42f1-cdf1-4876-aa66-403642c0229c
+oompah.agent_run_id: 8d8321bd-1e6d-4a9f-bb04-ca1f3b62b3ec
 oompah.task_costs:
   total_input_tokens: 51271
   total_output_tokens: 808
@@ -253,5 +253,15 @@ FAILED tests/test_orchestrator_handlers.py::TestMaintenanceLaneNonBlocking::test
 
 make: *** [Makefile:401: test] Error 1
 ```
+---
+author: oompah
+created: 2026-08-03 15:14
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-08-03 15:14
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
