@@ -7,17 +7,19 @@ title: Isolate maintenance-lane nonblocking test from awaited tracker I/O
 parent: null
 children: []
 blocked_by: []
-start_blocked_by: []
+start_blocked_by: &id001
+- OOMPAH-722
 labels: []
 assignee: null
 created_at: '2026-08-03T15:20:07.046080Z'
-updated_at: '2026-08-03T15:32:16.338568Z'
+updated_at: '2026-08-03T15:35:46.140384Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.start_blocked_by: *id001
 ---
 ## Summary
 
