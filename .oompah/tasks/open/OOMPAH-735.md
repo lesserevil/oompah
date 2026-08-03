@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T19:17:18.559962Z'
-updated_at: '2026-08-03T19:18:21.135230Z'
+updated_at: '2026-08-03T19:19:30.381771Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -22,20 +22,74 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: fc1dfc8db94cdd052872b80f9608594cf2df4d7448e0eda03cb42351f6bde633
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-03T19:19:24.971659+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 1e77c364-f3e7-4b18-a022-dd2bd91589d5
-  claim_owner: 8a58fb27-42d0-40cf-8dc2-70615b9783dc
-  claimed_at: '2026-08-03T19:18:09.372827+00:00'
-  claim_expires_at: '2026-08-03T19:48:09.372827+00:00'
+  evidence: "Focus handoff: duplicate_detector\nDuplicate preflight verdict: no_duplicate\n\
+    Matches: none\nEvidence: I reviewed the supplied project task corpus for OOMPAH-735\
+    \ (bug: \"Do not raise global warnings for integration failures under active recovery\"\
+    ). The task is highly specific \u2014 it targets `Orchestrator._route_integration_failure`,\
+    \ the `integration_retry:{project_id}:{task_id}` global alert source, alert severity/actionability\
+    \ reconciliation against live recovery state (fresh authorized repair agent, scheduled\
+    \ retry, staleness, authority revocation, retry exhaustion), and dashboard operator-alert\
+    \ rendering.\nFocus handoff: duplicate_detector\nDuplicate preflight verdict:\
+    \ no_duplicate\nMatches: none\n\nEvidence: I reviewed the supplied project task\
+    \ corpus for OOMPAH-735 (bug: \"Do not raise global warnings for integration failures\
+    \ under active recovery\"). The task is highly specific \u2014 it targets `Orchestrator._route_integration_failure`,\
+    \ the `integration_retry:{project_id}:{task_id}` global alert source, alert severity/actionability\
+    \ reconciliation against live recovery state (fresh authorized repair agent, scheduled\
+    \ retry, staleness, authority revocation, retry exhaustion), and dashboard operator-alert\
+    \ rendering.\n\nThe corpus contains OOMPAH-1 through OOMPAH-175 and every one\
+    \ of them is in a terminal state (Archived) \u2014 per the duplicate-investigator\
+    \ contract these are excluded as duplicate candidates. Even setting terminal state\
+    \ aside, none of the visible tasks describe the integration-retry warning pipeline\
+    \ or alert reconciliation semantics addressed here. The closest reviewed tasks\
+    \ were:\n- OOMPAH-162 (\"Tolerate stacked children merged to default branch\"\
+    ) \u2014 about landing detection, unrelated to global alert lifecycle for integration\
+    \ failures.\n- OOMPAH-163 (\"Allow generated epic target branches through dispatch\"\
+    ) \u2014 dispatch/target-branch validation, not alert reconciliation.\n- OOMPAH-165\
+    \ (\"Fix shared epic landed detection before main merge\") \u2014 epic landing/rollup\
+    \ logic, not integration-retry alert routing.\n- OOMPAH-156 (\"Deduplicate auto-filed\
+    \ internal error tasks\") \u2014 error_watcher task dedup, not orchestrator alert\
+    \ emission.\n\nNo active peer task addresses the same underlying problem (global\
+    \ alert reconciliation for integration_retry under active recovery), so the correct\
+    \ verdict is no_duplicate."
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
 oompah.agent_run_id: a9231db5-c720-4581-aacf-cb6ae67bc376
+oompah.task_costs:
+  total_input_tokens: 6
+  total_output_tokens: 1347
+  total_cost_usd: 0.0
+  by_model:
+    opus:
+      input_tokens: 6
+      output_tokens: 1347
+      cost_usd: 0.0
+  runs:
+  - profile: deep
+    model: opus
+    input_tokens: 6
+    output_tokens: 1347
+    cost_usd: 0.0
+    recorded_at: '2026-08-03T19:19:24.969979+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-735__20260803T191823Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: opus
+    focus: duplicate_detector
+    source_branch: OOMPAH-735
+    source_sha: 806bf1feee8ac46220c8ec750a5167017834b176
+    completed_at: '2026-08-03T19:19:24.988478+00:00'
 ---
 ## Summary
 
@@ -92,5 +146,15 @@ author: oompah
 created: 2026-08-03 19:18
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-03 19:19
+---
+Run #1 [attempt=1, profile=deep, role=deep -> Claude/opus]
+- Turns: 2, Tool calls: 0
+- Tokens: 6 in / 1.3K out [1.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 8s
+- Log: OOMPAH-735__20260803T191823Z.jsonl
 ---
 <!-- COMMENTS:END -->
