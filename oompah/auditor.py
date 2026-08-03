@@ -1084,13 +1084,92 @@ def _recoverable_read_only_denial() -> AuditorCommandDenial:
     )
 
 
-def check_auditor_command(command: str) -> str | None:
-    """Return a denial for commands outside the read/test allowlist."""
+def _get_auditor_validation_targets(project_id: str | None = None) -> list[str]:
+    """Return the list of approved validation targets for an auditor.
+    
+    When project_id is provided, looks up the project's auditor_validation_targets
+    configuration. Falls back to the default list when:
+    - project_id is None
+    - the project is not found
+    - the project's auditor_validation_targets is empty
+    
+    Default targets are: ['test', 'test-serial', 'check-secrets']
+    """
+    default_targets = ["test", "test-serial", "check-secrets"]
+    
+    if not project_id:
+        return default_targets
+    
+    try:
+        from oompah.projects import ProjectStore
+        store = ProjectStore()
+        project = store.get(project_id)
+        if project and project.auditor_validation_targets:
+            return project.auditor_validation_targets
+    except Exception:
+        # If we can't load the project, fall back to defaults
+        pass
+    
+    return default_targets
+
+
+def _build_auditor_command_regex(validation_targets: list[str] | None = None) -> re.Pattern:
+    """Build a compiled regex for auditor command validation.
+    
+    Generates a regex that allows:
+    - Read-only file/git inspection commands (pwd, ls, grep, git status, etc.)
+    - Python testing with pytest/unittest
+    - Make targets from the provided validation_targets list
+    - Other safe tools like ruff, mypy, black --check, npm test, etc.
+    - oompah task view
+    
+    When validation_targets is None, uses the default list.
+    """
+    if validation_targets is None:
+        validation_targets = _get_auditor_validation_targets()
+    
+    # Escape each target for use in regex (they should be simple alphanumeric-dash)
+    make_targets = "|".join(re.escape(target) for target in validation_targets)
+    
+    pattern_str = (
+        r"^(?:"
+        r"(?:pwd|ls|find|head|tail|cat|file|stat|readlink|rg|grep|git\s+"
+        r"(?:status|diff|log|show|rev-parse|ls-files|branch|describe|whatchanged|merge-base|rev-list))\b.*$"
+        r"|(?:pytest|py\.test|python(?:\d+(?:\.\d+)?)?\s+-m\s+"
+        r"(?:pytest|unittest|compileall))\b.*$"
+        # Make targets: must match exactly with no trailing word/dash characters.
+        # After the target, only whitespace or end-of-string are allowed.
+        rf"|(?:make\s+(?:{make_targets})(?:\s|$))"
+        r"|(?:ruff|mypy|black\s+--check|npm\s+test|pnpm\s+test|yarn\s+test)\b.*$"
+        r"|(?:oompah\s+task\s+view)\b.*$"
+        r")"
+    )
+    
+    return re.compile(pattern_str, re.IGNORECASE)
+
+
+def check_auditor_command(command: str, project_id: str | None = None) -> str | None:
+    """Return a denial for commands outside the read/test allowlist.
+    
+    Parameters
+    ----------
+    command : str
+        The shell command to validate.
+    project_id : str | None
+        Optional project ID to look up project-specific validation targets.
+        When None, uses the default allowlist.
+    """
 
     normalized = str(command or "").strip()
     if _is_read_only_inspection_command(normalized):
         return _recoverable_read_only_denial()
-    if not normalized or not _AUDITOR_COMMAND_RE.fullmatch(normalized):
+    
+    # Build the regex dynamically based on project configuration
+    command_regex = _build_auditor_command_regex(
+        _get_auditor_validation_targets(project_id)
+    )
+    
+    if not normalized or not command_regex.fullmatch(normalized):
         return (
             "Error: auditor capability policy permits only read-only repository "
             "inspection and configured test commands; command denied"
