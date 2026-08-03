@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T17:50:33.429591Z'
-updated_at: '2026-08-03T17:53:27.857415Z'
+updated_at: '2026-08-03T17:57:15.743105Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -63,5 +63,10 @@ author: oompah
 created: 2026-08-03 17:53
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-03 17:57
+---
+The regression also immediately captured newly submitted OOMPAH-730: its worker submitted exact head and authority was revoked at 17:54:55, task is now Ready to Integrate with no gate/review while the runtime still lacks its container-cycle repair. Keep this live row in regression acceptance. Manual fallback respects max_in_flight_prs=1: OOMPAH-729 is PR #686 with CI running; OOMPAH-724/726/730 remain Ready until that slot frees.
 ---
 <!-- COMMENTS:END -->
