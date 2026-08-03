@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-738
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Fence terminal override cleanup from concurrent worker-map mutation
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T20:08:56.082557Z'
-updated_at: '2026-08-03T22:18:59.415017Z'
+updated_at: '2026-08-03T22:20:16.539778Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -43,7 +43,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: fbe191cc-7acf-4f13-a6fc-60e4cc437323
+oompah.agent_run_id: ffad53ff-6950-4b92-b5a3-8fbd4fb6040a
 oompah.task_costs:
   total_input_tokens: 46969
   total_output_tokens: 5562
