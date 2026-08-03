@@ -8,10 +8,11 @@ parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels: []
+labels:
+- human-only
 assignee: null
 created_at: '2026-08-02T23:59:03.600915Z'
-updated_at: '2026-08-03T00:08:06.415548Z'
+updated_at: '2026-08-03T00:08:28.767422Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -185,5 +186,10 @@ author: oompah
 created: 2026-08-03 00:08
 ---
 Understanding: owner resolution must fence the exact duplicate-preflight generation; matching workers must be cancelled/awaited or tombstoned before success, and late results/exits may only do bounded cleanup after validating generation, claim, fingerprint, and status. I will trace owner resolution, claim/exit, and restart paths, add race-focused regressions, then verify and submit.
+---
+author: oompah
+created: 2026-08-03 00:08
+---
+Direct owner claim: reproducing and fixing the live race where an owner duplicate resolution is later overwritten by a superseded preflight exit. This claim must remain authoritative while the current deployed server still lacks OOMPAH-707 durable-owner fencing.
 ---
 <!-- COMMENTS:END -->
