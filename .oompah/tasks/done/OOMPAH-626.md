@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-626
 type: bug
-status: Merged
+status: Done
 priority: 1
 title: Supersede in-flight terminal audits when evidence changes
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T22:02:35.998442Z'
-updated_at: '2026-08-02T18:28:49.978118Z'
+updated_at: '2026-08-03T20:04:51.516897Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-626
 target_branch: null
 review_url: null
