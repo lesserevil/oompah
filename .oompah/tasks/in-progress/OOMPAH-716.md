@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T03:02:02.962763Z'
-updated_at: '2026-08-03T03:23:45.124294Z'
+updated_at: '2026-08-03T03:29:00.355328Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -213,5 +213,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 19m 11s
 - Log: OOMPAH-716__20260803T030429Z.jsonl
+---
+author: oompah
+created: 2026-08-03 03:29
+---
+Direct-owner follow-up: live OOMPAH-714 Merged audit showed `git merge-base --is-ancestor` was still counted as fatal because the mutation regex prefix-matched `merge-base` as `merge`. Commit 688b1f4a3 adds an exact git-subcommand boundary, admits read-only merge-base, retains fatal git merge behavior, and adds policy/tool-executor regressions. Focused authority/auditor/provider/health suite: 227 passed; check-secrets passed.
 ---
 <!-- COMMENTS:END -->
