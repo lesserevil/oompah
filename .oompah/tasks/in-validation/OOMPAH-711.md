@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-02T23:59:03.600915Z'
-updated_at: '2026-08-03T02:32:42.765640Z'
+updated_at: '2026-08-03T02:34:03.116030Z'
 work_branch: OOMPAH-711
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/674
@@ -120,18 +120,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-711
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 65bcfcfe80e08277d392d5814f5ee78553579122d6eef92fd0cb8c323c6563eb
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-cd8a58f42e26
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 65bcfcfe80e08277d392d5814f5ee78553579122d6eef92fd0cb8c323c6563eb
+      created_at: '2026-08-03T02:33:57.983988+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-03T02:33:57.983988+00:00'
+      branch_key: OOMPAH-711
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-03T02:32:35.415490+00:00'
+    updated_at: '2026-08-03T02:33:57.983988+00:00'
   - version: 1
     audit_id: audit-18e20ac1a21e
     project_id: proj-14849f1b
@@ -149,7 +163,20 @@ oompah.terminal_audit:
       source: forge
     previous_state: In Review
     created_at: '2026-08-03T02:32:35.415490+00:00'
-  attempt_history: []
+  attempt_history:
+  - version: 1
+    attempt_id: attempt-cd8a58f42e26
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 65bcfcfe80e08277d392d5814f5ee78553579122d6eef92fd0cb8c323c6563eb
+    created_at: '2026-08-03T02:33:57.983988+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-03T02:33:57.983988+00:00'
+    branch_key: OOMPAH-711
 ---
 ## Summary
 
@@ -393,5 +420,15 @@ author: oompah
 created: 2026-08-03 02:32
 ---
 YOLO: merged PR #674.
+---
+author: oompah
+created: 2026-08-03 02:34
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/opus)
+---
+author: oompah
+created: 2026-08-03 02:34
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
