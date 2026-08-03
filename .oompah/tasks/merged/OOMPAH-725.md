@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:33:53.224136Z'
-updated_at: '2026-08-03T17:38:24.066857Z'
+updated_at: '2026-08-03T17:39:07.526699Z'
 work_branch: OOMPAH-725
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/683
@@ -44,8 +44,8 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: null
 oompah.task_costs:
-  total_input_tokens: 50450
-  total_output_tokens: 2500
+  total_input_tokens: 50456
+  total_output_tokens: 2864
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -53,8 +53,8 @@ oompah.task_costs:
       output_tokens: 395
       cost_usd: 0.0
     unknown:
-      input_tokens: 59
-      output_tokens: 2105
+      input_tokens: 65
+      output_tokens: 2469
       cost_usd: 0.0
   runs:
   - profile: default
@@ -75,6 +75,12 @@ oompah.task_costs:
     output_tokens: 61
     cost_usd: 0.0
     recorded_at: '2026-08-03T17:34:43.743784+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 6
+    output_tokens: 364
+    cost_usd: 0.0
+    recorded_at: '2026-08-03T17:39:05.307985+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-725__20260803T155925Z
@@ -492,5 +498,15 @@ Safe evidence:
 - focused_suites: 389 passed + 1 xfail; 233 boundary passed; terminal-mutation scan 7/7 allowlisted
 - task_type: top-level task (not shared-epic child)
 - changed_files: oompah/acp_tools.py, oompah/bootstrap.py, oompah/orchestrator.py, oompah/server.py, oompah/terminal_audit_enforcement.py, oompah/terminal_mutation_scanner.py, oompah/terminal_transition_coordinator.py, tests/test_epic_strategy.py, tests/test_terminal_audit_enforcement.py, tests/test_terminal_status_interfaces.py, tests/test_terminal_transition_coordinator.py
+---
+author: oompah
+created: 2026-08-03 17:39
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 17, Tool calls: 9
+- Tokens: 6 in / 364 out [370 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 3m 34s
+- Log: OOMPAH-725__20260803T173536Z.jsonl
 ---
 <!-- COMMENTS:END -->
