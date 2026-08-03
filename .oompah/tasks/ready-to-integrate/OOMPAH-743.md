@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-743
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Keep raw failure transcripts out of dashboard alert summaries
 parent: OOMPAH-740
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:22.560635Z'
-updated_at: '2026-08-03T23:34:51.660152Z'
+updated_at: '2026-08-03T23:36:36.147174Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-743
 target_branch: null
 review_url: null
@@ -46,16 +46,16 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 6824e3d6-1e57-4161-b29b-de72c089bd17
+oompah.agent_run_id: null
 oompah.work_branch: epic-OOMPAH-740--task-OOMPAH-743
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-740--task-OOMPAH-743
-  base_branch: epic-OOMPAH-740
-  base_sha: 583fb236963493a820f36eabdd29789fa5497e6b
-  updated_at: '2026-08-03T23:12:28.846516+00:00'
+  head_sha: d5e1c80ab28f0cae0a2b2f6c8543da00e7ef8bc7
+  submitted_at: '2026-08-03T23:36:24.720885+00:00'
+  updated_at: '2026-08-03T23:36:24.720885+00:00'
 oompah.task_costs:
   total_input_tokens: 46297
   total_output_tokens: 288
@@ -167,5 +167,15 @@ author: oompah
 created: 2026-08-03 23:34
 ---
 Implementation: added shared alert_safety projections that redact credentials, normalize control characters and whitespace, bound compact fields and diagnostics, and preserve structured failure metadata. Integration failures now publish concise title/summary/detail/action fields with bounded diagnostics. Snapshot enrichment re-sanitizes cached/IPC alerts, and the dashboard uses bounded escaped text with accessible collapsed diagnostic details and no-wrap compact styling. Added EXOCOMP-147 rebase, Unicode, redaction, API-boundary, and renderer regression coverage.
+---
+author: oompah
+created: 2026-08-03 23:36
+---
+Completion: delivered bounded, redacted alert projections across integration producers, snapshot/API enrichment, and dashboard rendering. Compact alerts are normalized one-line fields with explicit limits; sanitized diagnostics are available in escaped collapsed details with explanation/action first. Added EXOCOMP-147, Unicode, credential/control/HTML, API-boundary, and renderer regression tests. Full gate: 15,224 passed, 7 skipped, 1 xfailed; check-secrets and diff checks passed. Commit d5e1c80ab pushed.
+---
+author: oompah
+created: 2026-08-03 23:36
+---
+Bound dashboard alert summaries and preserved sanitized diagnostics
 ---
 <!-- COMMENTS:END -->

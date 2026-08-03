@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-742
 type: feature
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Replace stacked dashboard banners with a compact alert center
 parent: OOMPAH-740
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:17.550824Z'
-updated_at: '2026-08-03T23:36:01.421736Z'
+updated_at: '2026-08-03T23:36:28.397686Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-742
 target_branch: null
 review_url: null
@@ -137,12 +137,12 @@ oompah.agent_run_id: 6107abe9-9a31-45d4-8323-44673d52a6d0
 oompah.work_branch: epic-OOMPAH-740--task-OOMPAH-742
 oompah.integration:
   version: 2
-  state: working
+  state: ready
   attempts: 0
   task_branch: epic-OOMPAH-740--task-OOMPAH-742
-  base_branch: epic-OOMPAH-740
-  base_sha: 583fb236963493a820f36eabdd29789fa5497e6b
-  updated_at: '2026-08-03T23:09:48.429420+00:00'
+  head_sha: b9030acc427d356f4544f1b8f205b4eaa221e939
+  submitted_at: '2026-08-03T23:36:24.810711+00:00'
+  updated_at: '2026-08-03T23:36:24.810711+00:00'
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1766
@@ -408,5 +408,10 @@ All acceptance criteria met:
 ✅ Dynamic alert add/remove working correctly
 
 Ready for submission.
+---
+author: oompah
+created: 2026-08-03 23:36
+---
+Implemented compact alert center with collapsible UI consolidating multiple alert sources. Replaced stacked banners with single component showing collapsed summary (count + severity) expandable to scrollable list (300px max-height). Board remains visible and scrollable in collapsed state. All 46 focused tests pass (11 new alert center tests + 35 regression tests). Keyboard accessible with proper ARIA labels. Backward compatible with existing banners during migration. Branch: epic-OOMPAH-740--task-OOMPAH-742
 ---
 <!-- COMMENTS:END -->
