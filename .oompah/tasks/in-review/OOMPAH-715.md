@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-715
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Make full-sync event-loop test deterministic under full-gate load
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T01:08:30.439967Z'
-updated_at: '2026-08-03T01:48:26.384862Z'
+updated_at: '2026-08-03T01:48:30.140135Z'
 work_branch: null
 target_branch: null
 review_url: https://github.com/lesserevil/oompah/pull/672
