@@ -7,12 +7,13 @@ title: Fence owner duplicate resolution from superseded preflight exit
 parent: null
 children: []
 blocked_by: []
-start_blocked_by: []
+start_blocked_by: &id001
+- OOMPAH-707
 labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T23:59:03.600915Z'
-updated_at: '2026-08-03T00:10:59.884678Z'
+updated_at: '2026-08-03T00:11:50.644510Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -96,6 +97,7 @@ oompah.work_contributors:
     source_branch: OOMPAH-711
     source_sha: 93513d742b8abd45b6df2abf3683666787e24a42
     completed_at: '2026-08-03T00:07:31.538915+00:00'
+oompah.start_blocked_by: *id001
 ---
 ## Summary
 
@@ -201,5 +203,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 1m 25s
 - Log: OOMPAH-711__20260803T000753Z.jsonl
+---
+author: oompah
+created: 2026-08-03 00:11
+---
+Root-cause correction from a second live reproduction: the stale duplicate claim itself is fenced correctly by claim_id. The actual authority gap is that owner no_duplicate resolution writes Open and wakes dispatch before a direct-owner lease/human-only fence exists. OOMPAH-711 immediately dispatched an ordinary Maintenance Engineer in that gap; an ordinary worker exit, not a duplicate-investigator exit, can then write Done. Fix scope is an atomic owner takeover built on OOMPAH-707 durable owner claims: block dispatch, revoke/terminate the visible scheduler generation, grant the owner lease, and transition In Progress without an Open dispatch window.
 ---
 <!-- COMMENTS:END -->
