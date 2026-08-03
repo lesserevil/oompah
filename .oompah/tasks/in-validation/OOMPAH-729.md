@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-729
 type: bug
-status: In Review
+status: In Validation
 priority: 1
 title: Rearm terminal audit after evidence-only remediation on the same head
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T16:23:52.854950Z'
-updated_at: '2026-08-03T17:54:45.139416Z'
+updated_at: '2026-08-03T18:05:35.118557Z'
 work_branch: OOMPAH-729
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/686
@@ -96,6 +96,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/686
 oompah.review_number: '686'
 oompah.work_branch: OOMPAH-729
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-c51d190f93ac
+    project_id: proj-14849f1b
+    task_id: OOMPAH-729
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8a7b2ea3578997cdde5a62654f017363bc192ca3c92f1f5bb29d02aabcb6cc0f
+    attempts: []
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-03T18:05:26.259667+00:00'
+  - version: 1
+    audit_id: audit-a3a0625726f5
+    project_id: proj-14849f1b
+    task_id: OOMPAH-729
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8a7b2ea3578997cdde5a62654f017363bc192ca3c92f1f5bb29d02aabcb6cc0f
+    attempts: []
+    requested_by:
+      version: 1
+      identity: NVShawn
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-03T18:05:26.259667+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -207,5 +246,15 @@ author: oompah
 created: 2026-08-03 17:54
 ---
 Live delivery workaround: exact submitted head e4b2865e was stranded by the OOMPAH-732 standalone-authority race. Opened PR #686 against main after confirming the assigned worktree and remote branch are clean and exact. Existing verification evidence: 393 focused tests, terminal mutation scan, and 15,134-pass full direct suite; Makefile wrapper environment failure is documented above.
+---
+author: oompah
+created: 2026-08-03 18:05
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-03 18:05
+---
+YOLO: merged PR #686.
 ---
 <!-- COMMENTS:END -->
