@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T20:14:53.133307Z'
-updated_at: '2026-08-03T21:17:04.545254Z'
+updated_at: '2026-08-03T21:17:20.473104Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -48,3 +48,16 @@ Live regression after deploying OOMPAH-725 on 2026-08-03. During resume, termina
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-03 21:17
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-03 21:17
+---
+Focus: Duplicate Investigator
+---
+<!-- COMMENTS:END -->
