@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:13.861445Z'
-updated_at: '2026-08-03T23:52:02.831422Z'
+updated_at: '2026-08-03T23:52:52.184556Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-741
 target_branch: null
 review_url: null
@@ -191,5 +191,10 @@ author: oompah
 created: 2026-08-03 23:52
 ---
 Implementation: Structured dashboard alert contract (oompah.dashboard_alerts) applied to orchestrator alerts, repo hygiene, terminal-audit health, auth health (operator+worker), quality-gate lifecycle, and REST/WebSocket enrichment. Producers keep task-local metrics; the snapshot boundary normalizes, redacts, and deduplicates by stable identity, preferring the highest current severity. Dashboard filters by action_required=false, not message parsing. OOMPAH-735 remains the sole owner of integration_retry recovery classification.
+---
+author: oompah
+created: 2026-08-03 23:52
+---
+Verification: Focused suites pass — tests/test_dashboard_alert_contract.py (6), tests/test_auth_health.py, tests/test_terminal_audit_health*.py, tests/test_credential_error_alert.py, tests/test_dashboard_credential_warning.py, tests/test_dashboard_repo_hygiene_health.py, tests/test_dashboard_state_read_warning.py, tests/test_dashboard_terminal_audit_health.py, tests/test_state_api_responsiveness.py, tests/test_dashboard_websocket_liveness.py, tests/test_websocket_authenticated_bootstrap.py, tests/test_server_issue_snapshot.py, tests/test_orchestrator_repo_hygiene.py, tests/test_repo_hygiene.py, tests/test_epic_terminal_audit_contract.py, and OOMPAH-735 integration_retry alert check in tests/test_parallel_epic_children.py. 5 tests/test_quality_gate.py failures are pre-existing sandbox failures on the base branch (unrelated to this change).
 ---
 <!-- COMMENTS:END -->
