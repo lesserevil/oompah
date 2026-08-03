@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T20:08:56.082557Z'
-updated_at: '2026-08-03T22:08:02.966891Z'
+updated_at: '2026-08-03T22:09:56.616474Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -161,5 +161,20 @@ author: oompah
 created: 2026-08-03 22:08
 ---
 Continuation: Picked up prior agent's recovery checkpoint. All changes were preserved in the snapshot commit. After rebasing onto origin/main (picked up OOMPAH-737 cleanly with no conflicts), ran the focused test suites: test_terminal_override, test_terminal_status_interfaces, test_provider_retirement, test_terminal_transition_coordinator, test_terminal_audit_enforcement, test_server_blocking_off_loop, test_done_merged_archived_lifecycle, test_lifecycle_cli_sync_integration, test_terminal_audit, test_terminal_audit_observability — 428 tests passed, 0 failures. Proceeding to amend commit message and push.
+---
+author: oompah
+created: 2026-08-03 22:09
+---
+Completion: All changes committed and pushed on branch OOMPAH-738. Summary of what was delivered:
+
+1. **Root cause fixed** — `state.running` is now always accessed via locked snapshot helpers (`_running_items_snapshot`, etc.) that hold the `_retry_authority_lock` for the duration of the snapshot. Concurrent `_remove_running_entry` calls block on the same lock, so they cannot interleave with an active iterator and cannot produce 'dictionary changed size during iteration'.
+
+2. **Post-commit cleanup is non-fatal** — Each cleanup step in `api_update_issue` (worker termination, authority revocation, refresh notification, broadcast) is wrapped in a try/except that captures diagnostics and returns the committed terminal result rather than propagating an ambiguous HTTP 500 to the client.
+
+3. **Diagnostics surfaced** — `OverrideResult.cleanup_diagnostics` and the API response `cleanup_diagnostics` field carry structured cleanup error details so operators can distinguish a committed-but-partially-cleaned state from a pre-commit failure.
+
+4. **Tests** — 3 new targeted tests: concurrent snapshot fencing (no dict-size exception), post-commit alert cleanup failure is diagnostic only, worker cleanup failure returns committed result with diagnostics, pre-commit failure is fail-closed.
+
+428 focused tests passed (terminal override, status interfaces, provider retirement, transition coordinator, audit enforcement, server blocking, lifecycle suites).
 ---
 <!-- COMMENTS:END -->
