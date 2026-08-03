@@ -1221,6 +1221,9 @@ class Orchestrator:
         # tracker state is the durable authority across restart.
         self._revoked_authority_generations: dict[str, str] = {}
         self._persisted_retry_entries: list[RetryEntry] = []
+        # Tracks the number of completion verifier rejections per issue
+        # Used to limit retry attempts when submission validation fails
+        self._verifier_reject_counts: dict[str, int] = {}
         # Legacy single tracker (used when no projects are configured).  In
         # managed-project mode the native factory makes this tracker
         # fail-closed for task mutations, so an unscoped caller cannot write
@@ -30801,12 +30804,194 @@ class Orchestrator:
         self.state.completed.add(entry.issue.id)
         self._clear_reopen_count(entry.issue.id)
         self._verifier_reject_counts.pop(entry.issue.id, None)
+        
+        # Fence accepted submission against post-handoff worktree mutation
+        # (OOMPAH-724). Mark the entry so the revoked exit path knows this
+        # was a submission acceptance, and revoke authority to stop further
+        # mutations from this worker.
+        entry.accepted_submission_record = record
         logger.info(
-            "Accepted worker submission for %s at %s; waiting for integration",
+            "Accepted worker submission for %s at %s; revoking authority to fence against late mutations",
             current.identifier,
             record.head_sha or "unknown head",
         )
+        self._cancel_retry_for_issue(
+            issue_id=entry.issue.id,
+            identifier=entry.identifier,
+            project_id=project_id,
+            reason="task submitted for integration",
+        )
         return True
+
+    async def _handle_revoked_submission_exit(
+        self,
+        entry: RunningEntry,
+        issue_id: str,
+        project_id: str | None,
+        record: IntegrationRecord,
+    ) -> None:
+        """Handle final validation when revoked submission worker exits.
+        
+        After a worker's submission is accepted and authority revoked, we must:
+        1. Preserve any late worktree changes via recovery checkpoint
+        2. Validate that final worktree HEAD matches submitted HEAD
+        3. If they match: enqueue for integration
+        4. If they don't match: reopen task with recovery context for retry
+        
+        This prevents the EXOCOMP-172 scenario where late formatters cause
+        integration failures by ensuring late changes are captured and
+        explicitly re-submitted rather than silently integrated.
+        """
+        tracker = (
+            self._tracker_for_project(project_id) if project_id else self.tracker
+        )
+        workspace_path = entry.workspace_path
+        late_changes_detected = False
+        recovery_context = None
+        
+        # Preserve any dirty changes to recovery checkpoint before validation.
+        # This must happen even if HEAD matches — any generated files or
+        # transient changes must be captured so they're not lost.
+        project_id_val = entry.issue.project_id if entry.issue else project_id
+        project_store = getattr(self, "project_store", None)
+        if project_id_val and workspace_path and project_store:
+            try:
+                recovery_context = await asyncio.get_event_loop().run_in_executor(
+                    self._tick_pool,
+                    lambda: project_store.preserve_worktree_changes(
+                        project_id_val,
+                        entry.identifier,
+                        workspace_path,
+                        (
+                            getattr(entry.issue, "work_branch", None)
+                            or getattr(entry.issue, "branch_name", None)
+                            or None
+                        ),
+                    ),
+                )
+                if recovery_context:
+                    logger.info(
+                        "Preserved late changes for accepted submission "
+                        "issue_identifier=%s submitted_sha=%s recovery_ref=%s",
+                        entry.identifier,
+                        record.head_sha or "unknown",
+                        recovery_context.get("recovery_ref", "unknown"),
+                    )
+            except Exception as exc:
+                logger.warning(
+                    "Failed to preserve recovery checkpoint for revoked submission "
+                    "issue_identifier=%s: %s",
+                    entry.identifier,
+                    exc,
+                )
+                # Don't fail hard — we'll still try to validate below
+        
+        # Now validate that final worktree HEAD matches submitted HEAD
+        final_head = None
+        if workspace_path:
+            try:
+                result = subprocess.run(
+                    ["git", "-C", workspace_path, "rev-parse", "HEAD"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                    check=False,
+                )
+                if result.returncode == 0:
+                    final_head = result.stdout.strip()
+            except (OSError, subprocess.TimeoutExpired):
+                pass
+        
+        if final_head and record.head_sha and final_head != record.head_sha:
+            late_changes_detected = True
+            logger.warning(
+                "Accepted submission had late worktree mutations "
+                "issue_identifier=%s submitted_sha=%s final_sha=%s",
+                entry.identifier,
+                record.head_sha,
+                final_head,
+            )
+        
+        # Clean up the running entry
+        self.state.running.pop(issue_id, None)
+        self.state.claimed.discard(issue_id)
+        self.state.claimed_issues.pop(issue_id, None)
+        revoke_task_handoff_token(getattr(entry, "task_handoff_token", None))
+        
+        if late_changes_detected and recovery_context:
+            # Late changes detected — don't integrate the stale submission.
+            # Instead, reopen the task with recovery context so the next
+            # worker can explicitly resubmit after reviewing the changes.
+            # This prevents silent integration of unreviewed content and
+            # ensures the preservation system gets one actionable retry.
+            try:
+                current_issue = tracker.fetch_issue_detail(entry.identifier)
+                if current_issue:
+                    # Reopen the task, removing it from completed state
+                    tracker.update_issue(
+                        current_issue.identifier,
+                        status=OPEN,
+                    )
+                    recovery_ref = recovery_context.get("recovery_ref")
+                    snapshot_head = recovery_context.get("snapshot_head")
+                    self._post_comment(
+                        current_issue.identifier,
+                        (
+                            "⚠️ **Late mutations after submission acceptance** "
+                            f"({final_head[:8] if final_head else 'unknown'} vs "
+                            f"{record.head_sha[:8] if record.head_sha else 'unknown'})\n\n"
+                            "Changes appeared in the worktree after the submission was accepted "
+                            "but before cleanup completed. These late changes have been durably "
+                            "preserved and are available for the next retry.\n\n"
+                            "**Recovery checkpoint:** "
+                            f"`{recovery_ref or 'unknown'}` "
+                            f"(snapshot: `{snapshot_head[:8] if snapshot_head else 'unknown'}`)\n\n"
+                            "The task has been reopened with the recovery context preserved. "
+                            "A new agent can review the changes and explicitly resubmit if needed."
+                        ),
+                        project_id=project_id,
+                    )
+                    logger.info(
+                        "Reopened task with recovery context after late mutation detection "
+                        "issue_identifier=%s recovery_ref=%s",
+                        entry.identifier,
+                        recovery_ref or "unknown",
+                    )
+                    # Remove from completed state so retry dispatch can pick it up
+                    self.state.completed.discard(issue_id)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to reopen task after late mutation detection "
+                    "issue_identifier=%s: %s",
+                    entry.identifier,
+                    exc,
+                )
+        else:
+            # No late changes detected (or no recovery context) — proceed with
+            # integration eligibility. Mark the task as Ready to Integrate so
+            # the integration executor can process it.
+            try:
+                current_issue = tracker.fetch_issue_detail(entry.identifier)
+                if current_issue:
+                    tracker.update_issue(
+                        current_issue.identifier,
+                        status=READY_TO_INTEGRATE,
+                    )
+                    logger.info(
+                        "Enqueued clean accepted submission for integration "
+                        "issue_identifier=%s head_sha=%s",
+                        entry.identifier,
+                        record.head_sha or "unknown",
+                    )
+            except Exception as exc:
+                logger.warning(
+                    "Failed to enqueue clean submission for integration "
+                    "issue_identifier=%s: %s",
+                    entry.identifier,
+                    exc,
+                )
+        
+        self._notify_observers()
 
     def _finish_epic_review_repair(
         self,
@@ -31493,6 +31678,21 @@ class Orchestrator:
 
         # Do not remove a replacement runtime installed while cleanup yielded.
         if self.state.running.get(issue_id) is not entry:
+            return
+
+        # Fence accepted submissions against post-handoff worktree mutation
+        # (OOMPAH-724). When a revoked worker had an accepted submission,
+        # preserve late changes, validate final state, and handle handoff
+        # before quarantining. This prevents transient Ready->Integrate->recovery
+        # failures when formatters or other tools run after submission acceptance.
+        accepted_record = getattr(entry, "accepted_submission_record", None)
+        if accepted_record and revoked:
+            await self._handle_revoked_submission_exit(
+                entry,
+                issue_id,
+                project_id,
+                accepted_record,
+            )
             return
 
         if revoked:

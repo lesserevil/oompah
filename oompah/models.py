@@ -1466,6 +1466,10 @@ class RunningEntry:
     policy_denial_count: int = 0
     forced_exit_reason: str | None = None
     forced_exit_error: str | None = None
+    # Set to the submission record when this worker's submission is accepted and
+    # authority is revoked (OOMPAH-724). Used to fence submission handoff until
+    # the revoked worker fully exits and its final worktree state is validated.
+    accepted_submission_record: IntegrationRecord | None = None
 
 
 @dataclass
