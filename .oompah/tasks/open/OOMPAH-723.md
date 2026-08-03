@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:20:07.046080Z'
-updated_at: '2026-08-03T15:31:02.816916Z'
+updated_at: '2026-08-03T15:32:16.338568Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ Triggered by the exact-head OOMPAH-722 full gate on 2026-08-03: make test passed
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-03 15:32
+---
+The live workaround has been implemented on OOMPAH-722 at commit 3eb3235e1aab6d17ac17b3cfc655531f8b14b5a2: the nonblocking tick test now stubs _recover_release_addendum_leases and returns a concrete empty dispatch timing map, matching its sibling isolation pattern. Focused verification passed 4/4 maintenance-lane tests, 277/277 orchestrator-handler tests, 31/31 auditor-contract tests, and 4/4 ACP output-bound tests. Keep this bug as the causal record until OOMPAH-722 passes its new exact-head full gate and merges; then archive it as resolved by that commit rather than dispatching duplicate implementation.
+---
+<!-- COMMENTS:END -->
