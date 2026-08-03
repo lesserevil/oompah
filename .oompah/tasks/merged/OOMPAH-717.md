@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-717
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Prevent generated hook collisions from hot-looping and starving epic integration
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T13:00:53.157839Z'
-updated_at: '2026-08-03T14:21:00.497706Z'
+updated_at: '2026-08-03T14:26:27.331158Z'
 work_branch: OOMPAH-717
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/677
@@ -132,6 +132,7 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-9f32e08bffd1: '2026-08-03T14:16:52.729320+00:00'
+    attempt-64a10d306853: '2026-08-03T14:26:23.244906+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-717
@@ -142,6 +143,15 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-03T14:16:52.729333+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-717
+    target_state: Merged
+    evidence_fingerprint: 58a002b96cc31ae055ec9d9b87d2f7304ce86440fd240d604b52e2069f53ca42
+    audit_ids:
+    - audit-0e41f170f41b
+    kind: result
+    applied: true
+    retired_at: '2026-08-03T14:26:23.244918+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-717
@@ -155,6 +165,17 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-03T14:16:52.729350+00:00'
     applied_at: '2026-08-03T14:16:58.897506+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-717
+    audit_id: audit-0e41f170f41b
+    attempt_id: attempt-64a10d306853
+    target_state: Merged
+    evidence_fingerprint: 58a002b96cc31ae055ec9d9b87d2f7304ce86440fd240d604b52e2069f53ca42
+    status: Merged
+    audit_ids:
+    - audit-0e41f170f41b
+    applied: false
+    created_at: '2026-08-03T14:26:23.244932+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -216,7 +237,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-717
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -244,7 +265,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-64a10d306853
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -255,13 +276,16 @@ oompah.terminal_audit:
       started_at: '2026-08-03T14:20:54.134841+00:00'
       branch_key: OOMPAH-717
       candidate_rotation_count: 1
+      verdict: pass
+      completed_at: '2026-08-03T14:26:23.244762+00:00'
+      ended_at: '2026-08-03T14:26:23.244762+00:00'
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-03T14:00:19.534168+00:00'
-    updated_at: '2026-08-03T14:20:54.134841+00:00'
+    updated_at: '2026-08-03T14:26:23.244762+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-bdfd0e45b225
@@ -666,5 +690,25 @@ author: oompah
 created: 2026-08-03 14:21
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-03 14:26
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- head_sha: 0f835493c2387163aca3e446d1c15fcf97ee1f84
+- merge_commit: fe1412ca9 Merge pull request #677 from lesserevil/OOMPAH-717
+- gate_result: passed 402.7s
+- pr_merged: PR #677 merged into origin/main
+- focused_tests_live: 76 passed (executor:15, queue:17, worker_submission:12, parallel_epic_children:32)
+- key_tests_passing: test_executor_rejects_legacy_tracked_generated_helper_before_shared_mutation, test_executor_reports_reset_error_not_successful_checkout_stderr, test_executor_reports_merge_error_not_successful_checkout_stderr, test_executor_keeps_genuine_epic_compare_and_swap_race_retryable, test_backoff_skips_poisoned_row_and_advances_independent_epic, test_claim_attempt_budget_bounds_repeated_failures
+- generated_helper_detection: oompah/projects.py:92 generated_worktree_helpers_in_revision(), oompah/integration_executor.py:270-289 status=generated_helper
+- stderr_fix: oompah/integration_executor.py lines 512/526/536: separate checkout/reset/merge stderr paths
+- retry_budget: oompah/config.py:611 integration_retry_max_attempts=5; oompah/integration_queue.py:325 max_attempts enforcement
+- backoff_config: oompah/config.py:612-613 integration_retry_backoff_seconds=5, integration_retry_max_backoff_seconds=300
+- repair_guidance: git rm instructions in integration_executor.py:294, server.py:3040/3969, orchestrator.py:8670/8772
 ---
 <!-- COMMENTS:END -->
