@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T17:50:33.429591Z'
-updated_at: '2026-08-03T17:50:50.626935Z'
+updated_at: '2026-08-03T17:52:50.236818Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ Live regression of merged OOMPAH-598 observed after the 2026-08-03 service resta
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-03 17:52
+---
+Root evidence from the live log: capacity deferral was initially legitimate at 1/1, but after review capacity cleared every standalone sweep fetched each exact remote head and then logged Cancelled superseded standalone delivery ... delivery authority was revoked before review lookup for OOMPAH-724/726/729. This repeated at 17:40, 17:43, and 17:46 with no competing worker or tracker transition, no alert, and zero open Oompah reviews. The permanent fix must make evidence-revision/authority refresh stable across the remote-head and PR-lookup boundary, or atomically replace the authority without cancelling the same current generation. Add a concurrent tracker refresh/comment/update regression proving benign revision reads cannot revoke an otherwise identical exact-head delivery.
+---
+<!-- COMMENTS:END -->
