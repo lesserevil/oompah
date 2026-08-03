@@ -438,6 +438,49 @@ def compute_issue_evidence_fingerprint(
     if isinstance(child_digests, str):
         child_digests = (child_digests,)
 
+    integrated_sha = str(getattr(integration, "integrated_sha", None) or "")
+    integration_state = str(getattr(integration, "state", None) or "").lower()
+    integrated_branch = str(getattr(integration, "base_branch", None) or "")
+    if integration_state == "integrated" and integrated_sha:
+        # A landed task is audited at the exact integrated commit.  The
+        # integration staging path and API recovery/override paths must not
+        # fall back to the submitted private head or a mutable task branch.
+        source_branch = integrated_branch
+        source_sha = integrated_sha
+        target_branch = integrated_branch
+        target_sha = integrated_sha
+        if not contributors and getattr(integration, "task_branch", None):
+            contributors = (
+                ContributorIdentity(
+                    identity=str(integration.task_branch),
+                    source="git-branch",
+                ),
+            )
+    else:
+        source_branch = str(
+            getattr(issue, "source_branch", None)
+            or getattr(issue, "work_branch", None)
+            or getattr(integration, "task_branch", None)
+            or getattr(issue, "branch_name", None)
+            or ""
+        )
+        source_sha = str(
+            getattr(issue, "source_sha", None)
+            or getattr(integration, "head_sha", None)
+            or ""
+        )
+        target_branch = str(
+            getattr(issue, "target_branch", None)
+            or getattr(integration, "base_branch", None)
+            or ""
+        )
+        target_sha = str(
+            getattr(issue, "target_sha", None)
+            or integrated_sha
+            or getattr(integration, "base_sha", None)
+            or ""
+        )
+
     return compute_evidence_fingerprint(
         requirements_text=str(getattr(issue, "description", None) or ""),
         project_id=str(project_id),
@@ -446,29 +489,10 @@ def compute_issue_evidence_fingerprint(
             or getattr(issue, "id", None)
             or ""
         ),
-        source_branch=str(
-            getattr(issue, "source_branch", None)
-            or getattr(issue, "work_branch", None)
-            or getattr(integration, "task_branch", None)
-            or getattr(issue, "branch_name", None)
-            or ""
-        ),
-        source_sha=str(
-            getattr(issue, "source_sha", None)
-            or getattr(integration, "head_sha", None)
-            or ""
-        ),
-        target_branch=str(
-            getattr(issue, "target_branch", None)
-            or getattr(integration, "base_branch", None)
-            or ""
-        ),
-        target_sha=str(
-            getattr(issue, "target_sha", None)
-            or getattr(integration, "integrated_sha", None)
-            or getattr(integration, "base_sha", None)
-            or ""
-        ),
+        source_branch=source_branch,
+        source_sha=source_sha,
+        target_branch=target_branch,
+        target_sha=target_sha,
         review_id=str(
             getattr(issue, "review_id", None)
             or getattr(issue, "review_number", None)

@@ -1688,6 +1688,32 @@ def _exhausted_no_auditor_record() -> TerminalAuditRecord:
     )
 
 
+def _exhausted_missing_evidence_record() -> TerminalAuditRecord:
+    fingerprint = _fingerprint()
+    return TerminalAuditRecord(
+        audit_id="audit-missing-evidence",
+        project_id=PROJECT_ID,
+        task_id=TASK_ID,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=fingerprint,
+        request_state=RequestState.COMPLETED,
+        attempts=[
+            AuditAttempt(
+                attempt_id="missing-evidence-attempt",
+                target_state=TargetState.DONE,
+                evidence_fingerprint=fingerprint,
+                request_state=RequestState.COMPLETED,
+                verdict=Verdict.FAIL,
+                failure_classification=FailureClassification.MISSING_EVIDENCE,
+                failure_reason="Required pinned quality-gate output was missing",
+                ended_at="2026-07-31T00:02:00+00:00",
+            )
+        ],
+        previous_state="Ready to Integrate",
+        created_at="2026-07-31T00:00:00+00:00",
+    )
+
+
 class TestRetryFailedAudit:
     @staticmethod
     def _owner_project():
@@ -1783,6 +1809,166 @@ class TestRetryFailedAudit:
         ).read(TASK_ID)
         assert stored.pending_chain == [exhausted]
         assert tracker.current_status(TASK_ID) is None
+
+    def test_owner_rearms_missing_evidence_with_same_head_addendum(self) -> None:
+        tracker = _MemoryTracker()
+        failed = _exhausted_missing_evidence_record()
+        _seed_metadata(tracker, [failed])
+        coordinator = _coordinator(tracker, post_comments=False)
+        addendum = {
+            "evidence_fingerprint": failed.evidence_fingerprint.digest,
+            "checks": [
+                {"name": "make test", "result": "passed", "tail": "ok"},
+                {"name": "make fmt-check", "result": "passed"},
+                {"name": "make lint", "result": "passed"},
+            ],
+        }
+
+        result = _run(
+            coordinator.retry_failed_audit(
+                _issue("Needs Human"),
+                TargetState.DONE,
+                ContributorIdentity("project-owner", "api"),
+                PROJECT_ID,
+                "Pinned gate tails supplied for the integrated head",
+                self._owner_project(),
+                evidence_fingerprint=failed.evidence_fingerprint,
+                evidence_addendum=addendum,
+            )
+        )
+
+        assert result.success is True
+        assert result.status_staged is True
+        stored = TerminalAuditMetadataStore(
+            tracker, _LockStore(), PROJECT_ID
+        ).read(TASK_ID)
+        old, fresh = stored.pending_chain
+        assert old.request_state == RequestState.SUPERSEDED
+        assert fresh.request_state == RequestState.PENDING
+        assert fresh.evidence_fingerprint == failed.evidence_fingerprint
+        history = stored.unknown_fields["oompah.terminal_audit_rearm_history"]
+        assert history[0]["actor"]["identity"] == "project-owner"
+        assert history[0]["reason"] == "Pinned gate tails supplied for the integrated head"
+        assert history[0]["evidence_addendum"]["checks"][0]["name"] == "make test"
+
+        outcome = _run(
+            coordinator.apply_audit_result(
+                _issue(IN_VALIDATION),
+                AuditResult(
+                    audit_id=fresh.audit_id,
+                    target_state=TargetState.DONE,
+                    evidence_fingerprint=fresh.evidence_fingerprint,
+                    verdict=Verdict.PASS,
+                    message="The pinned quality gates pass.",
+                    attempt_id="evidence-rearm-pass",
+                ),
+                PROJECT_ID,
+            )
+        )
+        assert outcome.success is True
+        assert tracker.current_status(TASK_ID) == DONE
+
+    def test_missing_evidence_rearm_requires_current_fingerprint_and_owner(self) -> None:
+        tracker = _MemoryTracker()
+        failed = _exhausted_missing_evidence_record()
+        _seed_metadata(tracker, [failed])
+        coordinator = _coordinator(tracker, post_comments=False)
+        addendum = {
+            "evidence_fingerprint": failed.evidence_fingerprint.digest,
+            "checks": ["make test"],
+        }
+
+        mismatch = _run(
+            coordinator.retry_failed_audit(
+                _issue("Needs Human"),
+                TargetState.DONE,
+                ContributorIdentity("project-owner", "api"),
+                PROJECT_ID,
+                "Evidence supplied",
+                self._owner_project(),
+                evidence_fingerprint=_alt_fingerprint(),
+                evidence_addendum=addendum,
+            )
+        )
+        assert mismatch.success is False
+        assert mismatch.reason == "evidence_fingerprint_mismatch"
+
+        non_owner = _run(
+            coordinator.retry_failed_audit(
+                _issue("Needs Human"),
+                TargetState.DONE,
+                ContributorIdentity("auditor-only", "api"),
+                PROJECT_ID,
+                "Evidence supplied",
+                self._owner_project(),
+                evidence_fingerprint=failed.evidence_fingerprint,
+                evidence_addendum=addendum,
+            )
+        )
+        assert non_owner.success is False
+        assert non_owner.reason == "unauthorized_actor"
+        assert TerminalAuditMetadataStore(
+            tracker, _LockStore(), PROJECT_ID
+        ).read(TASK_ID).pending_chain == [failed]
+
+    def test_repeated_missing_evidence_rearm_coalesces(self) -> None:
+        tracker = _MemoryTracker()
+        failed = _exhausted_missing_evidence_record()
+        _seed_metadata(tracker, [failed])
+        coordinator = _coordinator(tracker, post_comments=False)
+        args = (
+            _issue("Needs Human"),
+            TargetState.DONE,
+            ContributorIdentity("project-owner", "api"),
+            PROJECT_ID,
+            "Evidence supplied",
+            self._owner_project(),
+        )
+        kwargs = {
+            "evidence_fingerprint": failed.evidence_fingerprint,
+            "evidence_addendum": {
+                "evidence_fingerprint": failed.evidence_fingerprint.digest,
+                "checks": ["make test"],
+            },
+        }
+
+        first = _run(coordinator.retry_failed_audit(*args, **kwargs))
+        second = _run(coordinator.retry_failed_audit(*args, **kwargs))
+
+        assert first.success is True
+        assert second.success is True
+        assert second.coalesced is True
+        assert second.audit_id == first.audit_id
+        assert len(TerminalAuditMetadataStore(
+            tracker, _LockStore(), PROJECT_ID
+        ).read(TASK_ID).pending_chain) == 2
+
+    def test_successful_same_fingerprint_is_not_rearmable(self) -> None:
+        failed = _exhausted_missing_evidence_record()
+        passed = replace(
+            failed,
+            audit_id="audit-passed",
+            attempts=[replace(failed.attempts[0], verdict=Verdict.PASS, failure_classification=None)],
+        )
+        tracker = _MemoryTracker()
+        _seed_metadata(tracker, [passed])
+        result = _run(
+            _coordinator(tracker, post_comments=False).retry_failed_audit(
+                _issue("Needs Human"),
+                TargetState.DONE,
+                ContributorIdentity("project-owner", "api"),
+                PROJECT_ID,
+                "Evidence supplied",
+                self._owner_project(),
+                evidence_fingerprint=passed.evidence_fingerprint,
+                evidence_addendum={
+                    "evidence_fingerprint": passed.evidence_fingerprint.digest,
+                    "checks": ["make test"],
+                },
+            )
+        )
+        assert result.success is False
+        assert result.reason == "audit_not_retryable"
 
 
 def _pass_result(record: TerminalAuditRecord, **overrides) -> AuditResult:

@@ -889,6 +889,72 @@ def test_patch_owner_audit_retry_rearms_without_direct_terminal_write(client):
     assert tracker.status_updates == []
 
 
+def test_patch_owner_evidence_addendum_rearm_uses_canonical_integrated_fingerprint(client):
+    issue = Issue(
+        "task-evidence-retry",
+        "task-evidence-retry",
+        "Task",
+        description="work",
+        state="Needs Human",
+    )
+    issue.integration = SimpleNamespace(
+        task_branch="feature/task-evidence-retry",
+        head_sha="source-sha",
+        base_branch="main",
+        integrated_sha="integrated-sha",
+    )
+    orch, tracker, coordinator = _orchestrator(issue)
+    fingerprint = server_module._terminal_evidence_fingerprint(issue, "proj-1")
+    with (
+        patch.object(server_module, "_get_orchestrator", return_value=orch),
+        patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+    ):
+        response = client.patch(
+            "/api/v1/issues/task-evidence-retry",
+            json={
+                "project_id": "proj-1",
+                "status": "Done",
+                "audit_retry": True,
+                "audit_retry_reason": "Pinned quality-gate evidence supplied",
+                "audit_retry_evidence_addendum": {
+                    "evidence_fingerprint": fingerprint.digest,
+                    "checks": [
+                        {"name": "make test", "result": "passed"},
+                        {"name": "make fmt-check", "result": "passed"},
+                        {"name": "make lint", "result": "passed"},
+                    ],
+                },
+                "actor_login": "owner",
+            },
+        )
+
+    assert response.status_code == 200
+    assert coordinator.retries[0]["evidence_fingerprint"] == fingerprint
+    assert coordinator.retries[0]["evidence_addendum"]["checks"][0]["name"] == "make test"
+
+
+def test_patch_evidence_addendum_requires_audit_retry(client):
+    issue = Issue("task-evidence-retry", "task-evidence-retry", "Task", state="Open")
+    orch, tracker, coordinator = _orchestrator(issue)
+    with (
+        patch.object(server_module, "_get_orchestrator", return_value=orch),
+        patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+    ):
+        response = client.patch(
+            "/api/v1/issues/task-evidence-retry",
+            json={
+                "project_id": "proj-1",
+                "status": "Done",
+                "audit_retry_evidence_addendum": {"checks": ["make test"]},
+                "actor_login": "owner",
+            },
+        )
+
+    assert response.status_code == 400
+    assert coordinator.retries == []
+    assert tracker.status_updates == []
+
+
 def test_patch_audit_retry_requires_reason(client):
     issue = Issue("task-retry", "task-retry", "Task", state="Needs Human")
     orch, tracker, coordinator = _orchestrator(issue)
