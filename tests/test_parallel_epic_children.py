@@ -730,6 +730,125 @@ def test_integration_queue_summary_rejects_done_child_of_unlanded_parent():
     )
 
 
+def test_container_cycle_routes_only_affected_ready_row_and_preserves_sha(
+    tmp_path,
+):
+    project = _make_project_record(epic_strategy="shared")
+    orchestrator = _make_orch(tmp_path, projects=[project])
+    epic_a = _make_issue(
+        identifier="EPIC-A",
+        issue_type="epic",
+        project_id=project.id,
+    )
+    epic_b = _make_issue(
+        identifier="EPIC-B",
+        issue_type="epic",
+        project_id=project.id,
+    )
+    confined = _make_issue(
+        identifier="DONE-A",
+        parent_id=epic_a.identifier,
+        project_id=project.id,
+        state="Done",
+        integration=IntegrationRecord(
+            state="integrated",
+            integrated_sha="d" * 40,
+        ),
+    )
+    task_b = _make_issue(
+        identifier="TASK-B",
+        parent_id=epic_b.identifier,
+        project_id=project.id,
+    )
+    task_b.blocked_by = [BlockerRef(identifier=confined.identifier)]
+    task_a = _make_issue(
+        identifier="TASK-A",
+        parent_id=epic_a.identifier,
+        project_id=project.id,
+        state="Ready to Integrate",
+    )
+    task_a.blocked_by = [BlockerRef(identifier=task_b.identifier)]
+    independent_epic = _make_issue(
+        identifier="EPIC-C",
+        issue_type="epic",
+        project_id=project.id,
+    )
+    independent = _make_issue(
+        identifier="TASK-C",
+        parent_id=independent_epic.identifier,
+        project_id=project.id,
+        state="Ready to Integrate",
+    )
+    task_a.integration = IntegrationRecord(
+        state="ready",
+        task_branch="epic-EPIC-A--task-TASK-A",
+        head_sha="a" * 40,
+    )
+    independent.integration = IntegrationRecord(
+        state="ready",
+        task_branch="epic-EPIC-C--task-TASK-C",
+        head_sha="c" * 40,
+    )
+    orchestrator.integration_queue.enqueue(
+        project_id=project.id,
+        epic_id=epic_a.identifier,
+        task_id=task_a.identifier,
+        task_branch=task_a.integration.task_branch,
+        head_sha=task_a.integration.head_sha,
+    )
+    orchestrator.integration_queue.enqueue(
+        project_id=project.id,
+        epic_id=independent_epic.identifier,
+        task_id=independent.identifier,
+        task_branch=independent.integration.task_branch,
+        head_sha=independent.integration.head_sha,
+    )
+    cycle_summary = _integration_queue_summary(
+        orchestrator.integration_queue.items(
+            project_id=project.id,
+            epic_id=epic_a.identifier,
+        )[0],
+        task_a,
+        [epic_a, epic_b, confined, task_b, task_a, independent_epic, independent],
+    )
+    assert cycle_summary["container_cycle"]["path"] == [
+        "EPIC-A",
+        "EPIC-B",
+        "EPIC-A",
+    ]
+    assert "Container dependency cycle" in cycle_summary["wait_reason"]
+    tracker = MagicMock()
+    orchestrator._mark_needs_human = MagicMock(
+        side_effect=lambda _tracker, identifier, message: tracker.mark_needs_human(
+            identifier,
+            message,
+            author="oompah",
+        )
+    )
+
+    cycles = orchestrator._audit_container_dependency_cycles(
+        project.id,
+        tracker,
+        [epic_a, epic_b, confined, task_b, task_a, independent_epic, independent],
+        orchestrator.integration_queue.items(project_id=project.id),
+    )
+
+    assert len(cycles) == 1
+    tracker.mark_needs_human.assert_called_once()
+    assert tracker.mark_needs_human.call_args.args[0] == task_a.identifier
+    assert "d" * 40 in tracker.mark_needs_human.call_args.args[1]
+    rows = {
+        item.task_id: item
+        for item in orchestrator.integration_queue.items(project_id=project.id)
+    }
+    assert rows[task_a.identifier].state == "cancelled"
+    assert rows[independent.identifier].state == "ready"
+    assert any(
+        "EPIC-A -> EPIC-B -> EPIC-A" in alert["message"]
+        for alert in orchestrator._alerts
+    )
+
+
 def test_dashboard_shows_queue_wait_reason_and_dependency_semantics():
     html = (
         Path(__file__).resolve().parents[1]

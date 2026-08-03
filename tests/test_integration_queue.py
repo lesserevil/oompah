@@ -56,6 +56,29 @@ def test_identical_resubmit_is_idempotent_and_new_head_requeues(tmp_path):
     assert updated.state == "ready"
 
 
+def test_compare_and_swap_cancel_preserves_new_head(tmp_path):
+    store = IntegrationQueueStore(str(tmp_path / "queue.sqlite3"))
+    queued = _enqueue(store, "A")
+    replacement = store.enqueue(
+        project_id="p1",
+        epic_id="E-1",
+        task_id="A",
+        task_branch=queued.task_branch,
+        head_sha="new-head",
+    )
+
+    assert not store.cancel(
+        "p1",
+        "A",
+        reason="stale cycle snapshot",
+        expected_head_sha=queued.head_sha,
+        expected_state="ready",
+    )
+    current = store.items(project_id="p1", epic_id="E-1")[0]
+    assert current == replacement
+    assert current.state == "ready"
+
+
 def test_expired_lease_recovers_after_restart(tmp_path):
     path = tmp_path / "queue.sqlite3"
     store = IntegrationQueueStore(str(path))
