@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:37:02.712106Z'
-updated_at: '2026-08-03T16:56:55.426760Z'
+updated_at: '2026-08-03T16:59:19.074028Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -185,5 +185,10 @@ author: oompah
 created: 2026-08-03 16:56
 ---
 Discovery: The recovered implementation is present in checkpoint 91a694aa2. Nested epic routing supplies a required canonical-parent target and review/audit evidence to ProjectStore; ProjectStore alone refreshes the target and retains the established dirty, active-operation, ownership, and branch guards. Baseline focused suites passed (36 tests).
+---
+author: oompah
+created: 2026-08-03 16:59
+---
+Implementation: Refactored the orchestrator-only nested cleanup evidence into an explicit TypedDict contract. This is behavior-preserving: it documents the exact optional ProjectStore kwargs and prevents ordinary terminal cleanup from implicitly entering the stricter nested path.
 ---
 <!-- COMMENTS:END -->
