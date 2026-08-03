@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T01:08:30.439967Z'
-updated_at: '2026-08-03T01:24:35.750882Z'
+updated_at: '2026-08-03T01:24:45.193276Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -188,5 +188,15 @@ author: oompah
 created: 2026-08-03 01:24
 ---
 Deterministic full-sync event-loop test with explicit emission barriers and task teardown
+---
+author: oompah
+created: 2026-08-03 01:24
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 45
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 14m 9s
+- Log: OOMPAH-715__20260803T011037Z.jsonl
 ---
 <!-- COMMENTS:END -->
