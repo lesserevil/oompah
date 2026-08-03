@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-702
 type: bug
-status: In Review
+status: In Validation
 priority: 0
 title: Synchronize merged-webhook tests with background terminal staging
 parent: null
@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T20:34:49.621752Z'
-updated_at: '2026-08-03T01:12:24.112343Z'
+updated_at: '2026-08-03T01:21:20.271382Z'
 work_branch: OOMPAH-702
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/670
@@ -111,6 +111,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/670
 oompah.review_number: '670'
 oompah.work_branch: OOMPAH-702
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-97c040fdbac1
+    project_id: proj-14849f1b
+    task_id: OOMPAH-702
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 665335cc6f57b53e5e9c655d107c2a6e6e39dc3b3934deee9f1b564aa65062ab
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-03T01:21:12.967256+00:00'
+  - version: 1
+    audit_id: audit-f37627a99af2
+    project_id: proj-14849f1b
+    task_id: OOMPAH-702
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 665335cc6f57b53e5e9c655d107c2a6e6e39dc3b3934deee9f1b564aa65062ab
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-03T01:21:12.967256+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -468,5 +507,15 @@ author: oompah
 created: 2026-08-03 01:12
 ---
 Branch quality gate passed for `d7eaa2a1861d595fef08da60c4139dbf838929f9` using `make test` in 402.6s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-03 01:21
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-03 01:21
+---
+YOLO: merged PR #670.
 ---
 <!-- COMMENTS:END -->
