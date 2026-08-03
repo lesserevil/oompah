@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T13:00:53.157839Z'
-updated_at: '2026-08-03T13:38:43.707771Z'
+updated_at: '2026-08-03T13:42:31.423397Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -289,5 +289,20 @@ author: oompah
 created: 2026-08-03 13:38
 ---
 Understanding: I am handling the post-gate CI failure on the existing OOMPAH-717 branch. I will retrieve the failing GitHub Actions output, reproduce the targeted Makefile structure test locally, apply the minimal stability fix with regression coverage, then commit, push, and resubmit.
+---
+author: oompah
+created: 2026-08-03 13:42
+---
+Discovery: The only gate failure was tests/test_makefile_restart_wait.py::TestMakefileStructure::test_process_global_gate_keeps_preexisting_sentinel_alive. Its fixture explicitly had a free-port probe followed by a separate bind, leaving a TOCTOU window. GitHub has no Actions run or PR for OOMPAH-717, so the preserved quality-gate transcript was the available job log.
+---
+author: oompah
+created: 2026-08-03 13:42
+---
+Implementation: Stabilized only the failing lifecycle test. The sentinel now binds port 0 itself and writes its actual bound port after listen() succeeds; the parent waits for that readiness file before exercising the nested gate. This removes the probe/bind race without changing product or workflow code.
+---
+author: oompah
+created: 2026-08-03 13:42
+---
+Verification: scripts/run-tests.sh serial tests/test_makefile_restart_wait.py::TestMakefileStructure::test_process_global_gate_keeps_preexisting_sentinel_alive passed (1 passed). The full directly affected module passed in serial and parallel xdist modes (42 passed each). I did not rerun the full make test gate; it will be rerun for the new head.
 ---
 <!-- COMMENTS:END -->
