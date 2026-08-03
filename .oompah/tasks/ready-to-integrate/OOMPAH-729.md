@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T16:23:52.854950Z'
-updated_at: '2026-08-03T17:17:52.810936Z'
+updated_at: '2026-08-03T17:18:08.296105Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -188,5 +188,15 @@ author: oompah
 created: 2026-08-03 17:17
 ---
 Completion: delivered and pushed the evidence-only terminal-audit recovery. Owners can rearm a same-integrated-SHA missing_evidence failure once with audit_retry_evidence_addendum; the coordinator preserves history and fencing, coalesces duplicates, and independent audit can PASS to Done. The sweep now exposes one actionable recovery alert and clears it after rearm. Focused 393-test suite and terminal mutation scan pass; full direct suite reached 15,134 passes with only the wrapper-env test failure documented above. Submitted for integration at the pushed head.
+---
+author: oompah
+created: 2026-08-03 17:18
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 93
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 22m 27s
+- Log: OOMPAH-729__20260803T165547Z.jsonl
 ---
 <!-- COMMENTS:END -->
