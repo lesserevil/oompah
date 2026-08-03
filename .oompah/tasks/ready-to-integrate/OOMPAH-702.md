@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-702
 type: bug
-status: Needs CI Fix
+status: Ready to Integrate
 priority: 0
 title: Synchronize merged-webhook tests with background terminal staging
 parent: null
@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T20:34:49.621752Z'
-updated_at: '2026-08-03T00:03:54.401534Z'
+updated_at: '2026-08-03T00:56:39.909625Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -104,9 +104,9 @@ oompah.integration:
   state: ready
   attempts: 0
   task_branch: OOMPAH-702
-  head_sha: 02da2864d3b3dce49f15a1ef4b39526069e7e099
-  submitted_at: '2026-08-02T23:40:22.226641+00:00'
-  updated_at: '2026-08-02T23:40:22.226641+00:00'
+  head_sha: d7eaa2a1861d595fef08da60c4139dbf838929f9
+  submitted_at: '2026-08-03T00:56:36.005353+00:00'
+  updated_at: '2026-08-03T00:56:36.005353+00:00'
 ---
 ## Summary
 
@@ -449,5 +449,15 @@ FAILED tests/test_orchestrator_handlers.py::TestTickDelegation::test_tick_notifi
 
 make: *** [Makefile:401: test] Error 1
 ```
+---
+author: oompah
+created: 2026-08-03 00:56
+---
+Direct owner recovery complete after OOMPAH-709 merged. Rebased onto main and dropped the historical scheduler-change/revert pair, leaving one webhook-only commit at d7eaa2a1861d595fef08da60c4139dbf838929f9. Exact diff touches only tests/test_server_webhooks.py. Verification: 132 focused webhook tests passed; make check-secrets passed; clean branch force-pushed with lease.
+---
+author: oompah
+created: 2026-08-03 00:56
+---
+Rebased webhook regression coverage onto the merged deterministic tick-test fix. The submitted branch is webhook-only, 132 focused tests pass, and the exact clean head is d7eaa2a1861d595fef08da60c4139dbf838929f9.
 ---
 <!-- COMMENTS:END -->
