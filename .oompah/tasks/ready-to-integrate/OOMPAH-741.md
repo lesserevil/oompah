@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:13.861445Z'
-updated_at: '2026-08-03T23:53:11.157705Z'
+updated_at: '2026-08-03T23:55:04.905158Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-741
 target_branch: null
 review_url: null
@@ -54,13 +54,17 @@ oompah.integration:
   submitted_at: '2026-08-03T23:53:07.523920+00:00'
   updated_at: '2026-08-03T23:53:07.523920+00:00'
 oompah.task_costs:
-  total_input_tokens: 46242
-  total_output_tokens: 259
+  total_input_tokens: 46316
+  total_output_tokens: 9830
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 46242
       output_tokens: 259
+      cost_usd: 0.0
+    opus:
+      input_tokens: 74
+      output_tokens: 9571
       cost_usd: 0.0
   runs:
   - profile: default
@@ -69,6 +73,12 @@ oompah.task_costs:
     output_tokens: 259
     cost_usd: 0.0
     recorded_at: '2026-08-03T23:02:22.753889+00:00'
+  - profile: deep
+    model: opus
+    input_tokens: 74
+    output_tokens: 9571
+    cost_usd: 0.0
+    recorded_at: '2026-08-03T23:55:02.784693+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-741__20260803T230037Z
@@ -201,5 +211,15 @@ author: oompah
 created: 2026-08-03 23:53
 ---
 Implemented structured dashboard alert contract at oompah.dashboard_alerts and normalized snapshot boundary in oompah/orchestrator.py and oompah/server.py. Applied contract to generic alerts, repo hygiene, terminal-audit health, auth health, and quality-gate lifecycle. Dashboard uses action_required=false as the actionability decision (no message parsing). Duplicate producers collapse by stable identity to the highest severity. OOMPAH-735 remains the integration_retry recovery classifier owner. Focused alert/health/state-API/WebSocket tests pass; 5 unrelated pre-existing test_quality_gate sandbox failures observed on base.
+---
+author: oompah
+created: 2026-08-03 23:55
+---
+Run #2 [attempt=2, profile=deep, role=deep -> Claude/opus]
+- Turns: 0, Tool calls: 57
+- Tokens: 74 in / 9.6K out [9.6K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 27m 51s
+- Log: OOMPAH-741__20260803T232728Z.jsonl
 ---
 <!-- COMMENTS:END -->
