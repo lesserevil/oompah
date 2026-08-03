@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-726
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Prune terminal nested-epic worktrees using recorded target-branch evidence
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:37:02.712106Z'
-updated_at: '2026-08-03T16:03:42.878440Z'
+updated_at: '2026-08-03T16:04:30.455722Z'
 work_branch: null
 target_branch: null
 review_url: null
