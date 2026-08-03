@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T17:50:33.429591Z'
-updated_at: '2026-08-03T18:29:16.371469Z'
+updated_at: '2026-08-03T18:49:45.369844Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -224,5 +224,18 @@ author: oompah
 created: 2026-08-03 18:29
 ---
 Understanding (continuation run): Reviewing the recovery checkpoint from the previous agent. Three root fixes have been partially implemented: (1) removed updated_at from the standalone delivery evidence revision fingerprint to prevent benign tracker bookkeeping from revoking live delivery authority; (2) added _standalone_delivery_future to decouple standalone reconciliation from the shared-epic _integration_future so neither blocks the other; (3) moved standalone reconciliation launch to the start of _tick so maintenance lane starvation cannot defer it. Need to verify all tests pass, check startup recovery is wired correctly, verify wakeup on same-head resubmit, and ensure the new tests meet all acceptance criteria before submitting.
+---
+author: oompah
+created: 2026-08-03 18:49
+---
+Discovery: Three root causes identified from live log evidence.
+
+1. **Evidence revision instability** (primary): `_standalone_delivery_evidence_revision` included `updated_at`, which is advanced by tracker comments, cache refreshes, and other benign bookkeeping. Every standalone sweep fetched the remote head, then read the fresh issue whose `updated_at` had just been advanced, causing the revision comparison to fail with 'Cancelled superseded standalone delivery'—repeatedly, with no competing worker and no lifecycle change.
+
+2. **Bidirectional scheduling starvation** (secondary): `_reconcile_standalone_ready_to_integrate_tasks` was called inside `_process_integration_queues` as a sequential `await run_in_executor`. A long standalone make-test gate (several minutes) would block all shared-epic queue claims. Conversely, if `_integration_future` was busy, standalone reconciliation was deferred.
+
+3. **Reconciler scheduling position** (secondary): Standalone reconciliation launched only after the epic integration coroutine, so maintenance lane or dispatch starvation could defer the bounded Ready sweep interval.
+
+Relevant files: `oompah/orchestrator.py` (methods `_standalone_delivery_evidence_revision`, `_tick`, `_process_integration_queues`); tests in `tests/test_standalone_ready_to_integrate.py` and `tests/test_orchestrator_handlers.py`.
 ---
 <!-- COMMENTS:END -->
