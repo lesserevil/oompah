@@ -11,11 +11,11 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T20:06:54.610285Z'
-updated_at: '2026-08-03T21:07:03.645348Z'
-work_branch: null
-target_branch: null
+updated_at: '2026-08-03T21:07:10.487312Z'
+work_branch: OOMPAH-737
+target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/693
-review_number: null
+review_number: '693'
 review_head: null
 merged_at: null
 oompah.duplicate_screening:
@@ -102,6 +102,9 @@ oompah.integration:
   submitted_at: '2026-08-03T20:50:10.181276+00:00'
   updated_at: '2026-08-03T20:50:10.181276+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/693
+oompah.review_number: '693'
+oompah.work_branch: OOMPAH-737
+oompah.target_branch: main
 ---
 ## Summary
 
