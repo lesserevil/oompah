@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-709
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Make tick-delegation tests deterministic under parallel full-suite execution
 parent: null
@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T23:17:45.073003Z'
-updated_at: '2026-08-03T00:57:57.081242Z'
+updated_at: '2026-08-03T00:58:40.923523Z'
 work_branch: OOMPAH-709
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/669
@@ -96,6 +96,28 @@ oompah.work_branch: OOMPAH-709
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-444babaaf27b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-709
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d3b6e024a73fe88f053211e0f7e43d03d6bbae9a25d741e66d6c0ef5c1e0b9b8
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner override after exact head 234507c7c76611d5a10cf3eeec341f8773aadf34
+      passed the isolated make test gate (396.2s) and PR #669 passed Python 3.11/3.12/3.13
+      CI. Two completion-auditor transports were terminated solely because harmless
+      read-only grep and piped git-log commands were misclassified against the auditor
+      compound-shell policy; no code defect verdict was produced. Follow-up filed
+      for that policy/tool-guidance failure.'
+    created_at: '2026-08-03T00:58:36.607087+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -428,5 +450,12 @@ author: oompah
 created: 2026-08-03 00:57
 ---
 Auditor attempt was stopped after repeated policy denials; a different independent candidate will be tried.
+---
+author: oompah
+created: 2026-08-03 00:58
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner override after exact head 234507c7c76611d5a10cf3eeec341f8773aadf34 passed the isolated make test gate (396.2s) and PR #669 passed Python 3.11/3.12/3.13 CI. Two completion-auditor transports were terminated solely because harmless read-only grep and piped git-log commands were misclassified against the auditor compound-shell policy; no code defect verdict was produced. Follow-up filed for that policy/tool-guidance failure.
 ---
 <!-- COMMENTS:END -->
