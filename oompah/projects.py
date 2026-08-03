@@ -3019,6 +3019,43 @@ class ProjectStore:
             if line.startswith(prefix)
         }
 
+    def _registered_worktree_branch_paths(
+        self, repo_path: str
+    ) -> dict[str, set[str]]:
+        """Return the registered checkout paths for each local branch.
+
+        The branch-only inventory is sufficient for ordinary branch deletion,
+        but auxiliary cleanup must distinguish the candidate worktree from a
+        second checkout that is using the same private branch.  Keeping this
+        mapping local to the conservative cleanup path avoids changing the
+        long-standing inventory API used by other maintenance jobs.
+        """
+
+        try:
+            result = subprocess.run(
+                ["git", "worktree", "list", "--porcelain"],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=30,
+            )
+        except subprocess.CalledProcessError as exc:
+            stderr = exc.stderr.strip()[:500] if exc.stderr else ""
+            raise ProjectError(f"git worktree list failed: {stderr}")
+        except subprocess.TimeoutExpired:
+            raise ProjectError("git worktree list timed out")
+
+        branch_paths: dict[str, set[str]] = {}
+        current_path: str | None = None
+        for line in result.stdout.splitlines():
+            if line.startswith("worktree "):
+                current_path = os.path.realpath(line[len("worktree ") :])
+            elif line.startswith("branch refs/heads/") and current_path:
+                branch = line[len("branch refs/heads/") :]
+                branch_paths.setdefault(branch, set()).add(current_path)
+        return branch_paths
+
     @staticmethod
     def _branch_is_protected(project: Project, branch_name: str) -> bool:
         """Return whether cleanup must preserve a configured long-lived ref."""
@@ -4266,6 +4303,299 @@ class ProjectStore:
             )
         return worktree_removed or branch_removed
 
+    def _cleanup_direct_epic_auxiliary_workspace_locked(
+        self,
+        project_id: str,
+        issue_identifier: str,
+        recorded_branch: str,
+    ) -> tuple[bool, str | None] | None:
+        """Prune a private checkout accidentally allocated to a direct epic task.
+
+        A direct epic maintenance task records the shared branch
+        ``epic-<parent>`` even when an ordinary dispatch has already allocated
+        its managed issue path on ``epic-<parent>--task-<issue>``.  The shared
+        epic worktree must never be inferred from the issue path.  This helper
+        therefore returns a result only after it has identified the exact
+        derived branch at the exact registered task path; otherwise ``None``
+        leaves the existing terminal-cleanup behavior in charge.
+
+        Unlike ordinary terminal branch cleanup, this path deletes only the
+        exact local derived ref.  A remote private branch can be the durable
+        evidence that makes the local checkout disposable, so it is
+        intentionally never deleted here.
+        """
+
+        project = self._projects.get(project_id)
+        if not project:
+            raise ProjectError(f"Unknown project: {project_id}")
+
+        recorded = str(recorded_branch or "").strip()
+        epic_prefix = "epic-"
+        if not recorded.startswith(epic_prefix):
+            return None
+        parent_identifier = recorded[len(epic_prefix) :]
+        if not parent_identifier or self.epic_branch_name(parent_identifier) != recorded:
+            return None
+
+        derived_branch = self.epic_child_branch_name(
+            parent_identifier,
+            issue_identifier,
+        )
+        auxiliary_path = self.worktree_path_for(project_id, issue_identifier)
+        if not os.path.isdir(auxiliary_path):
+            return None
+
+        try:
+            checked_out = subprocess.run(
+                ["git", "symbolic-ref", "--short", "HEAD"],
+                cwd=auxiliary_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_recovery_git_env(),
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise ProjectError(
+                f"git branch identity check failed for direct epic auxiliary "
+                f"workspace {auxiliary_path}: {exc}"
+            ) from exc
+
+        if checked_out.returncode != 0 or checked_out.stdout.strip() != derived_branch:
+            # Returning None is deliberate: the normal cleanup path will then
+            # report the existing branch mismatch without touching this path.
+            return None
+
+        registered_paths = self._registered_worktree_paths(project.repo_path)
+        if os.path.realpath(auxiliary_path) not in registered_paths:
+            logger.warning(
+                "Direct epic auxiliary workspace is not registered; preserving "
+                "project=%s issue=%s path=%s branch=%s",
+                project.id,
+                issue_identifier,
+                auxiliary_path,
+                derived_branch,
+            )
+            return False, "direct_epic_auxiliary_unregistered"
+
+        branch_paths = self._registered_worktree_branch_paths(project.repo_path)
+        other_checkouts = branch_paths.get(derived_branch, set()) - {
+            os.path.realpath(auxiliary_path)
+        }
+        if other_checkouts:
+            logger.warning(
+                "Direct epic auxiliary branch is checked out elsewhere; "
+                "preserving project=%s issue=%s branch=%s paths=%s",
+                project.id,
+                issue_identifier,
+                derived_branch,
+                sorted(other_checkouts),
+            )
+            return False, "direct_epic_auxiliary_shared_checkout"
+
+        operation = _git_operation_state(
+            auxiliary_path,
+            current_branch=derived_branch,
+            branch_result_code=0,
+        )
+        if operation:
+            logger.warning(
+                "Direct epic auxiliary workspace has active Git operation; "
+                "preserving project=%s issue=%s operation=%s path=%s",
+                project.id,
+                issue_identifier,
+                operation.get("kind"),
+                auxiliary_path,
+            )
+            return False, "direct_epic_auxiliary_active_operation"
+
+        recovery = self._recovery_context_from_ref(project, issue_identifier)
+        if recovery:
+            logger.warning(
+                "Direct epic auxiliary workspace has recovery evidence; "
+                "preserving project=%s issue=%s ref=%s",
+                project.id,
+                issue_identifier,
+                recovery.get("recovery_ref"),
+            )
+            return False, "direct_epic_auxiliary_recovery"
+
+        status = self._git_status_for_worktree(auxiliary_path)
+        if status.returncode != 0:
+            raise ProjectError(
+                f"cannot inspect direct epic auxiliary workspace {auxiliary_path}: "
+                f"{status.stderr.strip()[:500]}"
+            )
+        if self._worktree_dirty_paths(status.stdout):
+            logger.warning(
+                "Direct epic auxiliary workspace is dirty; preserving "
+                "project=%s issue=%s path=%s",
+                project.id,
+                issue_identifier,
+                auxiliary_path,
+            )
+            return False, "direct_epic_auxiliary_dirty"
+
+        head = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=auxiliary_path,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+            env=_recovery_git_env(),
+        )
+        if head.returncode != 0 or not head.stdout.strip():
+            raise ProjectError(
+                f"cannot prove direct epic auxiliary head for {issue_identifier}"
+            )
+        head_sha = head.stdout.strip()
+
+        local_head = subprocess.run(
+            ["git", "rev-parse", "--verify", f"refs/heads/{derived_branch}"],
+            cwd=project.repo_path,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+            env=_recovery_git_env(),
+        )
+        if local_head.returncode != 0 or local_head.stdout.strip() != head_sha:
+            logger.warning(
+                "Direct epic auxiliary local ref changed; preserving "
+                "project=%s issue=%s branch=%s head=%s",
+                project.id,
+                issue_identifier,
+                derived_branch,
+                head_sha,
+            )
+            return False, "direct_epic_auxiliary_ref_changed"
+
+        # Only the default branch, the authoritative epic branch, and private
+        # branches derived from that same epic are trusted reachability
+        # evidence.  In particular, an unrelated project/task branch cannot
+        # make this workspace eligible for deletion.
+        remote_refs = subprocess.run(
+            [
+                "git",
+                "for-each-ref",
+                "--format=%(refname:short)",
+                "refs/remotes/origin",
+            ],
+            cwd=project.repo_path,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+            env=_recovery_git_env(),
+        )
+        if remote_refs.returncode != 0:
+            raise ProjectError(
+                "could not inspect direct epic auxiliary remote evidence: "
+                f"{remote_refs.stderr.strip()[:500]}"
+            )
+        remote_branches = {
+            line.strip()[len("origin/") :]
+            for line in remote_refs.stdout.splitlines()
+            if line.strip().startswith("origin/")
+            and line.strip() != "origin/HEAD"
+        }
+        trusted_branches = {
+            project.default_branch,
+            recorded,
+            derived_branch,
+        }
+        trusted_branches.update(
+            branch
+            for branch in remote_branches
+            if branch.startswith(f"{recorded}--task-")
+            and branch[len(f"{recorded}--task-") :].strip()
+        )
+
+        evidence_branch = None
+        for branch in sorted(trusted_branches):
+            if branch not in remote_branches:
+                continue
+            ancestry = subprocess.run(
+                [
+                    "git",
+                    "merge-base",
+                    "--is-ancestor",
+                    head_sha,
+                    f"refs/remotes/origin/{branch}",
+                ],
+                cwd=project.repo_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_recovery_git_env(),
+            )
+            if ancestry.returncode == 0:
+                evidence_branch = branch
+                break
+
+        if evidence_branch is None:
+            logger.warning(
+                "Direct epic auxiliary head has no durable pushed/merged "
+                "evidence; preserving project=%s issue=%s branch=%s head=%s",
+                project.id,
+                issue_identifier,
+                derived_branch,
+                head_sha,
+            )
+            return False, "direct_epic_auxiliary_unpublished"
+
+        if self._branch_is_protected(project, derived_branch):
+            logger.warning(
+                "Direct epic auxiliary branch is protected; preserving "
+                "project=%s issue=%s branch=%s",
+                project.id,
+                issue_identifier,
+                derived_branch,
+            )
+            return False, "direct_epic_auxiliary_protected"
+
+        worktree_removed = self._remove_worktree_locked(
+            project_id,
+            issue_identifier,
+        )
+        if not worktree_removed:
+            return False, "direct_epic_auxiliary_missing_worktree"
+
+        removed_ref = subprocess.run(
+            [
+                "git",
+                "update-ref",
+                "-d",
+                f"refs/heads/{derived_branch}",
+                head_sha,
+            ],
+            cwd=project.repo_path,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+            env=_recovery_git_env(),
+        )
+        if removed_ref.returncode != 0:
+            raise ProjectError(
+                "direct epic auxiliary local ref changed during cleanup for "
+                f"{issue_identifier}; worktree was removed but ref was preserved: "
+                f"{removed_ref.stderr.strip()[:500]}"
+            )
+
+        logger.info(
+            "Removed direct epic auxiliary workspace project=%s issue=%s "
+            "path=%s local_branch=%s evidence=origin/%s",
+            project.id,
+            issue_identifier,
+            auxiliary_path,
+            derived_branch,
+            evidence_branch,
+        )
+        return True, None
+
     def cleanup_terminal_issue(
         self,
         project_id: str,
@@ -4317,6 +4647,17 @@ class ProjectStore:
         )
 
         with self.project_write_lock(project_id):
+            if not is_epic:
+                auxiliary_result = (
+                    self._cleanup_direct_epic_auxiliary_workspace_locked(
+                        project_id,
+                        issue_identifier,
+                        candidate,
+                    )
+                )
+                if auxiliary_result is not None:
+                    return auxiliary_result
+
             if is_epic or legacy_epic_task:
                 epic_path = self.epic_worktree_path_for(project_id, issue_identifier)
                 if os.path.isdir(epic_path):
