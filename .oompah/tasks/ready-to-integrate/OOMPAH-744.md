@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:25.203763Z'
-updated_at: '2026-08-03T23:39:14.494929Z'
+updated_at: '2026-08-03T23:41:07.496824Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-744
 target_branch: null
 review_url: null
@@ -80,13 +80,13 @@ oompah.integration:
   submitted_at: '2026-08-03T23:39:09.474747+00:00'
   updated_at: '2026-08-03T23:39:09.474747+00:00'
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 1994
+  total_input_tokens: 30
+  total_output_tokens: 2441
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 10
-      output_tokens: 1994
+      input_tokens: 30
+      output_tokens: 2441
       cost_usd: 0.0
   runs:
   - profile: default
@@ -95,6 +95,12 @@ oompah.task_costs:
     output_tokens: 1994
     cost_usd: 0.0
     recorded_at: '2026-08-03T23:06:20.603456+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 20
+    output_tokens: 447
+    cost_usd: 0.0
+    recorded_at: '2026-08-03T23:41:04.161294+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-744__20260803T230325Z
@@ -259,5 +265,15 @@ author: oompah
 created: 2026-08-03 23:39
 ---
 Implemented atomic clearing of stale alert UI after authoritative full_sync. Added _clearAllAlertAndHealthUI() function that clears all diagnostic panels (alerts, credential errors, quality gates, terminal audit, repo hygiene, auth health, running agents) before applying an authoritative snapshot. This ensures full_sync responses are treated as complete replacements, preventing mixed-generation rendering where old alerts appear beside new state. All 907 dashboard tests + 16 fault injection tests pass. Implementation is production-ready.
+---
+author: oompah
+created: 2026-08-03 23:41
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 0, Tool calls: 51
+- Tokens: 20 in / 447 out [467 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 25m 34s
+- Log: OOMPAH-744__20260803T231543Z.jsonl
 ---
 <!-- COMMENTS:END -->

@@ -13,9 +13,10 @@ blocked_by:
 start_blocked_by: []
 labels:
 - focus-complete:merge_conflict
+- needs:test
 assignee: null
 created_at: '2026-08-03T22:56:27.836890Z'
-updated_at: '2026-08-03T23:40:47.198515Z'
+updated_at: '2026-08-03T23:41:04.124475Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-745
 target_branch: null
 review_url: null
