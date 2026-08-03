@@ -13,7 +13,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-08-03T19:06:11.095695Z'
-updated_at: '2026-08-03T20:37:00.743029Z'
+updated_at: '2026-08-03T20:47:52.108631Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -394,5 +394,10 @@ author: oompah
 created: 2026-08-03 20:37
 ---
 Understanding: Resuming the preserved backend implementation snapshot. I will reconcile its uncommitted coordinator, auditor lifecycle, scheduler, authority-revocation, and health changes; inspect existing test/Make targets; close any remaining acceptance-criteria gaps; run focused affected suites; then commit, push, and submit.
+---
+author: oompah
+created: 2026-08-03 20:47
+---
+Implementation: Reconciled and tightened the preserved backend patch. Terminal audit metadata/status now commit before PASS/FAIL comments; status failures suppress comments and retain recoverable intents. Auditors receive one reserved finalization turn; API sessions force only submit_audit_result on that turn and cannot treat prose as completion. Normal/max-turn exits without a structured result are classified as finalization failures, while structured nonterminal results, transport failures, and policy denials retain distinct ownership. Recovery health counters rebuild without accumulation, committed PASS remains CAS-fenced against sibling redispatch, and owner overrides revoke/terminate live auditor authority. Updated tests and operator/design docs to match the fail-closed recovery behavior.
 ---
 <!-- COMMENTS:END -->
