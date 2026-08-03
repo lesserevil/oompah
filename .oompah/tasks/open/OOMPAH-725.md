@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:33:53.224136Z'
-updated_at: '2026-08-03T15:59:50.784089Z'
+updated_at: '2026-08-03T15:59:56.520618Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -22,14 +22,21 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: ad31e0ee18386818195c444dd324348912d9da0616165babeecbcfae7117da8d
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-03T15:59:47.671629+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: edffea8c-c5cc-4e23-a040-6f79dfe6caff
-  claim_owner: 2dcc53e1-cdcd-4522-a08d-de6ce4222a8c
-  claimed_at: '2026-08-03T15:59:04.538859+00:00'
-  claim_expires_at: '2026-08-03T16:29:04.538859+00:00'
+  evidence: "Focus handoff: duplicate_detector\nDuplicate preflight verdict: no_duplicate\n\
+    Matches: none\nEvidence: Closest reviewed tasks were OOMPAH-165 (epic landing\
+    \ detection), OOMPAH-162 (stacked child landing), and OOMPAH-168 (shared workflow\
+    \ simplification); all are terminal and address different behavior.\nFocus handoff:\
+    \ duplicate_detector  \nDuplicate preflight verdict: no_duplicate  \nMatches:\
+    \ none  \n\nEvidence: Closest reviewed tasks were OOMPAH-165 (epic landing detection),\
+    \ OOMPAH-162 (stacked child landing), and OOMPAH-168 (shared workflow simplification);\
+    \ all are terminal and address different behavior."
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 0
   retry_after: null
   owner_resolved_at: null
@@ -52,6 +59,16 @@ oompah.task_costs:
     output_tokens: 395
     cost_usd: 0.0
     recorded_at: '2026-08-03T15:59:47.668765+00:00'
+oompah.work_contributors:
+  runs:
+  - run_id: OOMPAH-725__20260803T155925Z
+    provider_id: prov-52e94e83
+    provider_name: Codex
+    model_id: gpt-5.6-luna
+    focus: duplicate_detector
+    source_branch: OOMPAH-725
+    source_sha: d510748342777dd4748070d83391ffb0eae40091
+    completed_at: '2026-08-03T15:59:47.680961+00:00'
 ---
 ## Summary
 
