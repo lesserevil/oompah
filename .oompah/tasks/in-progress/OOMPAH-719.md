@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T14:01:56.950921Z'
-updated_at: '2026-08-03T14:16:56.529494Z'
+updated_at: '2026-08-03T14:41:49.997811Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -219,5 +219,11 @@ author: oompah
 created: 2026-08-03 14:16
 ---
 Verification: focused transport/auditor suites pass (26 tests), broader ACP/API/project-tool suites pass (165 tests), and terminal-audit health/dashboard/cleanup suites pass (91 tests). Ruff reports existing baseline violations outside this change; git diff --check and Python compilation are clean. Starting the complete Makefile gate next.
+---
+author: oompah
+created: 2026-08-03 14:41
+---
+Verification complete: full equivalent pytest gate passed 15099 tests, 7 skipped, 1 xfailed, 40 existing warnings. Focused ACP/auditor, API, terminal-audit health/dashboard/cleanup suites all pass. make[1]: Entering directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-719'
+make[1]: Leaving directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-719' was attempted twice but stopped before tests because astral-uv could not create a transient systemd scope in this environment; no project test failure occurred.
 ---
 <!-- COMMENTS:END -->
