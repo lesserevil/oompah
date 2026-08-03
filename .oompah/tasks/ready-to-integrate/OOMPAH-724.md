@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:25:39.369981Z'
-updated_at: '2026-08-03T17:03:04.566428Z'
+updated_at: '2026-08-03T17:05:08.151361Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -57,13 +57,17 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: 641e9d52-bfd8-4e9e-b02a-7864a6e4603d
 oompah.task_costs:
-  total_input_tokens: 1616
-  total_output_tokens: 1281
+  total_input_tokens: 1631
+  total_output_tokens: 4026
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 1616
       output_tokens: 1281
+      cost_usd: 0.0
+    sonnet:
+      input_tokens: 15
+      output_tokens: 2745
       cost_usd: 0.0
   runs:
   - profile: default
@@ -78,6 +82,12 @@ oompah.task_costs:
     output_tokens: 373
     cost_usd: 0.0
     recorded_at: '2026-08-03T16:28:42.792305+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 15
+    output_tokens: 2745
+    cost_usd: 0.0
+    recorded_at: '2026-08-03T17:04:58.501626+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-724__20260803T155909Z
@@ -88,14 +98,24 @@ oompah.work_contributors:
     source_branch: OOMPAH-724
     source_sha: d510748342777dd4748070d83391ffb0eae40091
     completed_at: '2026-08-03T16:00:01.957108+00:00'
+  - run_id: OOMPAH-724__20260803T165530Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: sonnet
+    focus: refactor
+    source_branch: OOMPAH-724
+    source_sha: e0e1769757167c48853d850c484840f129aa56cf
+    completed_at: '2026-08-03T17:04:58.516990+00:00'
 oompah.integration:
   version: 2
   state: ready
   attempts: 0
   task_branch: OOMPAH-724
+  base_branch: main
+  base_sha: eb4a649ba8d316327f2435e23e98604c8a3384d9
   head_sha: e0e1769757167c48853d850c484840f129aa56cf
   submitted_at: '2026-08-03T17:02:58.884611+00:00'
-  updated_at: '2026-08-03T17:02:58.884611+00:00'
+  updated_at: '2026-08-03T17:05:05.794454+00:00'
 ---
 ## Summary
 
@@ -301,5 +321,20 @@ author: oompah
 created: 2026-08-03 17:03
 ---
 Fence accepted submissions against post-handoff worktree mutation (EXOCOMP-172 fix). Added submission fencing mechanism: (1) accepted_submission_record field on RunningEntry marks when a worker submission is accepted; (2) _accept_worker_submission() immediately revokes authority to prevent further mutations; (3) new _handle_revoked_submission_exit() validates final worktree state against submitted HEAD, preserves late changes via recovery checkpoint, reopens task with recovery context if late mutations detected, or enqueues for integration if clean. Comprehensive tests cover EXOCOMP-172 reproduction, clean submission path, authority revocation, and all neighboring suites pass with no regressions.
+---
+author: oompah
+created: 2026-08-03 17:05
+---
+Agent completed successfully in 577s (2760 tokens)
+---
+author: oompah
+created: 2026-08-03 17:05
+---
+Run #3 [attempt=3, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 32, Tool calls: 16
+- Tokens: 15 in / 2.7K out [2.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 9m 37s
+- Log: OOMPAH-724__20260803T165530Z.jsonl
 ---
 <!-- COMMENTS:END -->
