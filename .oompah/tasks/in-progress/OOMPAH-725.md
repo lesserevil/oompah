@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:33:53.224136Z'
-updated_at: '2026-08-03T16:03:00.386038Z'
+updated_at: '2026-08-03T16:06:57.674873Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -136,5 +136,10 @@ author: oompah
 created: 2026-08-03 16:03
 ---
 Understanding: shared-epic children must be blocked from Merged until accepted work reaches the configured target branch; maintenance/rebase children should terminate at audited Done. I will trace the shared-epic strategy, terminal transition coordinator, API/ACP and recovery paths, then centralize compatibility validation, add legacy reconciliation, and cover the requested lifecycle/override cases with focused tests.
+---
+author: oompah
+created: 2026-08-03 16:06
+---
+Discovery: terminal writes are already funneled through TerminalTransitionCoordinator, but its request/apply/override paths lack shared-epic lifecycle context, allowing owner overrides to bypass rollup checks. Orchestrator already provides authoritative parent-review landing detection via _epic_branch_landed_on_target and identifies auto-filed rebase helpers. I will reuse that through a coordinator/enforcement callback and repair incompatible legacy Merged records before restart recovery can replay them.
 ---
 <!-- COMMENTS:END -->

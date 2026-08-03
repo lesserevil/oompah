@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:39:38.824262Z'
-updated_at: '2026-08-03T16:05:55.896659Z'
+updated_at: '2026-08-03T16:07:05.159627Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -160,5 +160,10 @@ author: oompah
 created: 2026-08-03 16:05
 ---
 Focus: Refactoring Specialist
+---
+author: oompah
+created: 2026-08-03 16:07
+---
+Understanding: terminal/hygiene cleanup must identify clean auxiliary direct-epic maintenance workspaces on scheduler-derived task branches, prove terminal/audited durable reachability and inactive Git state, and prune only the auxiliary worktree plus exact local derived ref. I will trace existing epic repair and nested-target guards, add conservative branch-identity evidence, cover the requested safety matrix, then run focused tests and the project gate.
 ---
 <!-- COMMENTS:END -->
