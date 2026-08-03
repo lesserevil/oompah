@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T20:08:56.082557Z'
-updated_at: '2026-08-03T21:35:21.680158Z'
+updated_at: '2026-08-03T21:35:39.200618Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -131,5 +131,10 @@ author: oompah
 created: 2026-08-03 21:35
 ---
 Verification: focused terminal/API/coordinator suites passed (227 tests); provider retirement, auditor exit, dispatch-close, and submission-fencing suites passed (41 tests, two existing coroutine warnings); lifecycle, audit observability, telemetry, server blocking, and event-loop suites passed (132 tests). The new locked-snapshot race test and post-commit diagnostics tests pass.
+---
+author: oompah
+created: 2026-08-03 21:35
+---
+Full gate note: make test could not start because the project uv bootstrap failed before pytest with DBus error InvalidArgs (Process 24 is a kernel thread refusing transient scope), exit 46. I will run the equivalent full pytest suite using the available environment and report both results.
 ---
 <!-- COMMENTS:END -->
