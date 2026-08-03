@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-489
 type: task
-status: Merged
+status: Done
 priority: 1
 title: Validate nested epic auditing, repair planning, races, and cross-tracker behavior
 parent: OOMPAH-460
@@ -16,7 +16,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:08:28.198709Z'
-updated_at: '2026-08-02T18:32:10.225445Z'
+updated_at: '2026-08-03T20:02:42.194660Z'
 work_branch: epic-OOMPAH-460--task-OOMPAH-489
 target_branch: null
 review_url: null
