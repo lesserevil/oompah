@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T16:19:05.113116Z'
-updated_at: '2026-08-03T17:20:25.026707Z'
+updated_at: '2026-08-03T17:33:47.670306Z'
 work_branch: OOMPAH-728
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/684
@@ -109,6 +109,30 @@ oompah.work_branch: OOMPAH-728
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-260b0c89c00a: '2026-08-03T17:33:46.602018+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-728
+    target_state: Done
+    evidence_fingerprint: cbf62bc583bb9518cc3fcb30f87c4c893b12b8d1074cc02d49da7e934e4d08fa
+    audit_ids:
+    - audit-3dc00ff3f23c
+    kind: result
+    applied: true
+    retired_at: '2026-08-03T17:33:46.602032+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-728
+    audit_id: audit-3dc00ff3f23c
+    attempt_id: attempt-260b0c89c00a
+    target_state: Done
+    evidence_fingerprint: cbf62bc583bb9518cc3fcb30f87c4c893b12b8d1074cc02d49da7e934e4d08fa
+    status: In Validation
+    audit_ids:
+    - audit-3dc00ff3f23c
+    applied: false
+    created_at: '2026-08-03T17:33:46.602052+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -116,7 +140,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-728
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -125,7 +149,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-260b0c89c00a
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -135,13 +159,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-03T17:20:06.888630+00:00'
       branch_key: OOMPAH-728
+      verdict: pass
+      completed_at: '2026-08-03T17:33:46.601790+00:00'
+      ended_at: '2026-08-03T17:33:46.601790+00:00'
     requested_by:
       version: 1
       identity: yolo-merge
       source: oompah
     previous_state: In Review
     created_at: '2026-08-03T17:19:05.983776+00:00'
-    updated_at: '2026-08-03T17:20:06.888630+00:00'
+    updated_at: '2026-08-03T17:33:46.601790+00:00'
   - version: 1
     audit_id: audit-1543f6417c72
     project_id: proj-14849f1b
