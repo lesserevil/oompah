@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T00:59:11.573065Z'
-updated_at: '2026-08-03T01:02:05.177965Z'
+updated_at: '2026-08-03T01:03:06.340066Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -146,5 +146,10 @@ author: oompah
 created: 2026-08-03 01:02
 ---
 Understanding: I will trace the authority-boundary command classifier, auditor tool validation/recovery, orchestrator policy-denial accounting, and terminal-audit health aggregation. I will preserve fail-closed mutation protections, make harmless read-only syntax recoverable with safe search/read guidance, add regression coverage for the OOMPAH-709 forms and transport-vs-policy health behavior, then run focused Makefile-backed checks.
+---
+author: oompah
+created: 2026-08-03 01:03
+---
+Discovery: check_auditor_command() currently treats all shell separators, redirections, and shell metacharacters as the same fatal auditor policy denial. This rejects the OOMPAH-709 read-only pipelines and causes _record_auditor_policy_denial() to exhaust the three-denial retirement budget. I am tracing the structured failure/health paths to introduce a recoverable policy-validation classification while retaining fail-closed mutation checks.
 ---
 <!-- COMMENTS:END -->
