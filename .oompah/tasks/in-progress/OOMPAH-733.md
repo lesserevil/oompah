@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T18:23:48.756544Z'
-updated_at: '2026-08-03T19:30:58.297497Z'
+updated_at: '2026-08-03T19:36:56.918025Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -237,5 +237,15 @@ author: oompah
 created: 2026-08-03 19:30
 ---
 Discovery: The CI failure is a terminal-audit-scan error. \`_supersede_wrong_epic_rebase_helper\` in orchestrator.py (line 12767) calls \`update_issue(identifier, status=ARCHIVED)\` directly without routing through TerminalTransitionCoordinator or being in the allowlist. The fix is to add an allowlist entry in \`terminal_mutation_scanner.py\` — this is an internal rebase helper task archival (not a user task), has worker-race guards (checks running/claimed state), and the terminal enforcement sweep still provides the audit backstop.
+---
+author: oompah
+created: 2026-08-03 19:36
+---
+Implementation: Added allowlist entry in terminal_mutation_scanner.py for Orchestrator._supersede_wrong_epic_rebase_helper. The function archives auto-generated rebase helper tasks with stale targets; it has guards against racing workers (checks running/claimed state, re-reads from tracker), only operates on tasks in Open/In-Progress/Needs-Rebase states, and the terminal enforcement sweep still provides the audit backstop. Terminal-audit-scan now reports 8 identified, 8 explicitly allowlisted.
+---
+author: oompah
+created: 2026-08-03 19:36
+---
+Verification: terminal-audit-scan passes (8 identified, 8 explicitly allowlisted). test_terminal_audit_scanner.py: 15 passed. Epic strategy/rebase state/parallel epic suites: 306 passed in 90.65s. Branch pushed to origin/OOMPAH-733 at daefb6fb2.
 ---
 <!-- COMMENTS:END -->
