@@ -13,7 +13,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-08-02T22:19:11.796639Z'
-updated_at: '2026-08-03T00:37:01.289112Z'
+updated_at: '2026-08-03T00:37:04.324747Z'
 work_branch: OOMPAH-707
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/668
@@ -132,7 +132,19 @@ oompah.terminal_audit:
       and all Python 3.11/3.12/3.13 GitHub CI matrices passed. Completion-auditor
       tool transport remains affected by OOMPAH-710 until that branch deploys.'
     created_at: '2026-08-03T00:36:57.625630+00:00'
-    applied: false
+    applied: true
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-707
+    target_state: Merged
+    evidence_fingerprint: a6425f07b88419d7f3f1031e665a2c992b31626327404f6d4dc7d978047ce979
+    audit_ids:
+    - audit-bba32c16adb6
+    - audit-6f0da5afeb20
+    kind: override
+    applied: true
+    retired_at: '2026-08-03T00:37:03.351581+00:00'
+  oompah.terminal_audit_result_intents: []
   version: 1
   pending_chain:
   - version: 1
@@ -140,7 +152,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-707
     target_state: Done
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -152,12 +164,13 @@ oompah.terminal_audit:
       source: forge
     previous_state: In Review
     created_at: '2026-08-03T00:35:42.385791+00:00'
+    updated_at: '2026-08-03T00:37:03.351527+00:00'
   - version: 1
     audit_id: audit-6f0da5afeb20
     project_id: proj-14849f1b
     task_id: OOMPAH-707
     target_state: Merged
-    request_state: pending
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -169,6 +182,7 @@ oompah.terminal_audit:
       source: forge
     previous_state: In Review
     created_at: '2026-08-03T00:35:42.385791+00:00'
+    updated_at: '2026-08-03T00:37:03.351562+00:00'
   attempt_history: []
 ---
 ## Summary
