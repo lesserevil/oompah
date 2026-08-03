@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-713
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Do not terminate completion audits for harmless read-only shell syntax
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T00:59:11.573065Z'
-updated_at: '2026-08-03T01:01:25.200311Z'
+updated_at: '2026-08-03T01:01:39.208655Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -67,7 +67,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 46d8bc34-14d8-406c-8719-4f954a6a3160
+oompah.agent_run_id: b73e1306-647d-4a61-81fa-f23488f5f91c
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1368
@@ -131,5 +131,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 26s
 - Log: OOMPAH-713__20260803T010056Z.jsonl
+---
+author: oompah
+created: 2026-08-03 01:01
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-03 01:01
+---
+Focus: Frontend Developer
 ---
 <!-- COMMENTS:END -->
