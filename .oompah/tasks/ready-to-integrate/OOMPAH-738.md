@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T20:08:56.082557Z'
-updated_at: '2026-08-03T22:10:31.833729Z'
+updated_at: '2026-08-03T22:11:38.372427Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -44,13 +44,17 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: fbe191cc-7acf-4f13-a6fc-60e4cc437323
 oompah.task_costs:
-  total_input_tokens: 46940
-  total_output_tokens: 298
+  total_input_tokens: 46969
+  total_output_tokens: 5562
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 46940
       output_tokens: 298
+      cost_usd: 0.0
+    sonnet:
+      input_tokens: 29
+      output_tokens: 5264
       cost_usd: 0.0
   runs:
   - profile: default
@@ -59,6 +63,12 @@ oompah.task_costs:
     output_tokens: 298
     cost_usd: 0.0
     recorded_at: '2026-08-03T21:07:13.095059+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 29
+    output_tokens: 5264
+    cost_usd: 0.0
+    recorded_at: '2026-08-03T22:11:27.048602+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-738__20260803T210359Z
@@ -69,14 +79,24 @@ oompah.work_contributors:
     source_branch: OOMPAH-738
     source_sha: 576a85bfccedf903b9be03adb1088f1c69227c68
     completed_at: '2026-08-03T21:07:13.120323+00:00'
+  - run_id: OOMPAH-738__20260803T215105Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: sonnet
+    focus: chore
+    source_branch: OOMPAH-738
+    source_sha: 50c97cb36c80d9fac11706fc10c8b67035fb6378
+    completed_at: '2026-08-03T22:11:27.054682+00:00'
 oompah.integration:
   version: 2
   state: ready
   attempts: 0
   task_branch: OOMPAH-738
+  base_branch: main
+  base_sha: 3cdf7d41f3928c06545d1b58e88614226ede7ab3
   head_sha: 50c97cb36c80d9fac11706fc10c8b67035fb6378
   submitted_at: '2026-08-03T22:10:27.456578+00:00'
-  updated_at: '2026-08-03T22:10:27.456578+00:00'
+  updated_at: '2026-08-03T22:11:35.772300+00:00'
 ---
 ## Summary
 
@@ -189,5 +209,20 @@ author: oompah
 created: 2026-08-03 22:10
 ---
 Fence terminal override cleanup from concurrent worker-map mutation: snapshot state.running under the retry-authority lock in the orchestrator (new _running_items_snapshot helpers), wrap all post-commit cleanup in server.py with try/except that returns the committed result with structured diagnostics rather than HTTP 500, and add cleanup_diagnostics to OverrideResult. New tests cover the concurrent dict-mutation race, post-commit cleanup failures, and pre-commit fail-closed behavior. 428 focused tests passed.
+---
+author: oompah
+created: 2026-08-03 22:11
+---
+Agent completed successfully in 1230s (5293 tokens)
+---
+author: oompah
+created: 2026-08-03 22:11
+---
+Run #2 [attempt=2, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 49, Tool calls: 34
+- Tokens: 29 in / 5.3K out [5.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 20m 30s
+- Log: OOMPAH-738__20260803T215105Z.jsonl
 ---
 <!-- COMMENTS:END -->
