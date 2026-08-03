@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-738
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Fence terminal override cleanup from concurrent worker-map mutation
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T20:08:56.082557Z'
-updated_at: '2026-08-03T22:09:56.616474Z'
+updated_at: '2026-08-03T22:10:31.833729Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -69,6 +69,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-738
     source_sha: 576a85bfccedf903b9be03adb1088f1c69227c68
     completed_at: '2026-08-03T21:07:13.120323+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-738
+  head_sha: 50c97cb36c80d9fac11706fc10c8b67035fb6378
+  submitted_at: '2026-08-03T22:10:27.456578+00:00'
+  updated_at: '2026-08-03T22:10:27.456578+00:00'
 ---
 ## Summary
 
@@ -176,5 +184,10 @@ Completion: All changes committed and pushed on branch OOMPAH-738. Summary of wh
 4. **Tests** — 3 new targeted tests: concurrent snapshot fencing (no dict-size exception), post-commit alert cleanup failure is diagnostic only, worker cleanup failure returns committed result with diagnostics, pre-commit failure is fail-closed.
 
 428 focused tests passed (terminal override, status interfaces, provider retirement, transition coordinator, audit enforcement, server blocking, lifecycle suites).
+---
+author: oompah
+created: 2026-08-03 22:10
+---
+Fence terminal override cleanup from concurrent worker-map mutation: snapshot state.running under the retry-authority lock in the orchestrator (new _running_items_snapshot helpers), wrap all post-commit cleanup in server.py with try/except that returns the committed result with structured diagnostics rather than HTTP 500, and add cleanup_diagnostics to OverrideResult. New tests cover the concurrent dict-mutation race, post-commit cleanup failures, and pre-commit fail-closed behavior. 428 focused tests passed.
 ---
 <!-- COMMENTS:END -->
