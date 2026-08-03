@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-707
 type: task
-status: In Validation
+status: Merged
 priority: null
 title: Preserve explicit owner work from orphaned-In-Progress reset
 parent: null
@@ -13,7 +13,7 @@ labels:
 - focus-complete:docs
 assignee: null
 created_at: '2026-08-02T22:19:11.796639Z'
-updated_at: '2026-08-03T00:35:49.441394Z'
+updated_at: '2026-08-03T00:37:01.289112Z'
 work_branch: OOMPAH-707
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/668
@@ -113,6 +113,26 @@ oompah.work_branch: OOMPAH-707
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-d15206f400ee
+    project_id: proj-14849f1b
+    task_id: OOMPAH-707
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a6425f07b88419d7f3f1031e665a2c992b31626327404f6d4dc7d978047ce979
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: 'Owner override after PR #668 merged exact accepted head 6e9584168600320114f827e2644e6d3d926cef7a
+      as 3f302bac3cf10f2e7c1c7229ea4aa466183c8e05; the isolated branch gate passed
+      and all Python 3.11/3.12/3.13 GitHub CI matrices passed. Completion-auditor
+      tool transport remains affected by OOMPAH-710 until that branch deploys.'
+    created_at: '2026-08-03T00:36:57.625630+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -534,5 +554,12 @@ author: oompah
 created: 2026-08-03 00:35
 ---
 YOLO: merged PR #668.
+---
+author: oompah
+created: 2026-08-03 00:37
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: Owner override after PR #668 merged exact accepted head 6e9584168600320114f827e2644e6d3d926cef7a as 3f302bac3cf10f2e7c1c7229ea4aa466183c8e05; the isolated branch gate passed and all Python 3.11/3.12/3.13 GitHub CI matrices passed. Completion-auditor tool transport remains affected by OOMPAH-710 until that branch deploys.
 ---
 <!-- COMMENTS:END -->
