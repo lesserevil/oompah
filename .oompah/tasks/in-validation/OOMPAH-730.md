@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T16:59:59.720852Z'
-updated_at: '2026-08-03T19:30:29.022898Z'
+updated_at: '2026-08-03T19:30:52.505035Z'
 work_branch: OOMPAH-730
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/687
@@ -224,18 +224,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-730
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: dc911203c8cce9f04768b0b8e89d2d895b2d1bab7ad898b7799660b6aa2d97b1
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-1f597617b7e4
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: dc911203c8cce9f04768b0b8e89d2d895b2d1bab7ad898b7799660b6aa2d97b1
+      created_at: '2026-08-03T19:30:51.544108+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-03T19:30:51.544108+00:00'
+      branch_key: OOMPAH-730
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Progress
     created_at: '2026-08-03T18:52:31.837416+00:00'
+    updated_at: '2026-08-03T19:30:51.544108+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-83ebd6844473
@@ -270,6 +284,19 @@ oompah.terminal_audit:
     started_at: '2026-08-03T19:13:11.156259+00:00'
     branch_key: OOMPAH-730
     candidate_rotation_count: 1
+  - version: 1
+    attempt_id: attempt-1f597617b7e4
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: dc911203c8cce9f04768b0b8e89d2d895b2d1bab7ad898b7799660b6aa2d97b1
+    created_at: '2026-08-03T19:30:51.544108+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-03T19:30:51.544108+00:00'
+    branch_key: OOMPAH-730
 ---
 ## Summary
 
