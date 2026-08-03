@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-738
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Fence terminal override cleanup from concurrent worker-map mutation
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T20:08:56.082557Z'
-updated_at: '2026-08-03T23:03:52.078910Z'
+updated_at: '2026-08-03T23:04:03.214353Z'
 work_branch: null
 target_branch: null
 review_url: null
