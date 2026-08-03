@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:13.861445Z'
-updated_at: '2026-08-03T23:09:51.464809Z'
+updated_at: '2026-08-03T23:13:50.498874Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-741
 target_branch: null
 review_url: null
@@ -156,5 +156,10 @@ author: oompah
 created: 2026-08-03 23:09
 ---
 Discovery: Global alert output converges in Orchestrator.get_snapshot(); terminal audit, repository hygiene, auth health, credential retries, and generic _alerts currently expose incompatible fields. OOMPAH-735 owns integration_retry recovery classification on its separate branch, so this task will normalize its existing fields at the snapshot boundary rather than duplicate recovery logic. Existing health metrics and task-local retry/running rows remain separate diagnostics.
+---
+author: oompah
+created: 2026-08-03 23:13
+---
+Implementation: Added oompah.dashboard_alerts normalization/deduplication with redaction, stable identity, severity, action_required, recovery/lifecycle/status/active fields, and retained diagnostics. Orchestrator snapshots now normalize all producers and expose active/failed quality-gate facts; server REST/WebSocket enrichment normalizes cached/fallback snapshots. Terminal-audit, auth, and repository-health producers emit the structured fields, and dashboard warnings filter action_required=false.
 ---
 <!-- COMMENTS:END -->
