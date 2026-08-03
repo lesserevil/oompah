@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-733
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Fail closed when a nested epic rebase target cannot be resolved
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T18:23:48.756544Z'
-updated_at: '2026-08-03T19:45:47.278823Z'
+updated_at: '2026-08-03T19:54:50.044998Z'
 work_branch: OOMPAH-733
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/690
@@ -116,6 +116,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/690
 oompah.review_number: '690'
 oompah.work_branch: OOMPAH-733
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-b50ff7870d30
+    project_id: proj-14849f1b
+    task_id: OOMPAH-733
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 47e4f3a97d0fa192466816fd5febe9211b953debe736a37bda4d881c8122f325
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-03T19:54:41.430417+00:00'
+  - version: 1
+    audit_id: audit-8ee7a9a768c1
+    project_id: proj-14849f1b
+    task_id: OOMPAH-733
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 47e4f3a97d0fa192466816fd5febe9211b953debe736a37bda4d881c8122f325
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-03T19:54:41.430417+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -281,5 +320,15 @@ author: oompah
 created: 2026-08-03 19:45
 ---
 Branch quality gate passed for `daefb6fb2dc282879d20c84e4d18015c250a6635` using `make test` in 415.9s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-03 19:54
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-03 19:54
+---
+YOLO: merged PR #690.
 ---
 <!-- COMMENTS:END -->
