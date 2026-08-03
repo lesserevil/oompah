@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-733
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Fail closed when a nested epic rebase target cannot be resolved
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T18:23:48.756544Z'
-updated_at: '2026-08-03T18:26:40.580310Z'
+updated_at: '2026-08-03T18:27:23.545953Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -66,7 +66,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 4788db04-fd8a-454c-a2c0-deb3d357f73b
+oompah.agent_run_id: 8a5fe562-c267-4707-8489-075b5971fcdc
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1711
@@ -125,5 +125,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 4s
 - Log: OOMPAH-733__20260803T182536Z.jsonl
+---
+author: oompah
+created: 2026-08-03 18:27
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-03 18:27
+---
+Focus: Frontend Developer
 ---
 <!-- COMMENTS:END -->
