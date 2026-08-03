@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-715
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Make full-sync event-loop test deterministic under full-gate load
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T01:08:30.439967Z'
-updated_at: '2026-08-03T01:08:30.439967Z'
+updated_at: '2026-08-03T01:08:50.428257Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -49,3 +49,11 @@ Acceptance criteria:
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-03 01:08
+---
+Project owner promoted this race follow-up to Open. The exact test passed ten consecutive isolated retries after the OOMPAH-711 full-gate failure; implementation should reproduce delayed parallel scheduling and replace the implicit timing window with an explicit barrier.
+---
+<!-- COMMENTS:END -->
