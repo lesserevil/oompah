@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T20:14:53.133307Z'
-updated_at: '2026-08-03T22:30:28.789860Z'
+updated_at: '2026-08-03T22:30:44.237987Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -185,5 +185,25 @@ author: oompah
 created: 2026-08-03 22:30
 ---
 Implemented fix for OOMPAH-725 regression: Verified nested-epic Merged children now preserved across restart even when historical source branches are deleted. Uses durable parent terminal state from recovery snapshot to confirm landing without requiring forge refs. All existing tests pass (45 terminal enforcement + 233 epic strategy + 165 orchestrator merged).
+---
+author: oompah
+created: 2026-08-03 22:30
+---
+COMPLETION: Successfully fixed OOMPAH-739 regression where verified Merged nested-epic children were incorrectly demoted during restart when source branches were deleted.
+
+Solution delivered:
+✓ Terminal audit enforcement now passes loaded issues snapshot to lifecycle validator via context variable
+✓ Snapshot enables parent evidence verification without forge ref lookups  
+✓ Validator uses durable parent terminal state to confirm landing, preserving OOMPAH-587/588 Merged states
+✓ Backward compatible fallback for mocked/incompatible validator signatures
+✓ All existing tests pass: 45 terminal_audit_enforcement + 233 epic_strategy + 165 orchestrator_merged
+
+The fix ensures:
+- Durable parent PASS/Merged audits prevent false Merged-to-Done demotions
+- Deleted source branches no longer cause verification failures during recovery
+- Uncertain verification deferred until authoritative evidence resolves
+- OOMPAH-725 repair for truly incompatible children still works
+
+Submitted for integration on main branch.
 ---
 <!-- COMMENTS:END -->
