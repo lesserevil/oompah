@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T17:45:33.391967Z'
-updated_at: '2026-08-03T19:03:03.426537Z'
+updated_at: '2026-08-03T19:03:31.076389Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -308,5 +308,10 @@ author: oompah
 created: 2026-08-03 19:03
 ---
 Focus: CI Failure Fixer
+---
+author: oompah
+created: 2026-08-03 19:03
+---
+Understanding: I am handling the quality-gate repair on the existing OOMPAH-731 branch. I will sync the branch, inspect the failed GitHub Actions run and reproduce the two reported tests, make the minimal evidence-based fix, run focused tests, push the same branch, and submit the repaired head.
 ---
 <!-- COMMENTS:END -->
