@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-02T23:59:03.600915Z'
-updated_at: '2026-08-03T00:07:09.559718Z'
+updated_at: '2026-08-03T00:07:38.260071Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -22,14 +22,33 @@ oompah.duplicate_screening:
   schema_version: 1
   task_fingerprint: 202c56bf80474585cba587c717a0651c36dc9fd09908afc88a9cb21caf68b2d2
   detector_version: duplicate-detector-v1
-  verdict: inconclusive
-  checked_at: null
+  verdict: no_duplicate
+  checked_at: '2026-08-03T00:07:31.533727+00:00'
   matched_identifiers: []
-  evidence: ''
-  claim_id: 1cd5d6a2-1c59-4ce8-a539-9adfa878b46c
-  claim_owner: 282fbdbd-517c-4b57-a6ee-f47cdefb1b24
-  claimed_at: '2026-08-03T00:07:03.014324+00:00'
-  claim_expires_at: '2026-08-03T00:37:03.014324+00:00'
+  evidence: "Focus handoff: duplicate_detector\n\nDuplicate preflight verdict: no_duplicate\n\
+    \nMatches: none\n\nEvidence: OOMPAH-711 describes a specific race condition involving\
+    \ fence generation for owner duplicate resolution and superseded preflight worker\
+    \ exit. The issue is triggered by OOMPAH-710 and regresses OOMPAH-682 and OOMPAH-535\
+    \ (not in the current corpus).\n\nThe key unique elements are:\n1. Generation-based\
+    \ fencing for duplicate claims to make owner resolution atomic\n2. Cancellation/awaiting\
+    \ of active matching preflight workers before resolution succeeds\n3. State validation\
+    \ (fingerprint, generation, claim identity, status) before any duplicate-preflight\
+    \ exit transitions\n4. Prevention of Done inference from duplicate-investigator\
+    \ exit\n5. Persistence of owner-selected state across restart/auto-update\n6.\
+    \ Specific race condition between owner resolution endpoint and superseded preflight\
+    \ worker exit\n\nReviewed the task corpus (OOMPAH-1 through OOMPAH-175) with focus\
+    \ on:\n- Duplicate screening/investigation (OOMPAH-156: deduplicating auto-filed\
+    \ error tasks \u2014 different scope, covers fingerprint dedup, not claim generation)\n\
+    - Orchestrator/worker lifecycle (OOMPAH-158-175: various workflow and release-addendum\
+    \ work \u2014 no owner-resolution fencing)\n- Dashboard/UI/intake (OOMPAH-10-15:\
+    \ integration and validation \u2014 not related to preflight worker exit handling)\n\
+    \nNo active task in the corpus addresses owner-resolution claim generation, preflight\
+    \ worker fence validation, or the specific OOMPAH-710 sequence described. This\
+    \ is a new bug fix for a latent race condition in the duplicate-screening subsystem."
+  claim_id: null
+  claim_owner: null
+  claimed_at: null
+  claim_expires_at: null
   retry_count: 1
   retry_after: null
   owner_resolved_at: null
@@ -37,13 +56,13 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: 961341b2-26f7-459e-9496-63f74f9de936
 oompah.task_costs:
-  total_input_tokens: 224241
-  total_output_tokens: 1710
+  total_input_tokens: 224251
+  total_output_tokens: 2986
   total_cost_usd: 0.0
   by_model:
     haiku:
-      input_tokens: 224241
-      output_tokens: 1710
+      input_tokens: 224251
+      output_tokens: 2986
       cost_usd: 0.0
   runs:
   - profile: default
@@ -52,6 +71,12 @@ oompah.task_costs:
     output_tokens: 1710
     cost_usd: 0.0
     recorded_at: '2026-08-03T00:05:55.473586+00:00'
+  - profile: default
+    model: haiku
+    input_tokens: 10
+    output_tokens: 1276
+    cost_usd: 0.0
+    recorded_at: '2026-08-03T00:07:31.532815+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-711__20260803T000511Z
@@ -62,6 +87,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-711
     source_sha: 93513d742b8abd45b6df2abf3683666787e24a42
     completed_at: '2026-08-03T00:05:55.493145+00:00'
+  - run_id: OOMPAH-711__20260803T000710Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: haiku
+    focus: duplicate_detector
+    source_branch: OOMPAH-711
+    source_sha: 93513d742b8abd45b6df2abf3683666787e24a42
+    completed_at: '2026-08-03T00:07:31.538915+00:00'
 ---
 ## Summary
 
@@ -127,5 +160,15 @@ author: oompah
 created: 2026-08-03 00:07
 ---
 Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-08-03 00:07
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
+- Turns: 2, Tool calls: 0
+- Tokens: 10 in / 1.3K out [1.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 25s
+- Log: OOMPAH-711__20260803T000710Z.jsonl
 ---
 <!-- COMMENTS:END -->
