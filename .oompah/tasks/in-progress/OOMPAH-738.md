@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T20:08:56.082557Z'
-updated_at: '2026-08-03T21:22:10.720614Z'
+updated_at: '2026-08-03T21:24:19.049285Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -116,5 +116,10 @@ author: oompah
 created: 2026-08-03 21:22
 ---
 Understanding: I will trace the PATCH terminal-override commit and all worker/auditor/provider-exit cleanup loops, identify the shared-map mutation boundary, then add a minimal snapshot/locking fix with regression tests for post-commit diagnostics and retry idempotency.
+---
+author: oompah
+created: 2026-08-03 21:24
+---
+Discovery:  is shared between the API and scheduler/provider-exit loops. Existing  calls are still unsafe because dict iteration can fail during concurrent mutation;  removes entries without the existing . The PATCH terminal cleanup loop and retry-authority scan are the critical paths, with post-commit broadcast/cleanup exceptions currently reaching the generic 500 handler.
 ---
 <!-- COMMENTS:END -->
