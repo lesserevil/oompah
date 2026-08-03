@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-450
 type: task
-status: In Validation
+status: Archived
 priority: null
 title: Link project bootstrap guide to CLI installation instructions
 parent: null
@@ -11,7 +11,7 @@ labels:
 - focus-complete:duplicate_detector
 assignee: null
 created_at: '2026-07-27T21:06:07.569431Z'
-updated_at: '2026-08-03T22:19:12.407061Z'
+updated_at: '2026-08-03T22:24:37.831076Z'
 work_branch: OOMPAH-450
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/557
@@ -40,6 +40,30 @@ oompah.work_branch: OOMPAH-450
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-fa548d404175: '2026-08-03T22:24:33.140123+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-450
+    target_state: Archived
+    evidence_fingerprint: a4e4f8076f93f01757b7baa599b1a9792083a8ba3231c7457d75b7e0a7add4d6
+    audit_ids:
+    - audit-fe9550ea7f71
+    kind: result
+    applied: true
+    retired_at: '2026-08-03T22:24:33.140133+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-450
+    audit_id: audit-fe9550ea7f71
+    attempt_id: attempt-fa548d404175
+    target_state: Archived
+    evidence_fingerprint: a4e4f8076f93f01757b7baa599b1a9792083a8ba3231c7457d75b7e0a7add4d6
+    status: Archived
+    audit_ids:
+    - audit-fe9550ea7f71
+    applied: false
+    created_at: '2026-08-03T22:24:33.140149+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -47,7 +71,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-450
     target_state: Archived
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -56,7 +80,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-fa548d404175
       target_state: Archived
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -66,13 +90,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-03T22:18:56.073692+00:00'
       branch_key: OOMPAH-450
+      verdict: pass
+      completed_at: '2026-08-03T22:24:33.139985+00:00'
+      ended_at: '2026-08-03T22:24:33.139985+00:00'
     requested_by:
       version: 1
       identity: oompah
       source: auto_archive
     previous_state: Merged
     created_at: '2026-08-03T22:17:14.929682+00:00'
-    updated_at: '2026-08-03T22:18:56.073692+00:00'
+    updated_at: '2026-08-03T22:24:33.139985+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-fa548d404175
@@ -219,5 +246,23 @@ author: oompah
 created: 2026-08-03 22:19
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-03 22:24
+---
+Audit PASS — Archived
+
+[REDACTED]
+
+Safe evidence:
+- merge_commit: 6657f40c6323dc64e89fb35ff130d76e7b693902
+- implementation_commit: ad75513ae60c83e86567fb8b1f26d7983153caeb
+- pr_number: 557
+- changed_files: docs/project-bootstrap.md, tests/test_cli_release_packaging.py
+- regression_test: tests/test_cli_release_packaging.py::test_project_bootstrap_docs_require_cli_install_before_commands
+- prerequisite_phrase_present: true
+- cli_install_link_present: true
+- help_verification_present: true
+- days_since_merge: 7
 ---
 <!-- COMMENTS:END -->
