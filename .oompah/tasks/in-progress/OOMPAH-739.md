@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T20:14:53.133307Z'
-updated_at: '2026-08-03T21:42:28.209357Z'
+updated_at: '2026-08-03T21:54:59.354970Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -151,5 +151,10 @@ author: oompah
 created: 2026-08-03 21:42
 ---
 UNDERSTANDING: Investigating regression from OOMPAH-725 where nested epic children (OOMPAH-587/588) with valid Merged audits and merged parents are being incorrectly demoted to Done when parent source branches are deleted after merge. Key insight: need to distinguish 'deleted ref' (durable evidence still exists) from 'parent never landed' (no evidence). Must preserve verified Merged states across startup/restart and avoid false demotions that cause review resurrection. Planned approach: (1) Explore terminal_audit_enforcement and _epic_branch_landed_on_target logic; (2) Identify why deleted parent refs cause child demotion; (3) Add durable parent landing evidence checks before demoting; (4) Ensure startup ordering loads parent evidence before validating children; (5) Add tests for deleted-branch scenarios.
+---
+author: oompah
+created: 2026-08-03 21:54
+---
+DISCOVERY: Found root cause in _validate_terminal_transition() and _epic_branch_landed_on_target() in orchestrator.py. The validator tries to verify parent landing by finding PR/MR in the forge, but when source branches are deleted after merge, find_pr_for_branch returns False causing false-positive Merged demotions. Issue details: Child has PASS/Merged audit + parent has PASS/Merged audit proving merge landed, but validator rejects it because deleted source branch cannot be fetched. Key insight: Must check durable parent terminal audit state FIRST before trying forge ref verification. If parent is MERGED or ARCHIVED, the landing is proven and child can safely remain Merged.
 ---
 <!-- COMMENTS:END -->
