@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T16:59:59.720852Z'
-updated_at: '2026-08-03T17:13:51.315406Z'
+updated_at: '2026-08-03T17:27:12.389197Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -173,5 +173,10 @@ author: oompah
 created: 2026-08-03 17:13
 ---
 Discovery: OOMPAH-718 leaves cycle handling at warning + CAS cancellation. The durable queue already preserves exact task head/branch identity, and ProjectStore provides per-project Git serialization. I’ll add a separate restart-safe repair state machine with explicit phase/evidence, parent-only Git synchronization, conflict/race fencing, and exact-head queue restoration, then invoke it before normal queue grouping.
+---
+author: oompah
+created: 2026-08-03 17:27
+---
+Implementation/verification: Added the durable container-cycle repair executor, policy toggle, per-step service-state journal, parent-only Git CAS synchronization, scoped conflict/race handling, exact cancelled-row restoration CAS, tracker reconciliation, and API diagnostics. Focused suites pass: 87 tests.
 ---
 <!-- COMMENTS:END -->
