@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-738
 type: task
-status: Needs CI Fix
+status: Open
 priority: null
 title: Fence terminal override cleanup from concurrent worker-map mutation
 parent: null
@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T20:08:56.082557Z'
-updated_at: '2026-08-03T22:18:26.989171Z'
+updated_at: '2026-08-03T22:18:59.415017Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -291,5 +291,17 @@ FAILED tests/test_task_cost_telemetry.py::TestOnWorkerExitWritesCostRecord::test
 
 make: *** [Makefile:401: test] Error 1
 ```
+---
+author: oompah
+created: 2026-08-03 22:18
+---
+[watchdog:stalled_task] Stalled-task watchdog audit (run #18)
+
+**State audited:** `Needs CI Fix`
+**Classification:** `actionable`
+**Action:** `reopen`
+**Evidence:** Recent comment indicates CI is now passing or PR has been merged; safe to reopen for dispatch.
+
+*This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
 ---
 <!-- COMMENTS:END -->
