@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T19:26:22.477120Z'
-updated_at: '2026-08-03T21:08:27.476064Z'
+updated_at: '2026-08-03T21:08:39.090816Z'
 work_branch: OOMPAH-736
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/692
@@ -471,5 +471,10 @@ author: oompah
 created: 2026-08-03 21:06
 ---
 Auditor attempt ended: auditor exited (normal) without a result. A different independent auditor will be tried on the next scheduler tick.
+---
+author: oompah
+created: 2026-08-03 21:08
+---
+Auditor dispatched (attempt #2, candidate: prov-651d553c/sonnet)
 ---
 <!-- COMMENTS:END -->
