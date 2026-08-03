@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T20:08:56.082557Z'
-updated_at: '2026-08-03T22:20:16.539778Z'
+updated_at: '2026-08-03T22:20:28.901289Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -303,5 +303,15 @@ created: 2026-08-03 22:18
 **Evidence:** Recent comment indicates CI is now passing or PR has been merged; safe to reopen for dispatch.
 
 *This comment is posted automatically by the oompah stalled-task watchdog. No human action required unless the classification above is incorrect.*
+---
+author: oompah
+created: 2026-08-03 22:20
+---
+Agent dispatched (profile: standard)
+---
+author: oompah
+created: 2026-08-03 22:20
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
