@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:13.861445Z'
-updated_at: '2026-08-03T23:33:07.499495Z'
+updated_at: '2026-08-03T23:52:02.831422Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-741
 target_branch: null
 review_url: null
@@ -186,5 +186,10 @@ author: oompah
 created: 2026-08-03 23:33
 ---
 Continuation: Recovered the preserved worktree state (dashboard_alerts.py normalization, orchestrator/server/auth/terminal-audit/dashboard.html integration, and test_dashboard_alert_contract.py). Prior recovery-checkpoint commit soft-reset so the actual OOMPAH-741 code changes can be committed with a proper message after focused tests pass.
+---
+author: oompah
+created: 2026-08-03 23:52
+---
+Implementation: Structured dashboard alert contract (oompah.dashboard_alerts) applied to orchestrator alerts, repo hygiene, terminal-audit health, auth health (operator+worker), quality-gate lifecycle, and REST/WebSocket enrichment. Producers keep task-local metrics; the snapshot boundary normalizes, redacts, and deduplicates by stable identity, preferring the highest current severity. Dashboard filters by action_required=false, not message parsing. OOMPAH-735 remains the sole owner of integration_retry recovery classification.
 ---
 <!-- COMMENTS:END -->
