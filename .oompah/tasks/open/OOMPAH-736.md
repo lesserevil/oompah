@@ -1,0 +1,64 @@
+---
+id: OOMPAH-736
+type: bug
+status: Open
+priority: 1
+title: Align auditor command policy with project-required Makefile validation targets
+parent: null
+children: []
+blocked_by: []
+start_blocked_by: []
+labels: []
+assignee: null
+created_at: '2026-08-03T19:26:22.477120Z'
+updated_at: '2026-08-03T19:26:26.141640Z'
+work_branch: null
+target_branch: null
+review_url: null
+review_number: null
+review_head: null
+merged_at: null
+---
+## Summary
+
+Triggered by: EXOCOMP-159
+
+Production regression observed on EXOCOMP-159. The task requires make test, make fmt-check, and make lint. Its first independent auditor successfully ran the configured make test gate, but the read-only auditor command policy denied which mix, a focused mix test, and make fmt-check. The second independent auditor was likewise denied make help and a focused mix test. Two denials terminate an attempt, so both eligible candidates were exhausted and the integrated task moved to Needs Human despite healthy providers and valid repository access.
+
+Root cause context:
+- Auditor capability policy permits exact configured test commands plus a narrow inspection catalog.
+- Managed-project task requirements and Makefiles can define additional non-mutating validation targets that are not represented in the single configured test command.
+- The auditor prompt encourages focused verification and reading available Make targets, but those commands are rejected and counted as policy incompatibilities.
+- Candidate rotation cannot recover because every candidate receives the same incompatible local policy.
+
+Implementation scope:
+- Define a structured project validation-command contract that includes the configured full gate and explicitly approved non-mutating Makefile targets such as help, fmt-check, lint, and focused test entry points.
+- Generate the auditor tool catalog and prompt from the same contract so suggested commands are executable.
+- Keep fail-closed parsing: reject shell composition, redirection, command substitution, arbitrary executables, mutating Make targets, and targets not declared safe.
+- Do not infer safety from target names alone; require project configuration or validated Makefile metadata under an explicit server policy.
+- Distinguish a genuinely forbidden mutation attempt from a policy-contract mismatch in health, attempt rotation, and retry classification.
+- A policy-contract mismatch must not consume every independent candidate and strand an otherwise auditable task without a supported automatic recovery path.
+- Preserve exact-head detached workspaces, independent-candidate rules, output capture, timeouts, and terminal authority.
+
+Required tests:
+- EXOCOMP-159 regression with required make test, make fmt-check, and make lint: every approved target executes and the audit can complete.
+- make help or an equivalent approved discovery operation works when declared by the validation contract.
+- Focused project tests execute only through an explicitly approved template or Make target.
+- Unapproved direct mix, pytest, shell pipelines, redirects, command substitutions, and mutating Make targets remain denied.
+- Repeated contract mismatches do not rotate through and exhaust all providers as though they were provider failures.
+- Health reports policy-contract incompatibility with task, command class, and remediation while transport health remains separate.
+- Restart and configuration reload update the prompt and enforcement catalog atomically.
+- Run focused auditor command validation, terminal audit lifecycle, provider rotation, health, and managed-project configuration tests, followed by make test.
+
+Acceptance criteria:
+- An auditor can execute every project-required non-mutating validation command advertised in its task and prompt.
+- Prompt guidance and enforcement cannot disagree for approved commands.
+- EXOCOMP-159-style policy exhaustion no longer sends a healthy integrated task to Needs Human.
+- Arbitrary shell and repository mutation remain fail-closed.
+
+## Acceptance Criteria
+
+- [ ] Define acceptance criteria.
+
+## Notes
+
