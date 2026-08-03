@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-587
 type: epic
-status: In Validation
+status: Merged
 priority: 1
 title: Drain integration queues and prevent stranded delivery states
 parent: OOMPAH-584
@@ -18,7 +18,7 @@ labels:
 - epic:rebased
 assignee: null
 created_at: '2026-07-30T14:13:38.093049Z'
-updated_at: '2026-08-03T22:46:19.793322Z'
+updated_at: '2026-08-03T22:46:25.401580Z'
 work_branch: epic-OOMPAH-587
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/601
@@ -989,5 +989,34 @@ author: oompah
 created: 2026-08-03 22:41
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-03 22:46
+---
+Audit PASS — Merged
+
+Epic PR #601 (merge commit 0bc2672559e2b59ce04d89d367a19ee97140dc5a) and parent epic OOMPAH-584 PR #603 (merge commit bb0fd760c3b2938d15ec2026ef5bfc2fd34b0682) are both confirmed ancestors of origin/main at 3cdf7d41f3928c06545d1b58e88614226ede7ab3. The prior lifecycle-reconciliation blocker (parent OOMPAH-584 unverified) is resolved. All six children terminal, standalone Ready-to-Integrate tasks delivered, branch gate previously passed via make test 262.3s. Merged transition is supported.
+
+Safe evidence:
+- epic_pr_number: 601
+- epic_pr_merge_commit: 0bc2672559e2b59ce04d89d367a19ee97140dc5a
+- epic_pr_merged_feature_head: 14f8890a6efcfebe52774b0cd6b43a692bb9c345
+- epic_merge_ancestor_of_origin_main: true
+- parent_epic_task: OOMPAH-584
+- parent_epic_pr_number: 603
+- parent_epic_merge_commit: bb0fd760c3b2938d15ec2026ef5bfc2fd34b0682
+- parent_epic_ancestor_of_origin_main: true
+- origin_main_head: 3cdf7d41f3928c06545d1b58e88614226ede7ab3
+- children_terminal: OOMPAH-596=Done,OOMPAH-597=Merged,OOMPAH-598=Done,OOMPAH-599=Done,OOMPAH-617=Done,OOMPAH-637=Done
+- children_terminal_count: 6
+- prior_blocker: parent_epic_OOMPAH-584_unverified_at_lifecycle_reconciliation_20260803
+- blocker_resolved: OOMPAH-584_PR603_reachable_from_origin_main
+- previous_done_audit_verdict: PASS
+- previous_merged_audit_verdicts: PASS_x4 (lifecycle previously deferred)
+- requested_target: Merged
+- previous_state: In Review
+- current_state: In Validation
+- standalone_ready_outcomes: OOMPAH-574_PR598;OOMPAH-576_PR599;OOMPAH-581_PR600;OOMPAH-575_9e8bf3323
+- branch_gate_status_prior: pass @ 88adebe11 via make test in 262.3s
 ---
 <!-- COMMENTS:END -->
