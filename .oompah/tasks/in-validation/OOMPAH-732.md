@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-732
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Prevent standalone Ready delivery starvation after restart
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T17:50:33.429591Z'
-updated_at: '2026-08-03T19:08:58.101524Z'
+updated_at: '2026-08-03T19:22:19.386991Z'
 work_branch: OOMPAH-732
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/688
@@ -164,6 +164,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/688
 oompah.review_number: '688'
 oompah.work_branch: OOMPAH-732
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-f3ea82b6a3e0
+    project_id: proj-14849f1b
+    task_id: OOMPAH-732
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f5969ba60f6c3e053fe89bbe102d8621e2f6ff4f2d89399d8902dedf930515b5
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-03T19:22:09.888848+00:00'
+  - version: 1
+    audit_id: audit-99053d9cd785
+    project_id: proj-14849f1b
+    task_id: OOMPAH-732
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: f5969ba60f6c3e053fe89bbe102d8621e2f6ff4f2d89399d8902dedf930515b5
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-03T19:22:09.888848+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -309,5 +348,15 @@ author: oompah
 created: 2026-08-03 19:08
 ---
 Branch quality gate passed for `9aadb07d1e9551c3527dec414a426c6eb9b1b857` using `make test` in 415.7s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-03 19:22
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-03 19:22
+---
+YOLO: merged PR #688.
 ---
 <!-- COMMENTS:END -->
