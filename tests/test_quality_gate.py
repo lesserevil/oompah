@@ -23,6 +23,7 @@ from oompah.models import Issue, Project
 from oompah.orchestrator import Orchestrator
 from oompah.quality_gate import (
     BranchQualityGate,
+    QualityGateOwner,
     QualityGateResult,
     _SANDBOX_RUN_ROOT,
     _SandboxUnavailable,
@@ -478,6 +479,143 @@ def test_generation_cancellation_does_not_stop_a_replacement_head_gate(tmp_path)
         assert new_marker.exists()
     finally:
         BranchQualityGate.cleanup_active_processes()
+
+
+def test_exact_owner_cancellation_cannot_stop_an_unrelated_task_gate(tmp_path):
+    """A task-scoped cancellation must not match another task's process."""
+    repo = _git_repo(tmp_path)
+    gate = _gate(tmp_path / "quality.json", repo)
+    head = BranchQualityGate._head_sha(str(repo))
+    owner_a = QualityGateOwner("project-1", "task-a", head, "shared-generation")
+    owner_b = QualityGateOwner("project-1", "task-b", head, "shared-generation")
+
+    try:
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(
+                _run,
+                gate,
+                repo,
+                "sleep 30",
+                expected_head_sha=head,
+                owner=owner_a,
+            )
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                active = BranchQualityGate.active_state()
+                if active:
+                    assert active[0]["project_id"] == "project-1"
+                    assert active[0]["task_id"] == "task-a"
+                    break
+                time.sleep(0.01)
+            else:
+                raise AssertionError("task A quality gate was not active")
+
+            assert BranchQualityGate.cancel_owner(owner_b) == 0
+            assert BranchQualityGate.active_state()[0]["task_id"] == "task-a"
+            assert (
+                BranchQualityGate.cancel_owner(
+                    project_id="project-1",
+                    task_id="task-a",
+                    head_sha=head,
+                )
+                == 0
+            )
+            assert BranchQualityGate.cancel_owner(owner_a) == 1
+            assert future.result(timeout=5).status == "interrupted"
+    finally:
+        BranchQualityGate.cleanup_active_processes()
+        with BranchQualityGate._processes_lock:
+            BranchQualityGate._cancelled_owner_keys.discard(owner_b.key)
+            BranchQualityGate._cancelled_owner_order.pop(owner_b.key, None)
+
+
+def test_quality_gate_rejects_owner_for_a_different_exact_head(tmp_path):
+    repo = _git_repo(tmp_path)
+    gate = _gate(tmp_path / "quality.json", repo)
+    head = BranchQualityGate._head_sha(str(repo))
+    owner = QualityGateOwner("project-1", "task-a", "f" * 40, "generation-a")
+
+    result = _run(
+        gate,
+        repo,
+        "touch should-not-run",
+        expected_head_sha=head,
+        owner=owner,
+    )
+
+    assert result.status == "infrastructure_error"
+    assert "does not match" in result.output_tail
+    with BranchQualityGate._processes_lock:
+        assert not BranchQualityGate._active_processes
+
+
+def test_quality_gate_state_reports_retryable_interrupt_and_clears_on_pass():
+    orch = Orchestrator.__new__(Orchestrator)
+    orch._quality_gate_outcomes_lock = threading.Lock()
+    orch._quality_gate_outcomes = {}
+    orch._remember_quality_gate_result(
+        "project-1",
+        "task-b",
+        QualityGateResult(
+            status="interrupted",
+            head_sha="head-b",
+            command="make test",
+        ),
+    )
+
+    interrupted = orch._quality_gate_state_snapshot()
+    assert interrupted["status"] == "interrupted_for_retry"
+    assert interrupted["recent"][0]["task_id"] == "task-b"
+
+    orch._remember_quality_gate_result(
+        "project-1",
+        "task-b",
+        QualityGateResult(
+            status="passed",
+            head_sha="head-b",
+            command="make test",
+        ),
+    )
+    assert orch._quality_gate_state_snapshot()["status"] == "idle"
+    assert orch._quality_gate_state_snapshot()["recent"] == []
+
+
+def test_quality_gate_outcomes_are_bounded_and_head_aware():
+    orch = Orchestrator.__new__(Orchestrator)
+    orch._quality_gate_outcomes_lock = threading.Lock()
+    orch._quality_gate_outcomes = {}
+    orch._QUALITY_GATE_OUTCOME_LIMIT = 2
+
+    for task_id, head_sha in (
+        ("task-a", "head-a"),
+        ("task-b", "head-b"),
+        ("task-c", "head-c"),
+    ):
+        orch._remember_quality_gate_result(
+            "project-1",
+            task_id,
+            QualityGateResult(
+                status="failed",
+                head_sha=head_sha,
+                command="make test",
+            ),
+        )
+
+    assert len(orch._quality_gate_outcomes) == 2
+    assert orch._quality_gate_result_for("project-1", "task-a") is None
+    assert (
+        orch._quality_gate_result_for(
+            "project-1",
+            "task-c",
+            head_sha="different-head",
+        )
+        is None
+    )
+    assert orch._quality_gate_result_for(
+        "project-1",
+        "task-c",
+        head_sha="head-c",
+    ) is not None
 
 
 def test_gate_liveness_callback_cancels_only_its_owned_process(tmp_path):

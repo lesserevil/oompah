@@ -15,6 +15,7 @@ from oompah.config import ServiceConfig
 from oompah.integration import IntegrationRecord
 from oompah.models import BlockerRef, Issue, Project
 from oompah.orchestrator import Orchestrator
+from oompah.quality_gate import BranchQualityGate, QualityGateOwner
 from oompah.providers import ProviderStore
 from oompah.scm import ReviewRequest, SCMProvider
 from oompah.statuses import (
@@ -229,13 +230,63 @@ def test_ready_to_open_reconciliation_revokes_delivery_and_clears_alert(harness)
     task.state = OPEN
     with mock.patch.object(
         orch._branch_quality_gate,
-        "cancel_generation",
-    ) as cancel_generation:
+        "cancel_owner",
+    ) as cancel_owner:
         orch._reconcile_standalone_ready_to_integrate_tasks()
 
-    cancel_generation.assert_called_once_with(authority.generation)
+    cancel_owner.assert_called_once_with(
+        QualityGateOwner(
+            project_id=authority.project_id,
+            task_id=authority.task_id,
+            head_sha=authority.head_sha or "",
+            authority_generation=authority.generation,
+        )
+    )
     assert (project.id, task.identifier) not in orch._standalone_delivery_authorities
     assert not _delivery_alerts(orch)
+
+
+def test_legacy_quality_gate_facade_uses_generation_fallback(harness):
+    """Older gate facades remain usable without broadening new gates."""
+    orch, project, tracker, _provider, _detect, _gate = harness
+    task = _issue("TASK-LEGACY", branch="feature/legacy")
+    tracker.fetch_issues_by_states.return_value = [task]
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+    authority = orch._standalone_delivery_authorities[
+        (project.id, task.identifier)
+    ]
+
+    class LegacyGate:
+        def __init__(self):
+            self.generations: list[str] = []
+
+        def cancel_generation(self, generation: str) -> int:
+            self.generations.append(generation)
+            return 1
+
+    legacy = LegacyGate()
+    orch._branch_quality_gate = legacy
+
+    assert orch._cancel_standalone_delivery_gate(authority) == 1
+    assert legacy.generations == [authority.generation]
+
+
+def test_mocked_exact_quality_gate_facade_does_not_fall_back(harness):
+    """A spec'd new facade receives structured ownership, not a generation."""
+    orch, project, tracker, _provider, _detect, _gate = harness
+    task = _issue("TASK-MOCKED-OWNER", branch="feature/mocked-owner")
+    tracker.fetch_issues_by_states.return_value = [task]
+    orch._reconcile_standalone_ready_to_integrate_tasks()
+    authority = orch._standalone_delivery_authorities[
+        (project.id, task.identifier)
+    ]
+    exact = mock.MagicMock(spec=BranchQualityGate)
+    exact.cancel_owner.return_value = 1
+    orch._branch_quality_gate = exact
+
+    assert orch._cancel_standalone_delivery_gate(authority) == 1
+    exact.cancel_owner.assert_called_once()
+    exact.cancel_generation.assert_not_called()
 
 
 def test_real_orchestrator_provider_store_and_project_create_review(harness):
@@ -436,13 +487,13 @@ def test_dependency_regression_fences_stale_delivery_before_review(harness):
     gate.side_effect = regress_dependency
     with mock.patch.object(
         orch._branch_quality_gate,
-        "cancel_generation",
-    ) as cancel_generation:
+        "cancel_owner",
+    ) as cancel_owner:
         orch._reconcile_standalone_ready_to_integrate_tasks()
 
         provider.create_review.assert_not_called()
         tracker.update_issue.assert_not_called()
-        cancel_generation.assert_called_once()
+        cancel_owner.assert_called_once()
 
     orch._reconcile_standalone_ready_to_integrate_tasks()
     gate.assert_called_once()

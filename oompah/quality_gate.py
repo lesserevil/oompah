@@ -134,6 +134,55 @@ class QualityGateResult:
         return self.status in {"passed", "not_configured"}
 
 
+@dataclass(frozen=True)
+class QualityGateOwner:
+    """Exact authority that owns one branch-quality gate attempt.
+
+    A process generation is not sufficient ownership evidence on its own: a
+    stale caller can otherwise cancel a different task that happens to reuse
+    the same generation value.  Keep the project, task, exact head, and
+    authority generation together so cancellation and observability can make
+    the same comparison.
+    """
+
+    project_id: str
+    task_id: str
+    head_sha: str
+    authority_generation: str
+
+    @property
+    def complete(self) -> bool:
+        return all(
+            str(value or "").strip()
+            for value in (
+                self.project_id,
+                self.task_id,
+                self.head_sha,
+                self.authority_generation,
+            )
+        )
+
+    @property
+    def key(self) -> str:
+        """Return a collision-resistant in-process identity for this owner."""
+        return "\0".join(
+            (
+                str(self.project_id),
+                str(self.task_id),
+                str(self.head_sha).strip().lower(),
+                str(self.authority_generation),
+            )
+        )
+
+    def to_dict(self) -> dict[str, str]:
+        return {
+            "project_id": str(self.project_id),
+            "task_id": str(self.task_id),
+            "head_sha": str(self.head_sha),
+            "authority_generation": str(self.authority_generation),
+        }
+
+
 @dataclass
 class _KeyLockEntry:
     """One in-process single-flight lock plus its current users."""
@@ -159,6 +208,7 @@ class BranchQualityGate:
     # task may be reopened while an old gate is still running; generation
     # scoping ensures cancellation cannot terminate a replacement gate.
     _active_generations: dict[int, str | None] = {}
+    _active_owners: dict[int, QualityGateOwner | None] = {}
     _active_snapshots: dict[int, Path] = {}
     # Durable tombstones for cancelled generations: set before the gate
     # spawns so that pre-spawn authority withdrawals (during snapshot
@@ -169,11 +219,14 @@ class BranchQualityGate:
     # is deliberately not a per-call finally cleanup: another same-generation
     # caller may still be waiting on the evidence-key lock.
     _cancelled_generations: set[str] = set()
+    _cancelled_owner_keys: set[str] = set()
     _generation_run_counts: dict[str, int] = {}
+    _owner_run_counts: dict[str, int] = {}
     # Cancel-before-spawn has no running caller to release the tombstone. Keep
     # those records in LRU order so abandoned generations cannot grow this
     # process-wide registry without bound.
     _cancelled_generation_order: dict[str, None] = {}
+    _cancelled_owner_order: dict[str, None] = {}
     _MAX_CANCELLED_GENERATIONS = 1024
     _processes_lock = threading.Lock()
 
@@ -199,8 +252,9 @@ class BranchQualityGate:
         cls,
         *,
         generation: str | None = None,
+        owner: QualityGateOwner | None = None,
     ) -> int:
-        """Terminate active process groups owned by *generation*.
+        """Terminate active process groups owned by *generation* or *owner*.
 
         When *generation* is given, the generation is also added to
         _cancelled_generations so that gates not yet spawned (during snapshot
@@ -214,9 +268,33 @@ class BranchQualityGate:
             processes = [
                 (pid, process)
                 for pid, process in cls._active_processes.items()
-                if generation is None
-                or cls._active_generations.get(pid) == generation
+                if (
+                    generation is None
+                    and owner is None
+                )
+                or (
+                    owner is not None
+                    and cls._active_owners.get(pid) is not None
+                    and cls._active_owners[pid].key == owner.key
+                )
+                or (
+                    owner is None
+                    and generation is not None
+                    and cls._active_owners.get(pid) is None
+                    and cls._active_generations.get(pid) == generation
+                )
             ]
+            if owner is not None and not processes:
+                logger.warning(
+                    "Quality gate cancellation owner matched no active gate: "
+                    "requested=%s active=%s",
+                    owner.to_dict(),
+                    [
+                        active_owner.to_dict()
+                        for active_owner in cls._active_owners.values()
+                        if active_owner is not None
+                    ],
+                )
             for _pid, process in processes:
                 # The run thread uses this marker to return a non-cached
                 # interruption instead of recording a false CI failure.
@@ -224,7 +302,9 @@ class BranchQualityGate:
             # Record a durable tombstone so that gates currently between
             # pre-spawn barrier checks (snapshot creation, Popen-to-
             # registration window) also stop on their next check.
-            if generation is not None:
+            if owner is not None:
+                cls._mark_owner_cancelled_locked(owner)
+            elif generation is not None:
                 cls._mark_generation_cancelled_locked(generation)
 
         terminated_count = 0
@@ -263,6 +343,7 @@ class BranchQualityGate:
             with cls._processes_lock:
                 cls._active_processes.pop(pid, None)
                 cls._active_generations.pop(pid, None)
+                cls._active_owners.pop(pid, None)
                 cls._active_snapshots.pop(pid, None)
 
         if terminated_count:
@@ -282,19 +363,109 @@ class BranchQualityGate:
         return cls._terminate_active_processes()
 
     @classmethod
-    def cancel_generation(cls, generation: str) -> int:
-        """Cancel only gates belonging to one exact task generation.
+    def cancel_generation(
+        cls,
+        generation: str | None = None,
+        *,
+        owner: QualityGateOwner | None = None,
+        project_id: str | None = None,
+        task_id: str | None = None,
+        head_sha: str | None = None,
+        authority_generation: str | None = None,
+    ) -> int:
+        """Cancel one exact owner, or a legacy unowned generation.
 
         Sets a durable tombstone so that gates currently between pre-spawn
         barrier checks (during snapshot creation or between Popen and
         registration) also stop when they next reach a check point.
         """
+        if owner is not None or any(
+            value is not None
+            for value in (project_id, task_id, head_sha, authority_generation)
+        ):
+            if owner is None:
+                owner = QualityGateOwner(
+                    project_id=str(project_id or ""),
+                    task_id=str(task_id or ""),
+                    head_sha=str(head_sha or ""),
+                    authority_generation=str(
+                        authority_generation or generation or ""
+                    ),
+                )
+            return cls.cancel_owner(owner)
+        if not str(generation or "").strip():
+            logger.warning(
+                "Rejected generationless quality gate cancellation request"
+            )
+            return 0
         return cls._terminate_active_processes(generation=str(generation))
 
     @classmethod
-    def _generation_is_cancelled(cls, generation: str) -> bool:
-        """Return True when *generation* has been tombstoned by cancel_generation."""
+    def cancel_owner(
+        cls,
+        owner: QualityGateOwner | None = None,
+        *,
+        project_id: str | None = None,
+        task_id: str | None = None,
+        head_sha: str | None = None,
+        authority_generation: str | None = None,
+    ) -> int:
+        """Cancel one exact project/task/head/authority gate owner.
+
+        Missing ownership evidence is rejected rather than interpreted as a
+        broadcast.  Full orchestrator shutdown must use
+        :meth:`cleanup_active_processes`, the only unrestricted cleanup path.
+        """
+        if owner is None:
+            owner = QualityGateOwner(
+                project_id=str(project_id or ""),
+                task_id=str(task_id or ""),
+                head_sha=str(head_sha or ""),
+                authority_generation=str(authority_generation or ""),
+            )
+        if not owner.complete:
+            logger.warning(
+                "Rejected quality gate cancellation without exact ownership: %s",
+                owner.to_dict(),
+            )
+            return 0
+        return cls._terminate_active_processes(owner=owner)
+
+    @classmethod
+    def active_state(cls) -> list[dict[str, object]]:
+        """Return active gate ownership for health/state consumers."""
         with cls._processes_lock:
+            rows: list[dict[str, object]] = []
+            for pid in sorted(cls._active_processes):
+                owner = cls._active_owners.get(pid)
+                row: dict[str, object] = {
+                    "pid": pid,
+                    "status": "running",
+                    "generation": cls._active_generations.get(pid),
+                }
+                row.update(
+                    owner.to_dict()
+                    if owner is not None
+                    else {
+                        "project_id": None,
+                        "task_id": None,
+                        "head_sha": None,
+                        "authority_generation": None,
+                    }
+                )
+                rows.append(row)
+            return rows
+
+    @classmethod
+    def _generation_is_cancelled(
+        cls,
+        generation: str,
+        owner_key: str | None = None,
+    ) -> bool:
+        """Return True when a generation or exact owner was tombstoned."""
+        with cls._processes_lock:
+            if owner_key is not None:
+                return owner_key in cls._cancelled_owner_keys
             return generation in cls._cancelled_generations
 
     @classmethod
@@ -329,11 +500,40 @@ class BranchQualityGate:
             cls._cancelled_generations.discard(oldest)
 
     @classmethod
+    def _mark_owner_cancelled_locked(cls, owner: QualityGateOwner) -> None:
+        """Tombstone one exact owner while holding ``_processes_lock``."""
+        key = owner.key
+        cls._cancelled_owner_keys.add(key)
+        cls._cancelled_owner_order.pop(key, None)
+        cls._cancelled_owner_order[key] = None
+        while len(cls._cancelled_owner_order) > cls._MAX_CANCELLED_GENERATIONS:
+            oldest = next(iter(cls._cancelled_owner_order))
+            if cls._owner_run_counts.get(oldest, 0) > 0:
+                cls._cancelled_owner_order.pop(oldest, None)
+                cls._cancelled_owner_order[oldest] = None
+                if all(
+                    cls._owner_run_counts.get(item, 0) > 0
+                    for item in cls._cancelled_owner_order
+                ):
+                    return
+                continue
+            cls._cancelled_owner_order.pop(oldest, None)
+            cls._cancelled_owner_keys.discard(oldest)
+
+    @classmethod
     def _register_generation(cls, generation: str) -> None:
         """Record a caller before it can wait behind a single-flight lock."""
         with cls._processes_lock:
             cls._generation_run_counts[generation] = (
                 cls._generation_run_counts.get(generation, 0) + 1
+            )
+
+    @classmethod
+    def _register_owner(cls, owner: QualityGateOwner) -> None:
+        """Record an exact owner before waiting on a single-flight lock."""
+        with cls._processes_lock:
+            cls._owner_run_counts[owner.key] = (
+                cls._owner_run_counts.get(owner.key, 0) + 1
             )
 
     @classmethod
@@ -347,6 +547,19 @@ class BranchQualityGate:
             cls._generation_run_counts.pop(generation, None)
             cls._cancelled_generations.discard(generation)
             cls._cancelled_generation_order.pop(generation, None)
+
+    @classmethod
+    def _release_owner(cls, owner: QualityGateOwner) -> None:
+        """Release one exact owner and retire its cancellation tombstone."""
+        with cls._processes_lock:
+            key = owner.key
+            remaining = cls._owner_run_counts.get(key, 0) - 1
+            if remaining > 0:
+                cls._owner_run_counts[key] = remaining
+                return
+            cls._owner_run_counts.pop(key, None)
+            cls._cancelled_owner_keys.discard(key)
+            cls._cancelled_owner_order.pop(key, None)
 
     @staticmethod
     def _head_sha(repo_path: str) -> str:
@@ -1096,12 +1309,17 @@ class BranchQualityGate:
         expected_head_sha: str | None = None,
         require_source_head_match: bool = True,
         generation: str | None = None,
+        owner: QualityGateOwner | None = None,
         is_current: Callable[[], bool] | None = None,
     ) -> QualityGateResult:
         """Return passing evidence or execute the configured full check.
 
         When retry_forced=True, bypasses cache for failed/timed_out/error
         results and re-executes. Passed results remain cached and reusable.
+
+        ``owner`` binds cancellation to the exact project/task/head and
+        authority generation.  ``generation`` remains a compatibility path
+        for legacy unowned callers; production orchestration passes ``owner``.
 
         Pre-spawn barriers
         ------------------
@@ -1124,11 +1342,33 @@ class BranchQualityGate:
             )
 
         owned_generation = str(generation) if generation is not None else None
+        owned_owner = owner if owner is not None and owner.complete else None
+        if owner is not None and owned_owner is None:
+            logger.warning(
+                "Quality gate refused incomplete owner metadata: %s",
+                owner.to_dict(),
+            )
+            return QualityGateResult(
+                status="infrastructure_error",
+                head_sha="",
+                command=command,
+                output_tail="Quality gate owner metadata is incomplete.",
+            )
+        owner_key = owned_owner.key if owned_owner is not None else None
         # Register before resolving the head or waiting on the evidence key.
         # A cancellation that arrives while a second caller waits on that key
         # must remain authoritative until that waiter has observed it.
-        if owned_generation is not None:
+        if owned_owner is not None:
+            owned_generation = owned_owner.authority_generation
+            self._register_owner(owned_owner)
+        elif owned_generation is not None:
             self._register_generation(owned_generation)
+
+        def _release_owned_generation() -> None:
+            if owned_owner is not None:
+                self._release_owner(owned_owner)
+            elif owned_generation is not None:
+                self._release_generation(owned_generation)
 
         # Serialize only identical evidence keys. Different exact heads must
         # be able to run concurrently so a replacement generation never waits
@@ -1149,8 +1389,7 @@ class BranchQualityGate:
                 and require_source_head_match
                 and observed_head != head_sha
             ):
-                if owned_generation is not None:
-                    self._release_generation(owned_generation)
+                _release_owned_generation()
                 return QualityGateResult(
                     status="stale_head",
                     head_sha=observed_head,
@@ -1161,8 +1400,7 @@ class BranchQualityGate:
                     ),
                 )
         except (OSError, subprocess.SubprocessError) as exc:
-            if owned_generation is not None:
-                self._release_generation(owned_generation)
+            _release_owned_generation()
             return QualityGateResult(
                 status="infrastructure_error",
                 head_sha="",
@@ -1170,6 +1408,26 @@ class BranchQualityGate:
                 output_tail=(
                     "Candidate CI was not run because the submitted exact "
                     f"commit is unavailable in the managed repository: {exc}"
+                ),
+            )
+
+        if (
+            owned_owner is not None
+            and owned_owner.head_sha.strip().lower() != head_sha.strip().lower()
+        ):
+            _release_owned_generation()
+            logger.warning(
+                "Quality gate refused owner/head mismatch owner=%s resolved_head=%s",
+                owned_owner.to_dict(),
+                head_sha,
+            )
+            return QualityGateResult(
+                status="infrastructure_error",
+                head_sha=head_sha,
+                command=command,
+                output_tail=(
+                    "Quality gate owner metadata does not match the exact "
+                    "resolved candidate head."
                 ),
             )
 
@@ -1182,8 +1440,7 @@ class BranchQualityGate:
             require_source_head_match=require_source_head_match,
         )
         if not is_compliant:
-            if owned_generation is not None:
-                self._release_generation(owned_generation)
+            _release_owned_generation()
             return QualityGateResult(
                 status="needs_rebase",
                 head_sha=head_sha,
@@ -1213,8 +1470,7 @@ class BranchQualityGate:
                     # Fall through to re-execute instead of returning cached result
                     pass
                 else:
-                    if owned_generation is not None:
-                        self._release_generation(owned_generation)
+                    _release_owned_generation()
                     return QualityGateResult(
                         status=cached_status,
                         head_sha=head_sha,
@@ -1236,7 +1492,8 @@ class BranchQualityGate:
                 # cancel_generation() may have been called while we were
                 # waiting in the key lock or the evidence load above.
                 if owned_generation is not None and self._generation_is_cancelled(
-                    owned_generation
+                    owned_generation,
+                    owner_key,
                 ):
                     return QualityGateResult(
                         status="interrupted",
@@ -1281,7 +1538,8 @@ class BranchQualityGate:
                 # cancel_generation() may have arrived during the up-to-60s
                 # archive creation above.  Check again before spawning.
                 if owned_generation is not None and self._generation_is_cancelled(
-                    owned_generation
+                    owned_generation,
+                    owner_key,
                 ):
                     return QualityGateResult(
                         status="interrupted",
@@ -1354,11 +1612,14 @@ class BranchQualityGate:
                         owned_generation = f"pid:{process.pid}"
                     self._active_processes[process.pid] = process
                     self._active_generations[process.pid] = owned_generation
+                    self._active_owners[process.pid] = owned_owner
                     self._active_snapshots[process.pid] = snapshot
                     # Check tombstone under the same lock that cancel_generation
                     # uses to add to _cancelled_generations and mark _interrupted.
                     post_spawn_cancelled = (
-                        owned_generation in self._cancelled_generations
+                        owner_key in self._cancelled_owner_keys
+                        if owner_key is not None
+                        else owned_generation in self._cancelled_generations
                     )
                     if post_spawn_cancelled:
                         setattr(process, "_oompah_interrupted", True)
@@ -1383,7 +1644,10 @@ class BranchQualityGate:
                                 )
                                 current = False
                             if not current:
-                                self.cancel_generation(owned_generation)
+                                if owned_owner is not None:
+                                    self.cancel_owner(owned_owner)
+                                else:
+                                    self.cancel_generation(owned_generation)
                                 return
 
                     monitor = threading.Thread(
@@ -1500,13 +1764,13 @@ class BranchQualityGate:
                     with self._processes_lock:
                         self._active_processes.pop(process.pid, None)
                         self._active_generations.pop(process.pid, None)
+                        self._active_owners.pop(process.pid, None)
                         self._active_snapshots.pop(process.pid, None)
                 # A cancelled generation remains fenced until every caller
                 # already registered for it has crossed the barrier.  This
                 # prevents one interrupted caller from clearing the tombstone
                 # while another is still waiting on this evidence-key lock.
-                if owned_generation is not None:
-                    self._release_generation(owned_generation)
+                _release_owned_generation()
                 self._cleanup_gate_run_root(run_root)
 
             result = QualityGateResult(

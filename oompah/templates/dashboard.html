@@ -2418,6 +2418,14 @@
       <div class="tah-detail" id="terminal-audit-health-detail"></div>
     </div>
   </div>
+  <div class="terminal-audit-health-banner" id="quality-gate-health" hidden
+       role="status" aria-live="polite" aria-label="Branch quality gate health">
+    <span class="tah-icon" aria-hidden="true">&#9881;</span>
+    <div class="tah-body">
+      <div class="tah-title">Branch quality gate health</div>
+      <div class="tah-detail" id="quality-gate-health-detail"></div>
+    </div>
+  </div>
   <section class="repo-hygiene-health-panel" id="repo-hygiene-health" hidden
            role="status" aria-live="polite" aria-label="Repository hygiene health">
     <div class="repo-hygiene-health-header">
@@ -3330,6 +3338,34 @@ function renderTerminalAuditHealth(health) {
   }
 }
 
+function renderQualityGateHealth(health) {
+  const banner = document.getElementById('quality-gate-health');
+  const detail = document.getElementById('quality-gate-health-detail');
+  if (!banner || !detail) return;
+  if (!health || typeof health !== 'object') {
+    banner.hidden = true;
+    detail.textContent = '';
+    return;
+  }
+  const status = String(health.status || 'idle');
+  if (status === 'idle') {
+    banner.hidden = true;
+    detail.textContent = '';
+    return;
+  }
+  const parts = [status.replace(/_/g, ' ')];
+  const active = Array.isArray(health.active) ? health.active : [];
+  active.forEach(function(owner) {
+    const task = owner.task_id || 'unknown task';
+    const project = owner.project_id || 'unknown project';
+    const head = owner.head_sha ? String(owner.head_sha).slice(0, 12) : 'unknown head';
+    const generation = owner.authority_generation || 'unknown generation';
+    parts.push(project + '/' + task + ' · head ' + head + ' · owner ' + generation);
+  });
+  detail.textContent = parts.join(' · ');
+  banner.hidden = false;
+}
+
 function renderRepoHygieneHealth(health) {
   var panel = document.getElementById('repo-hygiene-health');
   var icon = document.getElementById('repo-hygiene-health-icon');
@@ -3557,6 +3593,11 @@ function handleStateUpdate(state) {
   renderTerminalAuditHealth(
     state.terminal_audit_health ||
     (state.health && state.health.terminal_audit) ||
+    null
+  );
+  renderQualityGateHealth(
+    state.quality_gates ||
+    (state.health && state.health.quality_gates) ||
     null
   );
 
