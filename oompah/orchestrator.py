@@ -233,6 +233,7 @@ from oompah.auth_health import (
     auth_health_snapshot,
     record_worker_token_minted,
 )
+from oompah.dashboard_alerts import normalize_alerts
 from oompah.auditor import (
     AUDITOR_ALLOWED_TOOLS,
     AUDITOR_FOCUS_NAME,
@@ -5520,8 +5521,25 @@ class Orchestrator:
                 self._alerts.append(
                     {
                         "level": "warning",
+                        "severity": "warning",
                         "source": "repo_hygiene_health",
+                        "stable_id": "repo_hygiene_health",
+                        "action_required": True,
+                        "recovery_state": "active",
+                        "lifecycle_state": "active",
+                        "status": "active",
+                        "active": True,
+                        "recovered": False,
+                        "summary": health.summary,
                         "message": health.summary,
+                        "detail": (
+                            "Repository inventory contains overdue cleanup debt "
+                            "or a cleanup error."
+                        ),
+                        "remediation": (
+                            "Review the repository hygiene inventory and resolve "
+                            "overdue artifacts or cleanup errors."
+                        ),
                     }
                 )
         except Exception as exc:  # noqa: BLE001
@@ -37516,6 +37534,80 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             status = "idle"
         return {"status": status, "active": active, "recent": outcomes}
 
+    @staticmethod
+    def _quality_gate_dashboard_alerts(
+        quality_gate_state: Mapping[str, Any],
+    ) -> list[dict[str, Any]]:
+        """Expose gate lifecycle facts through the shared alert contract.
+
+        A running gate is useful task/review status, not an operator warning.
+        A failed exact-head gate is actionable until a later successful gate
+        removes its transient outcome in ``_remember_quality_gate_result``.
+        """
+
+        facts: list[dict[str, Any]] = []
+        for owner in quality_gate_state.get("active", []) or []:
+            project_id = str(owner.get("project_id") or "unknown")
+            task_id = str(owner.get("task_id") or "unknown")
+            head_sha = str(owner.get("head_sha") or "unknown")
+            source = f"quality_gate:{project_id}:{task_id}:{head_sha}"
+            facts.append(
+                {
+                    "source": source,
+                    "severity": "info",
+                    "action_required": False,
+                    "recovery_state": "running",
+                    "status": "recovering",
+                    "active": True,
+                    "summary": f"Branch quality gate is running for {task_id}",
+                    "detail": (
+                        f"The exact submitted head {head_sha[:12]} is being "
+                        "checked before review or integration."
+                    ),
+                    "remediation": "The gate will report its result automatically.",
+                    "project_id": project_id,
+                    "task_id": task_id,
+                    "head_sha": head_sha,
+                }
+            )
+        for outcome in quality_gate_state.get("recent", []) or []:
+            project_id = str(outcome.get("project_id") or "unknown")
+            task_id = str(outcome.get("task_id") or "unknown")
+            head_sha = str(outcome.get("head_sha") or "unknown")
+            result = str(outcome.get("status") or "error")
+            source = f"quality_gate:{project_id}:{task_id}:{head_sha}"
+            actionable = result not in {"passed", "not_configured", "interrupted"}
+            severity = "error" if result in {
+                "error",
+                "timed_out",
+                "infrastructure_error",
+            } else "warning"
+            facts.append(
+                {
+                    "source": source,
+                    "severity": severity if actionable else "info",
+                    "action_required": actionable,
+                    "recovery_state": result,
+                    "status": "active" if actionable else "historical",
+                    "active": actionable,
+                    "summary": f"Branch quality gate {result} for {task_id}",
+                    "detail": (
+                        f"The exact head {head_sha[:12]} did not pass the "
+                        f"configured branch quality command ({outcome.get('command') or 'unknown command'})."
+                    ),
+                    "remediation": (
+                        "Fix the branch or quality-gate runtime, push a new head, "
+                        "and rerun the gate."
+                    ),
+                    "project_id": project_id,
+                    "task_id": task_id,
+                    "head_sha": head_sha,
+                    "command": outcome.get("command"),
+                    "cached": bool(outcome.get("cached")),
+                }
+            )
+        return facts
+
     def get_snapshot(self) -> dict[str, Any]:
         """Return a snapshot of the current orchestrator state for the API."""
         now = datetime.now(timezone.utc)
@@ -37669,6 +37761,12 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         totals = self.state.agent_totals
         terminal_audit_metrics = self._terminal_audit_metrics.snapshot(now=now)
         quality_gate_state = self._quality_gate_state_snapshot()
+        raw_alerts = (
+            list(self._alerts)
+            + self._quality_gate_dashboard_alerts(quality_gate_state)
+            + self._credential_error_alerts()
+            + auth_health_alerts()
+        )
         return {
             "generated_at": now.isoformat(),
             "paused": self._paused,
@@ -37798,7 +37896,10 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 "quality_gates": quality_gate_state,
             },
             "auth_health": auth_health_snapshot(),
-            "alerts": list(self._alerts) + self._credential_error_alerts() + auth_health_alerts(),
+            # The state API and websocket share this exact presentation
+            # boundary.  Producers retain their own metrics/diagnostics while
+            # the dashboard receives one redacted, deduplicated contract.
+            "alerts": normalize_alerts(raw_alerts),
             "reviews_summary": self._reviews_summary(),
             "orchestrator_metrics": {
                 "last_tick": dict(getattr(self, "_last_tick_metrics", {}) or {}),

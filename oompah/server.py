@@ -61,6 +61,7 @@ from oompah.agent_profile_store import (
 )
 from oompah.cache import TTLCache
 from oompah.error_watcher import ErrorWatcher, ProjectLogWatcherManager
+from oompah.dashboard_alerts import normalize_alerts
 from oompah.ipc import OrchestratorIPC, get_ipc
 from oompah.issue_enhancer import (
     EnhancementResult,
@@ -3970,6 +3971,12 @@ def _enrich_state_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
     """
     # Create a copy to avoid mutating cached snapshots
     enriched = dict(snapshot)
+    # Cached snapshots may have been produced by an older scheduler during a
+    # rolling upgrade, and the unavailable-state fallback is assembled here.
+    # Normalize once more at the API/WebSocket boundary so every client sees
+    # the same redacted contract even in those paths.
+    if isinstance(enriched.get("alerts"), list):
+        enriched["alerts"] = normalize_alerts(enriched["alerts"])
     enriched["build_id"] = dict(_BUILD_ID)
     enriched["service_instance_id"] = _INSTANCE_ID
     enriched["http_auth"] = _http_auth_reload_status()

@@ -3259,7 +3259,7 @@ function renderRunningAgentChips(running, paused) {
 
 function alertPrimaryText(alert) {
   if (!alert) return 'Oompah alert';
-  return alert.title || alert.message || 'Oompah alert';
+  return alert.summary || alert.title || alert.message || 'Oompah alert';
 }
 
 function alertDetailText(alert) {
@@ -3269,7 +3269,7 @@ function alertDetailText(alert) {
 
 function alertActionText(alert) {
   if (!alert) return '';
-  return alert.action || alert.remediation || '';
+  return alert.remediation || alert.action || '';
 }
 
 function renderAlertSummary(alert) {
@@ -3574,12 +3574,12 @@ function handleStateUpdate(state) {
     if (!a.source) return true;
     if (a.source.indexOf('cred_error:') === 0) return false;
     if (a.source.indexOf('auth_health:') === 0) return false;
-    // OOMPAH-735: a normal automatic recovery (fresh repair worker,
-    // scheduled bounded retry) is task-local progress, not a global
-    // operator warning.  The orchestrator marks such alerts with
-    // action_required=false; the actionable warning is restored by the
-    // reconciler if recovery stops progressing.  Missing/undefined field
-    // is treated as actionable to preserve legacy alert semantics.
+    // OOMPAH-735 and OOMPAH-741: recovery/status facts are retained in the
+    // state payload but do not occupy the global operator warning surface.
+    // The server supplies this decision explicitly (action_required=false
+    // for automatic recoveries, bounded retries, and informational status);
+    // no message parsing is needed in the frontend.  Missing/undefined
+    // field is treated as actionable to preserve legacy alert semantics.
     if (a.action_required === false) return false;
     return true;
   });
