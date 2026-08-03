@@ -15,7 +15,7 @@ labels:
 - focus-complete:merge_conflict
 assignee: null
 created_at: '2026-08-03T22:56:27.836890Z'
-updated_at: '2026-08-03T23:47:59.126820Z'
+updated_at: '2026-08-03T23:53:48.711281Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-745
 target_branch: null
 review_url: null
@@ -258,5 +258,10 @@ author: oompah
 created: 2026-08-03 23:47
 ---
 Discovery: The prerequisites are committed on their task branches but not yet combined. dashboard.html currently has no browser harness; Chrome is available, so I will add deterministic headless-browser coverage that drives the real template and records semantic/layout outcomes. I will merge the three prerequisite branches locally to validate their composed contract, resolving only overlapping template changes.
+---
+author: oompah
+created: 2026-08-03 23:53
+---
+Implementation: Added tests/test_dashboard_alert_experience.py, a deterministic headless-Chrome harness using an in-page WebSocket double. It covers production-shaped mixed alerts, desktop and phone layouts, bounded overflow, disclosure/focus semantics, task-card reachability, running-to-failed gate updates, sequence-gap full_sync, and clearing recovered audit transport warnings. The browser test exposed generic alerts being rendered three times (center, legacy banner, agent bar), so dashboard.html now uses the compact center as their one visible surface; legacy markup remains empty for compatibility. Updated the vertical-scroll regression contract accordingly.
 ---
 <!-- COMMENTS:END -->
