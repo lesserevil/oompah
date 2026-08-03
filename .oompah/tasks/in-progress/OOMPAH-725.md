@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-725
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Reject lifecycle-incompatible Merged overrides for shared-epic children
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:33:53.224136Z'
-updated_at: '2026-08-03T15:59:56.520618Z'
+updated_at: '2026-08-03T16:02:37.772459Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,7 +42,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 79b3101a-3ad3-4e9a-af95-625d03bfef25
+oompah.agent_run_id: fd4cb031-3bad-430c-a1bd-d0f01149db73
 oompah.task_costs:
   total_input_tokens: 50391
   total_output_tokens: 395
@@ -121,5 +121,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: normal, Duration: 33s
 - Log: OOMPAH-725__20260803T155925Z.jsonl
+---
+author: oompah
+created: 2026-08-03 16:02
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-03 16:02
+---
+Focus: Software Engineer
 ---
 <!-- COMMENTS:END -->
