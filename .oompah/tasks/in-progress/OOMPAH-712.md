@@ -1,23 +1,26 @@
 ---
 id: OOMPAH-712
 type: task
-status: Backlog
+status: In Progress
 priority: null
 title: Keep retiring terminal auditors visible until provider exit
 parent: null
 children: []
 blocked_by: []
-start_blocked_by: []
-labels: []
+start_blocked_by: &id001
+- OOMPAH-710
+labels:
+- human-only
 assignee: null
 created_at: '2026-08-03T00:23:44.424551Z'
-updated_at: '2026-08-03T00:23:44.424551Z'
+updated_at: '2026-08-03T00:24:48.757750Z'
 work_branch: null
 target_branch: null
 review_url: null
 review_number: null
 review_head: null
 merged_at: null
+oompah.start_blocked_by: *id001
 ---
 ## Summary
 
@@ -29,3 +32,11 @@ Live post-deployment regression of OOMPAH-701 observed on OOMPAH-706 at 2026-08-
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-03 00:24
+---
+Direct owner claim. OOMPAH-710 is a hard prerequisite because it fixes the provider-private spill trigger and stale audit gauge; this task now isolates the remaining lifecycle visibility gap where a live retiring auditor provider outlives its RunningEntry.
+---
+<!-- COMMENTS:END -->
