@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:22.560635Z'
-updated_at: '2026-08-03T23:17:00.557277Z'
+updated_at: '2026-08-03T23:26:34.634695Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-743
 target_branch: null
 review_url: null
@@ -157,5 +157,10 @@ author: oompah
 created: 2026-08-03 23:17
 ---
 Discovery: Orchestrator.get_snapshot() currently publishes _alerts verbatim; integration_retry alerts concatenate IntegrationExecutionResult.message, which can contain multiline rebase/gate transcripts. Server cached/IPC snapshots can bypass that producer. I will enforce a shared redacted/normalized/bounded alert projection at both boundaries, add a structured integration failure alert, and render diagnostics only inside an accessible collapsed details control.
+---
+author: oompah
+created: 2026-08-03 23:26
+---
+Verification: focused alert/dashboard/integration coverage passes (91 tests, then 40 alert/dashboard tests after final renderer hardening); snapshot/WS/API responsiveness suites pass (59 tests); integration executor and parallel-child integration suites pass (48 tests); auth/audit/credential suites pass (110 tests); automatic-rebase/quality-gate checks pass (6 tests). The initial Unicode fixture assertion was corrected to exceed the diagnostic bound.
 ---
 <!-- COMMENTS:END -->
