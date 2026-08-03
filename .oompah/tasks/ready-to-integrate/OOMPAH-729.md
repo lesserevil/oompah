@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T16:23:52.854950Z'
-updated_at: '2026-08-03T17:17:34.855266Z'
+updated_at: '2026-08-03T17:17:52.810936Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -183,5 +183,10 @@ author: oompah
 created: 2026-08-03 17:17
 ---
 Implemented authenticated evidence-only terminal-audit rearm for unchanged integrated heads, with canonical integrated-SHA fencing, idempotent coordinator/API/CLI flow, sweep recovery alerting, operator docs, and regression coverage.
+---
+author: oompah
+created: 2026-08-03 17:17
+---
+Completion: delivered and pushed the evidence-only terminal-audit recovery. Owners can rearm a same-integrated-SHA missing_evidence failure once with audit_retry_evidence_addendum; the coordinator preserves history and fencing, coalesces duplicates, and independent audit can PASS to Done. The sweep now exposes one actionable recovery alert and clears it after rearm. Focused 393-test suite and terminal mutation scan pass; full direct suite reached 15,134 passes with only the wrapper-env test failure documented above. Submitted for integration at the pushed head.
 ---
 <!-- COMMENTS:END -->
