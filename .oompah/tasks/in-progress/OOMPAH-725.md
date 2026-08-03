@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:33:53.224136Z'
-updated_at: '2026-08-03T16:06:57.674873Z'
+updated_at: '2026-08-03T16:38:59.378608Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -141,5 +141,10 @@ author: oompah
 created: 2026-08-03 16:06
 ---
 Discovery: terminal writes are already funneled through TerminalTransitionCoordinator, but its request/apply/override paths lack shared-epic lifecycle context, allowing owner overrides to bypass rollup checks. Orchestrator already provides authoritative parent-review landing detection via _epic_branch_landed_on_target and identifies auto-filed rebase helpers. I will reuse that through a coordinator/enforcement callback and repair incompatible legacy Merged records before restart recovery can replay them.
+---
+author: oompah
+created: 2026-08-03 16:38
+---
+Implementation: Wired lifecycle validation into both production terminal coordinators, request/retry/apply/override paths, and enforcement recovery. Shared-epic children now require parent review landing evidence for Merged; auto-filed rebase/maintenance children remain Done. Added legacy reconciliation to restore incompatible Merged children to completed Done while preserving audit history and unrelated audits, with API/ACP conflict propagation and scanner allowlist coverage.
 ---
 <!-- COMMENTS:END -->
