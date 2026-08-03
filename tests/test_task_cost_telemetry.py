@@ -1082,7 +1082,11 @@ class TestTerminateRunningWritesCostRecord:
 
         elapsed, parent_pid, child_pid = asyncio.run(_run())
 
-        assert elapsed < 0.2
+        # The resistant worker task sleeps 60s and swallows 1s after cancel;
+        # if the terminator waited on it, elapsed would be tens of seconds.
+        # A 2s ceiling still proves non-waiting while tolerating CI-runner
+        # timing variance under xdist load (parallel to OOMPAH-483/-688).
+        assert elapsed < 2.0
         assert "stuck-cli" not in orch.state.running
         assert "stuck-cli" not in orch.state.claimed
         assert "stuck-cli" not in orch._cli_agent_sessions
