@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-720
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Keep owner-override fingerprints stable while audit attempts rotate
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T14:07:40.475708Z'
-updated_at: '2026-08-03T14:09:19.248361Z'
+updated_at: '2026-08-03T14:09:40.227887Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -67,7 +67,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 89908f17-8bb3-4398-8d81-23b89256cfad
+oompah.agent_run_id: 56d96933-ed7d-4add-8c69-6b22a6631f44
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1729
@@ -147,5 +147,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 1m 14s
 - Log: OOMPAH-720__20260803T140813Z.jsonl
+---
+author: oompah
+created: 2026-08-03 14:09
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-03 14:09
+---
+Focus: Maintenance Engineer
 ---
 <!-- COMMENTS:END -->
