@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-625
 type: bug
-status: Merged
+status: Done
 priority: 1
 title: Release terminal-auditor branch claims on forced termination
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T21:58:34.567478Z'
-updated_at: '2026-08-02T18:28:37.438112Z'
+updated_at: '2026-08-03T20:04:46.086587Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-625
 target_branch: null
 review_url: null
