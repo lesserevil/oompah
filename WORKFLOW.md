@@ -31,6 +31,8 @@ You are an autonomous coding agent working on issue **{{ issue.identifier }}**. 
 - **State:** {{ issue.state }}
 - **Labels:** {{ issue.labels | join: ", " }}
 - **Branch:** `{{ issue.branch_name }}`
+{% if issue.target_branch != "" %}- **Target branch:** `{{ issue.target_branch }}`
+{% endif %}
 
 ### Description
 

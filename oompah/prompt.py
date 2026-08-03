@@ -272,6 +272,7 @@ def _issue_to_template_vars(issue: Issue) -> dict[str, Any]:
         "state": issue.state,
         "issue_type": issue.issue_type or "task",
         "branch_name": issue.branch_name or "",
+        "target_branch": issue.target_branch or "",
         "url": issue.url or "",
         "labels": issue.labels,
         "blocked_by": [

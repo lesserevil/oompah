@@ -92,6 +92,17 @@ ALLOWLISTED_CALLS: dict[AllowlistKey, str] = {
         "Done audit during serialized startup recovery; it does not create an "
         "audit."
     ),
+    (
+        "oompah/orchestrator.py",
+        "Orchestrator._supersede_wrong_epic_rebase_helper",
+        "update_issue",
+    ): (
+        "Archives an auto-generated rebase helper task whose recorded target "
+        "branch no longer matches the authoritative parent; only transitions "
+        "unclaimed tasks in Open, In-Progress, or Needs-Rebase state after a "
+        "fresh re-read confirms no worker has claimed it; the terminal "
+        "enforcement sweep provides the audit backstop."
+    ),
 }
 
 
