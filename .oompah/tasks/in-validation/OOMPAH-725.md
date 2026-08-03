@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-725
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Reject lifecycle-incompatible Merged overrides for shared-epic children
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:33:53.224136Z'
-updated_at: '2026-08-03T16:48:22.425956Z'
+updated_at: '2026-08-03T16:57:58.896543Z'
 work_branch: OOMPAH-725
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/683
@@ -81,6 +81,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/683
 oompah.review_number: '683'
 oompah.work_branch: OOMPAH-725
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-8bd41fcb5696
+    project_id: proj-14849f1b
+    task_id: OOMPAH-725
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a7ff1bb74939f78604a194da24ce954526fe1fe19b662ff3f25fbee78b54e14f
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-03T16:57:49.580019+00:00'
+  - version: 1
+    audit_id: audit-7739be5a5fd4
+    project_id: proj-14849f1b
+    task_id: OOMPAH-725
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: a7ff1bb74939f78604a194da24ce954526fe1fe19b662ff3f25fbee78b54e14f
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-03T16:57:49.580019+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -194,5 +233,15 @@ author: oompah
 created: 2026-08-03 16:48
 ---
 Branch quality gate passed for `34be8724a511307bd44ccb9d58f7c8101494aaf0` using `make test` in 414.6s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-03 16:57
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-03 16:57
+---
+YOLO: merged PR #683.
 ---
 <!-- COMMENTS:END -->
