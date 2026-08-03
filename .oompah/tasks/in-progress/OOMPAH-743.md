@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-743
 type: bug
-status: Open
+status: In Progress
 priority: 1
 title: Keep raw failure transcripts out of dashboard alert summaries
 parent: OOMPAH-740
@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:22.560635Z'
-updated_at: '2026-08-03T23:04:35.859645Z'
+updated_at: '2026-08-03T23:12:08.678352Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-743
 target_branch: null
 review_url: null
@@ -46,7 +46,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 3d19e877-4539-4f82-b20a-1134b903984a
+oompah.agent_run_id: 6824e3d6-1e57-4161-b29b-de72c089bd17
 oompah.work_branch: epic-OOMPAH-740--task-OOMPAH-743
 oompah.integration:
   version: 2
