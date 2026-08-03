@@ -9,11 +9,10 @@ parent: null
 children: []
 blocked_by: []
 start_blocked_by: []
-labels:
-- merge-conflict
+labels: []
 assignee: null
 created_at: '2026-08-03T20:14:53.133307Z'
-updated_at: '2026-08-03T22:40:41.993457Z'
+updated_at: '2026-08-03T22:44:10.060775Z'
 work_branch: OOMPAH-739
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/694
