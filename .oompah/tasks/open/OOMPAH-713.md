@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-713
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Do not terminate completion audits for harmless read-only shell syntax
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T00:59:11.573065Z'
-updated_at: '2026-08-03T00:59:11.573065Z'
+updated_at: '2026-08-03T01:00:07.152757Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -29,3 +29,11 @@ Triggered by OOMPAH-709 completion audit attempts attempt-5cfed9c3692c and attem
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-03 01:00
+---
+Project-owner promoted this root-cause follow-up to Open. Live evidence is preserved in OOMPAH-709 audit logs OOMPAH-709__20260803T005429Z.jsonl and OOMPAH-709__20260803T005655Z.jsonl; implementation must remain fail-closed for genuine mutations while preventing local policy/tool incompatibility from masquerading as provider transport failure.
+---
+<!-- COMMENTS:END -->
