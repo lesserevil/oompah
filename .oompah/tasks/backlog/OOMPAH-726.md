@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:37:02.712106Z'
-updated_at: '2026-08-03T15:37:44.861117Z'
+updated_at: '2026-08-03T15:40:20.885642Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -55,5 +55,10 @@ author: oompah
 created: 2026-08-03 15:37
 ---
 In-flight cleanup completed with exact guards. Verified the managed EXOCOMP-185 worktree was clean, on exact branch epic-EXOCOMP-185 at a163c8323e9b83e2360af73c9f3e972b99f9dc0d; fetched origin/epic-EXOCOMP-127; proved a163c832 is the second parent of reviewed merge 2c9ad37b and an ancestor of current target tip e826d0d5. Removed only /home/shedwards/.oompah/worktrees/exocomp/epic-EXOCOMP-185 and compare-and-deleted the exact local source ref. The remote source was already absent and the commit remains reachable from the authoritative target.
+---
+author: oompah
+created: 2026-08-03 15:40
+---
+Second live workaround completed for EXOCOMP-128. Verified clean managed source worktree at f34b7d15612196d3963bcaa9378278ba2e142e50, exact second parent of PR #21 merge 2476a39252e92b4690337d7fe706d1b28781bd60 and ancestor of current origin/epic-EXOCOMP-127. Removed only the managed worktree and compare-and-deleted local source ref; the commit remains target-reachable.
 ---
 <!-- COMMENTS:END -->

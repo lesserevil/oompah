@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:39:38.824262Z'
-updated_at: '2026-08-03T15:39:38.824262Z'
+updated_at: '2026-08-03T15:40:18.706601Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -47,3 +47,11 @@ Acceptance criteria:
 
 ## Notes
 
+## Comments
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-08-03 15:40
+---
+In-flight cleanup completed with exact guards. EXOCOMP-240 auxiliary workspace was clean on exact derived branch epic-EXOCOMP-130--task-EXOCOMP-240 at b0d047ea97d00deb5c9b83054ddfb6de1491f0a9. That head remains published as origin/epic-EXOCOMP-130--task-EXOCOMP-145; authoritative epic workspace and origin/epic-EXOCOMP-130 both remain exact at 72ade5184d8c3ce5ac1ea112fdf3d514994cc7cc. Removed only the EXOCOMP-240 managed workspace and compare-and-deleted its exact local derived ref; no remote ref was removed.
+---
+<!-- COMMENTS:END -->
