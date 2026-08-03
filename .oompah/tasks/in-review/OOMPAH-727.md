@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-727
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Prune safe auxiliary worktrees left by direct epic maintenance tasks
 parent: null
@@ -11,10 +11,10 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:39:38.824262Z'
-updated_at: '2026-08-03T17:26:27.137160Z'
+updated_at: '2026-08-03T17:26:37.834625Z'
 work_branch: null
 target_branch: null
-review_url: null
+review_url: https://github.com/lesserevil/oompah/pull/685
 review_number: null
 review_head: null
 merged_at: null
@@ -123,6 +123,7 @@ oompah.integration:
   head_sha: ab69c0eb8ae7721493ae99334bd5fc3e7564bec1
   submitted_at: '2026-08-03T17:07:49.533798+00:00'
   updated_at: '2026-08-03T17:10:02.797188+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/685
 ---
 ## Summary
 
