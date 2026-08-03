@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:37:02.712106Z'
-updated_at: '2026-08-03T16:02:57.039166Z'
+updated_at: '2026-08-03T16:03:06.939159Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -78,5 +78,15 @@ author: oompah
 created: 2026-08-03 15:40
 ---
 Second live workaround completed for EXOCOMP-128. Verified clean managed source worktree at f34b7d15612196d3963bcaa9378278ba2e142e50, exact second parent of PR #21 merge 2476a39252e92b4690337d7fe706d1b28781bd60 and ancestor of current origin/epic-EXOCOMP-127. Removed only the managed worktree and compare-and-deleted local source ref; the commit remains target-reachable.
+---
+author: oompah
+created: 2026-08-03 16:03
+---
+Duplicate screening dispatched (profile: default, task remains Open)
+---
+author: oompah
+created: 2026-08-03 16:03
+---
+Focus: Duplicate Investigator
 ---
 <!-- COMMENTS:END -->

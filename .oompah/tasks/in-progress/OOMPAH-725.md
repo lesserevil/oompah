@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:33:53.224136Z'
-updated_at: '2026-08-03T16:02:37.772459Z'
+updated_at: '2026-08-03T16:03:00.386038Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -131,5 +131,10 @@ author: oompah
 created: 2026-08-03 16:02
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-03 16:03
+---
+Understanding: shared-epic children must be blocked from Merged until accepted work reaches the configured target branch; maintenance/rebase children should terminate at audited Done. I will trace the shared-epic strategy, terminal transition coordinator, API/ACP and recovery paths, then centralize compatibility validation, add legacy reconciliation, and cover the requested lifecycle/override cases with focused tests.
 ---
 <!-- COMMENTS:END -->
