@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-733
 type: task
-status: Backlog
+status: Open
 priority: null
 title: Fail closed when a nested epic rebase target cannot be resolved
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T18:23:48.756544Z'
-updated_at: '2026-08-03T18:23:48.756544Z'
+updated_at: '2026-08-03T18:24:05.759204Z'
 work_branch: null
 target_branch: null
 review_url: null
