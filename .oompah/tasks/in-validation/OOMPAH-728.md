@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T16:19:05.113116Z'
-updated_at: '2026-08-03T17:33:47.670306Z'
+updated_at: '2026-08-03T17:33:55.839787Z'
 work_branch: OOMPAH-728
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/684
@@ -131,8 +131,9 @@ oompah.terminal_audit:
     status: In Validation
     audit_ids:
     - audit-3dc00ff3f23c
-    applied: false
+    applied: true
     created_at: '2026-08-03T17:33:46.602052+00:00'
+    applied_at: '2026-08-03T17:33:53.951343+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -339,5 +340,23 @@ author: oompah
 created: 2026-08-03 17:20
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-03 17:33
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- head_sha: 2d682cacc8e9f18a6fc12de674b7ac91f37532e1
+- merge_commit_on_main: 14df3a875
+- changed_files: docs/duplicate-screening.md; oompah/acp_tools.py; oompah/focus.py; oompah/orchestrator.py; tests/test_duplicate_preflight.py; tests/test_focus.py
+- diff_stats: 6 files changed, 680 insertions(+), 37 deletions(-)
+- focused_tests_passed: test_duplicate_preflight.py=44; test_focus.py=141; test_orchestrator_duplicate_detection.py=25; test_epic_strategy.py[duplicate_preflight]=4; test_prompt_injection_protection.py=29; test_auditor_contract.py[acp_catalogs]=2; test_secrets.py=116
+- corpus_bounds: MAX_TASKS=100; MAX_BYTES=96 KiB; MAX_DIAGNOSTIC_IDS=32
+- structural_relevance_reasons: parent; child; same_parent_sibling; hard_start_dependency; dependency; hard_start_dependent; dependent
+- self_sufficient_prompt: must_do updated to forbid oompah task CLI/curl/HTTP/localhost/loopback fallback; read-only tool catalogs restrict duplicate_detector to read_file/list_files/search_files
+- branch_gate_prior_run: make test passed for 2d682cacc in 430.7s (per prior comment 2026-08-03 17:09)
 ---
 <!-- COMMENTS:END -->
