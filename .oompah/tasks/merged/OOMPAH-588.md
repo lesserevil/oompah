@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-588
 type: epic
-status: In Validation
+status: Merged
 priority: 1
 title: Finish safe repository hygiene and maintenance correctness
 parent: OOMPAH-584
@@ -16,7 +16,7 @@ labels:
 - epic:rebased
 assignee: null
 created_at: '2026-07-30T14:13:46.482910Z'
-updated_at: '2026-08-03T23:42:28.189481Z'
+updated_at: '2026-08-03T23:49:05.660808Z'
 work_branch: epic-OOMPAH-588
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/602
@@ -36,6 +36,7 @@ oompah.terminal_audit:
     attempt-b8601de51d2b: '2026-08-03T22:52:49.636935+00:00'
     attempt-35c721f9c322: '2026-08-03T23:19:35.510595+00:00'
     attempt-09bff01dc70a: '2026-08-03T23:35:16.210442+00:00'
+    attempt-68a5b349eda7: '2026-08-03T23:49:00.018327+00:00'
   oompah.terminal_override_records: []
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
@@ -52,8 +53,9 @@ oompah.terminal_audit:
     - audit-903923a4e0c3
     - audit-0eff8a04ea82
     - audit-e80087590083
+    - audit-9d80809425ed
     kind: result
-    applied: false
+    applied: true
     retired_at: '2026-08-03T20:41:48.632975+00:00'
     lifecycle_reconciled: true
     reconciled_to: Done
@@ -194,6 +196,17 @@ oompah.terminal_audit:
     retired_by_reconciliation: true
     retired_reason: shared_epic_parent_not_landed
     reconciled_at: '2026-08-03T23:37:05.072386+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-588
+    audit_id: audit-9d80809425ed
+    attempt_id: attempt-68a5b349eda7
+    target_state: Merged
+    evidence_fingerprint: 4b103ce873cb0ba5c01da5f327fb8d227c3c3337cab3e7aa30a168dcd3bcd957
+    status: Merged
+    audit_ids:
+    - audit-9d80809425ed
+    applied: false
+    created_at: '2026-08-03T23:49:00.018387+00:00'
   oompah.lifecycle_reconciliations:
   - project_id: proj-14849f1b
     task_id: OOMPAH-588
@@ -703,7 +716,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-588
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -712,7 +725,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-68a5b349eda7
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -722,13 +735,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-03T23:42:04.758170+00:00'
       branch_key: epic-OOMPAH-588
+      verdict: pass
+      completed_at: '2026-08-03T23:49:00.018009+00:00'
+      ended_at: '2026-08-03T23:49:00.018009+00:00'
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
       source: oompah
     previous_state: Done
     created_at: '2026-08-03T23:37:56.413213+00:00'
-    updated_at: '2026-08-03T23:42:04.758170+00:00'
+    updated_at: '2026-08-03T23:49:00.018009+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-d986f94b1463
@@ -1642,5 +1658,33 @@ author: oompah
 created: 2026-08-03 23:42
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-03 23:49
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- origin_main_head: 4ea94b151a09758c57a93c8710c05f28a49bcc2a
+- epic_OOMPAH_588_merge_commit: a3a577a489650c602ec3c62bd242eb53de631af4
+- epic_OOMPAH_588_merge_subject: OOMPAH-588: Finish safe repository hygiene and maintenance correctness
+- epic_OOMPAH_588_merge_parents: 0bc2672559e2b59ce04d89d367a19ee97140dc5a (parent-side) + cca31dc2b26b5751f0daa079df9af81e2ba053ae (epic-side reconciliation)
+- epic_OOMPAH_584_pr_603_merge_into_main: bb0fd760c3b2938d15ec2026ef5bfc2fd34b0682
+- epic_OOMPAH_584_merge_subject: Merge pull request #603 from lesserevil/epic-OOMPAH-584
+- epic_OOMPAH_584_merge_parents: 24bd5d6c166af7f8c839e9d5c9e4f3f17d17508e (main-side) + a3a577a489650c602ec3c62bd242eb53de631af4 (epic-side = OOMPAH-588 head)
+- a3a577a48_is_ancestor_of_origin_main: true (git merge-base --is-ancestor exit 0)
+- bb0fd760c_is_ancestor_of_origin_main: true (git merge-base --is-ancestor exit 0)
+- cca31dc2b_is_ancestor_of_origin_main: true (git merge-base --is-ancestor exit 0)
+- child_OOMPAH_600_tip_in_main: 610155dbd (ancestor confirmed)
+- child_OOMPAH_601_tip_in_main: 4aef57735 (ancestor confirmed)
+- child_OOMPAH_602_tip_in_main: 7a9da21f2 (ancestor confirmed)
+- child_OOMPAH_603_tip_in_main: 81dc30054 (ancestor confirmed)
+- reconciliation_commit_in_epic: cca31dc2b26b5751f0daa079df9af81e2ba053ae (OOMPAH-588: reconcile nested rebase contracts)
+- prior_merged_audit_verdicts: pass x10+ (2026-07-31 05:28, 2026-08-03 20:41, 21:14, 21:41, 21:55, 22:14, 22:36, 22:52, 23:19, 23:35)
+- prior_full_gate: 14163 passed / 7 skipped / 1 xfailed / 56 warnings in 255.21s on content-equivalent c2549a76d
+- prior_focused_suite: 530 passed (repo hygiene / projects / config / merged-label)
+- lifecycle_blocker_status: cleared - parent epic OOMPAH-584 landed on main via bb0fd760c
 ---
 <!-- COMMENTS:END -->
