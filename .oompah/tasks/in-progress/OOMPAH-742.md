@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:17.550824Z'
-updated_at: '2026-08-03T23:14:44.058786Z'
+updated_at: '2026-08-03T23:17:43.736539Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-742
 target_branch: null
 review_url: null
@@ -279,5 +279,37 @@ The dashboard has multiple independent banners (cred-error-banner, alerts-banner
 5. Run focused tests to verify
 
 Starting discovery phase now...
+---
+author: oompah
+created: 2026-08-03 23:17
+---
+**Discovery Complete**
+
+Located key files:
+- Main template: oompah/templates/dashboard.html (340KB, contains HTML/CSS/JS)
+- Tests: tests/test_dashboard_*.py (32 dashboard-specific test files)
+
+Current alert rendering:
+- Multiple independent banners: cred-error, alerts-banner, terminal-audit-health, quality-gates, repo-hygiene, auth-health, task-state-stale
+- Alerts split into categories (credAlerts, otherAlerts) in handleStateUpdate()
+- Agent bar shows inline summary, alerts-banner shows full list
+- Each banner managed separately with show/hide logic
+
+Testing patterns:
+- Static HTML/CSS structure tests with regex parsing
+- No browser runtime tests, validates DOM structure and layout contracts
+- Existing patterns in test_dashboard_vertical_scroll.py show the approach
+
+**Implementation approach:**
+1. Create new `.alert-center` component with:
+   - Collapsed summary showing count + highest severity
+   - Toggle button for expand/collapse
+   - Bounded scrollable alert list (max 300px height)
+2. Update CSS to ensure board remains visible and scrollable
+3. Refactor handleStateUpdate() to populate alert center
+4. Keep old banners hidden initially for compatibility
+5. Add test coverage for alert center states
+
+Starting implementation...
 ---
 <!-- COMMENTS:END -->

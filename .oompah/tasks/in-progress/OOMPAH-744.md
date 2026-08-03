@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:25.203763Z'
-updated_at: '2026-08-03T23:15:40.624070Z'
+updated_at: '2026-08-03T23:17:47.828254Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-744
 target_branch: null
 review_url: null
@@ -172,5 +172,20 @@ author: oompah
 created: 2026-08-03 23:15
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-08-03 23:17
+---
+UNDERSTANDING: This task requires fixing the dashboard's WebSocket state handling to atomically replace alert and health presentation state whenever an authoritative full snapshot is received. Key requirements:
+
+1. Treat authoritative snapshots as complete replacements (not merges)
+2. Remove stale UI elements (panels, list items, counts, badges) for absent facts
+3. Prevent mixed-generation rendering during Synchronizing state
+4. Share stable identity/ordering between incremental and full updates
+5. Add bounded diagnostics for replacement failures
+
+The fix focuses on dashboard.html WebSocket handling and potentially server.py full-sync response. Related prior work: OOMPAH-691 through OOMPAH-695.
+
+Plan: (1) Explore relevant code, (2) Understand current state handling, (3) Implement atomic replacement logic, (4) Test all required scenarios, (5) Ensure no regressions.
 ---
 <!-- COMMENTS:END -->
