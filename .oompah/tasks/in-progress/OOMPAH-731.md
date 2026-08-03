@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T17:45:33.391967Z'
-updated_at: '2026-08-03T18:34:26.000957Z'
+updated_at: '2026-08-03T18:35:01.547944Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -181,5 +181,10 @@ author: oompah
 created: 2026-08-03 18:34
 ---
 Discovery: Root cause confirmed. _create_workspace_for_issue was giving auto-filed 'Rebase epic-*' helpers a private child branch, so the agent published the epic ref while submission validated a different ref. Key files: oompah/integration.py (is_direct_epic_maintenance_issue), oompah/projects.py (reconcile_published_epic_worktree, EpicWorktreeReconciliation), oompah/orchestrator.py (complete_direct_epic_maintenance_submission, _create_workspace_for_issue epic-rebase routing, tick recovery for already-published heads), oompah/server.py (submit bypass from integration queue for direct maintenance), oompah/acp_tools.py (base_sha/base_branch propagation). Tests in tests/test_worker_submission.py, tests/test_projects.py, tests/test_epic_strategy.py.
+---
+author: oompah
+created: 2026-08-03 18:35
+---
+Implementation: Recovery checkpoint contains the complete fix in 8 files (+918/-20 lines): (1) integration.py: is_direct_epic_maintenance_issue() identifies auto-filed Rebase epic-* helpers by title+parent; (2) projects.py: EpicWorktreeReconciliation dataclass + reconcile_published_epic_worktree() that proves the remote SHA twice before resetting the clean registered checkout - refuses dirty/active/recovery/divergent/concurrent states; (3) orchestrator.py: _create_workspace_for_issue routes direct rebase helpers to the canonical epic worktree (not a private child branch), complete_direct_epic_maintenance_submission() proves+reconciles+stages audited Done, tick recovery for already-published restart cases; (4) server.py: api_submit_issue bypasses integration queue for direct maintenance helpers and invokes the new completion path, returns 'In Validation' instead of 'Ready to Integrate'; (5) acp_tools.py: propagates base_sha/base_branch from existing integration record so CLI submissions carry the pre-rebase anchor.
 ---
 <!-- COMMENTS:END -->
