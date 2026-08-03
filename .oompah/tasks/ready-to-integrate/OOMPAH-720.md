@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-720
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Keep owner-override fingerprints stable while audit attempts rotate
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T14:07:40.475708Z'
-updated_at: '2026-08-03T14:27:27.482552Z'
+updated_at: '2026-08-03T14:27:38.853559Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -94,6 +94,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-720
     source_sha: fe1412ca98447e0d21307844056a860c1b385f36
     completed_at: '2026-08-03T14:09:14.032987+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-720
+  head_sha: 5643fa42363bdaa5b28828d00d10d9e7ca9e217f
+  submitted_at: '2026-08-03T14:27:26.265944+00:00'
+  updated_at: '2026-08-03T14:27:26.265944+00:00'
 ---
 ## Summary
 
@@ -183,5 +191,20 @@ author: oompah
 created: 2026-08-03 14:27
 ---
 Completion: delivered and pushed 5643fa423. Owner overrides now use authoritative tracker evidence under task/project ownership locks, so candidate rotation and audit-only refreshes do not create false 409s; genuine evidence changes remain rejected. Added API/coordinator/race regressions for stale integrated snapshots, lifecycle-field stability, duplicate retirement, authority/alert cleanup, and exactly-once replay. Full repository runner: 15,100 passed, 7 skipped, 1 expected xfail; terminal mutation scan passed.
+---
+author: oompah
+created: 2026-08-03 14:27
+---
+Refresh owner override evidence under task/project ownership locks; keep audit-attempt rotation outside canonical fingerprints and preserve stale-evidence rejection.
+---
+author: oompah
+created: 2026-08-03 14:27
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 137
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 18m 1s
+- Log: OOMPAH-720__20260803T140947Z.jsonl
 ---
 <!-- COMMENTS:END -->
