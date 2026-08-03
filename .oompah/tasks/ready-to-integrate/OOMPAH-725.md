@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-725
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Reject lifecycle-incompatible Merged overrides for shared-epic children
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:33:53.224136Z'
-updated_at: '2026-08-03T16:40:09.313244Z'
+updated_at: '2026-08-03T16:40:57.430395Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -42,7 +42,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: fd4cb031-3bad-430c-a1bd-d0f01149db73
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 50391
   total_output_tokens: 395
@@ -69,6 +69,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-725
     source_sha: d510748342777dd4748070d83391ffb0eae40091
     completed_at: '2026-08-03T15:59:47.680961+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-725
+  head_sha: 34be8724a511307bd44ccb9d58f7c8101494aaf0
+  submitted_at: '2026-08-03T16:40:45.536208+00:00'
+  updated_at: '2026-08-03T16:40:45.536208+00:00'
 ---
 ## Summary
 
@@ -162,5 +170,20 @@ author: oompah
 created: 2026-08-03 16:40
 ---
 Completion: Delivered shared-epic lifecycle enforcement, Done-only maintenance/rebase completion, API/ACP conflict propagation, serialized recovery safeguards, and legacy Merged-to-Done reconciliation with focused regression coverage. The branch is ready for commit and push; the only unresolved verification item is the environment-level make test bootstrap failure documented above.
+---
+author: oompah
+created: 2026-08-03 16:40
+---
+Shared-epic Merged lifecycle enforcement, Done-only maintenance completion, and legacy reconciliation delivered; focused suites and terminal mutation scan pass. make test bootstrap remains environment-blocked by astral-uv DBus failure.
+---
+author: oompah
+created: 2026-08-03 16:40
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 193
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 38m 22s
+- Log: OOMPAH-725__20260803T160238Z.jsonl
 ---
 <!-- COMMENTS:END -->
