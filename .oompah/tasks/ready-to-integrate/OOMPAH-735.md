@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-735
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: 1
 title: Do not raise global warnings for integration failures under active recovery
 parent: null
@@ -12,7 +12,7 @@ labels:
 - focus-complete:merge_conflict
 assignee: null
 created_at: '2026-08-03T19:17:18.559962Z'
-updated_at: '2026-08-03T20:00:16.681916Z'
+updated_at: '2026-08-03T20:00:31.429876Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -91,6 +91,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-735
     source_sha: 806bf1feee8ac46220c8ec750a5167017834b176
     completed_at: '2026-08-03T19:19:24.988478+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-735
+  head_sha: bbdb6e8be192b95c924c882ccbadaebfc34f08c1
+  submitted_at: '2026-08-03T20:00:27.504873+00:00'
+  updated_at: '2026-08-03T20:00:27.504873+00:00'
 ---
 ## Summary
 
@@ -250,5 +258,10 @@ author: oompah
 created: 2026-08-03 20:00
 ---
 Completion: implemented backend + frontend behavior for OOMPAH-735 end-to-end. Backend: structured recovery_state/action_required schema on integration_retry alerts, pure staticmethod classifier, snapshot-time reconciliation from live orchestrator state, config-driven freshness threshold, explicit clear on successful integration. Frontend: dashboard otherAlerts filter drops action_required===false so normal automatic recovery is task-local, not a global operator warning. Acceptance criteria satisfied: normal recovery is progress not alert; every visible global warning is actionable; stale/exhausted/revoked recovery re-arms deterministically at snapshot time (state API and websocket); no diagnostics, retry history, or authority fencing is lost.
+---
+author: oompah
+created: 2026-08-03 20:00
+---
+Structured recovery_state/action_required schema for integration_retry alerts, snapshot-time reconciliation against live recovery (running repair worker + last event freshness, authority revocation, queue retry_at/attempts, integration state), dashboard filter that drops non-actionable rows from the global banner and inline warnings. 23 new tests + 510 orchestrator regression tests pass.
 ---
 <!-- COMMENTS:END -->
