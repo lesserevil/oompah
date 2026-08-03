@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T03:02:02.962763Z'
-updated_at: '2026-08-03T03:04:28.266794Z'
+updated_at: '2026-08-03T03:04:43.492128Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -160,5 +160,10 @@ author: oompah
 created: 2026-08-03 03:04
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-03 03:04
+---
+Understanding: classify narrowly provable read-only awk range/print and sed print-only inspection as recoverable validation, preserving fatal handling for write-capable or state-changing commands; add regression coverage across policy, auditor recovery, denial accounting, and terminal health.
 ---
 <!-- COMMENTS:END -->
