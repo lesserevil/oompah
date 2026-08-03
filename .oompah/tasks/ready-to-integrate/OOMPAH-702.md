@@ -13,10 +13,10 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T20:34:49.621752Z'
-updated_at: '2026-08-03T00:56:39.909625Z'
+updated_at: '2026-08-03T01:12:12.180836Z'
 work_branch: null
 target_branch: null
-review_url: null
+review_url: https://github.com/lesserevil/oompah/pull/670
 review_number: null
 review_head: null
 merged_at: null
@@ -107,6 +107,7 @@ oompah.integration:
   head_sha: d7eaa2a1861d595fef08da60c4139dbf838929f9
   submitted_at: '2026-08-03T00:56:36.005353+00:00'
   updated_at: '2026-08-03T00:56:36.005353+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/670
 ---
 ## Summary
 
@@ -459,5 +460,10 @@ author: oompah
 created: 2026-08-03 00:56
 ---
 Rebased webhook regression coverage onto the merged deterministic tick-test fix. The submitted branch is webhook-only, 132 focused tests pass, and the exact clean head is d7eaa2a1861d595fef08da60c4139dbf838929f9.
+---
+author: oompah
+created: 2026-08-03 01:12
+---
+Branch quality gate passed for `d7eaa2a1861d595fef08da60c4139dbf838929f9` using `make test` in 402.6s. Review creation may proceed.
 ---
 <!-- COMMENTS:END -->
