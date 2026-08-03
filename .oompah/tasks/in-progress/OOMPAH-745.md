@@ -16,7 +16,7 @@ labels:
 - needs:test
 assignee: null
 created_at: '2026-08-03T22:56:27.836890Z'
-updated_at: '2026-08-03T23:42:51.808037Z'
+updated_at: '2026-08-03T23:43:01.936068Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-745
 target_branch: null
 review_url: null
@@ -239,5 +239,10 @@ author: oompah
 created: 2026-08-03 23:42
 ---
 Focus handoff from `merge_conflict` is complete. Queued a fresh agent run for the next applicable focus. The next agent should begin with the preceding Focus handoff comment.
+---
+author: oompah
+created: 2026-08-03 23:43
+---
+Agent dispatched (profile: standard)
 ---
 <!-- COMMENTS:END -->
