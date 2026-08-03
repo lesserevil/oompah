@@ -13,10 +13,10 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T01:03:08.223719Z'
-updated_at: '2026-08-03T02:35:06.724022Z'
+updated_at: '2026-08-03T02:46:48.071268Z'
 work_branch: null
 target_branch: null
-review_url: null
+review_url: https://github.com/lesserevil/oompah/pull/675
 review_number: null
 review_head: null
 merged_at: null
@@ -121,6 +121,7 @@ oompah.integration:
   head_sha: 28bb1e3c212a07e765e5cb461c08b7a578c5c8f6
   submitted_at: '2026-08-03T02:35:00.404764+00:00'
   updated_at: '2026-08-03T02:35:00.404764+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/675
 ---
 ## Summary
 
@@ -277,5 +278,10 @@ author: oompah
 created: 2026-08-03 02:35
 ---
 Rebased exact-owner gate cancellation onto all prerequisite fixes and verified the combined 647-test affected surface.
+---
+author: oompah
+created: 2026-08-03 02:46
+---
+Branch quality gate passed for `28bb1e3c212a07e765e5cb461c08b7a578c5c8f6` using `make test` in 405.0s. Review creation may proceed.
 ---
 <!-- COMMENTS:END -->
