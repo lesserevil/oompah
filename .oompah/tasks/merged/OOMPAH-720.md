@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T14:07:40.475708Z'
-updated_at: '2026-08-03T14:59:29.834259Z'
+updated_at: '2026-08-03T14:59:33.178500Z'
 work_branch: OOMPAH-720
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/679
@@ -130,6 +130,16 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-03T14:57:28.899779+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-720
+    target_state: Merged
+    evidence_fingerprint: 1edcd29fc7df98a6bb1d55efef1c19150c8039913895d16e58b90f083cee0ebd
+    audit_ids:
+    - audit-dc44c284af92
+    - audit-dbb2ca10319f
+    kind: override
+    applied: true
+    retired_at: '2026-08-03T14:59:31.986715+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-720
@@ -143,6 +153,7 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-03T14:57:28.899788+00:00'
     applied_at: '2026-08-03T14:57:33.583990+00:00'
+    retired_by_override: true
   oompah.terminal_override_records:
   - version: 1
     override_id: override-2ed5694bd80f
@@ -164,7 +175,7 @@ oompah.terminal_audit:
       1 expected xfail. A second Merged audit would duplicate the accepted evidence
       while the deployed service still lacks this task's race/idempotency fix.
     created_at: '2026-08-03T14:59:25.862923+00:00'
-    applied: false
+    applied: true
   version: 1
   pending_chain:
   - version: 1
@@ -206,7 +217,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-720
     target_state: Merged
-    request_state: in_progress
+    request_state: cancelled
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -231,7 +242,7 @@ oompah.terminal_audit:
       source: forge
     previous_state: In Review
     created_at: '2026-08-03T14:44:44.518035+00:00'
-    updated_at: '2026-08-03T14:58:42.589144+00:00'
+    updated_at: '2026-08-03T14:59:31.986671+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-7734d4e7dba4
