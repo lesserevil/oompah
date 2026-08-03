@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T17:45:33.391967Z'
-updated_at: '2026-08-03T19:03:31.076389Z'
+updated_at: '2026-08-03T19:05:31.138972Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -313,5 +313,10 @@ author: oompah
 created: 2026-08-03 19:03
 ---
 Understanding: I am handling the quality-gate repair on the existing OOMPAH-731 branch. I will sync the branch, inspect the failed GitHub Actions run and reproduce the two reported tests, make the minimal evidence-based fix, run focused tests, push the same branch, and submit the repaired head.
+---
+author: oompah
+created: 2026-08-03 19:05
+---
+Discovery: The reported repo-heal failure is not reproducible in isolation. The deterministic YOLO failure is a stale MagicMock fixture: it models an active Rebase epic-* helper without the persisted parent_id that the new direct-maintenance classifier intentionally requires. Production helpers receive that parent at filing, so weakening the classifier would reduce the intended safety boundary.
 ---
 <!-- COMMENTS:END -->
