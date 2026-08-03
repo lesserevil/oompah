@@ -99,6 +99,7 @@ from oompah.terminal_audit import (
     TargetState,
     TerminalAuditRecord,
     Verdict,
+    compute_issue_evidence_fingerprint,
 )
 from oompah.terminal_audit_metadata import (
     TerminalAuditMetadata,
@@ -1051,6 +1052,46 @@ class TerminalTransitionCoordinator:
     # Public API — override_transition
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _refresh_override_evidence(
+        tracker: TrackerProtocol,
+        current_issue: Issue,
+        project_id: str,
+        evidence_fingerprint: EvidenceFingerprint,
+    ) -> tuple[Issue, EvidenceFingerprint]:
+        """Refresh the issue and evidence at the project-lock boundary.
+
+        The API and ACP callers normally resolve an issue before entering the
+        coordinator.  That snapshot can race an auditor attempt exit or
+        retry, especially for native trackers whose read generation advances
+        when audit metadata/comments are written.  Attempt lifecycle data is
+        not evidence, so use the tracker detail read performed while the
+        coordinator's project lock is held and derive the fingerprint from
+        that same issue.
+
+        Tracker-neutral coordinator users and older test doubles may not
+        expose ``fetch_issue_detail``.  Keep their explicit fingerprint as a
+        compatibility fallback; production trackers all implement the detail
+        read through :class:`TrackerProtocol`.
+        """
+
+        fetch_issue_detail = getattr(tracker, "fetch_issue_detail", None)
+        if not callable(fetch_issue_detail):
+            return current_issue, evidence_fingerprint
+        try:
+            refreshed = fetch_issue_detail(current_issue.identifier)
+        except Exception:  # noqa: BLE001 - preserve tracker-neutral behavior
+            logger.warning(
+                "Could not refresh issue evidence for owner override %s; "
+                "using the caller snapshot",
+                current_issue.identifier,
+                exc_info=True,
+            )
+            return current_issue, evidence_fingerprint
+        if not isinstance(refreshed, Issue):
+            return current_issue, evidence_fingerprint
+        return refreshed, compute_issue_evidence_fingerprint(refreshed, project_id)
+
     async def override_transition(
         self,
         current_issue: Issue,
@@ -1121,14 +1162,20 @@ class TerminalTransitionCoordinator:
             store = TerminalAuditMetadataStore(
                 tracker, self._project_store, project_id
             )
+            locked_issue, locked_fingerprint = self._refresh_override_evidence(
+                tracker,
+                current_issue,
+                project_id,
+                evidence_fingerprint,
+            )
             outcome = self._override_transition_locked(
                 store,
                 tracker,
-                current_issue,
+                locked_issue,
                 requested_target,
                 authorized_actor,
                 project_id,
-                evidence_fingerprint,
+                locked_fingerprint,
                 reason,
                 project,
             )

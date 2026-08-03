@@ -5681,12 +5681,46 @@ async def _stage_terminal_transition(
     if issue_id and completed is not None:
         completed.add(issue_id)
 
+    locked_issue = issue
+
     async def _with_issue_ownership_lock(operation):
+        """Run a terminal operation with a fresh issue snapshot under ownership.
+
+        Board/detail responses may be stale while the auditor rotates attempts
+        and writes audit metadata.  Refreshing after acquiring the task lock
+        keeps the issue used for status/authority decisions aligned with the
+        coordinator's locked metadata read; the coordinator repeats the
+        canonical evidence refresh under its project lock as the final CAS
+        boundary.
+        """
+        nonlocal locked_issue
+
+        async def invoke() -> Any:
+            nonlocal locked_issue
+            fetch_issue_detail = getattr(tracker, "fetch_issue_detail", None)
+            if callable(fetch_issue_detail):
+                try:
+                    refreshed = await _run_api_io(
+                        fetch_issue_detail,
+                        getattr(issue, "identifier", issue_id),
+                    )
+                except Exception:  # noqa: BLE001 - coordinator remains authoritative
+                    logger.warning(
+                        "Could not refresh issue %s before terminal transition; "
+                        "using the request snapshot",
+                        issue_id,
+                        exc_info=True,
+                    )
+                else:
+                    if refreshed is not None:
+                        locked_issue = refreshed
+            return await operation(locked_issue)
+
         lock_factory = getattr(orch, "issue_transition_lock", None)
         if not issue_id or not callable(lock_factory):
-            return await operation()
+            return await invoke()
         async with lock_factory(issue_id):
-            return await operation()
+            return await invoke()
 
     def _rollback_dispatch_fence() -> None:
         if issue_id and completed is not None and not was_completed:
@@ -5722,8 +5756,8 @@ async def _stage_terminal_transition(
             return None, ("Terminal audit retry is unavailable.", 503)
         try:
             result = await _with_issue_ownership_lock(
-                lambda: retry_failed_audit(
-                    current_issue=issue,
+                lambda current_issue: retry_failed_audit(
+                    current_issue=current_issue,
                     requested_target=target,
                     authorized_actor=ContributorIdentity(actor, "api"),
                     project_id=str(project_id),
@@ -5751,7 +5785,7 @@ async def _stage_terminal_transition(
         payload = _terminal_transition_payload(
             target,
             result,
-            current_status=getattr(issue, "state", None),
+            current_status=getattr(locked_issue, "state", None),
         )
         payload["audit_retry"] = True
         return payload, None
@@ -5771,13 +5805,13 @@ async def _stage_terminal_transition(
             )
         try:
             result = await _with_issue_ownership_lock(
-                lambda: coordinator.override_transition(
-                    current_issue=issue,
+                lambda current_issue: coordinator.override_transition(
+                    current_issue=current_issue,
                     requested_target=target,
                     authorized_actor=ContributorIdentity(actor, "api"),
                     project_id=str(project_id),
                     evidence_fingerprint=_terminal_evidence_fingerprint(
-                        issue, str(project_id)
+                        current_issue, str(project_id)
                     ),
                     reason=reason,
                     project=_project_by_id(orch, str(project_id)),
@@ -5801,18 +5835,18 @@ async def _stage_terminal_transition(
         return _terminal_transition_payload(
             target,
             result,
-            current_status=getattr(issue, "state", None),
+            current_status=getattr(locked_issue, "state", None),
         ), None
 
     try:
         result = await _with_issue_ownership_lock(
-            lambda: coordinator.request_transition(
-                current_issue=issue,
+            lambda current_issue: coordinator.request_transition(
+                current_issue=current_issue,
                 requested_target=target,
                 trigger_identity=ContributorIdentity(actor or "api-client", "api"),
                 project_id=str(project_id),
                 evidence_fingerprint=_terminal_evidence_fingerprint(
-                    issue, str(project_id)
+                    current_issue, str(project_id)
                 ),
             )
         )
@@ -5834,7 +5868,7 @@ async def _stage_terminal_transition(
     return _terminal_transition_payload(
         target,
         result,
-        current_status=getattr(issue, "state", None),
+        current_status=getattr(locked_issue, "state", None),
     ), None
 
 

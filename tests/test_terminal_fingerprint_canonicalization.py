@@ -28,8 +28,10 @@ import pytest
 
 from oompah.models import Issue
 from oompah.terminal_audit import (
+    AuditAttempt,
     ContributorIdentity,
     EvidenceFingerprint,
+    FailureClassification,
     RequestState,
     TerminalAuditRecord,
     TargetState,
@@ -88,6 +90,19 @@ class _MemoryTracker:
         if identifier not in self.metadata:
             self.metadata[identifier] = {}
         self.metadata[identifier][field] = value
+
+
+class _RefreshingTracker(_MemoryTracker):
+    """Tracker double whose detail read represents the authoritative issue."""
+
+    def fetch_issue_detail(self, identifier: str) -> Issue | None:
+        return self.issues.get(identifier)
+
+    def update_issue(self, identifier: str, **kwargs: Any) -> None:
+        super().update_issue(identifier, **kwargs)
+        issue = self.issues.get(identifier)
+        if issue is not None and "status" in kwargs:
+            issue.state = kwargs["status"]
 
 
 @dataclass
@@ -395,3 +410,177 @@ async def test_api_override_uses_same_canonical_fingerprint_as_orchestrator_inte
     )
     
     assert result.success is True
+
+
+def test_evidence_fingerprint_ignores_audit_lifecycle_and_snapshot_metadata():
+    """Audit attempt rotation and read generations are not task evidence."""
+
+    issue = Issue(
+        id="TASK-ROTATE",
+        identifier="TASK-ROTATE",
+        title="Integrated task",
+        description="Stable requirements",
+    )
+    issue.integration = Mock(
+        task_branch="feature/task-rotate",
+        head_sha="head-sha",
+        base_branch="main",
+        base_sha="base-sha",
+        integrated_sha="integrated-sha",
+    )
+    baseline = compute_issue_evidence_fingerprint(issue, "project-a")
+
+    # These attributes model the fields that change while candidates rotate,
+    # while the board/detail cache is refreshed and while comments are posted.
+    for name, value in {
+        "audit_attempt_id": "attempt-2",
+        "audit_attempts": [{"provider_id": "provider-b", "model": "model-b"}],
+        "candidate_rotation_count": 2,
+        "retry_count": 4,
+        "provider_id": "provider-b",
+        "model": "model-b",
+        "comments": ["candidate 1 ended; retrying"],
+        "snapshot_refresh_generation": "generation-9",
+        "source_generation": "repo-head:9",
+    }.items():
+        setattr(issue, name, value)
+
+    assert compute_issue_evidence_fingerprint(issue, "project-a") == baseline
+
+
+@pytest.mark.asyncio
+async def test_owner_override_refreshes_authoritative_issue_after_candidate_rotation(
+    lock_store, project_id, task_id, owner_identity
+):
+    """A stale board snapshot cannot reject an unchanged integrated audit."""
+
+    tracker = _RefreshingTracker()
+    revoked: list[tuple[str, str]] = []
+    cleared: list[tuple[str, str, str]] = []
+    coordinator = TerminalTransitionCoordinator(
+        tracker=tracker,
+        project_store=lock_store,
+        post_comments=False,
+        revoke_delivery_authority=lambda project, task: revoked.append((project, task)),
+        clear_audit_alert=lambda project, task, audit: cleared.append(
+            (project, task, audit)
+        ),
+    )
+    authoritative_issue = Issue(
+        id=task_id,
+        identifier=task_id,
+        state="In Validation",
+        title="Integrated task",
+        description="Stable requirements",
+    )
+    authoritative_issue.integration = Mock(
+        task_branch="feature/task-123",
+        head_sha="head-sha",
+        base_branch="main",
+        base_sha="base-sha",
+        integrated_sha="integrated-sha",
+    )
+    tracker.issues[task_id] = authoritative_issue
+    canonical = compute_issue_evidence_fingerprint(authoritative_issue, project_id)
+
+    # Candidate 1 has ended and candidate 2 owns the active launch. Both
+    # attempts retain the exact same audit evidence fingerprint.
+    attempts = [
+        AuditAttempt(
+            attempt_id="attempt-1",
+            target_state=TargetState.DONE,
+            evidence_fingerprint=canonical,
+            request_state=RequestState.PENDING,
+            provider_id="provider-a",
+            model="model-a",
+            ended_at="2026-08-03T00:00:01Z",
+            failure_reason="candidate exited",
+            failure_classification=FailureClassification.INFRASTRUCTURE_ERROR,
+            candidate_rotation_count=0,
+        ),
+        AuditAttempt(
+            attempt_id="attempt-2",
+            target_state=TargetState.DONE,
+            evidence_fingerprint=canonical,
+            request_state=RequestState.IN_PROGRESS,
+            provider_id="provider-b",
+            model="model-b",
+            candidate_rotation_count=1,
+        ),
+    ]
+    pending = TerminalAuditRecord(
+        audit_id="audit-rotating",
+        project_id=project_id,
+        task_id=task_id,
+        target_state=TargetState.DONE,
+        evidence_fingerprint=canonical,
+        request_state=RequestState.IN_PROGRESS,
+        attempts=attempts,
+        requested_by=owner_identity,
+    )
+    duplicate = replace(pending, audit_id="audit-duplicate")
+    tracker.set_metadata(
+        task_id,
+        {
+            METADATA_KEY: TerminalAuditMetadata(
+                pending_chain=[pending, duplicate],
+                unknown_fields={},
+            ).to_dict()
+        },
+    )
+
+    # The board/detail snapshot predates integration metadata, so the caller
+    # computes a different fingerprint even though the authoritative tracker
+    # issue and active audit evidence are unchanged.
+    stale_snapshot = replace(authoritative_issue, integration=None)
+    stale_fingerprint = compute_issue_evidence_fingerprint(
+        stale_snapshot, project_id
+    )
+    assert stale_fingerprint != canonical
+
+    project = _MockProject(status_label_authorized_logins=[owner_identity.identity])
+    first = await coordinator.override_transition(
+        current_issue=stale_snapshot,
+        requested_target=TargetState.DONE,
+        authorized_actor=owner_identity,
+        project_id=project_id,
+        evidence_fingerprint=stale_fingerprint,
+        reason="Recover unchanged integrated task",
+        project=project,
+    )
+
+    assert first.success is True
+    assert first.idempotent is False
+    assert tracker.status_updates == [(task_id, DONE)]
+    assert revoked == [(project_id, task_id)]
+    assert set(cleared) == {
+        (project_id, task_id, "audit-rotating"),
+        (project_id, task_id, "audit-duplicate"),
+    }
+
+    document = TerminalAuditMetadataStore(
+        tracker, lock_store, project_id
+    ).read(task_id)
+    assert {
+        record.request_state for record in document.pending_chain
+    } == {RequestState.CANCELLED}
+    assert all(
+        attempt.evidence_fingerprint == canonical
+        for record in document.pending_chain
+        for attempt in record.attempts
+    )
+
+    # A repeated owner request acknowledges the durable override rather than
+    # creating another record or applying status a second time.
+    second = await coordinator.override_transition(
+        current_issue=stale_snapshot,
+        requested_target=TargetState.DONE,
+        authorized_actor=owner_identity,
+        project_id=project_id,
+        evidence_fingerprint=stale_fingerprint,
+        reason="Same recovery replay",
+        project=project,
+    )
+    assert second.success is True
+    assert second.idempotent is True
+    assert tracker.status_updates == [(task_id, DONE)]
