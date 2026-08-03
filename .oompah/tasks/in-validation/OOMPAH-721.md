@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-721
 type: task
-status: In Review
+status: In Validation
 priority: null
 title: Do not escalate completed duplicate preflights as implementation work
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T14:39:16.938367Z'
-updated_at: '2026-08-03T15:21:41.439511Z'
+updated_at: '2026-08-03T15:32:04.280359Z'
 work_branch: OOMPAH-721
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/681
@@ -87,6 +87,45 @@ oompah.review_url: https://github.com/lesserevil/oompah/pull/681
 oompah.review_number: '681'
 oompah.work_branch: OOMPAH-721
 oompah.target_branch: main
+oompah.terminal_audit:
+  queued_comment_posted: true
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-e9645dfd935b
+    project_id: proj-14849f1b
+    task_id: OOMPAH-721
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 379d47075f1b47d3755ea6cf340cbb7cf008516ee910b5924613b1d3a205e5c2
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-03T15:31:55.010817+00:00'
+  - version: 1
+    audit_id: audit-ce15aece1fdf
+    project_id: proj-14849f1b
+    task_id: OOMPAH-721
+    target_state: Merged
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 379d47075f1b47d3755ea6cf340cbb7cf008516ee910b5924613b1d3a205e5c2
+    attempts: []
+    requested_by:
+      version: 1
+      identity: lesserevil
+      source: forge
+    previous_state: In Review
+    created_at: '2026-08-03T15:31:55.010817+00:00'
+  attempt_history: []
 ---
 ## Summary
 
@@ -231,5 +270,15 @@ author: oompah
 created: 2026-08-03 15:21
 ---
 Branch quality gate passed for `145972d505913bad93562ffc96a96870724d0dee` using `make test` in 408.0s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-03 15:32
+---
+Queued for terminal transition to Merged. An auditor will review and apply the terminal status.
+---
+author: oompah
+created: 2026-08-03 15:32
+---
+YOLO: merged PR #681.
 ---
 <!-- COMMENTS:END -->
