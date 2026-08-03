@@ -12,7 +12,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T23:17:45.073003Z'
-updated_at: '2026-08-03T00:55:39.128607Z'
+updated_at: '2026-08-03T00:56:54.271766Z'
 work_branch: OOMPAH-709
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/669
@@ -97,7 +97,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-709
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -122,13 +122,27 @@ oompah.terminal_audit:
         auditor capability policy denied a mutating or compound shell command; auditors
         cannot edit, commit, push, merge, or change state'
       next_retry_at: '2026-08-03T00:55:44.894170+00:00'
+    - version: 1
+      attempt_id: attempt-bf4a7d3278be
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: d3b6e024a73fe88f053211e0f7e43d03d6bbae9a25d741e66d6c0ef5c1e0b9b8
+      created_at: '2026-08-03T00:56:47.383680+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-03T00:56:47.383680+00:00'
+      branch_key: OOMPAH-709
+      candidate_rotation_count: 1
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-03T00:53:05.081583+00:00'
-    updated_at: '2026-08-03T00:55:34.894198+00:00'
+    updated_at: '2026-08-03T00:56:47.383680+00:00'
   - version: 1
     audit_id: audit-320b7d504592
     project_id: proj-14849f1b
@@ -166,6 +180,20 @@ oompah.terminal_audit:
       auditor capability policy denied a mutating or compound shell command; auditors
       cannot edit, commit, push, merge, or change state'
     next_retry_at: '2026-08-03T00:55:44.894170+00:00'
+  - version: 1
+    attempt_id: attempt-bf4a7d3278be
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: d3b6e024a73fe88f053211e0f7e43d03d6bbae9a25d741e66d6c0ef5c1e0b9b8
+    created_at: '2026-08-03T00:56:47.383680+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-03T00:56:47.383680+00:00'
+    branch_key: OOMPAH-709
+    candidate_rotation_count: 1
 ---
 ## Summary
 
@@ -357,5 +385,15 @@ author: oompah
 created: 2026-08-03 00:55
 ---
 Auditor attempt was stopped after repeated policy denials; a different independent candidate will be tried.
+---
+author: oompah
+created: 2026-08-03 00:56
+---
+Auditor dispatched (attempt #2, candidate: prov-651d553c/sonnet)
+---
+author: oompah
+created: 2026-08-03 00:56
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
