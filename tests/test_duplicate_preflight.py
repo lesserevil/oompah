@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import json
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
@@ -29,6 +30,7 @@ from oompah.duplicate_screening import (
 from oompah.events import EventBus
 from oompah.models import BlockerRef, Issue, OrchestratorState, RunningEntry
 from oompah.orchestrator import Orchestrator, _acp_text_activity_detail
+from oompah import orchestrator as orchestrator_module
 from oompah.statuses import (
     DONE,
     DUPLICATE_CANDIDATE,
@@ -652,6 +654,173 @@ def test_duplicate_corpus_is_project_scoped_and_untrusted():
     assert '"identifier": "TASK-1"' in corpus
     assert "OTHER-1" not in corpus
     assert "Ignore the verdict contract" in corpus
+
+
+def test_large_duplicate_corpus_retains_structural_peers_before_generic_tasks():
+    """A large project cannot evict siblings or declared dependencies."""
+    issue = _issue(
+        "EXOCOMP-216",
+        title="Investigate duplicate screening corpus omission",
+    )
+    issue.parent_id = "EXOCOMP-200"
+    issue.blocked_by = [BlockerRef(id="EXOCOMP-209", identifier="EXOCOMP-209")]
+    issue.start_blocked_by = [
+        BlockerRef(id="EXOCOMP-213", identifier="EXOCOMP-213")
+    ]
+    parent = _issue("EXOCOMP-200", title="EXOCOMP screening epic")
+    sibling_ids = ["EXOCOMP-214", "EXOCOMP-215", "EXOCOMP-217", "EXOCOMP-218"]
+    siblings = [
+        _issue(identifier, title=f"Screen EXOCOMP peer {identifier}")
+        for identifier in sibling_ids
+    ]
+    for sibling in siblings:
+        sibling.parent_id = parent.identifier
+    dependency = _issue(
+        "EXOCOMP-209",
+        title="Review screening evidence",
+        state=OPEN,
+    )
+    hard_dependency = _issue(
+        "EXOCOMP-213",
+        title="Validate screening transport",
+        state=OPEN,
+    )
+    generic = [
+        _issue(f"EXOCOMP-{number:03d}", title=f"Unrelated maintenance task {number}")
+        for number in range(1, 140)
+    ]
+    tracker = _Tracker(
+        [issue, parent, *siblings, dependency, hard_dependency, *generic]
+    )
+    tracker.add_comment(
+        dependency.identifier,
+        "The description and status are the authoritative comparison evidence.",
+        author="owner",
+    )
+    orch = _orch(tracker)
+
+    corpus = json.loads(
+        orch._duplicate_preflight_task_corpus(
+            tracker,
+            tracker.fetch_issue_detail(issue.identifier),
+        )
+    )
+    rows = {row["identifier"]: row for row in corpus["tasks"]}
+
+    assert corpus["availability"] == "authoritative"
+    assert {
+        issue.identifier,
+        parent.identifier,
+        dependency.identifier,
+        hard_dependency.identifier,
+        *sibling_ids,
+    } <= rows.keys()
+    assert rows[dependency.identifier]["status"] == OPEN
+    assert rows[dependency.identifier]["description"]
+    assert rows[dependency.identifier]["comments"]
+    assert len(rows) <= orchestrator_module._DUPLICATE_CORPUS_MAX_TASKS
+    assert any(identifier not in rows for identifier in {task.identifier for task in generic})
+
+
+def test_duplicate_corpus_budget_evicts_unrelated_tasks_deterministically(monkeypatch):
+    """Required peers remain stable when both row count and bytes are tight."""
+    monkeypatch.setattr(orchestrator_module, "_DUPLICATE_CORPUS_MAX_TASKS", 4)
+    monkeypatch.setattr(orchestrator_module, "_DUPLICATE_CORPUS_MAX_BYTES", 20_000)
+    issue = _issue("EXOCOMP-221", title="Screen duplicate task evidence")
+    issue.parent_id = "EXOCOMP-220"
+    issue.blocked_by = [BlockerRef(id="EXOCOMP-219", identifier="EXOCOMP-219")]
+    parent = _issue("EXOCOMP-220", title="Screening parent")
+    sibling = _issue("EXOCOMP-222", title="Screen sibling")
+    sibling.parent_id = parent.identifier
+    dependency = _issue("EXOCOMP-219", title="Screen dependency")
+    unrelated = [_issue(f"UNRELATED-{i}", title=f"Noise {i}") for i in range(8)]
+    tracker = _Tracker([issue, parent, sibling, dependency, *unrelated])
+    orch = _orch(tracker)
+
+    first = json.loads(
+        orch._duplicate_preflight_task_corpus(
+            tracker,
+            tracker.fetch_issue_detail(issue.identifier),
+        )
+    )
+    second = json.loads(
+        orch._duplicate_preflight_task_corpus(
+            tracker,
+            tracker.fetch_issue_detail(issue.identifier),
+        )
+    )
+
+    first_ids = [row["identifier"] for row in first["tasks"]]
+    second_ids = [row["identifier"] for row in second["tasks"]]
+    assert first_ids == second_ids
+    assert {issue.identifier, parent.identifier, sibling.identifier, dependency.identifier} <= set(
+        first_ids
+    )
+    assert not (set(first_ids) & {task.identifier for task in unrelated})
+
+
+def test_duplicate_corpus_reports_required_peers_that_cannot_fit(monkeypatch):
+    """Budget failure is explicit and actionable, not silent truncation."""
+    monkeypatch.setattr(orchestrator_module, "_DUPLICATE_CORPUS_MAX_TASKS", 1)
+    issue = _issue("EXOCOMP-216", title="Current screening task")
+    issue.parent_id = "EXOCOMP-200"
+    sibling = _issue("EXOCOMP-217", title="Required sibling")
+    sibling.parent_id = issue.parent_id
+    tracker = _Tracker([issue, sibling, _issue("NOISE-1", title="Noise")])
+    orch = _orch(tracker)
+
+    corpus = json.loads(
+        orch._duplicate_preflight_task_corpus(
+            tracker,
+            tracker.fetch_issue_detail(issue.identifier),
+        )
+    )
+
+    assert corpus["availability"] == "insufficient"
+    selection = corpus["selection"]
+    assert selection["omitted_required_peer_count"] == 1
+    assert sibling.identifier in selection["omitted_required_peer_identifiers"]
+    assert "Increase the duplicate corpus" in selection["diagnostic"]
+
+
+def test_insufficient_corpus_diagnostic_skips_remaining_model_retries(monkeypatch):
+    """An authoritative budget failure escalates with an actionable reason."""
+    monkeypatch.setattr(orchestrator_module, "_DUPLICATE_CORPUS_MAX_TASKS", 1)
+    issue = _issue("EXOCOMP-216", title="Current screening task")
+    issue.parent_id = "EXOCOMP-200"
+    sibling = _issue("EXOCOMP-217", title="Required sibling")
+    sibling.parent_id = issue.parent_id
+    tracker = _Tracker([issue, sibling])
+    orch = _orch(tracker)
+    claim = orch._claim_duplicate_preflight(issue)
+    assert claim is not None
+    entry = _entry(issue, claim.claim_id or "", claim.task_fingerprint)
+    entry.activity_log.append(
+        AgentActivity(
+            turn=1,
+            kind="message",
+            summary="insufficient corpus",
+            detail=(
+                "Focus handoff: duplicate_detector\n"
+                "Duplicate preflight verdict: inconclusive\n"
+                "Matches: none\n"
+                "Evidence: the supplied corpus selection diagnostic is actionable."
+            ),
+            timestamp=datetime.now(timezone.utc).timestamp(),
+        )
+    )
+
+    result = orch._finish_duplicate_preflight_sync(entry, "normal", None)
+
+    assert result == {
+        "outcome": "needs_human",
+        "terminal": True,
+        "diagnostic": "corpus_insufficient",
+    }
+    comment = tracker.fetch_comments(issue.identifier)[-1]["text"]
+    assert "Required structural peers could not fit" in comment
+    assert sibling.identifier in comment
+    assert "Increase the duplicate corpus" in comment
 
 
 def test_checked_result_survives_finish_order_and_scheduler_metadata_changes():
