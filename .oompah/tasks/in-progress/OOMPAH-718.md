@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T13:10:18.934341Z'
-updated_at: '2026-08-03T13:23:16.759547Z'
+updated_at: '2026-08-03T13:25:13.144550Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -167,5 +167,10 @@ author: oompah
 created: 2026-08-03 13:23
 ---
 Implementation: added deterministic container reachability graph/SCC analysis in oompah/container_dependency_graph.py. Dependency mutation now rejects a new edge that closes a container cycle with path and repair metadata. Queue summaries expose cycle diagnostics. Orchestrator audits each project before claiming, routes only affected Ready rows to Needs Human with the exact prerequisite SHA and original private head, cancels only those queue rows, and leaves independent epic groups untouched. Added focused graph, API, and parallel-queue regressions.
+---
+author: oompah
+created: 2026-08-03 13:25
+---
+Verification: focused suites pass (66 tests). The required make test gate exited before pytest during Make setup because astral-uv could not create its transient scope (DBus InvalidArgs: kernel thread). No full-gate tests ran; I will use the already provisioned interpreter with scripts/run-tests.sh isolation as an environment fallback, then recheck the final diff.
 ---
 <!-- COMMENTS:END -->
