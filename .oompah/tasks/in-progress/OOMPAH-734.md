@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T19:06:11.095695Z'
-updated_at: '2026-08-03T19:17:35.130046Z'
+updated_at: '2026-08-03T19:17:45.600125Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -202,5 +202,10 @@ author: oompah
 created: 2026-08-03 19:17
 ---
 Implementation: Updated the dashboard terminal-audit health summary to render a dedicated finalization_failure_count as uncommitted audit finalization failures, keeping it visibly distinct from provider launch/transport and local command-policy failures. Added focused dashboard contract coverage for the new fact and wording. The frontend is forward-compatible with the backend health payload still to be implemented.
+---
+author: oompah
+created: 2026-08-03 19:17
+---
+Verification: Focused dashboard health suite passed: 20 tests in tests/test_dashboard_terminal_audit_health.py. git diff --check passed. make test-setup could not run because the sandboxed Snap uv launcher failed with cannot create transient scope; the self-contained focused suite was run with the available pytest runtime instead. Full make test is deferred to the orchestrator's complete branch gate after backend implementation.
 ---
 <!-- COMMENTS:END -->
