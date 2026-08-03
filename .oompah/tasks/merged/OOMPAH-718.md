@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-718
 type: task
-status: In Validation
+status: Merged
 priority: 0
 title: Detect and repair container-level cycles from cross-epic finish dependencies
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T13:10:18.934341Z'
-updated_at: '2026-08-03T14:43:40.195625Z'
+updated_at: '2026-08-03T14:56:57.348814Z'
 work_branch: OOMPAH-718
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/678
@@ -151,6 +151,23 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-03T14:27:13.631578+00:00'
     applied_at: '2026-08-03T14:27:19.208358+00:00'
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-07157092643c
+    project_id: proj-14849f1b
+    task_id: OOMPAH-718
+    target_state: Merged
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8363b611899f61dc8a696b3e9755e4701beacd6756e7f8471d8f33b46f4a3bc6
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: '[REDACTED]'
+    created_at: '2026-08-03T14:56:52.894031+00:00'
+    applied: false
   version: 1
   pending_chain:
   - version: 1
@@ -604,5 +621,12 @@ author: oompah
 created: 2026-08-03 14:43
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-03 14:56
+---
+Override by oompah-cli: terminal transition to Merged applied by project owner.
+
+Reason: [REDACTED]
 ---
 <!-- COMMENTS:END -->
