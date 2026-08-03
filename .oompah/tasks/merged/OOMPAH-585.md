@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-585
 type: epic
-status: In Validation
+status: Merged
 priority: 1
 title: Restore terminal-audit execution and truthful health reporting
 parent: OOMPAH-584
@@ -24,7 +24,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:13:32.577860Z'
-updated_at: '2026-08-03T21:38:06.799361Z'
+updated_at: '2026-08-03T21:58:48.378343Z'
 work_branch: epic-OOMPAH-585
 target_branch: epic-OOMPAH-584
 review_url: https://github.com/lesserevil/oompah/pull/596
@@ -40,6 +40,7 @@ oompah.terminal_audit:
     attempt-b4197d025ad2: '2026-07-31T00:12:17.042224+00:00'
     attempt-e6d2d009f03d: '2026-07-31T00:16:01.210909+00:00'
     attempt-12fe57be5937: '2026-08-03T20:51:35.221538+00:00'
+    attempt-f2a5b0fb52b3: '2026-08-03T21:58:40.032717+00:00'
   oompah.terminal_override_records: []
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
@@ -48,8 +49,9 @@ oompah.terminal_audit:
     evidence_fingerprint: 0cfb98eafc768e5e2b01af3fc05a46d57c2174f15a248e0583518caca77a559e
     audit_ids:
     - audit-a98f5ed965f0
+    - audit-def73c9cef1d
     kind: result
-    applied: false
+    applied: true
     retired_at: '2026-08-03T20:51:35.221544+00:00'
     lifecycle_reconciled: true
     reconciled_to: Done
@@ -70,6 +72,17 @@ oompah.terminal_audit:
     retired_by_reconciliation: true
     retired_reason: shared_epic_parent_not_landed
     reconciled_at: '2026-08-03T21:03:27.100292+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-585
+    audit_id: audit-def73c9cef1d
+    attempt_id: attempt-f2a5b0fb52b3
+    target_state: Merged
+    evidence_fingerprint: 0cfb98eafc768e5e2b01af3fc05a46d57c2174f15a248e0583518caca77a559e
+    status: Merged
+    audit_ids:
+    - audit-def73c9cef1d
+    applied: false
+    created_at: '2026-08-03T21:58:40.032749+00:00'
   oompah.lifecycle_reconciliations:
   - project_id: proj-14849f1b
     task_id: OOMPAH-585
@@ -220,7 +233,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-585
     target_state: Merged
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -248,7 +261,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-f2a5b0fb52b3
       target_state: Merged
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -259,13 +272,16 @@ oompah.terminal_audit:
       started_at: '2026-08-03T21:37:42.984108+00:00'
       branch_key: epic-OOMPAH-585
       candidate_rotation_count: 1
+      verdict: pass
+      completed_at: '2026-08-03T21:58:40.032509+00:00'
+      ended_at: '2026-08-03T21:58:40.032509+00:00'
     requested_by:
       version: 1
       identity: epic-rollup-reconciliation
       source: oompah
     previous_state: Done
     created_at: '2026-08-03T21:05:27.366901+00:00'
-    updated_at: '2026-08-03T21:37:42.984108+00:00'
+    updated_at: '2026-08-03T21:58:40.032509+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-49359e458701
@@ -637,5 +653,27 @@ author: oompah
 created: 2026-08-03 21:38
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-03 21:58
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- pr_number: 596
+- pr_merge_commit_on_main: b98d6400c9a6b2addd53cb931770065621657ebc
+- pr_commits_behind_head: 359
+- parent_epic_task: OOMPAH-584
+- parent_epic_pr_number: 603
+- parent_epic_merge_commit_on_main: bb0fd760c3b2938d15ec2026ef5bfc2fd34b0682
+- parent_epic_commits_behind_head: 318
+- new_module_on_main: oompah/terminal_audit_health.py (460 lines)
+- prior_gate_result: make test passed in 255.7s on 4510fb912ae
+- focused_tests_summary: terminal_audit_health 44, dashboard_health 19, health_api 2, candidate_selector 49, dispatch 14, enforcement 50, close_race 22, termination_cleanup 2, transition_coordinator 129, provider_health 64 — all passed
+- changed_files: 31 files
+- acceptance_criteria_status: All satisfied: endpoint validation, safe diagnostics, retry, stale-reconciliation, durable alerts, health clearing, gate passed
+- prior_lifecycle_block_resolved: Parent OOMPAH-584 merge commit bb0fd760c confirmed on main
 ---
 <!-- COMMENTS:END -->
