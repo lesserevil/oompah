@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T16:59:59.720852Z'
-updated_at: '2026-08-03T18:28:25.985781Z'
+updated_at: '2026-08-03T18:28:41.206974Z'
 work_branch: OOMPAH-730
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/687
@@ -241,5 +241,15 @@ author: oompah
 created: 2026-08-03 18:27
 ---
 YOLO: CI tests failed on MR #687. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
+---
+author: oompah
+created: 2026-08-03 18:28
+---
+Agent dispatched (profile: deep)
+---
+author: oompah
+created: 2026-08-03 18:28
+---
+Focus: CI Failure Fixer
 ---
 <!-- COMMENTS:END -->
