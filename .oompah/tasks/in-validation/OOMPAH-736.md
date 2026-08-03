@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T19:26:22.477120Z'
-updated_at: '2026-08-03T21:25:50.259355Z'
+updated_at: '2026-08-03T21:27:07.595122Z'
 work_branch: OOMPAH-736
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/692
@@ -113,7 +113,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-736
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -154,13 +154,27 @@ oompah.terminal_audit:
       ended_at: '2026-08-03T21:25:42.028102+00:00'
       failure_reason: normal
       next_retry_at: '2026-08-03T21:26:02.028074+00:00'
+    - version: 1
+      attempt_id: attempt-5ac2bb12e182
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 8c0e760ba8dd4708e3ef3d1180c4f27806bdfb980c30f1ad2be29430b770e7bb
+      created_at: '2026-08-03T21:27:06.480190+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-03T21:27:06.480190+00:00'
+      branch_key: OOMPAH-736
+      candidate_rotation_count: 2
     requested_by:
       version: 1
       identity: lesserevil
       source: forge
     previous_state: In Review
     created_at: '2026-08-03T20:42:40.561716+00:00'
-    updated_at: '2026-08-03T21:25:42.028102+00:00'
+    updated_at: '2026-08-03T21:27:06.480190+00:00'
   - version: 1
     audit_id: audit-d4c464f1ae79
     project_id: proj-14849f1b
@@ -214,6 +228,20 @@ oompah.terminal_audit:
     ended_at: '2026-08-03T21:25:42.028102+00:00'
     failure_reason: normal
     next_retry_at: '2026-08-03T21:26:02.028074+00:00'
+  - version: 1
+    attempt_id: attempt-5ac2bb12e182
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 8c0e760ba8dd4708e3ef3d1180c4f27806bdfb980c30f1ad2be29430b770e7bb
+    created_at: '2026-08-03T21:27:06.480190+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-03T21:27:06.480190+00:00'
+    branch_key: OOMPAH-736
+    candidate_rotation_count: 2
 ---
 ## Summary
 
