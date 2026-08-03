@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T14:55:24.661073Z'
-updated_at: '2026-08-03T15:21:27.728930Z'
+updated_at: '2026-08-03T15:21:34.656032Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -278,5 +278,10 @@ author: oompah
 created: 2026-08-03 15:21
 ---
 **Verification**: All focused tests pass after fix. 4/4 TestMaintenanceLaneNonBlocking tests pass, 31/31 auditor contract tests pass, 4/4 ACP tool output bounds tests pass, 277/277 orchestrator handler tests pass. Root cause: `_recover_release_addendum_leases` was not stubbed in `test_tick_does_not_await_maintenance_heal`, causing false 15s asyncio timeout under 4-worker xdist CI load. Fix mirrors OOMPAH-688/OOMPAH-670 pattern already applied to sibling tests.
+---
+author: oompah
+created: 2026-08-03 15:21
+---
+**Completion**: CI failure fixed. Added `_recover_release_addendum_leases = MagicMock(return_value=0)` to `test_tick_does_not_await_maintenance_heal` (and changed `_handle_dispatch_needed` to `AsyncMock(return_value={})`) to match the isolation pattern established by OOMPAH-688 for sibling tests. The OOMPAH-722 core feature (git rev-list read-only audit support) is unchanged. Branch pushed at 3eb3235e1.
 ---
 <!-- COMMENTS:END -->

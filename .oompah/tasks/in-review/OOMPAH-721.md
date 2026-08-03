@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-721
 type: task
-status: Ready to Integrate
+status: In Review
 priority: null
 title: Do not escalate completed duplicate preflights as implementation work
 parent: null
@@ -11,10 +11,10 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T14:39:16.938367Z'
-updated_at: '2026-08-03T15:21:21.263910Z'
+updated_at: '2026-08-03T15:21:32.934188Z'
 work_branch: null
 target_branch: null
-review_url: null
+review_url: https://github.com/lesserevil/oompah/pull/681
 review_number: null
 review_head: null
 merged_at: null
@@ -83,6 +83,7 @@ oompah.integration:
   head_sha: 145972d505913bad93562ffc96a96870724d0dee
   submitted_at: '2026-08-03T15:12:28.036171+00:00'
   updated_at: '2026-08-03T15:12:28.036171+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/681
 ---
 ## Summary
 
