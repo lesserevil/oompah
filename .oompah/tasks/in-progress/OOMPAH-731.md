@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T17:45:33.391967Z'
-updated_at: '2026-08-03T17:53:03.610647Z'
+updated_at: '2026-08-03T17:53:37.551144Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -141,5 +141,10 @@ author: oompah
 created: 2026-08-03 17:53
 ---
 Focus: Maintenance Engineer
+---
+author: oompah
+created: 2026-08-03 17:53
+---
+Understanding: direct shared-epic rebase maintenance needs an audited Done-only completion path that proves the published epic head, safely reconciles a clean registered checkout, and preserves unsafe/concurrent/recovery states. I will trace maintenance completion, submit routing, worktree validation, and recovery, then add focused regression tests and verify the relevant suites.
 ---
 <!-- COMMENTS:END -->
