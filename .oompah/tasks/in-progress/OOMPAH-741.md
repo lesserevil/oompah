@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T22:56:13.861445Z'
-updated_at: '2026-08-03T23:06:59.619827Z'
+updated_at: '2026-08-03T23:07:34.538830Z'
 work_branch: epic-OOMPAH-740--task-OOMPAH-741
 target_branch: null
 review_url: null
@@ -146,5 +146,10 @@ author: oompah
 created: 2026-08-03 23:06
 ---
 Focus: Frontend Developer
+---
+author: oompah
+created: 2026-08-03 23:07
+---
+Understanding: I will trace dashboard snapshot construction and all listed health/alert producers, define or extend a shared structured actionability contract, preserve local diagnostics and metrics, add producer/snapshot/WebSocket coverage, then run focused checks before commit and submission.
 ---
 <!-- COMMENTS:END -->
