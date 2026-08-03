@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T14:55:24.661073Z'
-updated_at: '2026-08-03T15:21:45.658462Z'
+updated_at: '2026-08-03T15:22:11.413294Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -47,13 +47,17 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: 8d8321bd-1e6d-4a9f-bb04-ca1f3b62b3ec
 oompah.task_costs:
-  total_input_tokens: 51271
-  total_output_tokens: 808
+  total_input_tokens: 51311
+  total_output_tokens: 11400
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 51271
       output_tokens: 808
+      cost_usd: 0.0
+    sonnet:
+      input_tokens: 40
+      output_tokens: 10592
       cost_usd: 0.0
   runs:
   - profile: default
@@ -68,6 +72,12 @@ oompah.task_costs:
     output_tokens: 205
     cost_usd: 0.0
     recorded_at: '2026-08-03T15:06:28.359348+00:00'
+  - profile: standard
+    model: sonnet
+    input_tokens: 40
+    output_tokens: 10592
+    cost_usd: 0.0
+    recorded_at: '2026-08-03T15:21:58.950598+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-722__20260803T145628Z
@@ -78,14 +88,24 @@ oompah.work_contributors:
     source_branch: OOMPAH-722
     source_sha: 8d58087fa3aee54da42e153020a0748d6c5201cb
     completed_at: '2026-08-03T14:57:05.497972+00:00'
+  - run_id: OOMPAH-722__20260803T151429Z
+    provider_id: prov-651d553c
+    provider_name: Claude
+    model_id: sonnet
+    focus: ci_fix
+    source_branch: OOMPAH-722
+    source_sha: 3eb3235e1aab6d17ac17b3cfc655531f8b14b5a2
+    completed_at: '2026-08-03T15:21:58.962407+00:00'
 oompah.integration:
   version: 2
   state: ready
   attempts: 0
   task_branch: OOMPAH-722
+  base_branch: main
+  base_sha: 459f77863ae946aa43f3e94674f98931b04c32e2
   head_sha: 3eb3235e1aab6d17ac17b3cfc655531f8b14b5a2
   submitted_at: '2026-08-03T15:21:41.984887+00:00'
-  updated_at: '2026-08-03T15:21:41.984887+00:00'
+  updated_at: '2026-08-03T15:22:09.661629+00:00'
 ---
 ## Summary
 
@@ -288,5 +308,20 @@ author: oompah
 created: 2026-08-03 15:21
 ---
 CI failure fixed: added _recover_release_addendum_leases stub to test_tick_does_not_await_maintenance_heal, matching the OOMPAH-688 isolation pattern already applied to all sibling TestMaintenanceLaneNonBlocking tests. The false 15s asyncio timeout under 4-worker xdist load no longer occurs. Core OOMPAH-722 feature (git rev-list read-only audit support) unchanged.
+---
+author: oompah
+created: 2026-08-03 15:22
+---
+Agent completed successfully in 458s (10632 tokens)
+---
+author: oompah
+created: 2026-08-03 15:22
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Claude/sonnet]
+- Turns: 62, Tool calls: 37
+- Tokens: 40 in / 10.6K out [10.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 7m 38s
+- Log: OOMPAH-722__20260803T151429Z.jsonl
 ---
 <!-- COMMENTS:END -->
