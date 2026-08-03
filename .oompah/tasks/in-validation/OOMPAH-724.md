@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T15:25:39.369981Z'
-updated_at: '2026-08-03T21:07:45.308793Z'
+updated_at: '2026-08-03T21:10:05.943211Z'
 work_branch: OOMPAH-724
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/689
@@ -198,18 +198,32 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-724
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 6207b35347f538a8b533c9c3026bc0960152108688fd6062acb1c6683247296c
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-8893e945564d
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 6207b35347f538a8b533c9c3026bc0960152108688fd6062acb1c6683247296c
+      created_at: '2026-08-03T21:10:04.790627+00:00'
+      provider_id: prov-651d553c
+      model: opus
+      started_at: '2026-08-03T21:10:04.790627+00:00'
+      branch_key: OOMPAH-724
     requested_by:
       version: 1
       identity: NVShawn
       source: forge
     previous_state: In Review
     created_at: '2026-08-03T19:43:14.892619+00:00'
+    updated_at: '2026-08-03T21:10:04.790627+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-fea797ff10f8
@@ -223,6 +237,19 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: opus
     started_at: '2026-08-03T20:06:50.846791+00:00'
+    branch_key: OOMPAH-724
+  - version: 1
+    attempt_id: attempt-8893e945564d
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 6207b35347f538a8b533c9c3026bc0960152108688fd6062acb1c6683247296c
+    created_at: '2026-08-03T21:10:04.790627+00:00'
+    provider_id: prov-651d553c
+    model: opus
+    started_at: '2026-08-03T21:10:04.790627+00:00'
     branch_key: OOMPAH-724
 ---
 ## Summary
