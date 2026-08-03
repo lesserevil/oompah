@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T20:06:54.610285Z'
-updated_at: '2026-08-03T20:18:11.556832Z'
+updated_at: '2026-08-03T20:18:53.846755Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -135,5 +135,10 @@ author: oompah
 created: 2026-08-03 20:18
 ---
 Focus: Software Engineer
+---
+author: oompah
+created: 2026-08-03 20:18
+---
+Understanding: terminal lifecycle reconciliation currently runs synchronously during resume/startup and can starve the HTTP loop. I will trace reconciliation, orchestrator scheduling, health/state reporting, and canonical cutover resolution; move only the bulk work to bounded durable background batches, preserve fencing/audit/error isolation, add regression tests, verify focused suites, then commit/push/submit.
 ---
 <!-- COMMENTS:END -->
