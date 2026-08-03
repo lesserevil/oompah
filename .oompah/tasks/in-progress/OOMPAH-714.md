@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-714
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Do not cancel an unrelated branch gate when an auditor attempt retires
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T01:03:08.223719Z'
-updated_at: '2026-08-03T01:04:12.328468Z'
+updated_at: '2026-08-03T01:04:32.043796Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -68,7 +68,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: 2e5e8d97-302f-423b-a69c-465cb5dcb30c
+oompah.agent_run_id: 0bd07a03-6854-40ce-92e6-5af5958a2e6a
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1615
@@ -149,5 +149,15 @@ Run #1 [attempt=1, profile=default, role=fast -> Claude/haiku]
 - Cost: $0.0000
 - Exit: normal, Duration: 32s
 - Log: OOMPAH-714__20260803T010338Z.jsonl
+---
+author: oompah
+created: 2026-08-03 01:04
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-08-03 01:04
+---
+Focus: Frontend Developer
 ---
 <!-- COMMENTS:END -->

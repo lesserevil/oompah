@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-711
 type: bug
-status: Ready to Integrate
+status: Needs CI Fix
 priority: null
 title: Fence owner duplicate resolution from superseded preflight exit
 parent: null
@@ -11,9 +11,10 @@ start_blocked_by: &id001
 - OOMPAH-707
 labels:
 - human-only
+- ci-fix
 assignee: null
 created_at: '2026-08-02T23:59:03.600915Z'
-updated_at: '2026-08-03T00:37:26.035364Z'
+updated_at: '2026-08-03T01:04:34.420744Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -226,5 +227,71 @@ author: oompah
 created: 2026-08-03 00:37
 ---
 Made direct-owner takeover atomic across dispatch selection, retry withdrawal, provider retirement, durable leasing, and temporary dispatch-fence cleanup.
+---
+author: oompah
+created: 2026-08-03 01:04
+---
+Branch quality gate blocked review creation.
+
+Branch: `OOMPAH-711`
+Target: `main`
+Head: `90cd974651638b3a85b08e1cbd674bb0aaf3cf45`
+Command: `make test`
+Result: `failed`
+
+Required: run the command in the task worktree, fix the failure, commit and push the repair, then leave the task in Done. Oompah will rerun the gate for the new head before creating the PR/MR.
+
+Output tail:
+```text
+/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 592, in _close
+      self._loop.call_soon(self._call_connection_lost, exc)
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 799, in call_soon
+      self._check_closed()
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 545, in _check_closed
+      raise RuntimeError('Event loop is closed')
+  RuntimeError: Event loop is closed
+  
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))
+
+tests/test_websocket_authenticated_bootstrap.py::TestWebSocketCredentialsRedaction::test_ws_refresh_does_not_leak_credentials
+  /home/shedwards/.oompah/tmp/oompah-quality-gate-enb2w7ab/workspace/.venv/lib/python3.12/site-packages/_pytest/unraisableexception.py:67: PytestUnraisableExceptionWarning: Exception ignored in: <function BaseSubprocessTransport.__del__ at 0x7df18e9e39c0>
+  
+  Traceback (most recent call last):
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 126, in __del__
+      self.close()
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 104, in close
+      proto.pipe.close()
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 568, in close
+      self._close(None)
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 592, in _close
+      self._loop.call_soon(self._call_connection_lost, exc)
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 799, in call_soon
+      self._check_closed()
+    File "/home/shedwards/.local/share/uv/python/cpython-3.12-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 545, in _check_closed
+      raise RuntimeError('Event loop is closed')
+  RuntimeError: Event loop is closed
+  
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_event_driven_loop.py::TestRunEventDrivenLoop::test_full_sync_loop_posts_full_sync_events
+FAILED tests/test_orchestrator_duplicate_detection.py::TestShouldDispatchRejectsDuplicateCandidate::test_issue_without_duplicate_candidate_label_allowed
+FAILED tests/test_orchestrator_duplicate_detection.py::TestProposedDispatchFiltering::test_select_dispatchable_skips_proposed_before_scan_limit
+FAILED tests/test_release_pick_validation.py::test_should_dispatch_skips_validation_without_project_id
+FAILED tests/test_release_pick_validation.py::test_should_dispatch_allows_valid_release_branch
+FAILED tests/test_release_pick_validation.py::test_should_dispatch_allows_repair_task_on_generated_epic_branch[Needs Rebase-merge-conflict]
+FAILED tests/test_release_pick_validation.py::test_should_dispatch_allows_repair_task_on_generated_epic_branch[Needs CI Fix-ci-fix]
+FAILED tests/test_release_pick_validation.py::test_should_dispatch_allows_no_target_branch
+FAILED tests/test_release_pick_validation.py::test_should_dispatch_skips_validation_without_project
+FAILED tests/test_release_pick_validation.py::test_should_dispatch_allow_source_label_bypasses_protection
+= 10 failed, 15032 passed, 8 skipped, 1 xfailed, 46 warnings in 389.78s (0:06:29) =
+
+make: *** [Makefile:401: test] Error 1
+```
 ---
 <!-- COMMENTS:END -->
