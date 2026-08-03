@@ -11,11 +11,11 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T16:23:52.854950Z'
-updated_at: '2026-08-03T17:54:32.290566Z'
-work_branch: null
-target_branch: null
-review_url: null
-review_number: null
+updated_at: '2026-08-03T17:54:45.139416Z'
+work_branch: OOMPAH-729
+target_branch: main
+review_url: https://github.com/lesserevil/oompah/pull/686
+review_number: '686'
 review_head: null
 merged_at: null
 oompah.duplicate_screening:
@@ -92,6 +92,10 @@ oompah.integration:
   head_sha: e4b2865eaff689389c35305372785511457b9cd9
   submitted_at: '2026-08-03T17:17:25.200083+00:00'
   updated_at: '2026-08-03T17:17:25.200083+00:00'
+oompah.review_url: https://github.com/lesserevil/oompah/pull/686
+oompah.review_number: '686'
+oompah.work_branch: OOMPAH-729
+oompah.target_branch: main
 ---
 ## Summary
 
@@ -198,5 +202,10 @@ Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
 - Cost: $0.0000
 - Exit: terminated, Duration: 22m 27s
 - Log: OOMPAH-729__20260803T165547Z.jsonl
+---
+author: oompah
+created: 2026-08-03 17:54
+---
+Live delivery workaround: exact submitted head e4b2865e was stranded by the OOMPAH-732 standalone-authority race. Opened PR #686 against main after confirming the assigned worktree and remote branch are clean and exact. Existing verification evidence: 393 focused tests, terminal mutation scan, and 15,134-pass full direct suite; Makefile wrapper environment failure is documented above.
 ---
 <!-- COMMENTS:END -->

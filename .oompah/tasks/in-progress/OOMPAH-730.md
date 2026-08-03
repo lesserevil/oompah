@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T16:59:59.720852Z'
-updated_at: '2026-08-03T17:54:15.993674Z'
+updated_at: '2026-08-03T17:54:50.706407Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -198,5 +198,10 @@ author: oompah
 created: 2026-08-03 17:54
 ---
 Verification: Final focused suites pass: 205 tests across container-cycle repair, dependency graph, queue, parallel children, server dependencies, and config; py_compile and git diff --check pass; make check-secrets passes. make test remains blocked before pytest by the environment's astral-uv transient-scope DBus error (kernel thread refusal). The earlier fallback full pytest run reached 15,135 passed, 7 skipped, 1 xfailed, with 7 ACP agent-log failures caused by the read-only /home/shedwards/.oompah/agent-logs path.
+---
+author: oompah
+created: 2026-08-03 17:54
+---
+Completion: Delivered automatic, policy-authorized container-cycle repair with exact prerequisite-closure validation, authoritative-parent CAS advancement, parent-only child synchronization, scoped conflict/race handling, durable restart journal, exact cancelled-row queue restoration, tracker metadata reconciliation, alert clearing only after durable reachability/restoration, and API/dashboard evidence. Added operator disablement via OOMPAH_CONTAINER_CYCLE_REPAIR_ENABLED and implementation notes. Branch is pushed and clean; focused verification and full-suite environment limitations are recorded above.
 ---
 <!-- COMMENTS:END -->
