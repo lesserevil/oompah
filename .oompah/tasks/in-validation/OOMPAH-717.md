@@ -12,7 +12,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T13:00:53.157839Z'
-updated_at: '2026-08-03T14:16:59.954184Z'
+updated_at: '2026-08-03T14:18:08.919097Z'
 work_branch: OOMPAH-717
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/677
@@ -69,8 +69,8 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: null
 oompah.task_costs:
-  total_input_tokens: 51
-  total_output_tokens: 2862
+  total_input_tokens: 54
+  total_output_tokens: 3125
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -78,8 +78,8 @@ oompah.task_costs:
       output_tokens: 1538
       cost_usd: 0.0
     unknown:
-      input_tokens: 41
-      output_tokens: 1324
+      input_tokens: 44
+      output_tokens: 1587
       cost_usd: 0.0
   runs:
   - profile: default
@@ -94,6 +94,12 @@ oompah.task_costs:
     output_tokens: 1324
     cost_usd: 0.0
     recorded_at: '2026-08-03T14:06:01.140824+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 3
+    output_tokens: 263
+    cost_usd: 0.0
+    recorded_at: '2026-08-03T14:18:04.650562+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-717__20260803T130115Z
@@ -542,5 +548,15 @@ Safe evidence:
 - focused_tests: 93 passed (executor:32, queue:17, worker_submission:12, parallel_epic_children:32)
 - key_tests_passing: test_executor_rejects_legacy_tracked_generated_helper_before_shared_mutation, test_executor_reports_reset_error_not_successful_checkout_stderr, test_executor_reports_merge_error_not_successful_checkout_stderr, test_executor_keeps_genuine_epic_compare_and_swap_race_retryable, test_backoff_skips_poisoned_row_and_advances_independent_epic, test_claim_attempt_budget_bounds_repeated_failures
 - files_changed: oompah/integration_executor.py, oompah/integration_queue.py, oompah/orchestrator.py, oompah/projects.py, oompah/server.py, oompah/config.py, oompah/templates/dashboard.html, tests/test_integration_executor.py, tests/test_integration_queue.py, tests/test_worker_submission.py, tests/test_parallel_epic_children.py, tests/test_makefile_restart_wait.py
+---
+author: oompah
+created: 2026-08-03 14:18
+---
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 100, Tool calls: 63
+- Tokens: 3 in / 263 out [266 total]
+- Cost: $0.0000
+- Exit: normal, Duration: 11m 27s
+- Log: OOMPAH-717__20260803T140643Z.jsonl
 ---
 <!-- COMMENTS:END -->
