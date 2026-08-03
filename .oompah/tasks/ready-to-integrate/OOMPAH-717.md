@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-717
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Prevent generated hook collisions from hot-looping and starving epic integration
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T13:00:53.157839Z'
-updated_at: '2026-08-03T13:29:55.777589Z'
+updated_at: '2026-08-03T13:30:08.459898Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -93,6 +93,14 @@ oompah.work_contributors:
     source_branch: OOMPAH-717
     source_sha: b97187abdd50d76deda75be427f26049fd396cb6
     completed_at: '2026-08-03T13:01:42.112362+00:00'
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-717
+  head_sha: 76526b08a14ad5a43ed137c2bc844594e3a1f733
+  submitted_at: '2026-08-03T13:29:54.561971+00:00'
+  updated_at: '2026-08-03T13:29:54.561971+00:00'
 ---
 ## Summary
 
@@ -181,5 +189,20 @@ author: oompah
 created: 2026-08-03 13:29
 ---
 Completion: commit 76526b08a14ad5a43ed137c2bc844594e3a1f733 is pushed on origin/OOMPAH-717. Generated helpers are rejected with a safe git-rm repair path, integration failures retain the real failing stderr, CAS retries are bounded/backed off and fair, and diagnostics are visible in queue health/dashboard output. Focused suites and the 15,097-test parallel gate passed; branch is clean and up to date.
+---
+author: oompah
+created: 2026-08-03 13:30
+---
+Bound generated-helper integration failures with safe rejection, accurate error diagnostics, durable capped backoff, and fair queue progress; added regression coverage and dashboard health details.
+---
+author: oompah
+created: 2026-08-03 13:30
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/gpt-5.6-luna]
+- Turns: 0, Tool calls: 135
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 28m 13s
+- Log: OOMPAH-717__20260803T130159Z.jsonl
 ---
 <!-- COMMENTS:END -->
