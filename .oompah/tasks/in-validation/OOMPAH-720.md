@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T14:07:40.475708Z'
-updated_at: '2026-08-03T14:57:34.733262Z'
+updated_at: '2026-08-03T14:58:29.933314Z'
 work_branch: OOMPAH-720
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/679
@@ -69,13 +69,17 @@ oompah.duplicate_screening:
   owner_resolution_reason: ''
 oompah.agent_run_id: null
 oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 1729
+  total_input_tokens: 50
+  total_output_tokens: 10440
   total_cost_usd: 0.0
   by_model:
     haiku:
       input_tokens: 10
       output_tokens: 1729
+      cost_usd: 0.0
+    unknown:
+      input_tokens: 40
+      output_tokens: 8711
       cost_usd: 0.0
   runs:
   - profile: default
@@ -84,6 +88,12 @@ oompah.task_costs:
     output_tokens: 1729
     cost_usd: 0.0
     recorded_at: '2026-08-03T14:09:14.017986+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 40
+    output_tokens: 8711
+    cost_usd: 0.0
+    recorded_at: '2026-08-03T14:58:27.633319+00:00'
 oompah.work_contributors:
   runs:
   - run_id: OOMPAH-720__20260803T140813Z
@@ -349,5 +359,15 @@ Safe evidence:
 - regression_lifecycle_test: test_evidence_fingerprint_ignores_audit_lifecycle_and_snapshot_metadata
 - regression_stale_change_test: test_genuinely_changed_integration_sha_still_fails_closed
 - regression_api_stage_test: test_terminal_stage_refreshes_issue_inside_task_ownership_lock
+---
+author: oompah
+created: 2026-08-03 14:58
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/opus]
+- Turns: 45, Tool calls: 34
+- Tokens: 40 in / 8.7K out [8.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 13m 13s
+- Log: OOMPAH-720__20260803T144521Z.jsonl
 ---
 <!-- COMMENTS:END -->
