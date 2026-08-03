@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-595
 type: feature
-status: Merged
+status: Done
 priority: 1
 title: Expose separate operator and worker task-auth health signals
 parent: OOMPAH-586
@@ -13,7 +13,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T14:14:56.897824Z'
-updated_at: '2026-08-02T18:25:21.204267Z'
+updated_at: '2026-08-03T20:03:26.073584Z'
 work_branch: epic-OOMPAH-586--task-OOMPAH-595
 target_branch: null
 review_url: null
