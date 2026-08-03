@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T20:06:54.610285Z'
-updated_at: '2026-08-03T20:18:53.846755Z'
+updated_at: '2026-08-03T20:19:32.871896Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -140,5 +140,10 @@ author: oompah
 created: 2026-08-03 20:18
 ---
 Understanding: terminal lifecycle reconciliation currently runs synchronously during resume/startup and can starve the HTTP loop. I will trace reconciliation, orchestrator scheduling, health/state reporting, and canonical cutover resolution; move only the bulk work to bounded durable background batches, preserve fencing/audit/error isolation, add regression tests, verify focused suites, then commit/push/submit.
+---
+author: oompah
+created: 2026-08-03 20:19
+---
+Discovery: TerminalAuditEnforcement.initialize() performs the full tracker scan/recovery/persist synchronously in _run_terminal_audit_enforcement, while merged-label maintenance also contains independent shared-epic child reconciliation. The server already exposes cached state and build identity; I’m tracing startup/resume ordering and cutover resolution to isolate the blocking path and preserve existing fencing/audit semantics.
 ---
 <!-- COMMENTS:END -->
