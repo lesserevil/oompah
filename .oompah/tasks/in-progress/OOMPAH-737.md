@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-737
 type: task
-status: Open
+status: In Progress
 priority: null
 title: Keep health and graceful cutover responsive during terminal lifecycle reconciliation
 parent: null
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T20:06:54.610285Z'
-updated_at: '2026-08-03T20:15:28.585859Z'
+updated_at: '2026-08-03T20:17:52.607311Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -66,7 +66,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: f6239072-d3a5-45f8-b015-9977bf4238b0
+oompah.agent_run_id: 7324c3a8-ca80-43f8-811d-1bd7f1009b6b
 oompah.task_costs:
   total_input_tokens: 10
   total_output_tokens: 1961
