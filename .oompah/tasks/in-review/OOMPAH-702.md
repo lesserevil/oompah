@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-702
 type: bug
-status: Ready to Integrate
+status: In Review
 priority: 0
 title: Synchronize merged-webhook tests with background terminal staging
 parent: null
@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T20:34:49.621752Z'
-updated_at: '2026-08-03T01:12:12.180836Z'
+updated_at: '2026-08-03T01:12:16.436196Z'
 work_branch: null
 target_branch: null
 review_url: https://github.com/lesserevil/oompah/pull/670
