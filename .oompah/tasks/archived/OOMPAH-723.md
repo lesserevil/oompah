@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-723
 type: task
-status: In Progress
+status: Archived
 priority: null
 title: Isolate maintenance-lane nonblocking test from awaited tracker I/O
 parent: null
@@ -12,7 +12,7 @@ start_blocked_by: &id001
 labels: []
 assignee: null
 created_at: '2026-08-03T15:20:07.046080Z'
-updated_at: '2026-08-03T16:14:57.066264Z'
+updated_at: '2026-08-03T16:21:07.120394Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -118,6 +118,28 @@ oompah.work_contributors:
     source_branch: OOMPAH-723
     source_sha: d510748342777dd4748070d83391ffb0eae40091
     completed_at: '2026-08-03T16:03:59.633227+00:00'
+oompah.terminal_audit:
+  oompah.terminal_override_records:
+  - version: 1
+    override_id: override-6999c6d226aa
+    project_id: proj-14849f1b
+    task_id: OOMPAH-723
+    target_state: Archived
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 5078f7e9c728bf6fc9f1895d467a1068d49d8d5bac16244519d0638cc895e1ca
+    authorized_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    reason: Resolved in merged OOMPAH-722 commit 3eb3235e1; current worker was duplicate
+      verification of code already on origin/main.
+    created_at: '2026-08-03T16:21:01.118379+00:00'
+    applied: false
+  version: 1
+  pending_chain: []
+  attempt_history: []
 ---
 ## Summary
 
@@ -190,5 +212,17 @@ author: oompah
 created: 2026-08-03 16:14
 ---
 Understanding: I will inspect the maintenance-lane tests and branch history, compare them with the OOMPAH-722 isolation commit, audit neighboring tests for the same awaited tracker-I/O gap, then apply only the deterministic test-stub repair and verify focused, module, parallel-runner, and exact-head checks.
+---
+author: oompah
+created: 2026-08-03 16:21
+---
+Owner reconciliation: the full requested repair is already present at OOMPAH-722 commit 3eb3235e1aab6d17ac17b3cfc655531f8b14b5a2, which passed the exact-head full gate and is an ancestor of current origin/main (PR #682). The newly dispatched Test Engineer only re-ran the same focused and module tests against that landed code and has no distinct implementation to contribute. Archiving this causal record now to fence duplicate work.
+---
+author: oompah
+created: 2026-08-03 16:21
+---
+Override by oompah-cli: terminal transition to Archived applied by project owner.
+
+Reason: Resolved in merged OOMPAH-722 commit 3eb3235e1; current worker was duplicate verification of code already on origin/main.
 ---
 <!-- COMMENTS:END -->
