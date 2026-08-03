@@ -14,7 +14,7 @@ labels:
 - ci-fix
 assignee: null
 created_at: '2026-08-03T19:06:11.095695Z'
-updated_at: '2026-08-03T21:08:51.052481Z'
+updated_at: '2026-08-03T21:09:40.777615Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -537,5 +537,10 @@ author: oompah
 created: 2026-08-03 21:08
 ---
 Understanding: Resuming the existing OOMPAH-734 review branch solely to repair the full-gate failure in tests/test_terminal_override.py::test_comment_failure_precedes_status_write. I will verify the branch and failure evidence, reconcile the test with the intended status-before-comment contract, make the minimal correction, run focused tests, then commit, push, and resubmit the same branch.
+---
+author: oompah
+created: 2026-08-03 21:09
+---
+Discovery: The branch is clean at pushed head 7c8bcabca and no GitHub PR exists yet because the internal make test gate blocked review creation; the supplied gate log is therefore the authoritative failure evidence. The coordinator intentionally applies owner-override status before posting its explanatory comment, but tests/test_terminal_override.py::test_comment_failure_precedes_status_write still asserts the obsolete comment-first contract. The minimal CI repair is to update that test to require the terminal status write to survive a later comment failure while retaining the durable recovery record.
 ---
 <!-- COMMENTS:END -->
