@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-604
 type: bug
-status: Merged
+status: Done
 priority: 1
 title: Allow owner overrides after terminal-audit evidence supersession
 parent: OOMPAH-585
@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-07-30T17:07:44.032640Z'
-updated_at: '2026-08-02T18:27:01.603790Z'
+updated_at: '2026-08-03T20:03:55.326343Z'
 work_branch: epic-OOMPAH-585--task-OOMPAH-604
 target_branch: null
 review_url: null
