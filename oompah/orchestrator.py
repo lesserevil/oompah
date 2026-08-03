@@ -32747,11 +32747,9 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         """Return a snapshot of the current orchestrator state for the API."""
         now = datetime.now(timezone.utc)
         live_audit_keys: set[tuple[str, str, str]] = set()
-        auditor_tracking_available = False
         for entry in self.state.running.values():
             if not hasattr(entry, "is_auditor"):
                 continue
-            auditor_tracking_available = True
             if not getattr(entry, "is_auditor", False) or not getattr(entry, "audit_id", None):
                 continue
             issue = getattr(entry, "issue", None)
@@ -32765,8 +32763,11 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     *key,
                     attempts=int(getattr(entry, "attempt", 0) or 0),
                 )
-        if auditor_tracking_available:
-            self._terminal_audit_metrics.discard_missing_running(live_audit_keys)
+        # An empty running map is positive evidence that no provider owns a
+        # running audit.  The previous compatibility guard skipped this
+        # reconciliation when the last auditor exited, leaving the persisted
+        # gauge at running=1 while agents and health both reported zero.
+        self._terminal_audit_metrics.discard_missing_running(live_audit_keys)
 
         # Coordinator callbacks can arrive between maintenance scans (for
         # example a no-candidate result submitted by an auditor).  Refresh the

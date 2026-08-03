@@ -126,6 +126,14 @@ _PRODUCTIVE_TOOLS = {"write_file", "edit_file", "run_command"}
 _DEFAULT_RUN_COMMAND_TIMEOUT_SECONDS = 720
 _RUN_COMMAND_TIMEOUT_ENV = "OOMPAH_AGENT_COMMAND_TIMEOUT_SECONDS"
 
+# Keep tool results below provider-side spill thresholds.  In particular, the
+# Claude transport persists oversized MCP results under its own private state
+# directory and tells the model to read that path.  A strict read-only auditor
+# cannot (and must not) cross that authority boundary.  Chunk at Oompah's tool
+# boundary instead so every continuation remains an approved workspace read.
+_READ_FILE_DEFAULT_CHARS = 32_000
+_TOOL_RESULT_MAX_CHARS = 64_000
+
 
 def _resolve_run_command_timeout(raw: str | None = None) -> int:
     value = os.environ.get(_RUN_COMMAND_TIMEOUT_ENV) if raw is None else raw
@@ -156,7 +164,18 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
                     "path": {
                         "type": "string",
                         "description": "File path relative to workspace root.",
-                    }
+                    },
+                    "offset": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "description": "Optional zero-based character offset for chunked reads.",
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": _TOOL_RESULT_MAX_CHARS,
+                        "description": "Optional maximum characters to return. Defaults to 32000.",
+                    },
                 },
                 "required": ["path"],
             },
@@ -388,9 +407,41 @@ def _exec_read_file(workspace: Path, args: dict[str, Any]) -> str:
     if not path.is_file():
         return f"Error: file not found: {args['path']}"
     try:
-        return path.read_text(encoding="utf-8", errors="replace")
+        content = path.read_text(encoding="utf-8", errors="replace")
     except Exception as exc:
         return f"Error reading file: {exc}"
+
+    offset = args.get("offset", 0)
+    limit = args.get("limit", _READ_FILE_DEFAULT_CHARS)
+    if isinstance(offset, bool) or not isinstance(offset, int) or offset < 0:
+        return "Error: offset must be a non-negative integer"
+    if isinstance(limit, bool) or not isinstance(limit, int) or limit < 1:
+        return "Error: limit must be a positive integer"
+    # Fail safe even when a backend or model bypasses the advertised schema.
+    limit = min(limit, _TOOL_RESULT_MAX_CHARS)
+    total = len(content)
+    if offset > total:
+        return f"Error: offset {offset} is past end of file ({total} characters)"
+
+    end = min(total, offset + limit)
+    chunk = content[offset:end]
+    if offset == 0 and end == total:
+        # Preserve the established exact-result behavior for ordinary files.
+        return chunk
+
+    header = (
+        f"[oompah read_file: {args['path']} characters {offset}:{end} "
+        f"of {total}]\n"
+    )
+    if end < total:
+        trailer = (
+            "\n[truncated by Oompah before provider transport; continue only "
+            "through the approved tool with "
+            f"read_file(path={args['path']!r}, offset={end}, limit={limit})]"
+        )
+    else:
+        trailer = "\n[end of file]"
+    return f"{header}{chunk}{trailer}"
 
 
 def _exec_write_file(workspace: Path, args: dict[str, Any]) -> str:
@@ -488,7 +539,14 @@ def _exec_search_files(workspace: Path, args: dict[str, Any]) -> str:
         if len(rel_lines) > 100:
             rel_lines = rel_lines[:100]
             rel_lines.append(f"... ({len(lines) - 100} more matches)")
-        return "\n".join(rel_lines)
+        bounded = "\n".join(rel_lines)
+        if len(bounded) > _TOOL_RESULT_MAX_CHARS:
+            bounded = bounded[:_TOOL_RESULT_MAX_CHARS]
+            bounded += (
+                "\n... (search output truncated by Oompah before provider "
+                "transport; narrow pattern/path to continue)"
+            )
+        return bounded
     except subprocess.TimeoutExpired:
         return "Error: search timed out"
     except Exception as exc:
