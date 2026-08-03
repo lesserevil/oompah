@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T16:23:52.854950Z'
-updated_at: '2026-08-03T18:07:22.068770Z'
+updated_at: '2026-08-03T18:38:42.365459Z'
 work_branch: OOMPAH-729
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/686
@@ -98,6 +98,31 @@ oompah.work_branch: OOMPAH-729
 oompah.target_branch: main
 oompah.terminal_audit:
   queued_comment_posted: true
+  applied_result_attempts:
+    attempt-165d83e2ba60: '2026-08-03T18:38:33.293689+00:00'
+  oompah.terminal_audit_retirements:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-729
+    target_state: Done
+    evidence_fingerprint: 8a7b2ea3578997cdde5a62654f017363bc192ca3c92f1f5bb29d02aabcb6cc0f
+    audit_ids:
+    - audit-c51d190f93ac
+    kind: result
+    applied: true
+    retired_at: '2026-08-03T18:38:33.293702+00:00'
+  oompah.terminal_audit_result_intents:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-729
+    audit_id: audit-c51d190f93ac
+    attempt_id: attempt-165d83e2ba60
+    target_state: Done
+    evidence_fingerprint: 8a7b2ea3578997cdde5a62654f017363bc192ca3c92f1f5bb29d02aabcb6cc0f
+    status: In Validation
+    audit_ids:
+    - audit-c51d190f93ac
+    applied: true
+    created_at: '2026-08-03T18:38:33.293721+00:00'
+    applied_at: '2026-08-03T18:38:40.269322+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -105,7 +130,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-729
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -114,7 +139,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-165d83e2ba60
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -124,13 +149,16 @@ oompah.terminal_audit:
       model: opus
       started_at: '2026-08-03T18:07:05.156941+00:00'
       branch_key: OOMPAH-729
+      verdict: pass
+      completed_at: '2026-08-03T18:38:33.293470+00:00'
+      ended_at: '2026-08-03T18:38:33.293470+00:00'
     requested_by:
       version: 1
       identity: NVShawn
       source: forge
     previous_state: In Review
     created_at: '2026-08-03T18:05:26.259667+00:00'
-    updated_at: '2026-08-03T18:07:05.156941+00:00'
+    updated_at: '2026-08-03T18:38:33.293470+00:00'
   - version: 1
     audit_id: audit-a3a0625726f5
     project_id: proj-14849f1b
@@ -293,5 +321,24 @@ author: oompah
 created: 2026-08-03 18:07
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-03 18:38
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- task_head: e4b2865eaff689389c35305372785511457b9cd9
+- merge_commit: a7fc6676c44d6c88cf9a955002d51454929a2b20
+- pr_number: 686
+- focused_terminal_tests: 736 passed, 1 xfailed
+- orchestrator_integration_tests: 487 passed
+- coordinator_contract: retry_failed_audit(evidence_addendum) requires owner + current fingerprint + MISSING_EVIDENCE-only + successful named checks; supersedes single failed record; coalesces; ledger redacted
+- sweep_alert: _arm_integrated_audit_recovery_alert emits one idempotent terminal_audit_recovery:{project}:{task} alert with `audit_retry_evidence_addendum` instruction; cleared on successful re-stage
+- canonical_fingerprint: compute_issue_evidence_fingerprint uses integrated_sha when integration.state == 'integrated'
+- api_and_cli: PATCH /issues/{id} audit_retry_evidence_addendum; oompah task set-status --audit-retry-evidence-addendum JSON flag with validation
+- docs: docs/auditor-dispatch-operations.md documents the Missing Evidence Supplied After Integration recovery flow
 ---
 <!-- COMMENTS:END -->
