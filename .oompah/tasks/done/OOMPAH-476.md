@@ -13,7 +13,7 @@ blocked_by:
 labels: []
 assignee: null
 created_at: '2026-07-28T13:07:24.379848Z'
-updated_at: '2026-08-03T20:01:50.349098Z'
+updated_at: '2026-08-03T20:01:54.350887Z'
 work_branch: epic-OOMPAH-459--task-OOMPAH-476
 target_branch: null
 review_url: null
@@ -182,6 +182,21 @@ oompah.terminal_audit:
   queued_comment_posted: true
   applied_result_attempts:
     attempt-292951765b32: '2026-07-30T00:54:15.380009+00:00'
+  oompah.terminal_override_records: []
+  oompah.terminal_audit_retirements: []
+  oompah.terminal_audit_result_intents: []
+  oompah.lifecycle_reconciliations:
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-476
+    from: Merged
+    to: Done
+    reason: shared_epic_parent_not_landed
+    conflict: 'Cannot transition shared-epic child OOMPAH-476 to Merged: parent epic
+      OOMPAH-459 could not be verified. The parent review must land on its configured
+      target branch first.'
+    done_audit_ids:
+    - audit-71bc7ec3178a
+    created_at: '2026-08-03T20:01:51.981755+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -1023,5 +1038,10 @@ Run #2 [attempt=2, profile=auditor, role=auditor -> Claude/opus]
 - Cost: $0.0000
 - Exit: terminated, Duration: 42m 30s
 - Log: OOMPAH-476__20260730T001439Z.jsonl
+---
+author: oompah
+created: 2026-08-03 20:01
+---
+Lifecycle reconciliation restored OOMPAH-476 to audited Done: Cannot transition shared-epic child OOMPAH-476 to Merged: parent epic OOMPAH-459 could not be verified. The parent review must land on its configured target branch first.
 ---
 <!-- COMMENTS:END -->
