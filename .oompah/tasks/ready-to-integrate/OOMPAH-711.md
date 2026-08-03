@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-711
 type: bug
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Fence owner duplicate resolution from superseded preflight exit
 parent: null
@@ -13,7 +13,7 @@ labels:
 - human-only
 assignee: null
 created_at: '2026-08-02T23:59:03.600915Z'
-updated_at: '2026-08-03T00:37:07.785127Z'
+updated_at: '2026-08-03T00:37:26.035364Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -56,7 +56,7 @@ oompah.duplicate_screening:
   owner_resolved_at: null
   owner_login: null
   owner_resolution_reason: ''
-oompah.agent_run_id: fda8afd8-3c4f-4aa5-9649-7dd729875339
+oompah.agent_run_id: null
 oompah.task_costs:
   total_input_tokens: 224251
   total_output_tokens: 2986
@@ -98,6 +98,14 @@ oompah.work_contributors:
     source_sha: 93513d742b8abd45b6df2abf3683666787e24a42
     completed_at: '2026-08-03T00:07:31.538915+00:00'
 oompah.start_blocked_by: *id001
+oompah.integration:
+  version: 2
+  state: ready
+  attempts: 0
+  task_branch: OOMPAH-711
+  head_sha: 90cd974651638b3a85b08e1cbd674bb0aaf3cf45
+  submitted_at: '2026-08-03T00:37:20.337162+00:00'
+  updated_at: '2026-08-03T00:37:20.337162+00:00'
 ---
 ## Summary
 
@@ -208,5 +216,15 @@ author: oompah
 created: 2026-08-03 00:11
 ---
 Root-cause correction from a second live reproduction: the stale duplicate claim itself is fenced correctly by claim_id. The actual authority gap is that owner no_duplicate resolution writes Open and wakes dispatch before a direct-owner lease/human-only fence exists. OOMPAH-711 immediately dispatched an ordinary Maintenance Engineer in that gap; an ordinary worker exit, not a duplicate-investigator exit, can then write Done. Fix scope is an atomic owner takeover built on OOMPAH-707 durable owner claims: block dispatch, revoke/terminate the visible scheduler generation, grant the owner lease, and transition In Progress without an Open dispatch window.
+---
+author: oompah
+created: 2026-08-03 00:37
+---
+Direct owner implementation complete at clean rebased head 90cd974651638b3a85b08e1cbd674bb0aaf3cf45. The owner-claim API now fences fresh dispatch, withdraws retry authority, waits through claim-to-RunningEntry races, visibly retires the exact scheduler runtime, refuses a second owner while provider cleanup survives, grants the durable lease without an Open window, and removes only its own temporary human-only fence. Stale preselected dispatches recheck the owner lease. Focused ownership/duplicate/retirement suite: 73 passed; make check-secrets passed.
+---
+author: oompah
+created: 2026-08-03 00:37
+---
+Made direct-owner takeover atomic across dispatch selection, retry withdrawal, provider retirement, durable leasing, and temporary dispatch-fence cleanup.
 ---
 <!-- COMMENTS:END -->
