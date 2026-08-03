@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-03T18:23:48.756544Z'
-updated_at: '2026-08-03T18:55:45.216019Z'
+updated_at: '2026-08-03T19:01:32.120777Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -161,5 +161,16 @@ author: oompah
 created: 2026-08-03 18:55
 ---
 Verification: directly affected integration-queue, conflict-repair, restart API, and event-loop recovery suites also pass: 87 passed in 32.42s. The only unavailable check is the Makefile gate setup, which is blocked by the environment's astral-uv/DBus transient-scope failure before pytest starts.
+---
+author: oompah
+created: 2026-08-03 19:01
+---
+Verification complete: final affected-suite run passed 417 tests in 211.62s, covering epic strategy/rebase state, parallel epic queue repair, YOLO conflict handling, integration queue, conflict repair, restart API, and event-loop recovery. make[1]: Entering directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-733'
+make[1]: Leaving directory '/home/shedwards/.oompah/worktrees/oompah/OOMPAH-733' remains environment-blocked during uv setup by the DBus transient-scope error documented above.
+---
+author: oompah
+created: 2026-08-03 19:01
+---
+Implementation update: added a final pre-worker target fence. Epic rebase helpers now re-resolve their parent target during dispatch and workspace creation, persist refreshed target metadata, and are rejected/superseded before mutation when hierarchy is unavailable or the recorded target is stale. Restart/state/dashboard and prompt/workflow target evidence are covered.
 ---
 <!-- COMMENTS:END -->
